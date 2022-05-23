@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { illegalArgument } from 'vs/base/common/errors';
-import { AriaLabelProvider, ElectronAcceleratorLabelProvider, Modifiers, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
-import { KeybindingModifier, ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
+import { AriaLabelProvider, ElectronAcceleratorLabelProvider, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { IBaseKeybinding, KeybindingModifier, ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 
-export abstract class BaseResolvedKeybinding<T extends Modifiers> extends ResolvedKeybinding {
+export abstract class BaseResolvedKeybinding<T extends IBaseKeybinding> extends ResolvedKeybinding {
 
 	protected readonly _os: OperatingSystem;
 	protected readonly _parts: T[];
@@ -32,7 +32,12 @@ export abstract class BaseResolvedKeybinding<T extends Modifiers> extends Resolv
 
 	public getElectronAccelerator(): string | null {
 		if (this._parts.length > 1) {
-			// Electron cannot handle chords
+			// [Electron Accelerators] Electron cannot handle chords
+			return null;
+		}
+		if (this._parts[0].isDuplicateModifierCase()) {
+			// [Electron Accelerators] Electron cannot handle modifier only keybindings
+			// e.g. "shift shift"
 			return null;
 		}
 		return ElectronAcceleratorLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getElectronAccelerator(keybinding));

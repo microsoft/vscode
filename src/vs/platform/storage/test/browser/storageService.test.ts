@@ -8,6 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { Storage } from 'vs/base/parts/storage/common/storage';
 import { flakySuite } from 'vs/base/test/common/testUtils';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -22,7 +23,7 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	const fileService = disposables.add(new FileService(logService));
 
 	const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
-	disposables.add(fileService.registerProvider(Schemas.userData, userDataProvider));
+	disposables.add(fileService.registerProvider(Schemas.vscodeUserData, userDataProvider));
 
 	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService));
 
@@ -66,20 +67,22 @@ flakySuite('StorageService (browser specific)', () => {
 		disposables.clear();
 	});
 
-	test('clear', async () => {
-		storageService.store('bar', 'foo', StorageScope.GLOBAL, StorageTarget.MACHINE);
-		storageService.store('bar', 3, StorageScope.GLOBAL, StorageTarget.USER);
-		storageService.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		storageService.store('bar', 3, StorageScope.WORKSPACE, StorageTarget.USER);
+	test('clear', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			storageService.store('bar', 'foo', StorageScope.GLOBAL, StorageTarget.MACHINE);
+			storageService.store('bar', 3, StorageScope.GLOBAL, StorageTarget.USER);
+			storageService.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			storageService.store('bar', 3, StorageScope.WORKSPACE, StorageTarget.USER);
 
-		await storageService.clear();
+			await storageService.clear();
 
-		for (const scope of [StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
-			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
-				strictEqual(storageService.get('bar', scope), undefined);
-				strictEqual(storageService.keys(scope, target).length, 0);
+			for (const scope of [StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
+				for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
+					strictEqual(storageService.get('bar', scope), undefined);
+					strictEqual(storageService.keys(scope, target).length, 0);
+				}
 			}
-		}
+		});
 	});
 });
 

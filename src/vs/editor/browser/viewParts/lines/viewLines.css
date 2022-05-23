@@ -14,12 +14,23 @@
 	100% { background-color: none }
 }*/
 
+.mtkcontrol {
+	color: rgb(255, 255, 255) !important;
+	background: rgb(150, 0, 0) !important;
+}
+
 .monaco-editor.no-user-select .lines-content,
 .monaco-editor.no-user-select .view-line,
 .monaco-editor.no-user-select .view-lines {
 	user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;
+}
+
+.monaco-editor.enable-user-select {
+	user-select: initial;
+	-webkit-user-select: initial;
+	-ms-user-select: initial;
 }
 
 .monaco-editor .view-lines {

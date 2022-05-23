@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
+import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { globals } from 'vs/base/common/platform';
-import { FormattingConflicts } from 'vs/editor/contrib/format/format';
+import { FormattingConflicts } from 'vs/editor/contrib/format/browser/format';
 
 // Set defaults for standalone editor
 EditorOptions.wrappingIndent.defaultValue = WrappingIndent.None;

@@ -89,15 +89,24 @@
 	align-items: center;
 }
 
-.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty),
 .extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {
 	font-size: 80%;
 	margin: 0 6px;
 }
 
+.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty) {
+	font-size: 80%;
+	margin-left: 2px;
+}
+
+.extension-list-item > .details > .header-container > .header > .activation-status .activationTime,
+.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty) .codicon {
+	margin-right: 2px;
+}
+
 .extension-list-item > .details > .header-container > .header .codicon {
 	font-size: 120%;
-	margin-right: 2px;
+	margin-right: 3px;
 	-webkit-mask: inherit;
 }
 
@@ -132,7 +141,6 @@
 
 .extension-list-item > .details > .header-container > .header .sync-ignored {
 	display: flex;
-	margin-left: 6px;
 }
 
 .extension-list-item > .details > .header-container > .header .sync-ignored > .codicon {
@@ -141,6 +149,12 @@
 
 .extension-list-item > .details > .description {
 	padding-right: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.hc-black .extension-list-item > .details > .description,
+.hc-light .extension-list-item > .details > .description {
+	color: unset;
 }
 
 .extension-list-item > .details > .footer {
@@ -153,8 +167,17 @@
 
 .extension-list-item > .details > .footer > .author {
 	flex: 1;
+	display: flex;
+	align-items: center;
+}
+
+.extension-list-item > .details > .footer > .author > .publisher-name {
 	font-size: 90%;
 	font-weight: 600;
+}
+
+.extension-list-item > .details > .footer > .author > .publisher-name:not(:first-child) {
+	padding-left: 1px;
 }
 
 .extension-list-item .ellipsis {
@@ -173,6 +196,7 @@
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
 	max-width: 150px;
+	line-height: 16px;
 }
 
 .extension-list-item .footer .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
@@ -187,7 +211,8 @@
 	padding: 1px 2px;
 }
 
-.hc-black .extension-list-item .monaco-action-bar .action-label.icon {
+.hc-black .extension-list-item .monaco-action-bar .action-label.icon,
+.hc-light .extension-list-item .monaco-action-bar .action-label.icon {
 	padding: 0px 2px;
 }
 

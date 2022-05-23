@@ -204,9 +204,11 @@ function readCurrentState(): State {
 }
 
 async function clearJsDebugAttachState(context: vscode.ExtensionContext) {
-	await context.workspaceState.update(STORAGE_IPC, undefined);
-	await vscode.commands.executeCommand('extension.js-debug.clearAutoAttachVariables');
-	await destroyAttachServer();
+	if (server || await context.workspaceState.get(STORAGE_IPC)) {
+		await context.workspaceState.update(STORAGE_IPC, undefined);
+		await vscode.commands.executeCommand('extension.js-debug.clearAutoAttachVariables');
+		await destroyAttachServer();
+	}
 }
 
 /**

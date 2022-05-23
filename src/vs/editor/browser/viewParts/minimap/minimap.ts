@@ -6,7 +6,7 @@
 import 'vs/css!./minimap';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
+import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { CharCode } from 'vs/base/common/charCode';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -16,15 +16,17 @@ import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/v
 import { RenderMinimap, EditorOption, MINIMAP_GUTTER_WIDTH, EditorLayoutInfoComputer } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
-import { ColorId } from 'vs/editor/common/modes';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
+import { ColorId } from 'vs/editor/common/languages';
 import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
 import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext, EditorTheme } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewLineData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { EditorTheme } from 'vs/editor/common/editorTheme';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { ViewLineData, ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { minimapSelection, scrollbarShadow, minimapBackground, minimapSliderBackground, minimapSliderHoverBackground, minimapSliderActiveBackground, minimapForegroundOpacity } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
@@ -38,7 +40,7 @@ import { once } from 'vs/base/common/functional';
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
  */
-const MOUSE_DRAG_RESET_DISTANCE = 140;
+const POINTER_DRAG_RESET_DISTANCE = 140;
 
 const GUTTER_DECORATION_WIDTH = 2;
 
@@ -105,7 +107,7 @@ class MinimapOptions {
 	 */
 	public readonly foregroundAlpha: number;
 
-	constructor(configuration: IConfiguration, theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker) {
+	constructor(configuration: IEditorConfiguration, theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker) {
 		const options = configuration.options;
 		const pixelRatio = options.get(EditorOption.pixelRatio);
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -425,7 +427,7 @@ class RenderData {
 			&& this.renderedLayout.endLineNumber === layout.endLineNumber;
 	}
 
-	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[]; } {
+	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[] } {
 		const tmp = this._renderedLines._get();
 		return {
 			imageData: this._imageData,
@@ -434,8 +436,8 @@ class RenderData {
 		};
 	}
 
-	public onLinesChanged(changeFromLineNumber: number, changeToLineNumber: number): boolean {
-		return this._renderedLines.onLinesChanged(changeFromLineNumber, changeToLineNumber);
+	public onLinesChanged(changeFromLineNumber: number, changeCount: number): boolean {
+		return this._renderedLines.onLinesChanged(changeFromLineNumber, changeCount);
 	}
 	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): void {
 		this._renderedLines.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
@@ -443,7 +445,7 @@ class RenderData {
 	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): void {
 		this._renderedLines.onLinesInserted(insertFromLineNumber, insertToLineNumber);
 	}
-	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
+	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number }[]): boolean {
 		return this._renderedLines.onTokensChanged(ranges);
 	}
 }
@@ -578,7 +580,7 @@ class MinimapSamplingState {
 		const halfRatio = ratio / 2;
 
 		if (!oldSamplingState || oldSamplingState.minimapLines.length === 0) {
-			let result: number[] = [];
+			const result: number[] = [];
 			result[0] = 1;
 			if (minimapLineCount > 1) {
 				for (let i = 0, lastIndex = minimapLineCount - 1; i < lastIndex; i++) {
@@ -591,7 +593,7 @@ class MinimapSamplingState {
 
 		const oldMinimapLines = oldSamplingState.minimapLines;
 		const oldLength = oldMinimapLines.length;
-		let result: number[] = [];
+		const result: number[] = [];
 		let oldIndex = 0;
 		let oldDeltaLineCount = 0;
 		let minViewLineNumber = 1;
@@ -771,7 +773,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		this._minimapSelections = null;
 
 		this.options = new MinimapOptions(this._context.configuration, this._context.theme, this.tokensColorTracker);
-		const [samplingState,] = MinimapSamplingState.compute(this.options, this._context.model.getLineCount(), null);
+		const [samplingState,] = MinimapSamplingState.compute(this.options, this._context.viewModel.getLineCount(), null);
 		this._samplingState = samplingState;
 		this._shouldCheckSampling = false;
 
@@ -822,21 +824,21 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		if (this._samplingState) {
-			const minimapLineRange = this._samplingState.modelLineRangeToMinimapLineRange(e.fromLineNumber, e.toLineNumber);
+			const minimapLineRange = this._samplingState.modelLineRangeToMinimapLineRange(e.fromLineNumber, e.fromLineNumber + e.count - 1);
 			if (minimapLineRange) {
-				return this._actual.onLinesChanged(minimapLineRange[0], minimapLineRange[1]);
+				return this._actual.onLinesChanged(minimapLineRange[0], minimapLineRange[1] - minimapLineRange[0] + 1);
 			} else {
 				return false;
 			}
 		} else {
-			return this._actual.onLinesChanged(e.fromLineNumber, e.toLineNumber);
+			return this._actual.onLinesChanged(e.fromLineNumber, e.count);
 		}
 	}
 	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		if (this._samplingState) {
 			const [changeStartIndex, changeEndIndex] = this._samplingState.onLinesDeleted(e);
 			if (changeStartIndex <= changeEndIndex) {
-				this._actual.onLinesChanged(changeStartIndex + 1, changeEndIndex + 1);
+				this._actual.onLinesChanged(changeStartIndex + 1, changeEndIndex - changeStartIndex + 1);
 			}
 			this._shouldCheckSampling = true;
 			return true;
@@ -857,14 +859,13 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		return this._actual.onScrollChanged();
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		this._context.model.invalidateMinimapColorCache();
 		this._actual.onThemeChanged();
 		this._onOptionsMaybeChanged();
 		return true;
 	}
 	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		if (this._samplingState) {
-			let ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
+			const ranges: { fromLineNumber: number; toLineNumber: number }[] = [];
 			for (const range of e.ranges) {
 				const minimapLineRange = this._samplingState.modelLineRangeToMinimapLineRange(range.fromLineNumber, range.toLineNumber);
 				if (minimapLineRange) {
@@ -931,7 +932,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		this._minimapSelections = null;
 
 		const wasSampling = Boolean(this._samplingState);
-		const [samplingState, events] = MinimapSamplingState.compute(this.options, this._context.model.getLineCount(), this._samplingState);
+		const [samplingState, events] = MinimapSamplingState.compute(this.options, this._context.viewModel.getLineCount(), this._samplingState);
 		this._samplingState = samplingState;
 
 		if (wasSampling && this._samplingState) {
@@ -956,40 +957,40 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		if (this._samplingState) {
 			return this._samplingState.minimapLines.length;
 		}
-		return this._context.model.getLineCount();
+		return this._context.viewModel.getLineCount();
 	}
 
 	public getRealLineCount(): number {
-		return this._context.model.getLineCount();
+		return this._context.viewModel.getLineCount();
 	}
 
 	public getLineContent(lineNumber: number): string {
 		if (this._samplingState) {
-			return this._context.model.getLineContent(this._samplingState.minimapLines[lineNumber - 1]);
+			return this._context.viewModel.getLineContent(this._samplingState.minimapLines[lineNumber - 1]);
 		}
-		return this._context.model.getLineContent(lineNumber);
+		return this._context.viewModel.getLineContent(lineNumber);
 	}
 
 	public getLineMaxColumn(lineNumber: number): number {
 		if (this._samplingState) {
-			return this._context.model.getLineMaxColumn(this._samplingState.minimapLines[lineNumber - 1]);
+			return this._context.viewModel.getLineMaxColumn(this._samplingState.minimapLines[lineNumber - 1]);
 		}
-		return this._context.model.getLineMaxColumn(lineNumber);
+		return this._context.viewModel.getLineMaxColumn(lineNumber);
 	}
 
 	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): (ViewLineData | null)[] {
 		if (this._samplingState) {
-			let result: (ViewLineData | null)[] = [];
+			const result: (ViewLineData | null)[] = [];
 			for (let lineIndex = 0, lineCount = endLineNumber - startLineNumber + 1; lineIndex < lineCount; lineIndex++) {
 				if (needed[lineIndex]) {
-					result[lineIndex] = this._context.model.getViewLineData(this._samplingState.minimapLines[startLineNumber + lineIndex - 1]);
+					result[lineIndex] = this._context.viewModel.getViewLineData(this._samplingState.minimapLines[startLineNumber + lineIndex - 1]);
 				} else {
 					result[lineIndex] = null;
 				}
 			}
 			return result;
 		}
-		return this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed).data;
+		return this._context.viewModel.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed).data;
 	}
 
 	public getSelections(): Selection[] {
@@ -1012,14 +1013,14 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		if (this._samplingState) {
 			const modelStartLineNumber = this._samplingState.minimapLines[startLineNumber - 1];
 			const modelEndLineNumber = this._samplingState.minimapLines[endLineNumber - 1];
-			visibleRange = new Range(modelStartLineNumber, 1, modelEndLineNumber, this._context.model.getLineMaxColumn(modelEndLineNumber));
+			visibleRange = new Range(modelStartLineNumber, 1, modelEndLineNumber, this._context.viewModel.getLineMaxColumn(modelEndLineNumber));
 		} else {
-			visibleRange = new Range(startLineNumber, 1, endLineNumber, this._context.model.getLineMaxColumn(endLineNumber));
+			visibleRange = new Range(startLineNumber, 1, endLineNumber, this._context.viewModel.getLineMaxColumn(endLineNumber));
 		}
-		const decorations = this._context.model.getDecorationsInViewport(visibleRange);
+		const decorations = this._context.viewModel.getDecorationsInViewport(visibleRange);
 
 		if (this._samplingState) {
-			let result: ViewModelDecoration[] = [];
+			const result: ViewModelDecoration[] = [];
 			for (const decoration of decorations) {
 				if (!decoration.options.minimap) {
 					continue;
@@ -1035,14 +1036,14 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	public getOptions(): TextModelResolvedOptions {
-		return this._context.model.getTextModelOptions();
+		return this._context.viewModel.model.getOptions();
 	}
 
 	public revealLineNumber(lineNumber: number): void {
 		if (this._samplingState) {
 			lineNumber = this._samplingState.minimapLines[lineNumber - 1];
 		}
-		this._context.model.revealRange(
+		this._context.viewModel.revealRange(
 			'mouse',
 			false,
 			new Range(lineNumber, 1, lineNumber, 1),
@@ -1052,7 +1053,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	public setScrollTop(scrollTop: number): void {
-		this._context.model.setScrollPosition({
+		this._context.viewModel.viewLayout.setScrollPosition({
 			scrollTop: scrollTop
 		}, ScrollType.Immediate);
 	}
@@ -1071,9 +1072,9 @@ class InnerMinimap extends Disposable {
 	private readonly _decorationsCanvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _sliderHorizontal: FastDomNode<HTMLElement>;
-	private readonly _mouseDownListener: IDisposable;
-	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
-	private readonly _sliderMouseDownListener: IDisposable;
+	private readonly _pointerDownListener: IDisposable;
+	private readonly _sliderPointerMoveMonitor: GlobalPointerMoveMonitor;
+	private readonly _sliderPointerDownListener: IDisposable;
 	private readonly _gestureDisposable: IDisposable;
 	private readonly _sliderTouchStartListener: IDisposable;
 	private readonly _sliderTouchMoveListener: IDisposable;
@@ -1134,7 +1135,7 @@ class InnerMinimap extends Disposable {
 
 		this._applyLayout();
 
-		this._mouseDownListener = dom.addStandardDisposableListener(this._domNode.domNode, 'mousedown', (e) => {
+		this._pointerDownListener = dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.POINTER_DOWN, (e) => {
 			e.preventDefault();
 
 			const renderMinimap = this._model.options.renderMinimap;
@@ -1145,16 +1146,16 @@ class InnerMinimap extends Disposable {
 				return;
 			}
 			if (this._model.options.size !== 'proportional') {
-				if (e.leftButton && this._lastRenderData) {
+				if (e.button === 0 && this._lastRenderData) {
 					// pretend the click occurred in the center of the slider
 					const position = dom.getDomNodePagePosition(this._slider.domNode);
 					const initialPosY = position.top + position.height / 2;
-					this._startSliderDragging(e.buttons, e.posx, initialPosY, e.posy, this._lastRenderData.renderedLayout);
+					this._startSliderDragging(e, initialPosY, this._lastRenderData.renderedLayout);
 				}
 				return;
 			}
 			const minimapLineHeight = this._model.options.minimapLineHeight;
-			const internalOffsetY = (this._model.options.canvasInnerHeight / this._model.options.canvasOuterHeight) * e.browserEvent.offsetY;
+			const internalOffsetY = (this._model.options.canvasInnerHeight / this._model.options.canvasOuterHeight) * e.offsetY;
 			const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
 
 			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber;
@@ -1163,13 +1164,13 @@ class InnerMinimap extends Disposable {
 			this._model.revealLineNumber(lineNumber);
 		});
 
-		this._sliderMouseMoveMonitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
+		this._sliderPointerMoveMonitor = new GlobalPointerMoveMonitor();
 
-		this._sliderMouseDownListener = dom.addStandardDisposableListener(this._slider.domNode, 'mousedown', (e) => {
+		this._sliderPointerDownListener = dom.addStandardDisposableListener(this._slider.domNode, dom.EventType.POINTER_DOWN, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			if (e.leftButton && this._lastRenderData) {
-				this._startSliderDragging(e.buttons, e.posx, e.posy, e.posy, this._lastRenderData.renderedLayout);
+			if (e.button === 0 && this._lastRenderData) {
+				this._startSliderDragging(e, e.pageY, this._lastRenderData.renderedLayout);
 			}
 		});
 
@@ -1200,31 +1201,36 @@ class InnerMinimap extends Disposable {
 		});
 	}
 
-	private _startSliderDragging(initialButtons: number, initialPosX: number, initialPosY: number, posy: number, initialSliderState: MinimapLayout): void {
+	private _startSliderDragging(e: PointerEvent, initialPosY: number, initialSliderState: MinimapLayout): void {
+		if (!e.target || !(e.target instanceof Element)) {
+			return;
+		}
+		const initialPosX = e.pageX;
+
 		this._slider.toggleClassName('active', true);
 
-		const handleMouseMove = (posy: number, posx: number) => {
-			const mouseOrthogonalDelta = Math.abs(posx - initialPosX);
+		const handlePointerMove = (posy: number, posx: number) => {
+			const pointerOrthogonalDelta = Math.abs(posx - initialPosX);
 
-			if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
-				// The mouse has wondered away from the scrollbar => reset dragging
+			if (platform.isWindows && pointerOrthogonalDelta > POINTER_DRAG_RESET_DISTANCE) {
+				// The pointer has wondered away from the scrollbar => reset dragging
 				this._model.setScrollTop(initialSliderState.scrollTop);
 				return;
 			}
 
-			const mouseDelta = posy - initialPosY;
-			this._model.setScrollTop(initialSliderState.getDesiredScrollTopFromDelta(mouseDelta));
+			const pointerDelta = posy - initialPosY;
+			this._model.setScrollTop(initialSliderState.getDesiredScrollTopFromDelta(pointerDelta));
 		};
 
-		if (posy !== initialPosY) {
-			handleMouseMove(posy, initialPosX);
+		if (e.pageY !== initialPosY) {
+			handlePointerMove(e.pageY, initialPosX);
 		}
 
-		this._sliderMouseMoveMonitor.startMonitoring(
-			this._slider.domNode,
-			initialButtons,
-			standardMouseMoveMerger,
-			(mouseMoveData: IStandardMouseMoveEventData) => handleMouseMove(mouseMoveData.posy, mouseMoveData.posx),
+		this._sliderPointerMoveMonitor.startMonitoring(
+			e.target,
+			e.pointerId,
+			e.buttons,
+			pointerMoveData => handlePointerMove(pointerMoveData.pageY, pointerMoveData.pageX),
 			() => {
 				this._slider.toggleClassName('active', false);
 			}
@@ -1238,9 +1244,9 @@ class InnerMinimap extends Disposable {
 	}
 
 	public override dispose(): void {
-		this._mouseDownListener.dispose();
-		this._sliderMouseMoveMonitor.dispose();
-		this._sliderMouseDownListener.dispose();
+		this._pointerDownListener.dispose();
+		this._sliderPointerMoveMonitor.dispose();
+		this._sliderPointerDownListener.dispose();
 		this._gestureDisposable.dispose();
 		this._sliderTouchStartListener.dispose();
 		this._sliderTouchMoveListener.dispose();
@@ -1312,9 +1318,9 @@ class InnerMinimap extends Disposable {
 		this._lastRenderData = null;
 		return true;
 	}
-	public onLinesChanged(changeFromLineNumber: number, changeToLineNumber: number): boolean {
+	public onLinesChanged(changeFromLineNumber: number, changeCount: number): boolean {
 		if (this._lastRenderData) {
-			return this._lastRenderData.onLinesChanged(changeFromLineNumber, changeToLineNumber);
+			return this._lastRenderData.onLinesChanged(changeFromLineNumber, changeCount);
 		}
 		return false;
 	}
@@ -1339,7 +1345,7 @@ class InnerMinimap extends Disposable {
 		this._renderDecorations = true;
 		return true;
 	}
-	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
+	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number }[]): boolean {
 		if (this._lastRenderData) {
 			return this._lastRenderData.onTokensChanged(ranges);
 		}
@@ -1389,10 +1395,8 @@ class InnerMinimap extends Disposable {
 		this._slider.setHeight(layout.sliderHeight);
 
 		// Compute horizontal slider coordinates
-		const scrollLeftChars = renderingCtx.scrollLeft / this._model.options.typicalHalfwidthCharacterWidth;
-		const horizontalSliderLeft = Math.min(this._model.options.minimapWidth, Math.round(scrollLeftChars * this._model.options.minimapCharWidth / this._model.options.pixelRatio));
-		this._sliderHorizontal.setLeft(horizontalSliderLeft);
-		this._sliderHorizontal.setWidth(this._model.options.minimapWidth - horizontalSliderLeft);
+		this._sliderHorizontal.setLeft(0);
+		this._sliderHorizontal.setWidth(this._model.options.minimapWidth);
 		this._sliderHorizontal.setTop(0);
 		this._sliderHorizontal.setHeight(layout.sliderHeight);
 
@@ -1508,7 +1512,7 @@ class InnerMinimap extends Disposable {
 				continue;
 			}
 
-			const decorationColor = minimapOptions.getColor(this._theme);
+			const decorationColor = minimapOptions.getColor(this._theme.value);
 			if (!decorationColor || decorationColor.isTransparent()) {
 				continue;
 			}
@@ -1583,7 +1587,7 @@ class InnerMinimap extends Disposable {
 				continue;
 			}
 
-			const decorationColor = minimapOptions.getColor(this._theme);
+			const decorationColor = minimapOptions.getColor(this._theme.value);
 			if (!decorationColor || decorationColor.isTransparent()) {
 				continue;
 			}
@@ -1595,11 +1599,12 @@ class InnerMinimap extends Disposable {
 						this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth, canvasInnerWidth);
 						continue;
 
-					case MinimapPosition.Gutter:
+					case MinimapPosition.Gutter: {
 						const y = (line - layout.startLineNumber) * lineHeight;
 						const x = 2;
 						this.renderDecoration(canvasContext, decorationColor, x, y, GUTTER_DECORATION_WIDTH, lineHeight);
 						continue;
+					}
 				}
 			}
 		}
@@ -1715,7 +1720,7 @@ class InnerMinimap extends Disposable {
 		}
 
 		// Render untouched lines by using last rendered data.
-		let [_dirtyY1, _dirtyY2, needed] = InnerMinimap._renderUntouchedLines(
+		const [_dirtyY1, _dirtyY2, needed] = InnerMinimap._renderUntouchedLines(
 			imageData,
 			startLineNumber,
 			endLineNumber,

@@ -29,7 +29,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const externalizedStringLiterals = new Map<string, { call: TSESTree.CallExpression, message: TSESTree.Node }[]>();
+		const externalizedStringLiterals = new Map<string, { call: TSESTree.CallExpression; message: TSESTree.Node }[]>();
 		const doubleQuotedStringLiterals = new Set<TSESTree.Node>();
 
 		function collectDoubleQuotedStrings(node: TSESTree.Literal) {

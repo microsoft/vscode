@@ -8,8 +8,7 @@
 		"**/.DS_Store": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
-		},
-		"src/vs/server": false
+		}
 	},
 	"files.associations": {
 		"cglicenses.json": "jsonc"
@@ -27,8 +26,7 @@
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
 		"src/vs/base/test/node/uri.test.data.txt": true,
-		"src/vs/workbench/test/browser/api/extHostDocumentData.test.perf-data.ts": true,
-		"src/vs/server": false
+		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true
 	},
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
@@ -69,22 +67,45 @@
 		}
 	],
 	"git.ignoreLimitWarning": true,
+	"git.branchProtection": [
+		"main",
+		"release/*"
+	],
+	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
+	"git.branchRandomName.enable": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
 	"gulp.autoDetect": "off",
 	"files.insertFinalNewline": true,
 	"[plaintext]": {
-		"files.insertFinalNewline": false,
+		"files.insertFinalNewline": false
 	},
 	"[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features",
-		"editor.formatOnSave": true,
+		"editor.formatOnSave": true
 	},
 	"[javascript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features",
-		"editor.formatOnSave": true,
+		"editor.formatOnSave": true
 	},
 	"typescript.tsc.autoDetect": "off",
 	"testing.autoRun.mode": "rerun",
+	"conventionalCommits.scopes": [
+		"tree",
+		"scm",
+		"grid",
+		"splitview",
+		"table",
+		"list",
+		"git",
+		"sash"
+	],
+	"editor.quickSuggestions": {
+		"other": "inline",
+		"comments": "inline",
+		"strings": "inline"
+	},
+	"githubPullRequests.assignCreated": "${user}",
+	"githubPullRequests.defaultMergeMethod": "squash"
 }

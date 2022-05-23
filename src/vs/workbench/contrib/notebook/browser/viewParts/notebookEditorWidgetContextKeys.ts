@@ -5,14 +5,15 @@
 
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICellViewModel, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE, INotebookEditorDelegate, NOTEBOOK_CELL_TOOLBAR_LOCATION } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { ICellViewModel, INotebookEditorDelegate, KERNEL_EXTENSIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_CELL_TOOLBAR_LOCATION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class NotebookEditorContextKeys {
 
+	private readonly _notebookKernel: IContextKey<string>;
 	private readonly _notebookKernelCount: IContextKey<number>;
 	private readonly _notebookKernelSelected: IContextKey<boolean>;
 	private readonly _interruptibleKernel: IContextKey<boolean>;
@@ -25,15 +26,16 @@ export class NotebookEditorContextKeys {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _viewModelDisposables = new DisposableStore();
-	private readonly _cellStateListeners: IDisposable[] = [];
 	private readonly _cellOutputsListeners: IDisposable[] = [];
 
 	constructor(
 		private readonly _editor: INotebookEditorDelegate,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService
 	) {
+		this._notebookKernel = NOTEBOOK_KERNEL.bindTo(contextKeyService);
 		this._notebookKernelCount = NOTEBOOK_KERNEL_COUNT.bindTo(contextKeyService);
 		this._notebookKernelSelected = NOTEBOOK_KERNEL_SELECTED.bindTo(contextKeyService);
 		this._interruptibleKernel = NOTEBOOK_INTERRUPTIBLE_KERNEL.bindTo(contextKeyService);
@@ -52,6 +54,7 @@ export class NotebookEditorContextKeys {
 		this._disposables.add(_notebookKernelService.onDidChangeSelectedNotebooks(this._updateKernelContext, this));
 		this._disposables.add(_editor.notebookOptions.onDidChangeOptions(this._updateForNotebookOptions, this));
 		this._disposables.add(_extensionService.onDidChangeExtensions(this._updateForInstalledExtension, this));
+		this._disposables.add(_notebookExecutionStateService.onDidChangeCellExecution(this._updateForCellExecution, this));
 	}
 
 	dispose(): void {
@@ -61,8 +64,6 @@ export class NotebookEditorContextKeys {
 		this._interruptibleKernel.reset();
 		this._someCellRunning.reset();
 		this._viewType.reset();
-		dispose(this._cellStateListeners);
-		this._cellStateListeners.length = 0;
 		dispose(this._cellOutputsListeners);
 		this._cellOutputsListeners.length = 0;
 	}
@@ -73,30 +74,12 @@ export class NotebookEditorContextKeys {
 		this._updateForNotebookOptions();
 
 		this._viewModelDisposables.clear();
-		dispose(this._cellStateListeners);
-		this._cellStateListeners.length = 0;
 		dispose(this._cellOutputsListeners);
 		this._cellOutputsListeners.length = 0;
 
 		if (!this._editor.hasModel()) {
 			return;
 		}
-
-		let executionCount = 0;
-
-		const addCellStateListener = (c: ICellViewModel) => {
-			return (c as CellViewModel).onDidChangeState(e => {
-				if (!e.runStateChanged) {
-					return;
-				}
-				if (c.internalMetadata.runState === NotebookCellExecutionState.Pending) {
-					executionCount++;
-				} else if (!c.internalMetadata.runState) {
-					executionCount--;
-				}
-				this._someCellRunning.set(executionCount > 0);
-			});
-		};
 
 		const recomputeOutputsExistence = () => {
 			let hasOutputs = false;
@@ -120,7 +103,6 @@ export class NotebookEditorContextKeys {
 
 		for (let i = 0; i < this._editor.getLength(); i++) {
 			const cell = this._editor.cellAt(i);
-			this._cellStateListeners.push(addCellStateListener(cell));
 			this._cellOutputsListeners.push(addCellOutputsListener(cell));
 		}
 
@@ -130,13 +112,20 @@ export class NotebookEditorContextKeys {
 		this._viewModelDisposables.add(this._editor.onDidChangeViewCells(e => {
 			e.splices.reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
-				const deletedCellStates = this._cellStateListeners.splice(start, deleted, ...newCells.map(addCellStateListener));
 				const deletedCellOutputStates = this._cellOutputsListeners.splice(start, deleted, ...newCells.map(addCellOutputsListener));
-				dispose(deletedCellStates);
 				dispose(deletedCellOutputStates);
 			});
 		}));
 		this._viewType.set(this._editor.textModel.viewType);
+	}
+
+	private _updateForCellExecution(): void {
+		if (this._editor.textModel) {
+			const notebookExe = this._notebookExecutionStateService.getCellExecutionStatesForNotebook(this._editor.textModel.uri);
+			this._someCellRunning.set(notebookExe.length > 0);
+		} else {
+			this._someCellRunning.set(false);
+		}
 	}
 
 	private async _updateForInstalledExtension(): Promise<void> {
@@ -159,8 +148,9 @@ export class NotebookEditorContextKeys {
 
 		const { selected, all } = this._notebookKernelService.getMatchingKernel(this._editor.textModel);
 		this._notebookKernelCount.set(all.length);
-		this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);
+		this._interruptibleKernel.set((selected?.type === NotebookKernelType.Resolved && selected.implementsInterrupt) ?? false);
 		this._notebookKernelSelected.set(Boolean(selected));
+		this._notebookKernel.set(selected?.id ?? '');
 	}
 
 	private _updateForNotebookOptions(): void {

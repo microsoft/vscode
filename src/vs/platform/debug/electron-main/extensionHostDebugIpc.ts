@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AddressInfo, createServer } from 'net';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { INullableProcessEnvironment, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
+import { IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
@@ -18,13 +17,13 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 
 	override call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		if (command === 'openExtensionDevelopmentHostWindow') {
-			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1], arg[2]);
+			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1]);
 		} else {
 			return super.call(ctx, command, arg);
 		}
 	}
 
-	private async openExtensionDevelopmentHostWindow(args: string[], env: INullableProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
+	private async openExtensionDevelopmentHostWindow(args: string[], debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
 		const pargs = parseArgs(args, OPTIONS);
 		pargs.debugRenderer = debugRenderer;
 
@@ -33,27 +32,9 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			return { success: false };
 		}
 
-		// split INullableProcessEnvironment into a IProcessEnvironment and an array of keys to be deleted
-		// TODO: support to delete env vars; currently the "deletes" are ignored
-		let userEnv: IProcessEnvironment | undefined;
-		//let userEnvDeletes: string[] = [];
-		const keys = Object.keys(env);
-		for (let k of keys) {
-			let value = env[k];
-			if (value === null) {
-				//userEnvDeletes.push(k);
-			} else {
-				if (!userEnv) {
-					userEnv = Object.create(null) as IProcessEnvironment;
-				}
-				userEnv[k] = value;
-			}
-		}
-
 		const [codeWindow] = this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
 			context: OpenContext.API,
 			cli: pargs,
-			userEnv: userEnv
 		});
 
 		if (!debugRenderer) {

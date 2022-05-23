@@ -13,11 +13,11 @@ export function mock<T>(): Ctor<T> {
 	return function () { } as any;
 }
 
-export type MockObject<T, TP = {}> = { [K in keyof T]: K extends keyof TP ? TP[K] : SinonStub };
+export type MockObject<T, ExceptProps = never> = { [K in keyof T]: K extends ExceptProps ? T[K] : SinonStub };
 
 // Creates an object object that returns sinon mocks for every property. Optionally
 // takes base properties.
-export function mockObject<T extends object, TP extends Partial<T>>(properties?: TP): MockObject<T, TP> {
+export const mockObject = <T extends object>() => <TP extends Partial<T> = {}>(properties?: TP): MockObject<T, keyof TP> => {
 	return new Proxy({ ...properties } as any, {
 		get(target, key) {
 			if (!target.hasOwnProperty(key)) {
@@ -31,4 +31,4 @@ export function mockObject<T extends object, TP extends Partial<T>>(properties?:
 			return true;
 		},
 	});
-}
+};

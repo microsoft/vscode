@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isSafari } from 'vs/base/browser/browser';
+import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
@@ -10,7 +12,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class BrowserStorageService extends AbstractStorageService {
 
@@ -27,7 +29,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	constructor(
-		private readonly payload: IWorkspaceInitializationPayload,
+		private readonly payload: IAnyWorkspaceIdentifier,
 		@ILogService private readonly logService: ILogService
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
@@ -86,7 +88,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		return this.getId(scope);
 	}
 
-	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
+	async migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
 		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 
@@ -104,13 +106,20 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	close(): void {
-		// We explicitly do not close our DBs because writing data onBeforeUnload()
-		// can result in unexpected results. Namely, it seems that - even though this
-		// operation is async - sometimes it is being triggered on unload and
-		// succeeds. Often though, the DBs turn out to be empty because the write
-		// never had a chance to complete.
+
+		// Safari: there is an issue where the page can hang on load when
+		// a previous session has kept IndexedDB transactions running.
+		// The only fix seems to be to cancel any pending transactions
+		// (https://github.com/microsoft/vscode/issues/136295)
 		//
-		// Instead we trigger dispose() to ensure that no timeouts or callbacks
+		// On all other browsers, we keep the databases opened because
+		// we expect data to be written when the unload happens.
+		if (isSafari) {
+			this.globalStorageDatabase?.close();
+			this.workspaceStorageDatabase?.close();
+		}
+
+		// Always dispose to ensure that no timeouts or callbacks
 		// get triggered in this phase.
 		this.dispose();
 	}
@@ -197,7 +206,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	get hasPendingUpdate(): boolean { return !!this.pendingUpdate; }
 
 	private readonly name: string;
-	private readonly whenConnected: Promise<IDBDatabase>;
+	private readonly whenConnected: Promise<IndexedDB>;
 
 	private constructor(
 		options: IndexedDBStorageDatabaseOptions,
@@ -232,62 +241,24 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		}
 	}
 
-	private connect(): Promise<IDBDatabase> {
-		return new Promise<IDBDatabase>((resolve, reject) => {
-			const request = window.indexedDB.open(this.name);
+	private async connect(): Promise<IndexedDB> {
+		try {
+			return await IndexedDB.create(this.name, undefined, [IndexedDBStorageDatabase.STORAGE_OBJECT_STORE]);
+		} catch (error) {
+			this.logService.error(`[IndexedDB Storage ${this.name}] connect() error: ${toErrorMessage(error)}`);
 
-			// Create `ItemTable` object-store when this DB is new
-			request.onupgradeneeded = () => {
-				request.result.createObjectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
-			};
-
-			// IndexedDB opened successfully
-			request.onsuccess = () => resolve(request.result);
-
-			// Fail on error (we will then fallback to in-memory DB)
-			request.onerror = () => reject(request.error);
-		});
+			throw error;
+		}
 	}
 
-	getItems(): Promise<Map<string, string>> {
-		return new Promise<Map<string, string>>(async resolve => {
-			const items = new Map<string, string>();
+	async getItems(): Promise<Map<string, string>> {
+		const db = await this.whenConnected;
 
-			// Open a IndexedDB Cursor to iterate over key/values
-			const db = await this.whenConnected;
-			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readonly');
-			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
-			const cursor = objectStore.openCursor();
-			if (!cursor) {
-				return resolve(items); // this means the `ItemTable` was empty
-			}
+		function isValid(value: unknown): value is string {
+			return typeof value === 'string';
+		}
 
-			// Iterate over rows of `ItemTable` until the end
-			cursor.onsuccess = () => {
-				if (cursor.result) {
-
-					// Keep cursor key/value in our map
-					if (typeof cursor.result.value === 'string') {
-						items.set(cursor.result.key.toString(), cursor.result.value);
-					}
-
-					// Advance cursor to next row
-					cursor.result.continue();
-				} else {
-					resolve(items); // reached end of table
-				}
-			};
-
-			const onError = (error: Error | null) => {
-				this.logService.error(`[IndexedDB Storage ${this.name}] getItems(): ${toErrorMessage(error, true)}`);
-
-				resolve(items);
-			};
-
-			// Error handlers
-			cursor.onerror = () => onError(cursor.error);
-			transaction.onerror = () => onError(transaction.error);
-		});
+		return db.getKeyValues<string>(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, isValid);
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
@@ -322,30 +293,30 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 			return false;
 		}
 
+		const db = await this.whenConnected;
+
 		// Update `ItemTable` with inserts and/or deletes
-		return new Promise<boolean>(async (resolve, reject) => {
-			const db = await this.whenConnected;
-
-			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
-			transaction.oncomplete = () => resolve(true);
-			transaction.onerror = () => reject(transaction.error);
-
-			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
+		await db.runInTransaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite', objectStore => {
+			const requests: IDBRequest[] = [];
 
 			// Inserts
 			if (toInsert) {
 				for (const [key, value] of toInsert) {
-					objectStore.put(value, key);
+					requests.push(objectStore.put(value, key));
 				}
 			}
 
 			// Deletes
 			if (toDelete) {
 				for (const key of toDelete) {
-					objectStore.delete(key);
+					requests.push(objectStore.delete(key));
 				}
 			}
+
+			return requests;
 		});
+
+		return true;
 	}
 
 	async close(): Promise<void> {
@@ -358,17 +329,9 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		return db.close();
 	}
 
-	clear(): Promise<void> {
-		return new Promise<void>(async (resolve, reject) => {
-			const db = await this.whenConnected;
+	async clear(): Promise<void> {
+		const db = await this.whenConnected;
 
-			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
-			transaction.oncomplete = () => resolve();
-			transaction.onerror = () => reject(transaction.error);
-
-			// Clear every row in the `ItemTable`
-			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
-			objectStore.clear();
-		});
+		await db.runInTransaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite', objectStore => objectStore.clear());
 	}
 }

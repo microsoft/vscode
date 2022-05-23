@@ -5,9 +5,9 @@
 
 import 'vs/css!./linesDecorations';
 import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
@@ -71,7 +71,8 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 
 	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
 		const decorations = ctx.getDecorationsInViewport();
-		let r: DecorationToRender[] = [], rLen = 0;
+		const r: DecorationToRender[] = [];
+		let rLen = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const d = decorations[i];
 			const linesDecorationsClassName = d.options.linesDecorationsClassName;

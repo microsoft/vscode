@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from 'vs/base/common/lifecycle';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { ITextFileService, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
@@ -17,7 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
@@ -89,7 +89,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		}
 
 		// Track as being disposed before waiting for model to load
-		// to handle the case that the reference is aquired again
+		// to handle the case that the reference is acquired again
 		this.modelsToDispose.add(key);
 
 		(async () => {
@@ -97,7 +97,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 				const model = await modelPromise;
 
 				if (!this.modelsToDispose.has(key)) {
-					// return if model has been aquired again meanwhile
+					// return if model has been acquired again meanwhile
 					return;
 				}
 
@@ -108,7 +108,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 				}
 
 				if (!this.modelsToDispose.has(key)) {
-					// return if model has been aquired again meanwhile
+					// return if model has been acquired again meanwhile
 					return;
 				}
 

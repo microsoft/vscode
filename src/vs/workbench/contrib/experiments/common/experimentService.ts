@@ -21,6 +21,7 @@ import { asJson, IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -44,7 +45,7 @@ export enum ExperimentActionType {
 	ExtensionSearchResults = 'ExtensionSearchResults'
 }
 
-export type LocalizedPromptText = { [locale: string]: string; };
+export type LocalizedPromptText = { [locale: string]: string };
 
 export interface IExperimentActionPromptProperties {
 	promptText: string | LocalizedPromptText;
@@ -52,7 +53,7 @@ export interface IExperimentActionPromptProperties {
 }
 
 export interface IExperimentActionPromptCommand {
-	text: string | { [key: string]: string; };
+	text: string | { [key: string]: string };
 	externalLink?: string;
 	curatedExtensionsKey?: string;
 	curatedExtensionsList?: string[];
@@ -105,7 +106,7 @@ interface IRawExperiment {
 		newUser?: boolean;
 		displayLanguage?: string;
 		// Evaluates to true iff all the given user settings are deeply equal
-		userSetting?: { [key: string]: unknown; };
+		userSetting?: { [key: string]: unknown };
 		// Start the experiment if the number of activation events have happened over the last week:
 		activationEvent?: {
 			event: string | string[];
@@ -182,7 +183,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -227,16 +229,21 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	protected async getExperiments(): Promise<IRawExperiment[] | null> {
-		if (!this.productService.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
+		if (this.environmentService.enableSmokeTestDriver || this.environmentService.extensionTestsLocationURI) {
+			return []; // TODO@sbatten add CLI argument (https://github.com/microsoft/vscode-internalbacklog/issues/2855)
+		}
+
+		const experimentsUrl = this.configurationService.getValue<string>('_workbench.experimentsUrl') || this.productService.experimentsUrl;
+		if (!experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return [];
 		}
 
 		try {
-			const context = await this.requestService.request({ type: 'GET', url: this.productService.experimentsUrl }, CancellationToken.None);
+			const context = await this.requestService.request({ type: 'GET', url: experimentsUrl }, CancellationToken.None);
 			if (context.res.statusCode !== 200) {
 				return null;
 			}
-			const result = await asJson<{ experiments?: IRawExperiment; }>(context);
+			const result = await asJson<{ experiments?: IRawExperiment }>(context);
 			return result && Array.isArray(result.experiments) ? result.experiments : [];
 		} catch (_e) {
 			// Bad request or invalid JSON
@@ -299,9 +306,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			const promises = rawExperiments.map(experiment => this.evaluateExperiment(experiment));
 			return Promise.all(promises).then(() => {
 				type ExperimentsClassification = {
-					experiments: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+					experiments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				};
-				this.telemetryService.publicLog2<{ experiments: IExperiment[]; }, ExperimentsClassification>('experiments', { experiments: this._experiments });
+				this.telemetryService.publicLog2<{ experiments: string[] }, ExperimentsClassification>('experiments', { experiments: this._experiments.map(e => e.id) });
 			});
 		});
 	}

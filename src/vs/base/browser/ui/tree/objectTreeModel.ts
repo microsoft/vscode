@@ -33,7 +33,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	private nodes = new Map<T | null, ITreeNode<T, TFilterData>>();
 	private readonly nodesByIdentity = new Map<string, ITreeNode<T, TFilterData>>();
 	private readonly identityProvider?: IIdentityProvider<T>;
-	private sorter?: ITreeSorter<{ element: T; }>;
+	private sorter?: ITreeSorter<{ element: T }>;
 
 	readonly onDidSplice: Event<ITreeModelSpliceEvent<T | null, TFilterData>>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;

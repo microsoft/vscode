@@ -22,7 +22,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, TrackedRangeStickiness, IModelDeltaDecoration, OverviewRulerLane } from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import * as peekView from 'vs/editor/contrib/peekView/peekView';
+import * as peekView from 'vs/editor/contrib/peekView/browser/peekView';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -329,8 +329,8 @@ export class TypeHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		}
 		if (fullRange) {
 			this._editor.revealRangeInCenter(fullRange, ScrollType.Immediate);
-			const ids = this._editor.deltaDecorations([], decorations);
-			this._previewDisposable.add(toDisposable(() => this._editor.deltaDecorations(ids, [])));
+			const decorationsCollection = this._editor.createDecorationsCollection(decorations);
+			this._previewDisposable.add(toDisposable(() => decorationsCollection.clear()));
 		}
 		this._previewDisposable.add(value);
 
@@ -363,7 +363,7 @@ export class TypeHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 		await this._tree.setInput(model, viewState);
 
-		const root = <ITreeNode<typeHTree.Type>>this._tree.getNode(model).children[0];
+		const root = <ITreeNode<typeHTree.Type, FuzzyScore>>this._tree.getNode(model).children[0];
 		await this._tree.expand(root.element);
 
 		if (root.children.length === 0) {

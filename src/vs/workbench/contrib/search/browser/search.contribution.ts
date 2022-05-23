@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
 import { assertIsDefined, assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
-import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
+import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
+import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess';
 import * as nls from 'vs/nls';
-import { Action2, ICommandAction, MenuId, MenuRegistry, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, MenuRegistry, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { ICommandAction } from 'vs/platform/action/common/action';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -45,8 +45,8 @@ import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { resolveResourcesForSearchIncludes } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { getWorkspaceSymbols, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
+import { resolveResourcesForSearchIncludes } from 'vs/workbench/services/search/common/queryBuilder';
+import { getWorkspaceSymbols, IWorkspaceSymbol, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { FileMatch, FileMatchOrMatch, FolderMatch, ISearchWorkbenchService, Match, RenderableMatch, SearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
@@ -55,6 +55,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ISearchConfiguration, SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configurationMigration';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -68,7 +69,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.search.toggleQueryDetails',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.or(Constants.SearchViewFocusedKey, SearchEditorConstants.InSearchEditor),
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyJ,
 	handler: accessor => {
 		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
 		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
@@ -149,7 +150,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.ReplaceActionId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey),
-	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
+	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
@@ -163,7 +164,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.ReplaceAllInFileActionId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FileFocusKey),
-	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
+	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
@@ -178,7 +179,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.ReplaceAllInFolderActionId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FolderFocusKey),
-	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
+	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
@@ -267,7 +268,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.CopyMatchCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: Constants.FileMatchOrMatchFocusKey,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+	primary: KeyMod.CtrlCmd | KeyCode.KeyC,
 	handler: copyMatchCommand
 });
 
@@ -285,9 +286,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.CopyPathCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: Constants.FileMatchOrFolderMatchWithResourceFocusKey,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC,
 	win: {
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC
 	},
 	handler: copyPathCommand
 });
@@ -477,7 +478,7 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 
 const RevealInSideBarForSearchResultsCommand: ICommandAction = {
 	id: Constants.RevealInSideBarForSearchResults,
-	title: nls.localize('revealInSideBar', "Reveal in Side Bar")
+	title: nls.localize('revealInSideBar', "Reveal in Explorer View")
 };
 
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
@@ -547,7 +548,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: FIND_IN_FOLDER_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerFolderContext),
-	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
+	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyF,
 	handler: searchInFolderCommand
 });
 
@@ -593,25 +594,32 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext.toNegated())
 });
 
-
-class ShowAllSymbolsAction extends Action {
+registerAction2(class ShowAllSymbolsAction extends Action2 {
 
 	static readonly ID = 'workbench.action.showAllSymbols';
 	static readonly LABEL = nls.localize('showTriggerActions', "Go to Symbol in Workspace...");
 	static readonly ALL_SYMBOLS_PREFIX = '#';
 
 	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		super(actionId, actionLabel);
+		super({
+			id: 'workbench.action.showAllSymbols',
+			title: {
+				value: nls.localize('showTriggerActions', "Go to Symbol in Workspace..."),
+				original: 'Go to Symbol in Workspace...'
+			},
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyT
+			}
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IQuickInputService).quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
 	}
-}
+});
 
 const SEARCH_MODE_CONFIG = 'search.mode';
 
@@ -635,7 +643,7 @@ const viewDescriptor: IViewDescriptor = {
 		id: viewContainer.id,
 		mnemonicTitle: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"),
 		keybindings: {
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
 			// Yes, this is weird. See #116188, #115556, #115511, and now #124146, for examples of what can go wrong here.
 			when: ContextKeyExpr.regex('neverMatch', /doesNotMatch/)
 		},
@@ -654,30 +662,11 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 		const data = configurationService.inspect('search.location');
-
 		if (data.value === 'panel') {
 			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel);
 		}
-
-		if (data.userValue) {
-			configurationService.updateValue('search.location', undefined, ConfigurationTarget.USER);
-		}
-
-		if (data.userLocalValue) {
-			configurationService.updateValue('search.location', undefined, ConfigurationTarget.USER_LOCAL);
-		}
-
-		if (data.userRemoteValue) {
-			configurationService.updateValue('search.location', undefined, ConfigurationTarget.USER_REMOTE);
-		}
-
-		if (data.workspaceFolderValue) {
-			configurationService.updateValue('search.location', undefined, ConfigurationTarget.WORKSPACE_FOLDER);
-		}
-
-		if (data.workspaceValue) {
-			configurationService.updateValue('search.location', undefined, ConfigurationTarget.WORKSPACE);
-		}
+		Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);
 	}
 }
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
@@ -714,7 +703,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.FindInFilesActionId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
 	handler: FindInFilesCommand
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: Constants.FindInFilesActionId, title: { value: nls.localize('findInFiles', "Find in Files"), original: 'Find in Files' }, category } });
@@ -730,7 +719,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextSearchResultAction, { primary: KeyCode.F4 }), 'Search: Focus Next Search Result', category.value, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor));
 registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousSearchResultAction, { primary: KeyMod.Shift | KeyCode.F4 }), 'Search: Focus Previous Search Result', category.value, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor));
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ReplaceInFilesAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H }), 'Search: Replace in Files', category.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ReplaceInFilesAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyH }), 'Search: Replace in Files', category.value);
 MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	group: '4_find_global',
 	command: {
@@ -782,7 +771,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.AddCursorsAtSearchResults,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.FileMatchOrMatchFocusKey),
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
@@ -792,7 +781,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllSymbolsAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_T }), 'Go to Symbol in Workspace...');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSearchOnTypeAction), 'Search: Toggle Search on Type', category.value);
 
 // Register Quick Access Handler
@@ -824,7 +812,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[SEARCH_EXCLUDE_CONFIG]: {
 			type: 'object',
-			markdownDescription: nls.localize('exclude', "Configure glob patterns for excluding files and folders in fulltext searches and quick open. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			markdownDescription: nls.localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders in fulltext searches and quick open. Inherits all glob patterns from the `#files.exclude#` setting."),
 			default: { '**/node_modules': true, '**/bower_components': true, '**/*.code-search': true },
 			additionalProperties: {
 				anyOf: [
@@ -839,7 +827,7 @@ configurationRegistry.registerConfiguration({
 								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								pattern: '\\w*\\$\\(basename\\)\\w*',
 								default: '$(basename).ext',
-								description: nls.localize('exclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
+								markdownDescription: nls.localize('exclude.when', 'Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.')
 							}
 						}
 					}
@@ -851,9 +839,9 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['view', 'reuseEditor', 'newEditor'],
 			default: 'view',
-			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the sidebar's search view, or in a search editor"),
+			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the search view, or in a search editor"),
 			enumDescriptions: [
-				nls.localize('search.mode.view', "Search in the search view, either in the panel or sidebar."),
+				nls.localize('search.mode.view', "Search in the search view, either in the panel or side bars."),
 				nls.localize('search.mode.reuseEditor', "Search in an existing search editor if present, otherwise in a new search editor."),
 				nls.localize('search.mode.newEditor', "Search in a new search editor."),
 			]
@@ -866,6 +854,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.maintainFileSearchCache': {
 			type: 'boolean',
+			deprecationMessage: nls.localize('maintainFileSearchCacheDeprecated', "The search cache is kept in the extension host which never shuts down, so this setting is no longer needed."),
 			description: nls.localize('search.maintainFileSearchCache', "When enabled, the searchService process will be kept alive instead of being shut down after an hour of inactivity. This will keep the file search cache in memory."),
 			default: false
 		},
@@ -877,7 +866,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useGlobalIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use global `.gitignore` and `.ignore` files when searching for files."),
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use global `.gitignore` and `.ignore` files when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			default: false,
+			scope: ConfigurationScope.RESOURCE
+		},
+		'search.useParentIgnoreFiles': {
+			type: 'boolean',
+			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
@@ -979,7 +974,7 @@ configurationRegistry.registerConfiguration({
 		'search.seedOnFocus': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
+			markdownDescription: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
 		},
 		'search.searchOnTypeDebouncePeriod': {
 			type: 'number',
@@ -1020,19 +1015,15 @@ configurationRegistry.registerConfiguration({
 				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
-		},
-		'search.forceSearchProcess': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('search.forceSearchProcess', "When enabled, search in a local window runs in a separate search process instead of the extension host.")
 		}
 	}
 });
 
-CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', function (accessor, ...args) {
+CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', async function (accessor, ...args): Promise<IWorkspaceSymbol[]> {
 	const [query] = args;
 	assertType(typeof query === 'string');
-	return getWorkspaceSymbols(query);
+	const result = await getWorkspaceSymbols(query);
+	return result.map(item => item.symbol);
 });
 
 // Go to menu

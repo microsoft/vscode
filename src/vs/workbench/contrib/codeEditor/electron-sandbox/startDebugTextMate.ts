@@ -7,8 +7,8 @@ import * as nls from 'vs/nls';
 import { Range } from 'vs/editor/common/core/range';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
+import { IModelService } from 'vs/editor/common/services/model';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -30,7 +30,7 @@ class StartDebugTextMate extends Action2 {
 		super({
 			id: 'editor.action.startDebugTextMate',
 			title: { value: nls.localize('startDebugTextMate', "Start Text Mate Syntax Grammar Logging"), original: 'Start Text Mate Syntax Grammar Logging' },
-			category: CATEGORIES.Developer.value,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}

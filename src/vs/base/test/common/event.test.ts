@@ -7,7 +7,8 @@ import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableTracker } from 'vs/base/test/common/utils';
 
 namespace Samples {
 
@@ -38,6 +39,70 @@ namespace Samples {
 	}
 }
 
+suite('Event utils dispose', function () {
+
+	let tracker = new DisposableTracker();
+
+	function assertDisposablesCount(expected: number | Array<IDisposable>) {
+		if (Array.isArray(expected)) {
+			const instances = new Set(expected);
+			const actualInstances = tracker.getTrackedDisposables();
+			assert.strictEqual(actualInstances.length, expected.length);
+
+			for (let item of actualInstances) {
+				assert.ok(instances.has(item));
+			}
+
+		} else {
+			assert.strictEqual(tracker.getTrackedDisposables().length, expected);
+		}
+
+	}
+
+	setup(() => {
+		tracker = new DisposableTracker();
+		setDisposableTracker(tracker);
+	});
+
+	teardown(function () {
+		setDisposableTracker(null);
+	});
+
+	test('no leak with snapshot-utils', function () {
+
+		const store = new DisposableStore();
+		const emitter = new Emitter<number>();
+		const evens = Event.filter(emitter.event, n => n % 2 === 0, store);
+		assertDisposablesCount(1); // snaphot only listen when `evens` is being listened on
+
+		let all = 0;
+		let leaked = evens(n => all += n);
+		assert.ok(isDisposable(leaked));
+		assertDisposablesCount(3);
+
+		emitter.dispose();
+		store.dispose();
+		assertDisposablesCount([leaked]); // leaked is still there
+	});
+
+	test('no leak with debounce-util', function () {
+		const store = new DisposableStore();
+		const emitter = new Emitter<number>();
+		const debounced = Event.debounce(emitter.event, (l) => 0, undefined, undefined, undefined, store);
+		assertDisposablesCount(1); // debounce only listens when `debounce` is being listened on
+
+		let all = 0;
+		let leaked = debounced(n => all += n);
+		assert.ok(isDisposable(leaked));
+		assertDisposablesCount(3);
+
+		emitter.dispose();
+		store.dispose();
+
+		assertDisposablesCount([leaked]); // leaked is still there
+	});
+});
+
 suite('Event', function () {
 
 	const counter = new Samples.EventCounter();
@@ -48,7 +113,6 @@ suite('Event', function () {
 
 		let doc = new Samples.Document3();
 
-		document.createElement('div').onclick = function () { };
 		let subscription = doc.onDidChange(counter.onEvent, counter);
 
 		doc.setText('far');
@@ -314,6 +378,12 @@ suite('Event', function () {
 
 		// assert that all events are delivered in order
 		assert.deepStrictEqual(listener2Events, ['e1', 'e2']);
+	});
+
+	test('Cannot read property \'_actual\' of undefined #142204', function () {
+		const e = new Emitter<number>();
+		const dispo = e.event(() => { });
+		dispo.dispose.call(undefined);  // assert that disposable can be called with this
 	});
 });
 
@@ -956,5 +1026,35 @@ suite('Event utils', () => {
 			e2.fire(6);
 			assert.deepStrictEqual(result, [2, 4]);
 		});
+	});
+
+	test('runAndSubscribeWithStore', () => {
+		const eventEmitter = new Emitter();
+		const event = eventEmitter.event;
+
+		let i = 0;
+		let log = new Array<any>();
+		const disposable = Event.runAndSubscribeWithStore(event, (e, disposables) => {
+			const idx = i++;
+			log.push({ label: 'handleEvent', data: e || null, idx });
+			disposables.add(toDisposable(() => {
+				log.push({ label: 'dispose', idx });
+			}));
+		});
+
+		log.push({ label: 'fire' });
+		eventEmitter.fire('someEventData');
+
+		log.push({ label: 'disposeAll' });
+		disposable.dispose();
+
+		assert.deepStrictEqual(log, [
+			{ label: 'handleEvent', data: null, idx: 0 },
+			{ label: 'fire' },
+			{ label: 'dispose', idx: 0 },
+			{ label: 'handleEvent', data: 'someEventData', idx: 1 },
+			{ label: 'disposeAll' },
+			{ label: 'dispose', idx: 1 },
+		]);
 	});
 });

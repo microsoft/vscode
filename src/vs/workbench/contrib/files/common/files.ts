@@ -12,8 +12,8 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -75,7 +75,7 @@ export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
 
 /**
- * Language mode for binary files opened as text.
+ * Language identifier for binary files opened as text.
  */
 export const BINARY_TEXT_FILE_MODE = 'code-text-binary';
 
@@ -83,11 +83,14 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 	explorer: {
 		openEditors: {
 			visible: number;
-			sortOrder: 'editorOrder' | 'alphabetical';
+			sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
 		};
 		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
+		enableUndo: boolean;
+		confirmUndo: UndoConfirmLevel;
+		expandSingleFolderWorkspaces: boolean;
 		sortOrder: SortOrder;
 		sortOrderLexicographicOptions: LexicographicOptions;
 		decorations: {
@@ -95,6 +98,11 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			badges: boolean;
 		};
 		incrementalNaming: 'simple' | 'smart';
+		fileNesting: {
+			enabled: boolean;
+			expand: boolean;
+			patterns: { [parent: string]: string };
+		};
 	};
 	editor: IEditorOptions;
 }
@@ -109,7 +117,14 @@ export const enum SortOrder {
 	Mixed = 'mixed',
 	FilesFirst = 'filesFirst',
 	Type = 'type',
-	Modified = 'modified'
+	Modified = 'modified',
+	FoldersNestsFiles = 'foldersNestsFiles',
+}
+
+export const enum UndoConfirmLevel {
+	Verbose = 'verbose',
+	Default = 'default',
+	Light = 'light',
 }
 
 export const enum LexicographicOptions {
@@ -130,7 +145,7 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileService private readonly fileService: IFileService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService
 	) {
 		super();
@@ -197,9 +212,9 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 			let languageSelector: ILanguageSelection;
 			if (textFileModel) {
-				languageSelector = this.modeService.create(textFileModel.getModeId());
+				languageSelector = this.languageService.createById(textFileModel.getLanguageId());
 			} else {
-				languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource);
+				languageSelector = this.languageService.createByFilepathOrFirstLine(savedFileResource);
 			}
 
 			codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);
@@ -235,7 +250,7 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	isPreview(): boolean {
-		return this._group.previewEditor === this.editor;
+		return !this._group.isPinned(this.editor);
 	}
 
 	isSticky(): boolean {

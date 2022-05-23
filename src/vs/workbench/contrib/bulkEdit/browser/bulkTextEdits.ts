@@ -6,28 +6,28 @@
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { SingleModelEditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { ResourceMap } from 'vs/base/common/map';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
+type ValidationResult = { canApply: true } | { canApply: false; reason: URI };
 
 class ModelEditTask implements IDisposable {
 
 	readonly model: ITextModel;
 
 	private _expectedModelVersionId: number | undefined;
-	protected _edits: IIdentifiedSingleEditOperation[];
+	protected _edits: ISingleEditOperation[];
 	protected _newEol: EndOfLineSequence | undefined;
 
 	constructor(private readonly _modelReference: IReference<IResolvedTextEditorModel>) {
@@ -144,6 +144,7 @@ export class BulkTextEdits {
 
 	constructor(
 		private readonly _label: string,
+		private readonly _code: string,
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
@@ -231,16 +232,17 @@ export class BulkTextEdits {
 		return { canApply: true };
 	}
 
-	async apply(): Promise<void> {
+	async apply(): Promise<readonly URI[]> {
 
 		this._validateBeforePrepare();
 		const tasks = await this._createEditsTasks();
 
-		if (this._token.isCancellationRequested) {
-			return;
-		}
 		try {
+			if (this._token.isCancellationRequested) {
+				return [];
+			}
 
+			const resources: URI[] = [];
 			const validation = this._validateTasks(tasks);
 			if (!validation.canApply) {
 				throw new Error(`${validation.reason.toString()} has changed in the meantime`);
@@ -249,25 +251,30 @@ export class BulkTextEdits {
 				// This edit touches a single model => keep things simple
 				const task = tasks[0];
 				if (!task.isNoOp()) {
-					const singleModelEditStackElement = new SingleModelEditStackElement(task.model, task.getBeforeCursorState());
+					const singleModelEditStackElement = new SingleModelEditStackElement(this._label, this._code, task.model, task.getBeforeCursorState());
 					this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
 					task.apply();
 					singleModelEditStackElement.close();
+					resources.push(task.model.uri);
 				}
 				this._progress.report(undefined);
 			} else {
 				// prepare multi model undo element
 				const multiModelEditStackElement = new MultiModelEditStackElement(
 					this._label,
-					tasks.map(t => new SingleModelEditStackElement(t.model, t.getBeforeCursorState()))
+					this._code,
+					tasks.map(t => new SingleModelEditStackElement(this._label, this._code, t.model, t.getBeforeCursorState()))
 				);
 				this._undoRedoService.pushElement(multiModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
 				for (const task of tasks) {
 					task.apply();
 					this._progress.report(undefined);
+					resources.push(task.model.uri);
 				}
 				multiModelEditStackElement.close();
 			}
+
+			return resources;
 
 		} finally {
 			dispose(tasks);

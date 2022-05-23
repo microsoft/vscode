@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -12,9 +13,9 @@ import * as objects from 'vs/base/common/objects';
 import { IExtUri } from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { addToValueTree, compare, ConfigurationTarget, getConfigurationKeys, getConfigurationValue, getDefaultValues, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toOverrides, toValuesTree } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifierFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { IFileService } from 'vs/platform/files/common/files';
+import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 
@@ -58,12 +59,21 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	getKeysForOverrideIdentifier(identifier: string): string[] {
+		const keys: string[] = [];
 		for (const override of this.overrides) {
-			if (override.identifiers.indexOf(identifier) !== -1) {
-				return override.keys;
+			if (override.identifiers.includes(identifier)) {
+				keys.push(...override.keys);
 			}
 		}
-		return [];
+		return arrays.distinct(keys);
+	}
+
+	getAllOverrideIdentifiers(): string[] {
+		const result: string[] = [];
+		for (const override of this.overrides) {
+			result.push(...override.identifiers);
+		}
+		return arrays.distinct(result);
 	}
 
 	override(identifier: string): ConfigurationModel {
@@ -87,6 +97,8 @@ export class ConfigurationModel implements IConfigurationModel {
 				const [override] = overrides.filter(o => arrays.equals(o.identifiers, otherOverride.identifiers));
 				if (override) {
 					this.mergeContents(override.contents, otherOverride.contents);
+					override.keys.push(...otherOverride.keys);
+					override.keys = arrays.distinct(override.keys);
 				} else {
 					overrides.push(objects.deepClone(otherOverride));
 				}
@@ -156,12 +168,27 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	private getContentsForOverrideIdentifer(identifier: string): any {
+		let contentsForIdentifierOnly: IStringDictionary<any> | null = null;
+		let contents: IStringDictionary<any> | null = null;
+		const mergeContents = (contentsToMerge: any) => {
+			if (contentsToMerge) {
+				if (contents) {
+					this.mergeContents(contents, contentsToMerge);
+				} else {
+					contents = objects.deepClone(contentsToMerge);
+				}
+			}
+		};
 		for (const override of this.overrides) {
-			if (override.identifiers.indexOf(identifier) !== -1) {
-				return override.contents;
+			if (arrays.equals(override.identifiers, [identifier])) {
+				contentsForIdentifierOnly = override.contents;
+			} else if (override.identifiers.includes(identifier)) {
+				mergeContents(override.contents);
 			}
 		}
-		return null;
+		// Merge contents of the identifier only at the end to take precedence.
+		mergeContents(contentsForIdentifierOnly);
+		return contents;
 	}
 
 	toJSON(): IConfigurationModel {
@@ -207,19 +234,27 @@ export class ConfigurationModel implements IConfigurationModel {
 
 export class DefaultConfigurationModel extends ConfigurationModel {
 
-	constructor() {
-		const contents = getDefaultValues();
-		const keys = getConfigurationKeys();
+	constructor(configurationDefaultsOverrides: IStringDictionary<any> = {}) {
+		const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		const keys = Object.keys(properties);
+		const contents: any = Object.create(null);
 		const overrides: IOverrides[] = [];
+
+		for (const key in properties) {
+			const defaultOverrideValue = configurationDefaultsOverrides[key];
+			const value = defaultOverrideValue !== undefined ? defaultOverrideValue : properties[key].default;
+			addToValueTree(contents, key, value, message => console.error(`Conflict in default settings: ${message}`));
+		}
 		for (const key of Object.keys(contents)) {
-			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 				overrides.push({
-					identifiers: [overrideIdentifierFromKey(key).trim()],
+					identifiers: overrideIdentifiersFromKey(key),
 					keys: Object.keys(contents[key]),
 					contents: toValuesTree(contents[key], message => console.error(`Conflict in default settings file: ${message}`)),
 				});
 			}
 		}
+
 		super(contents, keys, overrides);
 	}
 }
@@ -333,18 +368,18 @@ export class ConfigurationModelParser {
 		raw = filtered.raw;
 		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		const keys = Object.keys(raw);
-		const overrides: IOverrides[] = toOverrides(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
+		const overrides = this.toOverrides(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		return { contents, keys, overrides, restricted: filtered.restricted };
 	}
 
-	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}, restricted: string[] } {
+	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}; restricted: string[] } {
 		if (!options?.scopes && !options?.skipRestricted) {
 			return { raw: properties, restricted: [] };
 		}
 		const raw: any = {};
 		const restricted: string[] = [];
 		for (let key in properties) {
-			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
+			if (OVERRIDE_PROPERTY_REGEX.test(key) && filterOverriddenProperties) {
 				const result = this.filter(properties[key], configurationProperties, false, options);
 				raw[key] = result.raw;
 				restricted.push(...result.restricted);
@@ -363,6 +398,24 @@ export class ConfigurationModelParser {
 			}
 		}
 		return { raw, restricted };
+	}
+
+	private toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
+		const overrides: IOverrides[] = [];
+		for (const key of Object.keys(raw)) {
+			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
+				const overrideRaw: any = {};
+				for (const keyInOverrideRaw in raw[key]) {
+					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
+				}
+				overrides.push({
+					identifiers: overrideIdentifiersFromKey(key),
+					keys: Object.keys(overrideRaw),
+					contents: toValuesTree(overrideRaw, conflictReporter)
+				});
+			}
+		}
+		return overrides;
 	}
 
 }
@@ -386,7 +439,10 @@ export class UserSettings extends Disposable {
 		this._register(this.fileService.watch(extUri.dirname(this.userSettingsResource)));
 		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
 		this._register(this.fileService.watch(this.userSettingsResource));
-		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.userSettingsResource))(() => this._onDidChange.fire()));
+		this._register(Event.any(
+			Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.userSettingsResource)),
+			Event.filter(this.fileService.onDidRunOperation, e => (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY) || e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.WRITE)) && extUri.isEqual(e.resource, userSettingsResource))
+		)(() => this._onDidChange.fire()));
 	}
 
 	async loadConfiguration(): Promise<ConfigurationModel> {
@@ -431,7 +487,7 @@ export class Configuration {
 		return consolidateConfigurationModel.getValue(section);
 	}
 
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {
+	updateValue(key: string, value: any, overrides: IConfigurationUpdateOverrides = {}): void {
 		let memoryConfiguration: ConfigurationModel | undefined;
 		if (overrides.resource) {
 			memoryConfiguration = this._memoryConfigurationByResource.get(overrides.resource);
@@ -542,11 +598,14 @@ export class Configuration {
 		this._foldersConsolidatedConfigurations.delete(resource);
 	}
 
-	compareAndUpdateDefaultConfiguration(defaults: ConfigurationModel, keys: string[]): IConfigurationChange {
-		const overrides: [string, string[]][] = keys
-			.filter(key => OVERRIDE_PROPERTY_PATTERN.test(key))
-			.map(key => {
-				const overrideIdentifier = overrideIdentifierFromKey(key);
+	compareAndUpdateDefaultConfiguration(defaults: ConfigurationModel, keys?: string[]): IConfigurationChange {
+		const overrides: [string, string[]][] = [];
+		if (!keys) {
+			const { added, updated, removed } = compare(this._defaultConfiguration, defaults);
+			keys = [...added, ...updated, ...removed];
+		}
+		for (const key of keys) {
+			for (const overrideIdentifier of overrideIdentifiersFromKey(key)) {
 				const fromKeys = this._defaultConfiguration.getKeysForOverrideIdentifier(overrideIdentifier);
 				const toKeys = defaults.getKeysForOverrideIdentifier(overrideIdentifier);
 				const keys = [
@@ -554,8 +613,9 @@ export class Configuration {
 					...fromKeys.filter(key => toKeys.indexOf(key) === -1),
 					...fromKeys.filter(key => !objects.equals(this._defaultConfiguration.override(overrideIdentifier).getValue(key), defaults.override(overrideIdentifier).getValue(key)))
 				];
-				return [overrideIdentifier, keys];
-			});
+				overrides.push([overrideIdentifier, keys]);
+			}
+		}
 		this.updateDefaultConfiguration(defaults);
 		return { keys, overrides };
 	}
@@ -732,6 +792,15 @@ export class Configuration {
 		return [...keys.values()];
 	}
 
+	protected allOverrideIdentifiers(): string[] {
+		const keys: Set<string> = new Set<string>();
+		this._defaultConfiguration.freeze().getAllOverrideIdentifiers().forEach(key => keys.add(key));
+		this.userConfiguration.freeze().getAllOverrideIdentifiers().forEach(key => keys.add(key));
+		this._workspaceConfiguration.freeze().getAllOverrideIdentifiers().forEach(key => keys.add(key));
+		this._folderConfigurations.forEach(folderConfiguraiton => folderConfiguraiton.freeze().getAllOverrideIdentifiers().forEach(key => keys.add(key)));
+		return [...keys.values()];
+	}
+
 	protected getAllKeysForOverrideIdentifier(overrideIdentifier: string): string[] {
 		const keys: Set<string> = new Set<string>();
 		this._defaultConfiguration.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key));
@@ -786,7 +855,7 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 	source!: ConfigurationTarget;
 	sourceConfig: any;
 
-	constructor(readonly change: IConfigurationChange, private readonly previous: { workspace?: Workspace, data: IConfigurationData } | undefined, private readonly currentConfiguraiton: Configuration, private readonly currentWorkspace?: Workspace) {
+	constructor(readonly change: IConfigurationChange, private readonly previous: { workspace?: Workspace; data: IConfigurationData } | undefined, private readonly currentConfiguraiton: Configuration, private readonly currentWorkspace?: Workspace) {
 		const keysSet = new Set<string>();
 		change.keys.forEach(key => keysSet.add(key));
 		change.overrides.forEach(([, keys]) => keys.forEach(key => keysSet.add(key)));
@@ -838,4 +907,60 @@ export class AllKeysConfigurationChangeEvent extends ConfigurationChangeEvent {
 		this.source = source;
 		this.sourceConfig = sourceConfig;
 	}
+}
+
+function compare(from: ConfigurationModel | undefined, to: ConfigurationModel | undefined): IConfigurationCompareResult {
+	const { added, removed, updated } = compareConfigurationContents(to, from);
+	const overrides: [string, string[]][] = [];
+
+	const fromOverrideIdentifiers = from?.getAllOverrideIdentifiers() || [];
+	const toOverrideIdentifiers = to?.getAllOverrideIdentifiers() || [];
+
+	if (to) {
+		const addedOverrideIdentifiers = toOverrideIdentifiers.filter(key => !fromOverrideIdentifiers.includes(key));
+		for (const identifier of addedOverrideIdentifiers) {
+			overrides.push([identifier, to.getKeysForOverrideIdentifier(identifier)]);
+		}
+	}
+
+	if (from) {
+		const removedOverrideIdentifiers = fromOverrideIdentifiers.filter(key => !toOverrideIdentifiers.includes(key));
+		for (const identifier of removedOverrideIdentifiers) {
+			overrides.push([identifier, from.getKeysForOverrideIdentifier(identifier)]);
+		}
+	}
+
+	if (to && from) {
+		for (const identifier of fromOverrideIdentifiers) {
+			if (toOverrideIdentifiers.includes(identifier)) {
+				const result = compareConfigurationContents({ contents: from.getOverrideValue(undefined, identifier) || {}, keys: from.getKeysForOverrideIdentifier(identifier) }, { contents: to.getOverrideValue(undefined, identifier) || {}, keys: to.getKeysForOverrideIdentifier(identifier) });
+				overrides.push([identifier, [...result.added, ...result.removed, ...result.updated]]);
+			}
+		}
+	}
+
+	return { added, removed, updated, overrides };
+}
+
+function compareConfigurationContents(to: { keys: string[]; contents: any } | undefined, from: { keys: string[]; contents: any } | undefined) {
+	const added = to
+		? from ? to.keys.filter(key => from.keys.indexOf(key) === -1) : [...to.keys]
+		: [];
+	const removed = from
+		? to ? from.keys.filter(key => to.keys.indexOf(key) === -1) : [...from.keys]
+		: [];
+	const updated: string[] = [];
+
+	if (to && from) {
+		for (const key of from.keys) {
+			if (to.keys.indexOf(key) !== -1) {
+				const value1 = getConfigurationValue(from.contents, key);
+				const value2 = getConfigurationValue(to.contents, key);
+				if (!objects.equals(value1, value2)) {
+					updated.push(key);
+				}
+			}
+		}
+	}
+	return { added, removed, updated };
 }

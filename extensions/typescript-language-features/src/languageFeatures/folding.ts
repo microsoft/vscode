@@ -48,7 +48,7 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 		// Workaround for #49904
 		if (span.kind === 'comment') {
 			const line = document.lineAt(range.start.line).text;
-			if (line.match(/\/\/\s*#endregion/gi)) {
+			if (/\/\/\s*#endregion/gi.test(line)) {
 				return undefined;
 			}
 		}

@@ -223,7 +223,7 @@ export class AsyncSchedulerProcessor extends Disposable {
 }
 
 
-export async function runWithFakedTimers<T>(options: { useFakeTimers?: boolean, useSetImmediate?: boolean, maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
+export async function runWithFakedTimers<T>(options: { useFakeTimers?: boolean; useSetImmediate?: boolean; maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
 	const useFakeTimers = options.useFakeTimers === undefined ? true : options.useFakeTimers;
 	if (!useFakeTimers) {
 		return fn();
@@ -263,7 +263,7 @@ export const originalGlobalValues = {
 	Date: globalThis.Date,
 };
 
-function setTimeout(scheduler: Scheduler, handler: TimerHandler, timeout: number): IDisposable {
+function setTimeout(scheduler: Scheduler, handler: TimerHandler, timeout: number = 0): IDisposable {
 	if (typeof handler === 'string') {
 		throw new Error('String handler args should not be used and are not supported');
 	}
@@ -324,7 +324,7 @@ function setInterval(scheduler: Scheduler, handler: TimerHandler, interval: numb
 }
 
 function overwriteGlobals(scheduler: Scheduler): IDisposable {
-	globalThis.setTimeout = ((handler: TimerHandler, timeout: number) => setTimeout(scheduler, handler, timeout)) as any;
+	globalThis.setTimeout = ((handler: TimerHandler, timeout?: number) => setTimeout(scheduler, handler, timeout)) as any;
 	globalThis.clearTimeout = (timeoutId: any) => {
 		if (typeof timeoutId === 'object' && timeoutId && 'dispose' in timeoutId) {
 			timeoutId.dispose();

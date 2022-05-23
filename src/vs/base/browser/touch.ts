@@ -75,7 +75,7 @@ export class Gesture extends Disposable {
 	private ignoreTargets: HTMLElement[];
 	private handle: IDisposable | null;
 
-	private activeTouches: { [id: number]: TouchData; };
+	private activeTouches: { [id: number]: TouchData };
 
 	private _lastSetTapCountTime: number;
 

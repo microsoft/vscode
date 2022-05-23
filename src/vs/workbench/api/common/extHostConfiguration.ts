@@ -11,7 +11,7 @@ import { ExtHostConfigurationShape, MainThreadConfigurationShape, IConfiguration
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
-import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { isObject } from 'vs/base/common/types';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
@@ -37,8 +37,8 @@ type ConfigurationInspect<T> = {
 
 	defaultValue?: T;
 	globalValue?: T;
-	workspaceValue?: T,
-	workspaceFolderValue?: T,
+	workspaceValue?: T;
+	workspaceFolderValue?: T;
 
 	defaultLanguageValue?: T;
 	globalLanguageValue?: T;
@@ -52,7 +52,7 @@ function isUri(thing: any): thing is vscode.Uri {
 	return thing instanceof URI;
 }
 
-function isResourceLanguage(thing: any): thing is { uri: URI, languageId: string } {
+function isResourceLanguage(thing: any): thing is { uri: URI; languageId: string } {
 	return thing
 		&& thing.uri instanceof URI
 		&& (thing.languageId && typeof thing.languageId === 'string');
@@ -277,7 +277,7 @@ export class ExtHostConfigProvider {
 			mixin(result, config, false);
 		}
 
-		return <vscode.WorkspaceConfiguration>Object.freeze(result);
+		return Object.freeze(result);
 	}
 
 	private _toReadonlyValue(result: any): any {
@@ -297,7 +297,7 @@ export class ExtHostConfigProvider {
 	}
 
 	private _validateConfigurationAccess(key: string, overrides?: IConfigurationOverrides, extensionId?: ExtensionIdentifier): void {
-		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes.get(key);
+		const scope = OVERRIDE_PROPERTY_REGEX.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes.get(key);
 		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
 			if (typeof overrides?.resource === 'undefined') {
@@ -313,7 +313,7 @@ export class ExtHostConfigProvider {
 		}
 	}
 
-	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData, workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
+	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData; workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
 		const event = new ConfigurationChangeEvent(change, previous, this._configuration, this._extHostWorkspace.workspace);
 		return Object.freeze({
 			affectsConfiguration: (section: string, scope?: vscode.ConfigurationScope) => event.affectsConfiguration(section, scopeToOverrides(scope))

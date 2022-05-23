@@ -16,11 +16,11 @@ import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRe
 import { localize } from 'vs/nls';
 
 type DynamicWorkspaceRecommendationsClassification = {
-	count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	cache: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	cache: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
-type IStoredDynamicWorkspaceRecommendations = { recommendations: string[], timestamp: number };
+type IStoredDynamicWorkspaceRecommendations = { recommendations: string[]; timestamp: number };
 const dynamicWorkspaceRecommendationsStorageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 
@@ -62,7 +62,7 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 		const cachedDynamicWorkspaceRecommendations = this.getCachedDynamicWorkspaceRecommendations();
 		if (cachedDynamicWorkspaceRecommendations) {
 			this._recommendations = cachedDynamicWorkspaceRecommendations.map(id => this.toExtensionRecommendation(id, folder));
-			this.telemetryService.publicLog2<{ count: number, cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations', { count: this._recommendations.length, cache: 1 });
+			this.telemetryService.publicLog2<{ count: number; cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations', { count: this._recommendations.length, cache: 1 });
 			return;
 		}
 
@@ -82,7 +82,7 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 			if (workspaceTip) {
 				this._recommendations = workspaceTip.recommendations.map(id => this.toExtensionRecommendation(id, folder));
 				this.storageService.store(dynamicWorkspaceRecommendationsStorageKey, JSON.stringify(<IStoredDynamicWorkspaceRecommendations>{ recommendations: workspaceTip.recommendations, timestamp: Date.now() }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-				this.telemetryService.publicLog2<{ count: number, cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations', { count: this._recommendations.length, cache: 0 });
+				this.telemetryService.publicLog2<{ count: number; cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations', { count: this._recommendations.length, cache: 0 });
 				return;
 			}
 		}

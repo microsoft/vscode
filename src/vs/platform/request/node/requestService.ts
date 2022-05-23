@@ -6,6 +6,7 @@
 import * as http from 'http';
 import * as https from 'https';
 import { parse as parseUrl } from 'url';
+import { Promises } from 'vs/base/common/async';
 import { streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
@@ -15,7 +16,7 @@ import { isBoolean, isNumber } from 'vs/base/common/types';
 import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IHTTPConfiguration, IRequestService } from 'vs/platform/request/common/request';
 import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
@@ -42,6 +43,7 @@ export class RequestService extends Disposable implements IRequestService {
 	private proxyUrl?: string;
 	private strictSSL: boolean | undefined;
 	private authorization?: string;
+	private shellEnvErrorLogged?: boolean;
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -60,15 +62,18 @@ export class RequestService extends Disposable implements IRequestService {
 	}
 
 	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.logService.trace('RequestService#request', options.url);
+		this.logService.trace('RequestService#request (node) - begin', options.url);
 
 		const { proxyUrl, strictSSL } = this;
 
 		let shellEnv: typeof process.env | undefined = undefined;
 		try {
-			shellEnv = await resolveShellEnv(this.logService, this.environmentService.args, process.env);
+			shellEnv = await getResolvedShellEnv(this.logService, this.environmentService.args, process.env);
 		} catch (error) {
-			this.logService.error('RequestService#request resolving shell environment failed', error);
+			if (!this.shellEnvErrorLogged) {
+				this.shellEnvErrorLogged = true;
+				this.logService.error('RequestService#request (node) resolving shell environment failed', error);
+			}
 		}
 
 		const env = {
@@ -87,7 +92,17 @@ export class RequestService extends Disposable implements IRequestService {
 			};
 		}
 
-		return this._request(options, token);
+		try {
+			const res = await this._request(options, token);
+
+			this.logService.trace('RequestService#request (node) - success', options.url);
+
+			return res;
+		} catch (error) {
+			this.logService.trace('RequestService#request (node) - error', options.url, error);
+
+			throw error;
+		}
 	}
 
 	private async getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
@@ -98,7 +113,7 @@ export class RequestService extends Disposable implements IRequestService {
 
 	private _request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 
-		return new Promise<IRequestContext>(async (c, e) => {
+		return Promises.withAsyncBody<IRequestContext>(async (c, e) => {
 			let req: http.ClientRequest;
 
 			const endpoint = parseUrl(options.url!);

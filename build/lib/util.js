@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.incremental = void 0;
+exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
 const es = require("event-stream");
-const debounce = require("debounce");
+const _debounce = require("debounce");
 const _filter = require("gulp-filter");
 const rename = require("gulp-rename");
 const path = require("path");
 const fs = require("fs");
 const _rimraf = require("rimraf");
-const git = require("./git");
 const VinylFile = require("vinyl");
+const git = require("./git");
 const root = path.dirname(path.dirname(__dirname));
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
@@ -36,7 +36,7 @@ function incremental(streamProvider, initial, supportsCancellation) {
     if (initial) {
         run(initial, false);
     }
-    const eventuallyRun = debounce(() => {
+    const eventuallyRun = _debounce(() => {
         const paths = Object.keys(buffer);
         if (paths.length === 0) {
             return;
@@ -54,6 +54,35 @@ function incremental(streamProvider, initial, supportsCancellation) {
     return es.duplex(input, output);
 }
 exports.incremental = incremental;
+function debounce(task) {
+    const input = es.through();
+    const output = es.through();
+    let state = 'idle';
+    const run = () => {
+        state = 'running';
+        task()
+            .pipe(es.through(undefined, () => {
+            const shouldRunAgain = state === 'stale';
+            state = 'idle';
+            if (shouldRunAgain) {
+                eventuallyRun();
+            }
+        }))
+            .pipe(output);
+    };
+    run();
+    const eventuallyRun = _debounce(() => run(), 500);
+    input.on('data', () => {
+        if (state === 'idle') {
+            eventuallyRun();
+        }
+        else {
+            state = 'stale';
+        }
+    });
+    return es.duplex(input, output);
+}
+exports.debounce = debounce;
 function fixWin32DirectoryPermissions() {
     if (!/win32/.test(process.platform)) {
         return es.through();
@@ -225,8 +254,8 @@ function ensureDir(dirPath) {
 }
 exports.ensureDir = ensureDir;
 function getVersion(root) {
-    let version = process.env['BUILD_SOURCEVERSION'];
-    if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
+    let version = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
+    if (!version || !/^[0-9a-f]{40}$/i.test(version.trim())) {
         version = git.getVersion(root);
     }
     return version;
@@ -275,7 +304,6 @@ function getElectronVersion() {
 }
 exports.getElectronVersion = getElectronVersion;
 function acquireWebNodePaths() {
-    var _a;
     const root = path.join(__dirname, '..', '..');
     const webPackageJSON = path.join(root, '/remote/web', 'package.json');
     const webPackages = JSON.parse(fs.readFileSync(webPackageJSON, 'utf8')).dependencies;
@@ -283,18 +311,28 @@ function acquireWebNodePaths() {
     for (const key of Object.keys(webPackages)) {
         const packageJSON = path.join(root, 'node_modules', key, 'package.json');
         const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
-        let entryPoint = (_a = packageData.browser) !== null && _a !== void 0 ? _a : packageData.main;
+        let entryPoint = packageData.browser ?? packageData.main;
         // On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
         if (!entryPoint) {
-            console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
+            // TODO @lramos15 remove this when jschardet adds an entrypoint so we can warn on all packages w/out entrypoint
+            if (key !== 'jschardet') {
+                console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
+            }
             entryPoint = `dist/${key}.min.js`;
         }
         // Remove any starting path information so it's all relative info
         if (entryPoint.startsWith('./')) {
-            entryPoint = entryPoint.substr(2);
+            entryPoint = entryPoint.substring(2);
         }
         else if (entryPoint.startsWith('/')) {
-            entryPoint = entryPoint.substr(1);
+            entryPoint = entryPoint.substring(1);
+        }
+        // Search for a minified entrypoint as well
+        if (/(?<!\.min)\.js$/i.test(entryPoint)) {
+            const minEntryPoint = entryPoint.replace(/\.js$/i, '.min.js');
+            if (fs.existsSync(path.join(root, 'node_modules', key, minEntryPoint))) {
+                entryPoint = minEntryPoint;
+            }
         }
         nodePaths[key] = entryPoint;
     }

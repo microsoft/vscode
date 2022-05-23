@@ -18,21 +18,25 @@ import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Workbench - TextModelResolverService', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let model: TextFileEditorModel;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {
 		model?.dispose();
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+		disposables.dispose();
 	});
 
 	test('resolve resource', async () => {
@@ -40,7 +44,7 @@ suite('Workbench - TextModelResolverService', () => {
 			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
-					let languageSelection = accessor.modeService.create('json');
+					let languageSelection = accessor.languageService.createById('json');
 
 					return accessor.modelService.createModel(modelContent, languageSelection, resource);
 				}
@@ -175,7 +179,7 @@ suite('Workbench - TextModelResolverService', () => {
 				await waitForIt;
 
 				let modelContent = 'Hello Test';
-				let languageSelection = accessor.modeService.create('json');
+				let languageSelection = accessor.languageService.createById('json');
 				return accessor.modelService.createModel(modelContent, languageSelection, resource);
 			}
 		});

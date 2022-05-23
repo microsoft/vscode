@@ -9,7 +9,7 @@ import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardE
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
+import * as event from 'vs/base/common/event';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -73,6 +73,9 @@ export interface IAddStandardDisposableListenerSignature {
 	(node: HTMLElement, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'pointerdown', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'pointermove', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'pointerup', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 }
 function _wrapAsStandardMouseEvent(handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
@@ -97,26 +100,26 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
-export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export let addStandardDisposableGenericMouseDownListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	let wrapHandler = _wrapAsStandardMouseEvent(handler);
 
-	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
+	return addDisposableGenericMouseDownListener(node, wrapHandler, useCapture);
 };
 
-export let addStandardDisposableGenericMouseUpListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export let addStandardDisposableGenericMouseUpListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	let wrapHandler = _wrapAsStandardMouseEvent(handler);
 
-	return addDisposableGenericMouseUpListner(node, wrapHandler, useCapture);
+	return addDisposableGenericMouseUpListener(node, wrapHandler, useCapture);
 };
-export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableGenericMouseDownListener(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
 }
 
-export function addDisposableGenericMouseMoveListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableGenericMouseMoveListener(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_MOVE : EventType.MOUSE_MOVE, handler, useCapture);
 }
 
-export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableGenericMouseUpListener(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
@@ -147,6 +150,24 @@ export function addDisposableNonBubblingPointerOutListener(node: Element, handle
 
 		handler(e);
 	});
+}
+
+export function createEventEmitter<K extends keyof HTMLElementEventMap>(target: HTMLElement, type: K, options?: boolean | AddEventListenerOptions): event.Emitter<HTMLElementEventMap[K]> {
+	let domListener: DomListener | null = null;
+	const handler = (e: HTMLElementEventMap[K]) => result.fire(e);
+	const onFirstListenerAdd = () => {
+		if (!domListener) {
+			domListener = new DomListener(target, type, handler, options);
+		}
+	};
+	const onLastListenerRemove = () => {
+		if (domListener) {
+			domListener.dispose();
+			domListener = null;
+		}
+	};
+	const result = new event.Emitter<HTMLElementEventMap[K]>({ onFirstListenerAdd, onLastListenerRemove });
+	return result;
 }
 
 interface IRequestAnimationFrame {
@@ -290,17 +311,12 @@ export interface IEventMerger<R, E> {
 	(lastEvent: R | null, currentEvent: E): R;
 }
 
-export interface DOMEvent {
-	preventDefault(): void;
-	stopPropagation(): void;
-}
-
 const MINIMUM_TIME_MS = 8;
-const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
+const DEFAULT_EVENT_MERGER: IEventMerger<Event, Event> = function (lastEvent: Event | null, currentEvent: Event) {
 	return currentEvent;
 };
 
-class TimeoutThrottledDomListener<R, E extends DOMEvent> extends Disposable {
+class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 
 	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
@@ -330,7 +346,7 @@ class TimeoutThrottledDomListener<R, E extends DOMEvent> extends Disposable {
 	}
 }
 
-export function addDisposableThrottledListener<R, E extends DOMEvent = DOMEvent>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R, E>, minimumTimeMs?: number): IDisposable {
+export function addDisposableThrottledListener<R, E extends Event = Event>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R, E>, minimumTimeMs?: number): IDisposable {
 	return new TimeoutThrottledDomListener<R, E>(node, type, handler, eventMerger, minimumTimeMs);
 }
 
@@ -477,7 +493,7 @@ export class Dimension implements IDimension {
 	}
 }
 
-export function getTopLeftOffset(element: HTMLElement): { left: number; top: number; } {
+export function getTopLeftOffset(element: HTMLElement): { left: number; top: number } {
 	// Adapted from WinJS.Utilities.getPosition
 	// and added borders to the mix
 
@@ -559,6 +575,24 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
 		width: bb.width,
 		height: bb.height
 	};
+}
+
+/**
+ * Returns the effective zoom on a given element before window zoom level is applied
+ */
+export function getDomNodeZoomLevel(domNode: HTMLElement): number {
+	let testElement: HTMLElement | null = domNode;
+	let zoom = 1.0;
+	do {
+		const elementZoomLevel = (getComputedStyle(testElement) as any).zoom;
+		if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
+			zoom *= elementZoomLevel;
+		}
+
+		testElement = testElement.parentElement;
+	} while (testElement !== null && testElement !== document.documentElement);
+
+	return zoom;
 }
 
 export interface IStandardWindow {
@@ -846,6 +880,8 @@ export const EventType = {
 	LOAD: 'load',
 	BEFORE_UNLOAD: 'beforeunload',
 	UNLOAD: 'unload',
+	PAGE_SHOW: 'pageshow',
+	PAGE_HIDE: 'pagehide',
 	ABORT: 'abort',
 	ERROR: 'error',
 	RESIZE: 'resize',
@@ -904,9 +940,9 @@ export const EventHelper = {
 };
 
 export interface IFocusTracker extends Disposable {
-	onDidFocus: Event<void>;
-	onDidBlur: Event<void>;
-	refreshState?(): void;
+	onDidFocus: event.Event<void>;
+	onDidBlur: event.Event<void>;
+	refreshState(): void;
 }
 
 export function saveParentsScrollTop(node: Element): number[] {
@@ -929,17 +965,23 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 
 class FocusTracker extends Disposable implements IFocusTracker {
 
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
+	private readonly _onDidFocus = this._register(new event.Emitter<void>());
+	public readonly onDidFocus: event.Event<void> = this._onDidFocus.event;
 
-	private readonly _onDidBlur = this._register(new Emitter<void>());
-	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
+	private readonly _onDidBlur = this._register(new event.Emitter<void>());
+	public readonly onDidBlur: event.Event<void> = this._onDidBlur.event;
 
 	private _refreshStateHandler: () => void;
 
+	private static hasFocusWithin(element: HTMLElement): boolean {
+		const shadowRoot = getShadowRoot(element);
+		const activeElement = (shadowRoot ? shadowRoot.activeElement : document.activeElement);
+		return isAncestor(activeElement, element);
+	}
+
 	constructor(element: HTMLElement | Window) {
 		super();
-		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+		let hasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
 		let loosingFocus = false;
 
 		const onFocus = () => {
@@ -964,7 +1006,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 		};
 
 		this._refreshStateHandler = () => {
-			let currentNodeHasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+			let currentNodeHasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
 			if (currentNodeHasFocus !== hasFocus) {
 				if (hasFocus) {
 					onBlur();
@@ -976,6 +1018,8 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
 		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
+		this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
+		this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
 	}
 
 	refreshState() {
@@ -1021,7 +1065,7 @@ export enum Namespace {
 	SVG = 'http://www.w3.org/2000/svg'
 }
 
-function _$<T extends Element>(namespace: Namespace, description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+function _$<T extends Element>(namespace: Namespace, description: string, attrs?: { [key: string]: any }, ...children: Array<Node | string>): T {
 	let match = SELECTOR_REGEX.exec(description);
 
 	if (!match) {
@@ -1070,11 +1114,11 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 	return result as T;
 }
 
-export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any }, ...children: Array<Node | string>): T {
 	return _$(Namespace.HTML, description, attrs, ...children);
 }
 
-$.SVG = function <T extends SVGElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+$.SVG = function <T extends SVGElement>(description: string, attrs?: { [key: string]: any }, ...children: Array<Node | string>): T {
 	return _$(Namespace.SVG, description, attrs, ...children);
 };
 
@@ -1145,7 +1189,7 @@ export function getElementsByTagName(tag: string): HTMLElement[] {
 	return Array.prototype.slice.call(document.getElementsByTagName(tag), 0);
 }
 
-export function finalHandler<T extends DOMEvent>(fn: (event: T) => any): (event: T) => any {
+export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T) => any {
 	return e => {
 		e.preventDefault();
 		e.stopPropagation();
@@ -1180,7 +1224,7 @@ export function computeScreenAwareSize(cssPx: number): number {
 /**
  * Open safely a new window. This is the best way to do so, but you cannot tell
  * if the window was opened or if it was blocked by the browser's popup blocker.
- * If you want to tell if the browser blocked the new window, use `windowOpenNoOpenerWithSuccess`.
+ * If you want to tell if the browser blocked the new window, use {@link windowOpenWithSuccess}.
  *
  * See https://github.com/microsoft/monaco-editor/issues/601
  * To protect against malicious code in the linked site, particularly phishing attempts,
@@ -1199,19 +1243,49 @@ export function windowOpenNoOpener(url: string): void {
 }
 
 /**
- * Open safely a new window. This technique is not appropriate in certain contexts,
- * like for example when the JS context is executing inside a sandboxed iframe.
- * If it is not necessary to know if the browser blocked the new window, use
- * `windowOpenNoOpener`.
+ * Open a new window in a popup. This is the best way to do so, but you cannot tell
+ * if the window was opened or if it was blocked by the browser's popup blocker.
+ * If you want to tell if the browser blocked the new window, use {@link windowOpenWithSuccess}.
+ *
+ * Note: this does not set {@link window.opener} to null. This is to allow the opened popup to
+ * be able to use {@link window.close} to close itself. Because of this, you should only use
+ * this function on urls that you trust.
+ *
+ * In otherwords, you should almost always use {@link windowOpenNoOpener} instead of this function.
+ */
+const popupWidth = 780, popupHeight = 640;
+export function windowOpenPopup(url: string): void {
+	const left = Math.floor(window.screenLeft + window.innerWidth / 2 - popupWidth / 2);
+	const top = Math.floor(window.screenTop + window.innerHeight / 2 - popupHeight / 2);
+	window.open(
+		url,
+		'_blank',
+		`width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
+	);
+}
+
+/**
+ * Attempts to open a window and returns whether it succeeded. This technique is
+ * not appropriate in certain contexts, like for example when the JS context is
+ * executing inside a sandboxed iframe. If it is not necessary to know if the
+ * browser blocked the new window, use {@link windowOpenNoOpener}.
  *
  * See https://github.com/microsoft/monaco-editor/issues/601
  * See https://github.com/microsoft/monaco-editor/issues/2474
  * See https://mathiasbynens.github.io/rel-noopener/
+ *
+ * @param url the url to open
+ * @param noOpener whether or not to set the {@link window.opener} to null. You should leave the default
+ * (true) unless you trust the url that is being opened.
+ * @returns boolean indicating if the {@link window.open} call succeeded
  */
-export function windowOpenNoOpenerWithSuccess(url: string): boolean {
+export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
 	const newTab = window.open();
 	if (newTab) {
-		(newTab as any).opener = null;
+		if (noOpener) {
+			// see `windowOpenNoOpener` for details on why this is important
+			(newTab as any).opener = null;
+		}
 		newTab.location.href = url;
 		return true;
 	}
@@ -1233,7 +1307,7 @@ RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? '
 /**
  * returns url('...')
  */
-export function asCSSUrl(uri: URI): string {
+export function asCSSUrl(uri: URI | null | undefined): string {
 	if (!uri) {
 		return `url('')`;
 	}
@@ -1285,7 +1359,7 @@ export function triggerUpload(): Promise<FileList | undefined> {
 		input.multiple = true;
 
 		// Resolve once the input event has fired once
-		Event.once(Event.fromDOMEventEmitter(input, 'input'))(() => {
+		event.Event.once(event.Event.fromDOMEventEmitter(input, 'input'))(() => {
 			resolve(withNullAsUndefined(input.files));
 		});
 
@@ -1362,6 +1436,49 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 // -- sanitize and trusted html
 
 /**
+ * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
+ * attributes are valid.
+ */
+export function hookDomPurifyHrefAndSrcSanitizer(allowedProtocols: readonly string[], allowDataImages = false): IDisposable {
+	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
+
+	// build an anchor to map URLs to
+	const anchor = document.createElement('a');
+
+	dompurify.addHook('afterSanitizeAttributes', (node) => {
+		// check all href/src attributes for validity
+		for (const attr of ['href', 'src']) {
+			if (node.hasAttribute(attr)) {
+				const attrValue = node.getAttribute(attr) as string;
+				if (attr === 'href' && attrValue.startsWith('#')) {
+					// Allow fragment links
+					continue;
+				}
+
+				anchor.href = attrValue;
+				if (!allowedProtocols.includes(anchor.protocol.replace(/:$/, ''))) {
+					if (allowDataImages && attr === 'src' && anchor.href.startsWith('data:')) {
+						continue;
+					}
+
+					node.removeAttribute(attr);
+				}
+			}
+		}
+	});
+
+	return toDisposable(() => {
+		dompurify.removeHook('afterSanitizeAttributes');
+	});
+}
+
+const defaultSafeProtocols = [
+	Schemas.http,
+	Schemas.https,
+	Schemas.command,
+];
+
+/**
  * Sanitizes the given `value` and reset the given `node` with it.
  */
 export function safeInnerHtml(node: HTMLElement, value: string): void {
@@ -1372,29 +1489,12 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 		RETURN_DOM_FRAGMENT: false,
 	};
 
-	const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
-
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// build an anchor to map URLs to
-		const anchor = document.createElement('a');
-
-		// check all href/src attributes for validity
-		for (const attr in ['href', 'src']) {
-			if (node.hasAttribute(attr)) {
-				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedProtocols.includes(anchor.protocol)) {
-					node.removeAttribute(attr);
-				}
-			}
-		}
-	});
-
+	const hook = hookDomPurifyHrefAndSrcSanitizer(defaultSafeProtocols);
 	try {
 		const html = dompurify.sanitize(value, { ...options, RETURN_TRUSTED_TYPE: true });
 		node.innerHTML = html as unknown as string;
 	} finally {
-		dompurify.removeHook('afterSanitizeAttributes');
+		hook.dispose();
 	}
 }
 
@@ -1424,22 +1524,6 @@ export function multibyteAwareBtoa(str: string): string {
 	return btoa(toBinary(str));
 }
 
-/**
- * Typings for the https://wicg.github.io/file-system-access
- *
- * Use `supported(window)` to find out if the browser supports this kind of API.
- */
-export namespace WebFileSystemAccess {
-
-	export function supported(obj: any & Window): boolean {
-		if (typeof obj?.showDirectoryPicker === 'function') {
-			return true;
-		}
-
-		return false;
-	}
-}
-
 type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';
 
 export interface IModifierKeyStatus {
@@ -1452,7 +1536,7 @@ export interface IModifierKeyStatus {
 	event?: KeyboardEvent;
 }
 
-export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
+export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 
 	private readonly _subscriptions = new DisposableStore();
 	private _keyStatus: IModifierKeyStatus;
@@ -1601,16 +1685,6 @@ export function getCookieValue(name: string): string | undefined {
 	return match ? match.pop() : undefined;
 }
 
-export function addMatchMediaChangeListener(query: string, callback: () => void): void {
-	const mediaQueryList = window.matchMedia(query);
-	if (typeof mediaQueryList.addEventListener === 'function') {
-		mediaQueryList.addEventListener('change', callback);
-	} else {
-		// Safari 13.x
-		mediaQueryList.addListener(callback);
-	}
-}
-
 export const enum ZIndex {
 	SASH = 35,
 	SuggestWidget = 40,
@@ -1620,4 +1694,75 @@ export const enum ZIndex {
 	ContextView = 2500,
 	ModalDialog = 2600,
 	PaneDropOverlay = 10000
+}
+
+
+export interface IDragAndDropObserverCallbacks {
+	readonly onDragEnter: (e: DragEvent) => void;
+	readonly onDragLeave: (e: DragEvent) => void;
+	readonly onDrop: (e: DragEvent) => void;
+	readonly onDragEnd: (e: DragEvent) => void;
+
+	readonly onDragOver?: (e: DragEvent) => void;
+}
+
+export class DragAndDropObserver extends Disposable {
+
+	// A helper to fix issues with repeated DRAG_ENTER / DRAG_LEAVE
+	// calls see https://github.com/microsoft/vscode/issues/14470
+	// when the element has child elements where the events are fired
+	// repeadedly.
+	private counter: number = 0;
+
+	constructor(private readonly element: HTMLElement, private readonly callbacks: IDragAndDropObserverCallbacks) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(addDisposableListener(this.element, EventType.DRAG_ENTER, (e: DragEvent) => {
+			this.counter++;
+
+			this.callbacks.onDragEnter(e);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
+			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
+			if (this.callbacks.onDragOver) {
+				this.callbacks.onDragOver(e);
+			}
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_LEAVE, (e: DragEvent) => {
+			this.counter--;
+
+			if (this.counter === 0) {
+				this.callbacks.onDragLeave(e);
+			}
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
+			this.counter = 0;
+			this.callbacks.onDragEnd(e);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
+			this.counter = 0;
+			this.callbacks.onDrop(e);
+		}));
+	}
+}
+
+export function computeClippingRect(elementOrRect: HTMLElement | DOMRectReadOnly, clipper: HTMLElement) {
+	const frameRect = (elementOrRect instanceof HTMLElement ? elementOrRect.getBoundingClientRect() : elementOrRect);
+	const rootRect = clipper.getBoundingClientRect();
+
+	const top = Math.max(rootRect.top - frameRect.top, 0);
+	const right = Math.max(frameRect.width - (frameRect.right - rootRect.right), 0);
+	const bottom = Math.max(frameRect.height - (frameRect.bottom - rootRect.bottom), 0);
+	const left = Math.max(rootRect.left - frameRect.left, 0);
+
+	return { top, right, bottom, left };
 }

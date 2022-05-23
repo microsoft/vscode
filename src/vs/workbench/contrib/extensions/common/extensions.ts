@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -16,6 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -45,8 +46,11 @@ export interface IExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly publisher: string;
 	readonly publisherDisplayName: string;
+	readonly publisherDomain?: { link: string; verified: boolean };
 	readonly version: string;
 	readonly latestVersion: string;
+	readonly hasPreReleaseVersion: boolean;
+	readonly hasReleaseVersion: boolean;
 	readonly description: string;
 	readonly url?: string;
 	readonly repository?: string;
@@ -57,6 +61,7 @@ export interface IExtension {
 	readonly rating?: number;
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
+	readonly outdatedTargetPlatform: boolean;
 	readonly enablementState: EnablementState;
 	readonly tags: readonly string[];
 	readonly categories: readonly string[];
@@ -65,14 +70,15 @@ export interface IExtension {
 	readonly telemetryData: any;
 	readonly preview: boolean;
 	getManifest(token: CancellationToken): Promise<IExtensionManifest | null>;
-	getReadme(token: CancellationToken): Promise<string>;
 	hasReadme(): boolean;
-	getChangelog(token: CancellationToken): Promise<string>;
+	getReadme(token: CancellationToken): Promise<string>;
 	hasChangelog(): boolean;
+	getChangelog(token: CancellationToken): Promise<string>;
 	readonly server?: IExtensionManagementServer;
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
 	readonly isMalicious: boolean;
+	readonly deprecationInfo?: IDeprecationInfo;
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';
@@ -81,21 +87,24 @@ export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchS
 
 export interface IExtensionsWorkbenchService {
 	readonly _serviceBrand: undefined;
-	onChange: Event<IExtension | undefined>;
-	local: IExtension[];
-	installed: IExtension[];
-	outdated: IExtension[];
+	readonly onChange: Event<IExtension | undefined>;
+	readonly preferPreReleases: boolean;
+	readonly local: IExtension[];
+	readonly installed: IExtension[];
+	readonly outdated: IExtension[];
 	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
+	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
+	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
 	canInstall(extension: IExtension): Promise<boolean>;
-	install(vsix: URI): Promise<IExtension>;
-	install(extension: IExtension, installOptins?: InstallOptions): Promise<IExtension>;
+	install(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension>;
+	install(extension: IExtension, installOptions?: InstallOptions): Promise<IExtension>;
 	uninstall(extension: IExtension): Promise<void>;
-	installVersion(extension: IExtension, version: string): Promise<IExtension>;
+	installVersion(extension: IExtension, version: string, installOptions?: InstallOptions): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean, tab?: string }): Promise<void>;
+	open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void>;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 
@@ -175,3 +184,7 @@ export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.exten
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
+
+// Context Menu Groups
+export const THEME_ACTIONS_GROUP = '_theme_';
+export const INSTALL_ACTIONS_GROUP = '0_install';

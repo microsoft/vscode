@@ -18,13 +18,14 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -39,31 +40,32 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IOpenerService openerService: IOpenerService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IDialogService dialogService: IDialogService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService labelService: ILabelService,
 		@IPathService pathService: IPathService,
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ILogService logService: ILogService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService,
-			configurationService, fileService, openerService, dialogService, modeService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
+			configurationService, fileService, openerService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService);
 	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
 		return {
 			forceNewWindow: options.forceNewWindow,
 			telemetryExtraData: options.telemetryExtraData,
-			defaultPath: options.defaultUri && options.defaultUri.fsPath
+			defaultPath: options.defaultUri?.fsPath
 		};
 	}
 
-	private shouldUseSimplified(schema: string): { useSimplified: boolean, isSetting: boolean } {
+	private shouldUseSimplified(schema: string): { useSimplified: boolean; isSetting: boolean } {
 		const setting = (this.configurationService.getValue('files.simpleDialog.enable') === true);
 		const newWindowSetting = (this.configurationService.getValue('window.openFilesInNewWindow') === 'on');
 		return {
-			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.userData)) || setting,
+			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.vscodeUserData)) || setting,
 			isSetting: newWindowSetting
 		};
 	}
@@ -140,7 +142,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	private toNativeSaveDialogOptions(options: ISaveDialogOptions): SaveDialogOptions {
 		options.defaultUri = options.defaultUri ? URI.file(options.defaultUri.path) : undefined;
 		return {
-			defaultPath: options.defaultUri && options.defaultUri.fsPath,
+			defaultPath: options.defaultUri?.fsPath,
 			buttonLabel: options.saveLabel,
 			filters: options.filters,
 			title: options.title
@@ -167,11 +169,9 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showOpenDialogSimplified(schema, options);
 		}
 
-		const defaultUri = options.defaultUri;
-
 		const newOptions: OpenDialogOptions & { properties: string[] } = {
 			title: options.title,
-			defaultPath: defaultUri && defaultUri.fsPath,
+			defaultPath: options.defaultUri?.fsPath,
 			buttonLabel: options.openLabel,
 			filters: options.filters,
 			properties: []

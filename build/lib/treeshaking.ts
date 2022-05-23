@@ -59,7 +59,7 @@ export interface ITreeShakingOptions {
 	 */
 	importIgnorePattern: RegExp;
 
-	redirects: { [module: string]: string; };
+	redirects: { [module: string]: string };
 }
 
 export interface ITreeShakingResult {
@@ -140,7 +140,7 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
 function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): IFileMap {
 	const FILES: IFileMap = {};
 
-	const in_queue: { [module: string]: boolean; } = Object.create(null);
+	const in_queue: { [module: string]: boolean } = Object.create(null);
 	const queue: string[] = [];
 
 	const enqueue = (moduleId: string) => {
@@ -225,8 +225,8 @@ function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingO
 	return result;
 }
 
-interface ILibMap { [libName: string]: string; }
-interface IFileMap { [fileName: string]: string; }
+interface ILibMap { [libName: string]: string }
+interface IFileMap { [fileName: string]: string }
 
 /**
  * A TypeScript language service host
@@ -284,6 +284,12 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	isDefaultLibFileName(fileName: string): boolean {
 		return fileName === this.getDefaultLibFileName(this._compilerOptions);
 	}
+	readFile(path: string, _encoding?: string): string | undefined {
+		return this._files[path] || this._libs[path];
+	}
+	fileExists(path: string): boolean {
+		return path in this._files || path in this._libs;
+	}
 }
 //#endregion
 
@@ -325,6 +331,54 @@ function nodeOrChildIsBlack(node: ts.Node): boolean {
 
 function isSymbolWithDeclarations(symbol: ts.Symbol | undefined | null): symbol is ts.Symbol & { declarations: ts.Declaration[] } {
 	return !!(symbol && symbol.declarations);
+}
+
+function isVariableStatementWithSideEffects(ts: typeof import('typescript'), node: ts.Node): boolean {
+	if (!ts.isVariableStatement(node)) {
+		return false;
+	}
+	let hasSideEffects = false;
+	const visitNode = (node: ts.Node) => {
+		if (hasSideEffects) {
+			// no need to go on
+			return;
+		}
+		if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+			// TODO: assuming `createDecorator` and `refineServiceDecorator` calls are side-effect free
+			const isSideEffectFree = /(createDecorator|refineServiceDecorator)/.test(node.expression.getText());
+			if (!isSideEffectFree) {
+				hasSideEffects = true;
+			}
+		}
+		node.forEachChild(visitNode);
+	};
+	node.forEachChild(visitNode);
+	return hasSideEffects;
+}
+
+function isStaticMemberWithSideEffects(ts: typeof import('typescript'), node: ts.ClassElement | ts.TypeElement): boolean {
+	if (!ts.isPropertyDeclaration(node)) {
+		return false;
+	}
+	if (!node.modifiers) {
+		return false;
+	}
+	if (!node.modifiers.some(mod => mod.kind === ts.SyntaxKind.StaticKeyword)) {
+		return false;
+	}
+	let hasSideEffects = false;
+	const visitNode = (node: ts.Node) => {
+		if (hasSideEffects) {
+			// no need to go on
+			return;
+		}
+		if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+			hasSideEffects = true;
+		}
+		node.forEachChild(visitNode);
+	};
+	node.forEachChild(visitNode);
+	return hasSideEffects;
 }
 
 function markNodes(ts: typeof import('typescript'), languageService: ts.LanguageService, options: ITreeShakingOptions) {
@@ -370,6 +424,10 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 					}
 				}
 				return;
+			}
+
+			if (isVariableStatementWithSideEffects(ts, node)) {
+				enqueue_black(node);
 			}
 
 			if (
@@ -561,6 +619,10 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 								|| memberName === 'dispose'// TODO: keeping all `dispose` methods
 								|| /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
 							) {
+								enqueue_black(member);
+							}
+
+							if (isStaticMemberWithSideEffects(ts, member)) {
 								enqueue_black(member);
 							}
 						}

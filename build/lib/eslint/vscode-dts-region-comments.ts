@@ -9,7 +9,7 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
-			comment: 'region comments should start with the GH issue link, e.g #region https://github.com/microsoft/vscode/issues/<number>',
+			comment: 'region comments should start with a camel case identifier, `:`, then either a GH issue link or owner, e.g #region myProposalName: https://github.com/microsoft/vscode/issues/<number>',
 		}
 	};
 
@@ -17,18 +17,16 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 		const sourceCode = context.getSourceCode();
 
-
 		return {
 			['Program']: (_node: any) => {
-
-				for (let comment of sourceCode.getAllComments()) {
+				for (const comment of sourceCode.getAllComments()) {
 					if (comment.type !== 'Line') {
 						continue;
 					}
-					if (!comment.value.match(/^\s*#region /)) {
+					if (!/^\s*#region /.test(comment.value)) {
 						continue;
 					}
-					if (!comment.value.match(/https:\/\/github.com\/microsoft\/vscode\/issues\/\d+/i)) {
+					if (!/^\s*#region ([a-z]+): (@[a-z]+|https:\/\/github.com\/microsoft\/vscode\/issues\/\d+)/i.test(comment.value)) {
 						context.report({
 							node: <any>comment,
 							messageId: 'comment',

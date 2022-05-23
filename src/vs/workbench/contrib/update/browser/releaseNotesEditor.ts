@@ -12,24 +12,25 @@ import { OS } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { asText, IRequestService } from 'vs/platform/request/common/request';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
 export class ReleaseNotesManager {
 
@@ -41,10 +42,10 @@ export class ReleaseNotesManager {
 	public constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IRequestService private readonly _requestService: IRequestService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
@@ -78,18 +79,20 @@ export class ReleaseNotesManager {
 			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
 			this._currentReleaseNotes = this._webviewWorkbenchService.createWebview(
-				generateUuid(),
+				{
+					id: generateUuid(),
+					options: {
+						tryRestoreScrollPosition: true,
+						enableFindWidget: true,
+					},
+					contentOptions: {
+						localResourceRoots: []
+					},
+					extension: undefined
+				},
 				'releaseNotes',
 				title,
-				{ group: ACTIVE_GROUP, preserveFocus: false },
-				{
-					tryRestoreScrollPosition: true,
-					enableFindWidget: true,
-				},
-				{
-					localResourceRoots: []
-				},
-				undefined);
+				{ group: ACTIVE_GROUP, preserveFocus: false });
 
 			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
 			this._currentReleaseNotes.onWillDispose(() => { this._currentReleaseNotes = undefined; });
@@ -162,7 +165,7 @@ export class ReleaseNotesManager {
 		const fetchReleaseNotes = async () => {
 			let text;
 			try {
-				text = await asText(await this._requestService.request({ url }, CancellationToken.None));
+				text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
 			} catch {
 				throw new Error('Failed to fetch release notes');
 			}
@@ -195,11 +198,9 @@ export class ReleaseNotesManager {
 	}
 
 	private async addGAParameters(uri: URI, origin: string, experiment = '1'): Promise<URI> {
-		if (supportsTelemetry(this._productService, this._environmentService)) {
+		if (supportsTelemetry(this._productService, this._environmentService) && getTelemetryLevel(this._configurationService) === TelemetryLevel.USAGE) {
 			if (uri.scheme === 'https' && uri.authority === 'code.visualstudio.com') {
-				const info = await this._telemetryService.getTelemetryInfo();
-
-				return uri.with({ query: `${uri.query ? uri.query + '&' : ''}utm_source=VsCode&utm_medium=${encodeURIComponent(origin)}&utm_campaign=${encodeURIComponent(info.instanceId)}&utm_content=${encodeURIComponent(experiment)}` });
+				return uri.with({ query: `${uri.query ? uri.query + '&' : ''}utm_source=VsCode&utm_medium=${encodeURIComponent(origin)}&utm_content=${encodeURIComponent(experiment)}` });
 			}
 		}
 		return uri;
@@ -207,7 +208,7 @@ export class ReleaseNotesManager {
 
 	private async renderBody(text: string) {
 		const nonce = generateUuid();
-		const content = await renderMarkdownDocument(text, this._extensionService, this._modeService, false);
+		const content = await renderMarkdownDocument(text, this._extensionService, this._languageService, false);
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		return `<!DOCTYPE html>

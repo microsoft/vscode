@@ -22,8 +22,6 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 
 	static PREFIX = 'task ';
 
-	private activationPromise: Promise<void>;
-
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@ITaskService private taskService: ITaskService,
@@ -37,14 +35,9 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 				label: localize('noTaskResults', "No matching tasks")
 			}
 		});
-
-		this.activationPromise = extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask');
 	}
 
 	protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
-		// always await extensions
-		await this.activationPromise;
-
 		if (token.isCancellationRequested) {
 			return [];
 		}

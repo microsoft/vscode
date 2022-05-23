@@ -72,7 +72,7 @@ function standardDecodeUTF16LE(source: Uint8Array, offset: number, len: number):
 }
 
 function compatDecodeUTF16LE(source: Uint8Array, offset: number, len: number): string {
-	let result: string[] = [];
+	const result: string[] = [];
 	let resultLen = 0;
 	for (let i = 0; i < len; i++) {
 		const charCode = buffer.readUInt16LE(source, offset); offset += 2;

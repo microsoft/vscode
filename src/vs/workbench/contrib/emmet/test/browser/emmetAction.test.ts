@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IGrammarContributions, ILanguageIdentifierResolver, EmmetEditorAction } from 'vs/workbench/contrib/emmet/browser/emmetActions';
+import { IGrammarContributions, EmmetEditorAction } from 'vs/workbench/contrib/emmet/browser/emmetActions';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import * as assert from 'assert';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 class MockGrammarContributions implements IGrammarContributions {
 	private scopeName: string;
@@ -23,26 +24,23 @@ class MockGrammarContributions implements IGrammarContributions {
 suite('Emmet', () => {
 
 	test('Get language mode and parent mode for emmet', () => {
-		withTestCodeEditor([], {}, (editor) => {
+		withTestCodeEditor([], {}, (editor, viewModel, instantiationService) => {
+			const languageService = instantiationService.get(ILanguageService);
+
+			const disposables = new DisposableStore();
+			disposables.add(languageService.registerLanguage({ id: 'markdown' }));
+			disposables.add(languageService.registerLanguage({ id: 'handlebars' }));
+			disposables.add(languageService.registerLanguage({ id: 'nunjucks' }));
+			disposables.add(languageService.registerLanguage({ id: 'laravel-blade' }));
 
 			function testIsEnabled(mode: string, scopeName: string, expectedLanguage?: string, expectedParentLanguage?: string) {
-				const customLanguageId: LanguageId = 73;
-				const languageIdentifier = new LanguageIdentifier(mode, customLanguageId);
-				const languageIdentifierResolver: ILanguageIdentifierResolver = {
-					getLanguageIdentifier: (languageId: LanguageId) => {
-						if (languageId === customLanguageId) {
-							return languageIdentifier;
-						}
-						throw new Error('Unexpected');
-					}
-				};
 				const model = editor.getModel();
 				if (!model) {
 					assert.fail('Editor model not found');
 				}
 
-				model.setMode(languageIdentifier);
-				let langOutput = EmmetEditorAction.getLanguage(languageIdentifierResolver, editor, new MockGrammarContributions(scopeName));
+				model.setMode(mode);
+				let langOutput = EmmetEditorAction.getLanguage(editor, new MockGrammarContributions(scopeName));
 				if (!langOutput) {
 					assert.fail('langOutput not found');
 				}
@@ -60,6 +58,8 @@ suite('Emmet', () => {
 			// languages that have different Language Id and scopeName
 			// testIsEnabled('razor', 'text.html.cshtml', 'razor', 'html');
 			// testIsEnabled('HTML (Eex)', 'text.html.elixir', 'boo', 'html');
+
+			disposables.dispose();
 
 		});
 	});

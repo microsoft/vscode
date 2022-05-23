@@ -22,7 +22,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
 	when: TerminalContextKeys.notFocus,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: async (accessor) => {
@@ -106,7 +106,7 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 						nls.localize('terminal.explorerKind.integrated', "Use VS Code's integrated terminal."),
 						nls.localize('terminal.explorerKind.external', "Use the configured external terminal.")
 					],
-					description: nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
+					description: nls.localize('explorer.openInTerminalKind', "When opening a file from the explorer in a terminal, determines what kind of terminal will be launched"),
 					default: 'integrated'
 				},
 				'terminal.external.windowsExec': {

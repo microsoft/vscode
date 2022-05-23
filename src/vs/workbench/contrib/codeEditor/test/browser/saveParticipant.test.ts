@@ -15,19 +15,23 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { IResolvedTextFileEditorModel, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Save Participants', function () {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+		disposables.dispose();
 	});
 
 	test('insert final new line', async function () {

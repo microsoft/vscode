@@ -9,7 +9,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { INewUntitledTextEditorOptions, IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { Schemas } from 'vs/base/common/network';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -18,7 +18,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -104,8 +104,8 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 		// Untitled text file support
 		const untitledInput = input as IUntitledTextResourceEditorInput;
 		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource.scheme === Schemas.untitled)) {
-			const untitledOptions = {
-				mode: untitledInput.mode,
+			const untitledOptions: Partial<INewUntitledTextEditorOptions> = {
+				languageId: untitledInput.languageId,
 				initialValue: untitledInput.contents,
 				encoding: untitledInput.encoding
 			};
@@ -157,11 +157,11 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 
 				// File
 				if (textResourceEditorInput.forceFile || this.fileService.hasProvider(canonicalResource)) {
-					return this.fileEditorFactory.createFileEditor(canonicalResource, preferredResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.encoding, textResourceEditorInput.mode, textResourceEditorInput.contents, this.instantiationService);
+					return this.fileEditorFactory.createFileEditor(canonicalResource, preferredResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.encoding, textResourceEditorInput.languageId, textResourceEditorInput.contents, this.instantiationService);
 				}
 
 				// Resource
-				return this.instantiationService.createInstance(TextResourceEditorInput, canonicalResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.mode, textResourceEditorInput.contents);
+				return this.instantiationService.createInstance(TextResourceEditorInput, canonicalResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.languageId, textResourceEditorInput.contents);
 			}, cachedInput => {
 
 				// Untitled
@@ -185,8 +185,8 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 						cachedInput.setPreferredEncoding(textResourceEditorInput.encoding);
 					}
 
-					if (textResourceEditorInput.mode) {
-						cachedInput.setPreferredMode(textResourceEditorInput.mode);
+					if (textResourceEditorInput.languageId) {
+						cachedInput.setPreferredLanguageId(textResourceEditorInput.languageId);
 					}
 
 					if (typeof textResourceEditorInput.contents === 'string') {
@@ -204,8 +204,8 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 						cachedInput.setDescription(textResourceEditorInput.description);
 					}
 
-					if (textResourceEditorInput.mode) {
-						cachedInput.setPreferredMode(textResourceEditorInput.mode);
+					if (textResourceEditorInput.languageId) {
+						cachedInput.setPreferredLanguageId(textResourceEditorInput.languageId);
 					}
 
 					if (typeof textResourceEditorInput.contents === 'string') {
@@ -243,4 +243,4 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 	}
 }
 
-registerSingleton(ITextEditorService, TextEditorService, true);
+registerSingleton(ITextEditorService, TextEditorService, false /* do not change: https://github.com/microsoft/vscode/issues/137675 */);

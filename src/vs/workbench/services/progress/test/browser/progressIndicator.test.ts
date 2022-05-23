@@ -5,12 +5,11 @@
 
 import * as assert from 'assert';
 import { IEditorControl } from 'vs/workbench/common/editor';
-import { CompositeScope, CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
+import { CompositeProgressScope, CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { TestSideBarPart, TestViewsService, TestPaneCompositeService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
-import { IView, IViewPaneContainer, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IView, IViewPaneContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 class TestViewlet implements IPaneComposite {
 
@@ -28,17 +27,6 @@ class TestViewlet implements IPaneComposite {
 	openView<T extends IView>(id: string, focus?: boolean): T | undefined { return undefined; }
 	getViewPaneContainer(): IViewPaneContainer { return null!; }
 	saveState(): void { }
-}
-
-class TestCompositeScope extends CompositeScope {
-	isActive: boolean = false;
-
-	constructor(paneCompositeService: IPaneCompositePartService, viewsService: IViewsService, scopeId: string) {
-		super(paneCompositeService, viewsService, scopeId);
-	}
-
-	onScopeActivated() { this.isActive = true; }
-	onScopeDeactivated() { this.isActive = false; }
 }
 
 class TestProgressBar {
@@ -101,7 +89,7 @@ suite('Progress Indicator', () => {
 	test('CompositeScope', () => {
 		let paneCompositeService = new TestPaneCompositeService();
 		let viewsService = new TestViewsService();
-		let service = new TestCompositeScope(paneCompositeService, viewsService, 'test.scopeId');
+		let service = new CompositeProgressScope(paneCompositeService, viewsService, 'test.scopeId', false);
 		const testViewlet = new TestViewlet('test.scopeId');
 
 		assert(!service.isActive);

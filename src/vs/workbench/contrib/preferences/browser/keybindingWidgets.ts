@@ -10,7 +10,8 @@ import { Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecy
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
@@ -24,7 +25,7 @@ import { editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { timeout } from 'vs/base/common/async';
+import { Promises, timeout } from 'vs/base/common/async';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
@@ -225,7 +226,7 @@ export class DefineKeybindingWidget extends Widget {
 
 	define(): Promise<string | null> {
 		this._keybindingInputWidget.clear();
-		return new Promise<string | null>(async (c) => {
+		return Promises.withAsyncBody<string | null>(async (c) => {
 			if (!this._isVisible) {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');

@@ -10,7 +10,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ./build/update-grammars.js"
+    "update-grammar": "node ./build/update-grammars.mjs"
   },
   "contributes": {
     "languages": [
@@ -22,7 +22,9 @@
           "typescript"
         ],
         "extensions": [
-          ".ts"
+          ".ts",
+          ".cts",
+          ".mts"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -49,6 +51,12 @@
           "tsconfig-*.json",
           "jsconfig-*.json"
         ]
+      },
+      {
+        "id": "json",
+        "filenames": [
+          "tsconfig.tsbuildinfo"
+        ]
       }
     ],
     "grammars": [
@@ -58,6 +66,8 @@
         "path": "./syntaxes/TypeScript.tmLanguage.json",
         "tokenTypes": {
           "meta.template.expression": "other",
+          "meta.template.expression string": "string",
+          "meta.template.expression comment": "comment",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
@@ -76,6 +86,8 @@
         },
         "tokenTypes": {
           "meta.template.expression": "other",
+          "meta.template.expression string": "string",
+          "meta.template.expression comment": "comment",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",

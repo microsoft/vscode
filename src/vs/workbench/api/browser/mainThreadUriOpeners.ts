@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -13,12 +13,12 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ExtHostContext, ExtHostUriOpenersShape, IExtHostContext, MainContext, MainThreadUriOpenersShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostUriOpenersShape, MainContext, MainThreadUriOpenersShape } from 'vs/workbench/api/common/extHost.protocol';
 import { defaultExternalUriOpenerId } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
 import { ContributedExternalUriOpenersStore } from 'vs/workbench/contrib/externalUriOpener/common/contributedOpeners';
 import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { extHostNamedCustomer } from '../common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
 
 interface RegisteredOpenerMetadata {
 	readonly schemes: ReadonlySet<string>;
@@ -76,7 +76,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 				try {
 					await this.proxy.$openUri(id, { resolvedUri: uri, sourceUri: ctx.sourceUri }, token);
 				} catch (e) {
-					if (!isPromiseCanceledError(e)) {
+					if (!isCancellationError(e)) {
 						const openDefaultAction = new Action('default', localize('openerFailedUseDefault', "Open using default opener"), undefined, undefined, async () => {
 							await this.openerService.open(uri, {
 								allowTunneling: false,

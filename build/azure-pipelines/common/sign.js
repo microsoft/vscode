@@ -18,7 +18,7 @@ function getParams(type) {
         case 'darwin-sign':
             return '[{"keyCode":"CP-401337-Apple","operationSetCode":"MacAppDeveloperSign","parameters":[{"parameterName":"Hardening","parameterValue":"--options=runtime"}],"toolName":"sign","toolVersion":"1.0"}]';
         case 'darwin-notarize':
-            return '[{"keyCode":"CP-401337-Apple","operationSetCode":"MacAppNotarize","parameters":[{"parameterName":"BundleId","parameterValue":"$(BundleIdentifier)"}],"toolName":"sign","toolVersion":"1.0"}]';
+            return '[{"keyCode":"CP-401337-Apple","operationSetCode":"MacAppNotarize","parameters":[],"toolName":"sign","toolVersion":"1.0"}]';
         default:
             throw new Error(`Sign type ${type} not found`);
     }
@@ -69,9 +69,17 @@ function main([esrpCliPath, type, cert, username, password, folderPath, pattern]
         '-r', 'true',
         '-e', keyFile,
     ];
-    cp.spawnSync('dotnet', args, { stdio: 'inherit' });
+    try {
+        cp.execFileSync('dotnet', args, { stdio: 'inherit' });
+    }
+    catch (err) {
+        console.error('ESRP failed');
+        console.error(err);
+        process.exit(1);
+    }
 }
 exports.main = main;
 if (require.main === module) {
     main(process.argv.slice(2));
+    process.exit(0);
 }

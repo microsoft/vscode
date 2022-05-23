@@ -3,22 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownIt, Token } from 'markdown-it';
+import MarkdownIt = require('markdown-it');
+import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
-import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
+import { MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
-import { SkinnyTextDocument } from './tableOfContentsProvider';
-import { hash } from './util/hash';
-import { isOfScheme, Schemes } from './util/links';
+import { stringHash } from './util/hash';
 import { WebviewResourceProvider } from './util/resources';
+import { isOfScheme, Schemes } from './util/schemes';
+import { SkinnyTextDocument } from './workspaceContents';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
-interface MarkdownItConfig {
-	readonly breaks: boolean;
-	readonly linkify: boolean;
-	readonly typographer: boolean;
-}
+/**
+ * Adds begin line index to the output via the 'data-line' data attribute.
+ */
+const pluginSourceMap: MarkdownIt.PluginSimple = (md): void => {
+	// Set the attribute on every possible token.
+	md.core.ruler.push('source_map_data_attribute', (state): void => {
+		for (const token of state.tokens) {
+			if (token.map && token.type !== 'inline') {
+				token.attrSet('data-line', String(token.map[0]));
+				token.attrJoin('class', 'code-line');
+				token.attrJoin('dir', 'auto');
+			}
+		}
+	});
+
+	// The 'html_block' renderer doesn't respect `attrs`. We need to insert a marker.
+	const originalHtmlBlockRenderer = md.renderer.rules['html_block'];
+	if (originalHtmlBlockRenderer) {
+		md.renderer.rules['html_block'] = (tokens, idx, options, env, self) => (
+			`<div ${self.renderAttrs(tokens[idx])} ></div>\n` +
+			originalHtmlBlockRenderer(tokens, idx, options, env, self)
+		);
+	}
+};
+
+/**
+ * The markdown-it options that we expose in the settings.
+ */
+type MarkdownItConfig = Readonly<Required<Pick<MarkdownIt.Options, 'breaks' | 'linkify' | 'typographer'>>>;
 
 class TokenCache {
 	private cachedDocument?: {
@@ -85,8 +110,10 @@ export class MarkdownEngine {
 
 	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this.md) {
-			this.md = import('markdown-it').then(async markdownIt => {
+			this.md = (async () => {
+				const markdownIt = await import('markdown-it');
 				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
+				md.linkify.set({ fuzzyLink: false });
 
 				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
 					try {
@@ -111,18 +138,15 @@ export class MarkdownEngine {
 					alt: ['paragraph', 'reference', 'blockquote', 'list']
 				});
 
-				for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'fence', 'blockquote_open', 'list_item_open']) {
-					this.addLineNumberRenderer(md, renderName);
-				}
-
 				this.addImageRenderer(md);
 				this.addFencedRenderer(md);
 				this.addLinkNormalizer(md);
 				this.addLinkValidator(md);
 				this.addNamedHeaders(md);
 				this.addLinkRenderer(md);
+				md.use(pluginSourceMap);
 				return md;
-			});
+			})();
 		}
 
 		const md = await this.md!;
@@ -141,6 +165,7 @@ export class MarkdownEngine {
 	): Token[] {
 		const cached = this._tokenCache.tryGetCached(document, config);
 		if (cached) {
+			this.resetSlugCount();
 			return cached;
 		}
 
@@ -150,9 +175,13 @@ export class MarkdownEngine {
 	}
 
 	private tokenizeString(text: string, engine: MarkdownIt) {
-		this._slugCount = new Map<string, number>();
+		this.resetSlugCount();
 
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
+	}
+
+	private resetSlugCount(): void {
+		this._slugCount = new Map<string, number>();
 	}
 
 	public async render(input: SkinnyTextDocument | string, resourceProvider?: WebviewResourceProvider): Promise<RenderOutput> {
@@ -170,7 +199,7 @@ export class MarkdownEngine {
 		};
 
 		const html = engine.renderer.render(tokens, {
-			...(engine as any).options,
+			...engine.options,
 			...config
 		}, env);
 
@@ -199,33 +228,16 @@ export class MarkdownEngine {
 		};
 	}
 
-	private addLineNumberRenderer(md: MarkdownIt, ruleName: string): void {
-		const original = md.renderer.rules[ruleName];
-		md.renderer.rules[ruleName] = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
-			const token = tokens[idx];
-			if (token.map && token.map.length) {
-				token.attrSet('data-line', token.map[0] + '');
-				token.attrJoin('class', 'code-line');
-			}
-
-			if (original) {
-				return original(tokens, idx, options, env, self);
-			} else {
-				return self.renderToken(tokens, idx, options, env, self);
-			}
-		};
-	}
-
 	private addImageRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules.image;
-		md.renderer.rules.image = (tokens: Token[], idx: number, options: any, env: RenderEnv, self: any) => {
+		md.renderer.rules.image = (tokens: Token[], idx: number, options, env: RenderEnv, self) => {
 			const token = tokens[idx];
 			token.attrJoin('class', 'loading');
 
 			const src = token.attrGet('src');
 			if (src) {
 				env.containingImages?.push({ src });
-				const imgHash = hash(src);
+				const imgHash = stringHash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
 
 				if (!token.attrGet('data-src')) {
@@ -237,20 +249,24 @@ export class MarkdownEngine {
 			if (original) {
 				return original(tokens, idx, options, env, self);
 			} else {
-				return self.renderToken(tokens, idx, options, env, self);
+				return self.renderToken(tokens, idx, options);
 			}
 		};
 	}
 
 	private addFencedRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules['fenced'];
-		md.renderer.rules['fenced'] = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules['fenced'] = (tokens: Token[], idx: number, options, env, self) => {
 			const token = tokens[idx];
 			if (token.map && token.map.length) {
 				token.attrJoin('class', 'hljs');
 			}
 
-			return original(tokens, idx, options, env, self);
+			if (original) {
+				return original(tokens, idx, options, env, self);
+			} else {
+				return self.renderToken(tokens, idx, options);
+			}
 		};
 	}
 
@@ -282,8 +298,8 @@ export class MarkdownEngine {
 
 	private addNamedHeaders(md: MarkdownIt): void {
 		const original = md.renderer.rules.heading_open;
-		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
-			const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
+		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options, env, self) => {
+			const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
 			let slug = this.slugifier.fromHeading(title);
 
 			if (this._slugCount.has(slug.value)) {
@@ -294,30 +310,31 @@ export class MarkdownEngine {
 				this._slugCount.set(slug.value, 0);
 			}
 
-			tokens[idx].attrs = tokens[idx].attrs || [];
-			tokens[idx].attrs.push(['id', slug.value]);
+			tokens[idx].attrSet('id', slug.value);
 
 			if (original) {
 				return original(tokens, idx, options, env, self);
 			} else {
-				return self.renderToken(tokens, idx, options, env, self);
+				return self.renderToken(tokens, idx, options);
 			}
 		};
 	}
 
 	private addLinkRenderer(md: MarkdownIt): void {
-		const old_render = md.renderer.rules.link_open || ((tokens: Token[], idx: number, options: any, _env: any, self: any) => {
-			return self.renderToken(tokens, idx, options);
-		});
+		const original = md.renderer.rules.link_open;
 
-		md.renderer.rules.link_open = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules.link_open = (tokens: Token[], idx: number, options, env, self) => {
 			const token = tokens[idx];
-			const hrefIndex = token.attrIndex('href');
-			if (hrefIndex >= 0) {
-				const href = token.attrs[hrefIndex][1];
-				token.attrPush(['data-href', href]);
+			const href = token.attrGet('href');
+			// A string, including empty string, may be `href`.
+			if (typeof href === 'string') {
+				token.attrSet('data-href', href);
 			}
-			return old_render(tokens, idx, options, env, self);
+			if (original) {
+				return original(tokens, idx, options, env, self);
+			} else {
+				return self.renderToken(tokens, idx, options);
+			}
 		};
 	}
 
@@ -366,15 +383,19 @@ export class MarkdownEngine {
 	}
 }
 
-async function getMarkdownOptions(md: () => MarkdownIt) {
-	const hljs = await import('highlight.js');
+async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Options> {
+	const hljs = (await import('highlight.js')).default;
 	return {
 		html: true,
 		highlight: (str: string, lang?: string) => {
 			lang = normalizeHighlightLang(lang);
 			if (lang && hljs.getLanguage(lang)) {
 				try {
-					return `<div>${hljs.highlight(lang, str, true).value}</div>`;
+					const highlighted = hljs.highlight(str, {
+						language: lang,
+						ignoreIllegals: true,
+					}).value;
+					return `<div>${highlighted}</div>`;
 				}
 				catch (error) { }
 			}

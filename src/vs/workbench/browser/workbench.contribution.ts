@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
+import 'vs/workbench/common/configurationMigration';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -47,7 +47,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.highlightModifiedTabs': {
 				'type': 'boolean',
-				'markdownDescription': localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize('highlightModifiedTabs', "Controls whether a top border is drawn on tabs for editors that have unsaved changes. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.decorations.badges': {
@@ -99,6 +99,35 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: true,
 				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can specify which languages you do not want to be switched off of. This is useful for languages like Markdown that often contain other languages that might trick language detection into thinking it's the embedded language and not Markdown."),
 				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
+			},
+			'workbench.editor.historyBasedLanguageDetection': {
+				type: 'boolean',
+				default: true,
+				tags: ['experimental'],
+				description: localize('workbench.editor.historyBasedLanguageDetection', "Enables use of editor history in language detection. This causes automatic language detection to favor languages that have been recently opened and allows for automatic language detection to operate with smaller inputs."),
+			},
+			'workbench.editor.preferHistoryBasedLanguageDetection': {
+				type: 'boolean',
+				default: false,
+				tags: ['experimental'],
+				description: localize('workbench.editor.preferBasedLanguageDetection', "When enabled, a language detection model that takes into account editor history will be given higher precedence."),
+			},
+			'workbench.editor.languageDetectionHints': {
+				type: 'object',
+				default: { 'untitledEditors': true, 'notebookEditors': true },
+				tags: ['experimental'],
+				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a status bar quick fix when the editor language doesn't match detected content language."),
+				additionalProperties: false,
+				properties: {
+					untitledEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.editors', "Show in untitled text editors"),
+					},
+					notebookEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.notebook', "Show in notebook editors"),
+					}
+				}
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
@@ -154,22 +183,22 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.enablePreview': {
 				'type': 'boolean',
-				'description': localize('enablePreview', "Controls whether opened editors show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing) and show up with an italic font style."),
+				'description': localize('enablePreview', "Controls whether opened editors show as preview editors. Preview editors do not stay open, are reused until explicitly set to be kept open (e.g. via double click or editing), and show file names in italics."),
 				'default': true
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
-				'markdownDescription': localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
+				'markdownDescription': localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.enablePreviewFromCodeNavigation': {
 				'type': 'boolean',
-				'markdownDescription': localize('enablePreviewFromCodeNavigation', "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
+				'markdownDescription': localize('enablePreviewFromCodeNavigation', "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not stay open, and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.closeOnFileDelete': {
 				'type': 'boolean',
-				'description': localize('closeOnFileDelete', "Controls whether editors showing a file that was opened during the session should close automatically when getting deleted or renamed by some other process. Disabling this will keep the editor open  on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
+				'description': localize('closeOnFileDelete', "Controls whether editors showing a file that was opened during the session should close automatically when getting deleted or renamed by some other process. Disabling this will keep the editor open  on such an event. Note that deleting from within the application will always close the editor and that editors with unsaved changes will never close to preserve your data."),
 				'default': false
 			},
 			'workbench.editor.openPositioning': {
@@ -196,8 +225,19 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
-				'description': localize('mouseBackForwardToNavigate', "Navigate between open files using mouse buttons four and five if provided."),
+				'description': localize('mouseBackForwardToNavigate', "Enables the use of mouse buttons four and five for commands 'Go Back' and 'Go Forward'."),
 				'default': true
+			},
+			'workbench.editor.navigationScope': {
+				'type': 'string',
+				'enum': ['default', 'editorGroup', 'editor'],
+				'default': 'default',
+				'markdownDescription': localize('navigationScope', "Controls the scope of history navigation in editors for commands such as 'Go Back' and 'Go Forward'."),
+				'enumDescriptions': [
+					localize('workbench.editor.navigationScopeDefault', "Navigate across all opened editors and editor groups."),
+					localize('workbench.editor.navigationScopeEditorGroup', "Navigate only in editors of the active editor group."),
+					localize('workbench.editor.navigationScopeEditor', "Navigate only in the active editor.")
+				],
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
@@ -214,7 +254,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['vertical', 'horizontal'],
 				'default': 'horizontal',
-				'markdownDescription': localize('splitInGroupLayout', "Controls the layout for when an editor is split in an editor group to be either vertical or horizontal.")
+				'markdownDescription': localize('splitInGroupLayout', "Controls the layout for when an editor is split in an editor group to be either vertical or horizontal."),
+				'enumDescriptions': [
+					localize('workbench.editor.splitInGroupLayoutVertical', "Editors are positioned from top to bottom."),
+					localize('workbench.editor.splitInGroupLayoutHorizontal', "Editors are positioned from left to right.")
+				]
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
@@ -224,7 +268,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('limitEditorsEnablement', "Controls if the number of opened editors should be limited or not. When enabled, less recently used editors that are not dirty will close to make space for newly opening editors.")
+				'description': localize('limitEditorsEnablement', "Controls if the number of opened editors should be limited or not. When enabled, less recently used editors will close to make space for newly opening editors.")
 			},
 			'workbench.editor.limit.value': {
 				'type': 'number',
@@ -232,15 +276,53 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'exclusiveMinimum': 0,
 				'markdownDescription': localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the `#workbench.editor.limit.perEditorGroup#` setting to control this limit per editor group or across all groups.")
 			},
+			'workbench.editor.limit.excludeDirty': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('limitEditorsExcludeDirty', "Controls if the maximum number of opened editors should exclude dirty editors for counting towards the configured limit.")
+			},
 			'workbench.editor.limit.perEditorGroup': {
 				'type': 'boolean',
 				'default': false,
 				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
+			'workbench.localHistory.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('localHistoryEnabled', "Controls whether local file history is enabled. When enabled, the file contents of an editor that is saved will be stored to a backup location to be able to restore or review the contents later. Changing this setting has no effect on existing local file history entries."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.maxFileSize': {
+				'type': 'number',
+				'default': 256,
+				'minimum': 1,
+				'description': localize('localHistoryMaxFileSize', "Controls the maximum size of a file (in KB) to be considered for local file history. Files that are larger will not be added to the local file history. Changing this setting has no effect on existing local file history entries."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.maxFileEntries': {
+				'type': 'number',
+				'default': 50,
+				'minimum': 0,
+				'description': localize('localHistoryMaxFileEntries', "Controls the maximum number of local file history entries per file. When the number of local file history entries exceeds this number for a file, the oldest entries will be discarded."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.exclude': {
+				'type': 'object',
+				'markdownDescription': localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Changing this setting has no effect on existing local file history entries."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.mergeWindow': {
+				'type': 'number',
+				'default': 10,
+				'minimum': 1,
+				'markdownDescription': localize('mergeWindow', "Configure an interval in seconds during which the last entry in local file history is replaced with the entry that is being added. This helps reduce the overall number of entries that are added, for example when auto save is enabled. This setting is only applied to entries that have the same source of origin. Changing this setting has no effect on existing local file history entries."),
+				'scope': ConfigurationScope.RESOURCE
+			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
 				'description': localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
-				'default': 50
+				'default': 50,
+				'minimum': 0
 			},
 			'workbench.commandPalette.preserveInput': {
 				'type': 'boolean',
@@ -276,13 +358,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'right'],
 				'default': 'left',
-				'description': localize('sideBarLocation', "Controls the location of the sidebar and activity bar. They can either show on the left or right of the workbench.")
+				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.")
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
 				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
-				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench.")
+				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems) in a new workspace. It can either show at the bottom, right, or left of the editor area."),
 			},
 			'workbench.panel.opensMaximized': {
 				'type': 'string',
@@ -350,14 +432,62 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('workbench.hover.delay', "Controls the delay in milliseconds after which the hover is shown for workbench items (ex. some extension provided tree view items). Already visible items may require a refresh before reflecting this setting change."),
 				// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 				// On Mac, the delay is 1500.
-				'default': isMacintosh ? 1500 : 500
+				'default': isMacintosh ? 1500 : 500,
+				'minimum': 0
 			},
-			'workbench.experimental.sidePanel.enabled': {
+			'workbench.reduceMotion': {
+				type: 'string',
+				description: localize('workbench.reduceMotion', "Controls whether the workbench should render with fewer animations."),
+				'enumDescriptions': [
+					localize('workbench.reduceMotion.on', "Always render with reduced motion."),
+					localize('workbench.reduceMotion.off', "Do not render with reduced motion"),
+					localize('workbench.reduceMotion.auto', "Render with reduced motion based on OS configuration."),
+				],
+				default: 'auto',
+				enum: ['on', 'off', 'auto']
+			},
+			'workbench.layoutControl.enabled': {
 				'type': 'boolean',
-				'default': false,
-				'description': localize('auxiliaryBarEnabled', "Controls whether the side panel opposite the side bar is enabled."),
-				'included': product.quality !== 'stable'
+				'default': true,
+				'markdownDescription': localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout controls in the custom title bar is enabled via {0}.", '`#window.titleBarStyle#`'),
 			},
+			'workbench.layoutControl.type': {
+				'type': 'string',
+				'enum': ['menu', 'toggles', 'both'],
+				'enumDescriptions': [
+					localize('layoutcontrol.type.menu', "Shows a single button with a dropdown of layout options."),
+					localize('layoutcontrol.type.toggles', "Shows several buttons for toggling the visibility of the panels and side bar."),
+					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
+				],
+				'default': 'both',
+				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
+			},
+			'workbench.experimental.layoutControl.enabled': {
+				'type': 'boolean',
+				'tags': ['experimental'],
+				'default': false,
+				'markdownDescription': localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout controls in the custom title bar is enabled via {0}.", '`#window.titleBarStyle#`'),
+				'markdownDeprecationMessage': localize({ key: 'layoutControlEnabledDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.enabled#`')
+			},
+			'workbench.experimental.layoutControl.type': {
+				'type': 'string',
+				'enum': ['menu', 'toggles', 'both'],
+				'enumDescriptions': [
+					localize('layoutcontrol.type.menu', "Shows a single button with a dropdown of layout options."),
+					localize('layoutcontrol.type.toggles', "Shows several buttons for toggling the visibility of the panels and side bar."),
+					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
+				],
+				'tags': ['experimental'],
+				'default': 'both',
+				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
+				'markdownDeprecationMessage': localize({ key: 'layoutControlTypeDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.type#`')
+			},
+			'workbench.experimental.editor.dropIntoEditor.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'tags': ['experimental'],
+				'markdownDescription': localize('dropIntoEditor', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
+			}
 		}
 	});
 
@@ -377,7 +507,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('rootPath', "`${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
 		localize('appName', "`${appName}`: e.g. VS Code."),
 		localize('remoteName', "`${remoteName}`: e.g. SSH"),
-		localize('dirty', "`${dirty}`: a dirty indicator if the active editor is dirty."),
+		localize('dirty', "`${dirty}`: an indicator for when the active editor has unsaved changes."),
 		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
@@ -405,8 +535,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'window.titleSeparator': {
 				'type': 'string',
-				'default': isMacintosh ? ' — ' : ' - ',
+				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
+			},
+			'window.experimental.titleMenu': {
+				type: 'boolean',
+				default: false,
+				description: localize('window.experimental.titleMenu', "Show window title as menu")
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
@@ -418,13 +553,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						localize('window.menuBarVisibility.toggle.mac', "Menu is hidden but can be displayed at the top of the window by executing the `Focus Application Menu` command.") :
 						localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed at the top of the window via the Alt key."),
 					localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
-					localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar. This value is ignored when `#window.titleBarStyle#` is `native`.")
+					localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the side bar. This value is ignored when `#window.titleBarStyle#` is `native`.")
 				],
 				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': isMacintosh ?
-					localize('menuBarVisibility.mac', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and executing `Focus Application Menu` will show it. A setting of 'compact' will move the menu into the sidebar.") :
-					localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the sidebar."),
+					localize('menuBarVisibility.mac', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and executing `Focus Application Menu` will show it. A setting of 'compact' will move the menu into the side bar.") :
+					localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the side bar."),
 				'included': isWindows || isLinux || isWeb
 			},
 			'window.enableMenuBarMnemonics': {
@@ -455,8 +590,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription':
 					isMacintosh ?
-						localize('openFilesInNewWindowMac', "Controls whether files should open in a new window. \nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
-						localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
+						localize('openFilesInNewWindowMac', "Controls whether files should open in a new window when using a command line or file dialog.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
+						localize('openFilesInNewWindow', "Controls whether files should open in a new window when using a command line or file dialog.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 			},
 			'window.openFoldersInNewWindow': {
 				'type': 'string',
@@ -474,14 +609,21 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['always', 'keyboardOnly', 'never'],
 				'enumDescriptions': [
-					localize('window.confirmBeforeClose.always', "Always try to ask for confirmation. Note that browsers may still decide to close a tab or window without confirmation."),
-					localize('window.confirmBeforeClose.keyboardOnly', "Only ask for confirmation if a keybinding was detected. Note that detection may not be possible in some cases."),
-					localize('window.confirmBeforeClose.never', "Never explicitly ask for confirmation unless data loss is imminent.")
+					isWeb ?
+						localize('window.confirmBeforeClose.always.web', "Always try to ask for confirmation. Note that browsers may still decide to close a tab or window without confirmation.") :
+						localize('window.confirmBeforeClose.always', "Always ask for confirmation."),
+					isWeb ?
+						localize('window.confirmBeforeClose.keyboardOnly.web', "Only ask for confirmation if a keybinding was used to close the window. Note that detection may not be possible in some cases.") :
+						localize('window.confirmBeforeClose.keyboardOnly', "Only ask for confirmation if a keybinding was used."),
+					isWeb ?
+						localize('window.confirmBeforeClose.never.web', "Never explicitly ask for confirmation unless data loss is imminent.") :
+						localize('window.confirmBeforeClose.never', "Never explicitly ask for confirmation.")
 				],
-				'default': isWeb && !isStandalone ? 'keyboardOnly' : 'never', // on by default in web, unless PWA
-				'description': localize('confirmBeforeCloseWeb', "Controls whether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases."),
-				'scope': ConfigurationScope.APPLICATION,
-				'included': isWeb
+				'default': (isWeb && !isStandalone()) ? 'keyboardOnly' : 'never', // on by default in web, unless PWA, never on desktop
+				'markdownDescription': isWeb ?
+					localize('confirmBeforeCloseWeb', "Controls whether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases.") :
+					localize('confirmBeforeClose', "Controls whether to show a confirmation dialog before closing the window or quitting the application."),
+				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});

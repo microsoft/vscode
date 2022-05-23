@@ -8,13 +8,15 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground } from 'vs/editor/common/view/editorColorRegistry';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext, EditorTheme } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground } from 'vs/editor/common/core/editorColorRegistry';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { EditorTheme } from 'vs/editor/common/editorTheme';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel';
 
 class Settings {
 
@@ -28,7 +30,7 @@ class Settings {
 	public readonly hideCursor: boolean;
 	public readonly cursorColor: string | null;
 
-	public readonly themeType: 'light' | 'dark' | 'hc';
+	public readonly themeType: 'light' | 'dark' | 'hcLight' | 'hcDark';
 	public readonly backgroundColor: string | null;
 
 	public readonly top: number;
@@ -41,7 +43,7 @@ class Settings {
 	public readonly x: number[];
 	public readonly w: number[];
 
-	constructor(config: IConfiguration, theme: EditorTheme) {
+	constructor(config: IEditorConfiguration, theme: EditorTheme) {
 		const options = config.options;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.pixelRatio = options.get(EditorOption.pixelRatio);
@@ -294,8 +296,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		// invalidate color cache
-		this._context.model.invalidateOverviewRulerColorCache();
 		return this._updateSettings(false);
 	}
 
@@ -317,15 +317,17 @@ export class DecorationsOverviewRuler extends ViewPart {
 		if (this._settings.overviewRulerLanes === 0) {
 			// overview ruler is off
 			this._domNode.setBackgroundColor(this._settings.backgroundColor ? this._settings.backgroundColor : '');
+			this._domNode.setDisplay('none');
 			return;
 		}
+		this._domNode.setDisplay('block');
 		const canvasWidth = this._settings.canvasWidth;
 		const canvasHeight = this._settings.canvasHeight;
 		const lineHeight = this._settings.lineHeight;
 		const viewLayout = this._context.viewLayout;
 		const outerHeight = this._context.viewLayout.getScrollHeight();
 		const heightRatio = canvasHeight / outerHeight;
-		const decorations = this._context.model.getAllOverviewRulerDecorations(this._context.theme);
+		const decorations = this._context.viewModel.getAllOverviewRulerDecorations(this._context.theme);
 
 		const minDecorationHeight = (Constants.MIN_DECORATION_HEIGHT * this._settings.pixelRatio) | 0;
 		const halfMinDecorationHeight = (minDecorationHeight / 2) | 0;
@@ -340,24 +342,22 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		const x = this._settings.x;
 		const w = this._settings.w;
-		// Avoid flickering by always rendering the colors in the same order
-		// colors that don't use transparency will be sorted last (they start with #)
-		const colors = Object.keys(decorations);
-		colors.sort();
-		for (let cIndex = 0, cLen = colors.length; cIndex < cLen; cIndex++) {
-			const color = colors[cIndex];
 
-			const colorDecorations = decorations[color];
+		decorations.sort(OverviewRulerDecorationsGroup.cmp);
+
+		for (const decorationGroup of decorations) {
+			const color = decorationGroup.color;
+			const decorationGroupData = decorationGroup.data;
 
 			canvasCtx.fillStyle = color;
 
 			let prevLane = 0;
 			let prevY1 = 0;
 			let prevY2 = 0;
-			for (let i = 0, len = colorDecorations.length; i < len; i++) {
-				const lane = colorDecorations[3 * i];
-				const startLineNumber = colorDecorations[3 * i + 1];
-				const endLineNumber = colorDecorations[3 * i + 2];
+			for (let i = 0, len = decorationGroupData.length / 3; i < len; i++) {
+				const lane = decorationGroupData[3 * i];
+				const startLineNumber = decorationGroupData[3 * i + 1];
+				const endLineNumber = decorationGroupData[3 * i + 2];
 
 				let y1 = (viewLayout.getVerticalOffsetForLineNumber(startLineNumber) * heightRatio) | 0;
 				let y2 = ((viewLayout.getVerticalOffsetForLineNumber(endLineNumber) + lineHeight) * heightRatio) | 0;

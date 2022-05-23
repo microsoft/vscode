@@ -5,12 +5,11 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
 
 export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
 	private busyProvidersChangeEmitter = new Emitter<number>();
-	private retireTestEmitter = new Emitter<string>();
 	private expandPromises = new WeakMap<IncrementalTestCollectionItem, {
 		pendingLvl: number;
 		doneLvl: number;
@@ -43,7 +42,6 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	}
 
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
-	public readonly onDidRetireTest = this.retireTestEmitter.event;
 
 	constructor(private readonly expandActual: (id: string, levels: number) => Promise<void>) {
 		super();
@@ -84,18 +82,20 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 * @inheritdoc
 	 */
 	public getReviverDiff() {
-		const ops: TestsDiff = [[TestDiffOpType.IncrementPendingExtHosts, this.pendingRootCount]];
+		const ops: TestsDiff = [{ op: TestDiffOpType.IncrementPendingExtHosts, amount: this.pendingRootCount }];
 
 		const queue = [this.rootIds];
 		while (queue.length) {
 			for (const child of queue.pop()!) {
 				const item = this.items.get(child)!;
-				ops.push([TestDiffOpType.Add, {
-					controllerId: item.controllerId,
-					expand: item.expand,
-					item: item.item,
-					parent: item.parent,
-				}]);
+				ops.push({
+					op: TestDiffOpType.Add, item: {
+						controllerId: item.controllerId,
+						expand: item.expand,
+						item: item.item,
+						parent: item.parent,
+					}
+				});
 				queue.push(item.children);
 			}
 		}
@@ -122,7 +122,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	public clear() {
 		const ops: TestsDiff = [];
 		for (const root of this.roots) {
-			ops.push([TestDiffOpType.Remove, root.item.extId]);
+			ops.push({ op: TestDiffOpType.Remove, itemId: root.item.extId });
 		}
 
 		this.roots.clear();
@@ -136,13 +136,6 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 */
 	protected createItem(internal: InternalTestItem): IncrementalTestCollectionItem {
 		return { ...internal, children: new Set() };
-	}
-
-	/**
-	 * @override
-	 */
-	protected override retireTest(testId: string) {
-		this.retireTestEmitter.fire(testId);
 	}
 
 	private *getIterator() {

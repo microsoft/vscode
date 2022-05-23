@@ -10,7 +10,7 @@ import * as assert from 'assert';
 import { getLanguageModes, TextDocument, Range, FormattingOptions, ClientCapabilities } from '../modes/languageModes';
 
 import { format } from '../modes/formatting';
-import { getNodeFSRequestService } from '../node/nodeFs';
+import { getNodeFileFS } from '../node/nodeFs';
 
 suite('HTML Embedded Formatting', () => {
 
@@ -19,7 +19,7 @@ suite('HTML Embedded Formatting', () => {
 			settings: options,
 			folders: [{ name: 'foo', uri: 'test://foo' }]
 		};
-		const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
+		const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
 
 		let rangeStartOffset = value.indexOf('|');
 		let rangeEndOffset;
@@ -77,7 +77,7 @@ suite('HTML Embedded Formatting', () => {
 	});
 
 	test('HTML & Multiple Scripts', async () => {
-		await assertFormat('<html><head>\n<script>\nif(x){\nbar(); }\n</script><script>\nfunction(x){    }\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    if (x) {\n      bar();\n    }\n  </script>\n  <script>\n    function(x) {}\n  </script>\n</head>\n\n</html>');
+		await assertFormat('<html><head>\n<script>\nif(x){\nbar(); }\n</script><script>\nfunction(x){    }\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    if (x) {\n      bar();\n    }\n  </script>\n  <script>\n    function(x) { }\n  </script>\n</head>\n\n</html>');
 	});
 
 	test('HTML & Styles', async () => {
@@ -120,7 +120,7 @@ suite('HTML Embedded Formatting', () => {
 				'<body>',
 				'',
 				'    <script>',
-				'        function f(x) {}',
+				'        function f(x) { }',
 				'        f(function () {',
 				'        // ',
 				'',
@@ -143,7 +143,7 @@ suite('HTML Embedded Formatting', () => {
 				'<body>',
 				'',
 				'  <script>',
-				'    function f(x) {}',
+				'    function f(x) { }',
 				'    f(function () {',
 				'      // ',
 				'',

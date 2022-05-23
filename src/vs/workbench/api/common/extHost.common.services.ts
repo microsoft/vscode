@@ -23,7 +23,13 @@ import { IExtHostFileSystemInfo, ExtHostFileSystemInfo } from 'vs/workbench/api/
 import { IExtHostSecretState, ExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
 import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ExtHostEditorTabs, IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+import { ExtHostLoggerService } from 'vs/workbench/api/common/extHostLoggerService';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
+import { ExtHostVariableResolverProviderService, IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
 
+registerSingleton(ILoggerService, ExtHostLoggerService);
+registerSingleton(ILogService, ExtHostLogService);
 registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService);
 registerSingleton(IExtHostCommands, ExtHostCommands);
 registerSingleton(IExtHostConfiguration, ExtHostConfiguration);
@@ -43,3 +49,4 @@ registerSingleton(IExtHostWorkspace, ExtHostWorkspace);
 registerSingleton(IExtHostSecretState, ExtHostSecretState);
 registerSingleton(IExtHostTelemetry, ExtHostTelemetry);
 registerSingleton(IExtHostEditorTabs, ExtHostEditorTabs);
+registerSingleton(IExtHostVariableResolverProvider, ExtHostVariableResolverProviderService);

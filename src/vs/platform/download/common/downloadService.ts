@@ -8,7 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { IFileService } from 'vs/platform/files/common/files';
-import { asText, IRequestService } from 'vs/platform/request/common/request';
+import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
 
 export class DownloadService implements IDownloadService {
 
@@ -30,7 +30,7 @@ export class DownloadService implements IDownloadService {
 		if (context.res.statusCode === 200) {
 			await this.fileService.writeFile(target, context.stream);
 		} else {
-			const message = await asText(context);
+			const message = await asTextOrError(context);
 			throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
 		}
 	}

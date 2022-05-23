@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'path';
+import { basename, extname } from 'path';
 import * as vscode from 'vscode';
 import { CommandManager } from './commands/commandManager';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
@@ -43,7 +43,7 @@ export default class LanguageProvider extends Disposable {
 	private get documentSelector(): DocumentSelector {
 		const semantic: vscode.DocumentFilter[] = [];
 		const syntax: vscode.DocumentFilter[] = [];
-		for (const language of this.description.modeIds) {
+		for (const language of this.description.languageIds) {
 			syntax.push({ language });
 			for (const scheme of fileSchemes.semanticSupportedSchemes) {
 				semantic.push({ language, scheme });
@@ -60,9 +60,9 @@ export default class LanguageProvider extends Disposable {
 
 		await Promise.all([
 			import('./languageFeatures/callHierarchy').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/codeLens/implementationsCodeLens').then(provider => this._register(provider.register(selector, this.description.id, this.client, cachedResponse))),
-			import('./languageFeatures/codeLens/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description.id, this.client, cachedResponse))),
-			import('./languageFeatures/completions').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.telemetryReporter, this.onCompletionAccepted))),
+			import('./languageFeatures/codeLens/implementationsCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedResponse))),
+			import('./languageFeatures/codeLens/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedResponse))),
+			import('./languageFeatures/completions').then(provider => this._register(provider.register(selector, this.description, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.telemetryReporter, this.onCompletionAccepted))),
 			import('./languageFeatures/definitions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/directiveCommentCompletions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/documentHighlight').then(provider => this._register(provider.register(selector, this.client))),
@@ -70,10 +70,11 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/fileReferences').then(provider => this._register(provider.register(this.client, this.commandManager))),
 			import('./languageFeatures/fixAll').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.client.diagnosticsManager))),
 			import('./languageFeatures/folding').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/formatting').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/formatting').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
 			import('./languageFeatures/hover').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager))),
 			import('./languageFeatures/implementations').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/jsDocCompletions').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/jsDocCompletions').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
 			import('./languageFeatures/organizeImports').then(provider => this._register(provider.register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter))),
 			import('./languageFeatures/quickFix').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter))),
 			import('./languageFeatures/refactor').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter))),
@@ -82,9 +83,9 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/semanticTokens').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/signatureHelp').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/smartSelect').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/tagClosing').then(provider => this._register(provider.register(selector, this.description.id, this.client))),
+			import('./languageFeatures/sourceDefinition').then(provider => this._register(provider.register(this.client, this.commandManager))),
+			import('./languageFeatures/tagClosing').then(provider => this._register(provider.register(selector, this.description, this.client))),
 			import('./languageFeatures/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
 		]);
 	}
 
@@ -94,11 +95,16 @@ export default class LanguageProvider extends Disposable {
 		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
 	}
 
-	public handles(resource: vscode.Uri, doc: vscode.TextDocument): boolean {
-		if (this.description.modeIds.indexOf(doc.languageId) >= 0) {
-			return true;
-		}
+	public handlesUri(resource: vscode.Uri): boolean {
+		const ext = extname(resource.path).slice(1).toLowerCase();
+		return this.description.standardFileExtensions.includes(ext) || this.handlesConfigFile(resource);
+	}
 
+	public handlesDocument(doc: vscode.TextDocument): boolean {
+		return this.description.languageIds.includes(doc.languageId) || this.handlesConfigFile(doc.uri);
+	}
+
+	private handlesConfigFile(resource: vscode.Uri) {
 		const base = basename(resource.fsPath);
 		return !!base && (!!this.description.configFilePattern && this.description.configFilePattern.test(base));
 	}
@@ -127,7 +133,7 @@ export default class LanguageProvider extends Disposable {
 		this.client.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any })[]): void {
+	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any })[]): void {
 		if (diagnosticsKind !== DiagnosticKind.Syntax && !this.client.hasCapabilityForResource(file, ClientCapability.Semantic)) {
 			return;
 		}
@@ -136,7 +142,7 @@ export default class LanguageProvider extends Disposable {
 		const reportUnnecessary = config.get<boolean>('showUnused', true);
 		const reportDeprecated = config.get<boolean>('showDeprecated', true);
 		this.client.diagnosticsManager.updateDiagnostics(file, this._diagnosticLanguage, diagnosticsKind, diagnostics.filter(diag => {
-			// Don't both reporting diagnostics we know will not be rendered
+			// Don't bother reporting diagnostics we know will not be rendered
 			if (!reportUnnecessary) {
 				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
 					return false;

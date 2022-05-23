@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { MenuRegistry, MenuId, Action2, registerAction2, ILocalizedString } from 'vs/platform/actions/common/actions';
+import { MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
@@ -12,29 +12,15 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 //#region Quick access management commands and keys
 
 const globalQuickAccessKeybinding = {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
-	secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E],
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: undefined }
+	primary: KeyMod.CtrlCmd | KeyCode.KeyP,
+	secondary: [KeyMod.CtrlCmd | KeyCode.KeyE],
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyP, secondary: undefined }
 };
-
-const QUICKACCESS_ACTION_ID = 'workbench.action.quickOpen';
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: { id: QUICKACCESS_ACTION_ID, title: { value: localize('quickOpen', "Go to File..."), original: 'Go to File...' } }
-});
-
-KeybindingsRegistry.registerKeybindingRule({
-	id: QUICKACCESS_ACTION_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: undefined,
-	primary: globalQuickAccessKeybinding.primary,
-	secondary: globalQuickAccessKeybinding.secondary,
-	mac: globalQuickAccessKeybinding.mac
-});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.closeQuickOpen',
@@ -122,29 +108,48 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: inQuickPickContext,
 	primary: 0,
 	win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-	mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS },
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS },
+	mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus },
 	handler: accessor => {
 		const quickInputService = accessor.get(IQuickInputService);
 		quickInputService.back();
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: QUICKACCESS_ACTION_ID,
-	handler: async function (accessor: ServicesAccessor, prefix: unknown) {
-		const quickInputService = accessor.get(IQuickInputService);
-
-		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
-	},
-	description: {
-		description: `Quick access`,
-		args: [{
-			name: 'prefix',
-			schema: {
-				'type': 'string'
+registerAction2(class QuickAccessAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpen',
+			title: {
+				value: localize('quickOpen', "Go to File..."),
+				original: 'Go to File...'
+			},
+			description: {
+				description: `Quick access`,
+				args: [{
+					name: 'prefix',
+					schema: {
+						'type': 'string'
+					}
+				}]
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: globalQuickAccessKeybinding.primary,
+				secondary: globalQuickAccessKeybinding.secondary,
+				mac: globalQuickAccessKeybinding.mac
+			},
+			f1: true,
+			menu: {
+				id: MenuId.TitleMenu,
+				order: 100
 			}
-		}]
+		});
+	}
+
+	run(accessor: ServicesAccessor, prefix: undefined): void {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
 	}
 });
 
@@ -207,7 +212,7 @@ class QuickAccessSelectNextAction extends BaseQuickAccessNavigateAction {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
 				when: inQuickPickContext,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_N }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyN }
 			}
 		);
 	}
@@ -225,7 +230,7 @@ class QuickAccessSelectPreviousAction extends BaseQuickAccessNavigateAction {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
 				when: inQuickPickContext,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_P }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyP }
 			}
 		);
 	}

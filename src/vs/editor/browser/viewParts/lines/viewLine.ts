@@ -9,13 +9,13 @@ import * as platform from 'vs/base/common/platform';
 import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { FloatHorizontalRange, VisibleRanges } from 'vs/editor/common/view/renderingContext';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
+import { FloatHorizontalRange, VisibleRanges } from 'vs/editor/browser/view/renderingContext';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { InlineDecorationType } from 'vs/editor/common/viewModel';
+import { ColorScheme, isHighContrast } from 'vs/platform/theme/common/theme';
 import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 
 const canUseFastRenderedViewLine = (function () {
@@ -48,13 +48,30 @@ export class DomReadingContext {
 
 	private readonly _domNode: HTMLElement;
 	private _clientRectDeltaLeft: number;
-	private _clientRectDeltaLeftRead: boolean;
+	private _clientRectScale: number;
+	private _clientRectRead: boolean;
+
+	private readClientRect(): void {
+		if (!this._clientRectRead) {
+			this._clientRectRead = true;
+			const rect = this._domNode.getBoundingClientRect();
+			this._clientRectDeltaLeft = rect.left;
+			this._clientRectScale = rect.width / this._domNode.offsetWidth;
+		}
+	}
+
 	public get clientRectDeltaLeft(): number {
-		if (!this._clientRectDeltaLeftRead) {
-			this._clientRectDeltaLeftRead = true;
-			this._clientRectDeltaLeft = this._domNode.getBoundingClientRect().left;
+		if (!this._clientRectRead) {
+			this.readClientRect();
 		}
 		return this._clientRectDeltaLeft;
+	}
+
+	public get clientRectScale(): number {
+		if (!this._clientRectRead) {
+			this.readClientRect();
+		}
+		return this._clientRectScale;
 	}
 
 	public readonly endNode: HTMLElement;
@@ -62,7 +79,8 @@ export class DomReadingContext {
 	constructor(domNode: HTMLElement, endNode: HTMLElement) {
 		this._domNode = domNode;
 		this._clientRectDeltaLeft = 0;
-		this._clientRectDeltaLeftRead = false;
+		this._clientRectScale = 1;
+		this._clientRectRead = false;
 		this.endNode = endNode;
 	}
 
@@ -81,7 +99,7 @@ export class ViewLineOptions {
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: string;
 
-	constructor(config: IConfiguration, themeType: ColorScheme) {
+	constructor(config: IEditorConfiguration, themeType: ColorScheme) {
 		this.themeType = themeType;
 		const options = config.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
@@ -161,7 +179,7 @@ export class ViewLine implements IVisibleLine {
 		this._options = newOptions;
 	}
 	public onSelectionChanged(): boolean {
-		if (this._options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
+		if (isHighContrast(this._options.themeType) || this._options.renderWhitespace === 'selection') {
 			this._isMaybeInvalid = true;
 			return true;
 		}
@@ -182,7 +200,7 @@ export class ViewLine implements IVisibleLine {
 
 		// Only send selection information when needed for rendering whitespace
 		let selectionsOnLine: LineRange[] | null = null;
-		if (options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
+		if (isHighContrast(options.themeType) || this._options.renderWhitespace === 'selection') {
 			const selections = viewportData.selections;
 			for (const selection of selections) {
 
@@ -195,7 +213,7 @@ export class ViewLine implements IVisibleLine {
 				const endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
 
 				if (startColumn < endColumn) {
-					if (options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace !== 'selection') {
+					if (isHighContrast(options.themeType) || this._options.renderWhitespace !== 'selection') {
 						actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
 					} else {
 						if (!selectionsOnLine) {
@@ -331,13 +349,11 @@ export class ViewLine implements IVisibleLine {
 		if (!this._renderedViewLine) {
 			return null;
 		}
-		startColumn = startColumn | 0; // @perf
-		endColumn = endColumn | 0; // @perf
 
 		startColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, startColumn));
 		endColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, endColumn));
 
-		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter | 0; // @perf
+		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter;
 		let outsideRenderedLine = false;
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1 && endColumn > stopRenderingLineAfter + 1) {
@@ -589,7 +605,7 @@ class RenderedViewLine implements IRenderedViewLine {
 	private _actualReadPixelOffset(domNode: FastDomNode<HTMLElement>, lineNumber: number, column: number, context: DomReadingContext): number {
 		if (this._characterMapping.length === 0) {
 			// This line has no content
-			const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), 0, 0, 0, 0, context.clientRectDeltaLeft, context.endNode);
+			const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), 0, 0, 0, 0, context.clientRectDeltaLeft, context.clientRectScale, context.endNode);
 			if (!r || r.length === 0) {
 				return -1;
 			}
@@ -603,7 +619,7 @@ class RenderedViewLine implements IRenderedViewLine {
 
 		const domPosition = this._characterMapping.getDomPosition(column);
 
-		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context.clientRectDeltaLeft, context.endNode);
+		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context.clientRectDeltaLeft, context.clientRectScale, context.endNode);
 		if (!r || r.length === 0) {
 			return -1;
 		}
@@ -629,7 +645,7 @@ class RenderedViewLine implements IRenderedViewLine {
 		const startDomPosition = this._characterMapping.getDomPosition(startColumn);
 		const endDomPosition = this._characterMapping.getDomPosition(endColumn);
 
-		return RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), startDomPosition.partIndex, startDomPosition.charIndex, endDomPosition.partIndex, endDomPosition.charIndex, context.clientRectDeltaLeft, context.endNode);
+		return RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), startDomPosition.partIndex, startDomPosition.charIndex, endDomPosition.partIndex, endDomPosition.charIndex, context.clientRectDeltaLeft, context.clientRectScale, context.endNode);
 	}
 
 	/**

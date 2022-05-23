@@ -5,41 +5,36 @@
 
 import { asCSSPropertyValue, asCSSUrl } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
-import { getIconRegistry, IconContribution, IconFontContribution } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-
+import { getIconRegistry, IconContribution, IconFontDefinition } from 'vs/platform/theme/common/iconRegistry';
+import { IProductIconTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export interface IIconsStyleSheet {
 	getCSS(): string;
 	readonly onDidChange: Event<void>;
 }
 
-export function getIconsStyleSheet(): IIconsStyleSheet {
+export function getIconsStyleSheet(themeService: IThemeService | undefined): IIconsStyleSheet {
 	const onDidChangeEmmiter = new Emitter<void>();
 	const iconRegistry = getIconRegistry();
 	iconRegistry.onDidChange(() => onDidChangeEmmiter.fire());
+	themeService?.onDidProductIconThemeChange(() => onDidChangeEmmiter.fire());
 
 	return {
 		onDidChange: onDidChangeEmmiter.event,
 		getCSS() {
-			const usedFontIds: { [id: string]: IconFontContribution } = {};
+			const productIconTheme = themeService ? themeService.getProductIconTheme() : new UnthemedProductIconTheme();
+			const usedFontIds: { [id: string]: IconFontDefinition } = {};
 			const formatIconRule = (contribution: IconContribution): string | undefined => {
-				let definition = contribution.defaults;
-				while (ThemeIcon.isThemeIcon(definition)) {
-					const c = iconRegistry.getIcon(definition.id);
-					if (!c) {
-						return undefined;
-					}
-					definition = c.defaults;
+				const definition = productIconTheme.getIcon(contribution);
+				if (!definition) {
+					return undefined;
 				}
-				const fontId = definition.fontId;
-				if (fontId) {
-					const fontContribution = iconRegistry.getIconFont(fontId);
-					if (fontContribution) {
-						usedFontIds[fontId] = fontContribution;
-						return `.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; font-family: ${asCSSPropertyValue(fontId)}; }`;
-					}
+				const fontContribution = definition.font;
+				if (fontContribution) {
+					usedFontIds[fontContribution.id] = fontContribution.definition;
+					return `.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; font-family: ${asCSSPropertyValue(fontContribution.id)}; }`;
 				}
+				// default font (codicon)
 				return `.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; }`;
 			};
 
@@ -51,11 +46,28 @@ export function getIconsStyleSheet(): IIconsStyleSheet {
 				}
 			}
 			for (let id in usedFontIds) {
-				const fontContribution = usedFontIds[id];
-				const src = fontContribution.definition.src.map(l => `${asCSSUrl(l.location)} format('${l.format}')`).join(', ');
-				rules.push(`@font-face { src: ${src}; font-family: ${asCSSPropertyValue(id)}; font-display: block; }`);
+				const definition = usedFontIds[id];
+				const fontWeight = definition.weight ? `font-weight: ${definition.weight};` : '';
+				const fontStyle = definition.style ? `font-style: ${definition.style};` : '';
+				const src = definition.src.map(l => `${asCSSUrl(l.location)} format('${l.format}')`).join(', ');
+				rules.push(`@font-face { src: ${src}; font-family: ${asCSSPropertyValue(id)};${fontWeight}${fontStyle} font-display: block; }`);
 			}
 			return rules.join('\n');
 		}
 	};
+}
+
+export class UnthemedProductIconTheme implements IProductIconTheme {
+	getIcon(contribution: IconContribution) {
+		const iconRegistry = getIconRegistry();
+		let definition = contribution.defaults;
+		while (ThemeIcon.isThemeIcon(definition)) {
+			const c = iconRegistry.getIcon(definition.id);
+			if (!c) {
+				return undefined;
+			}
+			definition = c.defaults;
+		}
+		return definition;
+	}
 }

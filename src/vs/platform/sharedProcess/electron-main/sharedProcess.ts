@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Event as ElectronEvent, ipcMain, IpcMainEvent, MessagePortMain } from 'electron';
+import { BrowserWindow, Event as ElectronEvent, IpcMainEvent, MessagePortMain } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -17,8 +18,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
+import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { WindowError } from 'vs/platform/windows/electron-main/windows';
+import { WindowError } from 'vs/platform/window/electron-main/window';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -27,7 +30,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	private window: BrowserWindow | undefined = undefined;
 	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
 
-	private readonly _onDidError = this._register(new Emitter<{ type: WindowError, details?: { reason: string, exitCode: number } }>());
+	private readonly _onDidError = this._register(new Emitter<{ type: WindowError; details?: { reason: string; exitCode: number } }>());
 	readonly onDidError = Event.buffer(this._onDidError.event); // buffer until we have a listener!
 
 	constructor(
@@ -46,11 +49,14 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 	private registerListeners(): void {
 
+		// Shared process connections from workbench windows
+		validatedIpcMain.on('vscode:createSharedProcessMessageChannel', (e, nonce: string) => this.onWindowConnection(e, nonce));
+
+		// Shared process worker relay
+		validatedIpcMain.on('vscode:relaySharedProcessWorkerMessageChannel', (e, configuration: ISharedProcessWorkerConfiguration) => this.onWorkerConnection(e, configuration));
+
 		// Lifecycle
 		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
-
-		// Shared process connections from workbench windows
-		ipcMain.on('vscode:createSharedProcessMessageChannel', async (e, nonce: string) => this.onWindowConnection(e, nonce));
 	}
 
 	private async onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
@@ -81,6 +87,43 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		e.sender.postMessage('vscode:createSharedProcessMessageChannelResult', nonce, [port]);
 	}
 
+	private onWorkerConnection(e: IpcMainEvent, configuration: ISharedProcessWorkerConfiguration): void {
+		this.logService.trace('SharedProcess: onWorkerConnection', configuration);
+
+		const disposables = new DisposableStore();
+
+		const disposeWorker = (reason: string) => {
+			if (!this.isAlive()) {
+				return; // the shared process is already gone, no need to dispose anything
+			}
+
+			this.logService.trace(`SharedProcess: disposing worker (reason: '${reason}')`, configuration);
+
+			// Only once!
+			disposables.dispose();
+
+			// Send this into the shared process who owns workers
+			this.send('vscode:electron-main->shared-process=disposeWorker', configuration);
+		};
+
+		// Ensure the sender is a valid target to send to
+		const receiverWindow = BrowserWindow.fromId(configuration.reply.windowId);
+		if (!receiverWindow || receiverWindow.isDestroyed() || receiverWindow.webContents.isDestroyed() || !configuration.reply.channel) {
+			disposeWorker('unavailable');
+
+			return;
+		}
+
+		// Attach to lifecycle of receiver to manage worker lifecycle
+		disposables.add(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === receiverWindow)(() => disposeWorker('load')));
+		disposables.add(Event.fromNodeEventEmitter(receiverWindow, 'closed')(() => disposeWorker('closed')));
+
+		// The shared process window asks us to relay a `MessagePort`
+		// from a shared process worker to the target window. It needs
+		// to be send via `postMessage` to transfer the port.
+		receiverWindow.webContents.postMessage(configuration.reply.channel, configuration.reply.nonce, e.ports);
+	}
+
 	private onWillShutdown(): void {
 		const window = this.window;
 		if (!window) {
@@ -88,9 +131,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		}
 
 		// Signal exit to shared process when shutting down
-		if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
-			window.webContents.send('vscode:electron-main->shared-process=exit');
-		}
+		this.send('vscode:electron-main->shared-process=exit');
 
 		// Shut the shared process down when we are quitting
 		//
@@ -115,12 +156,25 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		}, 0);
 	}
 
+	private send(channel: string, ...args: any[]): void {
+		if (!this.isAlive()) {
+			this.logService.warn(`Sending IPC message to channel '${channel}' for shared process window that is destroyed`);
+			return;
+		}
+
+		try {
+			this.window?.webContents.send(channel, ...args);
+		} catch (error) {
+			this.logService.warn(`Error sending IPC message to channel '${channel}' of shared process: ${toErrorMessage(error)}`);
+		}
+	}
+
 	private _whenReady: Promise<void> | undefined = undefined;
 	whenReady(): Promise<void> {
 		if (!this._whenReady) {
 			// Overall signal that the shared process window was loaded and
 			// all services within have been created.
-			this._whenReady = new Promise<void>(resolve => ipcMain.once('vscode:shared-process->electron-main=init-done', () => {
+			this._whenReady = new Promise<void>(resolve => validatedIpcMain.once('vscode:shared-process->electron-main=init-done', () => {
 				this.logService.trace('SharedProcess: Overall ready');
 
 				resolve();
@@ -145,7 +199,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				this.registerWindowListeners();
 
 				// Wait for window indicating that IPC connections are accepted
-				await new Promise<void>(resolve => ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => {
+				await new Promise<void>(resolve => validatedIpcMain.once('vscode:shared-process->electron-main=ipc-ready', () => {
 					this.logService.trace('SharedProcess: IPC ready');
 
 					resolve();
@@ -165,16 +219,16 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`],
+				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`, '--vscode-window-kind=shared-process'],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				nodeIntegration: true,
+				nodeIntegrationInWorker: true,
 				contextIsolation: false,
 				enableWebSQL: false,
 				spellcheck: false,
 				nativeWindowOpen: true,
 				images: false,
-				webgl: false,
-				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
+				webgl: false
 			}
 		});
 
@@ -253,5 +307,14 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 	isVisible(): boolean {
 		return this.window?.isVisible() ?? false;
+	}
+
+	private isAlive(): boolean {
+		const window = this.window;
+		if (!window) {
+			return false;
+		}
+
+		return !window.isDestroyed() && !window.webContents.isDestroyed();
 	}
 }

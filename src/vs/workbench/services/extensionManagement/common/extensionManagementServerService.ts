@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionInstallLocation, IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -15,6 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WebExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/webExtensionManagementService';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -28,6 +29,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService logService: ILogService,
 	) {
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
@@ -56,6 +58,11 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 			return this.webExtensionManagementServer;
 		}
 		throw new Error(`Invalid Extension ${extension.location}`);
+	}
+
+	getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null {
+		const server = this.getExtensionManagementServer(extension);
+		return server === this.remoteExtensionManagementServer ? ExtensionInstallLocation.Remote : ExtensionInstallLocation.Web;
 	}
 }
 

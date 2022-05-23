@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionHostDebugService, INullableProcessEnvironment, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
-import { hasWorkspaceFileExtension, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
+import { ExtensionHostDebugBroadcastChannel, ExtensionHostDebugChannelClient } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IFileService } from 'vs/platform/files/common/files';
-import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient implements IExtensionHostDebugService {
 
@@ -31,7 +30,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@ILogService logService: ILogService,
 		@IHostService hostService: IHostService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -86,7 +85,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		}
 	}
 
-	override async openExtensionDevelopmentHostWindow(args: string[], _env: INullableProcessEnvironment | undefined, _debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
+	override async openExtensionDevelopmentHostWindow(args: string[], _debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
 
 		// Add environment parameters required for debug to work
 		const environment = new Map<string, string>();
@@ -96,29 +95,20 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			environment.set('openFile', fileUriArg);
 		}
 
-		const extensionDevelopmentPath = this.findArgument('extensionDevelopmentPath', args);
-		if (extensionDevelopmentPath) {
-			environment.set('extensionDevelopmentPath', extensionDevelopmentPath);
-		}
+		const copyArgs = [
+			'extensionDevelopmentPath',
+			'extensionTestsPath',
+			'extensionEnvironment',
+			'debugId',
+			'inspect-brk-extensions',
+			'inspect-extensions',
+		];
 
-		const extensionTestsPath = this.findArgument('extensionTestsPath', args);
-		if (extensionTestsPath) {
-			environment.set('extensionTestsPath', extensionTestsPath);
-		}
-
-		const debugId = this.findArgument('debugId', args);
-		if (debugId) {
-			environment.set('debugId', debugId);
-		}
-
-		const inspectBrkExtensions = this.findArgument('inspect-brk-extensions', args);
-		if (inspectBrkExtensions) {
-			environment.set('inspect-brk-extensions', inspectBrkExtensions);
-		}
-
-		const inspectExtensions = this.findArgument('inspect-extensions', args);
-		if (inspectExtensions) {
-			environment.set('inspect-extensions', inspectExtensions);
+		for (const argName of copyArgs) {
+			const value = this.findArgument(argName, args);
+			if (value) {
+				environment.set(argName, value);
+			}
 		}
 
 		// Find out which workspace to open debug window on
@@ -133,11 +123,12 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			}
 		}
 
+		const extensionTestsPath = this.findArgument('extensionTestsPath', args);
 		if (!debugWorkspace && !extensionTestsPath) {
 			const lastExtensionDevelopmentWorkspace = this.storageService.get(BrowserExtensionHostDebugService.LAST_EXTENSION_DEVELOPMENT_WORKSPACE_KEY, StorageScope.GLOBAL);
 			if (lastExtensionDevelopmentWorkspace) {
 				try {
-					const serializedWorkspace: { workspaceUri?: UriComponents, folderUri?: UriComponents } = JSON.parse(lastExtensionDevelopmentWorkspace);
+					const serializedWorkspace: { workspaceUri?: UriComponents; folderUri?: UriComponents } = JSON.parse(lastExtensionDevelopmentWorkspace);
 					if (serializedWorkspace.workspaceUri) {
 						debugWorkspace = { workspaceUri: URI.revive(serializedWorkspace.workspaceUri) };
 					} else if (serializedWorkspace.folderUri) {
@@ -173,7 +164,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		for (const a of args) {
 			const k = `--${key}=`;
 			if (a.indexOf(k) === 0) {
-				return a.substr(k.length);
+				return a.substring(k.length);
 			}
 		}
 

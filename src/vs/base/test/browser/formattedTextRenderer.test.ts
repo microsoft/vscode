@@ -75,7 +75,7 @@ suite('FormattedTextRenderer', () => {
 				disposables: store
 			}
 		});
-		assert.strictEqual(result.innerHTML, '<a href="#">action</a>');
+		assert.strictEqual(result.innerHTML, '<a>action</a>');
 
 		let event: MouseEvent = <any>document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
@@ -94,7 +94,7 @@ suite('FormattedTextRenderer', () => {
 				disposables: store
 			}
 		});
-		assert.strictEqual(result.innerHTML, '<i><b><a href="#">action</a></b></i>');
+		assert.strictEqual(result.innerHTML, '<i><b><a>action</a></b></i>');
 
 		let event: MouseEvent = <any>document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
@@ -114,7 +114,7 @@ suite('FormattedTextRenderer', () => {
 				disposables: store
 			}
 		});
-		assert.strictEqual(result.innerHTML, '<code><i><b><a href="#">action</a></b></i></code>');
+		assert.strictEqual(result.innerHTML, '<code><i><b><a>action</a></b></i></code>');
 
 		let event: MouseEvent = <any>document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);

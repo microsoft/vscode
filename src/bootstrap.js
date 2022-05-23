@@ -28,9 +28,9 @@
 	// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 	Error.stackTraceLimit = 100;
 
-	// Workaround for Electron not installing a handler to ignore SIGPIPE
-	// (https://github.com/electron/electron/issues/13254)
-	if (typeof process !== 'undefined') {
+	if (typeof process !== 'undefined' && !process.env['VSCODE_HANDLES_SIGPIPE']) {
+		// Workaround for Electron not installing a handler to ignore SIGPIPE
+		// (https://github.com/electron/electron/issues/13254)
 		process.on('SIGPIPE', () => {
 			console.error(new Error('Unexpected SIGPIPE'));
 		});
@@ -42,9 +42,6 @@
 	//#region Add support for using node_modules.asar
 
 	/**
-	 * TODO@sandbox remove the support for passing in `appRoot` once
-	 * sandbox is fully enabled
-	 *
 	 * @param {string=} appRoot
 	 */
 	function enableASARSupport(appRoot) {
@@ -100,7 +97,7 @@
 				}
 				if (!asarPathAdded && appRoot) {
 					// Assuming that adding just `NODE_MODULES_ASAR_PATH` is sufficient
-					// because nodejs should find it even if it has a different driver letter case
+					// because nodejs should find it even if it has a different drive letter case
 					paths.push(NODE_MODULES_ASAR_PATH);
 				}
 			}

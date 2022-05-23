@@ -7,14 +7,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
-import { IEmptyWorkspaceIdentifier, ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export type Key = string;
 export type Value = string;
 export type Item = [Key, Value];
 
 export interface IBaseSerializableStorageRequest {
-	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined
+	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
 }
 
 export interface ISerializableUpdateRequest extends IBaseSerializableStorageRequest {
@@ -86,8 +86,9 @@ class GlobalStorageDatabaseClient extends BaseStorageDatabaseClient implements I
 	async close(): Promise<void> {
 
 		// The global storage database is shared across all instances so
-		// we do not await it. However we dispose the listener for external
-		// changes because we no longer interested int it.
+		// we do not close it from the window. However we dispose the
+		// listener for external changes because we no longer interested in it.
+
 		this.dispose();
 	}
 }
@@ -101,9 +102,12 @@ class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implement
 	}
 
 	async close(): Promise<void> {
-		const serializableRequest: ISerializableUpdateRequest = { workspace: this.workspace };
 
-		return this.channel.call('close', serializableRequest);
+		// The workspace storage database is only used in this instance
+		// but we do not need to close it from here, the main process
+		// can take care of that.
+
+		this.dispose();
 	}
 }
 

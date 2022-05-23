@@ -107,12 +107,17 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 	}
 }
 
-function reviveWebview(webviewService: IWebviewService, data: { id: string, state: any, webviewOptions: WebviewOptions, contentOptions: WebviewContentOptions, extension?: WebviewExtensionDescription, }) {
-	const webview = webviewService.createWebviewOverlay(data.id, {
-		purpose: WebviewContentPurpose.CustomEditor,
-		enableFindWidget: data.webviewOptions.enableFindWidget,
-		retainContextWhenHidden: data.webviewOptions.retainContextWhenHidden
-	}, data.contentOptions, data.extension);
+function reviveWebview(webviewService: IWebviewService, data: { id: string; state: any; webviewOptions: WebviewOptions; contentOptions: WebviewContentOptions; extension?: WebviewExtensionDescription }) {
+	const webview = webviewService.createWebviewOverlay({
+		id: data.id,
+		options: {
+			purpose: WebviewContentPurpose.CustomEditor,
+			enableFindWidget: data.webviewOptions.enableFindWidget,
+			retainContextWhenHidden: data.webviewOptions.retainContextWhenHidden
+		},
+		contentOptions: data.contentOptions,
+		extension: data.extension,
+	});
 	webview.state = data.state;
 	return webview;
 }

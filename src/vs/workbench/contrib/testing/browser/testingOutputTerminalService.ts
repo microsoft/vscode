@@ -10,9 +10,9 @@ import { listenStream } from 'vs/base/common/stream';
 import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ProcessCapability, ProcessPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessPropertyMap, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ProcessPropertyType, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IViewsService } from 'vs/workbench/common/views';
-import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
@@ -51,6 +51,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 	constructor(
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
+		@ITerminalEditorService private readonly terminalEditorService: ITerminalEditorService,
 		@ITestResultService resultService: ITestResultService,
 		@IViewsService private viewsService: IViewsService,
 	) {
@@ -89,7 +90,11 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		const existing = testOutputPtys.find(([, o]) => o.resultId === result?.id);
 		if (existing) {
 			this.terminalService.setActiveInstance(existing[0]);
-			this.terminalGroupService.showPanel();
+			if (existing[0].target === TerminalLocation.Editor) {
+				this.terminalEditorService.revealActiveEditor();
+			} else {
+				this.terminalGroupService.showPanel();
+			}
 			return;
 		}
 
@@ -98,6 +103,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		if (ended) {
 			ended[1].clear();
 			this.showResultsInTerminal(ended[0], ended[1], result);
+			return;
 		}
 
 		const output = new TestOutputProcess();
@@ -115,7 +121,11 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		this.outputTerminals.set(terminal, output);
 		output.resetFor(result?.id, getTitle(result));
 		this.terminalService.setActiveInstance(terminal);
-		this.terminalGroupService.showPanel();
+		if (terminal.target === TerminalLocation.Editor) {
+			this.terminalEditorService.revealActiveEditor();
+		} else {
+			this.terminalGroupService.showPanel();
+		}
 
 		if (!result) {
 			// seems like it takes a tick for listeners to be registered
@@ -147,9 +157,6 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 }
 
 class TestOutputProcess extends Disposable implements ITerminalChildProcess {
-	updateProperty(property: ProcessPropertyType, value: any): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
@@ -157,8 +164,6 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 	private processDataEmitter = this._register(new Emitter<string | IProcessDataEvent>());
 	private titleEmitter = this._register(new Emitter<string>());
 	private readonly startedDeferred = new DeferredPromise<void>();
-	private _capabilities: ProcessCapability[] = [];
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	/** Whether the associated test has ended (indicating the terminal can be reused) */
 	public ended = true;
 	/** Result currently being displayed */
@@ -186,14 +191,14 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 
 	public readonly onProcessData = this.processDataEmitter.event;
 	public readonly onProcessExit = this._register(new Emitter<number | undefined>()).event;
-	private readonly _onProcessReady = this._register(new Emitter<{ pid: number; cwd: string; capabilities: ProcessCapability[] }>());
+	private readonly _onProcessReady = this._register(new Emitter<{ pid: number; cwd: string }>());
 	public readonly onProcessReady = this._onProcessReady.event;
 	public readonly onProcessTitleChanged = this.titleEmitter.event;
 	public readonly onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>()).event;
 
 	public start(): Promise<ITerminalLaunchError | undefined> {
 		this.startedDeferred.complete();
-		this._onProcessReady.fire({ pid: -1, cwd: '', capabilities: [] });
+		this._onProcessReady.fire({ pid: -1, cwd: '' });
 		return Promise.resolve(undefined);
 	}
 	public shutdown(): void {
@@ -228,8 +233,12 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 		return Promise.resolve(0);
 	}
 
-	refreshProperty(property: ProcessPropertyType) {
-		return Promise.resolve('');
+	public refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+		throw new Error(`refreshProperty is not suppported in TestOutputProcesses. property: ${property}`);
+	}
+
+	public updateProperty(property: ProcessPropertyType, value: any): Promise<void> {
+		throw new Error(`updateProperty is not suppported in TestOutputProcesses. property: ${property}, value: ${value}`);
 	}
 	//#endregion
 }

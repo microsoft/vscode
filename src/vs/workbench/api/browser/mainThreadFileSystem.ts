@@ -6,10 +6,14 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
+import { IFileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, IFileOverwriteOptions, IFileDeleteOptions, IFileOpenOptions, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode, IFilesConfiguration, IFileStatWithPartialMetadata, IFileStat } from 'vs/platform/files/common/files';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostFileSystemShape, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -17,25 +21,30 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	private readonly _proxy: ExtHostFileSystemShape;
 	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
 	private readonly _disposables = new DisposableStore();
+	private readonly _watches = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IFileService private readonly _fileService: IFileService,
+		@IWorkbenchFileService private readonly _fileService: IWorkbenchFileService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 
 		const infoProxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemInfo);
 
 		for (let entry of _fileService.listCapabilities()) {
-			infoProxy.$acceptProviderInfos(entry.scheme, entry.capabilities);
+			infoProxy.$acceptProviderInfos(URI.from({ scheme: entry.scheme, path: '/dummy' }), entry.capabilities);
 		}
-		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(e => infoProxy.$acceptProviderInfos(e.scheme, e.provider?.capabilities ?? null)));
-		this._disposables.add(_fileService.onDidChangeFileSystemProviderCapabilities(e => infoProxy.$acceptProviderInfos(e.scheme, e.provider.capabilities)));
+		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(e => infoProxy.$acceptProviderInfos(URI.from({ scheme: e.scheme, path: '/dummy' }), e.provider?.capabilities ?? null)));
+		this._disposables.add(_fileService.onDidChangeFileSystemProviderCapabilities(e => infoProxy.$acceptProviderInfos(URI.from({ scheme: e.scheme, path: '/dummy' }), e.provider.capabilities)));
 	}
 
 	dispose(): void {
 		this._disposables.dispose();
 		dispose(this._fileProvider.values());
+		dispose(this._watches.values());
 		this._fileProvider.clear();
 	}
 
@@ -60,7 +69,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	// --- consumer fs, vscode.workspace.fs
 
 	$stat(uri: UriComponents): Promise<IStat> {
-		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: true }).then(stat => {
+		return this._fileService.stat(URI.revive(uri)).then(stat => {
 			return {
 				ctime: stat.ctime,
 				mtime: stat.mtime,
@@ -82,7 +91,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		}).catch(MainThreadFileSystem._handleError);
 	}
 
-	private static _asFileType(stat: IFileStat): FileType {
+	private static _asFileType(stat: IFileStat | IFileStatWithPartialMetadata): FileType {
 		let res = 0;
 		if (stat.isFile) {
 			res += FileType.File;
@@ -105,12 +114,12 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
 
-	$rename(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+	$rename(source: UriComponents, target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {
 		return this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite)
 			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
 
-	$copy(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+	$copy(source: UriComponents, target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {
 		return this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite)
 			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
@@ -120,7 +129,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
 
-	$delete(uri: UriComponents, opts: FileDeleteOptions): Promise<void> {
+	$delete(uri: UriComponents, opts: IFileDeleteOptions): Promise<void> {
 		return this._fileService.del(URI.revive(uri), opts).catch(MainThreadFileSystem._handleError);
 	}
 
@@ -148,6 +157,84 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		}
 
 		throw err;
+	}
+
+	$ensureActivation(scheme: string): Promise<void> {
+		return this._fileService.activateProvider(scheme);
+	}
+
+	$watch(extensionId: string, session: number, resource: UriComponents, opts: IWatchOptions): void {
+		const uri = URI.revive(resource);
+		const isInsideWorkspace = this._contextService.isInsideWorkspace(uri);
+
+		// Refuse to watch anything that is already watched via
+		// our workspace watchers in case the request is a
+		// recursive file watcher.
+		// Still allow for non-recursive watch requests as a way
+		// to bypass configured exlcude rules though
+		// (see https://github.com/microsoft/vscode/issues/146066)
+		if (isInsideWorkspace && opts.recursive) {
+			this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+			return;
+		}
+
+		this._logService.trace(`MainThreadFileSystem#$watch(): request to start watching (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+
+		// Automatically add `files.watcherExclude` patterns when watching
+		// recursively to give users a chance to configure exclude rules
+		// for reducing the overhead of watching recursively
+		if (opts.recursive) {
+			const config = this._configurationService.getValue<IFilesConfiguration>();
+			if (config.files?.watcherExclude) {
+				for (const key in config.files.watcherExclude) {
+					if (config.files.watcherExclude[key] === true) {
+						opts.excludes.push(key);
+					}
+				}
+			}
+		}
+
+		// Non-recursive watching inside the workspace will overlap with
+		// our standard workspace watchers. To prevent duplicate events,
+		// we only want to include events for files that are otherwise
+		// excluded via `files.watcherExclude`. As such, we configure
+		// to include each configured exclude pattern so that only those
+		// events are reported that are otherwise excluded.
+		else if (isInsideWorkspace) {
+			const config = this._configurationService.getValue<IFilesConfiguration>();
+			if (config.files?.watcherExclude) {
+				for (const key in config.files.watcherExclude) {
+					if (config.files.watcherExclude[key] === true) {
+						if (!opts.includes) {
+							opts.includes = [];
+						}
+
+						opts.includes.push(key);
+					}
+				}
+			}
+
+			// Still ignore watch request if there are actually no configured
+			// exclude rules, because in that case our default recursive watcher
+			// should be able to take care of all events.
+			if (!opts.includes || opts.includes.length === 0) {
+				this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace and no excludes are configured (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+				return;
+			}
+		}
+
+		const subscription = this._fileService.watch(uri, opts);
+		this._watches.set(session, subscription);
+	}
+
+	$unwatch(session: number): void {
+		const subscription = this._watches.get(session);
+		if (subscription) {
+			this._logService.trace(`MainThreadFileSystem#$unwatch(): request to stop watching (session: ${session})`);
+
+			subscription.dispose();
+			this._watches.delete(session);
+		}
 	}
 }
 
@@ -205,11 +292,11 @@ class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCa
 		return this._proxy.$readFile(this._handle, resource).then(buffer => buffer.buffer);
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		return this._proxy.$writeFile(this._handle, resource, VSBuffer.wrap(content), opts);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		return this._proxy.$delete(this._handle, resource, opts);
 	}
 
@@ -221,15 +308,15 @@ class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCa
 		return this._proxy.$readdir(this._handle, resource);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
+	rename(resource: URI, target: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this._proxy.$rename(this._handle, resource, target, opts);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
+	copy(resource: URI, target: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this._proxy.$copy(this._handle, resource, target, opts);
 	}
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
+	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 		return this._proxy.$open(this._handle, resource, opts);
 	}
 

@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { isStatusbarEntryLocation, IStatusbarEntryLocation, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { hide, show, isAncestor } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter } from 'vs/base/common/event';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
+import { localize } from 'vs/nls';
 
 export interface IStatusbarEntryPriority {
 
@@ -32,34 +35,6 @@ export interface IStatusbarEntryPriority {
 	readonly secondary: number;
 }
 
-export interface IStatusbarEntryLocation {
-
-	/**
-	 * The identifier of another status bar entry to
-	 * position relative to.
-	 */
-	id: string;
-
-	/**
-	 * The alignment of the status bar entry relative
-	 * to the referenced entry.
-	 */
-	alignment: StatusbarAlignment;
-
-	/**
-	 * Whether to move the entry close to the location
-	 * so that it appears as if both this entry and
-	 * the location belong to each other.
-	 */
-	compact?: boolean;
-}
-
-export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEntryLocation {
-	const candidate = thing as IStatusbarEntryLocation | undefined;
-
-	return typeof candidate?.id === 'string' && typeof candidate.alignment === 'number';
-}
-
 export interface IStatusbarViewModelEntry {
 	readonly id: string;
 	readonly name: string;
@@ -74,7 +49,7 @@ export class StatusbarViewModel extends Disposable {
 
 	private static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
 
-	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
+	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string; visible: boolean }>());
 	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
 
 	private _entries: IStatusbarViewModelEntry[] = []; // Intentionally not using a map here since multiple entries can have the same ID
@@ -92,6 +67,12 @@ export class StatusbarViewModel extends Disposable {
 
 		this.restoreState();
 		this.registerListeners();
+
+		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
+			.registerKeys([{
+				key: StatusbarViewModel.HIDDEN_ENTRIES_KEY,
+				description: localize('statusbar.hidden', "Status bar entries visibility customizations"),
+			}]);
 	}
 
 	private restoreState(): void {

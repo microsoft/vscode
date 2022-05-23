@@ -73,6 +73,7 @@ export class BreakpointsView extends ViewPane {
 
 	private list!: WorkbenchList<BreakpointItem>;
 	private needsRefresh = false;
+	private needsStateChange = false;
 	private ignoreLayout = false;
 	private menu: IMenu;
 	private breakpointItemType: IContextKey<string | undefined>;
@@ -176,8 +177,14 @@ export class BreakpointsView extends ViewPane {
 		this.list.splice(0, this.list.length, this.elements);
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible && this.needsRefresh) {
-				this.onBreakpointsChange();
+			if (visible) {
+				if (this.needsRefresh) {
+					this.onBreakpointsChange();
+				}
+
+				if (this.needsStateChange) {
+					this.onStateChange();
+				}
 			}
 		}));
 
@@ -269,31 +276,36 @@ export class BreakpointsView extends ViewPane {
 	}
 
 	private onStateChange(): void {
-		const thread = this.debugService.getViewModel().focusedThread;
-		let found = false;
-		if (thread && thread.stoppedDetails && thread.stoppedDetails.hitBreakpointIds && thread.stoppedDetails.hitBreakpointIds.length > 0) {
-			const hitBreakpointIds = thread.stoppedDetails.hitBreakpointIds;
-			const elements = this.elements;
-			const index = elements.findIndex(e => {
-				const id = e.getIdFromAdapter(thread.session.getId());
-				return typeof id === 'number' && hitBreakpointIds.indexOf(id) !== -1;
-			});
-			if (index >= 0) {
-				this.list.setFocus([index]);
-				this.list.setSelection([index]);
-				found = true;
-				this.autoFocusedIndex = index;
+		if (this.isBodyVisible()) {
+			this.needsStateChange = false;
+			const thread = this.debugService.getViewModel().focusedThread;
+			let found = false;
+			if (thread && thread.stoppedDetails && thread.stoppedDetails.hitBreakpointIds && thread.stoppedDetails.hitBreakpointIds.length > 0) {
+				const hitBreakpointIds = thread.stoppedDetails.hitBreakpointIds;
+				const elements = this.elements;
+				const index = elements.findIndex(e => {
+					const id = e.getIdFromAdapter(thread.session.getId());
+					return typeof id === 'number' && hitBreakpointIds.indexOf(id) !== -1;
+				});
+				if (index >= 0) {
+					this.list.setFocus([index]);
+					this.list.setSelection([index]);
+					found = true;
+					this.autoFocusedIndex = index;
+				}
 			}
-		}
-		if (!found) {
-			// Deselect breakpoint in breakpoint view when no longer stopped on it #125528
-			const focus = this.list.getFocus();
-			const selection = this.list.getSelection();
-			if (this.autoFocusedIndex >= 0 && equals(focus, selection) && focus.indexOf(this.autoFocusedIndex) >= 0) {
-				this.list.setFocus([]);
-				this.list.setSelection([]);
+			if (!found) {
+				// Deselect breakpoint in breakpoint view when no longer stopped on it #125528
+				const focus = this.list.getFocus();
+				const selection = this.list.getSelection();
+				if (this.autoFocusedIndex >= 0 && equals(focus, selection) && focus.indexOf(this.autoFocusedIndex) >= 0) {
+					this.list.setFocus([]);
+					this.list.setSelection([]);
+				}
+				this.autoFocusedIndex = -1;
 			}
-			this.autoFocusedIndex = -1;
+		} else {
+			this.needsStateChange = true;
 		}
 	}
 
@@ -387,6 +399,7 @@ interface IFunctionBreakpointInputTemplateData {
 	breakpoint: IFunctionBreakpoint;
 	toDispose: IDisposable[];
 	type: 'hitCount' | 'condition' | 'name';
+	updating?: boolean;
 }
 
 interface IExceptionBreakpointInputTemplateData {
@@ -790,25 +803,30 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		const toDispose: IDisposable[] = [inputBox, styler];
 
 		const wrapUp = (success: boolean) => {
-			this.view.breakpointInputFocused.set(false);
-			const id = template.breakpoint.getId();
+			template.updating = true;
+			try {
+				this.view.breakpointInputFocused.set(false);
+				const id = template.breakpoint.getId();
 
-			if (success) {
-				if (template.type === 'name') {
-					this.debugService.updateFunctionBreakpoint(id, { name: inputBox.value });
-				}
-				if (template.type === 'condition') {
-					this.debugService.updateFunctionBreakpoint(id, { condition: inputBox.value });
-				}
-				if (template.type === 'hitCount') {
-					this.debugService.updateFunctionBreakpoint(id, { hitCondition: inputBox.value });
-				}
-			} else {
-				if (template.type === 'name' && !template.breakpoint.name) {
-					this.debugService.removeFunctionBreakpoints(id);
+				if (success) {
+					if (template.type === 'name') {
+						this.debugService.updateFunctionBreakpoint(id, { name: inputBox.value });
+					}
+					if (template.type === 'condition') {
+						this.debugService.updateFunctionBreakpoint(id, { condition: inputBox.value });
+					}
+					if (template.type === 'hitCount') {
+						this.debugService.updateFunctionBreakpoint(id, { hitCondition: inputBox.value });
+					}
 				} else {
-					this.view.renderInputBox(undefined);
+					if (template.type === 'name' && !template.breakpoint.name) {
+						this.debugService.removeFunctionBreakpoints(id);
+					} else {
+						this.view.renderInputBox(undefined);
+					}
 				}
+			} finally {
+				template.updating = false;
 			}
 		};
 
@@ -822,10 +840,9 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 			}
 		}));
 		toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
-			// Need to react with a timeout on the blur event due to possible concurent splices #56443
-			setTimeout(() => {
+			if (!template.updating) {
 				wrapUp(!!inputBox.value);
-			});
+			}
 		}));
 
 		template.inputBox = inputBox;
@@ -1010,7 +1027,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
-export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: BreakpointItem, labelService?: ILabelService): { message?: string, icon: ThemeIcon } {
+export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: BreakpointItem, labelService?: ILabelService): { message?: string; icon: ThemeIcon } {
 	const debugActive = state === State.Running || state === State.Stopped;
 
 	const breakpointIcon = breakpoint instanceof DataBreakpoint ? icons.dataBreakpoint : breakpoint instanceof FunctionBreakpoint ? icons.functionBreakpoint : breakpoint.logMessage ? icons.logBreakpoint : icons.breakpoint;
@@ -1249,6 +1266,7 @@ registerAction2(class extends Action2 {
 		debugService.removeBreakpoints();
 		debugService.removeFunctionBreakpoints();
 		debugService.removeDataBreakpoints();
+		debugService.removeInstructionBreakpoints();
 	}
 });
 
@@ -1364,7 +1382,7 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 			if (editor) {
 				const codeEditor = editor.getControl();
 				if (isCodeEditor(codeEditor)) {
-					codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(breakpoint.lineNumber, breakpoint.column);
+					codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)?.showBreakpointWidget(breakpoint.lineNumber, breakpoint.column);
 				}
 			}
 		} else if (breakpoint instanceof FunctionBreakpoint) {

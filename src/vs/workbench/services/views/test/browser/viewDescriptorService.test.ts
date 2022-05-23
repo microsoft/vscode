@@ -13,6 +13,7 @@ import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewD
 import { assertIsDefined } from 'vs/base/common/types';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 const sidebarContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: 'testSidebar', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
@@ -20,10 +21,12 @@ const panelContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensi
 
 suite('ViewDescriptorService', () => {
 
+	let disposables: DisposableStore;
 	let viewDescriptorService: IViewDescriptorService;
 
 	setup(() => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		disposables = new DisposableStore();
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 		viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
 	});
@@ -31,6 +34,7 @@ suite('ViewDescriptorService', () => {
 	teardown(() => {
 		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(sidebarContainer), sidebarContainer);
 		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(panelContainer), panelContainer);
+		disposables.dispose();
 	});
 
 	test('Empty Containers', function () {

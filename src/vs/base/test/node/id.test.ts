@@ -16,7 +16,7 @@ flakySuite('ID', () => {
 	});
 
 	test('getMac', async () => {
-		const macAddress = await getMac();
+		const macAddress = getMac();
 		assert.ok(/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(macAddress), `Expected a MAC address, got: ${macAddress}`);
 	});
 });

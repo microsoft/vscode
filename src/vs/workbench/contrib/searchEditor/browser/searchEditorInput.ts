@@ -10,7 +10,7 @@ import { extname, isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -24,7 +24,7 @@ import { defaultSearchConfig, parseSavedSearchEditor, serializeSearchConfigurati
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
@@ -34,16 +34,16 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export type SearchConfiguration = {
-	query: string,
-	filesToInclude: string,
-	filesToExclude: string,
-	contextLines: number,
-	matchWholeWord: boolean,
-	isCaseSensitive: boolean,
-	isRegexp: boolean,
-	useExcludeSettingsAndIgnoreFiles: boolean,
-	showIncludesExcludes: boolean,
-	onlyOpenEditors: boolean,
+	query: string;
+	filesToInclude: string;
+	filesToExclude: string;
+	contextLines: number;
+	matchWholeWord: boolean;
+	isCaseSensitive: boolean;
+	isRegexp: boolean;
+	useExcludeSettingsAndIgnoreFiles: boolean;
+	showIncludesExcludes: boolean;
+	onlyOpenEditors: boolean;
 };
 
 export const SEARCH_EDITOR_EXT = '.code-search';
@@ -74,6 +74,9 @@ export class SearchEditorInput extends EditorInput {
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+
+	private readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
+	readonly onDidSave: Event<IWorkingCopySaveEvent> = this._onDidSave.event;
 
 	private oldDecorationsIDs: string[] = [];
 
@@ -118,6 +121,7 @@ export class SearchEditorInput extends EditorInput {
 			readonly capabilities = input.hasCapability(EditorInputCapabilities.Untitled) ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
 			readonly onDidChangeContent = input.onDidChangeContent;
+			readonly onDidSave = input.onDidSave;
 			isDirty(): boolean { return input.isDirty(); }
 			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return input.backup(token); }
 			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
@@ -128,11 +132,12 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	override async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<EditorInput | undefined> {
-		if (((await this.getModels()).resultsModel).isDisposed()) { return; }
+		if (((await this.resolveModels()).resultsModel).isDisposed()) { return; }
 
 		if (this.backingUri) {
 			await this.textFileService.write(this.backingUri, await this.serializeForDisk(), options);
 			this.setDirty(false);
+			this._onDidSave.fire({ reason: options?.reason, source: options?.source });
 			return this;
 		} else {
 			return this.saveAs(group, options);
@@ -144,29 +149,33 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	private async serializeForDisk() {
-		const { configurationModel, resultsModel } = await this.getModels();
+		const { configurationModel, resultsModel } = await this.resolveModels();
 		return serializeSearchConfiguration(configurationModel.config) + '\n' + resultsModel.getValue();
 	}
 
 	private configChangeListenerDisposable: IDisposable | undefined;
 	private registerConfigChangeListeners(model: SearchConfigurationModel) {
 		this.configChangeListenerDisposable?.dispose();
-
 		if (!this.isDisposed()) {
 			this.configChangeListenerDisposable = model.onConfigDidUpdate(() => {
-				this._onDidChangeLabel.fire();
+				const oldName = this.getName();
+				if (oldName !== this.getName()) {
+					this._onDidChangeLabel.fire();
+				}
 				this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = model.config;
 			});
-
 			this._register(this.configChangeListenerDisposable);
 		}
 	}
 
-	async getModels() {
+	async resolveModels() {
 		return this.model.resolve().then(data => {
+			const oldName = this.getName();
 			this._cachedResultsModel = data.resultsModel;
 			this._cachedConfigurationModel = data.configurationModel;
-			this._onDidChangeLabel.fire();
+			if (oldName !== this.getName()) {
+				this._onDidChangeLabel.fire();
+			}
 			this.registerConfigChangeListeners(data.configurationModel);
 			return data;
 		});
@@ -206,8 +215,11 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	setDirty(dirty: boolean) {
+		const wasDirty = this.dirty;
 		this.dirty = dirty;
-		this._onDidChangeDirty.fire();
+		if (wasDirty !== dirty) {
+			this._onDidChangeDirty.fire();
+		}
 	}
 
 	override isDirty() {
@@ -248,7 +260,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	async setMatchRanges(ranges: Range[]) {
-		this.oldDecorationsIDs = (await this.getModels()).resultsModel.deltaDecorations(this.oldDecorationsIDs, ranges.map(range =>
+		this.oldDecorationsIDs = (await this.resolveModels()).resultsModel.deltaDecorations(this.oldDecorationsIDs, ranges.map(range =>
 			({ range, options: { description: 'search-editor-find-match', className: SearchEditorFindMatchClass, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 	}
 
@@ -260,11 +272,11 @@ export class SearchEditorInput extends EditorInput {
 
 		if (this.backingUri) {
 			const { config, text } = await this.instantiationService.invokeFunction(parseSavedSearchEditor, this.backingUri);
-			const { resultsModel, configurationModel } = await this.getModels();
+			const { resultsModel, configurationModel } = await this.resolveModels();
 			resultsModel.setValue(text);
 			configurationModel.updateConfig(config);
 		} else {
-			(await this.getModels()).resultsModel.setValue('');
+			(await this.resolveModels()).resultsModel.setValue('');
 		}
 		super.revert(group, options);
 		this.setDirty(false);
@@ -282,7 +294,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	private async suggestFileName(): Promise<URI> {
-		const query = (await this.getModels()).configurationModel.config.query;
+		const query = (await this.resolveModels()).configurationModel.config.query;
 		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + SEARCH_EDITOR_EXT;
 		return joinPath(await this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme), searchFileName);
 	}
@@ -304,9 +316,9 @@ export class SearchEditorInput extends EditorInput {
 export const getOrMakeSearchEditorInput = (
 	accessor: ServicesAccessor,
 	existingData: (
-		| { from: 'model', config?: Partial<SearchConfiguration>, modelUri: URI, backupOf?: URI }
-		| { from: 'rawData', resultsContents: string | undefined, config: Partial<SearchConfiguration> }
-		| { from: 'existingFile', fileUri: URI })
+		| { from: 'model'; config?: Partial<SearchConfiguration>; modelUri: URI; backupOf?: URI }
+		| { from: 'rawData'; resultsContents: string | undefined; config: Partial<SearchConfiguration> }
+		| { from: 'existingFile'; fileUri: URI })
 ): SearchEditorInput => {
 
 	const storageService = accessor.get(IStorageService);

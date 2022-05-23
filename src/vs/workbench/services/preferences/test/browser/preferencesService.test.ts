@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorResolution } from 'vs/platform/editor/common/editor';
@@ -14,20 +15,21 @@ import { TestJSONEditingService } from 'vs/workbench/services/configuration/test
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
-import { ITestInstantiationService, TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestRemoteAgentService, ITestInstantiationService, TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('PreferencesService', () => {
 
+	let disposables: DisposableStore;
 	let testInstantiationService: ITestInstantiationService;
 	let testObject: PreferencesService;
 	let editorService: TestEditorService2;
 
 	setup(() => {
+		disposables = new DisposableStore();
 		editorService = new TestEditorService2();
 		testInstantiationService = workbenchInstantiationService({
 			editorService: () => editorService
-		});
+		}, disposables);
 
 		testInstantiationService.stub(IJSONEditingService, TestJSONEditingService);
 		testInstantiationService.stub(IRemoteAgentService, TestRemoteAgentService);
@@ -38,6 +40,10 @@ suite('PreferencesService', () => {
 		collection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
 		const instantiationService = testInstantiationService.createChild(collection);
 		testObject = instantiationService.createInstance(PreferencesService);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('options are preserved when calling openEditor', async () => {

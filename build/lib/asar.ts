@@ -16,7 +16,7 @@ declare class AsarFilesystem {
 	readonly header: unknown;
 	constructor(src: string);
 	insertDirectory(path: string, shouldUnpack?: boolean): unknown;
-	insertFile(path: string, shouldUnpack: boolean, file: { stat: { size: number; mode: number; }; }, options: {}): Promise<void>;
+	insertFile(path: string, shouldUnpack: boolean, file: { stat: { size: number; mode: number } }, options: {}): Promise<void>;
 }
 
 export function createAsar(folderPath: string, unpackGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
@@ -38,7 +38,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 	let onFileInserted = () => { pendingInserts--; };
 
 	// Do not insert twice the same directory
-	const seenDir: { [key: string]: boolean; } = {};
+	const seenDir: { [key: string]: boolean } = {};
 	const insertDirectoryRecursive = (dir: string) => {
 		if (seenDir[dir]) {
 			return;
@@ -65,7 +65,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 		}
 	};
 
-	const insertFile = (relativePath: string, stat: { size: number; mode: number; }, shouldUnpack: boolean) => {
+	const insertFile = (relativePath: string, stat: { size: number; mode: number }, shouldUnpack: boolean) => {
 		insertDirectoryForFile(relativePath);
 		pendingInserts++;
 		// Do not pass `onFileInserted` directly because it gets overwritten below.

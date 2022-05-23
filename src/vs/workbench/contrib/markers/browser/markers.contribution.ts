@@ -10,7 +10,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
-import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { Marker, RelatedInformation, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -23,7 +23,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -74,7 +75,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.MARKER_SHOW_QUICK_FIX,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: Constants.MarkerFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
+	primary: KeyMod.CtrlCmd | KeyCode.Period,
 	handler: (accessor, args: any) => {
 		const markersView = accessor.get(IViewsService).getActiveViewWithId<MarkersView>(Constants.MARKERS_VIEW_ID)!;
 		const focusedElement = markersView.getFocusElement();
@@ -100,7 +101,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS,
 			'type': 'boolean',
 			'default': false
-		}
+		},
+		'problems.sortOrder': {
+			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER,
+			'type': 'string',
+			'default': 'severity',
+			'enum': ['severity', 'position'],
+			'enumDescriptions': [
+				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_SEVERITY,
+				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION,
+			],
+		},
 	}
 });
 
@@ -127,7 +138,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	openCommandActionDescriptor: {
 		id: 'workbench.actions.view.problems',
 		mnemonicTitle: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"),
-		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM },
 		order: 0,
 	}
 }], VIEW_CONTAINER);
@@ -142,7 +153,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.problems.focus',
 			title: { value: Messages.MARKERS_PANEL_SHOW_LABEL, original: 'Focus Problems (Errors, Warnings, Infos)' },
-			category: CATEGORIES.View.value,
+			category: CATEGORIES.View,
 			f1: true,
 		});
 	}
@@ -153,27 +164,41 @@ registerAction2(class extends Action2 {
 
 registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
+		const when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(Constants.MARKERS_VIEW_ID), Constants.MarkersTreeVisibilityContextKey, Constants.RelatedInformationFocusContextKey.toNegated());
 		super({
 			id: Constants.MARKER_COPY_ACTION_ID,
 			title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
 			menu: {
 				id: MenuId.ProblemsPanelContext,
-				when: Constants.MarkerFocusContextKey,
+				when,
 				group: 'navigation'
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-				when: Constants.MarkerFocusContextKey
+				primary: KeyMod.CtrlCmd | KeyCode.KeyC,
+				when
 			},
 			viewId: Constants.MARKERS_VIEW_ID
 		});
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-		const element = markersView.getFocusElement();
-		if (element instanceof Marker) {
-			await clipboardService.writeText(`${element}`);
+		const selection = markersView.getFocusedSelectedElements() || markersView.getAllResourceMarkers();
+		const markers: Marker[] = [];
+		const addMarker = (marker: Marker) => {
+			if (!markers.includes(marker)) {
+				markers.push(marker);
+			}
+		};
+		for (const selected of selection) {
+			if (selected instanceof ResourceMarkers) {
+				selected.markers.forEach(addMarker);
+			} else if (selected instanceof Marker) {
+				addMarker(selected);
+			}
+		}
+		if (markers.length) {
+			await clipboardService.writeText(`[${markers}]`);
 		}
 	}
 });
@@ -248,7 +273,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			keybinding: {
 				when: FocusedViewContext.isEqualTo(Constants.MARKERS_VIEW_ID),
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+				primary: KeyMod.CtrlCmd | KeyCode.KeyF
 			},
 			viewId: Constants.MARKERS_VIEW_ID
 		});
@@ -303,6 +328,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			keybinding: {
 				when: Constants.MarkerViewFilterFocusContextKey,
 				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Escape
 			},
 			viewId: Constants.MARKERS_VIEW_ID
 		});

@@ -12,35 +12,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { timeout } from 'vs/base/common/async';
 import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { FileAccess } from 'vs/base/common/network';
-
-namespace TrustedFunction {
-
-	// workaround a chrome issue not allowing to create new functions
-	// see https://github.com/w3c/webappsec-trusted-types/wiki/Trusted-Types-for-function-constructor
-	const ttpTrustedFunction = self.trustedTypes?.createPolicy('TrustedFunctionWorkaround', {
-		createScript: (_, ...args: string[]) => {
-			args.forEach((arg) => {
-				if (!self.trustedTypes?.isScript(arg)) {
-					throw new Error('TrustedScripts only, please');
-				}
-			});
-			// NOTE: This is insecure without parsing the arguments and body,
-			// Malicious inputs  can escape the function body and execute immediately!
-			const fnArgs = args.slice(0, -1).join(',');
-			const fnBody = args.pop()!.toString();
-			const body = `(function anonymous(${fnArgs}) {${fnBody}\n})`;
-			return body;
-		}
-	});
-
-	export function create(...args: string[]): Function {
-		if (!ttpTrustedFunction) {
-			return new Function(...args);
-		}
-		return self.eval(ttpTrustedFunction.createScript('', ...args) as unknown as string);
-	}
-}
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
@@ -65,8 +36,6 @@ class WorkerRequireInterceptor extends RequireInterceptor {
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	readonly extensionRuntime = ExtensionRuntime.Webworker;
 
-	private static _ttpExtensionScripts = self.trustedTypes?.createPolicy('ExtensionScripts', { createScript: source => source });
-
 	private _fakeModules?: WorkerRequireInterceptor;
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
@@ -75,7 +44,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
-		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, this._registry);
+		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, { mine: this._myRegistry, all: this._globalRegistry });
 		await this._fakeModules.install();
 		performance.mark('code/extHost/didInitAPI');
 
@@ -86,13 +55,17 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		return extensionDescription.browser;
 	}
 
-	protected async _loadCommonJSModule<T>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
-
+	protected async _loadCommonJSModule<T extends object | undefined>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 		module = module.with({ path: ensureSuffix(module.path, '.js') });
 		if (extensionId) {
 			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId.value}`);
 		}
-		const response = await fetch(FileAccess.asBrowserUri(module).toString(true));
+
+		// First resolve the extension entry point URI to something we can load using `fetch`
+		// This needs to be done on the main thread due to a potential `resourceUriProvider` (workbench api)
+		// which is only available in the main thread
+		const browserUri = URI.revive(await this._mainThreadExtensionsProxy.$asBrowserUri(module));
+		const response = await fetch(browserUri.toString(true));
 		if (extensionId) {
 			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId.value}`);
 		}
@@ -109,12 +82,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const fullSource = `${source}\n//# sourceURL=${sourceURL}`;
 		let initFn: Function;
 		try {
-			initFn = TrustedFunction.create(
-				ExtHostExtensionService._ttpExtensionScripts?.createScript('module') as unknown as string ?? 'module',
-				ExtHostExtensionService._ttpExtensionScripts?.createScript('exports') as unknown as string ?? 'exports',
-				ExtHostExtensionService._ttpExtensionScripts?.createScript('require') as unknown as string ?? 'require',
-				ExtHostExtensionService._ttpExtensionScripts?.createScript(fullSource) as unknown as string ?? fullSource
-			);
+			initFn = new Function('module', 'exports', 'require', fullSource);
 		} catch (err) {
 			if (extensionId) {
 				console.error(`Loading code for extension ${extensionId.value} failed: ${err.message}`);

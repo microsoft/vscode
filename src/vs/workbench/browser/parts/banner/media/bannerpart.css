@@ -15,6 +15,7 @@
 
 .monaco-workbench .part.banner .icon-container {
 	display: flex;
+	flex-shrink: 0;
 	align-items: center;
 	padding: 0 6px 0 10px;
 }
@@ -51,6 +52,12 @@
 	padding: 3px;
 	margin-left: 12px;
 	text-decoration: underline;
+	cursor: pointer;
+}
+
+.monaco-workbench .part.banner .message-container a {
+	text-decoration: underline;
+	cursor: pointer;
 }
 
 .monaco-workbench .part.banner .action-container {

@@ -7,15 +7,15 @@
   resolved "https://registry.yarnpkg.com/@types/vscode-webview/-/vscode-webview-1.57.0.tgz#bad5194d45ae8d03afc1c0f67f71ff5e7a243bbf"
   integrity sha512-x3Cb/SMa1IwRHfSvKaZDZOTh4cNoG505c3NjTqGlMC082m++x/ETUmtYniDsw6SSmYzZXO8KBNhYxR0+VqymqA==
 
+"@vscode/extension-telemetry@0.4.10":
+  version "0.4.10"
+  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.4.10.tgz#be960c05bdcbea0933866346cf244acad6cac910"
+  integrity sha512-XgyUoWWRQExTmd9DynIIUQo1NPex/zIeetdUAXeBjVuW9ioojM1TcDaSqOa/5QLC7lx+oEXwSU1r0XSBgzyz6w==
+
 vscode-codicons@^0.0.14:
   version "0.0.14"
   resolved "https://registry.yarnpkg.com/vscode-codicons/-/vscode-codicons-0.0.14.tgz#e0d05418e2e195564ff6f6a2199d70415911c18f"
   integrity sha512-6CEH5KT9ct5WMw7n5dlX7rB8ya4CUI2FSq1Wk36XaW+c5RglFtAanUV0T+gvZVVFhl/WxfjTvFHq06Hz9c1SLA==
-
-vscode-extension-telemetry@0.4.2:
-  version "0.4.2"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.4.2.tgz#6ef847a80c9cfc207eb15e3a254f235acebb65a5"
-  integrity sha512-y0f51mVoFxHIzULQNCC26TBFIKdEC7uckS3tFoK++OOOl8mU2LlOxgmbd52T/SXoXNg5aI7xqs+4V2ug5ITvKw==
 
 vscode-nls@^5.0.0:
   version "5.0.0"

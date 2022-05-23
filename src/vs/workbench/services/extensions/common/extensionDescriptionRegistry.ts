@@ -61,10 +61,8 @@ export class ExtensionDescriptionRegistry {
 		}
 	}
 
-	public keepOnly(extensionIds: ExtensionIdentifier[]): void {
-		const toKeep = new Set<string>();
-		extensionIds.forEach(extensionId => toKeep.add(ExtensionIdentifier.toKey(extensionId)));
-		this._extensionDescriptions = this._extensionDescriptions.filter(extension => toKeep.has(ExtensionIdentifier.toKey(extension.identifier)));
+	public set(extensionDescriptions: IExtensionDescription[]) {
+		this._extensionDescriptions = extensionDescriptions;
 		this._initialize();
 		this._onDidChange.fire(undefined);
 	}

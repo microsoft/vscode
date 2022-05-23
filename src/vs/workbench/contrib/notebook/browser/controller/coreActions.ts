@@ -9,18 +9,17 @@ import { Action2, IAction2Options, MenuId, MenuRegistry } from 'vs/platform/acti
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, cellRangeToViewCells } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, cellRangeToViewCells } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { flatten } from 'vs/base/common/arrays';
 import { TypeConstraint } from 'vs/base/common/types';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = '_notebook.selectKernel';
@@ -35,20 +34,18 @@ export const enum CellToolbarOrder {
 	EditCell,
 	ExecuteAboveCells,
 	ExecuteCellAndBelow,
-	SplitCell,
 	SaveCell,
+	SplitCell,
 	ClearCellOutput
 }
 
 export const enum CellOverflowToolbarGroups {
 	Copy = '1_copy',
 	Insert = '2_insert',
-	Edit = '3_edit',
-	Collapse = '4_collapse',
+	Edit = '3_edit'
 }
 
 export interface INotebookActionContext {
-	readonly cellTemplate?: BaseCellRenderTemplate;
 	readonly cell?: ICellViewModel;
 	readonly notebookEditor: IActiveNotebookEditor;
 	readonly ui?: boolean;
@@ -336,7 +333,7 @@ export function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args:
 		}
 
 		const ranges = firstArg.ranges;
-		const selectedCells = flatten(ranges.map(range => editor.getCellsInRange(range).slice(0)));
+		const selectedCells = ranges.map(range => editor.getCellsInRange(range).slice(0)).flat();
 		const autoReveal = firstArg.autoReveal;
 		return {
 			ui: false,

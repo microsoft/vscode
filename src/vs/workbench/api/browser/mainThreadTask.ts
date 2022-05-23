@@ -24,12 +24,12 @@ import {
 import { ResolveSet, ResolvedVariables } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { ITaskService, TaskFilter, ITaskProvider } from 'vs/workbench/contrib/tasks/common/taskService';
 
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomExecutionDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
-	RunOptionsDTO
+	RunOptionsDTO, TaskGroupDTO
 } from 'vs/workbench/api/common/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -320,7 +320,7 @@ namespace TaskDTO {
 			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
 			runOptions: RunOptionsDTO.from(task.runOptions),
 		};
-		result.group = TaskGroup.from(task.configurationProperties.group);
+		result.group = TaskGroupDTO.from(task.configurationProperties.group);
 
 		if (task.configurationProperties.detail) {
 			result.detail = task.configurationProperties.detail;
@@ -389,6 +389,18 @@ namespace TaskDTO {
 	}
 }
 
+namespace TaskGroupDTO {
+	export function from(value: string | TaskGroup | undefined): TaskGroupDTO | undefined {
+		if (value === undefined) {
+			return undefined;
+		}
+		return {
+			_id: (typeof value === 'string') ? value : value._id,
+			isDefault: (typeof value === 'string') ? false : ((typeof value.isDefault === 'string') ? false : value.isDefault)
+		};
+	}
+}
+
 namespace TaskFilterDTO {
 	export function from(value: TaskFilter): TaskFilterDTO {
 		return value;
@@ -403,7 +415,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 
 	private readonly _extHostContext: IExtHostContext | undefined;
 	private readonly _proxy: ExtHostTaskShape;
-	private readonly _providers: Map<number, { disposable: IDisposable, provider: ITaskProvider }>;
+	private readonly _providers: Map<number, { disposable: IDisposable; provider: ITaskProvider }>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -659,7 +671,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.registerTaskSystem(key, {
 			platform: platform,
 			uriProvider: (path: string): URI => {
-				return URI.parse(`${info.scheme}://${info.authority}${path}`);
+				return URI.from({ scheme: info.scheme, authority: info.authority, path });
 			},
 			context: this._extHostContext,
 			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables | undefined> => {

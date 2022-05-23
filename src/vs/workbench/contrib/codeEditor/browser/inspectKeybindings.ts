@@ -5,20 +5,20 @@
 
 import { localize } from 'vs/nls';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 
-class InspectKeyMap extends EditorAction {
+class InspectKeyMap extends Action2 {
 
 	constructor() {
 		super({
 			id: 'workbench.action.inspectKeyMappings',
-			label: localize('workbench.action.inspectKeyMap', "Developer: Inspect Key Mappings"),
-			alias: 'Developer: Inspect Key Mappings',
-			precondition: undefined
+			title: { value: localize('workbench.action.inspectKeyMap', "Inspect Key Mappings"), original: 'Inspect Key Mappings' },
+			category: CATEGORIES.Developer,
+			f1: true
 		});
 	}
 
@@ -30,7 +30,7 @@ class InspectKeyMap extends EditorAction {
 	}
 }
 
-registerEditorAction(InspectKeyMap);
+registerAction2(InspectKeyMap);
 
 class InspectKeyMapJSON extends Action2 {
 

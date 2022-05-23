@@ -26,8 +26,7 @@
     "languages": [
       {
         "id": "markdown-math",
-        "aliases": [],
-        "configuration": "./language-configuration.json"
+        "aliases": []
       }
     ],
     "grammars": [
@@ -43,7 +42,7 @@
           "text.html.markdown"
         ],
         "embeddedLanguages": {
-          "meta.embedded.math.markdown": "markdown-math"
+          "meta.embedded.math.markdown": "latex"
         }
       },
       {
@@ -53,7 +52,7 @@
           "text.html.markdown"
         ],
         "embeddedLanguages": {
-          "meta.embedded.math.markdown": "markdown-math"
+          "meta.embedded.math.markdown": "latex"
         }
       }
     ],
@@ -91,7 +90,7 @@
     "build-notebook": "node ./esbuild"
   },
   "dependencies": {
-    "@iktakahiro/markdown-it-katex": "https://github.com/mjbvz/markdown-it-katex.git"
+    "@iktakahiro/markdown-it-katex": "mjbvz/markdown-it-katex"
   },
   "devDependencies": {
     "@types/markdown-it": "^0.0.0",

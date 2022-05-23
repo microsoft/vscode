@@ -13,16 +13,15 @@ import { toLocalResource, joinPath, isEqual, basename, dirname } from 'vs/base/c
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService, IDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ISaveOptions } from 'vs/workbench/common/editor';
+import { ISaveOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopyResolveOptions, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopyManagerResolveOptions } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { INewOrExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyWithAssociatedResourceOptions, IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopyManager';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { isValidBasename } from 'vs/base/common/extpath';
 import { IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
 import { IFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -136,6 +135,9 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 
 	readonly onDidCreate: Event<IFileWorkingCopy<S | U>>;
 
+	private static readonly FILE_WORKING_COPY_SAVE_CREATE_SOURCE = SaveSourceRegistry.registerSource('fileWorkingCopyCreate.source', localize('fileWorkingCopyCreate.source', "File Created"));
+	private static readonly FILE_WORKING_COPY_SAVE_REPLACE_SOURCE = SaveSourceRegistry.registerSource('fileWorkingCopyReplace.source', localize('fileWorkingCopyReplace.source', "File Replaced"));
+
 	readonly stored: IStoredFileWorkingCopyManager<S>;
 	readonly untitled: IUntitledFileWorkingCopyManager<U>;
 
@@ -243,7 +245,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 				if (isReadonly && isOrphaned) {
 					return {
 						color: listErrorForeground,
-						letter: Codicon.lock,
+						letter: Codicon.lockSmall,
 						strikethrough: true,
 						tooltip: localize('readonlyAndDeleted', "Deleted, Read Only"),
 					};
@@ -252,7 +254,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 				// Readonly
 				else if (isReadonly) {
 					return {
-						letter: Codicon.lock,
+						letter: Codicon.lockSmall,
 						tooltip: localize('readonly', "Read Only"),
 					};
 				}
@@ -406,8 +408,19 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		// Take over content from source to target
 		await targetStoredFileWorkingCopy.model?.update(sourceContents, CancellationToken.None);
 
+		// Set source options depending on target exists or not
+		if (!options?.source) {
+			options = {
+				...options,
+				source: targetFileExists ? FileWorkingCopyManager.FILE_WORKING_COPY_SAVE_REPLACE_SOURCE : FileWorkingCopyManager.FILE_WORKING_COPY_SAVE_CREATE_SOURCE
+			};
+		}
+
 		// Save target
-		await targetStoredFileWorkingCopy.save({ ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+		const success = await targetStoredFileWorkingCopy.save({ ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+		if (!success) {
+			return undefined;
+		}
 
 		// Revert the source
 		await sourceWorkingCopy?.revert();
@@ -415,7 +428,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		return targetStoredFileWorkingCopy;
 	}
 
-	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean, targetStoredFileWorkingCopy: IStoredFileWorkingCopy<S> }> {
+	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean; targetStoredFileWorkingCopy: IStoredFileWorkingCopy<S> }> {
 
 		// Prefer an existing stored file working copy if it is already resolved
 		// for the given target resource
@@ -476,13 +489,18 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			return toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 		}
 
+		const defaultFilePath = await this.fileDialogService.defaultFilePath();
+
 		// 3.) Pick the working copy name if valid joined with default path
-		if (workingCopy && isValidBasename(workingCopy.name)) {
-			return joinPath(await this.fileDialogService.defaultFilePath(), workingCopy.name);
+		if (workingCopy) {
+			const candidatePath = joinPath(defaultFilePath, workingCopy.name);
+			if (await this.pathService.hasValidBasename(candidatePath, workingCopy.name)) {
+				return candidatePath;
+			}
 		}
 
 		// 4.) Finally fallback to the name of the resource joined with default path
-		return joinPath(await this.fileDialogService.defaultFilePath(), basename(resource));
+		return joinPath(defaultFilePath, basename(resource));
 	}
 
 	//#endregion

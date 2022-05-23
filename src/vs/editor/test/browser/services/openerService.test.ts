@@ -9,10 +9,12 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { CommandsRegistry, ICommandService, NullCommandService } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { matchesScheme } from 'vs/platform/opener/common/opener';
+import { matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('OpenerService', function () {
-	const editorService = new TestCodeEditorService();
+	const themeService = new TestThemeService();
+	const editorService = new TestCodeEditorService(themeService);
 
 	let lastCommand: { id: string; args: any[] } | undefined;
 
@@ -247,6 +249,12 @@ suite('OpenerService', function () {
 		assert.ok(!matchesScheme(URI.parse('z://microsoft.com'), 'http'));
 	});
 
+	test('matchesSomeScheme', function () {
+		assert.ok(matchesSomeScheme('https://microsoft.com', 'http', 'https'));
+		assert.ok(matchesSomeScheme('http://microsoft.com', 'http', 'https'));
+		assert.ok(!matchesSomeScheme('x://microsoft.com', 'http', 'https'));
+	});
+
 	test('resolveExternalUri', async function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
 
@@ -266,5 +274,29 @@ suite('OpenerService', function () {
 		const result = await openerService.resolveExternalUri(URI.parse('file:///Users/user/folder'));
 		assert.deepStrictEqual(result.resolved.toString(), 'file:///Users/user/folder');
 		disposable.dispose();
+	});
+
+	test('vscode.open command can\'t open HTTP URL with hash (#) in it [extension development] #140907', async function () {
+		const openerService = new OpenerService(editorService, NullCommandService);
+
+		let actual: string[] = [];
+
+		openerService.setDefaultExternalOpener({
+			async openExternal(href) {
+				actual.push(href);
+				return true;
+			}
+		});
+
+		const href = 'https://gitlab.com/viktomas/test-project/merge_requests/new?merge_request%5Bsource_branch%5D=test-%23-hash';
+		const uri = URI.parse(href);
+
+		assert.ok(await openerService.open(uri));
+		assert.ok(await openerService.open(href));
+
+		assert.deepStrictEqual(actual, [
+			encodeURI(uri.toString(true)), // BAD, the encoded # (%23) is double encoded to %2523 (% is double encoded)
+			href // good
+		]);
 	});
 });

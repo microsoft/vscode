@@ -47,6 +47,14 @@ function getUpdateType(): UpdateType {
 	return _updateType;
 }
 
+function validateUpdateModeValue(value: string | undefined): 'none' | 'manual' | 'start' | 'default' | undefined {
+	if (value === 'none' || value === 'manual' || value === 'start' || value === 'default') {
+		return value;
+	} else {
+		return undefined;
+	}
+}
+
 export class Win32UpdateService extends AbstractUpdateService {
 
 	private availableUpdate: IAvailableUpdate | undefined;
@@ -71,22 +79,24 @@ export class Win32UpdateService extends AbstractUpdateService {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
-	override initialize(): void {
-		super.initialize();
+	protected override async getUpdateMode(): Promise<'none' | 'manual' | 'start' | 'default'> {
+		if (this.productService.win32RegValueName) {
+			const policyKey = `Software\\Policies\\Microsoft\\${this.productService.win32RegValueName}`;
+			const [hklm, hkcu] = await Promise.all([
+				this.nativeHostMainService.windowsGetStringRegKey(undefined, 'HKEY_LOCAL_MACHINE', policyKey, 'UpdateMode').then(validateUpdateModeValue),
+				this.nativeHostMainService.windowsGetStringRegKey(undefined, 'HKEY_CURRENT_USER', policyKey, 'UpdateMode').then(validateUpdateModeValue)
+			]);
 
-		if (getUpdateType() === UpdateType.Setup) {
-			/* __GDPR__
-				"update:win32SetupTarget" : {
-					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			/* __GDPR__
-				"update:win<NUMBER>SetupTarget" : {
-					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('update:win32SetupTarget', { target: this.productService.target });
+			if (hklm) {
+				this.logService.info(`update#getUpdateMode: 'UpdateMode' policy defined in 'HKLM\\${policyKey}':`, hklm);
+				return hklm;
+			} else if (hkcu) {
+				this.logService.info(`update#getUpdateMode: 'UpdateMode' policy defined in 'HKCU\\${policyKey}':`, hkcu);
+				return hkcu;
+			}
 		}
+
+		return await super.getUpdateMode();
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {

@@ -9,16 +9,16 @@
   },
   "main": "./out/node/htmlServerMain",
   "dependencies": {
-    "vscode-css-languageservice": "^5.1.7",
-    "vscode-html-languageservice": "^4.1.0",
-    "vscode-languageserver": "^7.0.0",
-    "vscode-languageserver-textdocument": "^1.0.1",
-    "vscode-nls": "^5.0.0",
-    "vscode-uri": "^3.0.2"
+    "vscode-css-languageservice": "^6.0.1",
+    "vscode-html-languageservice": "^5.0.0",
+    "vscode-languageserver": "^8.0.1",
+    "vscode-languageserver-textdocument": "^1.0.4",
+    "vscode-nls": "^5.0.1",
+    "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/mocha": "^8.2.0",
-    "@types/node": "14.x"
+    "@types/mocha": "^9.1.1",
+    "@types/node": "16.x"
   },
   "scripts": {
     "compile": "npx gulp compile-extension:html-language-features-server",
@@ -27,6 +27,6 @@
     "install-service-local": "yarn link vscode-css-languageservice && yarn link vscode-html-languageservice",
     "install-server-next": "yarn add vscode-languageserver@next",
     "install-server-local": "yarn link vscode-languageserver",
-    "test": "npm run compile && node ./test/index.js"
+    "test": "yarn compile && node ./test/index.js"
   }
 }

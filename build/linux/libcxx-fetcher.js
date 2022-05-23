@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 // Can be removed once https://github.com/electron/electron-rebuild/pull/703 is available.
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -10,10 +14,12 @@ const packageJSON = require("../../package.json");
 const get_1 = require("@electron/get");
 const d = debug('libcxx-fetcher');
 async function downloadLibcxxHeaders(outDir, electronVersion, lib_name) {
-    if (await fs.pathExists(path.resolve(outDir, 'include')))
+    if (await fs.pathExists(path.resolve(outDir, 'include'))) {
         return;
-    if (!await fs.pathExists(outDir))
+    }
+    if (!await fs.pathExists(outDir)) {
         await fs.mkdirp(outDir);
+    }
     d(`downloading ${lib_name}_headers`);
     const headers = await (0, get_1.downloadArtifact)({
         version: electronVersion,
@@ -25,10 +31,12 @@ async function downloadLibcxxHeaders(outDir, electronVersion, lib_name) {
 }
 exports.downloadLibcxxHeaders = downloadLibcxxHeaders;
 async function downloadLibcxxObjects(outDir, electronVersion, targetArch = 'x64') {
-    if (await fs.pathExists(path.resolve(outDir, 'libc++.a')))
+    if (await fs.pathExists(path.resolve(outDir, 'libc++.a'))) {
         return;
-    if (!await fs.pathExists(outDir))
+    }
+    if (!await fs.pathExists(outDir)) {
         await fs.mkdirp(outDir);
+    }
     d(`downloading libcxx-objects-linux-${targetArch}`);
     const objects = await (0, get_1.downloadArtifact)({
         version: electronVersion,

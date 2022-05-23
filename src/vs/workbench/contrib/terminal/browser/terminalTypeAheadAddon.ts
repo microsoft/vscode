@@ -11,7 +11,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { XTermAttributes, XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { XtermAttributes, IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from 'xterm';
 
@@ -44,7 +44,7 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
  */
 const PREDICTION_OMIT_RE = /^(\x1b\[(\??25[hl]|\??[0-9;]+n))+/;
 
-const core = (terminal: Terminal): XTermCore => (terminal as any)._core;
+const core = (terminal: Terminal): IXtermCore => (terminal as any)._core;
 const flushOutput = (terminal: Terminal) => {
 	// TODO: Flushing output is not possible anymore without async
 };
@@ -844,7 +844,7 @@ export class PredictionTimeline {
 			const cursor = this.physicalCursor(buffer);
 			const beforeTestReaderIndex = reader.index;
 			switch (prediction.matches(reader, this._lookBehind)) {
-				case MatchResult.Success:
+				case MatchResult.Success: {
 					// if the input character matches what the next prediction expected, undo
 					// the prediction and write the real character out.
 					const eaten = input.slice(beforeTestReaderIndex, reader.index);
@@ -859,13 +859,14 @@ export class PredictionTimeline {
 					this._lookBehind = prediction;
 					this._expected.shift();
 					break;
+				}
 				case MatchResult.Buffer:
 					// on a buffer, store the remaining data and completely read data
 					// to be output as normal.
 					this._inputBuffer = input.slice(beforeTestReaderIndex);
 					reader.index = input.length;
 					break ReadLoop;
-				case MatchResult.Failure:
+				case MatchResult.Failure: {
 					// on a failure, roll back all remaining items in this generation
 					// and clear predictions, since they are no longer valid
 					const rollback = this._expected.filter(p => p.gen === startingGen).reverse();
@@ -878,6 +879,7 @@ export class PredictionTimeline {
 					this._clearPredictionState();
 					this._failedEmitter.fire(prediction);
 					break ReadLoop;
+				}
 			}
 		}
 
@@ -1030,9 +1032,9 @@ export class PredictionTimeline {
 }
 
 /**
- * Gets the escape sequence args to restore state/appearence in the cell.
+ * Gets the escape sequence args to restore state/appearance in the cell.
  */
-const attributesToArgs = (cell: XTermAttributes) => {
+const attributesToArgs = (cell: XtermAttributes) => {
 	if (cell.isAttributeDefault()) { return [0]; }
 
 	const args = [];
@@ -1056,9 +1058,9 @@ const attributesToArgs = (cell: XTermAttributes) => {
 };
 
 /**
- * Gets the escape sequence to restore state/appearence in the cell.
+ * Gets the escape sequence to restore state/appearance in the cell.
  */
-const attributesToSeq = (cell: XTermAttributes) => `${CSI}${attributesToArgs(cell).join(';')}m`;
+const attributesToSeq = (cell: XtermAttributes) => `${CSI}${attributesToArgs(cell).join(';')}m`;
 
 const arrayHasPrefixAt = <T>(a: ReadonlyArray<T>, ai: number, b: ReadonlyArray<T>) => {
 	if (a.length - ai > b.length) {
@@ -1253,7 +1255,7 @@ class TypeAheadStyle implements IDisposable {
 				return { applyArgs: [4], undoArgs: [24] };
 			case 'inverted':
 				return { applyArgs: [7], undoArgs: [27] };
-			default:
+			default: {
 				let color: Color;
 				try {
 					color = Color.fromHex(style);
@@ -1263,6 +1265,7 @@ class TypeAheadStyle implements IDisposable {
 
 				const { r, g, b } = color.rgba;
 				return { applyArgs: [38, 2, r, g, b], undoArgs: [39] };
+			}
 		}
 	}
 }

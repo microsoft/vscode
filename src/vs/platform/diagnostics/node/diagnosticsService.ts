@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as osLib from 'os';
 import { Iterable } from 'vs/base/common/iterator';
+import { Promises } from 'vs/base/common/async';
 import { getNodeType, parse, ParseError } from 'vs/base/common/json';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join } from 'vs/base/common/path';
@@ -11,13 +12,14 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { ProcessItem } from 'vs/base/common/processes';
 import { URI } from 'vs/base/common/uri';
 import { virtualMachineHint } from 'vs/base/node/id';
-import { IDirent, Promises } from 'vs/base/node/pfs';
+import { IDirent, Promises as pfs } from 'vs/base/node/pfs';
 import { listProcesses } from 'vs/base/node/ps';
 import { IDiagnosticsService, IMachineInfo, IRemoteDiagnosticError, IRemoteDiagnosticInfo, isRemoteDiagnosticError, IWorkspaceInformation, PerformanceInfo, SystemInfo, WorkspaceStatItem, WorkspaceStats } from 'vs/platform/diagnostics/common/diagnostics';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export interface VersionInfo {
 	vscodeVersion: string;
@@ -37,7 +39,14 @@ interface ConfigFilePatterns {
 	relativePathPattern?: RegExp;
 }
 
+const worksapceStatsCache = new Map<string, Promise<WorkspaceStats>>();
 export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
+	const cacheKey = `${folder}::${filter.join(':')}`;
+	const cached = worksapceStatsCache.get(cacheKey);
+	if (cached) {
+		return cached;
+	}
+
 	const configFilePatterns: ConfigFilePatterns[] = [
 		{ tag: 'grunt.js', filePattern: /^gruntfile\.js$/i },
 		{ tag: 'gulp.js', filePattern: /^gulpfile\.js$/i },
@@ -55,7 +64,9 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ tag: 'sln', filePattern: /^.+\.sln$/i },
 		{ tag: 'csproj', filePattern: /^.+\.csproj$/i },
 		{ tag: 'cmake', filePattern: /^.+\.cmake$/i },
-		{ tag: 'github-actions', filePattern: /^.+\.yml$/i, relativePathPattern: /^\.github(?:\/|\\)workflows$/i }
+		{ tag: 'github-actions', filePattern: /^.+\.ya?ml$/i, relativePathPattern: /^\.github(?:\/|\\)workflows$/i },
+		{ tag: 'devcontainer.json', filePattern: /^devcontainer\.json$/i },
+		{ tag: 'dockerfile', filePattern: /^(dockerfile|docker\-compose\.ya?ml)$/i }
 	];
 
 	const fileTypes = new Map<string, number>();
@@ -63,13 +74,13 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 
 	const MAX_FILES = 20000;
 
-	function collect(root: string, dir: string, filter: string[], token: { count: number, maxReached: boolean }): Promise<void> {
+	function collect(root: string, dir: string, filter: string[], token: { count: number; maxReached: boolean }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
 
-		return new Promise(async resolve => {
+		return Promises.withAsyncBody(async resolve => {
 			let files: IDirent[];
 			try {
-				files = await Promises.readdir(dir, { withFileTypes: true });
+				files = await pfs.readdir(dir, { withFileTypes: true });
 			} catch (error) {
 				// Ignore folders that can't be read
 				resolve();
@@ -132,17 +143,22 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		});
 	}
 
-	const token: { count: number, maxReached: boolean } = { count: 0, maxReached: false };
+	const statsPromise = Promises.withAsyncBody<WorkspaceStats>(async (resolve) => {
+		const token: { count: number; maxReached: boolean } = { count: 0, maxReached: false };
 
-	await collect(folder, folder, filter, token);
-	const launchConfigs = await collectLaunchConfigs(folder);
-	return {
-		configFiles: asSortedItems(configFiles),
-		fileTypes: asSortedItems(fileTypes),
-		fileCount: token.count,
-		maxFilesReached: token.maxReached,
-		launchConfigFiles: launchConfigs
-	};
+		await collect(folder, folder, filter, token);
+		const launchConfigs = await collectLaunchConfigs(folder);
+		resolve({
+			configFiles: asSortedItems(configFiles),
+			fileTypes: asSortedItems(fileTypes),
+			fileCount: token.count,
+			maxFilesReached: token.maxReached,
+			launchConfigFiles: launchConfigs
+		});
+	});
+
+	worksapceStatsCache.set(cacheKey, statsPromise);
+	return statsPromise;
 }
 
 function asSortedItems(items: Map<string, number>): WorkspaceStatItem[] {
@@ -172,7 +188,7 @@ export async function collectLaunchConfigs(folder: string): Promise<WorkspaceSta
 		const launchConfigs = new Map<string, number>();
 		const launchConfig = join(folder, '.vscode', 'launch.json');
 
-		const contents = await Promises.readFile(launchConfig);
+		const contents = await pfs.readFile(launchConfig);
 
 		const errors: ParseError[] = [];
 		const json = parse(contents.toString(), errors);
@@ -493,6 +509,22 @@ export class DiagnosticsService implements IDiagnosticsService {
 		}
 	}
 
+	public async getWorkspaceFileExtensions(workspace: IWorkspace): Promise<{ extensions: string[] }> {
+		const items = new Set<string>();
+		for (const { uri } of workspace.folders) {
+			const folderUri = URI.revive(uri);
+			if (folderUri.scheme !== Schemas.file) {
+				continue;
+			}
+			const folder = folderUri.fsPath;
+			try {
+				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git']);
+				stats.fileTypes.forEach(item => items.add(item.name));
+			} catch { }
+		}
+		return { extensions: [...items] };
+	}
+
 	public async reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void> {
 		for (const { uri } of workspace.folders) {
 			const folderUri = URI.revive(uri);
@@ -504,8 +536,8 @@ export class DiagnosticsService implements IDiagnosticsService {
 			try {
 				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git']);
 				type WorkspaceStatsClassification = {
-					'workspace.id': { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					'workspace.id': { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				};
 				type WorkspaceStatsEvent = {
 					'workspace.id': string | undefined;
@@ -516,9 +548,9 @@ export class DiagnosticsService implements IDiagnosticsService {
 					rendererSessionId: workspace.rendererSessionId
 				});
 				type WorkspaceStatsFileClassification = {
-					rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					type: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-					count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+					type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 				};
 				type WorkspaceStatsFileEvent = {
 					rendererSessionId: string;

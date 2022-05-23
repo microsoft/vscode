@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { commands, window } from 'vscode';
+import { commands, Disposable, QuickPick, QuickPickItem, window } from 'vscode';
 import { assertNoRpc, closeAllEditors } from '../utils';
 
 interface QuickPickExpected {
@@ -203,6 +203,50 @@ suite('vscode API - quick input', function () {
 		quickPick.show();
 		quickPick.hide();
 		quickPick.dispose();
+	});
+
+	test('createQuickPick, hide and hide', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
+
+		let hidden = false;
+		const quickPick = window.createQuickPick();
+		quickPick.onDidHide(() => {
+			if (hidden) {
+				done(new Error('Already hidden'));
+			} else {
+				hidden = true;
+				setTimeout(done, 0);
+			}
+		});
+		quickPick.show();
+		quickPick.hide();
+		quickPick.hide();
+	});
+
+	test('createQuickPick, hide show hide', async function () {
+		async function waitForHide(quickPick: QuickPick<QuickPickItem>) {
+			let disposable: Disposable | undefined;
+			try {
+				await Promise.race([
+					new Promise(resolve => disposable = quickPick.onDidHide(() => resolve(true))),
+					new Promise((_, reject) => setTimeout(() => reject(), 4000))
+				]);
+			} finally {
+				disposable?.dispose();
+			}
+		}
+
+		const quickPick = window.createQuickPick();
+		quickPick.show();
+		const promise = waitForHide(quickPick);
+		quickPick.hide();
+		quickPick.show();
+		await promise;
+		quickPick.hide();
+		await waitForHide(quickPick);
 	});
 });
 

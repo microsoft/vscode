@@ -7,48 +7,54 @@ import * as assert from 'assert';
 import { IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { ICommand, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { ITextModel } from 'vs/editor/common/model';
+import { instantiateTestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
+import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 export function testCommand(
 	lines: string[],
-	languageIdentifier: LanguageIdentifier | null,
+	languageId: string | null,
 	selection: Selection,
-	commandFactory: (selection: Selection) => ICommand,
+	commandFactory: (accessor: ServicesAccessor, selection: Selection) => ICommand,
 	expectedLines: string[],
 	expectedSelection: Selection,
-	forceTokenization?: boolean
+	forceTokenization?: boolean,
+	prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void
 ): void {
-	let model = createTextModel(lines.join('\n'), undefined, languageIdentifier);
-	withTestCodeEditor('', { model: model }, (_editor, cursor) => {
-		if (!cursor) {
-			return;
-		}
+	const disposables = new DisposableStore();
+	const instantiationService = createCodeEditorServices(disposables);
+	if (prepare) {
+		instantiationService.invokeFunction(prepare, disposables);
+	}
+	const model = disposables.add(instantiateTextModel(instantiationService, lines.join('\n'), languageId));
+	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
+	const viewModel = editor.getViewModel()!;
 
-		if (forceTokenization) {
-			model.forceTokenization(model.getLineCount());
-		}
+	if (forceTokenization) {
+		model.tokenization.forceTokenization(model.getLineCount());
+	}
 
-		cursor.setSelections('tests', [selection]);
+	viewModel.setSelections('tests', [selection]);
 
-		cursor.executeCommand(commandFactory(cursor.getSelection()), 'tests');
+	const command = instantiationService.invokeFunction((accessor) => commandFactory(accessor, viewModel.getSelection()));
+	viewModel.executeCommand(command, 'tests');
 
-		assert.deepStrictEqual(model.getLinesContent(), expectedLines);
+	assert.deepStrictEqual(model.getLinesContent(), expectedLines);
 
-		let actualSelection = cursor.getSelection();
-		assert.deepStrictEqual(actualSelection.toString(), expectedSelection.toString());
+	const actualSelection = viewModel.getSelection();
+	assert.deepStrictEqual(actualSelection.toString(), expectedSelection.toString());
 
-	});
-	model.dispose();
+	disposables.dispose();
 }
 
 /**
  * Extract edit operations if command `command` were to execute on model `model`
  */
-export function getEditOperation(model: ITextModel, command: ICommand): IIdentifiedSingleEditOperation[] {
-	let operations: IIdentifiedSingleEditOperation[] = [];
+export function getEditOperation(model: ITextModel, command: ICommand): ISingleEditOperation[] {
+	let operations: ISingleEditOperation[] = [];
 	let editOperationBuilder: IEditOperationBuilder = {
 		addEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({

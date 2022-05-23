@@ -21,13 +21,10 @@ const os = require('os');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
+const { stripComments } = require('./vs/base/common/stripComments');
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
-
-// Disable render process reuse, we still have
-// non-context aware native modules in the renderer.
-app.allowRendererProcessReuse = false;
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -515,8 +512,6 @@ function getCodeCachePath() {
  * @returns {Promise<string>}
  */
 function mkdirp(dir) {
-	const fs = require('fs');
-
 	return new Promise((resolve, reject) => {
 		fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? reject(err) : resolve(dir));
 	});
@@ -576,34 +571,6 @@ async function resolveNlsConfiguration() {
 	}
 
 	return nlsConfiguration;
-}
-
-/**
- * @param {string} content
- * @returns {string}
- */
-function stripComments(content) {
-	const regexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
-
-	return content.replace(regexp, function (match, m1, m2, m3, m4) {
-		// Only one of m1, m2, m3, m4 matches
-		if (m3) {
-			// A block comment. Replace with nothing
-			return '';
-		} else if (m4) {
-			// A line comment. If it ends in \r?\n then keep it.
-			const length_1 = m4.length;
-			if (length_1 > 2 && m4[length_1 - 1] === '\n') {
-				return m4[length_1 - 2] === '\r' ? '\r\n' : '\n';
-			}
-			else {
-				return '';
-			}
-		} else {
-			// We match a string
-			return match;
-		}
-	});
 }
 
 /**

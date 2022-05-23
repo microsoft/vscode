@@ -10,12 +10,14 @@ import { ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IDropdownWithPrimaryActionViewItemOptions {
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
@@ -40,10 +42,11 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		private readonly _options: IDropdownWithPrimaryActionViewItemOptions | undefined,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@INotificationService _notificationService: INotificationService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IThemeService _themeService: IThemeService
 	) {
 		super(null, primaryAction);
-		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService);
+		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService, _themeService);
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
 			classNames: ['codicon', 'codicon-chevron-down'],

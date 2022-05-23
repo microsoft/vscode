@@ -145,7 +145,7 @@ export const tocData: ITOCEntry<string> = {
 				},
 				{
 					id: 'features/scm',
-					label: localize('scm', "SCM"),
+					label: localize('scm', "Source Control"),
 					settings: ['scm.*']
 				},
 				{
@@ -191,7 +191,12 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'features/notebook',
 					label: localize('notebook', 'Notebook'),
-					settings: ['notebook.*']
+					settings: ['notebook.*', 'interactiveWindow.*']
+				},
+				{
+					id: 'features/audioCues',
+					label: localize('audioCues', 'Audio Cues'),
+					settings: ['audioCues.*']
 				}
 			]
 		},

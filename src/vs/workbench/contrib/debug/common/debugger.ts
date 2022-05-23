@@ -7,11 +7,11 @@ import * as nls from 'vs/nls';
 import { isObject } from 'vs/base/common/types';
 import { IJSONSchema, IJSONSchemaMap, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
@@ -19,7 +19,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class Debugger implements IDebugger {
 
@@ -37,7 +37,8 @@ export class Debugger implements IDebugger {
 		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IDebugService private readonly debugService: IDebugService
+		@IDebugService private readonly debugService: IDebugService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
@@ -142,6 +143,10 @@ export class Debugger implements IDebugger {
 		return this.debuggerWhen;
 	}
 
+	get enabled() {
+		return !this.debuggerWhen || this.contextKeyService.contextMatchesRules(this.debuggerWhen);
+	}
+
 	hasInitialConfiguration(): boolean {
 		return !!this.debuggerContribution.initialConfigurations;
 	}
@@ -212,6 +217,7 @@ export class Debugger implements IDebugger {
 			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
 			attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
+			attributes.additionalProperties = false;
 			attributes.type = 'object';
 			if (!attributes.properties) {
 				attributes.properties = {};
@@ -219,8 +225,10 @@ export class Debugger implements IDebugger {
 			const properties = attributes.properties;
 			properties['type'] = {
 				enum: [this.type],
+				enumDescriptions: [this.label],
 				description: nls.localize('debugType', "Type of configuration."),
 				pattern: '^(?!node2)',
+				deprecationMessage: this.enabled ? undefined : debuggerDisabledMessage(this.type),
 				errorMessage: nls.localize('debugTypeNotRecognised', "The debug type is not recognized. Make sure that you have a corresponding debug extension installed and that it is enabled."),
 				patternErrorMessage: nls.localize('node2NotSupported', "\"node2\" is no longer supported, use \"node\" instead and set the \"protocol\" attribute to \"inspector\".")
 			};
@@ -233,38 +241,37 @@ export class Debugger implements IDebugger {
 					$ref: `#/definitions/common/properties/${prop}`
 				};
 			}
-			definitions[definitionId] = attributes;
-
 			Object.keys(properties).forEach(name => {
 				// Use schema allOf property to get independent error reporting #21113
 				ConfigurationResolverUtils.applyDeprecatedVariableMessage(properties[name]);
 			});
 
-			const result = {
-				allOf: [{
-					$ref: `#/definitions/${definitionId}`
-				}, {
-					properties: {
-						windows: {
-							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
-							required: [],
-						},
-						osx: {
-							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
-							required: [],
-						},
-						linux: {
-							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
-							required: [],
-						}
+			definitions[definitionId] = { ...attributes };
+
+			// Don't add the OS props to the real attributes object so they don't show up in 'definitions'
+			const attributesCopy = { ...attributes };
+			attributesCopy.properties = {
+				...properties,
+				...{
+					windows: {
+						$ref: `#/definitions/${definitionId}`,
+						description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
+						required: [],
+					},
+					osx: {
+						$ref: `#/definitions/${definitionId}`,
+						description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
+						required: [],
+					},
+					linux: {
+						$ref: `#/definitions/${definitionId}`,
+						description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
+						required: [],
 					}
-				}]
+				}
 			};
 
-			return result;
+			return attributesCopy;
 		});
 	}
 }

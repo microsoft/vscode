@@ -5,6 +5,7 @@
 
 import { UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import type { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export interface TaskDefinitionDTO {
 	type: string;
@@ -104,7 +105,7 @@ export interface TaskDTO {
 
 export interface TaskSetDTO {
 	tasks: TaskDTO[];
-	extension: IExtensionDescription;
+	extension: Dto<IExtensionDescription>;
 }
 
 export interface TaskExecutionDTO {

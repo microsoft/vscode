@@ -1,6 +1,7 @@
 {
 	"compilerOptions": {
-		"target": "es2017",
+		"target": "es2020",
+		"lib": ["ES2020"],
 		"module": "commonjs",
 		"removeComments": false,
 		"preserveConstEnums": true,
@@ -11,16 +12,17 @@
 		// use the tsconfig.build.json for compiling which disable JavaScript
 		// type checking so that JavaScript file are not transpiled
 		"allowJs": true,
-		"checkJs": true,
 		"strict": true,
 		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"newLine": "lf"
+		"newLine": "lf",
+		"noEmit": true
 	},
 	"include": [
-		"**/*.ts"
+		"**/*.ts",
+		"**/*.js"
 	],
 	"exclude": [
 		"node_modules/**"

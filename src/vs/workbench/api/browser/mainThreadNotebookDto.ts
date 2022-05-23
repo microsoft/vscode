@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, ICellExecuteUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { ICellExecuteUpdate, ICellExecutionComplete } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export namespace NotebookDto {
 
@@ -78,7 +78,7 @@ export namespace NotebookDto {
 		};
 	}
 
-	export function toNotebookCellDto(cell: NotebookCellTextModel): extHostProtocol.NotebookCellDto {
+	export function toNotebookCellDto(cell: notebookCommon.ICell): extHostProtocol.NotebookCellDto {
 		return {
 			handle: cell.handle,
 			uri: cell.uri,
@@ -96,7 +96,6 @@ export namespace NotebookDto {
 		if (data.editType === CellExecutionUpdateType.Output) {
 			return {
 				editType: data.editType,
-				cellHandle: data.cellHandle,
 				append: data.append,
 				outputs: data.outputs.map(fromNotebookOutputDto)
 			};
@@ -110,6 +109,10 @@ export namespace NotebookDto {
 		} else {
 			return data;
 		}
+	}
+
+	export function fromCellExecuteCompleteDto(data: extHostProtocol.ICellExecutionCompleteDto): ICellExecutionComplete {
+		return data;
 	}
 
 	export function fromCellEditOperationDto(edit: extHostProtocol.ICellEditOperationDto): notebookCommon.ICellEditOperation {

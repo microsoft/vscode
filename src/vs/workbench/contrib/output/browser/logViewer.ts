@@ -8,21 +8,19 @@ import { dirname, basename } from 'vs/base/common/path';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { LOG_SCHEME } from 'vs/workbench/contrib/output/common/output';
-import { IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
+import { LOG_SCHEME, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export class LogViewerInput extends TextResourceEditorInput {
 
@@ -38,8 +36,7 @@ export class LogViewerInput extends TextResourceEditorInput {
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService,
-		@IEditorResolverService editorResolverService: IEditorResolverService
+		@ILabelService labelService: ILabelService
 	) {
 		super(
 			URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }),
@@ -51,8 +48,7 @@ export class LogViewerInput extends TextResourceEditorInput {
 			textFileService,
 			editorService,
 			fileService,
-			labelService,
-			editorResolverService
+			labelService
 		);
 	}
 }

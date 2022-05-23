@@ -13,7 +13,7 @@ export const IsWindowsContext = new RawContextKey<boolean>('isWindows', isWindow
 
 export const IsWebContext = new RawContextKey<boolean>('isWeb', isWeb, localize('isWeb', "Whether the platform is a web browser"));
 export const IsMacNativeContext = new RawContextKey<boolean>('isMacNative', isMacintosh && !isWeb, localize('isMacNative', "Whether the operating system is macOS on a non-browser platform"));
-export const IsIOSContext = new RawContextKey<boolean>('isIOS', isIOS, localize('isIOS', "Whether the operating system is IOS"));
+export const IsIOSContext = new RawContextKey<boolean>('isIOS', isIOS, localize('isIOS', "Whether the operating system is iOS"));
 
 export const IsDevelopmentContext = new RawContextKey<boolean>('isDevelopment', false, true);
 

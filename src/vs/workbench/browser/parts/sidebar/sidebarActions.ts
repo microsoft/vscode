@@ -19,13 +19,13 @@ export class FocusSideBarAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.focusSideBar',
-			title: { value: localize('focusSideBar', "Focus into Side Bar"), original: 'Focus into Side Bar' },
+			title: { value: localize('focusSideBar', "Focus into Primary Side Bar"), original: 'Focus into Primary Side Bar' },
 			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_0
+				primary: KeyMod.CtrlCmd | KeyCode.Digit0
 			}
 		});
 	}

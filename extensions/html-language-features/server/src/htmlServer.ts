@@ -5,13 +5,13 @@
 
 import {
 	Connection, TextDocuments, InitializeParams, InitializeResult, RequestType,
-	DocumentRangeFormattingRequest, Disposable, TextDocumentPositionParams, ServerCapabilities,
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities,
 	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
 	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0, DocumentFormattingRequest, FormattingOptions, TextEdit
 } from 'vscode-languageserver';
 import {
 	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
-	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier
+	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier, isCompletionItemData
 } from './modes/languageModes';
 
 import { format } from './modes/formatting';
@@ -24,14 +24,33 @@ import { getFoldingRanges } from './modes/htmlFolding';
 import { fetchHTMLDataProviders } from './customData';
 import { getSelectionRanges } from './modes/selectionRanges';
 import { SemanticTokenProvider, newSemanticTokenProvider } from './modes/semanticTokens';
-import { RequestService, getRequestService } from './requests';
+import { FileSystemProvider, getFileSystemProvider } from './requests';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
 }
 
-namespace TagCloseRequest {
-	export const type: RequestType<TextDocumentPositionParams, string | null, any> = new RequestType('html/tag');
+namespace CustomDataContent {
+	export const type: RequestType<string, string, any> = new RequestType('html/customDataContent');
+}
+
+interface AutoInsertParams {
+	/**
+	 * The auto insert kind
+	 */
+	kind: 'autoQuote' | 'autoClose';
+	/**
+	 * The text document.
+	 */
+	textDocument: TextDocumentIdentifier;
+	/**
+	 * The position inside the text document.
+	 */
+	position: Position;
+}
+
+namespace AutoInsertRequest {
+	export const type: RequestType<AutoInsertParams, string, any> = new RequestType('html/autoInsert');
 }
 
 // experimental: semantic tokens
@@ -47,14 +66,19 @@ namespace SemanticTokenLegendRequest {
 }
 
 export interface RuntimeEnvironment {
-	file?: RequestService;
-	http?: RequestService
-	configureHttpRequests?(proxy: string, strictSSL: boolean): void;
+	fileFs?: FileSystemProvider;
+	configureHttpRequests?(proxy: string | undefined, strictSSL: boolean): void;
 	readonly timer: {
 		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
-	}
+	};
 }
+
+
+export interface CustomDataRequestService {
+	getContent(uri: string): Promise<string>;
+}
+
 
 export function startServer(connection: Connection, runtime: RuntimeEnvironment) {
 
@@ -73,11 +97,13 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let scopedSettingsSupport = false;
 	let workspaceFoldersSupport = false;
 	let foldingRangeLimit = Number.MAX_VALUE;
+	let formatterMaxNumberOfEdits = Number.MAX_VALUE;
 
-	const notReady = () => Promise.reject('Not Ready');
-	let requestService: RequestService = { getContent: notReady, stat: notReady, readDirectory: notReady };
-
-
+	const customDataRequestService: CustomDataRequestService = {
+		getContent(uri: string) {
+			return connection.sendRequest(CustomDataContent.type, uri);
+		}
+	};
 
 	let globalSettings: Settings = {};
 	let documentSettings: { [key: string]: Thenable<Settings> } = {};
@@ -103,7 +129,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// After the server has started the client sends an initialize request. The server receives
 	// in the passed params the rootPath of the workspace plus the client capabilities
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
-		const initializationOptions = params.initializationOptions;
+		const initializationOptions = params.initializationOptions as any || {};
 
 		workspaceFolders = (<any>params).workspaceFolders;
 		if (!Array.isArray(workspaceFolders)) {
@@ -113,17 +139,19 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 		}
 
-		requestService = getRequestService(initializationOptions?.handledSchemas || ['file'], connection, runtime);
+		const handledSchemas = initializationOptions?.handledSchemas as string[] ?? ['file'];
+
+		const fileSystemProvider = getFileSystemProvider(handledSchemas, connection, runtime);
 
 		const workspace = {
 			get settings() { return globalSettings; },
 			get folders() { return workspaceFolders; }
 		};
 
-		languageModes = getLanguageModes(initializationOptions?.embeddedLanguages || { css: true, javascript: true }, workspace, params.capabilities, requestService);
+		languageModes = getLanguageModes(initializationOptions?.embeddedLanguages || { css: true, javascript: true }, workspace, params.capabilities, fileSystemProvider);
 
 		const dataPaths: string[] = initializationOptions?.dataPaths || [];
-		fetchHTMLDataProviders(dataPaths, requestService).then(dataProviders => {
+		fetchHTMLDataProviders(dataPaths, customDataRequestService).then(dataProviders => {
 			languageModes.updateDataProviders(dataProviders);
 		});
 
@@ -151,13 +179,14 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		scopedSettingsSupport = getClientCapability('workspace.configuration', false);
 		workspaceFoldersSupport = getClientCapability('workspace.workspaceFolders', false);
 		foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+		formatterMaxNumberOfEdits = initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 		const capabilities: ServerCapabilities = {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
 			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : undefined,
 			hoverProvider: true,
 			documentHighlightProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
-			documentFormattingProvider: params.initializationOptions?.provideFormatter === true,
+			documentRangeFormattingProvider: initializationOptions?.provideFormatter === true,
+			documentFormattingProvider: initializationOptions?.provideFormatter === true,
 			documentLinkProvider: { resolveProvider: false },
 			documentSymbolProvider: true,
 			definitionProvider: true,
@@ -197,7 +226,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration((change) => {
-		globalSettings = change.settings;
+		globalSettings = change.settings as Settings;
 		documentSettings = {}; // reset all document settings
 		documents.all().forEach(triggerValidation);
 
@@ -292,15 +321,6 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 			const doComplete = mode.doComplete;
 
-			if (mode.getId() !== 'html') {
-				/* __GDPR__
-					"html.embbedded.complete" : {
-						"languageId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				 */
-				connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
-			}
-
 			const settings = await getDocumentSettings(document, () => doComplete.length > 2);
 			const documentContext = getDocumentContext(document.uri, workspaceFolders);
 			return doComplete(document, textDocumentPosition.position, documentContext, settings);
@@ -311,7 +331,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	connection.onCompletionResolve((item, token) => {
 		return runSafe(runtime, async () => {
 			const data = item.data;
-			if (data && data.languageId && data.uri) {
+			if (isCompletionItemData(data)) {
 				const mode = languageModes.getMode(data.languageId);
 				const document = documents.get(data.uri);
 				if (mode && mode.doResolve && document) {
@@ -399,7 +419,12 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			const unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
 			const enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
 
-			return format(languageModes, document, range ?? getFullRange(document), options, settings, enabledModes);
+			const edits = await format(languageModes, document, range ?? getFullRange(document), options, settings, enabledModes);
+			if (edits.length > formatterMaxNumberOfEdits) {
+				const newText = TextDocument.applyEdits(document, edits);
+				return [TextEdit.replace(getFullRange(document), newText)];
+			}
+			return edits;
 		}
 		return [];
 	}
@@ -471,20 +496,20 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 	});
 
-	connection.onRequest(TagCloseRequest.type, (params, token) => {
+	connection.onRequest(AutoInsertRequest.type, (params, token) => {
 		return runSafe(runtime, async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const pos = params.position;
 				if (pos.character > 0) {
 					const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
-					if (mode && mode.doAutoClose) {
-						return mode.doAutoClose(document, pos);
+					if (mode && mode.doAutoInsert) {
+						return mode.doAutoInsert(document, pos, params.kind);
 					}
 				}
 			}
 			return null;
-		}, null, `Error while computing tag close actions for ${params.textDocument.uri}`, token);
+		}, null, `Error while computing auto insert actions for ${params.textDocument.uri}`, token);
 	});
 
 	connection.onFoldingRanges((params, token) => {
@@ -567,7 +592,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onNotification(CustomDataChangedNotification.type, dataPaths => {
-		fetchHTMLDataProviders(dataPaths, requestService).then(dataProviders => {
+		fetchHTMLDataProviders(dataPaths, customDataRequestService).then(dataProviders => {
 			languageModes.updateDataProviders(dataProviders);
 		});
 	});

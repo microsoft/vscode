@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, SemanticTokens, LanguageIdentifier } from 'vs/editor/common/modes';
+import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, SemanticTokens } from 'vs/editor/common/languages';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { MultilineTokens2, SparseEncodedTokens } from 'vs/editor/common/model/tokensStore';
+import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export const enum SemanticTokensProviderStylingConstants {
 	NO_STYLING = 0b01111111111111111111111111111111
@@ -15,19 +16,22 @@ export const enum SemanticTokensProviderStylingConstants {
 export class SemanticTokensProviderStyling {
 
 	private readonly _hashTable: HashTable;
-	private _hasWarnedOverlappingTokens: boolean;
+	private _hasWarnedOverlappingTokens = false;
+	private _hasWarnedInvalidLengthTokens = false;
+	private _hasWarnedInvalidEditStart = false;
 
 	constructor(
 		private readonly _legend: SemanticTokensLegend,
-		private readonly _themeService: IThemeService,
-		private readonly _logService: ILogService
+		@IThemeService private readonly _themeService: IThemeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		this._hashTable = new HashTable();
-		this._hasWarnedOverlappingTokens = false;
 	}
 
-	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: LanguageIdentifier): number {
-		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet, languageId.id);
+	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: string): number {
+		const encodedLanguageId = this._languageService.languageIdCodec.encodeLanguageId(languageId);
+		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet, encodedLanguageId);
 		let metadata: number;
 		if (entry) {
 			metadata = entry.metadata;
@@ -50,7 +54,7 @@ export class SemanticTokensProviderStyling {
 					tokenModifiers.push('not-in-legend');
 				}
 
-				const tokenStyle = this._themeService.getColorTheme().getTokenStyleMetadata(tokenType, tokenModifiers, languageId.language);
+				const tokenStyle = this._themeService.getColorTheme().getTokenStyleMetadata(tokenType, tokenModifiers, languageId);
 				if (typeof tokenStyle === 'undefined') {
 					metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
 				} else {
@@ -66,6 +70,10 @@ export class SemanticTokensProviderStyling {
 					if (typeof tokenStyle.underline !== 'undefined') {
 						const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0) << MetadataConsts.FONT_STYLE_OFFSET;
 						metadata |= underlineBit | MetadataConsts.SEMANTIC_USE_UNDERLINE;
+					}
+					if (typeof tokenStyle.strikethrough !== 'undefined') {
+						const strikethroughBit = (tokenStyle.strikethrough ? FontStyle.Strikethrough : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+						metadata |= strikethroughBit | MetadataConsts.SEMANTIC_USE_STRIKETHROUGH;
 					}
 					if (tokenStyle.foreground) {
 						const foregroundBits = (tokenStyle.foreground) << MetadataConsts.FOREGROUND_OFFSET;
@@ -83,7 +91,7 @@ export class SemanticTokensProviderStyling {
 				metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
 				tokenType = 'not-in-legend';
 			}
-			this._hashTable.add(tokenTypeIndex, tokenModifierSet, languageId.id, metadata);
+			this._hashTable.add(tokenTypeIndex, tokenModifierSet, encodedLanguageId, metadata);
 
 			if (this._logService.getLevel() === LogLevel.Trace) {
 				this._logService.trace(`SemanticTokensProviderStyling ${tokenTypeIndex} (${tokenType}) / ${tokenModifierSet} (${tokenModifiers.join(' ')}): foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
@@ -97,6 +105,20 @@ export class SemanticTokensProviderStyling {
 		if (!this._hasWarnedOverlappingTokens) {
 			this._hasWarnedOverlappingTokens = true;
 			console.warn(`Overlapping semantic tokens detected at lineNumber ${lineNumber}, column ${startColumn}`);
+		}
+	}
+
+	public warnInvalidLengthSemanticTokens(lineNumber: number, startColumn: number): void {
+		if (!this._hasWarnedInvalidLengthTokens) {
+			this._hasWarnedInvalidLengthTokens = true;
+			console.warn(`Semantic token with invalid length detected at lineNumber ${lineNumber}, column ${startColumn}`);
+		}
+	}
+
+	public warnInvalidEditStart(previousResultId: string | undefined, resultId: string | undefined, editIndex: number, editStart: number, maxExpectedStart: number): void {
+		if (!this._hasWarnedInvalidEditStart) {
+			this._hasWarnedInvalidEditStart = true;
+			console.warn(`Invalid semantic tokens edit detected (previousResultId: ${previousResultId}, resultId: ${resultId}) at edit #${editIndex}: The provided start offset ${editStart} is outside the previous data (length ${maxExpectedStart}).`);
 		}
 	}
 
@@ -116,11 +138,11 @@ const enum SemanticColoringConstants {
 	DesiredMaxAreas = 1024,
 }
 
-export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticTokensProviderStyling, languageId: LanguageIdentifier): MultilineTokens2[] {
+export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticTokensProviderStyling, languageId: string): SparseMultilineTokens[] {
 	const srcData = tokens.data;
 	const tokenCount = (tokens.data.length / 5) | 0;
 	const tokensPerArea = Math.max(Math.ceil(tokenCount / SemanticColoringConstants.DesiredMaxAreas), SemanticColoringConstants.DesiredTokensPerArea);
-	const result: MultilineTokens2[] = [];
+	const result: SparseMultilineTokens[] = [];
 
 	let tokenIndex = 0;
 	let lastLineNumber = 1;
@@ -153,42 +175,42 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 		let destOffset = 0;
 		let areaLine = 0;
 		let prevLineNumber = 0;
-		let prevStartCharacter = 0;
 		let prevEndCharacter = 0;
 		while (tokenIndex < tokenEndIndex) {
 			const srcOffset = 5 * tokenIndex;
 			const deltaLine = srcData[srcOffset];
 			const deltaCharacter = srcData[srcOffset + 1];
-			const lineNumber = lastLineNumber + deltaLine;
-			const startCharacter = (deltaLine === 0 ? lastStartCharacter + deltaCharacter : deltaCharacter);
+			// Casting both `lineNumber`, `startCharacter` and `endCharacter` here to uint32 using `|0`
+			// to validate below with the actual values that will be inserted in the Uint32Array result
+			const lineNumber = (lastLineNumber + deltaLine) | 0;
+			const startCharacter = (deltaLine === 0 ? (lastStartCharacter + deltaCharacter) | 0 : deltaCharacter);
 			const length = srcData[srcOffset + 2];
+			const endCharacter = (startCharacter + length) | 0;
 			const tokenTypeIndex = srcData[srcOffset + 3];
 			const tokenModifierSet = srcData[srcOffset + 4];
-			const metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet, languageId);
 
-			if (metadata !== SemanticTokensProviderStylingConstants.NO_STYLING) {
-				if (areaLine === 0) {
-					areaLine = lineNumber;
-				}
-				if (prevLineNumber === lineNumber && prevEndCharacter > startCharacter) {
-					styling.warnOverlappingSemanticTokens(lineNumber, startCharacter + 1);
-					if (prevStartCharacter < startCharacter) {
-						// the previous token survives after the overlapping one
-						destData[destOffset - 4 + 2] = startCharacter;
-					} else {
-						// the previous token is entirely covered by the overlapping one
-						destOffset -= 4;
+			if (endCharacter <= startCharacter) {
+				// this token is invalid (most likely a negative length casted to uint32)
+				styling.warnInvalidLengthSemanticTokens(lineNumber, startCharacter + 1);
+			} else if (prevLineNumber === lineNumber && prevEndCharacter > startCharacter) {
+				// this token overlaps with the previous token
+				styling.warnOverlappingSemanticTokens(lineNumber, startCharacter + 1);
+			} else {
+				const metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet, languageId);
+
+				if (metadata !== SemanticTokensProviderStylingConstants.NO_STYLING) {
+					if (areaLine === 0) {
+						areaLine = lineNumber;
 					}
-				}
-				destData[destOffset] = lineNumber - areaLine;
-				destData[destOffset + 1] = startCharacter;
-				destData[destOffset + 2] = startCharacter + length;
-				destData[destOffset + 3] = metadata;
-				destOffset += 4;
+					destData[destOffset] = lineNumber - areaLine;
+					destData[destOffset + 1] = startCharacter;
+					destData[destOffset + 2] = endCharacter;
+					destData[destOffset + 3] = metadata;
+					destOffset += 4;
 
-				prevLineNumber = lineNumber;
-				prevStartCharacter = startCharacter;
-				prevEndCharacter = startCharacter + length;
+					prevLineNumber = lineNumber;
+					prevEndCharacter = endCharacter;
+				}
 			}
 
 			lastLineNumber = lineNumber;
@@ -200,7 +222,7 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 			destData = destData.subarray(0, destOffset);
 		}
 
-		const tokens = new MultilineTokens2(areaLine, new SparseEncodedTokens(destData));
+		const tokens = SparseMultilineTokens.create(areaLine, destData);
 		result.push(tokens);
 	}
 

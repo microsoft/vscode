@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
+// import * as DOM from 'vs/base/browser/dom';
 
 class NotebookLogger {
 	constructor() {
@@ -11,11 +11,11 @@ class NotebookLogger {
 	}
 	private _frameId = 0;
 	private _domFrameLog() {
-		DOM.scheduleAtNextAnimationFrame(() => {
-			this._frameId++;
+		// DOM.scheduleAtNextAnimationFrame(() => {
+		// 	this._frameId++;
 
-			this._domFrameLog();
-		}, 1000000);
+		// 	this._domFrameLog();
+		// }, 1000000);
 	}
 
 	debug(...args: any[]) {

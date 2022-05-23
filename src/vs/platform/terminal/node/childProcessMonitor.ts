@@ -22,13 +22,7 @@ const enum Constants {
 	ActiveDebounceDuration = 1000,
 }
 
-const ignoreProcessNames = [
-	// Popular prompt programs, these should not count as child processes
-	'starship',
-	'oh-my-posh',
-	// Git bash may runs a subprocess of itself (bin\bash.exe -> usr\bin\bash.exe)
-	'bash',
-];
+export const ignoreProcessNames: string[] = [];
 
 /**
  * Monitors a process for child processes, checking at differing times depending on input and output

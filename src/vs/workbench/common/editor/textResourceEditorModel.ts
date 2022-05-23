@@ -5,8 +5,8 @@
 
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
@@ -18,12 +18,12 @@ export class TextResourceEditorModel extends BaseTextEditorModel {
 
 	constructor(
 		resource: URI,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
-		super(modelService, modeService, languageDetectionService, accessibilityService, resource);
+		super(modelService, languageService, languageDetectionService, accessibilityService, resource);
 	}
 
 	override dispose(): void {

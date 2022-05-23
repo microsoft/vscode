@@ -26,7 +26,7 @@ export class LogsDataCleaner extends Disposable {
 	}
 
 	private async cleanUpOldLogs(): Promise<void> {
-		this.logService.info('[logs cleanup]: Starting to clean up old logs.');
+		this.logService.trace('[logs cleanup]: Starting to clean up old logs.');
 
 		try {
 			const currentLog = basename(this.environmentService.logsPath);
@@ -39,7 +39,7 @@ export class LogsDataCleaner extends Disposable {
 			const sessionsToDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
 
 			if (sessionsToDelete.length > 0) {
-				this.logService.info(`[logs cleanup]: Removing log folders '${sessionsToDelete.join(', ')}'`);
+				this.logService.trace(`[logs cleanup]: Removing log folders '${sessionsToDelete.join(', ')}'`);
 
 				await Promise.all(sessionsToDelete.map(sessionToDelete => Promises.rm(join(logsRoot, sessionToDelete))));
 			}

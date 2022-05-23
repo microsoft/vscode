@@ -5,11 +5,11 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { Comment, CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
-import { groupBy, flatten } from 'vs/base/common/arrays';
+import { Comment, CommentThread, CommentThreadChangedEvent, CommentThreadState } from 'vs/editor/common/languages';
+import { groupBy } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 
-export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent {
+export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent<IRange> {
 	owner: string;
 }
 
@@ -21,14 +21,16 @@ export class CommentNode {
 	replies: CommentNode[] = [];
 	resource: URI;
 	isRoot: boolean;
+	threadState?: CommentThreadState;
 
-	constructor(owner: string, threadId: string, resource: URI, comment: Comment, range: IRange) {
+	constructor(owner: string, threadId: string, resource: URI, comment: Comment, range: IRange, threadState: CommentThreadState | undefined) {
 		this.owner = owner;
 		this.threadId = threadId;
 		this.comment = comment;
 		this.resource = resource;
 		this.range = range;
 		this.isRoot = false;
+		this.threadState = threadState;
 	}
 
 	hasReply(): boolean {
@@ -51,7 +53,7 @@ export class ResourceWithCommentThreads {
 
 	public static createCommentNode(owner: string, resource: URI, commentThread: CommentThread): CommentNode {
 		const { threadId, comments, range } = commentThread;
-		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(owner, threadId!, resource, comment, range));
+		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(owner, threadId!, resource, comment, range, commentThread.state));
 		if (commentNodes.length > 1) {
 			commentNodes[0].replies = commentNodes.slice(1, commentNodes.length);
 		}
@@ -71,9 +73,16 @@ export class CommentsModel {
 		this.commentThreadsMap = new Map<string, ResourceWithCommentThreads[]>();
 	}
 
+	private updateResourceCommentThreads() {
+		this.resourceCommentThreads = [...this.commentThreadsMap.values()].flat();
+		this.resourceCommentThreads.sort((a, b) => {
+			return a.resource.toString() > b.resource.toString() ? 1 : -1;
+		});
+	}
+
 	public setCommentThreads(owner: string, commentThreads: CommentThread[]): void {
 		this.commentThreadsMap.set(owner, this.groupByResource(owner, commentThreads));
-		this.resourceCommentThreads = flatten([...this.commentThreadsMap.values()]);
+		this.updateResourceCommentThreads();
 	}
 
 	public updateCommentThreads(event: ICommentThreadChangedEvent): boolean {
@@ -123,7 +132,7 @@ export class CommentsModel {
 		});
 
 		this.commentThreadsMap.set(owner, threadsForOwner);
-		this.resourceCommentThreads = flatten([...this.commentThreadsMap.values()]);
+		this.updateResourceCommentThreads();
 
 		return removed.length > 0 || changed.length > 0 || added.length > 0;
 	}

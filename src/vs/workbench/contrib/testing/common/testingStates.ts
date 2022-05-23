@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export type TreeStateNode = { statusNode: true; state: TestResultState; priority: number };
 
@@ -16,8 +16,8 @@ export const statePriority: { [K in TestResultState]: number } = {
 	[TestResultState.Running]: 6,
 	[TestResultState.Errored]: 5,
 	[TestResultState.Failed]: 4,
-	[TestResultState.Passed]: 3,
-	[TestResultState.Queued]: 2,
+	[TestResultState.Queued]: 3,
+	[TestResultState.Passed]: 2,
 	[TestResultState.Unset]: 1,
 	[TestResultState.Skipped]: 0,
 };
@@ -43,7 +43,7 @@ export const maxPriority = (...states: TestResultState[]) => {
 			return states[0];
 		case 2:
 			return statePriority[states[0]] > statePriority[states[1]] ? states[0] : states[1];
-		default:
+		default: {
 			let max = states[0];
 			for (let i = 1; i < states.length; i++) {
 				if (statePriority[max] < statePriority[states[i]]) {
@@ -52,9 +52,22 @@ export const maxPriority = (...states: TestResultState[]) => {
 			}
 
 			return max;
+		}
 	}
 };
 
 export const statesInOrder = Object.keys(statePriority).map(s => Number(s) as TestResultState).sort(cmpPriority);
 
 export const isRunningState = (s: TestResultState) => s === TestResultState.Queued || s === TestResultState.Running;
+
+/**
+ * Some states are considered terminal; once these are set for a given test run, they
+ * are not reset back to a non-terminal state, or to a terminal state with lower
+ * priority.
+ */
+export const terminalStatePriorities: { [key in TestResultState]?: number } = {
+	[TestResultState.Passed]: 0,
+	[TestResultState.Skipped]: 1,
+	[TestResultState.Failed]: 2,
+	[TestResultState.Errored]: 3,
+};

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ContextKeyExpr, implies } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression, implies } from 'vs/platform/contextkey/common/contextkey';
 
 function createContext(ctx: any) {
 	return {
@@ -43,6 +43,19 @@ suite('ContextKeyExpr', () => {
 			ContextKeyExpr.not('d2')
 		)!;
 		assert(a.equals(b), 'expressions should be equal');
+	});
+
+	test('issue #134942: Equals in comparator expressions', () => {
+		function testEquals(expr: ContextKeyExpression | undefined, str: string): void {
+			const deserialized = ContextKeyExpr.deserialize(str);
+			assert.ok(expr);
+			assert.ok(deserialized);
+			assert.strictEqual(expr.equals(deserialized), true, str);
+		}
+		testEquals(ContextKeyExpr.greater('value', 0), 'value > 0');
+		testEquals(ContextKeyExpr.greaterEquals('value', 0), 'value >= 0');
+		testEquals(ContextKeyExpr.smaller('value', 0), 'value < 0');
+		testEquals(ContextKeyExpr.smallerEquals('value', 0), 'value <= 0');
 	});
 
 	test('normalize', () => {

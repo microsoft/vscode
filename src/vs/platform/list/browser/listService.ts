@@ -62,7 +62,16 @@ export class ListService implements IListService {
 		return this._lastFocusedWidget;
 	}
 
-	constructor(@IThemeService private readonly _themeService: IThemeService) {
+	constructor(@IThemeService private readonly _themeService: IThemeService) { }
+
+	private setLastFocusedList(widget: WorkbenchListWidget | undefined): void {
+		if (widget === this._lastFocusedWidget) {
+			return;
+		}
+
+		this._lastFocusedWidget?.getHTMLElement().classList.remove('last-focused');
+		this._lastFocusedWidget = widget;
+		this._lastFocusedWidget?.getHTMLElement().classList.add('last-focused');
 	}
 
 	register(widget: WorkbenchListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
@@ -83,16 +92,16 @@ export class ListService implements IListService {
 
 		// Check for currently being focused
 		if (widget.getHTMLElement() === document.activeElement) {
-			this._lastFocusedWidget = widget;
+			this.setLastFocusedList(widget);
 		}
 
 		return combinedDisposable(
-			widget.onDidFocus(() => this._lastFocusedWidget = widget),
+			widget.onDidFocus(() => this.setLastFocusedList(widget)),
 			toDisposable(() => this.lists.splice(this.lists.indexOf(registeredList), 1)),
 			widget.onDidDispose(() => {
 				this.lists = this.lists.filter(l => l !== registeredList);
 				if (this._lastFocusedWidget === widget) {
-					this._lastFocusedWidget = undefined;
+					this.setLastFocusedList(undefined);
 				}
 			})
 		);
@@ -110,6 +119,10 @@ export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('list
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
 export const WorkbenchListSelectionNavigation = new RawContextKey<boolean>('listSelectionNavigation', false);
+export const WorkbenchTreeElementCanCollapse = new RawContextKey<boolean>('treeElementCanCollapse', false);
+export const WorkbenchTreeElementHasParent = new RawContextKey<boolean>('treeElementHasParent', false);
+export const WorkbenchTreeElementCanExpand = new RawContextKey<boolean>('treeElementCanExpand', false);
+export const WorkbenchTreeElementHasChild = new RawContextKey<boolean>('treeElementHasChild', false);
 export const WorkbenchListAutomaticKeyboardNavigationKey = 'listAutomaticKeyboardNavigation';
 
 function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IContextKeyService {
@@ -471,7 +484,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	private horizontalScrolling: boolean | undefined;
 	private _styler: IDisposable | undefined;
 	private _useAltAsMultipleSelectionModifier: boolean;
-	private readonly disposables: DisposableStore;
 	private navigator: TableResourceNavigator<TRow>;
 	get onDidOpen(): Event<IOpenEvent<TRow | undefined>> { return this.navigator.onDidOpen; }
 
@@ -500,7 +512,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 			}
 		);
 
-		this.disposables = new DisposableStore();
 		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -650,8 +661,8 @@ abstract class ResourceNavigator<T> extends Disposable {
 		super();
 
 		this._register(Event.filter(this.widget.onDidChangeSelection, e => e.browserEvent instanceof KeyboardEvent)(e => this.onSelectionFromKeyboard(e)));
-		this._register(this.widget.onPointer((e: { browserEvent: MouseEvent, element: T | undefined }) => this.onPointer(e.element, e.browserEvent)));
-		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent, element: T | undefined }) => this.onMouseDblClick(e.element, e.browserEvent)));
+		this._register(this.widget.onPointer((e: { browserEvent: MouseEvent; element: T | undefined }) => this.onPointer(e.element, e.browserEvent)));
+		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent; element: T | undefined }) => this.onMouseDblClick(e.element, e.browserEvent)));
 
 		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
 			this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
@@ -789,6 +800,10 @@ function createKeyboardNavigationEventFilter(container: HTMLElement, keybindingS
 	let inChord = false;
 
 	return event => {
+		if (event.toKeybinding().isModifierKey()) {
+			return false;
+		}
+
 		if (inChord) {
 			inChord = false;
 			return false;
@@ -1036,7 +1051,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	configurationService: IConfigurationService,
 	keybindingService: IKeybindingService,
 	accessibilityService: IAccessibilityService,
-): { options: TOptions, getAutomaticKeyboardNavigation: () => boolean | undefined, disposable: IDisposable } {
+): { options: TOptions; getAutomaticKeyboardNavigation: () => boolean | undefined; disposable: IDisposable } {
 	const getAutomaticKeyboardNavigation = () => {
 		// give priority to the context key value to disable this completely
 		let automaticKeyboardNavigation = Boolean(contextKeyService.getContextKeyValue(WorkbenchListAutomaticKeyboardNavigationKey));
@@ -1087,6 +1102,10 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	private hasSelectionOrFocus: IContextKey<boolean>;
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
+	private treeElementCanCollapse: IContextKey<boolean>;
+	private treeElementHasParent: IContextKey<boolean>;
+	private treeElementCanExpand: IContextKey<boolean>;
+	private treeElementHasChild: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private disposables: IDisposable[] = [];
 	private styler: IDisposable | undefined;
@@ -1117,6 +1136,11 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
+		this.treeElementCanCollapse = WorkbenchTreeElementCanCollapse.bindTo(this.contextKeyService);
+		this.treeElementHasParent = WorkbenchTreeElementHasParent.bindTo(this.contextKeyService);
+		this.treeElementCanExpand = WorkbenchTreeElementCanExpand.bindTo(this.contextKeyService);
+		this.treeElementHasChild = WorkbenchTreeElementHasChild.bindTo(this.contextKeyService);
+
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		const interestingContextKeys = new Set();
@@ -1131,6 +1155,20 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		};
 
 		this.updateStyleOverrides(overrideStyles);
+
+		const updateCollapseContextKeys = () => {
+			const focus = tree.getFocus()[0];
+
+			if (!focus) {
+				return;
+			}
+
+			const node = tree.getNode(focus);
+			this.treeElementCanCollapse.set(node.collapsible && !node.collapsed);
+			this.treeElementHasParent.set(!!tree.getParentElement(focus));
+			this.treeElementCanExpand.set(node.collapsible && node.collapsed);
+			this.treeElementHasChild.set(!!tree.getFirstElementChild(focus));
+		};
 
 		this.disposables.push(
 			this.contextKeyService,
@@ -1150,7 +1188,10 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 				const focus = tree.getFocus();
 
 				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+				updateCollapseContextKeys();
 			}),
+			tree.onDidChangeCollapseState(updateCollapseContextKeys),
+			tree.onDidChangeModel(updateCollapseContextKeys),
 			configurationService.onDidChangeConfiguration(e => {
 				let newOptions: IAbstractTreeOptionsUpdate = {};
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
@@ -1238,7 +1279,7 @@ configurationRegistry.registerConfiguration({
 		[multiSelectModifierSettingKey]: {
 			type: 'string',
 			enum: ['ctrlCmd', 'alt'],
-			enumDescriptions: [
+			markdownEnumDescriptions: [
 				localize('multiSelectModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
 				localize('multiSelectModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
 			],
@@ -1268,7 +1309,7 @@ configurationRegistry.registerConfiguration({
 		[treeIndentKey]: {
 			type: 'number',
 			default: 8,
-			minimum: 0,
+			minimum: 4,
 			maximum: 40,
 			description: localize('tree indent setting', "Controls tree indentation in pixels.")
 		},
@@ -1286,7 +1327,7 @@ configurationRegistry.registerConfiguration({
 		[mouseWheelScrollSensitivityKey]: {
 			type: 'number',
 			default: 1,
-			description: localize('Mouse Wheel Scroll Sensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.")
+			markdownDescription: localize('Mouse Wheel Scroll Sensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.")
 		},
 		[fastScrollSensitivityKey]: {
 			type: 'number',

@@ -13,7 +13,7 @@ import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
@@ -382,9 +382,9 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		platformInfo = platformInfo || result;
 
 		// these are the relevant attributes
-		let program = platformInfo.program || result.program;
+		const program = platformInfo.program || result.program;
 		const args = platformInfo.args || result.args;
-		let runtime = platformInfo.runtime || result.runtime;
+		const runtime = platformInfo.runtime || result.runtime;
 		const runtimeArgs = platformInfo.runtimeArgs || result.runtimeArgs;
 
 		if (runtime) {

@@ -112,7 +112,9 @@ export default class PHPValidationProvider {
 		vscode.workspace.onDidOpenTextDocument(this.triggerValidate, this, subscriptions);
 		vscode.workspace.onDidCloseTextDocument((textDocument) => {
 			this.diagnosticCollection!.delete(textDocument.uri);
-			delete this.delayers![textDocument.uri.toString()];
+			if (this.delayers) {
+				delete this.delayers[textDocument.uri.toString()];
+			}
 		}, null, subscriptions);
 	}
 
@@ -174,7 +176,7 @@ export default class PHPValidationProvider {
 	}
 
 	private doValidate(textDocument: vscode.TextDocument): Promise<void> {
-		return new Promise<void>(async (resolve) => {
+		return new Promise<void>(resolve => {
 			const executable = this.config!.executable;
 			if (!executable) {
 				this.showErrorMessage(localize('noPhp', 'Cannot validate since a PHP installation could not be found. Use the setting \'php.validate.executablePath\' to configure the PHP executable.'));

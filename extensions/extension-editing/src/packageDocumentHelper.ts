@@ -74,7 +74,7 @@ export class PackageDocument {
 		return item;
 	}
 
-	private newSnippetCompletionItem(o: { label: string; documentation?: string; snippet: string; range: vscode.Range; }): vscode.CompletionItem {
+	private newSnippetCompletionItem(o: { label: string; documentation?: string; snippet: string; range: vscode.Range }): vscode.CompletionItem {
 		const item = new vscode.CompletionItem(o.label);
 		item.kind = vscode.CompletionItemKind.Value;
 		item.documentation = o.documentation;

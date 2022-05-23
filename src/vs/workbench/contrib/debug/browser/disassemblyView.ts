@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPixelRatio, getZoomLevel, isSafari } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/browser';
 import { Dimension, append, $, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -16,7 +16,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IInstructionBreakpoint, State } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IDebugSession, IInstructionBreakpoint, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -29,11 +29,23 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModel } from 'vs/editor/common/model';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { URI } from 'vs/base/common/uri';
+import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { isAbsolute } from 'vs/base/common/path';
+import { Constants } from 'vs/base/common/uint';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import { binarySearch2 } from 'vs/base/common/arrays';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
 	isBreakpointSet: boolean;
+	isBreakpointEnabled: boolean;
 	instruction: DebugProtocol.DisassembledInstruction;
 	instructionAddress?: bigint;
 }
@@ -42,6 +54,7 @@ interface IDisassembledInstructionEntry {
 const disassemblyNotAvailable: IDisassembledInstructionEntry = {
 	allowBreakpoint: false,
 	isBreakpointSet: false,
+	isBreakpointEnabled: false,
 	instruction: {
 		address: '-1',
 		instruction: localize('instructionNotAvailable', "Disassembly not available.")
@@ -59,27 +72,37 @@ export class DisassemblyView extends EditorPane {
 	private _onDidChangeStackFrame: Emitter<void>;
 	private _previousDebuggingState: State;
 	private _instructionBpList: readonly IInstructionBreakpoint[] = [];
+	private _enableSourceCodeRender: boolean = true;
+	private _loadingLock: boolean = false;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IDebugService private readonly _debugService: IDebugService,
-		@IEditorService editorService: IEditorService,
 	) {
 		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
 
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = new Emitter<void>();
 		this._previousDebuggingState = _debugService.state;
-
-		this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
-		this._register(configurationService.onDidChangeConfiguration(e => {
+		this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), PixelRatio.value);
+		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
-				this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
-				this._disassembledInstructions?.rerender();
+				this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), PixelRatio.value);
+			}
+
+			if (e.affectsConfiguration('debug')) {
+				// show/hide source code requires changing height which WorkbenchTable doesn't support dynamic height, thus force a total reload.
+				const newValue = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
+				if (this._enableSourceCodeRender !== newValue) {
+					this._enableSourceCodeRender = newValue;
+					this.reloadDisassembly(undefined);
+				} else {
+					this._disassembledInstructions?.rerender();
+				}
 			}
 		}));
 	}
@@ -103,13 +126,32 @@ export class DisassemblyView extends EditorPane {
 		return this._debugService.getViewModel().focusedStackFrame?.instructionPointerReference;
 	}
 
+	get isSourceCodeRender() { return this._enableSourceCodeRender; }
+
+	get debugSession(): IDebugSession | undefined {
+		return this._debugService.getViewModel().focusedSession;
+	}
+
 	get onDidChangeStackFrame() { return this._onDidChangeStackFrame.event; }
 
 	protected createEditor(parent: HTMLElement): void {
+		this._enableSourceCodeRender = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
 		const lineHeight = this.fontInfo.lineHeight;
+		const thisOM = this;
 		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry>{
 			headerRowHeight: number = 0; // No header
 			getHeight(row: IDisassembledInstructionEntry): number {
+				if (thisOM.isSourceCodeRender && row.instruction.location?.path && row.instruction.line) {
+					// instruction line + source lines
+					if (row.instruction.endLine) {
+						return lineHeight * (row.instruction.endLine - row.instruction.line + 2);
+					} else {
+						// source is only a single line.
+						return lineHeight * 2;
+					}
+				}
+
+				// just instruction line
 				return lineHeight;
 			}
 		};
@@ -129,7 +171,7 @@ export class DisassemblyView extends EditorPane {
 					project(row: IDisassembledInstructionEntry): IDisassembledInstructionEntry { return row; }
 				},
 				{
-					label: 'instructions',
+					label: localize('disassemblyTableColumnLabel', "instructions"),
 					tooltip: '',
 					weight: 0.3,
 					templateId: InstructionRenderer.TEMPLATE_ID,
@@ -157,15 +199,22 @@ export class DisassemblyView extends EditorPane {
 		this.reloadDisassembly();
 
 		this._register(this._disassembledInstructions.onDidScroll(e => {
+			if (this._loadingLock) {
+				return;
+			}
+
 			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
+				this._loadingLock = true;
 				const topElement = Math.floor(e.scrollTop / this.fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
 				this.scrollUp_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then((success) => {
 					if (success) {
 						this._disassembledInstructions!.reveal(topElement, 0);
 					}
+					this._loadingLock = false;
 				});
 			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
-				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
+				this._loadingLock = true;
+				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() => { this._loadingLock = false; });
 			}
 		}));
 
@@ -186,6 +235,7 @@ export class DisassemblyView extends EditorPane {
 						const index = this.getIndexFromAddress(bp.instructionReference);
 						if (index >= 0) {
 							this._disassembledInstructions!.row(index).isBreakpointSet = true;
+							this._disassembledInstructions!.row(index).isBreakpointEnabled = bp.enabled;
 							changed = true;
 						}
 					}
@@ -197,6 +247,18 @@ export class DisassemblyView extends EditorPane {
 						if (index >= 0) {
 							this._disassembledInstructions!.row(index).isBreakpointSet = false;
 							changed = true;
+						}
+					}
+				});
+
+				bpEvent.changed?.forEach((bp) => {
+					if (bp instanceof InstructionBreakpoint) {
+						const index = this.getIndexFromAddress(bp.instructionReference);
+						if (index >= 0) {
+							if (this._disassembledInstructions!.row(index).isBreakpointEnabled !== bp.enabled) {
+								this._disassembledInstructions!.row(index).isBreakpointEnabled = bp.enabled;
+								changed = true;
+							}
 						}
 					}
 				});
@@ -215,6 +277,7 @@ export class DisassemblyView extends EditorPane {
 				(this._previousDebuggingState !== State.Running && this._previousDebuggingState !== State.Stopped)) {
 				// Just started debugging, clear the view
 				this._disassembledInstructions?.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
+				this._enableSourceCodeRender = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
 			}
 			this._previousDebuggingState = e;
 		}));
@@ -243,21 +306,7 @@ export class DisassemblyView extends EditorPane {
 
 		const index = this.getIndexFromAddress(address);
 		if (index >= 0) {
-			// If the row is out of the viewport, reveal it
-			const topElement = Math.floor(this._disassembledInstructions.scrollTop / this.fontInfo.lineHeight);
-			const bottomElement = Math.floor((this._disassembledInstructions.scrollTop + this._disassembledInstructions.renderHeight) / this.fontInfo.lineHeight);
-			if (index > topElement && index < bottomElement) {
-				// Inside the viewport, don't do anything here
-			} else if (index <= topElement && index > topElement - 5) {
-				// Not too far from top, review it at the top
-				this._disassembledInstructions.reveal(index, 0);
-			} else if (index >= bottomElement && index < bottomElement + 5) {
-				// Not too far from bottom, review it at the bottom
-				this._disassembledInstructions.reveal(index, 1);
-			} else {
-				// Far from the current viewport, reveal it
-				this._disassembledInstructions.reveal(index, 0.5);
-			}
+			this._disassembledInstructions.reveal(index);
 
 			if (focus) {
 				this._disassembledInstructions.domFocus();
@@ -273,7 +322,7 @@ export class DisassemblyView extends EditorPane {
 	private async scrollUp_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
 		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
 			const address: string | undefined = this._disassembledInstructions?.row(0).instruction.address;
-			return this.loadDisassembledInstructions(address, -instructionCount, instructionCount - 1);
+			return this.loadDisassembledInstructions(address, -instructionCount, instructionCount);
 		}
 
 		return false;
@@ -298,14 +347,39 @@ export class DisassemblyView extends EditorPane {
 		}
 
 		// console.log(`DisassemblyView: loadDisassembledInstructions ${address}, ${instructionOffset}, ${instructionCount}`);
-		const session = this._debugService.getViewModel().focusedSession;
+		const session = this.debugSession;
 		const resultEntries = await session?.disassemble(address, 0, instructionOffset, instructionCount);
 		if (session && resultEntries && this._disassembledInstructions) {
 			const newEntries: IDisassembledInstructionEntry[] = [];
 
+			let lastLocation: DebugProtocol.Source | undefined;
+			let lastLine: IRange | undefined;
 			for (let i = 0; i < resultEntries.length; i++) {
 				const found = this._instructionBpList.find(p => p.instructionReference === resultEntries[i].address);
-				newEntries.push({ allowBreakpoint: true, isBreakpointSet: found !== undefined, instruction: resultEntries[i] });
+				const instruction = resultEntries[i];
+
+				// Forward fill the missing location as detailed in the DAP spec.
+				if (instruction.location) {
+					lastLocation = instruction.location;
+					lastLine = undefined;
+				}
+
+				if (instruction.line) {
+					const currentLine: IRange = {
+						startLineNumber: instruction.line,
+						startColumn: instruction.column ?? 0,
+						endLineNumber: instruction.endLine ?? instruction.line!,
+						endColumn: instruction.endColumn ?? 0,
+					};
+
+					// Add location only to the first unique range. This will give the appearance of grouping of instructions.
+					if (!Range.equalsRange(currentLine, lastLine ?? null)) {
+						lastLine = currentLine;
+						instruction.location = lastLocation;
+					}
+				}
+
+				newEntries.push({ allowBreakpoint: true, isBreakpointSet: found !== undefined, isBreakpointEnabled: !!found?.enabled, instruction: instruction });
 			}
 
 			const specialEntriesToRemove = this._disassembledInstructions.length === 1 ? 1 : 0;
@@ -324,40 +398,22 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private getIndexFromAddress(instructionAddress: string): number {
-		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
+		const disassembledInstructions = this._disassembledInstructions;
+		if (disassembledInstructions && disassembledInstructions.length > 0) {
 			const address = BigInt(instructionAddress);
 			if (address) {
-				let startIndex = 0;
-				let endIndex = this._disassembledInstructions.length - 1;
-				const start = this._disassembledInstructions.row(startIndex);
-				const end = this._disassembledInstructions.row(endIndex);
+				return binarySearch2(disassembledInstructions.length, index => {
+					const row = disassembledInstructions.row(index);
 
-				this.ensureAddressParsed(start);
-				this.ensureAddressParsed(end);
-				if (start.instructionAddress! > address ||
-					end.instructionAddress! < address) {
-					return -1;
-				} else if (start.instructionAddress! === address) {
-					return startIndex;
-				} else if (end.instructionAddress! === address) {
-					return endIndex;
-				}
-
-				while (endIndex > startIndex) {
-					const midIndex = Math.floor((endIndex - startIndex) / 2) + startIndex;
-					const mid = this._disassembledInstructions.row(midIndex);
-
-					this.ensureAddressParsed(mid);
-					if (mid.instructionAddress! > address) {
-						endIndex = midIndex;
-					} else if (mid.instructionAddress! < address) {
-						startIndex = midIndex;
+					this.ensureAddressParsed(row);
+					if (row.instructionAddress! > address) {
+						return 1;
+					} else if (row.instructionAddress! < address) {
+						return -1;
 					} else {
-						return midIndex;
+						return 0;
 					}
-				}
-
-				return startIndex;
+				});
 			}
 		}
 
@@ -377,6 +433,7 @@ export class DisassemblyView extends EditorPane {
 	 */
 	private reloadDisassembly(targetAddress?: string) {
 		if (this._disassembledInstructions) {
+			this._loadingLock = true; // stop scrolling during the load.
 			this._disassembledInstructions.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
 			this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
 			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 4, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 8).then(() => {
@@ -389,10 +446,10 @@ export class DisassemblyView extends EditorPane {
 					this._disassembledInstructions!.domFocus();
 					this._disassembledInstructions!.setFocus([targetIndex]);
 				}
+				this._loadingLock = false;
 			});
 		}
 	}
-
 }
 
 interface IBreakpointColumnTemplateData {
@@ -408,6 +465,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	templateId: string = BreakpointRenderer.TEMPLATE_ID;
 
 	private readonly _breakpointIcon = 'codicon-' + icons.breakpoint.regular.id;
+	private readonly _breakpointDisabledIcon = 'codicon-' + icons.breakpoint.disabled.id;
 	private readonly _breakpointHintIcon = 'codicon-' + icons.debugBreakpointHint.id;
 	private readonly _debugStackframe = 'codicon-' + icons.debugStackframe.id;
 	private readonly _debugStackframeFocused = 'codicon-' + icons.debugStackframeFocused.id;
@@ -419,12 +477,15 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	}
 
 	renderTemplate(container: HTMLElement): IBreakpointColumnTemplateData {
+		// align from the bottom so that it lines up with instruction when source code is present.
+		container.style.alignSelf = 'flex-end';
+
 		const icon = append(container, $('.disassembly-view'));
 		icon.classList.add('codicon');
-
 		icon.style.display = 'flex';
 		icon.style.alignItems = 'center';
 		icon.style.justifyContent = 'center';
+		icon.style.height = this._disassemblyView.fontInfo.lineHeight + 'px';
 
 		const currentElement: { element?: IDisassembledInstructionEntry } = { element: undefined };
 
@@ -480,18 +541,28 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		icon.classList.remove(this._breakpointHintIcon);
 
 		if (element?.isBreakpointSet) {
-			icon.classList.add(this._breakpointIcon);
+			if (element.isBreakpointEnabled) {
+				icon.classList.add(this._breakpointIcon);
+				icon.classList.remove(this._breakpointDisabledIcon);
+			} else {
+				icon.classList.remove(this._breakpointIcon);
+				icon.classList.add(this._breakpointDisabledIcon);
+			}
 		} else {
 			icon.classList.remove(this._breakpointIcon);
+			icon.classList.remove(this._breakpointDisabledIcon);
 		}
 	}
-
 }
 
 interface IInstructionColumnTemplateData {
 	currentElement: { element?: IDisassembledInstructionEntry };
 	// TODO: hover widget?
 	instruction: HTMLElement;
+	sourcecode: HTMLElement;
+	// disposed when cell is closed.
+	cellDisposable: IDisposable[];
+	// disposed when template is closed.
 	disposables: IDisposable[];
 }
 
@@ -509,7 +580,10 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 	constructor(
 		private readonly _disassemblyView: DisassemblyView,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IUriIdentityService readonly uriService: IUriIdentityService,
 	) {
 		super();
 
@@ -523,23 +597,63 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	}
 
 	renderTemplate(container: HTMLElement): IInstructionColumnTemplateData {
+		const sourcecode = append(container, $('.sourcecode'));
 		const instruction = append(container, $('.instruction'));
+		this.applyFontInfo(sourcecode);
 		this.applyFontInfo(instruction);
-
 		const currentElement: { element?: IDisassembledInstructionEntry } = { element: undefined };
+		const cellDisposable: IDisposable[] = [];
 
 		const disposables = [
-			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderBackground(instruction, currentElement.element))
+			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderBackground(instruction, sourcecode, currentElement.element)),
+			addStandardDisposableListener(sourcecode, 'dblclick', () => this.openSourceCode(currentElement.element?.instruction!)),
 		];
 
-		return { currentElement, instruction, disposables };
+		return { currentElement, instruction, sourcecode, cellDisposable, disposables };
 	}
 
 	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
-		templateData.currentElement.element = element;
+		this.renderElementInner(element, index, templateData, height);
+	}
 
+	private async renderElementInner(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): Promise<void> {
+		templateData.currentElement.element = element;
 		const instruction = element.instruction;
-		const sb = createStringBuilder(10000);
+		templateData.sourcecode.innerText = '';
+		const sb = createStringBuilder(1000);
+
+		if (this._disassemblyView.isSourceCodeRender && instruction.location?.path && instruction.line) {
+			const sourceURI = this.getUriFromSource(instruction);
+
+			if (sourceURI) {
+				let textModel: ITextModel | undefined = undefined;
+				const sourceSB = createStringBuilder(10000);
+				const ref = await this.textModelService.createModelReference(sourceURI);
+				textModel = ref.object.textEditorModel;
+				templateData.cellDisposable.push(ref);
+
+				// templateData could have moved on during async.  Double check if it is still the same source.
+				if (textModel && templateData.currentElement.element === element) {
+					let lineNumber = instruction.line;
+
+					while (lineNumber && lineNumber >= 1 && lineNumber <= textModel.getLineCount()) {
+						const lineContent = textModel.getLineContent(lineNumber);
+						sourceSB.appendASCIIString(`  ${lineNumber}: `);
+						sourceSB.appendASCIIString(lineContent + '\n');
+
+						if (instruction.endLine && lineNumber < instruction.endLine) {
+							lineNumber++;
+							continue;
+						}
+
+						break;
+					}
+
+					templateData.sourcecode.innerText = sourceSB.build();
+				}
+			}
+		}
+
 		let spacesToAppend = 10;
 
 		if (instruction.address !== '-1') {
@@ -548,7 +662,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				spacesToAppend = InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH - instruction.address.length;
 			}
 			for (let i = 0; i < spacesToAppend; i++) {
-				sb.appendASCII(0x00A0);
+				sb.appendASCIIString(' ');
 			}
 		}
 
@@ -559,16 +673,19 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				spacesToAppend = InstructionRenderer.INSTRUCTION_BYTES_MIN_LENGTH - instruction.instructionBytes.length;
 			}
 			for (let i = 0; i < spacesToAppend; i++) {
-				sb.appendASCII(0x00A0);
+				sb.appendASCIIString(' ');
 			}
 		}
 
 		sb.appendASCIIString(instruction.instruction);
+		templateData.instruction.innerText = sb.build();
 
-		const innerText = sb.build();
-		templateData.instruction.innerText = innerText;
+		this.rerenderBackground(templateData.instruction, templateData.sourcecode, element);
+	}
 
-		this.rerenderBackground(templateData.instruction, element);
+	disposeElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
+		dispose(templateData.cellDisposable);
+		templateData.cellDisposable = [];
 	}
 
 	disposeTemplate(templateData: IInstructionColumnTemplateData): void {
@@ -576,7 +693,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		templateData.disposables = [];
 	}
 
-	private rerenderBackground(instruction: HTMLElement, element?: IDisassembledInstructionEntry) {
+	private rerenderBackground(instruction: HTMLElement, sourceCode: HTMLElement, element?: IDisassembledInstructionEntry) {
 		if (element && this._disassemblyView.currentInstructionAddresses.includes(element.instruction.address)) {
 			instruction.style.background = this._topStackFrameColor?.toString() || 'transparent';
 		} else if (element?.instruction.address === this._disassemblyView.focusedInstructionAddress) {
@@ -586,15 +703,53 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		}
 	}
 
-	private applyFontInfo(element: HTMLElement) {
-		const fontInfo = this._disassemblyView.fontInfo;
-		element.style.fontFamily = fontInfo.getMassagedFontFamily(isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
-		element.style.fontWeight = fontInfo.fontWeight;
-		element.style.fontSize = fontInfo.fontSize + 'px';
-		element.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
-		element.style.letterSpacing = fontInfo.letterSpacing + 'px';
+	private openSourceCode(instruction: DebugProtocol.DisassembledInstruction | undefined) {
+		if (instruction) {
+			const sourceURI = this.getUriFromSource(instruction);
+			const selection = instruction.endLine ? {
+				startLineNumber: instruction.line!,
+				endLineNumber: instruction.endLine!,
+				startColumn: instruction.column || 1,
+				endColumn: instruction.endColumn || Constants.MAX_SAFE_SMALL_INTEGER,
+			} : {
+				startLineNumber: instruction.line!,
+				endLineNumber: instruction.line!,
+				startColumn: instruction.column || 1,
+				endColumn: instruction.endColumn || Constants.MAX_SAFE_SMALL_INTEGER,
+			};
+
+			this.editorService.openEditor({
+				resource: sourceURI,
+				description: localize('editorOpenedFromDisassemblyDescription', "from disassembly"),
+				options: {
+					preserveFocus: false,
+					selection: selection,
+					revealIfOpened: true,
+					selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
+					pinned: false,
+				}
+			});
+		}
 	}
 
+	private getUriFromSource(instruction: DebugProtocol.DisassembledInstruction): URI {
+		// Try to resolve path before consulting the debugSession.
+		const path = instruction.location!.path;
+		if (path && isUri(path)) {	// path looks like a uri
+			return this.uriService.asCanonicalUri(URI.parse(path));
+		}
+		// assume a filesystem path
+		if (path && isAbsolute(path)) {
+			return this.uriService.asCanonicalUri(URI.file(path));
+		}
+
+		return getUriFromSource(instruction.location!, instruction.location!.path, this._disassemblyView.debugSession!.getId(), this.uriService);
+	}
+
+	private applyFontInfo(element: HTMLElement) {
+		applyFontInfo(element, this._disassemblyView.fontInfo);
+		element.style.whiteSpace = 'pre';
+	}
 }
 
 class AccessibilityProvider implements IListAccessibilityProvider<IDisassembledInstructionEntry> {
@@ -617,7 +772,6 @@ class AccessibilityProvider implements IListAccessibilityProvider<IDisassembledI
 
 		return label;
 	}
-
 }
 
 export class DisassemblyViewContribution implements IWorkbenchContribution {
@@ -643,7 +797,7 @@ export class DisassemblyViewContribution implements IWorkbenchContribution {
 
 			const activeTextEditorControl = editorService.activeTextEditorControl;
 			if (isCodeEditor(activeTextEditorControl)) {
-				const language = activeTextEditorControl.getModel()?.getLanguageIdentifier().language;
+				const language = activeTextEditorControl.getModel()?.getLanguageId();
 				// TODO: instead of using idDebuggerInterestedInLanguage, have a specific ext point for languages
 				// support disassembly
 				this._languageSupportsDisassemleRequest?.set(!!language && debugService.getAdapterManager().isDebuggerInterestedInLanguage(language));
@@ -664,5 +818,4 @@ export class DisassemblyViewContribution implements IWorkbenchContribution {
 		this._onDidActiveEditorChangeListener.dispose();
 		this._onDidChangeModelLanguage?.dispose();
 	}
-
 }

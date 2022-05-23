@@ -4,13 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as platform from 'vs/base/common/platform';
 import { getDriveLetter } from 'vs/base/common/extpath';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
-import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-
-
+import * as platform from 'vs/base/common/platform';
+// import { IProcessTreeNode } from 'windows-process-tree';
 
 function spawnAsPromised(command: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -30,34 +26,15 @@ function spawnAsPromised(command: string, args: string[]): Promise<string> {
 	});
 }
 
-let externalTerminalService: IExternalTerminalService | undefined = undefined;
-
-export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
-	if (!externalTerminalService) {
-		if (platform.isWindows) {
-			externalTerminalService = new WindowsExternalTerminalService();
-		} else if (platform.isMacintosh) {
-			externalTerminalService = new MacExternalTerminalService();
-		} else if (platform.isLinux) {
-			externalTerminalService = new LinuxExternalTerminalService();
-		} else {
-			throw new Error('external terminals not supported on this platform');
-		}
-	}
-	const config = configProvider.getConfiguration('terminal');
-	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
-}
-
-export function hasChildProcesses(processId: number | undefined): Promise<boolean> {
+export async function hasChildProcesses(processId: number | undefined): Promise<boolean> {
 	if (processId) {
 
 		// if shell has at least one child process, assume that shell is busy
 		if (platform.isWindows) {
-			return new Promise<boolean>(async (resolve) => {
-				// See #123296
-				const windowsProcessTree = await import('windows-process-tree');
-				windowsProcessTree.getProcessTree(processId, (processTree) => {
-					resolve(processTree.children.length > 0);
+			const windowsProcessTree = await import('windows-process-tree');
+			return new Promise<boolean>(resolve => {
+				windowsProcessTree.getProcessTree(processId, processTree => {
+					resolve(!!processTree && processTree.children.length > 0);
 				});
 			});
 		} else {
@@ -80,7 +57,7 @@ export function hasChildProcesses(processId: number | undefined): Promise<boolea
 const enum ShellType { cmd, powershell, bash }
 
 
-export function prepareCommand(shell: string, args: string[], cwd?: string, env?: { [key: string]: string | null; }): string {
+export function prepareCommand(shell: string, args: string[], cwd?: string, env?: { [key: string]: string | null }): string {
 
 	shell = shell.trim().toLowerCase();
 
@@ -122,7 +99,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				command += `cd ${quote(cwd)}; `;
 			}
 			if (env) {
-				for (let key in env) {
+				for (const key in env) {
 					const value = env[key];
 					if (value === null) {
 						command += `Remove-Item env:${key}; `;
@@ -134,8 +111,9 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			if (args.length > 0) {
 				const cmd = quote(args.shift()!);
 				command += (cmd[0] === '\'') ? `& ${cmd} ` : `${cmd} `;
-				for (let a of args) {
-					command += `${quote(a)} `;
+				for (const a of args) {
+					command += (a === '<' || a === '>') ? a : quote(a);
+					command += ' ';
 				}
 			}
 			break;
@@ -143,8 +121,13 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 		case ShellType.cmd:
 
 			quote = (s: string) => {
+				// Note: Wrapping in cmd /C "..." complicates the escaping.
+				// cmd /C "node -e "console.log(process.argv)" """A^>0"""" # prints "A>0"
+				// cmd /C "node -e "console.log(process.argv)" "foo^> bar"" # prints foo> bar
+				// Outside of the cmd /C, it could be a simple quoting, but here, the ^ is needed too
 				s = s.replace(/\"/g, '""');
-				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0 || s.length === 0) ? `"${s}"` : s;
+				s = s.replace(/([><!^&|])/g, '^$1');
+				return (' "'.split('').some(char => s.includes(char)) || s.length === 0) ? `"${s}"` : s;
 			};
 
 			if (cwd) {
@@ -156,29 +139,30 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			}
 			if (env) {
 				command += 'cmd /C "';
-				for (let key in env) {
+				for (const key in env) {
 					let value = env[key];
 					if (value === null) {
 						command += `set "${key}=" && `;
 					} else {
-						value = value.replace(/[\^\&\|\<\>]/g, s => `^${s}`);
+						value = value.replace(/[&^|<>]/g, s => `^${s}`);
 						command += `set "${key}=${value}" && `;
 					}
 				}
 			}
-			for (let a of args) {
-				command += `${quote(a)} `;
+			for (const a of args) {
+				command += (a === '<' || a === '>') ? a : quote(a);
+				command += ' ';
 			}
 			if (env) {
 				command += '"';
 			}
 			break;
 
-		case ShellType.bash:
+		case ShellType.bash: {
 
 			quote = (s: string) => {
-				s = s.replace(/(["'\\\$])/g, '\\$1');
-				return (s.indexOf(' ') >= 0 || s.indexOf(';') >= 0 || s.length === 0) ? `"${s}"` : s;
+				s = s.replace(/(["'\\\$!><#()\[\]*&^| ;])/g, '\\$1');
+				return s.length === 0 ? `""` : s;
 			};
 
 			const hardQuote = (s: string) => {
@@ -190,7 +174,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			}
 			if (env) {
 				command += '/usr/bin/env';
-				for (let key in env) {
+				for (const key in env) {
 					const value = env[key];
 					if (value === null) {
 						command += ` -u ${hardQuote(key)}`;
@@ -200,10 +184,12 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				}
 				command += ' ';
 			}
-			for (let a of args) {
-				command += `${quote(a)} `;
+			for (const a of args) {
+				command += (a === '<' || a === '>') ? a : quote(a);
+				command += ' ';
 			}
 			break;
+		}
 	}
 
 	return command;

@@ -42,13 +42,7 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 		if (inputTag && typeof inputTag === 'string') {
 			return updateTag(inputTag);
 		}
-		return vscode.window.showInputBox({ prompt: 'Enter Tag' }).then(tagName => {
-			if (tagName) {
-				const update = updateTag(tagName);
-				return update ? update : false;
-			}
-			return false;
-		});
+		return updateTag(undefined);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.matchTag', () => {
@@ -144,7 +138,7 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((e) => {
-		const emmetMode = getEmmetMode(e.languageId, []) ?? '';
+		const emmetMode = getEmmetMode(e.languageId, {}, []) ?? '';
 		const syntaxes = getSyntaxes();
 		if (syntaxes.markup.includes(emmetMode) || syntaxes.stylesheet.includes(emmetMode)) {
 			addFileToParseCache(e);
@@ -152,7 +146,7 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidCloseTextDocument((e) => {
-		const emmetMode = getEmmetMode(e.languageId, []) ?? '';
+		const emmetMode = getEmmetMode(e.languageId, {}, []) ?? '';
 		const syntaxes = getSyntaxes();
 		if (syntaxes.markup.includes(emmetMode) || syntaxes.stylesheet.includes(emmetMode)) {
 			removeFileFromParseCache(e);

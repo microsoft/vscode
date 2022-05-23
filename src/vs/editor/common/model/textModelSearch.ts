@@ -5,10 +5,10 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, FindMatch } from 'vs/editor/common/model';
+import { EndOfLinePreference, FindMatch, SearchData } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 const LIMIT_FIND_COUNT = 999;
@@ -94,33 +94,11 @@ export function isMultilineRegexSource(searchString: string): boolean {
 	return false;
 }
 
-export class SearchData {
-
-	/**
-	 * The regex to search for. Always defined.
-	 */
-	public readonly regex: RegExp;
-	/**
-	 * The word separator classifier.
-	 */
-	public readonly wordSeparators: WordCharacterClassifier | null;
-	/**
-	 * The simple string to search for (if possible).
-	 */
-	public readonly simpleSearch: string | null;
-
-	constructor(regex: RegExp, wordSeparators: WordCharacterClassifier | null, simpleSearch: string | null) {
-		this.regex = regex;
-		this.wordSeparators = wordSeparators;
-		this.simpleSearch = simpleSearch;
-	}
-}
-
 export function createFindMatch(range: Range, rawMatches: RegExpExecArray, captureMatches: boolean): FindMatch {
 	if (!captureMatches) {
 		return new FindMatch(range, null);
 	}
-	let matches: string[] = [];
+	const matches: string[] = [];
 	for (let i = 0, len = rawMatches.length; i < len; i++) {
 		matches[i] = rawMatches[i];
 	}
@@ -132,7 +110,7 @@ class LineFeedCounter {
 	private readonly _lineFeedsOffsets: number[];
 
 	constructor(text: string) {
-		let lineFeedsOffsets: number[] = [];
+		const lineFeedsOffsets: number[] = [];
 		let lineFeedsOffsetsLen = 0;
 		for (let i = 0, textLen = text.length; i < textLen; i++) {
 			if (text.charCodeAt(i) === CharCode.LineFeed) {
@@ -206,8 +184,8 @@ export class TextModelSearch {
 
 		let endOffset: number;
 		if (lfCounter) {
-			let lineFeedCountBeforeEndOfMatch = lfCounter.findLineFeedCountBeforeOffset(matchIndex + match0.length);
-			let lineFeedCountInMatch = lineFeedCountBeforeEndOfMatch - lineFeedCountBeforeMatch;
+			const lineFeedCountBeforeEndOfMatch = lfCounter.findLineFeedCountBeforeOffset(matchIndex + match0.length);
+			const lineFeedCountInMatch = lineFeedCountBeforeEndOfMatch - lineFeedCountBeforeMatch;
 			endOffset = startOffset + match0.length + lineFeedCountInMatch /* add as many \r as there were \n */;
 		} else {
 			endOffset = startOffset + match0.length;

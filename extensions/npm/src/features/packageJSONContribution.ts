@@ -102,7 +102,7 @@ export class PackageJSONContribution implements IJSONContribution {
 						try {
 							const obj = JSON.parse(success.responseText);
 							if (obj && obj.objects && Array.isArray(obj.objects)) {
-								const results = <{ package: SearchPackageInfo; }[]>obj.objects;
+								const results = <{ package: SearchPackageInfo }[]>obj.objects;
 								for (const result of results) {
 									this.processPackage(result.package, addValue, isLast, collector);
 								}
@@ -162,7 +162,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					try {
 						const obj = JSON.parse(success.responseText);
 						if (obj && Array.isArray(obj.objects)) {
-							const objects = <{ package: SearchPackageInfo; }[]>obj.objects;
+							const objects = <{ package: SearchPackageInfo }[]>obj.objects;
 							for (let object of objects) {
 								this.processPackage(object.package, addValue, isLast, collector);
 							}
@@ -374,7 +374,7 @@ interface SearchPackageInfo {
 	name: string;
 	description?: string;
 	version?: string;
-	links?: { homepage?: string; };
+	links?: { homepage?: string };
 }
 
 interface ViewPackageInfo {

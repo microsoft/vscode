@@ -4,7 +4,7 @@
 import { ServiceIdentifier } from './vs/platform/instantiation/common/instantiation';
 import { create as create1 } from './vs/base/common/worker/simpleWorker';
 import { create as create2 } from './vs/editor/common/services/editorSimpleWorker';
-import { SyncDescriptor0, SyncDescriptor1, SyncDescriptor2, SyncDescriptor3, SyncDescriptor4, SyncDescriptor5, SyncDescriptor6, SyncDescriptor7, SyncDescriptor8 } from './vs/platform/instantiation/common/descriptors';
+import { SyncDescriptor0 } from './vs/platform/instantiation/common/descriptors';
 import * as editorAPI from './vs/editor/editor.api';
 
 (function () {
@@ -16,25 +16,6 @@ import * as editorAPI from './vs/editor/editor.api';
 
 	// injection madness
 	a = (<SyncDescriptor0<any>>b).ctor;
-	a = (<SyncDescriptor0<any>>b).bind;
-	a = (<SyncDescriptor1<any, any>>b).ctor;
-	a = (<SyncDescriptor1<any, any>>b).bind;
-	a = (<SyncDescriptor1<any, any>>b).ctor;
-	a = (<SyncDescriptor1<any, any>>b).bind;
-	a = (<SyncDescriptor2<any, any, any>>b).ctor;
-	a = (<SyncDescriptor2<any, any, any>>b).bind;
-	a = (<SyncDescriptor3<any, any, any, any>>b).ctor;
-	a = (<SyncDescriptor3<any, any, any, any>>b).bind;
-	a = (<SyncDescriptor4<any, any, any, any, any>>b).ctor;
-	a = (<SyncDescriptor4<any, any, any, any, any>>b).bind;
-	a = (<SyncDescriptor5<any, any, any, any, any, any>>b).ctor;
-	a = (<SyncDescriptor5<any, any, any, any, any, any>>b).bind;
-	a = (<SyncDescriptor6<any, any, any, any, any, any, any>>b).ctor;
-	a = (<SyncDescriptor6<any, any, any, any, any, any, any>>b).bind;
-	a = (<SyncDescriptor7<any, any, any, any, any, any, any, any>>b).ctor;
-	a = (<SyncDescriptor7<any, any, any, any, any, any, any, any>>b).bind;
-	a = (<SyncDescriptor8<any, any, any, any, any, any, any, any, any>>b).ctor;
-	a = (<SyncDescriptor8<any, any, any, any, any, any, any, any, any>>b).bind;
 
 	// exported API
 	a = editorAPI.CancellationTokenSource;

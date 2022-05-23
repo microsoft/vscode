@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import severity from 'vs/base/common/severity';
 import * as dom from 'vs/base/browser/dom';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
-import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { renderExpressionValue, AbstractExpressionsRenderer, IExpressionTemplateData, renderVariable, IInputBoxOptions } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IReplElementSource, IDebugService, IExpression, IReplElement, IDebugConfiguration, IDebugSession, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { localize } from 'vs/nls';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
+import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import severity from 'vs/base/common/severity';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { debugConsoleEvaluationInput } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, IReplElement, IReplElementSource } from 'vs/workbench/contrib/debug/common/debug';
+import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, SimpleReplElement } from 'vs/workbench/contrib/debug/common/replModel';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
 
@@ -70,7 +70,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
 		dom.append(container, $('span.arrow' + ThemeIcon.asCSSSelector(debugConsoleEvaluationInput)));
 		const input = dom.append(container, $('.expression'));
-		const label = new HighlightedLabel(input, false);
+		const label = new HighlightedLabel(input);
 		return { label };
 	}
 
@@ -260,7 +260,7 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 
 		const expression = dom.append(container, $('.output.expression'));
 		const name = dom.append(expression, $('span.name'));
-		const label = new HighlightedLabel(name, false);
+		const label = new HighlightedLabel(name);
 		const value = dom.append(expression, $('span.value'));
 
 		return { container, expression, name, label, value };
@@ -288,6 +288,10 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 	}
 }
 
+function isNestedVariable(element: IReplElement) {
+	return element instanceof Variable && (element.parent instanceof ReplEvaluationResult || element.parent instanceof Variable);
+}
+
 export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 
 	constructor(private configurationService: IConfigurationService) {
@@ -312,9 +316,9 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 
 		// Calculate a rough overestimation for the height
 		// For every 70 characters increase the number of lines needed beyond the first
-		if (hasValue(element) && !(element instanceof Variable)) {
-			let value = element.value;
-			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
+		if (hasValue(element) && !isNestedVariable(element)) {
+			const value = element.value;
+			const valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
 
 			return valueRows * rowHeight;
 		}
@@ -344,8 +348,8 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 	}
 
 	hasDynamicHeight(element: IReplElement): boolean {
-		if (element instanceof Variable) {
-			// Variables should always be in one line #111843
+		if (isNestedVariable(element)) {
+			// Nested variables should always be in one line #111843
 			return false;
 		}
 		// Empty elements should not have dynamic height since they will be invisible

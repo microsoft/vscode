@@ -8,7 +8,7 @@ import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storag
 import { ExceptionBreakpoint, Expression, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEvaluate, IExpression, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -80,7 +80,7 @@ export class DebugStorage {
 	loadWatchExpressions(): Expression[] {
 		let result: Expression[] | undefined;
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string }) => {
+			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string; id: string }) => {
 				return new Expression(watchStoredData.name, watchStoredData.id);
 			});
 		} catch (e) { }

@@ -9,14 +9,15 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IConstructorSignature0, IInstantiationService, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature, IInstantiationService, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { insert } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 //#region Editor Pane Registry
@@ -53,11 +54,11 @@ export class EditorPaneDescriptor implements IEditorPaneDescriptor {
 		typeId: string,
 		name: string
 	): EditorPaneDescriptor {
-		return new EditorPaneDescriptor(ctor as IConstructorSignature0<EditorPane>, typeId, name);
+		return new EditorPaneDescriptor(ctor as IConstructorSignature<EditorPane>, typeId, name);
 	}
 
 	private constructor(
-		private readonly ctor: IConstructorSignature0<EditorPane>,
+		private readonly ctor: IConstructorSignature<EditorPane>,
 		readonly typeId: string,
 		readonly name: string
 	) { }
@@ -199,11 +200,29 @@ export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): 
 			// Remove from resources to wait for being closed based on the
 			// resources from editors that got closed
 			remainingResources = remainingResources.filter(resource => {
+
+				// Closing editor matches resource directly: remove from remaining
 				if (uriIdentityService.extUri.isEqual(resource, primaryResource) || uriIdentityService.extUri.isEqual(resource, secondaryResource)) {
-					return false; // remove - the closing editor matches this resource
+					return false;
 				}
 
-				return true; // keep - not yet closed
+				// Closing editor is untitled with associated resource
+				// that matches resource directly: remove from remaining
+				// but only if the editor was not replaced, otherwise
+				// saving an untitled with associated resource would
+				// release the `--wait` call.
+				// (see https://github.com/microsoft/vscode/issues/141237)
+				if (event.context !== EditorCloseContext.REPLACE) {
+					if (
+						(primaryResource?.scheme === Schemas.untitled && uriIdentityService.extUri.isEqual(resource, primaryResource.with({ scheme: resource.scheme }))) ||
+						(secondaryResource?.scheme === Schemas.untitled && uriIdentityService.extUri.isEqual(resource, secondaryResource.with({ scheme: resource.scheme })))
+					) {
+						return false;
+					}
+				}
+
+				// Editor is not yet closed, so keep it in waiting mode
+				return true;
 			});
 
 			// All resources to wait for being closed are closed
@@ -243,7 +262,7 @@ export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): 
 
 //#region ARIA
 
-export function computeEditorAriaLabel(input: EditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
+export function computeEditorAriaLabel(input: EditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number | undefined): string {
 	let ariaLabel = input.getAriaLabel();
 	if (group && !group.isPinned(input)) {
 		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
@@ -256,7 +275,7 @@ export function computeEditorAriaLabel(input: EditorInput, index: number | undef
 	// Apply group information to help identify in
 	// which group we are (only if more than one group
 	// is actually opened)
-	if (group && groupCount > 1) {
+	if (group && typeof groupCount === 'number' && groupCount > 1) {
 		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
 	}
 

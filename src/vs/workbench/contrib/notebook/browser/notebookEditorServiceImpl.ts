@@ -6,7 +6,7 @@
 import { ResourceMap } from 'vs/base/common/map';
 import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupChangeKind } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
@@ -30,7 +30,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	readonly onDidAddNotebookEditor = this._onNotebookEditorAdd.event;
 	readonly onDidRemoveNotebookEditor = this._onNotebookEditorsRemove.event;
 
-	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget, token: number | undefined; }>>();
+	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget; token: number | undefined }>>();
 
 	constructor(
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -40,9 +40,9 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		const onNewGroup = (group: IEditorGroup) => {
 			const { id } = group;
 			const listeners: IDisposable[] = [];
-			listeners.push(group.onDidGroupChange(e => {
+			listeners.push(group.onDidCloseEditor(e => {
 				const widgets = this._borrowableEditors.get(group.id);
-				if (!widgets || e.kind !== GroupChangeKind.EDITOR_CLOSE) {
+				if (!widgets) {
 					return;
 				}
 
@@ -156,7 +156,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		return this._createBorrowValue(value.token!, value);
 	}
 
-	private _createBorrowValue(myToken: number, widget: { widget: NotebookEditorWidget, token: number | undefined; }): IBorrowValue<NotebookEditorWidget> {
+	private _createBorrowValue(myToken: number, widget: { widget: NotebookEditorWidget; token: number | undefined }): IBorrowValue<NotebookEditorWidget> {
 		return {
 			get value() {
 				return widget.token === myToken ? widget.widget : undefined;

@@ -11,23 +11,39 @@ import { mixin } from 'vs/base/common/objects';
 import { firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { Gesture } from 'vs/base/browser/touch';
 
+/**
+ * General function to help reduce the individuality of user agents
+ * @param userAgent userAgent from browser window
+ * @returns A simplified user agent with less detail
+ */
+function cleanUserAgent(userAgent: string): string {
+	return userAgent.replace(/(\d+\.\d+)(\.\d+)+/g, '$1');
+}
+
 export async function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
 	commit: string | undefined,
 	version: string | undefined,
 	remoteAuthority?: string,
 	productIdentifier?: string,
+	removeMachineId?: boolean,
 	resolveAdditionalProperties?: () => { [key: string]: any }
 ): Promise<{ [name: string]: string | undefined }> {
-	const result: { [name: string]: string | undefined; } = Object.create(null);
+	const result: { [name: string]: string | undefined } = Object.create(null);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;
 
-	let machineId = storageService.get(machineIdKey, StorageScope.GLOBAL);
-	if (!machineId) {
-		machineId = uuid.generateUuid();
-		storageService.store(machineIdKey, machineId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	let machineId: string | undefined;
+	if (!removeMachineId) {
+		machineId = storageService.get(machineIdKey, StorageScope.GLOBAL);
+		if (!machineId) {
+			machineId = uuid.generateUuid();
+			storageService.store(machineIdKey, machineId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		}
+	} else {
+		machineId = `Redacted-${productIdentifier ?? 'web'}`;
 	}
+
 
 	/**
 	 * Note: In the web, session date information is fetched from browser storage, so these dates are tied to a specific
@@ -55,7 +71,7 @@ export async function resolveWorkbenchCommonProperties(
 	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.product'] = productIdentifier ?? 'web';
 	// __GDPR__COMMON__ "common.userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.userAgent'] = Platform.userAgent;
+	result['common.userAgent'] = Platform.userAgent ? cleanUserAgent(Platform.userAgent) : undefined;
 	// __GDPR__COMMON__ "common.isTouchDevice" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.isTouchDevice'] = String(Gesture.isTouchDevice());
 

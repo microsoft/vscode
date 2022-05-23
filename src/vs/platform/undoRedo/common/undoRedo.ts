@@ -16,8 +16,18 @@ export const enum UndoRedoElementType {
 
 export interface IResourceUndoRedoElement {
 	readonly type: UndoRedoElementType.Resource;
+	/**
+	 * The resource impacted by this element.
+	 */
 	readonly resource: URI;
+	/**
+	 * A user presentable label. May be localized.
+	 */
 	readonly label: string;
+	/**
+	 * A code describing the operation. Will not be localized.
+	 */
+	readonly code: string;
 	/**
 	 * Show a message to the user confirming when trying to undo this element
 	 */
@@ -28,8 +38,18 @@ export interface IResourceUndoRedoElement {
 
 export interface IWorkspaceUndoRedoElement {
 	readonly type: UndoRedoElementType.Workspace;
+	/**
+	 * The resources impacted by this element.
+	 */
 	readonly resources: readonly URI[];
+	/**
+	 * A user presentable label. May be localized.
+	 */
 	readonly label: string;
+	/**
+	 * A code describing the operation. Will not be localized.
+	 */
+	readonly code: string;
 	/**
 	 * Show a message to the user confirming when trying to undo this element
 	 */

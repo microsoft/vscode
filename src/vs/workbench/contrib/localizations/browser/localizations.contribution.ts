@@ -67,6 +67,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
 								updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
 							}
+						}, {
+							label: updateAndRestart ? localize('doNotChangeAndRestart', "Don't Change Language") : localize('doNotRestart', "Don't Restart"),
+							run: () => { }
 						}],
 						{
 							sticky: true,
@@ -250,7 +253,7 @@ ExtensionsRegistry.registerExtensionPoint({
 							id: {
 								type: 'string',
 								description: localize('vscode.extension.contributes.localizations.translations.id', "Id of VS Code or Extension for which this translation is contributed to. Id of VS Code is always `vscode` and of extension should be in format `publisherId.extensionName`."),
-								pattern: '^((vscode)|([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*))$',
+								pattern: '^((vscode)|([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*))$',
 								patternErrorMessage: localize('vscode.extension.contributes.localizations.translations.id.pattern', "Id should be `vscode` or in format `publisherId.extensionName` for translating VS code or an extension respectively.")
 							},
 							path: {

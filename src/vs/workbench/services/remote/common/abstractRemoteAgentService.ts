@@ -7,8 +7,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, ManagementPersistentConnection, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
+import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
@@ -16,7 +16,7 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics
 import { Emitter } from 'vs/base/common/event';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { URI } from 'vs/base/common/uri';
@@ -40,7 +40,7 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		super();
 		this.socketFactory = socketFactory;
 		if (this._environmentService.remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
+			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, productService.quality, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
 		} else {
 			this._connection = null;
 		}
@@ -67,6 +67,13 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 			);
 		}
 		return this._environment;
+	}
+
+	getExtensionHostExitInfo(reconnectionToken: string): Promise<IExtensionHostExitInfo | null> {
+		return this._withChannel(
+			(channel, connection) => RemoteExtensionEnvironmentChannelClient.getExtensionHostExitInfo(channel, connection.remoteAuthority, reconnectionToken),
+			null
+		);
 	}
 
 	whenExtensionsReady(): Promise<void> {
@@ -97,23 +104,34 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		);
 	}
 
-	disableTelemetry(): Promise<void> {
-		return this._withChannel(
-			channel => RemoteExtensionEnvironmentChannelClient.disableTelemetry(channel),
+	updateTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void> {
+		return this._withTelemetryChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.updateTelemetryLevel(channel, telemetryLevel),
 			undefined
 		);
 	}
 
 	logTelemetry(eventName: string, data: ITelemetryData): Promise<void> {
-		return this._withChannel(
+		return this._withTelemetryChannel(
 			channel => RemoteExtensionEnvironmentChannelClient.logTelemetry(channel, eventName, data),
 			undefined
 		);
 	}
 
 	flushTelemetry(): Promise<void> {
-		return this._withChannel(
+		return this._withTelemetryChannel(
 			channel => RemoteExtensionEnvironmentChannelClient.flushTelemetry(channel),
+			undefined
+		);
+	}
+
+	getRoundTripTime(): Promise<number | undefined> {
+		return this._withTelemetryChannel(
+			async channel => {
+				const start = Date.now();
+				await RemoteExtensionEnvironmentChannelClient.ping(channel);
+				return Date.now() - start;
+			},
 			undefined
 		);
 	}
@@ -124,6 +142,14 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 			return Promise.resolve(fallback);
 		}
 		return connection.withChannel('remoteextensionsenvironment', (channel) => callback(channel, connection));
+	}
+
+	private _withTelemetryChannel<R>(callback: (channel: IChannel, connection: IRemoteAgentConnection) => Promise<R>, fallback: R): Promise<R> {
+		const connection = this.getConnection();
+		if (!connection) {
+			return Promise.resolve(fallback);
+		}
+		return connection.withChannel('telemetry', (channel) => callback(channel, connection));
 	}
 }
 
@@ -138,9 +164,12 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	readonly remoteAuthority: string;
 	private _connection: Promise<Client<RemoteAgentConnectionContext>> | null;
 
+	private _initialConnectionMs: number | undefined;
+
 	constructor(
 		remoteAuthority: string,
 		private readonly _commit: string | undefined,
+		private readonly _quality: string | undefined,
 		private readonly _socketFactory: ISocketFactory,
 		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		private readonly _signService: ISignService,
@@ -165,6 +194,16 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 		this._getOrCreateConnection().then(client => client.registerChannel(channelName, channel));
 	}
 
+	async getInitialConnectionTimeMs() {
+		try {
+			await this._getOrCreateConnection();
+		} catch {
+			// ignored -- time is measured even if connection fails
+		}
+
+		return this._initialConnectionMs!;
+	}
+
 	private _getOrCreateConnection(): Promise<Client<RemoteAgentConnectionContext>> {
 		if (!this._connection) {
 			this._connection = this._createConnection();
@@ -176,6 +215,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 		let firstCall = true;
 		const options: IConnectionOptions = {
 			commit: this._commit,
+			quality: this._quality,
 			socketFactory: this._socketFactory,
 			addressProvider: {
 				getAddress: async () => {
@@ -192,7 +232,14 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 			logService: this._logService,
 			ipcLogger: false ? new IPCLogger(`Local \u2192 Remote`, `Remote \u2192 Local`) : null
 		};
-		const connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
+		let connection: ManagementPersistentConnection;
+		let start = Date.now();
+		try {
+			connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
+		} finally {
+			this._initialConnectionMs = Date.now() - start;
+		}
+
 		connection.protocol.onDidDispose(() => {
 			connection.dispose();
 		});

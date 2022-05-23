@@ -16,7 +16,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 
 const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
 const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
@@ -86,12 +86,13 @@ export class LinkDetector {
 					case 'web':
 						container.appendChild(this.createWebLink(part.value));
 						break;
-					case 'path':
+					case 'path': {
 						const path = part.captures[0];
 						const lineNumber = part.captures[1] ? Number(part.captures[1]) : 0;
 						const columnNumber = part.captures[2] ? Number(part.captures[2]) : 0;
 						container.appendChild(this.createPathLink(part.value, path, lineNumber, columnNumber, workspaceFolder));
 						break;
+					}
 				}
 			} catch (e) {
 				container.appendChild(document.createTextNode(part.value));
@@ -112,12 +113,13 @@ export class LinkDetector {
 				const path = await this.pathService.path;
 				const fileUrl = osPath.normalize(((path.sep === osPath.posix.sep) && platform.isWindows) ? fsPath.replace(/\\/g, osPath.posix.sep) : fsPath);
 
-				const resolvedLink = await this.fileService.resolve(URI.parse(fileUrl));
-				if (!resolvedLink) {
+				const fileUri = URI.parse(fileUrl);
+				const exists = await this.fileService.exists(fileUri);
+				if (!exists) {
 					return;
 				}
 
-				await this.editorService.openEditor({ resource: resolvedLink.resource, options: { pinned: true } });
+				await this.editorService.openEditor({ resource: fileUri, options: { pinned: true } });
 				return;
 			}
 
@@ -154,7 +156,7 @@ export class LinkDetector {
 		const link = this.createLink(text);
 		link.tabIndex = 0;
 		const uri = URI.file(osPath.normalize(path));
-		this.fileService.resolve(uri).then(stat => {
+		this.fileService.stat(uri).then(stat => {
 			if (stat.isDirectory) {
 				return;
 			}

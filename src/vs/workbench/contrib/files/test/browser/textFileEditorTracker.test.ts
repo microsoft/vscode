@@ -52,7 +52,7 @@ suite('Files - TextFileEditorTracker', () => {
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<TestServiceAccessor> {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		if (autoSaveEnabled) {
 			const configurationService = new TestConfigurationService();

@@ -197,6 +197,47 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 	}
 });
 
+/**
+ * Go over all .js files in `/out-monaco-editor-core/esm/` and make sure that all imports
+ * use `.js` at the end in order to be ESM compliant.
+ */
+const appendJSToESMImportsTask = task.define('append-js-to-esm-imports', () => {
+	const SRC_DIR = path.join(__dirname, '../out-monaco-editor-core/esm');
+	const files = util.rreddir(SRC_DIR);
+	for (const file of files) {
+		const filePath = path.join(SRC_DIR, file);
+		if (!/\.js$/.test(filePath)) {
+			continue;
+		}
+
+		const contents = fs.readFileSync(filePath).toString();
+		const lines = contents.split(/\r\n|\r|\n/g);
+		const /** @type {string[]} */result = [];
+		for (const line of lines) {
+			if (!/^import/.test(line) && !/^export \* from/.test(line)) {
+				// not an import
+				result.push(line);
+				continue;
+			}
+			if (/^import '[^']+\.css';/.test(line)) {
+				// CSS import
+				result.push(line);
+				continue;
+			}
+			let modifiedLine = (
+				line
+					.replace(/^import(.*)\'([^']+)\'/, `import$1'$2.js'`)
+					.replace(/^export \* from \'([^']+)\'/, `export * from '$1.js'`)
+			);
+			result.push(modifiedLine);
+		}
+		fs.writeFileSync(filePath, result.join('\n'));
+	}
+});
+
+/**
+ * @param {string} contents
+ */
 function toExternalDTS(contents) {
 	let lines = contents.split(/\r\n|\r|\n/);
 	let killNextCloseCurlyBrace = false;
@@ -240,6 +281,9 @@ function toExternalDTS(contents) {
 	return lines.join('\n').replace(/\n\n\n+/g, '\n\n');
 }
 
+/**
+ * @param {{ (path: string): boolean }} testFunc
+ */
 function filterStream(testFunc) {
 	return es.through(function (data) {
 		if (!testFunc(data.relative)) {
@@ -362,7 +406,8 @@ gulp.task('editor-distro',
 			),
 			task.series(
 				createESMSourcesAndResourcesTask,
-				compileEditorESMTask
+				compileEditorESMTask,
+				appendJSToESMImportsTask
 			)
 		),
 		finalEditorResourcesTask
@@ -411,6 +456,7 @@ gulp.task('editor-esm-bundle',
 		extractEditorSrcTask,
 		createESMSourcesAndResourcesTask,
 		compileEditorESMTask,
+		appendJSToESMImportsTask,
 		bundleEditorESMTask,
 	)
 );
@@ -439,6 +485,8 @@ function createTscCompileTask(watch) {
 			});
 			let errors = [];
 			let reporter = createReporter('monaco');
+
+			/** @type {NodeJS.ReadWriteStream | undefined} */
 			let report;
 			// eslint-disable-next-line no-control-regex
 			let magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g; // https://stackoverflow.com/questions/25245716/remove-all-ansi-colors-styles-from-strings

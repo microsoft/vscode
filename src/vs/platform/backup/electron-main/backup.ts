@@ -6,20 +6,10 @@
 import { URI } from 'vs/base/common/uri';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
+import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
-
-export interface IWorkspaceBackupInfo {
-	workspace: IWorkspaceIdentifier;
-	remoteAuthority?: string;
-}
-
-export function isWorkspaceBackupInfo(obj: unknown): obj is IWorkspaceBackupInfo {
-	const candidate = obj as IWorkspaceBackupInfo;
-
-	return candidate && isWorkspaceIdentifier(candidate.workspace);
-}
 
 export interface IBackupMainService {
 	readonly _serviceBrand: undefined;
@@ -27,11 +17,11 @@ export interface IBackupMainService {
 	isHotExitEnabled(): boolean;
 
 	getWorkspaceBackups(): IWorkspaceBackupInfo[];
-	getFolderBackupPaths(): URI[];
+	getFolderBackupPaths(): IFolderBackupInfo[];
 	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[];
 
 	registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string): string;
-	registerFolderBackupSync(folderUri: URI): string;
+	registerFolderBackupSync(folderUri: IFolderBackupInfo): string;
 	registerEmptyWindowBackupSync(backupFolder?: string, remoteAuthority?: string): string;
 
 	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void;
@@ -44,5 +34,5 @@ export interface IBackupMainService {
 	 * it checks for each backup location if any backups
 	 * are stored.
 	 */
-	getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>>;
+	getDirtyWorkspaces(): Promise<Array<IWorkspaceBackupInfo | IFolderBackupInfo>>;
 }

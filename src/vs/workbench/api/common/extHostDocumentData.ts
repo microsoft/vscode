@@ -8,23 +8,23 @@ import { Schemas } from 'vs/base/common/network';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { EndOfLine, Position, Range } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 import { equals } from 'vs/base/common/arrays';
 
-const _modeId2WordDefinition = new Map<string, RegExp>();
-export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
+const _languageId2WordDefinition = new Map<string, RegExp>();
+export function setWordDefinitionFor(languageId: string, wordDefinition: RegExp | undefined): void {
 	if (!wordDefinition) {
-		_modeId2WordDefinition.delete(modeId);
+		_languageId2WordDefinition.delete(languageId);
 	} else {
-		_modeId2WordDefinition.set(modeId, wordDefinition);
+		_languageId2WordDefinition.set(languageId, wordDefinition);
 	}
 }
 
-export function getWordDefinitionFor(modeId: string): RegExp | undefined {
-	return _modeId2WordDefinition.get(modeId);
+export function getWordDefinitionFor(languageId: string): RegExp | undefined {
+	return _languageId2WordDefinition.get(languageId);
 }
 
 export class ExtHostDocumentData extends MirrorTextModel {
@@ -37,7 +37,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		uri: URI, lines: string[], eol: string, versionId: number,
 		private _languageId: string,
 		private _isDirty: boolean,
-		private readonly _notebook?: vscode.NotebookDocument | undefined
+		public readonly notebook?: vscode.NotebookDocument | undefined
 	) {
 		super(uri, lines, eol, versionId);
 	}
@@ -66,7 +66,6 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				get version() { return that._versionId; },
 				get isClosed() { return that._isDisposed; },
 				get isDirty() { return that._isDirty; },
-				get notebook() { return that._notebook; },
 				save() { return that._save(); },
 				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },
 				get eol() { return that._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },

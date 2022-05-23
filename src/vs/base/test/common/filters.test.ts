@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from 'vs/base/common/filters';
 
-function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
+function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number }[]) {
 	let r = filter(word, wordToMatchAgainst);
 	assert(r, `${word} didn't match ${wordToMatchAgainst}`);
 	if (highlights) {
@@ -200,6 +200,9 @@ suite('Filters', () => {
 
 		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
 
+		// Handles issue #123915
+		filterOk(matchesWords, 'C++', 'C/C++: command', [{ start: 2, end: 5 }]);
+
 		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
 		// assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 
@@ -215,13 +218,12 @@ suite('Filters', () => {
 
 		filterOk(matchesWords, 'foo bar', 'foo-bar');
 		filterOk(matchesWords, 'foo bar', '123 foo-bar 456');
-		filterOk(matchesWords, 'foo+bar', 'foo-bar');
 		filterOk(matchesWords, 'foo-bar', 'foo bar');
 		filterOk(matchesWords, 'foo:bar', 'foo:bar');
 	});
 
-	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number, wordPos?: number, firstMatchCanBeWeak?: boolean } = {}) {
-		let r = filter(pattern, pattern.toLowerCase(), opts.patternPos || 0, word, word.toLowerCase(), opts.wordPos || 0, opts.firstMatchCanBeWeak || false);
+	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number; wordPos?: number; firstMatchCanBeWeak?: boolean } = {}) {
+		let r = filter(pattern, pattern.toLowerCase(), opts.patternPos || 0, word, word.toLowerCase(), opts.wordPos || 0, { firstMatchCanBeWeak: opts.firstMatchCanBeWeak ?? false, boostFullMatch: true });
 		assert.ok(!decoratedWord === !r);
 		if (r) {
 			let matches = createMatches(r);
@@ -403,7 +405,7 @@ suite('Filters', () => {
 	test('Cannot set property \'1\' of undefined, #26511', function () {
 		let word = new Array<void>(123).join('a');
 		let pattern = new Array<void>(120).join('a');
-		fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, false);
+		fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0);
 		assert.ok(true); // must not explode
 	});
 
@@ -433,7 +435,7 @@ suite('Filters', () => {
 		let topIdx = 0;
 		for (let i = 0; i < words.length; i++) {
 			const word = words[i];
-			const m = filter(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, false);
+			const m = filter(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0);
 			if (m) {
 				const [score] = m;
 				if (score > topScore) {
@@ -536,7 +538,7 @@ suite('Filters', () => {
 	});
 
 	test('"Go to Symbol" with the exact method name doesn\'t work as expected #84787', function () {
-		const match = fuzzyScore(':get', ':get', 1, 'get', 'get', 0, true);
+		const match = fuzzyScore(':get', ':get', 1, 'get', 'get', 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
 		assert.ok(Boolean(match));
 	});
 
@@ -554,5 +556,29 @@ suite('Filters', () => {
 		assertMatches('lo', 'log', '^l^og', fuzzyScore);
 		assertMatches('.lo', 'log', '^l^og', anyScore);
 		assertMatches('.', 'log', 'log', anyScore);
+	});
+
+	test('configurable full match boost', function () {
+		let prefix = 'create';
+		let a = 'createModelServices';
+		let b = 'create';
+
+		let aBoost = fuzzyScore(prefix, prefix, 0, a, a.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
+		let bBoost = fuzzyScore(prefix, prefix, 0, b, b.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
+		assert.ok(aBoost);
+		assert.ok(bBoost);
+		assert.ok(aBoost[0] < bBoost[0]);
+
+		let aScore = fuzzyScore(prefix, prefix, 0, a, a.toLowerCase(), 0, { boostFullMatch: false, firstMatchCanBeWeak: true });
+		let bScore = fuzzyScore(prefix, prefix, 0, b, b.toLowerCase(), 0, { boostFullMatch: false, firstMatchCanBeWeak: true });
+		assert.ok(aScore);
+		assert.ok(bScore);
+		assert.ok(aScore[0] === bScore[0]);
+	});
+
+	test('Unexpected suggest highlighting ignores whole word match in favor of matching first letter#147423', function () {
+
+		assertMatches('i', 'machine/{id}', 'machine/{^id}', fuzzyScore);
+		assertMatches('ok', 'obobobf{ok}/user', '^obobobf{o^k}/user', fuzzyScore);
 	});
 });

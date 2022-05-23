@@ -7,10 +7,10 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { SCMStatusController } from './activity';
+import { SCMActiveResourceContextKeyController, SCMStatusController } from './activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -21,18 +21,20 @@ import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
 import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
+import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
 	extensions: [],
+	aliases: [], // hide from language selector
 	mimetypes: ['text/x-scm-input']
 });
 
@@ -59,6 +61,16 @@ viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
 	when: 'default'
 });
 
+viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
+	content: localize('no open repo in an untrusted workspace', "None of the registered source control providers work in Restricted Mode."),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('scm.providerCount', 0), WorkspaceTrustContext.IsEnabled, WorkspaceTrustContext.IsTrusted.toNegated())
+});
+
+viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
+	content: `[${localize('manageWorkspaceTrustAction', "Manage Workspace Trust")}](command:${MANAGE_TRUST_COMMAND_ID})`,
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('scm.providerCount', 0), WorkspaceTrustContext.IsEnabled, WorkspaceTrustContext.IsTrusted.toNegated())
+});
+
 viewsRegistry.registerViews([{
 	id: VIEW_PANE_ID,
 	name: localize('source control', "Source Control"),
@@ -71,12 +83,12 @@ viewsRegistry.registerViews([{
 	containerIcon: sourceControlViewIcon,
 	openCommandActionDescriptor: {
 		id: viewContainer.id,
-		mnemonicTitle: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"),
+		mnemonicTitle: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "Source &&Control"),
 		keybindings: {
 			primary: 0,
-			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G },
+			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG },
+			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG },
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
 		},
 		order: 2,
 	}
@@ -98,12 +110,15 @@ viewsRegistry.registerViews([{
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(SCMActiveResourceContextKeyController, LifecyclePhase.Restored);
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',
 	order: 5,
-	title: localize('scmConfigurationTitle', "SCM"),
+	title: localize('scmConfigurationTitle', "Source Control"),
 	type: 'object',
 	scope: ConfigurationScope.RESOURCE,
 	properties: {
@@ -146,6 +161,36 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.diffDecorationsGutterAction', "Controls the behavior of Source Control diff gutter decorations."),
 			default: 'diff'
 		},
+		'scm.diffDecorationsGutterPattern': {
+			type: 'object',
+			description: localize('diffGutterPattern', "Controls whether a pattern is used for the diff decorations in gutter."),
+			additionalProperties: false,
+			properties: {
+				'added': {
+					type: 'boolean',
+					description: localize('diffGutterPatternAdded', "Use pattern for the diff decorations in gutter for added lines."),
+				},
+				'modified': {
+					type: 'boolean',
+					description: localize('diffGutterPatternModifed', "Use pattern for the diff decorations in gutter for modified lines."),
+				},
+			},
+			default: {
+				'added': false,
+				'modified': true
+			}
+		},
+		'scm.diffDecorationsIgnoreTrimWhitespace': {
+			type: 'string',
+			enum: ['true', 'false', 'inherit'],
+			enumDescriptions: [
+				localize('scm.diffDecorationsIgnoreTrimWhitespace.true', "Ignore leading and trailing whitespace."),
+				localize('scm.diffDecorationsIgnoreTrimWhitespace.false', "Do not ignore leading and trailing whitespace."),
+				localize('scm.diffDecorationsIgnoreTrimWhitespace.inherit', "Inherit from `diffEditor.ignoreTrimWhitespace`.")
+			],
+			description: localize('diffDecorationsIgnoreTrimWhitespace', "Controls whether leading and trailing whitespace is ignored in Source Control diff gutter decorations."),
+			default: 'false'
+		},
 		'scm.alwaysShowActions': {
 			type: 'boolean',
 			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),
@@ -183,9 +228,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.defaultViewMode', "Controls the default Source Control repository view mode."),
 			default: 'list'
 		},
+		'scm.defaultViewSortKey': {
+			type: 'string',
+			enum: ['name', 'path', 'status'],
+			enumDescriptions: [
+				localize('scm.defaultViewSortKey.name', "Sort the repository changes by file name."),
+				localize('scm.defaultViewSortKey.path', "Sort the repository changes by path."),
+				localize('scm.defaultViewSortKey.status', "Sort the repository changes by Source Control status.")
+			],
+			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository changes sort order when viewed as a list."),
+			default: 'path'
+		},
 		'scm.autoReveal': {
 			type: 'boolean',
-			description: localize('autoReveal', "Controls whether the SCM view should automatically reveal and select files when opening them."),
+			description: localize('autoReveal', "Controls whether the Source Control view should automatically reveal and select files when opening them."),
 			default: true
 		},
 		'scm.inputFontFamily': {
@@ -200,8 +256,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.alwaysShowRepositories': {
 			type: 'boolean',
-			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the SCM view."),
+			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the Source Control view."),
 			default: false
+		},
+		'scm.repositories.sortOrder': {
+			type: 'string',
+			enum: ['discovery time', 'name', 'path'],
+			enumDescriptions: [
+				localize('scm.repositoriesSortOrder.discoveryTime', "Repositories in the Source Control Repositories view are sorted by discovery time. Repositories in the Source Control view are sorted in the order that they were selected."),
+				localize('scm.repositoriesSortOrder.name', "Repositories in the Source Control Repositories and Source Control views are sorted by repository name."),
+				localize('scm.repositoriesSortOrder.path', "Repositories in the Source Control Repositories and Source Control views are sorted by repository path.")
+			],
+			description: localize('repositoriesSortOrder', "Controls the sort order of the repositories in the source control repositories view."),
+			default: 'discovery time'
 		},
 		'scm.repositories.visible': {
 			type: 'number',
@@ -210,7 +277,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.showActionButton': {
 			type: 'boolean',
-			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the SCM view."),
+			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the Source Control view."),
 			default: true
 		}
 	}
@@ -218,44 +285,56 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.acceptInput',
-	description: { description: localize('scm accept', "SCM: Accept Input"), args: [] },
+	description: { description: localize('scm accept', "Source Control: Accept Input"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.has('scmRepository'),
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	handler: accessor => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
 
-		if (!repository || !repository.provider.acceptInputCommand) {
+		if (!repositoryId) {
 			return Promise.resolve(null);
 		}
+
+		const scmService = accessor.get(ISCMService);
+		const repository = scmService.getRepository(repositoryId);
+
+		if (!repository?.provider.acceptInputCommand) {
+			return Promise.resolve(null);
+		}
+
 		const id = repository.provider.acceptInputCommand.id;
 		const args = repository.provider.acceptInputCommand.arguments;
-
 		const commandService = accessor.get(ICommandService);
+
 		return commandService.executeCommand(id, ...(args || []));
 	}
 });
 
 const viewNextCommitCommand = {
-	description: { description: localize('scm view next commit', "SCM: View Next Commit"), args: [] },
+	description: { description: localize('scm view next commit', "Source Control: View Next Commit"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
+		const scmService = accessor.get(ISCMService);
 		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
+		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showNextHistoryValue();
 	}
 };
 
 const viewPreviousCommitCommand = {
-	description: { description: localize('scm view previous commit', "SCM: View Previous Commit"), args: [] },
+	description: { description: localize('scm view previous commit', "Source Control: View Previous Commit"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
+		const scmService = accessor.get(ISCMService);
 		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
+		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showPreviousHistoryValue();
 	}
 };

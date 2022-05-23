@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getNodeFSRequestService } from './nodeFs';
+import { getNodeFileFS } from './nodeFs';
 import { Disposable, ExtensionContext } from 'vscode';
 import { startClient, LanguageClientConstructor } from '../htmlClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
+import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
 import { TextDecoder } from 'util';
 import * as fs from 'fs';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 
 
 let telemetry: TelemetryReporter | undefined;
+let client: BaseLanguageClient | undefined;
 
 // this method is called when vs code is activated
-export function activate(context: ExtensionContext) {
+export async function activate(context: ExtensionContext) {
 
 	let clientPackageJSON = getPackageInfo(context);
 	telemetry = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
@@ -44,7 +45,14 @@ export function activate(context: ExtensionContext) {
 		}
 	};
 
-	startClient(context, newLanguageClient, { fs: getNodeFSRequestService(), TextDecoder, telemetry, timer });
+	client = await startClient(context, newLanguageClient, { fileFs: getNodeFileFS(), TextDecoder, telemetry, timer });
+}
+
+export async function deactivate(): Promise<void> {
+	if (client) {
+		await client.stop();
+		client = undefined;
+	}
 }
 
 interface IPackageInfo {

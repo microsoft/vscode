@@ -76,9 +76,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			ariaLabel: createWithProfileLabel,
 			accept: () => this._commandService.executeCommand(TerminalCommandId.NewWithProfile)
 		});
-
 		return terminalPicks;
-
 	}
 
 	private _createPick(terminal: ITerminalInstance, terminalIndex: number, filter: string, groupIndex?: number): IPickerQuickAccessItem | undefined {
@@ -97,6 +95,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		if (highlights) {
 			return {
 				label,
+				description: terminal.description,
 				highlights: { label: highlights },
 				buttons: [
 					{

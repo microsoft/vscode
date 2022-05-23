@@ -3,72 +3,140 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasDriveLetter, isRootOrDriveLetter } from 'vs/base/common/extpath';
+import { firstOrDefault } from 'vs/base/common/arrays';
+import { hasDriveLetter, isRootOrDriveLetter, toSlashes } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
-import { normalize, posix, sep, win32 } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { basename, isEqual, relativePath } from 'vs/base/common/resources';
+import { posix, sep, win32 } from 'vs/base/common/path';
+import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
+import { basename, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
-export interface IWorkspaceFolderProvider {
-	getWorkspaceFolder(resource: URI): { uri: URI, name?: string; } | null;
-	getWorkspace(): {
-		folders: { uri: URI, name?: string; }[];
-	};
+export interface IPathLabelFormatting {
+
+	/**
+	 * The OS the path label is from to produce a label
+	 * that matches OS expectations.
+	 */
+	readonly os: OperatingSystem;
+
+	/**
+	 * Whether to add a `~` when the path is in the
+	 * user home directory.
+	 *
+	 * Note: this only applies to Linux, macOS but not
+	 * Windows.
+	 */
+	readonly tildify?: IUserHomeProvider;
+
+	/**
+	 * Whether to convert to a relative path if the path
+	 * is within any of the opened workspace folders.
+	 */
+	readonly relative?: IRelativePathProvider;
+}
+
+export interface IRelativePathProvider {
+
+	/**
+	 * Whether to not add a prefix when in multi-root workspace.
+	 */
+	readonly noPrefix?: boolean;
+
+	getWorkspace(): { folders: { uri: URI; name?: string }[] };
+	getWorkspaceFolder(resource: URI): { uri: URI; name?: string } | null;
 }
 
 export interface IUserHomeProvider {
-	userHome?: URI;
+	userHome: URI;
 }
 
-/**
- * @deprecated use LabelService instead
- */
-export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
-	if (typeof resource === 'string') {
-		resource = URI.file(resource);
-	}
+export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): string {
+	const { os, tildify: tildifier, relative: relatifier } = formatting;
 
-	// return early if we can resolve a relative path label from the root
-	if (rootProvider) {
-		const baseResource = rootProvider.getWorkspaceFolder(resource);
-		if (baseResource) {
-			const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
-
-			let pathLabel: string;
-			if (isEqual(baseResource.uri, resource)) {
-				pathLabel = ''; // no label if paths are identical
-			} else {
-				pathLabel = relativePath(baseResource.uri, resource)!;
-			}
-
-			if (hasMultipleRoots) {
-				const rootName = baseResource.name ? baseResource.name : basename(baseResource.uri);
-				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
-			}
-
-			return pathLabel;
+	// return early with a relative path if we can resolve one
+	if (relatifier) {
+		const relativePath = getRelativePathLabel(resource, relatifier, os);
+		if (typeof relativePath === 'string') {
+			return relativePath;
 		}
 	}
 
-	// return if the resource is neither file:// nor untitled:// and no baseResource was provided
-	if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.untitled) {
-		return resource.with({ query: null, fragment: null }).toString(true);
+	// otherwise try to resolve a absolute path label and
+	// apply target OS standard path separators if target
+	// OS differs from actual OS we are running in
+	let absolutePath = resource.fsPath;
+	if (os === OperatingSystem.Windows && !isWindows) {
+		absolutePath = absolutePath.replace(/\//g, '\\');
+	} else if (os !== OperatingSystem.Windows && isWindows) {
+		absolutePath = absolutePath.replace(/\\/g, '/');
 	}
 
-	// convert c:\something => C:\something
-	if (hasDriveLetter(resource.fsPath)) {
-		return normalize(normalizeDriveLetter(resource.fsPath));
+	// macOS/Linux: tildify with provided user home directory
+	if (os !== OperatingSystem.Windows && tildifier?.userHome) {
+		let userHome = tildifier.userHome.fsPath;
+
+		// This is a bit of a hack, but in order to figure out if the
+		// resource is in the user home, we need to make sure to convert it
+		// to a user home resource. We cannot assume that the resource is
+		// already a user home resource.
+		let userHomeCandidate: string;
+		if (resource.scheme !== tildifier.userHome.scheme && resource.path.startsWith(posix.sep)) {
+			userHomeCandidate = tildifier.userHome.with({ path: resource.path }).fsPath;
+		} else {
+			userHomeCandidate = resource.fsPath;
+		}
+
+		absolutePath = tildify(userHomeCandidate, userHome, os);
 	}
 
-	// normalize and tildify (macOS, Linux only)
-	let res = normalize(resource.fsPath);
-	if (!isWindows && userHomeProvider?.userHome) {
-		res = tildify(res, userHomeProvider.userHome.fsPath);
+	// normalize
+	const pathLib = os === OperatingSystem.Windows ? win32 : posix;
+	return pathLib.normalize(normalizeDriveLetter(absolutePath, os === OperatingSystem.Windows));
+}
+
+function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePathProvider, os: OperatingSystem): string | undefined {
+	const pathLib = os === OperatingSystem.Windows ? win32 : posix;
+	const extUriLib = os === OperatingSystem.Linux ? extUri : extUriIgnorePathCase;
+
+	const workspace = relativePathProvider.getWorkspace();
+	const firstFolder = firstOrDefault(workspace.folders);
+	if (!firstFolder) {
+		return undefined;
 	}
 
-	return res;
+	// This is a bit of a hack, but in order to figure out the folder
+	// the resource belongs to, we need to make sure to convert it
+	// to a workspace resource. We cannot assume that the resource is
+	// already matching the workspace.
+	if (resource.scheme !== firstFolder.uri.scheme && resource.path.startsWith(posix.sep)) {
+		resource = firstFolder.uri.with({ path: resource.path });
+	}
+
+	const folder = relativePathProvider.getWorkspaceFolder(resource);
+	if (!folder) {
+		return undefined;
+	}
+
+	let relativePathLabel: string | undefined = undefined;
+	if (extUriLib.isEqual(folder.uri, resource)) {
+		relativePathLabel = ''; // no label if paths are identical
+	} else {
+		relativePathLabel = extUriLib.relativePath(folder.uri, resource) ?? '';
+	}
+
+	// normalize
+	if (relativePathLabel) {
+		relativePathLabel = pathLib.normalize(relativePathLabel);
+	}
+
+	// always show root basename if there are multiple folders
+	if (workspace.folders.length > 1 && !relativePathProvider.noPrefix) {
+		const rootName = folder.name ? folder.name : extUriLib.basenameOrAuthority(folder.uri);
+		relativePathLabel = relativePathLabel ? `${rootName} • ${relativePathLabel}` : rootName;
+	}
+
+	return relativePathLabel;
 }
 
 export function getBaseLabel(resource: URI | string): string;
@@ -92,30 +160,38 @@ export function getBaseLabel(resource: URI | string | undefined): string | undef
 	return base;
 }
 
-export function normalizeDriveLetter(path: string): string {
-	if (hasDriveLetter(path)) {
+export function normalizeDriveLetter(path: string, isWindowsOS: boolean = isWindows): string {
+	if (hasDriveLetter(path, isWindowsOS)) {
 		return path.charAt(0).toUpperCase() + path.slice(1);
 	}
 
 	return path;
 }
 
-let normalizedUserHomeCached: { original: string; normalized: string; } = Object.create(null);
-export function tildify(path: string, userHome: string): string {
-	if (isWindows || !path || !userHome) {
-		return path; // unsupported
+let normalizedUserHomeCached: { original: string; normalized: string } = Object.create(null);
+export function tildify(path: string, userHome: string, os = OS): string {
+	if (os === OperatingSystem.Windows || !path || !userHome) {
+		return path; // unsupported on Windows
 	}
 
-	// Keep a normalized user home path as cache to prevent accumulated string creation
 	let normalizedUserHome = normalizedUserHomeCached.original === userHome ? normalizedUserHomeCached.normalized : undefined;
 	if (!normalizedUserHome) {
-		normalizedUserHome = `${rtrim(userHome, posix.sep)}${posix.sep}`;
+		normalizedUserHome = userHome;
+		if (isWindows) {
+			normalizedUserHome = toSlashes(normalizedUserHome); // make sure that the path is POSIX normalized on Windows
+		}
+		normalizedUserHome = `${rtrim(normalizedUserHome, posix.sep)}${posix.sep}`;
 		normalizedUserHomeCached = { original: userHome, normalized: normalizedUserHome };
 	}
 
+	let normalizedPath = path;
+	if (isWindows) {
+		normalizedPath = toSlashes(normalizedPath); // make sure that the path is POSIX normalized on Windows
+	}
+
 	// Linux: case sensitive, macOS: case insensitive
-	if (isLinux ? path.startsWith(normalizedUserHome) : startsWithIgnoreCase(path, normalizedUserHome)) {
-		path = `~/${path.substr(normalizedUserHome.length)}`;
+	if (os === OperatingSystem.Linux ? normalizedPath.startsWith(normalizedUserHome) : startsWithIgnoreCase(normalizedPath, normalizedUserHome)) {
+		return `~/${normalizedPath.substr(normalizedUserHome.length)}`;
 	}
 
 	return path;
@@ -163,15 +239,15 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 	// for every path
 	let match = false;
 	for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
-		let path = paths[pathIndex];
+		let originalPath = paths[pathIndex];
 
-		if (path === '') {
+		if (originalPath === '') {
 			shortenedPaths[pathIndex] = `.${pathSeparator}`;
 			continue;
 		}
 
-		if (!path) {
-			shortenedPaths[pathIndex] = path;
+		if (!originalPath) {
+			shortenedPaths[pathIndex] = originalPath;
 			continue;
 		}
 
@@ -179,19 +255,20 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 
 		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc, ~/etc) later
 		let prefix = '';
-		if (path.indexOf(unc) === 0) {
-			prefix = path.substr(0, path.indexOf(unc) + unc.length);
-			path = path.substr(path.indexOf(unc) + unc.length);
-		} else if (path.indexOf(pathSeparator) === 0) {
-			prefix = path.substr(0, path.indexOf(pathSeparator) + pathSeparator.length);
-			path = path.substr(path.indexOf(pathSeparator) + pathSeparator.length);
-		} else if (path.indexOf(home) === 0) {
-			prefix = path.substr(0, path.indexOf(home) + home.length);
-			path = path.substr(path.indexOf(home) + home.length);
+		let trimmedPath = originalPath;
+		if (trimmedPath.indexOf(unc) === 0) {
+			prefix = trimmedPath.substr(0, trimmedPath.indexOf(unc) + unc.length);
+			trimmedPath = trimmedPath.substr(trimmedPath.indexOf(unc) + unc.length);
+		} else if (trimmedPath.indexOf(pathSeparator) === 0) {
+			prefix = trimmedPath.substr(0, trimmedPath.indexOf(pathSeparator) + pathSeparator.length);
+			trimmedPath = trimmedPath.substr(trimmedPath.indexOf(pathSeparator) + pathSeparator.length);
+		} else if (trimmedPath.indexOf(home) === 0) {
+			prefix = trimmedPath.substr(0, trimmedPath.indexOf(home) + home.length);
+			trimmedPath = trimmedPath.substr(trimmedPath.indexOf(home) + home.length);
 		}
 
 		// pick the first shortest subpath found
-		const segments: string[] = path.split(pathSeparator);
+		const segments: string[] = trimmedPath.split(pathSeparator);
 		for (let subpathLength = 1; match && subpathLength <= segments.length; subpathLength++) {
 			for (let start = segments.length - subpathLength; match && start >= 0; start--) {
 				match = false;
@@ -251,7 +328,7 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 		}
 
 		if (match) {
-			shortenedPaths[pathIndex] = path; // use full path if no unique subpaths found
+			shortenedPaths[pathIndex] = originalPath; // use original path if no unique subpaths found
 		}
 	}
 
@@ -279,7 +356,7 @@ interface ISegment {
  * @param value string to which template is applied
  * @param values the values of the templates to use
  */
-export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null; } = Object.create(null)): string {
+export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null } = Object.create(null)): string {
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
@@ -383,7 +460,7 @@ export function unmnemonicLabel(label: string): string {
 /**
  * Splits a path in name and parent path, supporting both '/' and '\'
  */
-export function splitName(fullPath: string): { name: string, parentPath: string; } {
+export function splitName(fullPath: string): { name: string; parentPath: string } {
 	const p = fullPath.indexOf('/') !== -1 ? posix : win32;
 	const name = p.basename(fullPath);
 	const parentPath = p.dirname(fullPath);

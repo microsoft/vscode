@@ -19,9 +19,10 @@ import { getOrDefault } from 'vs/base/common/objects';
 import { IRange, Range } from 'vs/base/common/range';
 import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffect } from './list';
-import { RangeMap, shift } from './rangeMap';
-import { IRow, RowCache } from './rowCache';
+import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
+import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
+import { IObservableValue } from 'vs/base/common/observableValue';
 
 interface IItem<T> {
 	readonly id: string;
@@ -35,6 +36,7 @@ interface IItem<T> {
 	uri: string | undefined;
 	dropTarget: boolean;
 	dragStartDisposable: IDisposable;
+	checkedDisposable: IDisposable;
 }
 
 export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
@@ -45,7 +47,7 @@ export interface IListViewAccessibilityProvider<T> {
 	getSetSize?(element: T, index: number, listLength: number): number;
 	getPosInSet?(element: T, index: number): number;
 	getRole?(element: T): string | undefined;
-	isChecked?(element: T): boolean | undefined;
+	isChecked?(element: T): boolean | IObservableValue<boolean> | undefined;
 }
 
 export interface IListViewOptionsUpdate {
@@ -174,7 +176,7 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
 	readonly getSetSize: (element: any, index: number, listLength: number) => number;
 	readonly getPosInSet: (element: any, index: number) => number;
 	readonly getRole: (element: T) => string | undefined;
-	readonly isChecked: (element: T) => boolean | undefined;
+	readonly isChecked: (element: T) => boolean | IObservableValue<boolean> | undefined;
 
 	constructor(accessibilityProvider?: IListViewAccessibilityProvider<T>) {
 		if (accessibilityProvider?.getSetSize) {
@@ -203,6 +205,16 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
 	}
 }
 
+/**
+ * The {@link ListView} is a virtual scrolling engine.
+ *
+ * Given that it only renders elements within its viewport, it can hold large
+ * collections of elements and stay very performant. The performance bottleneck
+ * usually lies within the user's rendering code for each element.
+ *
+ * @remarks It is a low-level widget, not meant to be used directly. Refer to the
+ * List widget instead.
+ */
 export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private static InstanceCount = 0;
@@ -251,6 +263,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	get onDidScroll(): Event<ScrollEvent> { return this.scrollableElement.onScroll; }
 	get onWillScroll(): Event<ScrollEvent> { return this.scrollableElement.onWillScroll; }
 	get containerDomNode(): HTMLElement { return this.rowsContainer; }
+	get scrollableElementDomNode(): HTMLElement { return this.scrollableElement.getDomNode(); }
 
 	private _horizontalScrolling: boolean = false;
 	private get horizontalScrolling(): boolean { return this._horizontalScrolling; }
@@ -329,7 +342,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));
 
-		this.scrollable = new Scrollable(getOrDefault(options, o => o.smoothScrolling, false) ? 125 : 0, cb => scheduleAtNextAnimationFrame(cb));
+		this.scrollable = new Scrollable({
+			forceIntegerValues: true,
+			smoothScrollDuration: getOrDefault(options, o => o.smoothScrolling, false) ? 125 : 0,
+			scheduleAtNextAnimationFrame: cb => scheduleAtNextAnimationFrame(cb)
+		});
 		this.scrollableElement = this.disposables.add(new SmoothScrollableElement(this.rowsContainer, {
 			alwaysConsumeMouseWheel: getOrDefault(options, o => o.alwaysConsumeMouseWheel, DefaultOptions.alwaysConsumeMouseWheel),
 			horizontal: ScrollbarVisibility.Auto,
@@ -462,9 +479,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		// try to reuse rows, avoid removing them from DOM
 		const rowsToDispose = new Map<string, IRow[]>();
-		for (let i = removeRange.start; i < removeRange.end; i++) {
+		for (let i = removeRange.end - 1; i >= removeRange.start; i--) {
 			const item = this.items[i];
 			item.dragStartDisposable.dispose();
+			item.checkedDisposable.dispose();
 
 			if (item.row) {
 				let rows = rowsToDispose.get(item.templateId);
@@ -501,7 +519,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			row: null,
 			uri: undefined,
 			dropTarget: false,
-			dragStartDisposable: Disposable.None
+			dragStartDisposable: Disposable.None,
+			checkedDisposable: Disposable.None
 		}));
 
 		let deleted: IItem<T>[];
@@ -769,8 +788,13 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		item.row.domNode.setAttribute('role', role);
 
 		const checked = this.accessibilityProvider.isChecked(item.element);
-		if (typeof checked !== 'undefined') {
-			item.row.domNode.setAttribute('aria-checked', String(!!checked));
+
+		if (typeof checked === 'boolean') {
+			item.row!.domNode.setAttribute('aria-checked', String(!!checked));
+		} else if (checked) {
+			const update = (checked: boolean) => item.row!.domNode.setAttribute('aria-checked', String(!!checked));
+			update(checked.value);
+			item.checkedDisposable = checked.onDidChange(update);
 		}
 
 		if (!item.row.domNode.parentElement) {
@@ -851,6 +875,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private removeItemFromDOM(index: number): void {
 		const item = this.items[index];
 		item.dragStartDisposable.dispose();
+		item.checkedDisposable.dispose();
 
 		if (item.row) {
 			const renderer = this.renderers.get(item.templateId);

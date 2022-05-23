@@ -11,6 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as platform from 'vs/platform/registry/common/platform';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
@@ -51,6 +52,10 @@ export namespace ThemeIcon {
 		return { id: name };
 	}
 
+	export function fromId(id: string): ThemeIcon {
+		return { id };
+	}
+
 	export function modify(icon: ThemeIcon, modifier: 'disabled' | 'spin' | undefined): ThemeIcon {
 		let id = icon.id;
 		const tildeIndex = id.lastIndexOf('~');
@@ -61,6 +66,14 @@ export namespace ThemeIcon {
 			id = `${id}~${modifier}`;
 		}
 		return { id };
+	}
+
+	export function getModifier(icon: ThemeIcon): string | undefined {
+		const tildeIndex = icon.id.lastIndexOf('~');
+		if (tildeIndex !== -1) {
+			return icon.id.substring(tildeIndex + 1);
+		}
+		return undefined;
 	}
 
 	export function isEqual(ti1: ThemeIcon, ti2: ThemeIcon): boolean {
@@ -82,16 +95,18 @@ export const FolderThemeIcon = Codicon.folder;
 export function getThemeTypeSelector(type: ColorScheme): string {
 	switch (type) {
 		case ColorScheme.DARK: return 'vs-dark';
-		case ColorScheme.HIGH_CONTRAST: return 'hc-black';
+		case ColorScheme.HIGH_CONTRAST_DARK: return 'hc-black';
+		case ColorScheme.HIGH_CONTRAST_LIGHT: return 'hc-light';
 		default: return 'vs';
 	}
 }
 
 export interface ITokenStyle {
-	readonly foreground?: number;
-	readonly bold?: boolean;
-	readonly underline?: boolean;
-	readonly italic?: boolean;
+	readonly foreground: number | undefined;
+	readonly bold: boolean | undefined;
+	readonly underline: boolean | undefined;
+	readonly strikethrough: boolean | undefined;
+	readonly italic: boolean | undefined;
 }
 
 export interface IColorTheme {
@@ -136,6 +151,16 @@ export interface IFileIconTheme {
 	readonly hidesExplorerArrows: boolean;
 }
 
+export interface IProductIconTheme {
+	/**
+	 * Resolves the definition for the given icon as defined by the theme.
+	 *
+	 * @param iconContribution The icon
+	 */
+	getIcon(iconContribution: IconContribution): IconDefinition | undefined;
+}
+
+
 export interface ICssStyleCollector {
 	addRule(rule: string): void;
 }
@@ -154,6 +179,10 @@ export interface IThemeService {
 	getFileIconTheme(): IFileIconTheme;
 
 	readonly onDidFileIconThemeChange: Event<IFileIconTheme>;
+
+	getProductIconTheme(): IProductIconTheme;
+
+	readonly onDidProductIconThemeChange: Event<IProductIconTheme>;
 
 }
 
@@ -244,4 +273,29 @@ export class Themable extends Disposable {
 
 		return color ? color.toString() : null;
 	}
+}
+
+export interface IPartsSplash {
+	baseTheme: string;
+	colorInfo: {
+		background: string;
+		foreground: string | undefined;
+		editorBackground: string | undefined;
+		titleBarBackground: string | undefined;
+		activityBarBackground: string | undefined;
+		sideBarBackground: string | undefined;
+		statusBarBackground: string | undefined;
+		statusBarNoFolderBackground: string | undefined;
+		windowBorder: string | undefined;
+	};
+	layoutInfo: {
+		sideBarSide: string;
+		editorPartMinWidth: number;
+		titleBarHeight: number;
+		activityBarWidth: number;
+		sideBarWidth: number;
+		statusBarHeight: number;
+		windowBorder: boolean;
+		windowBorderRadius: string | undefined;
+	} | undefined;
 }

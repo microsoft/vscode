@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
-import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { computeIndentLevel } from 'vs/editor/common/model/utils';
+import { MetadataConsts } from 'vs/editor/common/languages';
+import { TestLineToken, TestLineTokenFactory } from 'vs/editor/test/common/core/testLineToken';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 interface ILineEdit {
 	startColumn: number;
@@ -20,7 +20,7 @@ interface ILineEdit {
 function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 	let tmp = TestToken.toTokens(_expected);
 	LineTokens.convertToEndOffset(tmp, __actual.getLineContent().length);
-	let expected = ViewLineTokenFactory.inflateArr(tmp);
+	let expected = TestLineTokenFactory.inflateArr(tmp);
 	let _actual = __actual.inflate();
 	interface ITestToken {
 		endIndex: number;
@@ -33,7 +33,7 @@ function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 			type: _actual.getClassName(i)
 		};
 	}
-	let decode = (token: ViewLineToken) => {
+	let decode = (token: TestLineToken) => {
 		return {
 			endIndex: token.endIndex,
 			type: token.getType()
@@ -44,7 +44,7 @@ function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 
 suite('ModelLine - getIndentLevel', () => {
 	function assertIndentLevel(text: string, expected: number, tabSize: number = 4): void {
-		let actual = TextModel.computeIndentLevel(text, tabSize);
+		let actual = computeIndentLevel(text, tabSize);
 		assert.strictEqual(actual, expected, text);
 	}
 
@@ -107,7 +107,7 @@ suite('ModelLinesTokens', () => {
 
 	function testApplyEdits(initial: IBufferLineState[], edits: IEdit[], expected: IBufferLineState[]): void {
 		const initialText = initial.map(el => el.text).join('\n');
-		const model = createTextModel(initialText, TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		const model = createTextModel(initialText, 'test');
 		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
 			const lineTokens = initial[lineIndex].tokens;
 			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
@@ -125,10 +125,12 @@ suite('ModelLinesTokens', () => {
 
 		for (let lineIndex = 0; lineIndex < expected.length; lineIndex++) {
 			const actualLine = model.getLineContent(lineIndex + 1);
-			const actualTokens = model.getLineTokens(lineIndex + 1);
+			const actualTokens = model.tokenization.getLineTokens(lineIndex + 1);
 			assert.strictEqual(actualLine, expected[lineIndex].text);
 			assertLineTokens(actualTokens, expected[lineIndex].tokens);
 		}
+
+		model.dispose();
 	}
 
 	test('single delete 1', () => {
@@ -443,7 +445,7 @@ suite('ModelLinesTokens', () => {
 	}
 
 	test('insertion on empty line', () => {
-		const model = createTextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		const model = createTextModel('some text', 'test');
 		const tokens = TestToken.toTokens([new TestToken(0, 1)]);
 		LineTokens.convertToEndOffset(tokens, model.getLineMaxColumn(1) - 1);
 		model.setLineTokens(1, tokens);
@@ -460,8 +462,10 @@ suite('ModelLinesTokens', () => {
 			text: 'a'
 		}]);
 
-		const actualTokens = model.getLineTokens(1);
+		const actualTokens = model.tokenization.getLineTokens(1);
 		assertLineTokens(actualTokens, [new TestToken(0, 1)]);
+
+		model.dispose();
 	});
 
 	test('updates tokens on insertion 1', () => {

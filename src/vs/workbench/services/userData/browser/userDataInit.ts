@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { AbstractExtensionsInitializer, getExtensionStorageState, IExtensionsInitializerPreviewResult, storeExtensionStorageState } from 'vs/platform/userDataSync/common/extensionsSync';
+import { AbstractExtensionsInitializer, IExtensionsInitializerPreviewResult } from 'vs/platform/userDataSync/common/extensionsSync';
 import { GlobalStateInitializer, UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
 import { KeybindingsInitializer } from 'vs/platform/userDataSync/common/keybindingsSync';
 import { SettingsInitializer } from 'vs/platform/userDataSync/common/settingsSync';
@@ -33,6 +33,10 @@ import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/co
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { TasksInitializer } from 'vs/platform/userDataSync/common/tasksSync';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -55,12 +59,14 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		this.createUserDataSyncStoreClient().then(userDataSyncStoreClient => {
 			if (!userDataSyncStoreClient) {
@@ -89,14 +95,9 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 						return;
 					}
 
-					if (!this.environmentService.options?.credentialsProvider) {
-						this.logService.trace(`Skipping initializing user data as credentials provider is not provided`);
-						return;
-					}
-
 					let authenticationSession;
 					try {
-						authenticationSession = await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService);
+						authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
 					} catch (error) {
 						this.logService.error(error);
 					}
@@ -185,7 +186,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 	async initializeOtherResources(instantiationService: IInstantiationService): Promise<void> {
 		try {
 			this.logService.trace(`UserDataInitializationService#initializeOtherResources`);
-			await Promise.allSettled([this.initialize([SyncResource.Keybindings, SyncResource.Snippets]), this.initializeExtensions(instantiationService)]);
+			await Promise.allSettled([this.initialize([SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks]), this.initializeExtensions(instantiationService)]);
 		} finally {
 			this.initializationFinished.open();
 		}
@@ -269,10 +270,11 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 
 	private createSyncResourceInitializer(syncResource: SyncResource): IUserDataInitializer {
 		switch (syncResource) {
-			case SyncResource.Settings: return new SettingsInitializer(this.fileService, this.environmentService, this.logService);
-			case SyncResource.Keybindings: return new KeybindingsInitializer(this.fileService, this.environmentService, this.logService);
-			case SyncResource.Snippets: return new SnippetsInitializer(this.fileService, this.environmentService, this.logService);
-			case SyncResource.GlobalState: return new GlobalStateInitializer(this.storageService, this.fileService, this.environmentService, this.logService);
+			case SyncResource.Settings: return new SettingsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.Keybindings: return new KeybindingsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.Tasks: return new TasksInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.Snippets: return new SnippetsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.GlobalState: return new GlobalStateInitializer(this.storageService, this.fileService, this.environmentService, this.logService, this.uriIdentityService);
 		}
 		throw new Error(`Cannot create initializer for ${syncResource}`);
 	}
@@ -291,8 +293,9 @@ class ExtensionsPreviewInitializer extends AbstractExtensionsInitializer {
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(extensionManagementService, ignoredExtensionsManagementService, fileService, environmentService, logService);
+		super(extensionManagementService, ignoredExtensionsManagementService, fileService, environmentService, logService, uriIdentityService);
 	}
 
 	getPreview(): Promise<IExtensionsInitializerPreviewResult | null> {
@@ -322,7 +325,7 @@ class InstalledExtensionsInitializer implements IUserDataInitializer {
 	constructor(
 		private readonly extensionsPreviewInitializer: ExtensionsPreviewInitializer,
 		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionStorageService private readonly extensionStorageService: IExtensionStorageService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 	) {
 	}
@@ -337,9 +340,9 @@ class InstalledExtensionsInitializer implements IUserDataInitializer {
 		for (const installedExtension of preview.installedExtensions) {
 			const syncExtension = preview.remoteExtensions.find(({ identifier }) => areSameExtensions(identifier, installedExtension.identifier));
 			if (syncExtension?.state) {
-				const extensionState = getExtensionStorageState(installedExtension.manifest.publisher, installedExtension.manifest.name, this.storageService);
+				const extensionState = this.extensionStorageService.getExtensionState(installedExtension, true) || {};
 				Object.keys(syncExtension.state).forEach(key => extensionState[key] = syncExtension.state![key]);
-				storeExtensionStorageState(installedExtension.manifest.publisher, installedExtension.manifest.name, extensionState, this.storageService);
+				this.extensionStorageService.setExtensionState(installedExtension, extensionState, true);
 			}
 		}
 
@@ -359,7 +362,7 @@ class NewExtensionsInitializer implements IUserDataInitializer {
 	constructor(
 		private readonly extensionsPreviewInitializer: ExtensionsPreviewInitializer,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionStorageService private readonly extensionStorageService: IExtensionStorageService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
@@ -373,15 +376,8 @@ class NewExtensionsInitializer implements IUserDataInitializer {
 		}
 
 		const newlyEnabledExtensions: ILocalExtension[] = [];
-		const uuids: string[] = [], names: string[] = [];
-		for (const { uuid, id } of preview.newExtensions) {
-			if (uuid) {
-				uuids.push(uuid);
-			} else {
-				names.push(id);
-			}
-		}
-		const galleryExtensions = (await this.galleryService.query({ ids: uuids, names: names, pageSize: uuids.length + names.length }, CancellationToken.None)).firstPage;
+		const targetPlatform = await this.extensionManagementService.getTargetPlatform();
+		const galleryExtensions = await this.galleryService.getExtensions(preview.newExtensions, { targetPlatform, compatible: true }, CancellationToken.None);
 		for (const galleryExtension of galleryExtensions) {
 			try {
 				const extensionToSync = preview.remoteExtensions.find(({ identifier }) => areSameExtensions(identifier, galleryExtension.identifier));
@@ -389,10 +385,10 @@ class NewExtensionsInitializer implements IUserDataInitializer {
 					continue;
 				}
 				if (extensionToSync.state) {
-					storeExtensionStorageState(galleryExtension.publisher, galleryExtension.name, extensionToSync.state, this.storageService);
+					this.extensionStorageService.setExtensionState(galleryExtension, extensionToSync.state, true);
 				}
 				this.logService.trace(`Installing extension...`, galleryExtension.identifier.id);
-				const local = await this.extensionManagementService.installFromGallery(galleryExtension, { isMachineScoped: false, donotIncludePackAndDependencies: true } /* pass options to prevent install and sync dialog in web */);
+				const local = await this.extensionManagementService.installFromGallery(galleryExtension, { isMachineScoped: false, donotIncludePackAndDependencies: true, installPreReleaseVersion: extensionToSync.preRelease } /* set isMachineScoped to prevent install and sync dialog in web */);
 				if (!preview.disabledExtensions.some(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
 					newlyEnabledExtensions.push(local);
 				}

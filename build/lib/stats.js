@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.submitAllStats = exports.createStatsStream = void 0;
+exports.createStatsStream = void 0;
 const es = require("event-stream");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
@@ -71,67 +71,3 @@ function createStatsStream(group, log) {
     });
 }
 exports.createStatsStream = createStatsStream;
-function submitAllStats(productJson, commit) {
-    const appInsights = require('applicationinsights');
-    const sorted = [];
-    // move entries for single files to the front
-    _entries.forEach(value => {
-        if (value.totalCount === 1) {
-            sorted.unshift(value);
-        }
-        else {
-            sorted.push(value);
-        }
-    });
-    // print to console
-    for (const entry of sorted) {
-        console.log(entry.toString(true));
-    }
-    // send data as telementry event when the
-    // product is configured to send telemetry
-    if (!productJson || !productJson.aiConfig || typeof productJson.aiConfig.asimovKey !== 'string') {
-        return Promise.resolve(false);
-    }
-    return new Promise(resolve => {
-        try {
-            const sizes = {};
-            const counts = {};
-            for (const entry of sorted) {
-                sizes[entry.name] = entry.totalSize;
-                counts[entry.name] = entry.totalCount;
-            }
-            appInsights.setup(productJson.aiConfig.asimovKey)
-                .setAutoCollectConsole(false)
-                .setAutoCollectExceptions(false)
-                .setAutoCollectPerformance(false)
-                .setAutoCollectRequests(false)
-                .setAutoCollectDependencies(false)
-                .setAutoDependencyCorrelation(false)
-                .start();
-            appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
-            /* __GDPR__
-                "monacoworkbench/packagemetrics" : {
-                    "commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-                    "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-                    "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-                }
-            */
-            appInsights.defaultClient.trackEvent({
-                name: 'monacoworkbench/packagemetrics',
-                properties: { commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) }
-            });
-            appInsights.defaultClient.flush({
-                callback: () => {
-                    appInsights.dispose();
-                    resolve(true);
-                }
-            });
-        }
-        catch (err) {
-            console.error('ERROR sending build stats as telemetry event!');
-            console.error(err);
-            resolve(false);
-        }
-    });
-}
-exports.submitAllStats = submitAllStats;

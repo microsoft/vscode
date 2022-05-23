@@ -7,7 +7,7 @@
 	border-radius: 5px;
 }
 .monaco-workbench .kernel-action-view-item:hover {
-	background-color: var(--code-toolbarHoverBackground);
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .monaco-workbench .kernel-action-view-item .action-label {

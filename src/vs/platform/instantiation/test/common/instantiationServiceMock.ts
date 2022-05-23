@@ -5,7 +5,7 @@
 
 import * as sinon from 'sinon';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 interface IServiceMock<T> {
@@ -19,14 +19,14 @@ export class TestInstantiationService extends InstantiationService {
 
 	private _servciesMap: Map<ServiceIdentifier<any>, any>;
 
-	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection()) {
-		super(_serviceCollection);
+	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false) {
+		super(_serviceCollection, strict);
 
 		this._servciesMap = new Map<ServiceIdentifier<any>, any>();
 	}
 
 	public get<T>(service: ServiceIdentifier<T>): T {
-		return <T>this._serviceCollection.get(service);
+		return super._getOrCreateServiceInstance(service, Trace.traceCreation(TestInstantiationService));
 	}
 
 	public set<T>(service: ServiceIdentifier<T>, instance: T): T {

@@ -9,8 +9,9 @@ import type * as Proto from '../../protocol';
 import * as PConst from '../../protocol.const';
 import { CachedResponse } from '../../tsServer/cachedResponse';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
+import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
 import { DocumentSelector } from '../../utils/documentSelector';
+import { LanguageDescription } from '../../utils/languageDescription';
 import * as typeConverters from '../../utils/typeConverters';
 import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
@@ -67,8 +68,8 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	protected extractSymbol(
 		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
-		_parent: Proto.NavigationTree | null
-	): vscode.Range | null {
+		_parent: Proto.NavigationTree | undefined
+	): vscode.Range | undefined {
 		switch (item.kind) {
 			case PConst.Kind.interface:
 				return getSymbolRange(document, item);
@@ -83,18 +84,18 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 				}
 				break;
 		}
-		return null;
+		return undefined;
 	}
 }
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return conditionalRegistration([
-		requireConfiguration(modeId, 'implementationsCodeLens.enabled'),
+		requireGlobalConfiguration(language.id, 'implementationsCodeLens.enabled'),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeLensProvider(selector.semantic,
