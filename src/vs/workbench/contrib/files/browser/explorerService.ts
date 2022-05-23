@@ -156,7 +156,7 @@ export class ExplorerService implements IExplorerService {
 
 		const items = new Set<ExplorerItem>(this.view.getContext(respectMultiSelection));
 		items.forEach(item => {
-			if (this.view?.isItemCollapsed(item) && item.nestedChildren) {
+			if (respectMultiSelection && this.view?.isItemCollapsed(item) && item.nestedChildren) {
 				for (const child of item.nestedChildren) {
 					items.add(child);
 				}

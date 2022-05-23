@@ -979,7 +979,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
-		const ariaLabel = this.ariaLabel || this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+
+		let ariaLabel = this.ariaLabel;
+		if (!ariaLabel) {
+			ariaLabel = this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+			// If we have a title, include it in the aria label.
+			if (this.title) {
+				ariaLabel += ` - ${this.title}`;
+			}
+		}
 		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
 			this.ui.inputBox.ariaLabel = ariaLabel;
 		}

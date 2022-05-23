@@ -9,7 +9,8 @@ import {
 import { URI } from 'vscode-uri';
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position, CSSFormatConfiguration } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { formatError, runSafeAsync } from './utils/runner';
+import { runSafeAsync } from './utils/runner';
+import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
 import { getDocumentContext } from './utils/documentContext';
 import { fetchDataProviders } from './customData';
 import { RequestService, getRequestService } from './requests';
@@ -56,6 +57,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	let dataProvidersReady: Promise<any> = Promise.resolve();
 
+	let diagnosticsSupport: DiagnosticsSupport | undefined;
+
 	const languageServices: { [id: string]: LanguageService } = {};
 
 	const notReady = () => Promise.reject('Not Ready');
@@ -91,11 +94,19 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		const snippetSupport = !!getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
 		scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 		foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+
 		formatterMaxNumberOfEdits = initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 
 		languageServices.css = getCSSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
 		languageServices.scss = getSCSSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
 		languageServices.less = getLESSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
+
+		const supportsDiagnosticPull = getClientCapability('textDocument.diagnostic', undefined);
+		if (supportsDiagnosticPull === undefined) {
+			diagnosticsSupport = registerDiagnosticsPushSupport(documents, connection, runtime, validateTextDocument);
+		} else {
+			diagnosticsSupport = registerDiagnosticsPullSupport(documents, connection, runtime, validateTextDocument);
+		}
 
 		const capabilities: ServerCapabilities = {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
@@ -113,6 +124,11 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			colorProvider: {},
 			foldingRangeProvider: true,
 			selectionRangeProvider: true,
+			diagnosticProvider: {
+				documentSelector: null,
+				interFileDependencies: false,
+				workspaceDiagnostics: false
+			},
 			documentRangeFormattingProvider: initializationOptions?.provideFormatter === true,
 			documentFormattingProvider: initializationOptions?.provideFormatter === true,
 		};
@@ -157,53 +173,16 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}
 		// reset all document settings
 		documentSettings = {};
-		// Revalidate any open text documents
-		documents.all().forEach(triggerValidation);
+		diagnosticsSupport?.requestRefresh();
 	}
 
-	const pendingValidationRequests: { [uri: string]: Disposable } = {};
-	const validationDelayMs = 500;
-
-	// The content of a text document has changed. This event is emitted
-	// when the text document first opened or when its content has changed.
-	documents.onDidChangeContent(change => {
-		triggerValidation(change.document);
-	});
-
-	// a document has closed: clear all diagnostics
-	documents.onDidClose(event => {
-		cleanPendingValidation(event.document);
-		connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
-	});
-
-	function cleanPendingValidation(textDocument: TextDocument): void {
-		const request = pendingValidationRequests[textDocument.uri];
-		if (request) {
-			request.dispose();
-			delete pendingValidationRequests[textDocument.uri];
-		}
-	}
-
-	function triggerValidation(textDocument: TextDocument): void {
-		cleanPendingValidation(textDocument);
-		pendingValidationRequests[textDocument.uri] = runtime.timer.setTimeout(() => {
-			delete pendingValidationRequests[textDocument.uri];
-			validateTextDocument(textDocument);
-		}, validationDelayMs);
-	}
-
-	function validateTextDocument(textDocument: TextDocument): void {
+	async function validateTextDocument(textDocument: TextDocument): Promise<Diagnostic[]> {
 		const settingsPromise = getDocumentSettings(textDocument);
-		Promise.all([settingsPromise, dataProvidersReady]).then(async ([settings]) => {
-			const stylesheet = stylesheets.get(textDocument);
-			const diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings) as Diagnostic[];
-			// Send the computed diagnostics to VSCode.
-			connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-		}, e => {
-			connection.console.error(formatError(`Error while validating ${textDocument.uri}`, e));
-		});
-	}
+		const [settings] = await Promise.all([settingsPromise, dataProvidersReady]);
 
+		const stylesheet = stylesheets.get(textDocument);
+		return getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings);
+	}
 
 	function updateDataProviders(dataPaths: string[]) {
 		dataProvidersReady = fetchDataProviders(dataPaths, requestService).then(customDataProviders => {
