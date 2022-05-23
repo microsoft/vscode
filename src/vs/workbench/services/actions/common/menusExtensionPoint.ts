@@ -191,13 +191,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'interactive/toolbar',
 		id: MenuId.InteractiveToolbar,
 		description: localize('interactive.toolbar', "The contributed interactive toolbar menu"),
-		proposed: 'notebookEditor'
 	},
 	{
 		key: 'interactive/cell/title',
 		id: MenuId.InteractiveCellTitle,
 		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
-		proposed: 'notebookEditor'
 	},
 	{
 		key: 'testing/item/context',
