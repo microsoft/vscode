@@ -95,6 +95,12 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 			toggleQuickFix(viewModel.quickFixAction.enabled);
 
 			quickFixAction.onDidChange(({ enabled }) => toggleQuickFix(enabled));
+			quickFixAction.onShowQuickFixes(() => {
+				const quickFixActionViewItem = <QuickFixActionViewItem>templateData.actionBar.viewItems[0];
+				if (quickFixActionViewItem) {
+					quickFixActionViewItem.showQuickFixes();
+				}
+			});
 		}
 	}
 
