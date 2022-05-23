@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/ff64523c94c014d68f5dec189b05557649c5872a",
+	"version": "https://github.com/atom/language-php/commit/eb28b8aea1214dcbc732f3d9b9ed20c089c648bd",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -12,62 +12,6 @@
 		},
 		{
 			"include": "#comments"
-		},
-		{
-			"begin": "(?i)^\\s*(interface)\\s+([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)\\s*(extends)?\\s*",
-			"beginCaptures": {
-				"1": {
-					"name": "storage.type.interface.php"
-				},
-				"2": {
-					"name": "entity.name.type.interface.php"
-				},
-				"3": {
-					"name": "storage.modifier.extends.php"
-				}
-			},
-			"end": "(?i)((?:[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*\\s*,\\s*)*)([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)?\\s*(?:(?={)|$)",
-			"endCaptures": {
-				"1": {
-					"patterns": [
-						{
-							"match": "(?i)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*",
-							"name": "entity.other.inherited-class.php"
-						},
-						{
-							"match": ",",
-							"name": "punctuation.separator.classes.php"
-						}
-					]
-				},
-				"2": {
-					"name": "entity.other.inherited-class.php"
-				}
-			},
-			"name": "meta.interface.php",
-			"patterns": [
-				{
-					"include": "#namespace"
-				}
-			]
-		},
-		{
-			"begin": "(?i)^\\s*(trait)\\s+([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)",
-			"beginCaptures": {
-				"1": {
-					"name": "storage.type.trait.php"
-				},
-				"2": {
-					"name": "entity.name.type.trait.php"
-				}
-			},
-			"end": "(?={)",
-			"name": "meta.trait.php",
-			"patterns": [
-				{
-					"include": "#comments"
-				}
-			]
 		},
 		{
 			"match": "(?i)(?:^|(?<=<\\?php))\\s*(namespace)\\s+([a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)(?=\\s*;)",
@@ -233,6 +177,149 @@
 			]
 		},
 		{
+			"begin": "(?ix)\n\\b(trait)\\s+([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.type.trait.php"
+				},
+				"2": {
+					"name": "entity.name.type.trait.php"
+				}
+			},
+			"end": "}|(?=\\?>)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.trait.end.bracket.curly.php"
+				}
+			},
+			"name": "meta.trait.php",
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.trait.begin.bracket.curly.php"
+						}
+					},
+					"end": "(?=}|\\?>)",
+					"contentName": "meta.trait.body.php",
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
+				}
+			]
+		},
+		{
+			"begin": "(?ix)\n\\b(interface)\\s+([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.type.interface.php"
+				},
+				"2": {
+					"name": "entity.name.type.interface.php"
+				}
+			},
+			"end": "}|(?=\\?>)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.interface.end.bracket.curly.php"
+				}
+			},
+			"name": "meta.interface.php",
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#interface-extends"
+				},
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.interface.begin.bracket.curly.php"
+						}
+					},
+					"end": "(?=}|\\?>)",
+					"contentName": "meta.interface.body.php",
+					"patterns": [
+						{
+							"include": "#class-constant"
+						},
+						{
+							"include": "$self"
+						}
+					]
+				}
+			]
+		},
+		{
+			"begin": "(?ix)\n\\b(enum)\\s+([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)\n(?: \\s* (:) \\s* (int | string) \\b )?",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.type.enum.php"
+				},
+				"2": {
+					"name": "entity.name.type.enum.php"
+				},
+				"3": {
+					"name": "keyword.operator.return-value.php"
+				},
+				"4": {
+					"name": "keyword.other.type.php"
+				}
+			},
+			"end": "}|(?=\\?>)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.enum.end.bracket.curly.php"
+				}
+			},
+			"name": "meta.enum.php",
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#class-implements"
+				},
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.enum.begin.bracket.curly.php"
+						}
+					},
+					"end": "(?=}|\\?>)",
+					"contentName": "meta.enum.body.php",
+					"patterns": [
+						{
+							"match": "(?i)\\b(case)\\s*([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)",
+							"captures": {
+								"1": {
+									"name": "storage.modifier.php"
+								},
+								"2": {
+									"name": "constant.enum.php"
+								}
+							}
+						},
+						{
+							"include": "#class-constant"
+						},
+						{
+							"include": "$self"
+						}
+					]
+				}
+			]
+		},
+		{
 			"begin": "(?ix)\n(?:\n  \\b(?:(abstract|final)\\s+)?(class)\\s+([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)\n  |\\b(new)\\b\\s*(\\#\\[.*\\])?\\s*\\b(class)\\b # anonymous class\n)",
 			"beginCaptures": {
 				"1": {
@@ -267,88 +354,36 @@
 			"name": "meta.class.php",
 			"patterns": [
 				{
+					"begin": "(?<=class)\\s*(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.arguments.begin.bracket.round.php"
+						}
+					},
+					"end": "\\)|(?=\\?>)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.arguments.end.bracket.round.php"
+						}
+					},
+					"name": "meta.function-call.php",
+					"patterns": [
+						{
+							"include": "#named-arguments"
+						},
+						{
+							"include": "$self"
+						}
+					]
+				},
+				{
 					"include": "#comments"
 				},
 				{
-					"begin": "(?i)(extends)\\s+",
-					"beginCaptures": {
-						"1": {
-							"name": "storage.modifier.extends.php"
-						}
-					},
-					"contentName": "meta.other.inherited-class.php",
-					"end": "(?i)(?=[^a-z0-9_\\x{7f}-\\x{10ffff}\\\\])",
-					"patterns": [
-						{
-							"begin": "(?i)(?=\\\\?[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*\\\\)",
-							"end": "(?i)([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)?(?=[^a-z0-9_\\x{7f}-\\x{10ffff}\\\\])",
-							"endCaptures": {
-								"1": {
-									"name": "entity.other.inherited-class.php"
-								}
-							},
-							"patterns": [
-								{
-									"include": "#namespace"
-								}
-							]
-						},
-						{
-							"include": "#class-builtin"
-						},
-						{
-							"include": "#namespace"
-						},
-						{
-							"match": "(?i)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*",
-							"name": "entity.other.inherited-class.php"
-						}
-					]
+					"include": "#class-extends"
 				},
 				{
-					"begin": "(?i)(implements)\\s+",
-					"beginCaptures": {
-						"1": {
-							"name": "storage.modifier.implements.php"
-						}
-					},
-					"end": "(?i)(?=[;{])",
-					"patterns": [
-						{
-							"include": "#comments"
-						},
-						{
-							"begin": "(?i)(?=[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)",
-							"contentName": "meta.other.inherited-class.php",
-							"end": "(?i)(?:\\s*(?:,|(?=[^a-z0-9_\\x{7f}-\\x{10ffff}\\\\\\s]))\\s*)",
-							"patterns": [
-								{
-									"begin": "(?i)(?=\\\\?[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*\\\\)",
-									"end": "(?i)([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)?(?=[^a-z0-9_\\x{7f}-\\x{10ffff}\\\\])",
-									"endCaptures": {
-										"1": {
-											"name": "entity.other.inherited-class.php"
-										}
-									},
-									"patterns": [
-										{
-											"include": "#namespace"
-										}
-									]
-								},
-								{
-									"include": "#class-builtin"
-								},
-								{
-									"include": "#namespace"
-								},
-								{
-									"match": "(?i)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*",
-									"name": "entity.other.inherited-class.php"
-								}
-							]
-						}
-					]
+					"include": "#class-implements"
 				},
 				{
 					"begin": "{",
@@ -360,6 +395,9 @@
 					"end": "(?=}|\\?>)",
 					"contentName": "meta.class.body.php",
 					"patterns": [
+						{
+							"include": "#class-constant"
+						},
 						{
 							"include": "$self"
 						}
@@ -382,7 +420,7 @@
 			}
 		},
 		{
-			"match": "(?x)\n\\s* # FIXME: Removing this causes specs to fail. Investigate.\n\\b(\n  break|case|continue|declare|default|die|do|\n  else(if)?|end(declare|for(each)?|if|switch|while)|exit|\n  for(each)?|if|return|switch|use|while|yield\n)\\b",
+			"match": "(?x)\n\\b(\n  break|case|continue|declare|default|die|do|\n  else(if)?|end(declare|for(each)?|if|switch|while)|exit|\n  for(each)?|if|return|switch|use|while|yield\n)\\b",
 			"captures": {
 				"1": {
 					"name": "keyword.control.${1:/downcase}.php"
@@ -853,7 +891,7 @@
 			"name": "storage.type.php"
 		},
 		{
-			"match": "(?i)\\b(global|abstract|const|extends|implements|final|private|protected|public|static)\\b",
+			"match": "(?i)\\b(global|abstract|const|final|private|protected|public|static)\\b",
 			"name": "storage.modifier.php"
 		},
 		{
@@ -975,7 +1013,7 @@
 					"name": "entity.name.goto-label.php"
 				}
 			},
-			"match": "(?i)^\\s*([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)\\s*:(?!:)"
+			"match": "(?i)^\\s*([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*(?<!default))\\s*:(?!:)"
 		},
 		{
 			"include": "#string-backtick"
@@ -1184,6 +1222,120 @@
 							"include": "#namespace"
 						}
 					]
+				}
+			]
+		},
+		"inheritance-single": {
+			"patterns": [
+				{
+					"begin": "(?i)(?=\\\\?[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*\\\\)",
+					"end": "(?i)([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)?(?=[^a-z0-9_\\x{7f}-\\x{10ffff}\\\\])",
+					"endCaptures": {
+						"1": {
+							"name": "entity.other.inherited-class.php"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#namespace"
+						}
+					]
+				},
+				{
+					"include": "#class-builtin"
+				},
+				{
+					"include": "#namespace"
+				},
+				{
+					"match": "(?i)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*",
+					"name": "entity.other.inherited-class.php"
+				}
+			]
+		},
+		"class-extends": {
+			"patterns": [
+				{
+					"begin": "(?i)(extends)\\s+",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.extends.php"
+						}
+					},
+					"end": "(?i)(?=[^A-Za-z0-9_\\x{7f}-\\x{10ffff}\\\\])",
+					"patterns": [
+						{
+							"include": "#comments"
+						},
+						{
+							"include": "#inheritance-single"
+						}
+					]
+				}
+			]
+		},
+		"interface-extends": {
+			"patterns": [
+				{
+					"begin": "(?i)(extends)\\s+",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.extends.php"
+						}
+					},
+					"end": "(?i)(?={)",
+					"patterns": [
+						{
+							"include": "#comments"
+						},
+						{
+							"match": ",",
+							"name": "punctuation.separator.classes.php"
+						},
+						{
+							"include": "#inheritance-single"
+						}
+					]
+				}
+			]
+		},
+		"class-implements": {
+			"patterns": [
+				{
+					"begin": "(?i)(implements)\\s+",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.implements.php"
+						}
+					},
+					"end": "(?i)(?={)",
+					"patterns": [
+						{
+							"include": "#comments"
+						},
+						{
+							"match": ",",
+							"name": "punctuation.separator.classes.php"
+						},
+						{
+							"include": "#inheritance-single"
+						}
+					]
+				}
+			]
+		},
+		"class-constant": {
+			"patterns": [
+				{
+					"match": "(?i)\\b(const)\\s*([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)",
+					"captures": {
+						"1": {
+							"name": "storage.modifier.php"
+						},
+						"2": {
+							"name": "constant.other.php"
+						}
+					}
 				}
 			]
 		},
@@ -1621,7 +1773,7 @@
 					]
 				},
 				{
-					"begin": "(<<<)\\s*(\"?)(SQL)(\\2)(\\s*)$",
+					"begin": "(<<<)\\s*(\"?)([DS]QL)(\\2)(\\s*)$",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.begin.php"
@@ -1976,7 +2128,7 @@
 					]
 				},
 				{
-					"begin": "(<<<)\\s*'(SQL)'(\\s*)$",
+					"begin": "(<<<)\\s*'([DS]QL)'(\\s*)$",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.begin.php"

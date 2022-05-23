@@ -16,6 +16,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 
@@ -36,7 +37,7 @@ suite('ConfigurationService', () => {
 
 	test('simple', async () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		const config = testObject.getValue<{
 			foo: string;
@@ -49,7 +50,7 @@ suite('ConfigurationService', () => {
 	test('config gets flattened', async () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		const config = testObject.getValue<{
 			testworkbench: {
@@ -68,7 +69,7 @@ suite('ConfigurationService', () => {
 	test('error case does not explode', async () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString(',,,,'));
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		const config = testObject.getValue<{
 			foo: string;
@@ -78,7 +79,7 @@ suite('ConfigurationService', () => {
 	});
 
 	test('missing file does not explode', async () => {
-		const testObject = disposables.add(new ConfigurationService(URI.file('__testFile'), fileService));
+		const testObject = disposables.add(new ConfigurationService(URI.file('__testFile'), fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 
 		const config = testObject.getValue<{ foo: string }>();
@@ -87,7 +88,7 @@ suite('ConfigurationService', () => {
 	});
 
 	test('trigger configuration change event when file does not exist', async () => {
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		return new Promise<void>((c, e) => {
 			disposables.add(Event.filter(testObject.onDidChangeConfiguration, e => e.source === ConfigurationTarget.USER)(() => {
@@ -100,7 +101,7 @@ suite('ConfigurationService', () => {
 	});
 
 	test('trigger configuration change event when file exists', async () => {
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
 		await testObject.initialize();
 
@@ -116,7 +117,7 @@ suite('ConfigurationService', () => {
 	test('reloadConfiguration', async () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		let config = testObject.getValue<{
 			foo: string;
@@ -155,7 +156,7 @@ suite('ConfigurationService', () => {
 			}
 		});
 
-		let testObject = disposables.add(new ConfigurationService(URI.file('__testFile'), fileService));
+		let testObject = disposables.add(new ConfigurationService(URI.file('__testFile'), fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		let setting = testObject.getValue<ITestSetting>();
 
@@ -163,7 +164,7 @@ suite('ConfigurationService', () => {
 		assert.strictEqual(setting.configuration.service.testSetting, 'isSet');
 
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
-		testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 
 		setting = testObject.getValue<ITestSetting>();
 
@@ -191,7 +192,7 @@ suite('ConfigurationService', () => {
 			}
 		});
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		testObject.initialize();
 
 		let res = testObject.inspect('something.missing');
@@ -226,7 +227,7 @@ suite('ConfigurationService', () => {
 			}
 		});
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		testObject.initialize();
 
 		let res = testObject.inspect('lookup.service.testNullSetting');

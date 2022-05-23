@@ -453,10 +453,10 @@
             "error"
           ]
         },
-        "markdown.experimental.validate.fileLinks.skipPaths": {
+        "markdown.experimental.validate.ignoreLinks": {
           "type": "array",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.skipPaths.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.ignoreLinks.description%",
           "items": {
             "type": "string"
           }

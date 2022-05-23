@@ -10,7 +10,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ResourceMarkers, Marker, RelatedInformation, MarkerElement } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { ResourceMarkers, Marker, RelatedInformation, MarkerElement, MarkerTableItem } from 'vs/workbench/contrib/markers/browser/markersModel';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -48,6 +48,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Link } from 'vs/platform/opener/browser/link';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { MarkersViewMode } from 'vs/workbench/contrib/markers/browser/markersView';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import Constants from 'vs/workbench/contrib/markers/browser/constants';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
@@ -65,7 +68,7 @@ interface IRelatedInformationTemplateData {
 	description: HighlightedLabel;
 }
 
-export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvider<MarkerElement> {
+export class MarkersWidgetAccessibilityProvider implements IListAccessibilityProvider<MarkerElement | MarkerTableItem> {
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
 
@@ -73,12 +76,12 @@ export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvi
 		return localize('problemsView', "Problems View");
 	}
 
-	public getAriaLabel(element: MarkerElement): string | null {
+	public getAriaLabel(element: MarkerElement | MarkerTableItem): string | null {
 		if (element instanceof ResourceMarkers) {
 			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
 			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length, element.name, paths.dirname(path));
 		}
-		if (element instanceof Marker) {
+		if (element instanceof Marker || element instanceof MarkerTableItem) {
 			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element);
 		}
 		if (element instanceof RelatedInformation) {
@@ -693,6 +696,9 @@ export class MarkersViewModel extends Disposable {
 	private readonly _onDidChange: Emitter<Marker | undefined> = this._register(new Emitter<Marker | undefined>());
 	readonly onDidChange: Event<Marker | undefined> = this._onDidChange.event;
 
+	private readonly _onDidChangeViewMode: Emitter<MarkersViewMode> = this._register(new Emitter<MarkersViewMode>());
+	readonly onDidChangeViewMode: Event<MarkersViewMode> = this._onDidChangeViewMode.event;
+
 	private readonly markersViewStates: Map<string, { viewModel: MarkerViewModel; disposables: IDisposable[] }> = new Map<string, { viewModel: MarkerViewModel; disposables: IDisposable[] }>();
 	private readonly markersPerResource: Map<string, Marker[]> = new Map<string, Marker[]>();
 
@@ -700,13 +706,20 @@ export class MarkersViewModel extends Disposable {
 
 	private hoveredMarker: Marker | null = null;
 	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
+	private viewModeContextKey: IContextKey<MarkersViewMode>;
 
 	constructor(
 		multiline: boolean = true,
-		@IInstantiationService private instantiationService: IInstantiationService
+		viewMode: MarkersViewMode = MarkersViewMode.Tree,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this._multiline = multiline;
+		this._viewMode = viewMode;
+
+		this.viewModeContextKey = Constants.MarkersViewModeContextKey.bindTo(this.contextKeyService);
+		this.viewModeContextKey.set(viewMode);
 	}
 
 	add(marker: Marker): void {
@@ -787,6 +800,21 @@ export class MarkersViewModel extends Disposable {
 		if (changed) {
 			this._onDidChange.fire(undefined);
 		}
+	}
+
+	private _viewMode: MarkersViewMode = MarkersViewMode.Tree;
+	get viewMode(): MarkersViewMode {
+		return this._viewMode;
+	}
+
+	set viewMode(value: MarkersViewMode) {
+		if (this._viewMode === value) {
+			return;
+		}
+
+		this._viewMode = value;
+		this._onDidChangeViewMode.fire(value);
+		this.viewModeContextKey.set(value);
 	}
 
 	override dispose(): void {

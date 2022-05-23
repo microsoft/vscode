@@ -29,7 +29,7 @@ import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService 
 import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfiguration';
 import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -88,6 +88,7 @@ import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/com
 import { staticObservableValue } from 'vs/base/common/observableValue';
 
 import 'vs/editor/common/services/languageFeaturesService';
+import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -521,7 +522,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 	private readonly _configuration: Configuration;
 
 	constructor() {
-		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
+		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 	}
 
 	getValue<T>(): T;
@@ -582,6 +583,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		};
 		return {
 			defaults: emptyModel,
+			policy: emptyModel,
 			user: emptyModel,
 			workspace: emptyModel,
 			folders: []
