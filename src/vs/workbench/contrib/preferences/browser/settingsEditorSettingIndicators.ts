@@ -122,9 +122,9 @@ export class SettingsTreeIndicatorsLabel {
 
 	updateDefaultOverrideIndicator(element: SettingsTreeSettingElement) {
 		this.defaultOverrideIndicatorElement.style.display = 'none';
-		if (element.defaultValueSource) {
+		const defaultValueSource = element.setting.defaultValueSource;
+		if (defaultValueSource) {
 			this.defaultOverrideIndicatorElement.style.display = 'inline';
-			const defaultValueSource = element.defaultValueSource;
 			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
 				const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
 				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", extensionSource);
