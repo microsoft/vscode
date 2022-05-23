@@ -59,6 +59,10 @@ class ProblemReporter implements IProblemReporter {
 		this.receivedMessage = true;
 		this.lastMessage = message;
 	}
+
+	public clearMessage(): void {
+		this.lastMessage = undefined;
+	}
 }
 
 class ConfiguationBuilder {
@@ -1768,7 +1772,7 @@ class TestNamedProblemMatcher implements Partial<ProblemMatcher> {
 class TestParseContext implements Partial<ParseContext> {
 }
 
-suite('Problem matcher and task parser', () => {
+suite.only('To task configuration from', () => {
 	let instantiationService: TestInstantiationService;
 	let parseContext: ParseContext;
 	let namedProblemMatcher: NamedProblemMatcher;
@@ -1781,12 +1785,10 @@ suite('Problem matcher and task parser', () => {
 		problemReporter = new ProblemReporter();
 		parseContext = instantiationService.createInstance(TestParseContext);
 		parseContext.problemReporter = problemReporter;
-		parseContext.namedProblemMatchers = {
-			'real': namedProblemMatcher
-		};
+		parseContext.namedProblemMatchers = { 'real': namedProblemMatcher };
 		parseContext.uuidMap = new UUIDMap();
 	});
-	suite('ProblemMatcherConverter', () => {
+	suite('ProblemMatcher config', () => {
 		test('returns [] and an error for an unknown problem matcher', () => {
 			const result = (ProblemMatcherConverter.from('$fake', parseContext));
 			assert.deepEqual(result.value, []);
@@ -1804,7 +1806,7 @@ suite('Problem matcher and task parser', () => {
 			assert.deepEqual(result.value, [{ "label": "real label", "applyTo": ApplyToKind.closedDocuments }]);
 		});
 	});
-	suite('TaskParser from', () => {
+	suite('TaskParser external config', () => {
 		suite('CustomTask', () => {
 			suite('incomplete config reports an appropriate error for missing', () => {
 				test('name', () => {
@@ -1816,31 +1818,17 @@ suite('Problem matcher and task parser', () => {
 					assertTaskParseResult(result, undefined, problemReporter, "Error: the task 'task' doesn't define a command");
 				});
 			});
-			suite('returns expected result', () => {
-				test('single', () => {
-					const expected = [{ taskName: 'task', command: 'echo test' } as CustomTask];
-					const result = TaskParser.from(expected, {} as Globals, parseContext, {} as TaskConfigSource);
-					assertTaskParseResult(result, { custom: expected }, problemReporter, undefined);
-				});
-				test('multiple', () => {
-					const expected = [{ taskName: 'task', command: 'echo test' } as CustomTask, { taskName: 'task 2', command: 'echo test' } as CustomTask];
-					const result = TaskParser.from(expected, {} as Globals, parseContext, {} as TaskConfigSource);
-					assertTaskParseResult(result, { custom: expected }, problemReporter, undefined);
-				});
+			test('returns expected result', () => {
+				const expected = [{ taskName: 'task', command: 'echo test' } as CustomTask, { taskName: 'task 2', command: 'echo test' } as CustomTask];
+				const result = TaskParser.from(expected, {} as Globals, parseContext, {} as TaskConfigSource);
+				assertTaskParseResult(result, { custom: expected }, problemReporter, undefined);
 			});
 		});
 		suite('ConfiguredTask', () => {
-			suite('returns expected result', () => {
-				test('single', () => {
-					const expected = [{ taskName: 'task', command: 'echo test', type: 'any', label: 'task' }];
-					const result = TaskParser.from(expected, {} as Globals, parseContext, {} as TaskConfigSource, { extensionId: 'registered', taskType: 'any', properties: {} } as Tasks.TaskDefinition);
-					assertTaskParseResult(result, { configured: expected }, problemReporter, undefined);
-				});
-				test('multiple', () => {
-					const expected = [{ taskName: 'task', command: 'echo test', type: 'any', label: 'task' }, { taskName: 'task 2', command: 'echo test', type: 'any', label: 'task 2' }];
-					const result = TaskParser.from(expected, {} as Globals, parseContext, {} as TaskConfigSource, { extensionId: 'registered', taskType: 'any', properties: {} } as Tasks.TaskDefinition);
-					assertTaskParseResult(result, { configured: expected }, problemReporter, undefined);
-				});
+			test('returns expected result', () => {
+				const expected = [{ taskName: 'task', command: 'echo test', type: 'any', label: 'task' }, { taskName: 'task 2', command: 'echo test', type: 'any', label: 'task 2' }];
+				const result = TaskParser.from(expected, {} as Globals, parseContext, {} as TaskConfigSource, { extensionId: 'registered', taskType: 'any', properties: {} } as Tasks.TaskDefinition);
+				assertTaskParseResult(result, { configured: expected }, problemReporter, undefined);
 			});
 		});
 	});
@@ -1870,6 +1858,7 @@ function assertTaskParseResult(actual: TaskParseResult, expected: ITestTaskParse
 			index++;
 		}
 	}
+	problemReporter.clearMessage();
 }
 
 interface ITestTaskParseResult {
