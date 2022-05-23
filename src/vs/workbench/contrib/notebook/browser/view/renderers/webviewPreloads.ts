@@ -1173,14 +1173,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				_highlighter?.dispose();
 				break;
 			}
-			case 'startWatchingOutputResize': {
-				viewModel.startWatchingOutput(event.data.cellId);
-				break;
-			}
-			case 'stopWatchingOutputResize': {
-				viewModel.stopWatchingOutput(event.data.cellId);
-				break;
-			}
 		}
 	});
 
@@ -1403,28 +1395,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		private readonly _markupCells = new Map<string, MarkupCell>();
 		private readonly _outputCells = new Map<string, OutputCell>();
-		private _trackingResize: string | undefined;
 		private _outputResizeObservers: ResizeObserver[] = [];
 		private _outputResizeTimer: any;
 
 		public clearAll() {
 			this._markupCells.clear();
 			this._outputCells.clear();
+			this._outputResizeObservers.forEach(o => o.disconnect());
+			this._outputResizeObservers = [];
 		}
 
 		public rerender() {
 			this.rerenderMarkupCells();
 			this.renderOutputCells();
-		}
-
-		public startWatchingOutput(cellId: string) {
-			this._trackingResize = cellId;
-			this._outputResizeObservers.forEach(o => o.disconnect());
-			this._outputResizeObservers = [];
-		}
-
-		public stopWatchingOutput(cellId: string) {
-			this._trackingResize = undefined;
 		}
 
 		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number, visible: boolean): Promise<MarkupCell> {
@@ -1550,6 +1533,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			if (!cell) {
 				cell = new OutputCell(cellId);
 				this._outputCells.set(cellId, cell);
+
+				// New output cell, clear resize handlers
+				this._outputResizeObservers.forEach(o => o.disconnect);
+				this._outputResizeObservers = [];
 			}
 
 			if (existed && skipCellTopUpdateIfExist) {
@@ -1593,13 +1580,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		private outputResizeHandler(cellId: string) {
-			// If no longer tracking, disconnect. However
-			// send one more resize event.
-			if (this._trackingResize !== cellId) {
-				this._outputResizeObservers.forEach(o => o.disconnect());
-				this._outputResizeObservers = [];
-			}
-
 			// Debounce this callback to only happen after
 			// 250 ms. Don't need resize events that often.
 			clearTimeout(this._outputResizeTimer);
@@ -1611,12 +1591,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		private trackOutputResize(cellId: string, outputContainer: HTMLElement) {
-			if (this._trackingResize === cellId) {
-				const handler = this.outputResizeHandler.bind(this, cellId);
-				const observer = new ResizeObserver(handler);
-				this._outputResizeObservers.push(observer);
-				observer.observe(outputContainer);
-			}
+			const handler = this.outputResizeHandler.bind(this, cellId);
+			const observer = new ResizeObserver(handler);
+			this._outputResizeObservers.push(observer);
+			observer.observe(outputContainer);
 		}
 	}();
 

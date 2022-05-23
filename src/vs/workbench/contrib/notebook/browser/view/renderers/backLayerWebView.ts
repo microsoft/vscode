@@ -36,7 +36,7 @@ import { NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser
 import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { CellUri, INotebookRendererInfo, NotebookCellExecutionState, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookRendererInfo, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, IResolvedNotebookKernel, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
@@ -176,28 +176,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				type: 'tokenizedStylesChanged',
 				css: getTokenizationCss(),
 			});
-		}));
-
-		this._register(notebookExecutionStateService.onDidChangeCellExecution((e) => {
-			// If e.changed state is pending, it means notebook execution just started
-			if (e.changed && e.changed.state === NotebookCellExecutionState.Pending && e.affectsNotebook(this.documentUri)) {
-				const cell = this.notebookEditor.getCellByHandle(e.cellHandle);
-				if (cell) {
-					this._sendMessageToWebview({
-						type: 'startWatchingOutputResize',
-						cellId: cell.id
-					});
-				}
-				// If e.changed is undefined, it means notebook execution just finished
-			} else if (e.changed === undefined && e.affectsNotebook(this.documentUri)) {
-				const cell = this.notebookEditor.getCellByHandle(e.cellHandle);
-				if (cell) {
-					this._sendMessageToWebview({
-						type: 'stopWatchingOutputResize',
-						cellId: cell.id
-					});
-				}
-			}
 		}));
 	}
 

@@ -403,9 +403,13 @@ export class InteractiveEditor extends EditorPane {
 			isReadOnly: true
 		});
 		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidResizeOutput((cvm) => {
-			// If we're already at the bottom or auto scroll is enabled, scroll to the bottom
-			if (this.configurationService.getValue<boolean>('interactive.alwaysScrollOnNewCell') || this.#state === ScrollingState.StickyToBottom) {
-				this.#notebookWidget.value!.scrollToBottom();
+			// Ignore resizes on anything but the last cell.
+			const index = this.#notebookWidget.value!.getCellIndex(cvm);
+			if (index === this.#notebookWidget.value!.getLength() - 1) {
+				// If we're already at the bottom or auto scroll is enabled, scroll to the bottom
+				if (this.configurationService.getValue<boolean>('interactive.alwaysScrollOnNewCell') || this.#state === ScrollingState.StickyToBottom) {
+					this.#notebookWidget.value!.scrollToBottom();
+				}
 			}
 		}));
 		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidFocusWidget(() => this.#onDidFocusWidget.fire()));

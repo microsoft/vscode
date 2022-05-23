@@ -401,16 +401,6 @@ export interface IDidFindHighlightMessage extends BaseToWebviewMessage {
 	readonly offset: number;
 }
 
-export interface IStartWatchingOutputMessage {
-	readonly type: 'startWatchingOutputResize';
-	readonly cellId: string;
-}
-
-export interface IStopWatchingOutputMessage {
-	readonly type: 'stopWatchingOutputResize';
-	readonly cellId: string;
-}
-
 export interface IOutputResizedMessage extends BaseToWebviewMessage {
 	readonly type: 'outputResized';
 	readonly cellId: string;
@@ -475,9 +465,7 @@ export type ToWebviewMessage = IClearMessage |
 	IFindMessage |
 	IFindHighlightMessage |
 	IFindUnHighlightMessage |
-	IFindStopMessage |
-	IStartWatchingOutputMessage |
-	IStopWatchingOutputMessage;
+	IFindStopMessage;
 
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
