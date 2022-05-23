@@ -64,6 +64,13 @@ export interface INotebookProxyKernelChangeEvent extends INotebookKernelChangeEv
 	connectionState?: true;
 }
 
+export interface ISourceAction {
+	readonly action: IAction;
+	readonly onDidChangeState: Event<void>;
+	execution: Promise<void> | undefined;
+	runAction: () => Promise<void>;
+}
+
 export interface INotebookTextModelLike { uri: URI; viewType: string }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
@@ -75,8 +82,6 @@ export interface INotebookKernelService {
 	readonly onDidRemoveKernel: Event<INotebookKernel>;
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent>;
 	readonly onDidChangeNotebookAffinity: Event<void>;
-	readonly onDidChangeSourceActions: Event<void>;
-
 	registerKernel(kernel: INotebookKernel): IDisposable;
 
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
@@ -109,8 +114,9 @@ export interface INotebookKernelService {
 	 */
 	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
 
-	getSourceActions(): IAction[];
-	getRunningSourceAction(): IAction | undefined;
-
-	runSourceAction(action: IAction): Promise<void>;
+	//#region Kernel source actions
+	readonly onDidChangeSourceActions: Event<void>;
+	getSourceActions(): ISourceAction[];
+	getRunningSourceActions(): ISourceAction[];
+	//#endregion
 }

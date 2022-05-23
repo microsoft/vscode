@@ -9,7 +9,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { executingStateIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { INotebookKernel, INotebookKernelMatchResult, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelMatchResult, INotebookKernelService, ISourceAction } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Event } from 'vs/base/common/event';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -59,9 +59,9 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			return;
 		}
 
-		const runningAction = this._notebookKernelService.getRunningSourceAction();
-		if (runningAction) {
-			return this._updateActionFromSourceAction(runningAction, true);
+		const runningActions = this._notebookKernelService.getRunningSourceActions();
+		if (runningActions.length) {
+			return this._updateActionFromSourceAction(runningActions[0] /** TODO handle multiple actions state */, true);
 		}
 
 		const info = this._notebookKernelService.getMatchingKernel(notebook);
@@ -72,10 +72,11 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		this._updateActionFromKernelInfo(info);
 	}
 
-	private _updateActionFromSourceAction(sourceAction: IAction, running: boolean) {
+	private _updateActionFromSourceAction(sourceAction: ISourceAction, running: boolean) {
+		const action = sourceAction.action;
 		this.action.class = running ? ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin')) : ThemeIcon.asClassName(selectKernelIcon);
 		this.updateClass();
-		this._action.label = sourceAction.label;
+		this._action.label = action.label;
 		this._action.enabled = true;
 	}
 

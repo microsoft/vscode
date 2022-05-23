@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike, ISourceAction } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
@@ -46,6 +46,34 @@ class NotebookTextModelLikeId {
 	}
 }
 
+class SourceAction extends Disposable implements ISourceAction {
+	execution: Promise<void> | undefined;
+	private readonly _onDidChangeState = this._register(new Emitter<void>());
+	readonly onDidChangeState = this._onDidChangeState.event;
+
+	constructor(
+		readonly action: IAction,
+	) {
+		super();
+	}
+
+	async runAction() {
+		if (this.execution) {
+			return this.execution;
+		}
+
+		this.execution = this._runAction();
+		this._onDidChangeState.fire();
+		await this.execution;
+		this.execution = undefined;
+		this._onDidChangeState.fire();
+	}
+
+	private async _runAction(): Promise<void> {
+		await this.action.run();
+	}
+}
+
 export class NotebookKernelService extends Disposable implements INotebookKernelService {
 
 	declare _serviceBrand: undefined;
@@ -61,7 +89,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	private readonly _onDidChangeNotebookAffinity = this._register(new Emitter<void>());
 	private readonly _onDidChangeSourceActions = this._register(new Emitter<void>());
 	private readonly _sourceMenu: IMenu;
-	private _sourceActions: IAction[];
+	private _sourceActions: [ISourceAction, IDisposable][];
 
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent> = this._onDidChangeNotebookKernelBinding.event;
 	readonly onDidAddKernel: Event<INotebookKernel> = this._onDidAddKernel.event;
@@ -111,25 +139,32 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	}
 
 	private _initSourceActions() {
-		const loadActions = (menu: IMenu) => {
+		const loadActionsFromMenu = (menu: IMenu) => {
 			const groups = menu.getActions({ shouldForwardArgs: true });
 			const actions: IAction[] = [];
 			groups.forEach(group => {
 				actions.push(...group[1]);
 			});
-			this._sourceActions = actions;
+			this._sourceActions = actions.map(action => {
+				const sourceAction = new SourceAction(action);
+				const stateChangeListener = sourceAction.onDidChangeState(() => {
+					this._onDidChangeSourceActions.fire();
+				});
+				return [sourceAction, stateChangeListener];
+			});
 			this._onDidChangeSourceActions.fire();
 		};
 
 		this._register(this._sourceMenu.onDidChange(() => {
-			loadActions(this._sourceMenu);
+			loadActionsFromMenu(this._sourceMenu);
 		}));
 
-		loadActions(this._sourceMenu);
+		loadActionsFromMenu(this._sourceMenu);
 	}
 
 	override dispose() {
 		this._kernels.clear();
+		this._sourceActions.forEach(a => a[1].dispose());
 		super.dispose();
 	}
 
@@ -288,21 +323,11 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		this._onDidChangeNotebookAffinity.fire();
 	}
 
-	private _runningAction: IAction | undefined = undefined;
-
-	getRunningSourceAction() {
-		return this._runningAction;
+	getRunningSourceActions() {
+		return this._sourceActions.filter(action => action[0].execution).map(action => action[0]);
 	}
 
-	getSourceActions(): IAction[] {
-		return this._sourceActions;
-	}
-
-	async runSourceAction(action: IAction): Promise<void> {
-		this._runningAction = action;
-		this._onDidChangeSourceActions.fire();
-		await action.run();
-		this._runningAction = undefined;
-		this._onDidChangeSourceActions.fire();
+	getSourceActions(): ISourceAction[] {
+		return this._sourceActions.map(a => a[0]);
 	}
 }

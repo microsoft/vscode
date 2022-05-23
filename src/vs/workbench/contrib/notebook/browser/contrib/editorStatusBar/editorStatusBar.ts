@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
 import { groupBy } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -29,7 +28,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService, ISourceAction } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -164,7 +163,7 @@ registerAction2(class extends Action2 {
 		}
 
 		type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
-		type SourcePick = IQuickPickItem & { action: IAction };
+		type SourcePick = IQuickPickItem & { action: ISourceAction };
 
 		const configButton: IQuickInputButton = {
 			iconClass: ThemeIcon.asClassName(configureKernelIcon),
@@ -219,11 +218,11 @@ registerAction2(class extends Action2 {
 				// label: nls.localize('sourceActions', "")
 			});
 
-			sourceActions.forEach(action => {
+			sourceActions.forEach(sourceAction => {
 				const res = <SourcePick>{
-					action,
+					action: sourceAction,
 					picked: false,
-					label: action.label,
+					label: sourceAction.action.label,
 				};
 
 				quickPickItems.push(res);
@@ -262,7 +261,7 @@ registerAction2(class extends Action2 {
 				await this._showKernelExtension(paneCompositeService, notebook.viewType);
 			} else if ('action' in pick) {
 				// selected explicilty, it should trigger the execution?
-				notebookKernelService.runSourceAction(pick.action);
+				pick.action.runAction();
 			}
 		}
 
