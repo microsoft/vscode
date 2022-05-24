@@ -5,7 +5,7 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDataTransfer, IDataTransferItem } from 'vs/base/common/dataTransfer';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { relativePath } from 'vs/base/common/resources';
@@ -93,8 +93,8 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		}
 	}
 
-	public async extractDataTransferData(dragEvent: DragEvent): Promise<IDataTransfer> {
-		const textEditorDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
+	public async extractDataTransferData(dragEvent: DragEvent): Promise<VSDataTransfer> {
+		const textEditorDataTransfer = new VSDataTransfer();
 		if (!dragEvent.dataTransfer) {
 			return textEditorDataTransfer;
 		}
@@ -103,27 +103,13 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			const type = item.type;
 			if (item.kind === 'string') {
 				const asStringValue = new Promise<string>(resolve => item.getAsString(resolve));
-				textEditorDataTransfer.set(type, {
-					asString: () => asStringValue,
-					asFile: () => undefined,
-					value: undefined
-				});
+				textEditorDataTransfer.setString(type, asStringValue);
 			} else if (item.kind === 'file') {
 				const file = item.getAsFile();
 				if (file) {
-					textEditorDataTransfer.set(type, {
-						asString: () => Promise.resolve(''),
-						asFile: () => {
-							const uri = (file as FileAdditionalNativeProperties).path ? URI.parse((file as FileAdditionalNativeProperties).path!) : undefined;
-							return {
-								name: file.name,
-								uri: uri,
-								data: async () => {
-									return new Uint8Array(await file.arrayBuffer());
-								},
-							};
-						},
-						value: undefined
+					const uri = (file as FileAdditionalNativeProperties).path ? URI.parse((file as FileAdditionalNativeProperties).path!) : undefined;
+					textEditorDataTransfer.setFile(type, file.name, uri, async () => {
+						return new Uint8Array(await file.arrayBuffer());
 					});
 				}
 			}
@@ -135,14 +121,9 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				.map(input => input.resource!.toString());
 
 			if (editorData.length) {
-				const added: IDataTransfer = new Map<string, IDataTransferItem>();
-
+				const added = new VSDataTransfer();
 				const str = distinct(editorData).join('\n');
-				added.set(Mimes.uriList.toLowerCase(), {
-					asFile: () => undefined,
-					asString: async () => str,
-					value: str,
-				});
+				added.setString(Mimes.uriList.toLowerCase(), str);
 				return added;
 			}
 		}
@@ -157,7 +138,7 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: IDataTransfer, _token: CancellationToken): Promise<SnippetTextEdit | undefined> {
+	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<SnippetTextEdit | undefined> {
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 
 		const urlListEntry = dataTransfer.get('text/uri-list');

@@ -256,4 +256,16 @@ suite('markdown: Diagnostics', () => {
 			assert.deepStrictEqual(diagnostics.length, 0);
 		}
 	});
+
+	test('ignoreLinks should support ignore header links if file is ignored', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`![i](/doc2.md#no-such)`,
+		));
+		const doc2 = new InMemoryDocument(workspacePath('doc2.md'), joinLines(''));
+
+		const contents = new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]);
+		const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration(true, ['/doc2.md']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
 });

@@ -172,6 +172,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
 	},
 	{
+		key: 'notebook/kernelSource',
+		id: MenuId.NotebookKernelSource,
+		description: localize('notebook.kernelSource', "The contributed notebook kernel sources menu"),
+		proposed: 'notebookKernelSource'
+	},
+	{
 		key: 'notebook/cell/title',
 		id: MenuId.NotebookCellTitle,
 		description: localize('notebook.cell.title', "The contributed notebook cell title menu")
@@ -191,13 +197,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'interactive/toolbar',
 		id: MenuId.InteractiveToolbar,
 		description: localize('interactive.toolbar', "The contributed interactive toolbar menu"),
-		proposed: 'notebookEditor'
 	},
 	{
 		key: 'interactive/cell/title',
 		id: MenuId.InteractiveCellTitle,
 		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
-		proposed: 'notebookEditor'
 	},
 	{
 		key: 'testing/item/context',
@@ -250,7 +254,7 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
 		supportsSubmenus: false,
-		proposed: 'inlineCompletions'
+		proposed: 'inlineCompletionsAdditions'
 	},
 ];
 

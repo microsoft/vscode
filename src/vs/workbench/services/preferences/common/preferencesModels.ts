@@ -751,7 +751,7 @@ export class DefaultSettings extends Disposable {
 					allKeysAreBoolean,
 					editPresentation: prop.editPresentation,
 					order: prop.order,
-					defaultValueSource,
+					nonLanguageSpecificDefaultValueSource: defaultValueSource,
 					isLanguageTagSetting,
 					categoryLabel,
 					categoryOrder

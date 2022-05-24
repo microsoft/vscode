@@ -42,6 +42,7 @@ import { buildHelpMessage, buildVersionMessage, OptionDescriptions } from 'vs/pl
 import { isWindows } from 'vs/base/common/platform';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
+import { NullPolicyService } from 'vs/platform/policy/common/policy';
 
 class CliMain extends Disposable {
 
@@ -91,7 +92,7 @@ class CliMain extends Disposable {
 		fileService.registerProvider(Schemas.file, this._register(new DiskFileSystemProvider(logService)));
 
 		// Configuration
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
+		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
 		services.set(IConfigurationService, configurationService);
 
