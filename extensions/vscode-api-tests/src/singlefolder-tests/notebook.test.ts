@@ -29,6 +29,12 @@ async function withEvent<T>(event: vscode.Event<T>, callback: (e: Promise<T>) =>
 }
 
 
+function sleep(ms: number): Promise<void> {
+	return new Promise(resolve => {
+		setTimeout(resolve, ms);
+	});
+}
+
 export class Kernel {
 
 	readonly controller: vscode.NotebookController;
@@ -59,8 +65,9 @@ export class Kernel {
 		// create a single output with exec order 1 and output is plain/text
 		// of either the cell itself or (iff empty) the cell's document's uri
 		const task = this.controller.createNotebookCellExecution(cell);
-		task.start();
+		task.start(Date.now());
 		task.executionOrder = 1;
+		await sleep(10); // Force to be take some time
 		await task.replaceOutput([new vscode.NotebookCellOutput([
 			vscode.NotebookCellOutputItem.text(cell.document.getText() || cell.document.uri.toString(), 'text/plain')
 		])]);
