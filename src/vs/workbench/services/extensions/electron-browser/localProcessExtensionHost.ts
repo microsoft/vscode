@@ -209,8 +209,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	private async _start(): Promise<IMessagePassingProtocol> {
-		const usesUtilityProcess = await this._extensionHostStarter.usesUtilityProcess();
-		if (usesUtilityProcess) {
+		const canUseUtilityProcess = await this._extensionHostStarter.canUseUtilityProcess();
+		if (canUseUtilityProcess && process.env['VSCODE_USE_UTILITY_PROCESS']) {
 			const communication = this._toDispose.add(new ExtHostMessagePortCommunication(this._logService));
 			return this._startWithCommunication(communication);
 		} else {
@@ -222,7 +222,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	private async _startWithCommunication<T>(communication: IExtHostCommunication<T>): Promise<IMessagePassingProtocol> {
 
 		const [extensionHostCreationResult, communicationPreparedData, portNumber, processEnv] = await Promise.all([
-			this._extensionHostStarter.createExtensionHost(),
+			this._extensionHostStarter.createExtensionHost(communication.useUtilityProcess),
 			communication.prepare(),
 			this._tryFindDebugPort(),
 			this._shellEnvironmentService.getShellEnv(),
@@ -605,11 +605,14 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 }
 
 interface IExtHostCommunication<T> {
+	readonly useUtilityProcess: boolean;
 	prepare(): Promise<T>;
 	establishProtocol(prepared: T, extensionHostProcess: ExtensionHostProcess, opts: IExtensionHostProcessOptions): Promise<IMessagePassingProtocol>;
 }
 
 class ExtHostMessagePortCommunication extends Disposable implements IExtHostCommunication<void> {
+
+	readonly useUtilityProcess = true;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService
@@ -621,6 +624,7 @@ class ExtHostMessagePortCommunication extends Disposable implements IExtHostComm
 	}
 
 	establishProtocol(prepared: void, extensionHostProcess: ExtensionHostProcess, opts: IExtensionHostProcessOptions): Promise<IMessagePassingProtocol> {
+
 		opts.env['VSCODE_WILL_SEND_MESSAGE_PORT'] = 'true';
 
 		// Get ready to acquire the message port from the shared process worker
@@ -666,6 +670,8 @@ interface INamedPipePreparedData {
 }
 
 class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommunication<INamedPipePreparedData> {
+
+	readonly useUtilityProcess = false;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService

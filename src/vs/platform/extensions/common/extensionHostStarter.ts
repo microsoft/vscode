@@ -30,8 +30,8 @@ export interface IExtensionHostStarter {
 	onDynamicError(id: string): Event<{ error: SerializedError }>;
 	onDynamicExit(id: string): Event<{ code: number; signal: string }>;
 
-	usesUtilityProcess(): Promise<boolean>;
-	createExtensionHost(): Promise<{ id: string }>;
+	canUseUtilityProcess(): Promise<boolean>;
+	createExtensionHost(useUtilityProcess: boolean): Promise<{ id: string }>;
 	start(id: string, opts: IExtensionHostProcessOptions): Promise<void>;
 	enableInspectPort(id: string): Promise<boolean>;
 	kill(id: string): Promise<void>;
