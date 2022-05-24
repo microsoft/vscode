@@ -36,7 +36,7 @@ declare namespace UtilityProcessProposedApi {
 	}
 }
 const UtilityProcess = <typeof UtilityProcessProposedApi.UtilityProcess>((electron as any).UtilityProcess);
-const canUseUtilityProcess = (typeof UtilityProcess !== 'undefined') && !!process.env['VSCODE_USE_UTILITY_PROCESS'];
+const canUseUtilityProcess = (typeof UtilityProcess !== 'undefined');
 
 export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter {
 	_serviceBrand: undefined;
@@ -91,20 +91,24 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		return this._getExtHost(id).onExit;
 	}
 
-	async usesUtilityProcess(): Promise<boolean> {
+	async canUseUtilityProcess(): Promise<boolean> {
 		return canUseUtilityProcess;
 	}
 
-	async createExtensionHost(): Promise<{ id: string }> {
+	async createExtensionHost(useUtilityProcess: boolean): Promise<{ id: string }> {
 		if (this._shutdown) {
 			throw canceled();
 		}
 		const id = String(++ExtensionHostStarter._lastId);
-		const extHost = (
-			canUseUtilityProcess
-				? new UtilityExtensionHostProcess(id, this._logService)
-				: new ExtensionHostProcess(id, this._logService)
-		);
+		let extHost: UtilityExtensionHostProcess | ExtensionHostProcess;
+		if (useUtilityProcess) {
+			if (!canUseUtilityProcess) {
+				throw new Error(`Cannot use UtilityProcess!`);
+			}
+			extHost = new UtilityExtensionHostProcess(id, this._logService);
+		} else {
+			extHost = new ExtensionHostProcess(id, this._logService);
+		}
 		this._extHosts.set(id, extHost);
 		extHost.onExit(({ pid, code, signal }) => {
 			this._logService.info(`Extension host with pid ${pid} exited with code: ${code}, signal: ${signal}.`);
