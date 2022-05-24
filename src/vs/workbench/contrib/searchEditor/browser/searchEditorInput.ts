@@ -184,7 +184,7 @@ export class SearchEditorInput extends EditorInput {
 	override async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<EditorInput | undefined> {
 		const path = await this.fileDialogService.pickFileToSave(await this.suggestFileName(), options?.availableFileSystems);
 		if (path) {
-			this.telemetryService.publicLog2('searchEditor/saveSearchResults');
+			this.telemetryService.publicLog2<{}, { owner: 'roblourens' }>('searchEditor/saveSearchResults');
 			const toWrite = await this.serializeForDisk();
 			if (await this.textFileService.create([{ resource: path, value: toWrite, options: { overwrite: true } }])) {
 				this.setDirty(false);

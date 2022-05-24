@@ -51,6 +51,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 
 type KeybindingEditorActionClassification = {
+	owner: 'sandy081';
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };

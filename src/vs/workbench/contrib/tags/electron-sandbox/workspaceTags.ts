@@ -67,7 +67,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 			value = 'Unknown';
 		}
 
-		this.telemetryService.publicLog2<{ edition: string }, { edition: { classification: 'SystemMetaData'; purpose: 'BusinessInsight' } }>('windowsEdition', { edition: value });
+		this.telemetryService.publicLog2<{ edition: string }, { owner: 'sbatten'; edition: { classification: 'SystemMetaData'; purpose: 'BusinessInsight' } }>('windowsEdition', { edition: value });
 	}
 
 	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {

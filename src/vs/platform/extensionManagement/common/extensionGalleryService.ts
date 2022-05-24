@@ -235,6 +235,7 @@ const DefaultQueryState: IQueryState = {
 };
 
 type GalleryServiceQueryClassification = {
+	owner: 'sandy081';
 	readonly filterTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly flags: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly sortBy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -272,6 +273,7 @@ type GalleryServiceQueryEvent = QueryTelemetryData & {
 };
 
 type GalleryServiceAdditionalQueryClassification = {
+	owner: 'sandy081';
 	readonly duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true };
 	readonly count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
@@ -1124,6 +1126,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 			const message = getErrorMessage(err);
 			type GalleryServiceCDNFallbackClassification = {
+				owner: 'sandy081';
 				url: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				message: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
