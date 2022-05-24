@@ -245,6 +245,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			mark(input.resource, 'editorLoaded');
 
 			type WorkbenchNotebookOpenClassification = {
+				owner: 'rebornix';
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };

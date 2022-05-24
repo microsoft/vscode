@@ -57,6 +57,7 @@ interface InstalledExtensionsEvent {
 	readonly count: number;
 }
 interface ExtensionsLoadClassification extends GDPRClassification<InstalledExtensionsEvent> {
+	owner: 'digitarald';
 	readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 }

@@ -821,6 +821,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		if (this.viewContainerModel.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === viewId)) {
 			const visible = !this.viewContainerModel.isVisible(viewId);
 			type ViewsToggleVisibilityClassification = {
+				owner: 'sandy081';
 				viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
