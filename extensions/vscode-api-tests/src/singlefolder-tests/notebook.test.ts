@@ -18,7 +18,7 @@ async function openRandomNotebookDocument() {
 	return vscode.workspace.openNotebookDocument(uri);
 }
 
-async function saveAllFilesAndCloseAll() {
+export async function saveAllFilesAndCloseAll() {
 	await saveAllEditors();
 	await closeAllEditors();
 }
@@ -29,7 +29,7 @@ async function withEvent<T>(event: vscode.Event<T>, callback: (e: Promise<T>) =>
 }
 
 
-class Kernel {
+export class Kernel {
 
 	readonly controller: vscode.NotebookController;
 
