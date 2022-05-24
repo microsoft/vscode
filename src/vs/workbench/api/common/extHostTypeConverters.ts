@@ -20,6 +20,7 @@ import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
+import * as encodedTokenAttributes from 'vs/editor/common/encodedTokenAttributes';
 import * as languageSelector from 'vs/editor/common/languageSelector';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -112,12 +113,12 @@ export namespace Range {
 }
 
 export namespace TokenType {
-	export function to(type: languages.StandardTokenType): types.StandardTokenType {
+	export function to(type: encodedTokenAttributes.StandardTokenType): types.StandardTokenType {
 		switch (type) {
-			case languages.StandardTokenType.Comment: return types.StandardTokenType.Comment;
-			case languages.StandardTokenType.Other: return types.StandardTokenType.Other;
-			case languages.StandardTokenType.RegEx: return types.StandardTokenType.RegEx;
-			case languages.StandardTokenType.String: return types.StandardTokenType.String;
+			case encodedTokenAttributes.StandardTokenType.Comment: return types.StandardTokenType.Comment;
+			case encodedTokenAttributes.StandardTokenType.Other: return types.StandardTokenType.Other;
+			case encodedTokenAttributes.StandardTokenType.RegEx: return types.StandardTokenType.RegEx;
+			case encodedTokenAttributes.StandardTokenType.String: return types.StandardTokenType.String;
 		}
 	}
 }
