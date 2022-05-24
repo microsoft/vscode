@@ -184,7 +184,7 @@ export class MergeEditor extends EditorPane {
 		const model = await input.resolve();
 
 		this.input1View.setModel(model, model.input1, localize('yours', 'Yours'), model.input1Detail, model.input1Description);
-		this.input2View.setModel(model, model.input2, localize('theirs', 'Theirs',), model.input2Detail, model.input1Description);
+		this.input2View.setModel(model, model.input2, localize('theirs', 'Theirs',), model.input2Detail, model.input2Description);
 		this.inputResultView.setModel(model, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
 
 		// TODO: Update editor options!
