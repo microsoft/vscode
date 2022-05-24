@@ -56,7 +56,7 @@
 }
 
 .merge-accept-gutter-marker.multi-line .background {
-	border: 2px solid #323232FF;
+	border: 2px solid var(--vscode-checkbox-border);
 	border-right: 0;
 	left: 8px;
 	width: 10px;
@@ -74,5 +74,5 @@
 .merge-accept-gutter-marker .checkbox .accept-conflict-group.monaco-custom-toggle.monaco-checkbox {
 	margin: 0;
 	padding: 0;
-	background-color: #3C3C3CFF;
+	background-color: var(--vscode-checkbox-border);
 }
