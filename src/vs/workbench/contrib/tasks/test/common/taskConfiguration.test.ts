@@ -1783,8 +1783,9 @@ class TestTaskDefinitionRegistry implements Partial<ITaskDefinitionRegistry> {
 	}
 }
 
-suite('To task configuration from', () => {
-
+suite('Task configuration conversions', () => {
+	const globals = {} as Globals;
+	const taskConfigSource = {} as TaskConfigSource;
 	const TaskDefinitionRegistry = new TestTaskDefinitionRegistry();
 	let instantiationService: TestInstantiationService;
 	let parseContext: ParseContext;
@@ -1801,7 +1802,7 @@ suite('To task configuration from', () => {
 		parseContext.namedProblemMatchers = { 'real': namedProblemMatcher };
 		parseContext.uuidMap = new UUIDMap();
 	});
-	suite('ProblemMatcher config', () => {
+	suite('ProblemMatcherConverter.from', () => {
 		test('returns [] and an error for an unknown problem matcher', () => {
 			const result = (ProblemMatcherConverter.from('$fake', parseContext));
 			assert.deepEqual(result.value, []);
@@ -1819,21 +1820,24 @@ suite('To task configuration from', () => {
 			assert.deepEqual(result.value, [{ "label": "real label", "applyTo": ApplyToKind.closedDocuments }]);
 		});
 	});
-	suite('TaskParser external config', () => {
+	suite('TaskParser.from', () => {
 		suite('CustomTask', () => {
 			suite('incomplete config reports an appropriate error for missing', () => {
 				test('name', () => {
-					const result = TaskParser.from([{} as CustomTask], {} as Globals, parseContext, {} as TaskConfigSource);
+					const result = TaskParser.from([{} as CustomTask], globals, parseContext, taskConfigSource);
 					assertTaskParseResult(result, undefined, problemReporter, 'Error: a task must provide a label property');
 				});
 				test('command', () => {
-					const result = TaskParser.from([{ taskName: 'task' } as CustomTask], {} as Globals, parseContext, {} as TaskConfigSource);
+					const result = TaskParser.from([{ taskName: 'task' } as CustomTask], globals, parseContext, taskConfigSource);
 					assertTaskParseResult(result, undefined, problemReporter, "Error: the task 'task' doesn't define a command");
 				});
 			});
 			test('returns expected result', () => {
-				const expected = [{ taskName: 'task', command: 'echo test' } as CustomTask, { taskName: 'task 2', command: 'echo test' } as CustomTask];
-				const result = TaskParser.from(expected, {} as Globals, parseContext, {} as TaskConfigSource);
+				const expected = [
+					{ taskName: 'task', command: 'echo test' } as CustomTask,
+					{ taskName: 'task 2', command: 'echo test' } as CustomTask
+				];
+				const result = TaskParser.from(expected, globals, parseContext, taskConfigSource);
 				assertTaskParseResult(result, { custom: expected }, problemReporter, undefined);
 			});
 		});
@@ -1841,7 +1845,7 @@ suite('To task configuration from', () => {
 			test('returns expected result', () => {
 				const expected = [{ taskName: 'task', command: 'echo test', type: 'any', label: 'task' }, { taskName: 'task 2', command: 'echo test', type: 'any', label: 'task 2' }];
 				TaskDefinitionRegistry.set({ extensionId: 'registered', taskType: 'any', properties: {} } as Tasks.TaskDefinition);
-				const result = TaskParser.from(expected, {} as Globals, parseContext, {} as TaskConfigSource, TaskDefinitionRegistry);
+				const result = TaskParser.from(expected, globals, parseContext, taskConfigSource, TaskDefinitionRegistry);
 				assertTaskParseResult(result, { configured: expected }, problemReporter, undefined);
 			});
 		});
