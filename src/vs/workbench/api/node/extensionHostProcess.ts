@@ -112,6 +112,9 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				const port = ports[0];
 				const onMessage = new BufferedEmitter<VSBuffer>();
 				port.on('message', (e) => onMessage.fire(VSBuffer.wrap(e.data)));
+				port.on('close', () => {
+					onTerminate('renderer closed the MessagePort');
+				});
 				port.start();
 
 				resolve({
