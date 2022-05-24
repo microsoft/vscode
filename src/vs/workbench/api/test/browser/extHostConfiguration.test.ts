@@ -43,6 +43,7 @@ suite('ExtHostConfiguration', function () {
 	function createConfigurationData(contents: any): IConfigurationInitData {
 		return {
 			defaults: new ConfigurationModel(contents),
+			policy: new ConfigurationModel(),
 			user: new ConfigurationModel(contents),
 			workspace: new ConfigurationModel(),
 			folders: [],
@@ -279,6 +280,7 @@ suite('ExtHostConfiguration', function () {
 						'wordWrap': 'off'
 					}
 				}, ['editor.wordWrap']),
+				policy: new ConfigurationModel(),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
@@ -328,6 +330,7 @@ suite('ExtHostConfiguration', function () {
 						'wordWrap': 'off'
 					}
 				}, ['editor.wordWrap']),
+				policy: new ConfigurationModel(),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
@@ -405,6 +408,7 @@ suite('ExtHostConfiguration', function () {
 						'lineNumbers': 'on'
 					}
 				}, ['editor.wordWrap']),
+				policy: new ConfigurationModel(),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
@@ -508,6 +512,7 @@ suite('ExtHostConfiguration', function () {
 						'editor.wordWrap': 'bounded',
 					}
 				}),
+				policy: new ConfigurationModel(),
 				user: toConfigurationModel({
 					'editor.wordWrap': 'bounded',
 					'[typescript]': {

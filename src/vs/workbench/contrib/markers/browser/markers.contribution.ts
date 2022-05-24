@@ -11,7 +11,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Marker, RelatedInformation, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
+import { MarkersView, MarkersViewMode } from 'vs/workbench/contrib/markers/browser/markersView';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
@@ -97,6 +97,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'type': 'boolean',
 			'default': true
 		},
+		'problems.defaultViewMode': {
+			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_VIEW_MODE,
+			'type': 'string',
+			'default': 'tree',
+			'enum': ['table', 'tree'],
+		},
 		'problems.showCurrentInStatus': {
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS,
 			'type': 'boolean',
@@ -148,6 +154,48 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.Restored);
 
 // actions
+registerAction2(class extends ViewAction<IMarkersView> {
+	constructor() {
+		super({
+			id: `workbench.actions.table.${Constants.MARKERS_VIEW_ID}.viewAsTree`,
+			title: localize('viewAsTree', "View as Tree"),
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Constants.MARKERS_VIEW_ID), Constants.MarkersViewModeContextKey.isEqualTo(MarkersViewMode.Table)),
+				group: 'navigation',
+				order: 3
+			},
+			icon: Codicon.listTree,
+			viewId: Constants.MARKERS_VIEW_ID
+		});
+	}
+
+	async runInView(serviceAccessor: ServicesAccessor, view: IMarkersView): Promise<void> {
+		view.setViewMode(MarkersViewMode.Tree);
+	}
+});
+
+registerAction2(class extends ViewAction<IMarkersView> {
+	constructor() {
+		super({
+			id: `workbench.actions.table.${Constants.MARKERS_VIEW_ID}.viewAsTable`,
+			title: localize('viewAsTable', "View as Table"),
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Constants.MARKERS_VIEW_ID), Constants.MarkersViewModeContextKey.isEqualTo(MarkersViewMode.Tree)),
+				group: 'navigation',
+				order: 3
+			},
+			icon: Codicon.listFlat,
+			viewId: Constants.MARKERS_VIEW_ID
+		});
+	}
+
+	async runInView(serviceAccessor: ServicesAccessor, view: IMarkersView): Promise<void> {
+		view.setViewMode(MarkersViewMode.Table);
+	}
+});
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -345,7 +393,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			title: localize('collapseAll', "Collapse All"),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', Constants.MARKERS_VIEW_ID),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Constants.MARKERS_VIEW_ID), Constants.MarkersViewModeContextKey.isEqualTo(MarkersViewMode.Tree)),
 				group: 'navigation',
 				order: 2,
 			},

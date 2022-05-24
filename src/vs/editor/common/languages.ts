@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
-import { IDataTransfer } from 'vs/base/common/dataTransfer';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -1991,5 +1991,5 @@ export enum ExternalUriOpenerPriority {
  * @internal
  */
 export interface DocumentOnDropEditProvider {
-	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IDataTransfer, token: CancellationToken): ProviderResult<SnippetTextEdit>;
+	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): ProviderResult<SnippetTextEdit>;
 }

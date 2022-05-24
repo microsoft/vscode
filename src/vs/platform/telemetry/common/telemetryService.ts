@@ -209,7 +209,7 @@ export class TelemetryService implements ITelemetryService {
 		// Check for common user data in the telemetry events
 		for (const secretRegex of userDataRegexes) {
 			if (secretRegex.regex.test(value)) {
-				return `<REDACTED: ${secretRegex.label}`;
+				return `<REDACTED: ${secretRegex.label}>`;
 			}
 		}
 

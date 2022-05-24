@@ -3798,11 +3798,10 @@ declare namespace monaco.editor {
 		 */
 		fontFamily?: string;
 		/**
-		 * The display style to render inlay hints with.
-		 * Compact mode disables the borders and padding around the inlay hint.
-		 * Defaults to 'standard'.
+		 * Enables the padding around the inlay hint.
+		 * Defaults to false.
 		 */
-		displayStyle: 'standard' | 'compact';
+		padding?: boolean;
 	}
 
 	/**
