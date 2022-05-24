@@ -6,8 +6,7 @@
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ConfigureLocaleAction } from 'vs/workbench/contrib/localizations/browser/localizationsActions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -28,8 +27,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 // Register action to configure locale and related settings
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ConfigureLocaleAction), 'Configure Display Language');
+registerAction2(ConfigureLocaleAction);
 
 const LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY = 'extensionsAssistant/languagePackSuggestionIgnore';
 
