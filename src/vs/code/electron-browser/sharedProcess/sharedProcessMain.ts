@@ -360,9 +360,9 @@ class SharedProcessMain extends Disposable {
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
 
-		// Localizations
-		const localizationsChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService));
-		this.server.registerChannel('localizations', localizationsChannel);
+		// Language Packs
+		const languagePacksChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService));
+		this.server.registerChannel('languagePacks', languagePacksChannel);
 
 		// Diagnostics
 		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService));
