@@ -124,7 +124,7 @@ __vsc_prompt_cmd_original() {
 		unset IFS
 	fi
 	for ((i = 0; i < ${#ADDR[@]}; i++)); do
-		# unset IFS
+		(exit ${__vsc_status})
 		builtin eval ${ADDR[i]}
 	done
 	__vsc_precmd
