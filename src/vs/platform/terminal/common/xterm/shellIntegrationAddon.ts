@@ -145,7 +145,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _handleVSCodeSequence(data: string): boolean {
 		const didHandle = this._doHandleVSCodeSequence(data);
 		if (!this._hasUpdatedTelemetry && didHandle) {
-			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationSucceeded');
+			this._telemetryService?.publicLog2<{}, { owner: 'meganrogge' }>('terminal/shellIntegrationActivationSucceeded');
 			this._hasUpdatedTelemetry = true;
 			if (this._activationTimeout !== undefined) {
 				clearTimeout(this._activationTimeout);

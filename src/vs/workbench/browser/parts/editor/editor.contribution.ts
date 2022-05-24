@@ -314,8 +314,8 @@ if (isMacintosh) {
 	});
 }
 
-MenuRegistry.appendMenuItem(MenuId.TitleMenu, { command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: Codicon.arrowLeft } });
-MenuRegistry.appendMenuItem(MenuId.TitleMenu, { command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: Codicon.arrowRight } });
+MenuRegistry.appendMenuItem(MenuId.CommandCenter, { order: 1, command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: Codicon.arrowLeft } });
+MenuRegistry.appendMenuItem(MenuId.CommandCenter, { order: 2, command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: Codicon.arrowRight } });
 
 // Empty Editor Group Toolbar
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: UNLOCK_GROUP_COMMAND_ID, title: localize('unlockGroupAction', "Unlock Group"), icon: Codicon.lock }, group: 'navigation', order: 10, when: ActiveEditorGroupLockedContext });

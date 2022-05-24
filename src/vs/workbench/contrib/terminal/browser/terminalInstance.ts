@@ -1634,7 +1634,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		if (failedShellIntegrationInjection) {
-			this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationFailureProcessExit');
+			this._telemetryService.publicLog2<{}, { owner: 'meganrogge' }>('terminal/shellIntegrationFailureProcessExit');
 		}
 
 		// First onExit to consumers, this can happen after the terminal has already been disposed.

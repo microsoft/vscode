@@ -148,7 +148,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		let quickPickTop = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			top = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
-			quickPickTop = this.titleService.titleMenuVisible ? 0 : top;
+			quickPickTop = this.titleService.isCommandCenterVisible ? 0 : top;
 		}
 		return { top, quickPickTop };
 	}

@@ -494,7 +494,7 @@ export class DiagnosticComputer {
 						if (fragmentLinks.length) {
 							const toc = await TableOfContents.create(this.engine, hrefDoc);
 							for (const link of fragmentLinks) {
-								if (!toc.lookup(link.fragment) && !this.isIgnoredLink(options, link.source.text)) {
+								if (!toc.lookup(link.fragment) && !this.isIgnoredLink(options, link.source.pathText) && !this.isIgnoredLink(options, link.source.text)) {
 									const msg = localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', link.fragment);
 									diagnostics.push(new LinkDoesNotExistDiagnostic(link.source.hrefRange, msg, severity, link.source.text));
 								}

@@ -451,11 +451,11 @@ export class SuggestController implements IEditorContribution {
 		type AcceptedSuggestionClassification = {
 			owner: 'jrieken';
 			comment: 'Information accepting completion items';
-			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comments: 'Provider of the completions item' };
-			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comments: 'Hash of the basename of the file into which the completion was inserted' };
-			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comments: 'File extension of the file into which the completion was inserted' };
-			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comments: 'Language type of the file into which the completion was inserted' };
-			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comments: 'The completion item kind' };
+			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Provider of the completions item' };
+			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Hash of the basename of the file into which the completion was inserted' };
+			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension of the file into which the completion was inserted' };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Language type of the file into which the completion was inserted' };
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The completion item kind' };
 		};
 		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
 		// normalize it to just the extension ID and lowercase

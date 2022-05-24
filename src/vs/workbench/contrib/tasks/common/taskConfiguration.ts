@@ -23,7 +23,7 @@ import * as Tasks from './tasks';
 import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { URI } from 'vs/base/common/uri';
-import { USER_TASKS_GROUP_KEY, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const enum ShellQuoting {
@@ -1268,7 +1268,7 @@ export namespace GroupKind {
 namespace TaskDependency {
 	function uriFromSource(context: ParseContext, source: TaskConfigSource): URI | string {
 		switch (source) {
-			case TaskConfigSource.User: return USER_TASKS_GROUP_KEY;
+			case TaskConfigSource.User: return Tasks.USER_TASKS_GROUP_KEY;
 			case TaskConfigSource.TasksJson: return context.workspaceFolder.uri;
 			default: return context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri;
 		}
@@ -2146,4 +2146,3 @@ export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace |
 export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
 	return CustomTask.createCustomTask(contributedTask, configuredProps);
 }
-

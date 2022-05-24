@@ -15,13 +15,11 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IResolvedNotebookKernel, INotebookKernelChangeEvent, INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
-abstract class MainThreadKernel implements IResolvedNotebookKernel {
-	readonly type: NotebookKernelType.Resolved = NotebookKernelType.Resolved;
-
+abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
 	private readonly preloads: { uri: URI; provides: string[] }[];
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;

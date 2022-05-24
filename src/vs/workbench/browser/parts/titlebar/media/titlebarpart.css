@@ -80,21 +80,21 @@
 }
 
 /* Window Title Menu */
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center {
 	z-index: 2550;
 	-webkit-app-region: no-drag;
 	padding: 0 8px;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu.hide {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center.hide {
 	display: none;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen {
 	display: flex;
-	color: var(--vscode-titleMenu-foreground);
-	background-color: var(--vscode-titleMenu-background);
-	border: 1px solid var(--vscode-titleMenu-border);
+	color: var(--vscode-commandCenter-foreground);
+	background-color: var(--vscode-commandCenter-background);
+	border: 1px solid var(--vscode-commandCenter-border);
 	border-radius: 5px;
 	height: 20px;
 	line-height: 18px;
@@ -106,18 +106,18 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen:HOVER {
-	color: var(--vscode-titleMenu-activeForeground);
-	background-color: var(--vscode-titleMenu-activeBackground);
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen:HOVER {
+	color: var(--vscode-commandCenter-activeForeground);
+	background-color: var(--vscode-commandCenter-activeBackground);
 	line-height: 18px;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu:HOVER .quickopen .action-label {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center:HOVER .quickopen .action-label {
 	background-color: transparent !important;
 	outline-color: transparent !important;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen>.action-label.search {
 	display: inline-flex;
 	text-align: center;
 	font-size: 12px;
@@ -127,18 +127,18 @@
 	width: calc(100% - 19px);
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search>.search-icon {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen>.action-label.search>.search-icon {
 	font-size: 14px;
 	opacity: .8;
 	padding: 0 3px;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search>.search-label {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen>.action-label.search>.search-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.all-options>.action-label {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen>.all-options>.action-label {
 	text-align: center;
 	font-size: 12px;
 	width: 16px;
@@ -147,8 +147,8 @@
 	padding-right: 0;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu:HOVER .action-item.quickopen>.all-options>.action-label {
-	border-color: var(--vscode-titleMenu-border);
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center:HOVER .action-item.quickopen>.all-options>.action-label {
+	border-color: var(--vscode-commandCenter-border);
 }
 
 /* Menubar */
