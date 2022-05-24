@@ -33,6 +33,7 @@ export class SettingsTreeIndicatorsLabel {
 	private languageOverridesElement: HTMLElement;
 	private languageOverridesLabel: SimpleIconLabel;
 	private scopeOverridesElement: HTMLElement;
+	private scopeOverridesLabel: SimpleIconLabel;
 	private syncIgnoredElement: HTMLElement;
 	private defaultOverrideIndicatorElement: HTMLElement;
 	private defaultOverrideIndicatorLabel: SimpleIconLabel;
@@ -44,7 +45,9 @@ export class SettingsTreeIndicatorsLabel {
 		const { element: languageOverridesElement, label: languageOverridesLabel } = this.createLanguageOverridesIndicator();
 		this.languageOverridesElement = languageOverridesElement;
 		this.languageOverridesLabel = languageOverridesLabel;
-		this.scopeOverridesElement = this.createScopeOverridesElement();
+		const { element: scopeOverridesElement, label: scopeOverridesLabel } = this.createScopeOverridesIndicator();
+		this.scopeOverridesElement = scopeOverridesElement;
+		this.scopeOverridesLabel = scopeOverridesLabel;
 		this.syncIgnoredElement = this.createSyncIgnoredElement();
 		const { element: defaultOverrideElement, label: defaultOverrideLabel } = this.createDefaultOverrideIndicator();
 		this.defaultOverrideIndicatorElement = defaultOverrideElement;
@@ -57,9 +60,10 @@ export class SettingsTreeIndicatorsLabel {
 		return { element: languageOverridesElement, label: languageOverridesLabel };
 	}
 
-	private createScopeOverridesElement(): HTMLElement {
+	private createScopeOverridesIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
 		const otherOverridesElement = $('span.setting-item-overrides');
-		return otherOverridesElement;
+		const otherOverridesLabel = new SimpleIconLabel(otherOverridesElement);
+		return { element: otherOverridesElement, label: otherOverridesLabel };
 	}
 
 	private createSyncIgnoredElement(): HTMLElement {
@@ -144,6 +148,13 @@ export class SettingsTreeIndicatorsLabel {
 			const otherOverridesLabel = element.isConfigured ?
 				localize('alsoConfiguredIn', "Also modified in") :
 				localize('configuredIn', "Modified in");
+			let otherOverridesTitle = element.isConfigured ?
+				localize('alsoConfiguredIn', "Also modified in") :
+				localize('configuredIn', "Modified in");
+			otherOverridesTitle += ' ' + element.overriddenScopeList.join(', ');
+
+			this.scopeOverridesLabel.text = '$(note) ';
+			this.scopeOverridesLabel.title = otherOverridesTitle;
 
 			DOM.append(this.scopeOverridesElement, $('span', undefined, `${otherOverridesLabel}: `));
 			for (let i = 0; i < element.overriddenScopeList.length; i++) {
