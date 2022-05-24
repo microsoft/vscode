@@ -541,7 +541,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'window.experimental.commandCenter': {
 				type: 'boolean',
 				default: false,
-				description: localize('window.experimental.commandCenter', "Show command launcher together with the window title.")
+				markdownDescription: localize('window.experimental.commandCenter', "Show command launcher together with the window title. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
