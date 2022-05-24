@@ -644,6 +644,7 @@ export class ExtensionEditor extends EditorPane {
 
 	private setRecommendationText(extension: IExtension, template: IExtensionEditorTemplate): void {
 		const updateRecommendationText = (layout: boolean) => {
+			reset(template.recommendation);
 			const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
 			if (extRecommendations[extension.identifier.id.toLowerCase()]) {
 				const reasonText = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
@@ -658,8 +659,8 @@ export class ExtensionEditor extends EditorPane {
 				this.layout(this.dimension);
 			}
 		};
-		reset(template.recommendation);
 		if (extension.deprecationInfo || extension.state === ExtensionState.Installed) {
+			reset(template.recommendation);
 			return;
 		}
 		updateRecommendationText(false);

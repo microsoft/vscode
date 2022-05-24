@@ -12,7 +12,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
 import type { IGrammar, StackElement } from 'vscode-textmate';
-import { TokenizationRegistry, TokenMetadata } from 'vs/editor/common/languages';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
 import { Color } from 'vs/base/common/color';
 import { IFileService } from 'vs/platform/files/common/files';

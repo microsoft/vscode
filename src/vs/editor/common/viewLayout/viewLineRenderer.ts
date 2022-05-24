@@ -9,6 +9,7 @@ import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
+import { LinePart, LinePartMetadata } from 'vs/editor/common/viewLayout/linePart';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -16,38 +17,6 @@ export const enum RenderWhitespace {
 	Selection = 2,
 	Trailing = 3,
 	All = 4
-}
-
-export const enum LinePartMetadata {
-	IS_WHITESPACE = 1,
-	PSEUDO_BEFORE = 2,
-	PSEUDO_AFTER = 4,
-
-	IS_WHITESPACE_MASK = 0b001,
-	PSEUDO_BEFORE_MASK = 0b010,
-	PSEUDO_AFTER_MASK = 0b100,
-}
-
-class LinePart {
-	_linePartBrand: void = undefined;
-
-	constructor(
-		/**
-		 * last char index of this token (not inclusive).
-		 */
-		public readonly endIndex: number,
-		public readonly type: string,
-		public readonly metadata: number,
-		public readonly containsRTL: boolean
-	) { }
-
-	public isWhitespace(): boolean {
-		return (this.metadata & LinePartMetadata.IS_WHITESPACE_MASK ? true : false);
-	}
-
-	public isPseudoAfter(): boolean {
-		return (this.metadata & LinePartMetadata.PSEUDO_AFTER_MASK ? true : false);
-	}
 }
 
 export class LineRange {
