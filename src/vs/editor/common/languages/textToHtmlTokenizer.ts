@@ -6,7 +6,8 @@
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ILanguageIdCodec, IState, ITokenizationSupport, LanguageId, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import { NullState, nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 

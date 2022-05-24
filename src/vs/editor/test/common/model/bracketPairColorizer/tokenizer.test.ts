@@ -10,7 +10,8 @@ import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
 import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { EncodedTokenizationResult, IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { LanguageId, StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
