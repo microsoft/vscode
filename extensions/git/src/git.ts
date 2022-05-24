@@ -1400,9 +1400,9 @@ export class Repository {
 		const args = ['commit', '--quiet'];
 		const options: SpawnOptions = {};
 
-		if (!opts.useEditor || message) {
+		if (message) {
 			options.input = message;
-			args.push(...['--allow-empty-message', '--file', '-']);
+			args.push('--file', '-');
 		}
 
 		if (opts.verbose) {
@@ -1413,16 +1413,21 @@ export class Repository {
 			args.push('--all');
 		}
 
-		if (opts.amend && message) {
+		if (opts.amend) {
 			args.push('--amend');
 		}
 
-		if (opts.amend && !message) {
-			if (opts.useEditor) {
-				args.push('--amend');
-			} else {
-				args.push('--amend', '--no-edit');
+		if (!opts.useEditor) {
+			if (!message) {
+				if (opts.amend) {
+					args.push('--no-edit');
+				} else {
+					options.input = '';
+					args.push('--file', '-');
+				}
 			}
+
+			args.push('--allow-empty-message');
 		}
 
 		if (opts.signoff) {
