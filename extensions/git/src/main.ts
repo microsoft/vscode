@@ -27,7 +27,6 @@ import { TerminalEnvironmentManager } from './terminal';
 import { OutputChannelLogger } from './log';
 import { createIPCServer, IIPCServer } from './ipc/ipcServer';
 import { GitEditor } from './gitEditor/gitEditor';
-import { GitEditorFileSystemProvider } from './gitEditor/fileSystemProvider';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -112,7 +111,6 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 	const cc = new CommandCenter(git, model, outputChannelLogger, telemetryReporter);
 	disposables.push(
 		cc,
-		new GitEditorFileSystemProvider(),
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
 		new GitProtocolHandler(),
