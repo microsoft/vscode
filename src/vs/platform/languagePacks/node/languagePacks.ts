@@ -13,7 +13,8 @@ import { Promises } from 'vs/base/node/pfs';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionIdentifier, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILocalizationsService, isValidLocalization } from 'vs/platform/localizations/common/localizations';
+import { ILocalizationContribution } from 'vs/platform/extensions/common/extensions';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILogService } from 'vs/platform/log/common/log';
 
 interface ILanguagePack {
@@ -25,7 +26,7 @@ interface ILanguagePack {
 	translations: { [id: string]: string };
 }
 
-export class LocalizationsService extends Disposable implements ILocalizationsService {
+export class LanguagePackService extends Disposable implements ILanguagePackService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -48,7 +49,7 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 		});
 	}
 
-	async getLanguageIds(): Promise<string[]> {
+	async getInstalledLanguages(): Promise<string[]> {
 		const languagePacks = await this.cache.getLanguagePacks();
 		// Contributed languages are those installed via extension packs, so does not include English
 		const languages = ['en', ...Object.keys(languagePacks)];
@@ -173,4 +174,28 @@ class LanguagePacksCache extends Disposable {
 				.then(() => result, error => this.logService.error(error));
 		});
 	}
+}
+
+function isValidLocalization(localization: ILocalizationContribution): boolean {
+	if (typeof localization.languageId !== 'string') {
+		return false;
+	}
+	if (!Array.isArray(localization.translations) || localization.translations.length === 0) {
+		return false;
+	}
+	for (const translation of localization.translations) {
+		if (typeof translation.id !== 'string') {
+			return false;
+		}
+		if (typeof translation.path !== 'string') {
+			return false;
+		}
+	}
+	if (localization.languageName && typeof localization.languageName !== 'string') {
+		return false;
+	}
+	if (localization.localizedLanguageName && typeof localization.localizedLanguageName !== 'string') {
+		return false;
+	}
+	return true;
 }

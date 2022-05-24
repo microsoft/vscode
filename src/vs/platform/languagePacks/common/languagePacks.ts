@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-registerSharedProcessRemoteService(ILocalizationsService, 'localizations', { supportsDelayedInstantiation: true });
+export const ILanguagePackService = createDecorator<ILanguagePackService>('languagePackService');
+export interface ILanguagePackService {
+	readonly _serviceBrand: undefined;
+	getInstalledLanguages(): Promise<string[]>;
+}
