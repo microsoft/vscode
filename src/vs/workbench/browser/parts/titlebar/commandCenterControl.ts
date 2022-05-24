@@ -27,7 +27,7 @@ import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
-export class TitleMenuControl {
+export class CommandCenterControl {
 
 	private readonly _disposables = new DisposableStore();
 
@@ -47,7 +47,7 @@ export class TitleMenuControl {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		this.element.classList.add('title-menu');
+		this.element.classList.add('command-center');
 
 		const hoverDelegate = new class implements IHoverDelegate {
 
@@ -134,16 +134,16 @@ export class TitleMenuControl {
 				return createActionViewItem(instantiationService, action, { hoverDelegate });
 			}
 		});
-		const titleMenu = this._disposables.add(menuService.createMenu(MenuId.TitleMenu, contextKeyService));
-		const titleMenuDisposables = this._disposables.add(new DisposableStore());
-		const updateTitleMenu = () => {
-			titleMenuDisposables.clear();
+		const menu = this._disposables.add(menuService.createMenu(MenuId.CommandCenter, contextKeyService));
+		const menuDisposables = this._disposables.add(new DisposableStore());
+		const menuUpdater = () => {
+			menuDisposables.clear();
 			const actions: IAction[] = [];
-			titleMenuDisposables.add(createAndFillInContextMenuActions(titleMenu, undefined, actions));
+			menuDisposables.add(createAndFillInContextMenuActions(menu, undefined, actions));
 			titleToolbar.setActions(actions);
 		};
-		updateTitleMenu();
-		this._disposables.add(titleMenu.onDidChange(updateTitleMenu));
+		menuUpdater();
+		this._disposables.add(menu.onDidChange(menuUpdater));
 		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
 		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
 	}
@@ -162,34 +162,34 @@ export class TitleMenuControl {
 
 // foreground (inactive and active)
 colors.registerColor(
-	'titleMenu.foreground',
+	'commandCenter.foreground',
 	{ dark: TITLE_BAR_ACTIVE_FOREGROUND, hcDark: TITLE_BAR_ACTIVE_FOREGROUND, light: TITLE_BAR_ACTIVE_FOREGROUND, hcLight: TITLE_BAR_ACTIVE_FOREGROUND },
-	localize('titleMenu-foreground', "Foreground color of the title menu"),
+	localize('commandCenter-foreground', "Foreground color of the command center"),
 	false
 );
 colors.registerColor(
-	'titleMenu.activeForeground',
+	'commandCenter.activeForeground',
 	{ dark: MENUBAR_SELECTION_FOREGROUND, hcDark: MENUBAR_SELECTION_FOREGROUND, light: MENUBAR_SELECTION_FOREGROUND, hcLight: MENUBAR_SELECTION_FOREGROUND },
-	localize('titleMenu-activeForeground', "Active foreground color of the title menu"),
+	localize('commandCenter-activeForeground', "Active foreground color of the command center"),
 	false
 );
 // background (inactive and active)
 colors.registerColor(
-	'titleMenu.background',
+	'commandCenter.background',
 	{ dark: null, hcDark: null, light: null, hcLight: null },
-	localize('titleMenu-background', "Background color of the title menu"),
+	localize('commandCenter-background', "Background color of the command center"),
 	false
 );
 const activeBackground = colors.registerColor(
-	'titleMenu.activeBackground',
+	'commandCenter.activeBackground',
 	{ dark: MENUBAR_SELECTION_BACKGROUND, hcDark: MENUBAR_SELECTION_BACKGROUND, light: MENUBAR_SELECTION_BACKGROUND, hcLight: MENUBAR_SELECTION_BACKGROUND },
-	localize('titleMenu-activeBackground', "Active background color of the title menu"),
+	localize('commandCenter-activeBackground', "Active background color of the command center"),
 	false
 );
 // border: defaults to active background
 colors.registerColor(
-	'titleMenu.border',
+	'commandCenter.border',
 	{ dark: activeBackground, hcDark: colors.inputBorder, light: activeBackground, hcLight: colors.inputBorder },
-	localize('titleMenu-border', "Border color of the title menu"),
+	localize('commandCenter-border', "Border color of the command center"),
 	false
 );
