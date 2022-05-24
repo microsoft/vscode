@@ -133,6 +133,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 							const logUserReaction = (userReaction: string) => {
 								/* __GDPR__
 									"languagePackSuggestion:popup" : {
+										"owner": "TylerLeonhardt",
 										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 										"language": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 									}

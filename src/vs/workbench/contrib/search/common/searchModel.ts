@@ -1076,6 +1076,7 @@ export class SearchModel extends Disposable {
 		Promise.race([currentRequest, Event.toPromise(progressEmitter.event)]).finally(() => {
 			/* __GDPR__
 				"searchResultsFirstRender" : {
+					"owner": "roblourens",
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
@@ -1091,6 +1092,7 @@ export class SearchModel extends Disposable {
 		} finally {
 			/* __GDPR__
 				"searchResultsFinished" : {
+					"owner": "roblourens",
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
@@ -1119,6 +1121,7 @@ export class SearchModel extends Disposable {
 
 		/* __GDPR__
 			"searchResultsShown" : {
+				owner": "roblourens",
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"options": { "${inline}": [ "${IPatternInfo}" ] },

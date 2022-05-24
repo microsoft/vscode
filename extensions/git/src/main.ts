@@ -192,7 +192,9 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		outputChannelLogger.logWarning(err.message);
 
 		/* __GDPR__
-			"git.missing" : {}
+			"git.missing" : {
+				"owner": "lszomoru"
+			}
 		*/
 		telemetryReporter.sendTelemetryEvent('git.missing');
 
