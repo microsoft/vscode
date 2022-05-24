@@ -16,7 +16,8 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "textEditorDrop"
+    "textEditorDrop",
+    "documentPaste"
   ],
   "activationEvents": [
     "onLanguage:markdown",
