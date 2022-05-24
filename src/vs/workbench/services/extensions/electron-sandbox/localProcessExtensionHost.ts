@@ -396,7 +396,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 		// 2) wait for the incoming `initialized` event.
 		return new Promise<void>((resolve, reject) => {
 
-			let timeoutHandle: NodeJS.Timer;
+			let timeoutHandle: any;
 			const installTimeoutCheck = () => {
 				timeoutHandle = setTimeout(() => {
 					reject('The local extenion host took longer than 60s to send its ready message.');
