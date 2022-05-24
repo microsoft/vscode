@@ -121,10 +121,8 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				.map(input => input.resource!.toString());
 
 			if (editorData.length) {
-				const added = new VSDataTransfer();
 				const str = distinct(editorData).join('\n');
-				added.setString(Mimes.uriList.toLowerCase(), str);
-				return added;
+				textEditorDataTransfer.setString(Mimes.uriList.toLowerCase(), str);
 			}
 		}
 
