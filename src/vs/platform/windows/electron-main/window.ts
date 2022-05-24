@@ -287,7 +287,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					if (e.affectsConfiguration(ccConfigKey)) {
 						trafficLightUpdater();
 					}
-				});
+				}, undefined, this._store);
 			}
 
 			// Open devtools if instructed from command line args
