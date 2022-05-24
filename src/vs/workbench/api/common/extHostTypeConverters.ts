@@ -38,6 +38,7 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { once } from 'vs/base/common/functional';
 
 export namespace Command {
 
@@ -1954,5 +1955,54 @@ export namespace ViewBadge {
 			value: badge.value,
 			tooltip: badge.tooltip
 		};
+	}
+}
+
+export namespace DataTransferItem {
+	export function toDataTransferItem(item: extHostProtocol.DataTransferItemDTO, resolveFileData: () => Promise<Uint8Array>): types.DataTransferItem {
+		const file = item.fileData;
+		if (file) {
+			return new class extends types.DataTransferItem {
+				override asFile(): vscode.DataTransferFile {
+					return {
+						name: file.name,
+						uri: URI.revive(file.uri),
+						data: once(() => resolveFileData()),
+					};
+				}
+			}('');
+		} else {
+			return new types.DataTransferItem(item.asString);
+		}
+	}
+}
+
+export namespace DataTransfer {
+	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (dataItemIndex: number) => Promise<Uint8Array>): types.DataTransfer {
+		const newDataTransfer = new types.DataTransfer();
+		value.items.forEach(([type, item], index) => {
+			newDataTransfer.set(type, DataTransferItem.toDataTransferItem(item, () => resolveFileData(index)));
+		});
+		return newDataTransfer;
+	}
+
+	export async function toDataTransferDTO(value: vscode.DataTransfer): Promise<extHostProtocol.DataTransferDTO> {
+		const newDTO: extHostProtocol.DataTransferDTO = { items: [] };
+
+		const promises: Promise<any>[] = [];
+		value.forEach((value, key) => {
+			promises.push((async () => {
+				const stringValue = await value.asString();
+				const fileValue = value.asFile();
+				newDTO.items.push([key, {
+					asString: stringValue,
+					fileData: fileValue ? { name: fileValue.name, uri: fileValue.uri } : undefined,
+				}]);
+			})());
+		});
+
+		await Promise.all(promises);
+
+		return newDTO;
 	}
 }

@@ -5,18 +5,8 @@
 
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
+import { LinePartMetadata } from 'vs/editor/common/viewLayout/linePart';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
-
-// TODO@jrieken HACK!
-const enum LinePartMetadata {
-	IS_WHITESPACE = 1,
-	PSEUDO_BEFORE = 2,
-	PSEUDO_AFTER = 4,
-
-	IS_WHITESPACE_MASK = 0b001,
-	PSEUDO_BEFORE_MASK = 0b010,
-	PSEUDO_AFTER_MASK = 0b100,
-}
 
 export class LineDecoration {
 	_lineDecorationBrand: void = undefined;
