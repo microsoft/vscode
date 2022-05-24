@@ -12,6 +12,9 @@ export const IExtensionHostStarter = createDecorator<IExtensionHostStarter>('ext
 export const ipcExtensionHostStarterChannelName = 'extensionHostStarter';
 
 export interface IExtensionHostProcessOptions {
+	responseWindowId: number;
+	responseChannel: string;
+	responseNonce: string;
 	env: { [key: string]: string | undefined };
 	detached: boolean;
 	execArgv: string[] | undefined;
@@ -27,8 +30,9 @@ export interface IExtensionHostStarter {
 	onDynamicError(id: string): Event<{ error: SerializedError }>;
 	onDynamicExit(id: string): Event<{ code: number; signal: string }>;
 
+	usesUtilityProcess(): Promise<boolean>;
 	createExtensionHost(): Promise<{ id: string }>;
-	start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number }>;
+	start(id: string, opts: IExtensionHostProcessOptions): Promise<void>;
 	enableInspectPort(id: string): Promise<boolean>;
 	kill(id: string): Promise<void>;
 
