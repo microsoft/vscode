@@ -450,6 +450,8 @@ class ProgressManager {
 		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
 		onDidChange(_ => this.updateEnablement());
 		this.updateEnablement();
+
+		this.repository.onDidChangeOperations(() => commands.executeCommand('setContext', 'commitInProgress', this.repository.operations.isRunning(Operation.Commit)));
 	}
 
 	private updateEnablement(): void {
