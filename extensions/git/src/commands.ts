@@ -416,6 +416,7 @@ export class CommandCenter {
 		if (!url) {
 			/* __GDPR__
 				"clone" : {
+					"owner": "lszomoru",
 					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
@@ -441,6 +442,7 @@ export class CommandCenter {
 			if (!uris || uris.length === 0) {
 				/* __GDPR__
 					"clone" : {
+						"owner": "lszomoru",
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -499,6 +501,7 @@ export class CommandCenter {
 
 			/* __GDPR__
 				"clone" : {
+					"owner": "lszomoru",
 					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
@@ -518,6 +521,7 @@ export class CommandCenter {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
 				/* __GDPR__
 					"clone" : {
+						"owner": "lszomoru",
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -527,6 +531,7 @@ export class CommandCenter {
 			} else {
 				/* __GDPR__
 					"clone" : {
+						"owner": "lszomoru",
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -2920,6 +2925,7 @@ export class CommandCenter {
 
 			/* __GDPR__
 				"git.command" : {
+					"owner": "lszomoru",
 					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/

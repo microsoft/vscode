@@ -562,6 +562,7 @@ export class ExtensionEditor extends EditorPane {
 		}
 		/* __GDPR__
 		"extensionGallery:openExtension" : {
+			"owner": "sandy081",
 			"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"${include}": [
 				"${GalleryExtensionTelemetryData}"

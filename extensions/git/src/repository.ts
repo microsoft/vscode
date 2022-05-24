@@ -1864,6 +1864,7 @@ export class Repository implements Disposable {
 		if (didHitLimit) {
 			/* __GDPR__
 				"statusLimit" : {
+					"owner": "lszomoru",
 					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"limit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
