@@ -30,6 +30,7 @@
 	zoom: 1;
 	white-space: nowrap;
 	outline: 0;
+	align-self: center;
 }
 
 .menubar.compact {
