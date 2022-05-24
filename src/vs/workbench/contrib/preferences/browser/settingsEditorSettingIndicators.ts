@@ -108,7 +108,9 @@ export class SettingsTreeIndicatorsLabel {
 		const hasLanguageSpecificValuesOrOverrides = element.languageDefaultOverrides.size || element.languageOverridenScopeLists.size;
 		if (!element.languageSelector && hasLanguageSpecificValuesOrOverrides) {
 			this.languageOverridesElement.style.display = 'inline';
-			this.languageOverridesLabel.text = '$(bracket) ';
+
+			const languageOverriddenLabelStarter = localize('languageOverridesLabel', "Overridden for: ");
+			this.languageOverridesLabel.text = `$(bracket) ${languageOverriddenLabelStarter}`;
 
 			// Get the list of languages that have default value overrides or user-configured values.
 			const overrideSources: Set<string> = new Set<string>();
@@ -145,18 +147,14 @@ export class SettingsTreeIndicatorsLabel {
 		this.scopeOverridesElement.style.display = 'none';
 		if (element.overriddenScopeList.length) {
 			this.scopeOverridesElement.style.display = 'inline';
-			const otherOverridesLabel = element.isConfigured ?
+			const modifiedInText = element.isConfigured ?
 				localize('alsoConfiguredIn', "Also modified in") :
 				localize('configuredIn', "Modified in");
-			let otherOverridesTitle = element.isConfigured ?
-				localize('alsoConfiguredIn', "Also modified in") :
-				localize('configuredIn', "Modified in");
-			otherOverridesTitle += ' ' + element.overriddenScopeList.join(', ');
+			const otherOverridesTitle = modifiedInText + ' ' + element.overriddenScopeList.join(', ');
 
-			this.scopeOverridesLabel.text = '$(note) ';
+			this.scopeOverridesLabel.text = `$(note) ${modifiedInText}: `;
 			this.scopeOverridesLabel.title = otherOverridesTitle;
 
-			DOM.append(this.scopeOverridesElement, $('span', undefined, `${otherOverridesLabel}: `));
 			for (let i = 0; i < element.overriddenScopeList.length; i++) {
 				const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, element.overriddenScopeList[i]));
 
@@ -186,10 +184,10 @@ export class SettingsTreeIndicatorsLabel {
 			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
 				const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
 				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", extensionSource);
-				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(replace) {0}", extensionSource);
+				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(replace) Default overridden by: {0}", extensionSource);
 			} else if (typeof defaultValueSource === 'string') {
 				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", defaultValueSource);
-				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(replace) {0}", defaultValueSource);
+				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(replace) Default overridden by: {0}", defaultValueSource);
 			}
 		}
 		this.render();
