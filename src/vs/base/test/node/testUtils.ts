@@ -16,5 +16,4 @@ export function getPathFromAmdModule(requirefn: typeof require, relativePath: st
 	return URI.parse(requirefn.toUrl(relativePath)).fsPath;
 }
 
-// export import flakySuite = testUtils.flakySuite;
-export const flakySuite = testUtils.flakySuite;
+export import flakySuite = testUtils.flakySuite;
