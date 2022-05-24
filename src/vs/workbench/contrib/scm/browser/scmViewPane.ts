@@ -1864,7 +1864,7 @@ class SCMInputWidget extends Disposable {
 
 		// Update input enablement
 		const updateEnablement = (enabled: boolean) => {
-			this.inputEditor.updateOptions({ readOnly: enabled });
+			this.inputEditor.updateOptions({ readOnly: !enabled });
 		};
 		this.repositoryDisposables.add(input.onDidChangeEnablement(enabled => updateEnablement(enabled)));
 		updateEnablement(input.enabled);
