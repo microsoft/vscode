@@ -1829,8 +1829,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 	class OutputCell {
 
 		public readonly element: HTMLElement;
-		public readonly bottomElement: HTMLElement;
-
 		private readonly outputElements = new Map</*outputId*/ string, OutputContainer>();
 
 		constructor(cellId: string) {
@@ -1849,14 +1847,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element = this.element;
 
 
-			this.bottomElement = createFocusSink(cellId, true);
-			container.appendChild(this.bottomElement);
-
-			// New thoughts.
-			// Send message to indicate force scroll.
-			// Add resizeObserver on the element
-			// When resize occurs, scroll lowerWrapperElement into view
-			// Send message to indicate stop scrolling
+			const lowerWrapperElement = createFocusSink(cellId, true);
+			container.appendChild(lowerWrapperElement);
 		}
 
 		public createOutputElement(outputId: string, outputOffset: number, left: number): OutputElement {
