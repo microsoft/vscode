@@ -3,21 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Server, createServer } from 'net';
-import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-
 import * as nls from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log } from 'vs/base/common/console';
 import { logRemoteEntry, logRemoteEntryIfError } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { BufferedEmitter, PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -27,7 +24,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { isUntitledWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { MessageType, createMessageOfType, isMessageOfType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { MessageType, isMessageOfType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
@@ -62,7 +59,7 @@ const enum NativeLogMarkers {
 	End = 'END_NATIVE_LOG',
 }
 
-class ExtensionHostProcess {
+export class ExtensionHostProcess {
 
 	private readonly _id: string;
 
@@ -106,7 +103,7 @@ class ExtensionHostProcess {
 	}
 }
 
-export class LocalProcessExtensionHost implements IExtensionHost {
+export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 
 	public readonly remoteAuthority = null;
 	public readonly lazyStart = false;
@@ -117,7 +114,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 	private readonly _onDidSetInspectPort = new Emitter<void>();
 
-	private readonly _toDispose = new DisposableStore();
+	protected readonly _toDispose = new DisposableStore();
 
 	private readonly _isExtensionDevHost: boolean;
 	private readonly _isExtensionDevDebug: boolean;
@@ -144,13 +141,13 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILogService private readonly _logService: ILogService,
+		@ILogService protected readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
 		@IHostService private readonly _hostService: IHostService,
 		@IProductService private readonly _productService: IProductService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
-		@IExtensionHostStarter private readonly _extensionHostStarter: IExtensionHostStarter,
+		@IExtensionHostStarter protected readonly _extensionHostStarter: IExtensionHostStarter,
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -208,18 +205,12 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		return this._messageProtocol;
 	}
 
-	private async _start(): Promise<IMessagePassingProtocol> {
-		const canUseUtilityProcess = await this._extensionHostStarter.canUseUtilityProcess();
-		if (canUseUtilityProcess && process.env['VSCODE_USE_UTILITY_PROCESS']) {
-			const communication = this._toDispose.add(new ExtHostMessagePortCommunication(this._logService));
-			return this._startWithCommunication(communication);
-		} else {
-			const communication = this._toDispose.add(new ExtHostNamedPipeCommunication(this._logService));
-			return this._startWithCommunication(communication);
-		}
+	protected async _start(): Promise<IMessagePassingProtocol> {
+		const communication = this._toDispose.add(new ExtHostMessagePortCommunication(this._logService));
+		return this._startWithCommunication(communication);
 	}
 
-	private async _startWithCommunication<T>(communication: IExtHostCommunication<T>): Promise<IMessagePassingProtocol> {
+	protected async _startWithCommunication<T>(communication: IExtHostCommunication<T>): Promise<IMessagePassingProtocol> {
 
 		const [extensionHostCreationResult, communicationPreparedData, portNumber, processEnv] = await Promise.all([
 			this._extensionHostStarter.createExtensionHost(communication.useUtilityProcess),
@@ -604,13 +595,13 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	}
 }
 
-interface IExtHostCommunication<T> {
+export interface IExtHostCommunication<T> {
 	readonly useUtilityProcess: boolean;
 	prepare(): Promise<T>;
 	establishProtocol(prepared: T, extensionHostProcess: ExtensionHostProcess, opts: IExtensionHostProcessOptions): Promise<IMessagePassingProtocol>;
 }
 
-class ExtHostMessagePortCommunication extends Disposable implements IExtHostCommunication<void> {
+export class ExtHostMessagePortCommunication extends Disposable implements IExtHostCommunication<void> {
 
 	readonly useUtilityProcess = true;
 
@@ -660,97 +651,6 @@ class ExtHostMessagePortCommunication extends Disposable implements IExtHostComm
 				// Starting the ext host process resulted in an error
 				reject(err);
 			});
-		});
-	}
-}
-
-interface INamedPipePreparedData {
-	pipeName: string;
-	namedPipeServer: Server;
-}
-
-class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommunication<INamedPipePreparedData> {
-
-	readonly useUtilityProcess = false;
-
-	constructor(
-		@ILogService private readonly _logService: ILogService
-	) {
-		super();
-	}
-
-	prepare(): Promise<INamedPipePreparedData> {
-		return new Promise<{ pipeName: string; namedPipeServer: Server }>((resolve, reject) => {
-			const pipeName = createRandomIPCHandle();
-
-			const namedPipeServer = createServer();
-			namedPipeServer.on('error', reject);
-			namedPipeServer.listen(pipeName, () => {
-				if (namedPipeServer) {
-					namedPipeServer.removeListener('error', reject);
-				}
-				resolve({ pipeName, namedPipeServer });
-			});
-			this._register(toDisposable(() => {
-				if (namedPipeServer.listening) {
-					namedPipeServer.close();
-				}
-			}));
-		});
-	}
-
-	establishProtocol(prepared: INamedPipePreparedData, extensionHostProcess: ExtensionHostProcess, opts: IExtensionHostProcessOptions): Promise<IMessagePassingProtocol> {
-		const { namedPipeServer, pipeName } = prepared;
-
-		opts.env['VSCODE_IPC_HOOK_EXTHOST'] = pipeName;
-
-		return new Promise<PersistentProtocol>((resolve, reject) => {
-
-			// Wait for the extension host to connect to our named pipe
-			// and wrap the socket in the message passing protocol
-			const handle = setTimeout(() => {
-				if (namedPipeServer.listening) {
-					namedPipeServer.close();
-				}
-				reject('The local extension host took longer than 60s to connect.');
-			}, 60 * 1000);
-
-			namedPipeServer.on('connection', (socket) => {
-
-				clearTimeout(handle);
-				if (namedPipeServer.listening) {
-					namedPipeServer.close();
-				}
-
-				const nodeSocket = new NodeSocket(socket, 'renderer-exthost');
-				const protocol = new PersistentProtocol(nodeSocket);
-
-				this._register(toDisposable(() => {
-					// Send the extension host a request to terminate itself
-					// (graceful termination)
-					protocol.send(createMessageOfType(MessageType.Terminate));
-					protocol.flush();
-
-					socket.end();
-					nodeSocket.dispose();
-					protocol.dispose();
-				}));
-
-				resolve(protocol);
-			});
-
-			// Now that the named pipe listener is installed, start the ext host process
-			const sw = StopWatch.create(false);
-			extensionHostProcess.start(opts).then(() => {
-				const duration = sw.elapsed();
-				if (platform.isCI) {
-					this._logService.info(`IExtensionHostStarter.start() took ${duration} ms.`);
-				}
-			}, (err) => {
-				// Starting the ext host process resulted in an error
-				reject(err);
-			});
-
 		});
 	}
 }

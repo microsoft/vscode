@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, LocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-browser/localProcessExtensionHost';
+import { NativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-browser/nativeLocalProcessExtensionHost';
 
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-sandbox/cachedExtensionScanner';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -50,6 +50,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCI } from 'vs/base/common/platform';
 import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { URI } from 'vs/base/common/uri';
+import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -240,7 +241,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null {
 		switch (runningLocation.kind) {
 			case ExtensionHostKind.LocalProcess: {
-				return this._instantiationService.createInstance(LocalProcessExtensionHost, runningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
+				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
 			}
 			case ExtensionHostKind.LocalWebWorker: {
 				if (this._enableLocalWebWorker) {
