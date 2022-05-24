@@ -35,8 +35,8 @@ export class Kernel {
 
 	readonly associatedNotebooks = new Set<string>();
 
-	constructor(id: string, label: string) {
-		this.controller = vscode.notebooks.createNotebookController(id, 'notebookCoreTest', label);
+	constructor(id: string, label: string, viewType: string = 'notebookCoreTest') {
+		this.controller = vscode.notebooks.createNotebookController(id, viewType, label);
 		this.controller.executeHandler = this._execute.bind(this);
 		this.controller.supportsExecutionOrder = true;
 		this.controller.supportedLanguages = ['typescript', 'javascript'];

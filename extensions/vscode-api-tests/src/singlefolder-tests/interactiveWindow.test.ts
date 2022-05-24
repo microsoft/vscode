@@ -32,7 +32,7 @@ async function createInteractiveWindow(kernel: Kernel) {
 
 	setup(async function () {
 		// there should be ONE default kernel in this suite
-		defaultKernel = new Kernel('mainKernel', 'Notebook Default Kernel');
+		defaultKernel = new Kernel('mainKernel', 'Notebook Default Kernel', 'interactive');
 		testDisposables.push(defaultKernel.controller);
 		await saveAllFilesAndCloseAll();
 	});
