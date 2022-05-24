@@ -1165,14 +1165,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._backgroundMarkdownRendering();
 	}
 
-	private _isScheduled = false;
+	private _backgroundMarkdownRenderRunning = false;
 	private _backgroundMarkdownRendering() {
-		if (this._isScheduled) {
+		if (this._backgroundMarkdownRenderRunning) {
 			return;
 		}
 
+		this._backgroundMarkdownRenderRunning = true;
 		runWhenIdle((deadline) => {
-			this._isScheduled = false;
 			this._backgroundMarkdownRenderingWithDeadline(deadline);
 		});
 	}
@@ -1181,6 +1181,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const endTime = Date.now() + deadline.timeRemaining();
 
 		const execute = () => {
+			this._backgroundMarkdownRenderRunning = false;
 			if (this._isDisposed) {
 				return;
 			}
@@ -1194,6 +1195,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
+			this._backgroundMarkdownRenderRunning = true;
 			this.createMarkupPreview(firstMarkupCell);
 
 			if (Date.now() < endTime) {
@@ -1508,6 +1510,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 				dispose(deletedCells);
 			});
+
+			if (e.splices.some(s => s[2].some(cell => cell.cellKind === CellKind.Markup))) {
+				this._backgroundMarkdownRendering();
+			}
 		}));
 
 		if (this._dimension) {
@@ -2235,6 +2241,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		let deferred = new DeferredPromise<void>();
 		const doLayout = () => {
 			if (this._isDisposed) {
+				return;
+			}
+
+			if (!this.viewModel?.hasCell(cell)) {
+				// Cell removed in the meantime?
 				return;
 			}
 
