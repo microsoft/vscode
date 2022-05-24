@@ -12,6 +12,7 @@ import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protoc
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { mock } from 'vs/base/test/common/mock';
 import * as perfData from './extHostDocumentData.test.perf-data';
+import { setDefaultGetWordAtTextConfig } from 'vs/editor/common/core/wordHelper';
 
 suite('ExtHostDocumentData', () => {
 
@@ -316,14 +317,22 @@ suite('ExtHostDocumentData', () => {
 			perfData._$_$_expensive
 		], '\n', 1, 'text', false);
 
-		let range = data.document.getWordRangeAtPosition(new Position(0, 1_177_170), regex)!;
-		assert.strictEqual(range, undefined);
+		// this test only ensures that we eventually give and timeout (when searching "funny" words and long lines)
+		// for the sake of speedy tests we lower the timeBudget here
+		const config = setDefaultGetWordAtTextConfig({ maxLen: 1000, windowSize: 15, timeBudget: 30 });
+		try {
+			let range = data.document.getWordRangeAtPosition(new Position(0, 1_177_170), regex)!;
+			assert.strictEqual(range, undefined);
 
-		const pos = new Position(0, 1177170);
-		range = data.document.getWordRangeAtPosition(pos)!;
-		assert.ok(range);
-		assert.ok(range.contains(pos));
-		assert.strictEqual(data.document.getText(range), 'TaskDefinition');
+			const pos = new Position(0, 1177170);
+			range = data.document.getWordRangeAtPosition(pos)!;
+			assert.ok(range);
+			assert.ok(range.contains(pos));
+			assert.strictEqual(data.document.getText(range), 'TaskDefinition');
+
+		} finally {
+			config.dispose();
+		}
 	});
 
 	test('Rename popup sometimes populates with text on the left side omitted #96013', function () {

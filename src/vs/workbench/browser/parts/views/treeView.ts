@@ -31,7 +31,7 @@ import { isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import 'vs/css!./media/views';
-import { IDataTransfer } from 'vs/editor/common/dnd';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Command } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -54,7 +54,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { focusBorder, listFilterMatchHighlight, listFilterMatchHighlightBorder, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { FileThemeIcon, FolderThemeIcon, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { CodeDataTransfers, convertResourceUrlsToUriList, DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { convertResourceUrlsToUriList, DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -66,6 +66,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
+import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 
 export class TreeViewPane extends ViewPane {
 
@@ -1360,7 +1361,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		this.dndController = controller;
 	}
 
-	private handleDragAndLog(dndController: ITreeViewDragAndDropController, itemHandles: string[], uuid: string, dragCancellationToken: CancellationToken): Promise<IDataTransfer | undefined> {
+	private handleDragAndLog(dndController: ITreeViewDragAndDropController, itemHandles: string[], uuid: string, dragCancellationToken: CancellationToken): Promise<VSDataTransfer | undefined> {
 		return dndController.handleDrag(itemHandles, uuid, dragCancellationToken).then(additionalDataTransfer => {
 			if (additionalDataTransfer) {
 				const unlistedTypes: string[] = [];
@@ -1500,7 +1501,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		if (!originalEvent.dataTransfer || !dndController) {
 			return;
 		}
-		const treeDataTransfer: IDataTransfer = new Map();
+		const treeDataTransfer = new VSDataTransfer();
 		const uris: URI[] = [];
 		let itemsCount = Array.from(originalEvent.dataTransfer.items).reduce((previous, current) => {
 			if ((current.kind === 'string') || (current.kind === 'file')) {
@@ -1520,11 +1521,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 				if (itemsCount === 0) {
 					// Check if there are uris to add and add them
 					if (uris.length) {
-						treeDataTransfer.set(Mimes.uriList, {
-							asString: () => Promise.resolve(uris.map(uri => uri.toString()).join('\n')),
-							asFile: () => undefined,
-							value: undefined
-						});
+						treeDataTransfer.setString(Mimes.uriList, uris.map(uri => uri.toString()).join('\n'));
 					}
 					resolve();
 				}
@@ -1546,11 +1543,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 							}
 							if (dataValue) {
 								const converted = this.convertKnownMimes(type, kind, dataValue);
-								treeDataTransfer.set(converted.type, {
-									asString: () => Promise.resolve(converted.value!),
-									asFile: () => undefined,
-									value: undefined
-								});
+								treeDataTransfer.setString(converted.type, converted.value + '');
 							}
 							decrementStringCount();
 						});
@@ -1579,7 +1572,6 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			}
 			return dndController.handleDrop(treeDataTransfer, targetNode, new CancellationTokenSource().token, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
 		});
-
 	}
 
 	onDragEnd(originalEvent: DragEvent): void {

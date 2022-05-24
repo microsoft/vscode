@@ -34,7 +34,6 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCancellationError } from 'vs/base/common/errors';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { DataTransferConverter, DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 // --- adapter
@@ -1745,19 +1744,19 @@ class TypeHierarchyAdapter {
 	}
 }
 
-class DocumentOnDropAdapter {
+class DocumentOnDropEditAdapter {
 
 	constructor(
 		private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape,
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DocumentOnDropProvider,
+		private readonly _provider: vscode.DocumentOnDropEditProvider,
 		private readonly _handle: number,
 	) { }
 
-	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const pos = typeConvert.Position.to(position);
-		const dataTransfer = DataTransferConverter.toDataTransfer(dataTransferDto, async (index) => {
+		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, async (index) => {
 			return (await this._proxy.$resolveDocumentOnDropFileData(this._handle, requestId, index)).buffer;
 		});
 
@@ -1778,7 +1777,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter | InlineCompletionAdapterNew
-	| DocumentOnDropAdapter;
+	| DocumentOnDropEditAdapter;
 
 class AdapterData {
 	constructor(
@@ -2402,15 +2401,15 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- Document on drop
 
-	registerDocumentOnDropProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentOnDropProvider) {
+	registerDocumentOnDropEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentOnDropEditProvider) {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new AdapterData(new DocumentOnDropAdapter(this._proxy, this._documents, provider, handle), extension));
-		this._proxy.$registerDocumentOnDropProvider(handle, this._transformDocumentSelector(selector));
+		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle), extension));
+		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
-		return this._withAdapter(handle, DocumentOnDropAdapter, adapter =>
+	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+		return this._withAdapter(handle, DocumentOnDropEditAdapter, adapter =>
 			Promise.resolve(adapter.provideDocumentOnDropEdits(requestId, URI.revive(resource), position, dataTransferDto, token)), undefined, undefined);
 	}
 

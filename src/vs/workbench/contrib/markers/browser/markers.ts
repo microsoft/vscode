@@ -13,6 +13,7 @@ import { MarkersFilters } from 'vs/workbench/contrib/markers/browser/markersView
 import { Event } from 'vs/base/common/event';
 import { IView } from 'vs/workbench/common/views';
 import { MarkerElement, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { MarkersViewMode } from 'vs/workbench/contrib/markers/browser/markersView';
 
 export interface IMarkersView extends IView {
 
@@ -30,6 +31,7 @@ export interface IMarkersView extends IView {
 
 	collapseAll(): void;
 	setMultiline(multiline: boolean): void;
+	setViewMode(viewMode: MarkersViewMode): void;
 }
 
 export class ActivityUpdater extends Disposable implements IWorkbenchContribution {

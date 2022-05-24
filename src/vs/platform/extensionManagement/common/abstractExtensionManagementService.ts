@@ -363,10 +363,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
 		}
 
-		if (!!report.unsupportedPreReleaseExtensions && !!report.unsupportedPreReleaseExtensions[extension.identifier.id]) {
-			throw new ExtensionManagementError(nls.localize('unsupported prerelease extension', "Can't install '{0}' extension because it is no longer supported. It is now part of the '{1}' extension as a pre-release version.", extension.identifier.id, report.unsupportedPreReleaseExtensions[extension.identifier.id].displayName), ExtensionManagementErrorCode.UnsupportedPreRelease);
-		}
-
 		if (!await this.canInstall(extension)) {
 			const targetPlatform = await this.getTargetPlatform();
 			throw new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.IncompatibleTargetPlatform);
@@ -579,7 +575,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			return manifest;
 		} catch (err) {
 			this.logService.trace('ExtensionManagementService.refreshControlCache - failed to get extension control manifest');
-			return { malicious: [] };
+			return { malicious: [], deprecated: {} };
 		}
 	}
 

@@ -40,7 +40,7 @@ import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';

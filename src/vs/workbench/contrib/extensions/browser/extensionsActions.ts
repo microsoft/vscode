@@ -64,7 +64,6 @@ import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from 'vs/
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { flatten } from 'vs/base/common/arrays';
-import { isBoolean } from 'vs/base/common/types';
 import { fromNow } from 'vs/base/common/date';
 
 export class PromptExtensionInstallFailureAction extends Action {
@@ -104,7 +103,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
-		if ([ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleTargetPlatform, ExtensionManagementErrorCode.Malicious, ExtensionManagementErrorCode.ReleaseVersionNotFound, ExtensionManagementErrorCode.UnsupportedPreRelease].includes(<ExtensionManagementErrorCode>this.error.name)) {
+		if ([ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleTargetPlatform, ExtensionManagementErrorCode.Malicious, ExtensionManagementErrorCode.ReleaseVersionNotFound, ExtensionManagementErrorCode.Deprecated].includes(<ExtensionManagementErrorCode>this.error.name)) {
 			await this.dialogService.show(Severity.Info, getErrorMessage(this.error));
 			return;
 		}
@@ -250,6 +249,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(id, localize('install', "Install"), cssClass, false);
 		this.update();
@@ -274,6 +274,28 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		if (!this.extension) {
 			return;
 		}
+
+		if (this.extension.deprecationInfo) {
+			const result = await this.dialogService.show(
+				Severity.Warning,
+				localize('install confirmation', "Are you sure you want to install '{0}'?", this.extension.displayName),
+				[
+					localize('install anyway', "Install Anyway"),
+					localize('open extension', "Open Extension"),
+					localize('cancel', "Cancel"),
+				],
+				{
+					detail: localize('deprecated message', "This extension is no longer being maintained and is deprecated."),
+					cancelId: 2,
+				});
+			if (result.choice === 1) {
+				return this.extensionsWorkbenchService.open(this.extension, { showPreReleaseVersion: this.installPreReleaseVersion });
+			}
+			if (result.choice === 2) {
+				return;
+			}
+		}
+
 		this.extensionsWorkbenchService.open(this.extension, { showPreReleaseVersion: this.installPreReleaseVersion });
 
 		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
@@ -373,12 +395,13 @@ export class InstallAction extends AbstractInstallAction {
 		@IExtensionService runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@ILabelService labelService: ILabelService,
+		@IDialogService dialogService: IDialogService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IWorkbenchExtensionManagementService private readonly workbenchExtensioManagementService: IWorkbenchExtensionManagementService,
 		@IUserDataSyncEnablementService protected readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super(`extensions.install`, installPreReleaseVersion, InstallAction.Class,
-			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService);
+			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService, dialogService);
 		this.updateLabel();
 		this._register(labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 		this._register(Event.any(userDataSyncEnablementService.onDidChangeEnablement,
@@ -438,11 +461,12 @@ export class InstallAndSyncAction extends AbstractInstallAction {
 		@IExtensionService runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@ILabelService labelService: ILabelService,
+		@IDialogService dialogService: IDialogService,
 		@IProductService productService: IProductService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super('extensions.installAndSync', installPreReleaseVersion, AbstractInstallAction.Class,
-			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService);
+			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService, dialogService);
 		this.tooltip = localize({ key: 'install everywhere tooltip', comment: ['Placeholder is the name of the product. Eg: Visual Studio Code or Visual Studio Code - Insiders'] }, "Install this extension in all your synced {0} instances", productService.nameLong);
 		this._register(Event.any(userDataSyncEnablementService.onDidChangeEnablement,
 			Event.filter(userDataSyncEnablementService.onDidChangeResourceEnablement, e => e[0] === SyncResource.Extensions))(() => this.update()));
@@ -742,10 +766,15 @@ export class UpdateAction extends ExtensionAction {
 	}
 
 	private async computeAndUpdateEnablement(): Promise<void> {
+		this.enabled = false;
+		this.class = UpdateAction.DisabledClass;
+		this.label = this.getLabel();
+
 		if (!this.extension) {
-			this.enabled = false;
-			this.class = UpdateAction.DisabledClass;
-			this.label = this.getLabel();
+			return;
+		}
+
+		if (this.extension.deprecationInfo) {
 			return;
 		}
 
@@ -782,6 +811,51 @@ export class UpdateAction extends ExtensionAction {
 			return localize('updateToTargetPlatformVersion', "Update to {0} version", TargetPlatformToString(extension.gallery!.properties.targetPlatform));
 		}
 		return localize('updateToLatestVersion', "Update to {0}", extension.latestVersion);
+	}
+}
+
+export class MigrateDeprecatedExtension extends ExtensionAction {
+
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent migrate`;
+	private static readonly DisabledClass = `${MigrateDeprecatedExtension.EnabledClass} disabled`;
+
+	constructor(
+		private readonly small: boolean,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super('extensions.uninstall', localize('migrateExtension', "Migrate"), MigrateDeprecatedExtension.DisabledClass, false);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = MigrateDeprecatedExtension.DisabledClass;
+		if (!this.extension?.local) {
+			return;
+		}
+		if (this.extension.state !== ExtensionState.Installed) {
+			return;
+		}
+		if (!this.extension.deprecationInfo?.extension) {
+			return;
+		}
+		const id = this.extension.deprecationInfo.extension.id;
+		if (this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, { id }))) {
+			return;
+		}
+		this.enabled = true;
+		this.class = MigrateDeprecatedExtension.EnabledClass;
+		this.tooltip = localize('migrate to', "Migrate to {0}", this.extension.deprecationInfo.extension.displayName);
+		this.label = this.small ? localize('migrate', "Migrate") : this.tooltip;
+	}
+
+	override async run(): Promise<any> {
+		if (!this.extension?.deprecationInfo?.extension) {
+			return;
+		}
+		await this.extensionsWorkbenchService.uninstall(this.extension);
+		const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: this.extension.deprecationInfo.extension.id, preRelease: this.extension.deprecationInfo?.extension?.preRelease }], CancellationToken.None);
+		await this.extensionsWorkbenchService.install(extension);
 	}
 }
 
@@ -1123,7 +1197,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && !!this.extension.local && !!this.extension.server && this.extension.state === ExtensionState.Installed;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && !!this.extension.local && !!this.extension.server && this.extension.state === ExtensionState.Installed && !this.extension.deprecationInfo;
 	}
 
 	override async run(): Promise<any> {
@@ -2156,14 +2230,15 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.isUnsupported) {
-			if (isBoolean(this.extension.isUnsupported)) {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported tooltip', "This extension no longer supported.")) }, true);
+		if (this.extension.deprecationInfo) {
+			if (this.extension.deprecationInfo.extension) {
+				const link = `[${this.extension.deprecationInfo.extension.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.extension.id]))}`)})`;
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate extension tooltip', "This extension has been deprecated. Use {0} instead.", link)) }, true);
+			} else if (this.extension.deprecationInfo.settings) {
+				const link = `[${localize('settings', "settings")}](${URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' ')]))}`)})`;
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "This extension is deprecated and has become a native feature in VS Code. Configure these {0} instead.", link)) }, true);
 			} else {
-				const link = `[${this.extension.isUnsupported.preReleaseExtension.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.isUnsupported.preReleaseExtension.id]))}`)})`;
-				if (this.extension.state !== ExtensionState.Installed) {
-					this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease switch tooltip', "This extension is now part of the {0} extension as a pre-release version.", link)) }, true);
-				}
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated tooltip', "This extension is no longer being maintained and is deprecated.")) }, true);
 			}
 			return;
 		}

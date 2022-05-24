@@ -3,7 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.context-view .monaco-menu {
-	min-width: 130px;
+declare module 'vscode' {
 }
-

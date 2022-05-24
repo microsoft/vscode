@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { reset } from 'vs/base/browser/dom';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -26,6 +30,9 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 export class TitleMenuControl {
 
 	private readonly _disposables = new DisposableStore();
+
+	private readonly _onDidChangeVisibility = new Emitter<void>();
+	readonly onDidChangeVisibility: Event<void> = this._onDidChangeVisibility.event;
 
 	readonly element: HTMLElement = document.createElement('div');
 
@@ -67,21 +74,40 @@ export class TitleMenuControl {
 
 					class InputLikeViewItem extends MenuEntryActionViewItem {
 
+						private readonly workspaceTitle = document.createElement('span');
+
 						override render(container: HTMLElement): void {
 							super.render(container);
 							container.classList.add('quickopen');
-							this._store.add(windowTitle.onDidChange(this._updateFromWindowTitle, this));
+
+							assertType(this.label);
+							this.label.classList.add('search');
+
+							const searchIcon = renderIcon(Codicon.search);
+							searchIcon.classList.add('search-icon');
+
+							this.workspaceTitle.classList.add('search-label');
 							this._updateFromWindowTitle();
+							reset(this.label, searchIcon, this.workspaceTitle);
 							this._renderAllQuickPickItem(container);
+
+							this._store.add(windowTitle.onDidChange(this._updateFromWindowTitle, this));
 						}
 
 						private _updateFromWindowTitle() {
-							if (!this.label) {
-								return;
-							}
-							this.label.classList.add('search');
-							this.label.innerText = localize('search', "Search {0}", windowTitle.workspaceName);
 
+							// label: just workspace name and optional decorations
+							const { prefix, suffix } = windowTitle.getTitleDecorations();
+							let label = windowTitle.workspaceName;
+							if (prefix) {
+								label = localize('label1', "{0} {1}", prefix, label);
+							}
+							if (suffix) {
+								label = localize('label2', "{0} {1}", label, suffix);
+							}
+							this.workspaceTitle.innerText = label;
+
+							// tooltip: full windowTitle
 							const kb = keybindingService.lookupKeybinding(action.id)?.getLabel();
 							const title = kb
 								? localize('title', "Search {0} ({1}) \u2014 {2}", windowTitle.workspaceName, kb, windowTitle.value)
@@ -93,7 +119,7 @@ export class TitleMenuControl {
 							const container = document.createElement('span');
 							container.classList.add('all-options');
 							parent.appendChild(container);
-							const action = new Action('all', localize('all', "Show Quick Pick Options..."), Codicon.chevronDown.classNames, true, () => {
+							const action = new Action('all', localize('all', "Show Search Modes..."), Codicon.chevronDown.classNames, true, () => {
 								quickInputService.quickAccess.show('?');
 							});
 							const dropdown = new ActionViewItem(undefined, action, { icon: true, label: false, hoverDelegate });
@@ -118,8 +144,13 @@ export class TitleMenuControl {
 		};
 		updateTitleMenu();
 		this._disposables.add(titleMenu.onDidChange(updateTitleMenu));
-		this._disposables.add(quickInputService.onShow(() => this.element.classList.toggle('hide', true)));
-		this._disposables.add(quickInputService.onHide(() => this.element.classList.toggle('hide', false)));
+		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
+		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
+	}
+
+	private _setVisibility(show: boolean): void {
+		this.element.classList.toggle('hide', !show);
+		this._onDidChangeVisibility.fire();
 	}
 
 	dispose(): void {
@@ -158,7 +189,7 @@ const activeBackground = colors.registerColor(
 // border: defaults to active background
 colors.registerColor(
 	'titleMenu.border',
-	{ dark: activeBackground, hcDark: activeBackground, light: activeBackground, hcLight: activeBackground },
+	{ dark: activeBackground, hcDark: colors.inputBorder, light: activeBackground, hcLight: colors.inputBorder },
 	localize('titleMenu-border', "Border color of the title menu"),
 	false
 );

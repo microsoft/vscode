@@ -19,13 +19,13 @@ else
 	# Run from a built: need to compile all test extensions
 	# because we run extension tests from their source folders
 	# and the build bundles extensions into .build webpacked
-	yarn gulp	compile-extension:vscode-api-tests \
-				compile-extension:markdown-language-features \
-				compile-extension:typescript-language-features \
-				compile-extension:emmet \
-				compile-extension:git \
-				compile-extension:ipynb \
-				compile-extension-media
+	# yarn gulp	compile-extension:vscode-api-tests \
+	#			compile-extension:markdown-language-features \
+	#			compile-extension:typescript-language-features \
+	#			compile-extension:emmet \
+	#			compile-extension:git \
+	#			compile-extension:ipynb \
+	#			compile-extension-media
 fi
 
 if [ ! -e 'test/integration/browser/out/index.js' ];then

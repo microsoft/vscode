@@ -11,7 +11,7 @@ import severity from 'vs/base/common/severity';
 import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, ITextModel, OverviewRulerLane, IModelDecorationOverviewRulerOptions } from 'vs/editor/common/model';
+import { IModelDecorationOptions, TrackedRangeStickiness, ITextModel, OverviewRulerLane, IModelDecorationOverviewRulerOptions } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -158,7 +158,7 @@ async function createCandidateDecorations(model: ITextModel, breakpointDecoratio
 
 export class BreakpointEditorContribution implements IBreakpointEditorContribution {
 
-	private breakpointHintDecoration: string[] = [];
+	private breakpointHintDecoration: string | null = null;
 	private breakpointWidget: BreakpointWidget | undefined;
 	private breakpointWidgetVisible: IContextKey<boolean>;
 	private toDispose: IDisposable[] = [];
@@ -443,20 +443,21 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	}
 
 	private ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber: number): void {
-		const newDecoration: IModelDeltaDecoration[] = [];
-		if (showBreakpointHintAtLineNumber !== -1) {
-			newDecoration.push({
-				options: breakpointHelperDecoration,
-				range: {
+		this.editor.changeDecorations((accessor) => {
+			if (this.breakpointHintDecoration) {
+				accessor.removeDecoration(this.breakpointHintDecoration);
+				this.breakpointHintDecoration = null;
+			}
+			if (showBreakpointHintAtLineNumber !== -1) {
+				this.breakpointHintDecoration = accessor.addDecoration({
 					startLineNumber: showBreakpointHintAtLineNumber,
 					startColumn: 1,
 					endLineNumber: showBreakpointHintAtLineNumber,
 					endColumn: 1
-				}
-			});
-		}
-
-		this.breakpointHintDecoration = this.editor.deltaDecorations(this.breakpointHintDecoration, newDecoration);
+				}, breakpointHelperDecoration
+				);
+			}
+		});
 	}
 
 	private async setDecorations(): Promise<void> {

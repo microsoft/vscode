@@ -125,6 +125,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'open-devtools': { type: 'boolean' },
 	'__sandbox': { type: 'boolean' },
 	'logsPath': { type: 'string' },
+	'__enable-file-policy': { type: 'boolean' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
