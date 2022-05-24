@@ -3,6 +3,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
+# when run in remote terminal, use the remote cli
+if [ -n "$VSCODE_IPC_HOOK_CLI" ] && [ -n "$VSCODE_REMOTE_CLI_PATH" ]; then
+	"$VSCODE_REMOTE_CLI_PATH" "$@"
+	exit $?
+fi
+
 # test that VSCode wasn't installed inside WSL
 if grep -qi Microsoft /proc/version && [ -z "$DONT_PROMPT_WSL_INSTALL" ]; then
 	echo "To use @@PRODNAME@@ with the Windows Subsystem for Linux, please install @@PRODNAME@@ in Windows and uninstall the Linux version in WSL. You can then use the \`@@NAME@@\` command in a WSL terminal just as you would in a normal command prompt." 1>&2
@@ -33,12 +39,6 @@ if [ "$(id -u)" = "0" ]; then
 		echo "You are trying to start @@PRODNAME@@ as a super user which isn't recommended. If this was intended, please add the argument \`--no-sandbox\` and specify an alternate user data directory using the \`--user-data-dir\` argument." 1>&2
 		exit 1
 	fi
-fi
-
-# when run in remote terminal, use the remote cli instead
-if [ -n "$VSCODE_IPC_HOOK_CLI" ] && [ -n "$VSCODE_REMOTE_CLI_PATH" ]; then
-	"$VSCODE_REMOTE_CLI_PATH" "$@"
-	exit $?
 fi
 
 if [ ! -L "$0" ]; then
