@@ -792,10 +792,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		throw new Error('Not implemented');
 	}
 
-	getCellByHandle(cellHandle: number): IGenericCellViewModel | undefined {
-		throw new Error('Not implemented');
-	}
-
 	removeInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, displayOutput: ICellOutputViewModel, diffSide: DiffSide) {
 		this._insetModifyQueueByOutputId.queue(displayOutput.model.outputId + (diffSide === DiffSide.Modified ? '-right' : 'left'), async () => {
 			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
