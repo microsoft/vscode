@@ -1846,7 +1846,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			container.appendChild(this.element);
 			this.element = this.element;
 
-
 			const lowerWrapperElement = createFocusSink(cellId, true);
 			container.appendChild(lowerWrapperElement);
 		}
