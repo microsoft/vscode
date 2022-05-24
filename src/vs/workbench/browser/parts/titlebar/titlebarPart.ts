@@ -56,8 +56,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
-	private readonly _onDidChangeTitleMenuVisibility = new Emitter<void>();
-	readonly onDidChangeTitleMenuVisibility: Event<void> = this._onDidChangeTitleMenuVisibility.event;
+	private readonly _onDidChangeCommandCenterVisibility = new Emitter<void>();
+	readonly onDidChangeCommandCenterVisibility: Event<void> = this._onDidChangeCommandCenterVisibility.event;
 
 	protected rootContainer!: HTMLElement;
 	protected windowControls: HTMLElement | undefined;
@@ -143,7 +143,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (event.affectsConfiguration(TitlebarPart.configCommandCenter)) {
 			this.updateTitle();
 			this.adjustTitleMarginToCenter();
-			this._onDidChangeTitleMenuVisibility.fire();
+			this._onDidChangeCommandCenterVisibility.fire();
 		}
 	}
 

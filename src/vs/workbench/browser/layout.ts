@@ -269,7 +269,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Title Menu changes
-		this._register(this.titleService.onDidChangeTitleMenuVisibility(() => this.layout()));
+		this._register(this.titleService.onDidChangeCommandCenterVisibility(() => this.layout()));
 
 		// Theme changes
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateStyles()));
