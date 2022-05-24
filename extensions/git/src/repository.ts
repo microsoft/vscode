@@ -451,7 +451,12 @@ class ProgressManager {
 		onDidChange(_ => this.updateEnablement());
 		this.updateEnablement();
 
-		this.repository.onDidChangeOperations(() => commands.executeCommand('setContext', 'commitInProgress', this.repository.operations.isRunning(Operation.Commit)));
+		this.repository.onDidChangeOperations(() => {
+			const commitInProgress = this.repository.operations.isRunning(Operation.Commit);
+
+			this.repository.sourceControl.inputBox.enabled = !commitInProgress;
+			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+		});
 	}
 
 	private updateEnablement(): void {
