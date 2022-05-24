@@ -46,8 +46,8 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { LanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
 import { ConsoleLogger, ILoggerService, ILogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { FollowerLogService, LoggerChannelClient, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -311,7 +311,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IExtensionTipsService, new SyncDescriptor(ExtensionTipsService));
 
 		// Localizations
-		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
+		services.set(ILanguagePackService, new SyncDescriptor(LanguagePackService));
 
 		// Diagnostics
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
@@ -360,9 +360,9 @@ class SharedProcessMain extends Disposable {
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
 
-		// Localizations
-		const localizationsChannel = ProxyChannel.fromService(accessor.get(ILocalizationsService));
-		this.server.registerChannel('localizations', localizationsChannel);
+		// Language Packs
+		const languagePacksChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService));
+		this.server.registerChannel('languagePacks', languagePacksChannel);
 
 		// Diagnostics
 		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService));

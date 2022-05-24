@@ -3,21 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
-import { LanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
+import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 
-export class LocalizationsUpdater extends Disposable {
-
-	constructor(
-		@ILanguagePackService private readonly localizationsService: LanguagePackService
-	) {
-		super();
-
-		this.updateLocalizations();
-	}
-
-	private updateLocalizations(): void {
-		this.localizationsService.update();
-	}
-}
+registerSharedProcessRemoteService(ILanguagePackService, 'languagePacks', { supportsDelayedInstantiation: true });
