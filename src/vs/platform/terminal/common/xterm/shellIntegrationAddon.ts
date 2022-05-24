@@ -139,6 +139,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
+		this._ensureCapabilitiesOrAddFailureTelemetry();
 	}
 
 	private _handleVSCodeSequence(data: string): boolean {
@@ -152,6 +153,19 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 		}
 		return didHandle;
+	}
+
+	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
+		if (!this._telemetryService) {
+			return;
+		}
+		this._activationTimeout = setTimeout(() => {
+			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
+				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationTimeout');
+				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
+			}
+			this._hasUpdatedTelemetry = true;
+		}, 10000);
 	}
 
 	private _doHandleVSCodeSequence(data: string): boolean {
