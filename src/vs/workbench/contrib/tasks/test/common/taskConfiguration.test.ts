@@ -19,6 +19,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { IContext } from 'vs/platform/contextkey/common/contextkey';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ITaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 
 const workspaceFolder: WorkspaceFolder = new WorkspaceFolder({
 	uri: URI.file('/workspace/folderOne'),
@@ -1772,7 +1773,19 @@ class TestNamedProblemMatcher implements Partial<ProblemMatcher> {
 class TestParseContext implements Partial<ParseContext> {
 }
 
+class TestTaskDefinitionRegistry implements Partial<ITaskDefinitionRegistry> {
+	private _task: Tasks.TaskDefinition | undefined;
+	public get(key: string): Tasks.TaskDefinition {
+		return this._task!;
+	}
+	public set(task: Tasks.TaskDefinition) {
+		this._task = task;
+	}
+}
+
 suite('To task configuration from', () => {
+
+	const TaskDefinitionRegistry = new TestTaskDefinitionRegistry();
 	let instantiationService: TestInstantiationService;
 	let parseContext: ParseContext;
 	let namedProblemMatcher: NamedProblemMatcher;
@@ -1827,7 +1840,8 @@ suite('To task configuration from', () => {
 		suite('ConfiguredTask', () => {
 			test('returns expected result', () => {
 				const expected = [{ taskName: 'task', command: 'echo test', type: 'any', label: 'task' }, { taskName: 'task 2', command: 'echo test', type: 'any', label: 'task 2' }];
-				const result = TaskParser.from(expected, {} as Globals, parseContext, {} as TaskConfigSource, { extensionId: 'registered', taskType: 'any', properties: {} } as Tasks.TaskDefinition);
+				TaskDefinitionRegistry.set({ extensionId: 'registered', taskType: 'any', properties: {} } as Tasks.TaskDefinition);
+				const result = TaskParser.from(expected, {} as Globals, parseContext, {} as TaskConfigSource, TaskDefinitionRegistry);
 				assertTaskParseResult(result, { configured: expected }, problemReporter, undefined);
 			});
 		});
