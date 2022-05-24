@@ -128,12 +128,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 * The default value
 	 */
 	defaultValue?: any;
-	/**
-	 * The source of the default value to display.
-	 * This value also accounts for extension-contributed language-specific default value overrides,
-	 * whereas setting.defaultValueSource only accounts for non-language-specific default value overrides.
-	 */
-	defaultValueSource: string | IExtensionInfo | undefined;
 
 	/**
 	 * The source of the default value to display.
