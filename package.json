@@ -98,7 +98,7 @@
     "7zip": "0.0.6",
     "@playwright/test": "1.21.0",
     "@swc/cli": "0.1.57",
-    "@swc/core": "1.2.186",
+    "@swc/core": "1.2.192",
     "@types/applicationinsights": "0.20.0",
     "@types/cookie": "^0.3.3",
     "@types/copy-webpack-plugin": "^6.0.3",
