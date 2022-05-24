@@ -8,7 +8,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ContiguousTokensEditing, EMPTY_LINE_TOKENS, toUint32Array } from 'vs/editor/common/tokens/contiguousTokensEditing';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ColorId, FontStyle, ILanguageIdCodec, LanguageId, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/languages';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
+import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 
 /**
  * Represents contiguous tokens in a text model.

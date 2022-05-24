@@ -27,6 +27,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { historyNavigationVisible } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { InternalQuickSuggestionsOptions, QuickSuggestionsValue } from 'vs/editor/common/config/editorOptions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export const Context = {
 	Visible: historyNavigationVisible,
@@ -436,10 +437,10 @@ export abstract class QuickSuggestionsOptions {
 		return config.other === 'on' && config.comments === 'on' && config.strings === 'on';
 	}
 
-	static valueFor(config: InternalQuickSuggestionsOptions, tokenType: languages.StandardTokenType): QuickSuggestionsValue {
+	static valueFor(config: InternalQuickSuggestionsOptions, tokenType: StandardTokenType): QuickSuggestionsValue {
 		switch (tokenType) {
-			case languages.StandardTokenType.Comment: return config.comments;
-			case languages.StandardTokenType.String: return config.strings;
+			case StandardTokenType.Comment: return config.comments;
+			case StandardTokenType.String: return config.strings;
 			default: return config.other;
 		}
 	}
