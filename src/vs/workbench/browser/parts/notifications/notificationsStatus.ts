@@ -85,7 +85,7 @@ export class NotificationsStatus extends Disposable {
 
 		const isDoNotDisturbModeStatusProperties: IStatusbarEntry = {
 			name: localize('status.doNotDisturb', "Do Not Disturb"),
-			text: '$(notifications-muted)',
+			text: '$(do-not-disturb)',
 			ariaLabel: localize('status.doNotDisturb', "Do Not Disturb"),
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
 			tooltip: 'Do Not Disturb Mode is Enabled',
