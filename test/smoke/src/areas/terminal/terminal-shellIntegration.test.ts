@@ -26,7 +26,7 @@ export function setup() {
 
 		describe('Shell integration', function () {
 			// TODO: Fix on Linux, some distros use sh as the default shell in which case shell integration will fail
-			(process.platform === 'win32' || process.platform === 'linux' ? describe.skip : describe)('Decorations', function () {
+			(process.platform === 'linux' ? describe.skip : describe)('Decorations', function () {
 				describe('Should show default icons', function () {
 					it('Placeholder', async () => {
 						await terminal.createTerminal();
@@ -34,12 +34,12 @@ export function setup() {
 					});
 					it('Success', async () => {
 						await terminal.createTerminal();
-						await terminal.runCommandInTerminal(`ls`);
+						await terminal.runCommandInTerminal(`echo "success"`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
 					});
 					it('Error', async () => {
 						await terminal.createTerminal();
-						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await terminal.runCommandInTerminal(`fakecommand`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
 					});
 				});
@@ -47,8 +47,8 @@ export function setup() {
 					it('Should update and show custom icons', async () => {
 						await terminal.createTerminal();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
-						await terminal.runCommandInTerminal(`ls`);
-						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await terminal.runCommandInTerminal(`echo "success"`);
+						await terminal.runCommandInTerminal(`fakecommand`);
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
