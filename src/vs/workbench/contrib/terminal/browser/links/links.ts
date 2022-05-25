@@ -18,6 +18,12 @@ export interface ITerminalLinkDetector {
 	readonly xterm: Terminal;
 
 	/**
+	 * The maximum link length possible for this detector, this puts a cap on how much of a wrapped
+	 * line to consider to prevent performance problems.
+	 */
+	readonly maxLinkLength: number;
+
+	/**
 	 * Detects links within the _wrapped_ line range provided and returns them as an array.
 	 *
 	 * @param lines The individual buffer lines that make up the wrapped line.
