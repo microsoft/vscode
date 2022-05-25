@@ -177,7 +177,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					type: TerminalBuiltinLinkType.Search
 				});
 				deepStrictEqual(activationResult, {
-					link: 'file:///c%3A%5CUsers%5Chome%5Cfolder%5Cfile.txt',
+					link: 'file:///c%3A/Users/home/folder/file.txt',
 					source: 'editor'
 				});
 

@@ -27,6 +27,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type ExeExtensionRecommendationsClassification = {
+	owner: 'sandy081';
 	extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 	exeName: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 };

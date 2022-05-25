@@ -9,7 +9,7 @@ import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent } from 'vs/platform/files/common/files';
-import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, DefaultConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
@@ -26,17 +26,15 @@ import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { isObject } from 'vs/base/common/types';
+import { DefaultConfiguration as BaseDefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 
-export class DefaultConfiguration extends Disposable {
+export class DefaultConfiguration extends BaseDefaultConfiguration {
 
 	static readonly DEFAULT_OVERRIDES_CACHE_EXISTS_KEY = 'DefaultOverridesCacheExists';
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
 	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
-
-	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel; properties: string[] }>());
-	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	private updateCache: boolean = false;
 
@@ -50,27 +48,20 @@ export class DefaultConfiguration extends Disposable {
 		}
 	}
 
-	private _configurationModel: ConfigurationModel | undefined;
-	get configurationModel(): ConfigurationModel {
-		if (!this._configurationModel) {
-			this._configurationModel = new DefaultConfigurationModel(this.cachedConfigurationDefaultsOverrides);
-		}
-		return this._configurationModel;
+	protected override getConfigurationDefaultOverrides(): IStringDictionary<any> {
+		return this.cachedConfigurationDefaultsOverrides;
 	}
 
-	async initialize(): Promise<ConfigurationModel> {
+	override async initialize(): Promise<ConfigurationModel> {
 		await this.initializeCachedConfigurationDefaultsOverrides();
-		this._configurationModel = undefined;
-		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties, defaultsOverrides }) => this.onDidUpdateConfiguration(properties, defaultsOverrides)));
-		return this.configurationModel;
+		return super.initialize();
 	}
 
-	reload(): ConfigurationModel {
+	override reload(): ConfigurationModel {
 		this.updateCache = true;
 		this.cachedConfigurationDefaultsOverrides = {};
-		this._configurationModel = undefined;
 		this.updateCachedConfigurationDefaultsOverrides();
-		return this.configurationModel;
+		return super.reload();
 	}
 
 	private initiaizeCachedConfigurationDefaultsOverridesPromise: Promise<void> | undefined;
@@ -92,9 +83,8 @@ export class DefaultConfiguration extends Disposable {
 		return this.initiaizeCachedConfigurationDefaultsOverridesPromise;
 	}
 
-	private onDidUpdateConfiguration(properties: string[], defaultsOverrides?: boolean): void {
-		this._configurationModel = undefined;
-		this._onDidChangeConfiguration.fire({ defaults: this.configurationModel, properties });
+	protected override onDidUpdateConfiguration(properties: string[], defaultsOverrides?: boolean): void {
+		super.onDidUpdateConfiguration(properties, defaultsOverrides);
 		if (defaultsOverrides) {
 			this.updateCachedConfigurationDefaultsOverrides();
 		}

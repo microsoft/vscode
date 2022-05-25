@@ -9,7 +9,8 @@ import {
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic
 } from 'vscode-languageserver';
 
-import { formatError, runSafe, runSafeAsync } from './utils/runner';
+import { runSafe, runSafeAsync } from './utils/runner';
+import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
 import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { Utils, URI } from 'vscode-uri';
@@ -113,6 +114,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let resultLimit = Number.MAX_VALUE;
 	let formatterMaxNumberOfEdits = Number.MAX_VALUE;
 
+	let diagnosticsSupport: DiagnosticsSupport | undefined;
+
+
 	// After the server has started the client sends an initialize request. The server receives
 	// in the passed params the rootPath of the workspace plus the client capabilities.
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
@@ -140,13 +144,19 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			return c;
 		}
 
-
-
 		clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
 		dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof initializationOptions.provideFormatter !== 'boolean');
 		foldingRangeLimitDefault = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 		hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
 		formatterMaxNumberOfEdits = initializationOptions.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
+
+		const supportsDiagnosticPull = getClientCapability('textDocument.diagnostic', undefined);
+		if (supportsDiagnosticPull === undefined) {
+			diagnosticsSupport = registerDiagnosticsPushSupport(documents, connection, runtime, validateTextDocument);
+		} else {
+			diagnosticsSupport = registerDiagnosticsPullSupport(documents, connection, runtime, validateTextDocument);
+		}
+
 		const capabilities: ServerCapabilities = {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
 			completionProvider: clientSnippetSupport ? {
@@ -160,7 +170,12 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			colorProvider: {},
 			foldingRangeProvider: true,
 			selectionRangeProvider: true,
-			documentLinkProvider: {}
+			documentLinkProvider: {},
+			diagnosticProvider: {
+				documentSelector: null,
+				interFileDependencies: false,
+				workspaceDiagnostics: false
+			}
 		};
 
 		return { capabilities };
@@ -283,25 +298,18 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			needsRevalidation = languageService.resetSchema(uriOrUris);
 		}
 		if (needsRevalidation) {
-			for (const doc of documents.all()) {
-				triggerValidation(doc);
-			}
+			diagnosticsSupport?.requestRefresh();
 		}
 	});
 
 	// Retry schema validation on all open documents
-	connection.onRequest(ForceValidateRequest.type, uri => {
-		return new Promise<Diagnostic[]>(resolve => {
-			const document = documents.get(uri);
-			if (document) {
-				updateConfiguration();
-				validateTextDocument(document, diagnostics => {
-					resolve(diagnostics);
-				});
-			} else {
-				resolve([]);
-			}
-		});
+	connection.onRequest(ForceValidateRequest.type, async uri => {
+		const document = documents.get(uri);
+		if (document) {
+			updateConfiguration();
+			return await validateTextDocument(document);
+		}
+		return [];
 	});
 
 	connection.onRequest(LanguageStatusRequest.type, async uri => {
@@ -347,72 +355,16 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}
 		languageService.configure(languageSettings);
 
-		// Revalidate any open text documents
-		documents.all().forEach(triggerValidation);
+		diagnosticsSupport?.requestRefresh();
 	}
 
-	// The content of a text document has changed. This event is emitted
-	// when the text document first opened or when its content has changed.
-	documents.onDidChangeContent((change) => {
-		limitExceededWarnings.cancel(change.document.uri);
-		triggerValidation(change.document);
-	});
-
-	// a document has closed: clear all diagnostics
-	documents.onDidClose(event => {
-		limitExceededWarnings.cancel(event.document.uri);
-		cleanPendingValidation(event.document);
-		connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
-	});
-
-	const pendingValidationRequests: { [uri: string]: Disposable } = {};
-	const validationDelayMs = 300;
-
-	function cleanPendingValidation(textDocument: TextDocument): void {
-		const request = pendingValidationRequests[textDocument.uri];
-		if (request) {
-			request.dispose();
-			delete pendingValidationRequests[textDocument.uri];
-		}
-	}
-
-	function triggerValidation(textDocument: TextDocument): void {
-		cleanPendingValidation(textDocument);
-		if (validateEnabled) {
-			pendingValidationRequests[textDocument.uri] = runtime.timer.setTimeout(() => {
-				delete pendingValidationRequests[textDocument.uri];
-				validateTextDocument(textDocument);
-			}, validationDelayMs);
-		} else {
-			connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
-		}
-	}
-
-	function validateTextDocument(textDocument: TextDocument, callback?: (diagnostics: Diagnostic[]) => void): void {
-		const respond = (diagnostics: Diagnostic[]) => {
-			connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-			if (callback) {
-				callback(diagnostics);
-			}
-		};
+	async function validateTextDocument(textDocument: TextDocument): Promise<Diagnostic[]> {
 		if (textDocument.getText().length === 0) {
-			respond([]); // ignore empty documents
-			return;
+			return []; // ignore empty documents
 		}
 		const jsonDocument = getJSONDocument(textDocument);
-		const version = textDocument.version;
-
 		const documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'warning' } : { comments: 'error', trailingCommas: 'error' };
-		languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
-			runtime.timer.setImmediate(() => {
-				const currDocument = documents.get(textDocument.uri);
-				if (currDocument && currDocument.version === version) {
-					respond(diagnostics as Diagnostic[]); // Send the computed diagnostics to VSCode.
-				}
-			});
-		}, error => {
-			connection.console.error(formatError(`Error while validating ${textDocument.uri}`, error));
-		});
+		return await languageService.doValidation(textDocument, jsonDocument, documentSettings);
 	}
 
 	connection.onDidChangeWatchedFiles((change) => {
@@ -424,7 +376,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 		});
 		if (hasChanges) {
-			documents.all().forEach(triggerValidation);
+			diagnosticsSupport?.requestRefresh();
 		}
 	});
 

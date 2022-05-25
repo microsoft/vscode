@@ -11,7 +11,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { IThemeService, registerThemingParticipant, ICssStyleCollector, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -31,6 +30,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
+import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
 
 export interface IMarkersFiltersChangeEvent {
 	filterText?: boolean;
@@ -260,7 +260,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	) {
 		super(null, action);
 		this.keybindingService = keybindingService;
-		this.focusContextKey = Constants.MarkerViewFilterFocusContextKey.bindTo(contextKeyService);
+		this.focusContextKey = MarkersContextKeys.MarkerViewFilterFocusContextKey.bindTo(contextKeyService);
 		this.delayedFilterUpdate = new Delayer<void>(400);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 		this._register(markersView.onDidFocusFilter(() => this.focus()));

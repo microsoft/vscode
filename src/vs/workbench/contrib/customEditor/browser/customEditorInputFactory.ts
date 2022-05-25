@@ -32,6 +32,7 @@ export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
 
 	readonly webview: {
 		readonly id: string;
+		readonly origin: string | undefined;
 		readonly options: SerializedWebviewOptions;
 		readonly state: any;
 	};
@@ -107,9 +108,10 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 	}
 }
 
-function reviveWebview(webviewService: IWebviewService, data: { id: string; state: any; webviewOptions: WebviewOptions; contentOptions: WebviewContentOptions; extension?: WebviewExtensionDescription }) {
+function reviveWebview(webviewService: IWebviewService, data: { id: string; origin: string | undefined; state: any; webviewOptions: WebviewOptions; contentOptions: WebviewContentOptions; extension?: WebviewExtensionDescription }) {
 	const webview = webviewService.createWebviewOverlay({
 		id: data.id,
+		origin: data.origin,
 		options: {
 			purpose: WebviewContentPurpose.CustomEditor,
 			enableFindWidget: data.webviewOptions.enableFindWidget,
@@ -185,6 +187,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 				const extension = reviveWebviewExtensionDescription(backupData.extension?.id, backupData.extension?.location);
 				const webview = reviveWebview(this._webviewService, {
 					id,
+					origin: backupData.webview.origin,
 					webviewOptions: restoreWebviewOptions(backupData.webview.options),
 					contentOptions: restoreWebviewContentOptions(backupData.webview.options),
 					state: backupData.webview.state,

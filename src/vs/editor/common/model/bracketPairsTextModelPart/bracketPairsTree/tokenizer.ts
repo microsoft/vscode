@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { NotSupportedError } from 'vs/base/common/errors';
-import { StandardTokenType, TokenMetadata } from 'vs/editor/common/languages';
+import { StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { BracketAstNode, TextAstNode } from './ast';
 import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';

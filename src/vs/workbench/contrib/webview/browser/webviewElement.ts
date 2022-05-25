@@ -102,6 +102,7 @@ namespace WebviewState {
 
 export interface WebviewInitInfo {
 	readonly id: string;
+	readonly origin?: string;
 
 	readonly options: WebviewOptions;
 	readonly contentOptions: WebviewContentOptions;
@@ -118,7 +119,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	public readonly id: string;
 
 	/**
-	 * Unique identifier of this webview iframe element.
+	 * The origin this webview itself is loaded from. May not be unique
+	 */
+	public readonly origin: string;
+
+	/**
+	 * Unique internal identifier of this webview's iframe element.
 	 */
 	private readonly iframeId: string;
 
@@ -194,7 +200,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this.id = initInfo.id;
 		this.iframeId = generateUuid();
-		this.encodedWebviewOriginPromise = parentOriginHash(window.origin, this.iframeId).then(id => this.encodedWebviewOrigin = id);
+		this.origin = initInfo.origin ?? this.iframeId;
+
+		this.encodedWebviewOriginPromise = parentOriginHash(window.origin, this.origin).then(id => this.encodedWebviewOrigin = id);
 
 		this.options = initInfo.options;
 		this.extension = initInfo.extension;
@@ -484,6 +492,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
 			id: this.iframeId,
+			origin: this.origin,
 			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,

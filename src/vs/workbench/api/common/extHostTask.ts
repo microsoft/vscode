@@ -24,7 +24,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as Platform from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
+import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
 import { NotSupportedError } from 'vs/base/common/errors';
 
 export interface IExtHostTask extends ExtHostTaskShape {

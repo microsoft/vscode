@@ -8,7 +8,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { ICellViewModel, INotebookEditorDelegate, KERNEL_EXTENSIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_CELL_TOOLBAR_LOCATION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class NotebookEditorContextKeys {
@@ -148,7 +148,7 @@ export class NotebookEditorContextKeys {
 
 		const { selected, all } = this._notebookKernelService.getMatchingKernel(this._editor.textModel);
 		this._notebookKernelCount.set(all.length);
-		this._interruptibleKernel.set((selected?.type === NotebookKernelType.Resolved && selected.implementsInterrupt) ?? false);
+		this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);
 		this._notebookKernelSelected.set(Boolean(selected));
 		this._notebookKernel.set(selected?.id ?? '');
 	}

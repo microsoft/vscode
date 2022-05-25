@@ -22,7 +22,7 @@ import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/marke
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
+import { Markers } from 'vs/workbench/contrib/markers/common/markers';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -813,7 +813,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 							let reveal = task.command.presentation!.reveal;
 							let revealProblems = task.command.presentation!.revealProblems;
 							if (revealProblems === RevealProblemKind.OnProblem) {
-								this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
+								this.viewsService.openView(Markers.MARKERS_VIEW_ID, true);
 							} else if (reveal === RevealKind.Silent) {
 								this.terminalService.setActiveInstance(terminal!);
 								this.terminalGroupService.showPanel(false);
@@ -956,7 +956,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					let revealProblems = task.command.presentation!.revealProblems;
 					let revealProblemPanel = terminal && (revealProblems === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0);
 					if (revealProblemPanel) {
-						this.viewsService.openView(Constants.MARKERS_VIEW_ID);
+						this.viewsService.openView(Markers.MARKERS_VIEW_ID);
 					} else if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
 						(startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						try {
@@ -991,7 +991,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblems === RevealProblemKind.Always);
 		if (showProblemPanel) {
-			this.viewsService.openView(Constants.MARKERS_VIEW_ID);
+			this.viewsService.openView(Markers.MARKERS_VIEW_ID);
 		} else if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
 			this.terminalService.setActiveInstance(terminal);
 			this.terminalGroupService.showPanel(task.command.presentation.focus);
