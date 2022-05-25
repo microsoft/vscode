@@ -128,7 +128,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _activationTimeout: any;
 
 	constructor(
-		_disableTelemetry: boolean | undefined,
+		private readonly _disableTelemetry: boolean | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
 		@ILogService private readonly _logService: ILogService
 	) {
@@ -156,7 +156,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 
 	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
-		if (!this._telemetryService) {
+		if (!this._telemetryService || this._disableTelemetry) {
 			return;
 		}
 		this._activationTimeout = setTimeout(() => {
