@@ -16,7 +16,7 @@ import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment } from 'vs/workbench/services/layout/browser/layoutService';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -266,6 +266,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Menubar visibility changes
 		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService) === 'custom') {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
+			this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		}
 
 		// Title Menu changes
@@ -276,6 +277,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Window focus changes
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
+	}
+
+	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration('window.menuBarVisibility') && this.configurationService.getValue('window.hideTitleBarWithoutMenuBar') || event.affectsConfiguration('window.hideTitleBarWithoutMenuBar')) {
+			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
+			this._onDidLayout.fire(this._dimension);
+		}
 	}
 
 	private onMenubarToggled(visible: boolean) {
@@ -291,6 +299,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// The menu bar toggles the title bar in full screen for toggle and classic settings
 			else if (this.windowState.runtime.fullscreen && (menuBarVisibility === 'toggle' || menuBarVisibility === 'classic')) {
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
+			}
+			// The menu bar toggles the title bar with the hideTitleBarWithoutMenuBar setting enabled
+			else if ((menuBarVisibility === 'toggle' || menuBarVisibility === 'classic') && this.configurationService.getValue('window.hideTitleBarWithoutMenuBar')) {
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
 			}
 
@@ -989,7 +1001,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// non-fullscreen native must show the title bar
-		if (isNative && !this.windowState.runtime.fullscreen) {
+		if (isNative && !this.windowState.runtime.fullscreen && !this.configurationService.getValue('window.hideTitleBarWithoutMenuBar')) {
 			return true;
 		}
 

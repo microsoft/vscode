@@ -203,6 +203,12 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
 			},
+			'window.hideTitleBarWithoutMenuBar': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('hideTitleBarWithoutMenuBar', "Controls whether to hide the custom title bar when it is not needed to display the menu bar."),
+			},
 			'window.dialogStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],
