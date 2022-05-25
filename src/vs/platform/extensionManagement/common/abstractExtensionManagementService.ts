@@ -46,7 +46,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	private extensionsControlManifest: Promise<IExtensionsControlManifest> | undefined;
 	private lastReportTimestamp = 0;
-	private readonly installingExtensions = new Map<string, IInstallExtensionTask>();
+	private readonly installingExtensions = new Map<string, { task: IInstallExtensionTask; counter: number }>();
 	private readonly uninstallingExtensions = new Map<string, IUninstallExtensionTask>();
 
 	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionEvent>());
@@ -71,7 +71,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	) {
 		super();
 		this._register(toDisposable(() => {
-			this.installingExtensions.forEach(task => task.cancel());
+			this.installingExtensions.forEach(({ task }) => task.cancel());
 			this.uninstallingExtensions.forEach(promise => promise.cancel());
 			this.installingExtensions.clear();
 			this.uninstallingExtensions.clear();
@@ -137,10 +137,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): Promise<ILocalExtension> {
 		// only cache gallery extensions tasks
 		if (!URI.isUri(extension)) {
-			let installExtensionTask = this.installingExtensions.get(ExtensionKey.create(extension).toString());
-			if (installExtensionTask) {
+			let installingExtension = this.installingExtensions.get(ExtensionKey.create(extension).toString());
+			if (installingExtension) {
 				this.logService.info('Extensions is already requested to install', extension.identifier.id);
-				return installExtensionTask.waitUntilTaskIsFinished();
+				return installingExtension.task.waitUntilTaskIsFinished();
 			}
 			options = { ...options, installOnlyNewlyAddedFromExtensionPack: true /* always true for gallery extensions */ };
 		}
@@ -149,12 +149,13 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		const installResults: (InstallExtensionResult & { local: ILocalExtension })[] = [];
 		const installExtensionTask = this.createInstallExtensionTask(manifest, extension, options);
 		if (!URI.isUri(extension)) {
-			this.installingExtensions.set(ExtensionKey.create(extension).toString(), installExtensionTask);
+			this.installingExtensions.set(ExtensionKey.create(extension).toString(), { task: installExtensionTask, counter: 1 });
 		}
 		this._onInstallExtension.fire({ identifier: installExtensionTask.identifier, source: extension });
 		this.logService.info('Installing extension:', installExtensionTask.identifier.id);
 		allInstallExtensionTasks.push({ task: installExtensionTask, manifest });
 		let installExtensionHasDependents: boolean = false;
+		const alreadyRequestedInstallExtensionTasks: IInstallExtensionTask[] = [];
 
 		try {
 			if (options.donotIncludePackAndDependencies) {
@@ -165,11 +166,14 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					for (const { gallery, manifest } of allDepsAndPackExtensionsToInstall) {
 						installExtensionHasDependents = installExtensionHasDependents || !!manifest.extensionDependencies?.some(id => areSameExtensions({ id }, installExtensionTask.identifier));
 						const key = ExtensionKey.create(gallery).toString();
-						if (this.installingExtensions.has(key)) {
+						const installingExtension = this.installingExtensions.get(key);
+						if (installingExtension) {
 							this.logService.info('Extension is already requested to install', gallery.identifier.id);
+							alreadyRequestedInstallExtensionTasks.push(installingExtension.task);
+							installingExtension.counter++;
 						} else {
 							const task = this.createInstallExtensionTask(manifest, gallery, { ...options, donotIncludePackAndDependencies: true });
-							this.installingExtensions.set(key, task);
+							this.installingExtensions.set(key, { task, counter: 1 });
 							this._onInstallExtension.fire({ identifier: task.identifier, source: gallery });
 							this.logService.info('Installing extension:', task.identifier.id);
 							allInstallExtensionTasks.push({ task, manifest });
@@ -240,6 +244,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				}));
 			}
 
+			// Await for extension dependencies that were requested to install beforehand
+			// https://github.com/microsoft/vscode/issues/149309
+			const localDeps = await this.joinAllSettled(alreadyRequestedInstallExtensionTasks.map(task => task.waitUntilTaskIsFinished()));
+			alreadyRequestedInstallExtensionTasks.forEach((task, i) => installResults.push({ local: localDeps[i], identifier: task.identifier, operation: task.operation, source: task.source }));
+
 			installResults.forEach(({ identifier }) => this.logService.info(`Extension installed successfully:`, identifier.id));
 			this._onDidInstallExtensions.fire(installResults);
 			return installResults.filter(({ identifier }) => areSameExtensions(identifier, installExtensionTask.identifier))[0].local;
@@ -247,15 +256,31 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		} catch (error) {
 
 			// cancel all tasks
-			allInstallExtensionTasks.forEach(({ task }) => task.cancel());
+			const toCancel = allInstallExtensionTasks.filter(({ task }) => {
+				if (!URI.isUri(task.source)) {
+					const key = ExtensionKey.create(task.source).toString();
+					const installingExtension = this.installingExtensions.get(key);
+					return !installingExtension || installingExtension.counter <= 1;
+				}
+				return true;
+			});
+			toCancel.forEach(({ task }) => task.cancel());
 
 			// rollback installed extensions
-			if (installResults.length) {
+			const toRollback = installResults.filter(result => {
+				if (result.source && !URI.isUri(result.source)) {
+					const key = ExtensionKey.create(result.source).toString();
+					const installingExtension = this.installingExtensions.get(key);
+					return !installingExtension || installingExtension.counter <= 1;
+				}
+				return true;
+			});
+			if (toRollback.length) {
 				try {
-					const result = await Promise.allSettled(installResults.map(({ local }) => this.createUninstallExtensionTask(local, { versionOnly: true }).run()));
+					const result = await Promise.allSettled(toRollback.map(({ local }) => this.createUninstallExtensionTask(local, { versionOnly: true }).run()));
 					for (let index = 0; index < result.length; index++) {
 						const r = result[index];
-						const { identifier } = installResults[index];
+						const { identifier } = toRollback[index];
 						if (r.status === 'fulfilled') {
 							this.logService.info('Rollback: Uninstalled extension', identifier.id);
 						} else {
@@ -264,7 +289,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					}
 				} catch (error) {
 					// ignore error
-					this.logService.warn('Error while rolling back extensions', getErrorMessage(error), installResults.map(({ identifier }) => identifier.id));
+					this.logService.warn('Error while rolling back extensions', getErrorMessage(error), toRollback.map(({ identifier }) => identifier.id));
 				}
 			}
 
@@ -275,7 +300,13 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			for (const { task } of allInstallExtensionTasks) {
 				if (!URI.isUri(task.source)) {
 					const key = ExtensionKey.create(task.source).toString();
-					if (!this.installingExtensions.delete(key)) {
+					const installingExtension = this.installingExtensions.get(key);
+					if (installingExtension) {
+						installingExtension.counter--;
+						if (installingExtension.counter <= 0) {
+							this.installingExtensions.delete(key);
+						}
+					} else {
 						this.logService.warn('Installation task is not found in the cache', key);
 					}
 				}
