@@ -98,6 +98,7 @@ import 'vs/workbench/services/assignment/common/assignmentService';
 import 'vs/workbench/services/outline/browser/outlineService';
 import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 import 'vs/editor/common/services/languageFeaturesService';
+import 'vs/workbench/services/localization/browser/localeService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -170,6 +171,9 @@ import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
 
 // Testing
 import 'vs/workbench/contrib/testing/browser/testing.contribution';
+
+// Localizations
+import 'vs/workbench/contrib/localization/browser/localization.contribution';
 
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';

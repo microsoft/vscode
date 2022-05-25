@@ -59,6 +59,7 @@ import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionUrlT
 import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 import 'vs/workbench/services/localization/electron-sandbox/languagePackService';
+import 'vs/workbench/services/localization/electron-sandbox/localeService';
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
 import 'vs/platform/extensionManagement/electron-sandbox/extensionsScannerService';

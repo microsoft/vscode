@@ -23,11 +23,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { ConfigureLocaleAction } from 'vs/workbench/contrib/localization/browser/localizationsActions';
-
-// Register action to configure locale and related settings
-registerAction2(ConfigureLocaleAction);
 
 const LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY = 'extensionsAssistant/languagePackSuggestionIgnore';
 

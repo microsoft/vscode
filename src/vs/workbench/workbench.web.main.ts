@@ -87,6 +87,8 @@ import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IDiagnosticsService, NullDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePack';
+import { WebLanguagePackService } from 'vs/platform/languagePacks/browser/languagePackService';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
@@ -103,6 +105,7 @@ registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(ITimerService, TimerService);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, true);
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, true);
+registerSingleton(ILanguagePackService, WebLanguagePackService);
 
 //#endregion
 

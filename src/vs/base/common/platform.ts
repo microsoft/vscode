@@ -80,7 +80,8 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
-	_locale = navigator.language;
+	const storedLocale = window.localStorage.getItem('vscode.nls.configuration.language');
+	_locale = storedLocale || navigator.language;
 	_language = _locale;
 }
 

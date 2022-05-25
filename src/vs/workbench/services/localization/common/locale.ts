@@ -5,8 +5,9 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const ILanguagePackService = createDecorator<ILanguagePackService>('languagePackService');
-export interface ILanguagePackService {
+export const ILocaleService = createDecorator<ILocaleService>('localizationService');
+
+export interface ILocaleService {
 	readonly _serviceBrand: undefined;
-	getInstalledLanguages(): Promise<string[]>;
+	setLocale(languagePackItem: string | undefined): Promise<boolean>;
 }
