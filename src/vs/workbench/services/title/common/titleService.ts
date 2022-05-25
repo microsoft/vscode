@@ -26,7 +26,7 @@ export interface ITitleService {
 	/**
 	 *  Title menu is visible
 	 */
-	readonly titleMenuVisible: boolean;
+	readonly isCommandCenterVisible: boolean;
 
 	/**
 	 * An event when the title menu is enabled/disabled

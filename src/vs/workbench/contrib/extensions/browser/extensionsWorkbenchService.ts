@@ -57,6 +57,7 @@ interface InstalledExtensionsEvent {
 	readonly count: number;
 }
 interface ExtensionsLoadClassification extends GDPRClassification<InstalledExtensionsEvent> {
+	owner: 'digitarald';
 	readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 }
@@ -1454,6 +1455,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (changed[i]) {
 				/* __GDPR__
 				"extension:enable" : {
+					"owner": "sandy081",
 					"${include}": [
 						"${GalleryExtensionTelemetryData}"
 					]
@@ -1461,6 +1463,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				*/
 				/* __GDPR__
 				"extension:disable" : {
+					"owner": "sandy081",
 					"${include}": [
 						"${GalleryExtensionTelemetryData}"
 					]
