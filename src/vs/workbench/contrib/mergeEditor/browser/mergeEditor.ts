@@ -9,6 +9,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IAction } from 'vs/base/common/actions';
+import { findLast } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
@@ -40,9 +41,10 @@ import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { autorun, derivedObservable, IObservable, ITransaction, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { autorun, derivedObservable, IObservable, ITransaction, keepAlive, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
+import { LineRange, ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
 import { applyObservableDecorations, n, ReentrancyBarrier, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from './editorGutter';
@@ -82,27 +84,67 @@ export class MergeEditor extends EditorPane {
 
 		const reentrancyBarrier = new ReentrancyBarrier();
 
+		const input1ResultMapping = derivedObservable('input1ResultMapping', reader => {
+			const model = this.input1View.model.read(reader);
+			if (!model) {
+				return undefined;
+			}
+			const resultDiffs = model.resultDiffs.read(reader);
+			const modifiedBaseRanges = ModifiedBaseRange.fromDiffs(model.base, model.input1, model.input1LinesDiffs, model.result, resultDiffs);
+			return modifiedBaseRanges;
+		});
+		const input2ResultMapping = derivedObservable('input2ResultMapping', reader => {
+			const model = this.input2View.model.read(reader);
+			if (!model) {
+				return undefined;
+			}
+			const resultDiffs = model.resultDiffs.read(reader);
+			const modifiedBaseRanges = ModifiedBaseRange.fromDiffs(model.base, model.input2, model.input2LinesDiffs, model.result, resultDiffs);
+			return modifiedBaseRanges;
+		});
+
+		this._register(keepAlive(input1ResultMapping));
+		this._register(keepAlive(input2ResultMapping));
+
 		this._store.add(this.input1View.editor.onDidScrollChange(c => {
 			if (c.scrollTopChanged) {
 				reentrancyBarrier.runExclusively(() => {
+					const mapping = input1ResultMapping.get();
+					if (!mapping) {
+						return;
+					}
+					synchronizeScrolling(this.input1View.editor, this.inputResultView.editor, mapping, 1);
 					this.input2View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
-					this.inputResultView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
 				});
 			}
 		}));
+
 		this._store.add(this.input2View.editor.onDidScrollChange(c => {
 			if (c.scrollTopChanged) {
 				reentrancyBarrier.runExclusively(() => {
+					const mapping = input2ResultMapping.get();
+					if (!mapping) {
+						return;
+					}
+					synchronizeScrolling(this.input2View.editor, this.inputResultView.editor, mapping, 1);
 					this.input1View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
-					this.inputResultView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
 				});
 			}
 		}));
 		this._store.add(this.inputResultView.editor.onDidScrollChange(c => {
 			if (c.scrollTopChanged) {
 				reentrancyBarrier.runExclusively(() => {
-					this.input1View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
-					this.input2View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+					const mapping = input1ResultMapping.get();
+					if (!mapping) {
+						return;
+					}
+					synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping, 2);
+
+					const mapping2 = input2ResultMapping.get();
+					if (!mapping2) {
+						return;
+					}
+					synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2, 2);
 				});
 			}
 		}));
@@ -265,6 +307,49 @@ export class MergeEditor extends EditorPane {
 	}
 }
 
+function flip(value: 1 | 2): 1 | 2 {
+	return value === 1 ? 2 : 1;
+}
+
+function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: CodeEditorWidget, mapping: ModifiedBaseRange[], sourceNumber: 1 | 2) {
+	const visibleRanges = scrollingEditor.getVisibleRanges();
+	if (visibleRanges.length === 0) {
+		return;
+	}
+	const topLineNumber = visibleRanges[0].startLineNumber - 1;
+
+	const firstBefore = findLast(mapping, r => r.getInputRange(sourceNumber).startLineNumber <= topLineNumber);
+	let sourceRange: LineRange;
+	let targetRange: LineRange;
+
+	const targetNumber = flip(sourceNumber);
+
+	if (firstBefore && firstBefore.getInputRange(sourceNumber).contains(topLineNumber)) {
+		sourceRange = firstBefore.getInputRange(sourceNumber);
+		targetRange = firstBefore.getInputRange(targetNumber);
+	} else if (firstBefore && firstBefore.getInputRange(sourceNumber).isEmpty && firstBefore.getInputRange(sourceNumber).startLineNumber === topLineNumber) {
+		sourceRange = firstBefore.getInputRange(sourceNumber).deltaEnd(1);
+		targetRange = firstBefore.getInputRange(targetNumber).deltaEnd(1);
+	} else {
+		const delta = firstBefore ? firstBefore.getInputRange(targetNumber).endLineNumberExclusive - firstBefore.getInputRange(sourceNumber).endLineNumberExclusive : 0;
+		sourceRange = new LineRange(topLineNumber, 1);
+		targetRange = new LineRange(topLineNumber + delta, 1);
+	}
+
+	// sourceRange is not empty!
+
+	const resultStartTopPx = targetEditor.getTopForLineNumber(targetRange.startLineNumber);
+	const resultEndPx = targetEditor.getTopForLineNumber(targetRange.endLineNumberExclusive);
+
+	const sourceStartTopPx = scrollingEditor.getTopForLineNumber(sourceRange.startLineNumber);
+	const sourceEndPx = scrollingEditor.getTopForLineNumber(sourceRange.endLineNumberExclusive);
+
+	const factor = (scrollingEditor.getScrollTop() - sourceStartTopPx) / (sourceEndPx - sourceStartTopPx);
+	const resultScrollPosition = resultStartTopPx + (resultEndPx - resultStartTopPx) * factor;
+
+	targetEditor.setScrollTop(resultScrollPosition, ScrollType.Immediate);
+}
+
 interface ICodeEditorViewOptions {
 	readonly: boolean;
 }
@@ -272,7 +357,7 @@ interface ICodeEditorViewOptions {
 
 abstract class CodeEditorView extends Disposable {
 	private readonly _model = new ObservableValue<undefined | MergeEditorModel>(undefined, 'model');
-	protected readonly model: IObservable<undefined | MergeEditorModel> = this._model;
+	readonly model: IObservable<undefined | MergeEditorModel> = this._model;
 
 	protected readonly htmlElements = n('div.code-view', [
 		n('div.title', { $: 'title' }),

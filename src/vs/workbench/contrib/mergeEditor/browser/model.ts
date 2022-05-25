@@ -102,6 +102,14 @@ export class LineRange {
 	public equals(originalRange: LineRange) {
 		return this.startLineNumber === originalRange.startLineNumber && this.lineCount === originalRange.lineCount;
 	}
+
+	public contains(lineNumber: number): boolean {
+		return this.startLineNumber <= lineNumber && lineNumber < this.endLineNumberExclusive;
+	}
+
+	public deltaEnd(delta: number): LineRange {
+		return new LineRange(this.startLineNumber, this.lineCount + delta);
+	}
 }
 
 export class LineDiff {
@@ -263,6 +271,9 @@ export class ModifiedBaseRange {
 		const result = new Array<ModifiedBaseRange>();
 
 		function pushAndReset() {
+			if (currentDiffs[0].length === 0 && currentDiffs[1].length === 0) {
+				return;
+			}
 			result.push(new ModifiedBaseRange(
 				baseTextModel,
 				input1TextModel,
@@ -416,3 +427,75 @@ export class ModifiedBaseRangeState {
 		return arr.join(',');
 	}
 }
+
+/*
+export class LineMappings {
+	public static fromDiffs(
+		diffs1: readonly LineDiff[],
+		diffs2: readonly LineDiff[],
+		inputLineCount: number,
+	): LineMappings {
+		const compareByStartLineNumber = compareBy<LineDiff, number>(
+			(d) => d.originalRange.startLineNumber,
+			numberComparator
+		);
+
+		const diffs = diffs1
+			.map((diff) => ({ source: 0 as 0 | 1, diff }))
+			.concat(diffs2.map((diff) => ({ source: 1 as const, diff })));
+
+		diffs.sort(compareBy(d => d.diff, compareByStartLineNumber));
+
+		const currentDiffs = [
+			new Array<LineDiff>(),
+			new Array<LineDiff>(),
+		];
+		let deltaFromBaseToInput = [0, 0];
+
+		const result = new Array<ModifiedBaseRange>();
+
+		function pushAndReset() {
+			result.push(LineMapping.create(
+				baseTextModel,
+				input1TextModel,
+				currentDiffs[0],
+				deltaFromBaseToInput[0],
+				input2TextModel,
+				currentDiffs[1],
+				deltaFromBaseToInput[1],
+			));
+			currentDiffs[0] = [];
+			currentDiffs[1] = [];
+		}
+
+		let currentRange: LineRange | undefined;
+
+		for (const diff of diffs) {
+			const range = diff.diff.originalRange;
+			if (currentRange && !currentRange.touches(range)) {
+				pushAndReset();
+			}
+			deltaFromBaseToInput[diff.source] = diff.diff.resultingDeltaFromOriginalToModified;
+			currentRange = currentRange ? currentRange.join(range) : range;
+			currentDiffs[diff.source].push(diff.diff);
+		}
+		pushAndReset();
+
+		return result;
+	}
+
+	constructor(private readonly lineMappings: LineMapping[]) {}
+}
+
+// A lightweight ModifiedBaseRange. Maybe they can be united?
+export class LineMapping {
+	public static create(input: LineDiff, ): LineMapping {
+
+	}
+
+	constructor(
+		public readonly inputRange: LineRange,
+		public readonly resultRange: LineRange
+	) { }
+}
+*/

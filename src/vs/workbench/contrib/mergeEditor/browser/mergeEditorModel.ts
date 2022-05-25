@@ -101,8 +101,8 @@ export class MergeEditorModel extends EditorModel {
 		readonly input2Detail: string | undefined,
 		readonly input2Description: string | undefined,
 		readonly result: ITextModel,
-		private readonly input1LinesDiffs: readonly LineDiff[],
-		private readonly input2LinesDiffs: readonly LineDiff[],
+		public readonly input1LinesDiffs: readonly LineDiff[],
+		public readonly input2LinesDiffs: readonly LineDiff[],
 		resultDiffs: LineDiff[],
 		private readonly editorWorkerService: IEditorWorkerService
 	) {
@@ -164,7 +164,7 @@ export class MergeEditorModel extends EditorModel {
 		this.input2LinesDiffs
 	);
 
-	private readonly modifiedBaseRangeStateStores = new Map<ModifiedBaseRange, ObservableValue<ModifiedBaseRangeState>>(
+	private readonly modifiedBaseRangeStateStores: ReadonlyMap<ModifiedBaseRange, ObservableValue<ModifiedBaseRangeState>> = new Map(
 		this.modifiedBaseRanges.map(s => ([s, new ObservableValue(ModifiedBaseRangeState.default, 'State')]))
 	);
 
