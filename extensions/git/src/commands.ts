@@ -6,7 +6,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
@@ -1082,15 +1082,30 @@ export class CommandCenter {
 
 	@command('git.acceptMerge')
 	async acceptMerge(uri: Uri | unknown): Promise<void> {
-		// TODO@jrieken make this proper, needs help from SCM folks
 		if (!(uri instanceof Uri)) {
 			return;
 		}
 		const repository = this.model.getRepository(uri);
 		if (!repository) {
+			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't belong to any repository`);
 			return;
 		}
+
+		const doc = workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
+		if (!doc) {
+			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't match a document`);
+			return;
+		}
+
+		await doc.save();
 		await repository.add([uri]);
+
+		// TODO@jrieken there isn't a `TabInputTextMerge` instance yet, till now the merge editor
+		// uses the `TabInputText` for the out-resource and we use that to identify and CLOSE the tab
+		const { activeTab } = window.tabGroups.activeTabGroup;
+		if (activeTab && activeTab?.input instanceof TabInputText && activeTab.input.uri.toString() === uri.toString()) {
+			await window.tabGroups.close(activeTab, true);
+		}
 	}
 
 	private async _stageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
