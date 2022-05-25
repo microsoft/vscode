@@ -991,7 +991,9 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 				} else { // must be CharCode.Space
 					charWidth = 1;
 
+					sb.write1(0x200C); // ZERO WIDTH NON-JOINER
 					sb.write1(renderSpaceCharCode); // &middot; or word separator middle dot
+					sb.write1(0x200C); // ZERO WIDTH NON-JOINER
 				}
 
 				charOffsetInPart += charWidth;
