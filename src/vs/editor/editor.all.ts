@@ -15,6 +15,7 @@ import 'vs/editor/contrib/clipboard/browser/clipboard';
 import 'vs/editor/contrib/codeAction/browser/codeActionContributions';
 import 'vs/editor/contrib/codelens/browser/codelensController';
 import 'vs/editor/contrib/colorPicker/browser/colorContributions';
+import 'vs/editor/contrib/copyPaste/browser/copyPasteContribution';
 import 'vs/editor/contrib/comment/browser/comment';
 import 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import 'vs/editor/contrib/cursorUndo/browser/cursorUndo';
