@@ -1,11 +1,12 @@
 name: PR Chat
 on:
   pull_request_target:
-    types: [opened, ready_for_review]
+    types: [opened, ready_for_review, closed]
 
 jobs:
   main:
     runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
     steps:
       - name: Checkout Actions
         uses: actions/checkout@v2
@@ -20,4 +21,5 @@ jobs:
         with:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           slack_token: ${{ secrets.SLACK_TOKEN }}
+          slack_bot_name: "VSCodeBot"
           notification_channel: codereview

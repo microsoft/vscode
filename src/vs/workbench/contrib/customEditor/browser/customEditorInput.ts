@@ -38,7 +38,12 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
 			let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
 			const id = generateUuid();
-			const webview = accessor.get(IWebviewService).createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
+			const webview = accessor.get(IWebviewService).createWebviewOverlay({
+				id,
+				options: { customClasses: options?.customClasses },
+				contentOptions: {},
+				extension: undefined,
+			});
 			const input = instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
 			if (typeof group !== 'undefined') {
 				input.updateGroup(group);

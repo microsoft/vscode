@@ -13,6 +13,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Hasher } from 'vs/base/common/hash';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { splitLines } from 'vs/base/common/strings';
+import { IMatch } from 'vs/base/common/filters';
 
 export type MarkerElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -114,6 +115,19 @@ export class Marker {
 			resource: this.marker.resource.path,
 			relatedInformation: this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : undefined
 		}, null, '\t');
+	}
+}
+
+export class MarkerTableItem extends Marker {
+	constructor(
+		marker: Marker,
+		readonly sourceMatches?: IMatch[],
+		readonly codeMatches?: IMatch[],
+		readonly messageMatches?: IMatch[],
+		readonly fileMatches?: IMatch[],
+		readonly ownerMatches?: IMatch[],
+	) {
+		super(marker.id, marker.marker, marker.relatedInformation);
 	}
 }
 

@@ -616,22 +616,34 @@ export class NotebookEdit implements vscode.NotebookEdit {
 		return new NotebookEdit(range, newCells);
 	}
 
+	static insertCells(index: number, newCells: vscode.NotebookCellData[]): vscode.NotebookEdit {
+		return new NotebookEdit(new NotebookRange(index, index), newCells);
+	}
+
 	static deleteCells(range: NotebookRange): NotebookEdit {
 		return new NotebookEdit(range, []);
 	}
 
 	static updateCellMetadata(index: number, newMetadata: { [key: string]: any }): NotebookEdit {
-		return new NotebookEdit(new NotebookRange(index, index), [], newMetadata);
+		const edit = new NotebookEdit(new NotebookRange(index, index), []);
+		edit.newCellMetadata = newMetadata;
+		return edit;
 	}
 
-	readonly range: NotebookRange;
-	readonly newCells: NotebookCellData[];
-	readonly newCellMetadata?: { [key: string]: any };
+	static updateNotebookMetadata(newMetadata: { [key: string]: any }): NotebookEdit {
+		const edit = new NotebookEdit(new NotebookRange(0, 0), []);
+		edit.newNotebookMetadata = newMetadata;
+		return edit;
+	}
 
-	constructor(range: NotebookRange, newCells: NotebookCellData[], newCellMetadata?: { [key: string]: any }) {
+	range: NotebookRange;
+	newCells: NotebookCellData[];
+	newCellMetadata?: { [key: string]: any };
+	newNotebookMetadata?: { [key: string]: any };
+
+	constructor(range: NotebookRange, newCells: NotebookCellData[]) {
 		this.range = range;
 		this.newCells = newCells;
-		this.newCellMetadata = newCellMetadata;
 	}
 }
 
@@ -2430,7 +2442,7 @@ export class DataTransferItem {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
 	}
 
-	asFile(): undefined {
+	asFile(): undefined | vscode.DataTransferFile {
 		return undefined;
 	}
 
@@ -2439,15 +2451,18 @@ export class DataTransferItem {
 
 @es5ClassCompat
 export class DataTransfer {
-	private readonly _items: Map<string, DataTransferItem> = new Map();
+	#items = new Map<string, DataTransferItem>();
+
 	get(mimeType: string): DataTransferItem | undefined {
-		return this._items.get(mimeType);
+		return this.#items.get(mimeType);
 	}
+
 	set(mimeType: string, value: DataTransferItem): void {
-		this._items.set(mimeType, value);
+		this.#items.set(mimeType, value);
 	}
+
 	forEach(callbackfn: (value: DataTransferItem, key: string) => void): void {
-		this._items.forEach(callbackfn);
+		this.#items.forEach(callbackfn);
 	}
 }
 

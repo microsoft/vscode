@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { Event } from 'vs/base/common/event';
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
+import { Markers } from 'vs/workbench/contrib/markers/common/markers';
 import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -76,7 +76,7 @@ export class DebugTaskRunner {
 				return TaskRunResult.Success;
 			}
 			if (onTaskErrors === 'showErrors') {
-				await this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
+				await this.viewsService.openView(Markers.MARKERS_VIEW_ID, true);
 				return Promise.resolve(TaskRunResult.Failure);
 			}
 			if (onTaskErrors === 'abort') {
@@ -113,7 +113,7 @@ export class DebugTaskRunner {
 				return TaskRunResult.Success;
 			}
 
-			await this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
+			await this.viewsService.openView(Markers.MARKERS_VIEW_ID, true);
 			return Promise.resolve(TaskRunResult.Failure);
 		} catch (err) {
 			const taskConfigureAction = this.taskService.configureAction();

@@ -37,11 +37,13 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { CancellationError } from 'vs/base/common/errors';
 
 type UserAccountClassification = {
+	owner: 'sandy081';
 	id: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight' };
 	providerId: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight' };
 };
 
 type FirstTimeSyncClassification = {
+	owner: 'sandy081';
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
@@ -617,7 +619,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async onDidSuccessiveAuthFailures(): Promise<void> {
-		this.telemetryService.publicLog2('sync/successiveAuthFailures');
+		this.telemetryService.publicLog2<{}, { owner: 'sandy081' }>('sync/successiveAuthFailures');
 		this.currentSessionId = undefined;
 		await this.update();
 

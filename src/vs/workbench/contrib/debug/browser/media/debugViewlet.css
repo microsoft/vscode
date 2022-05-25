@@ -216,10 +216,6 @@
 	font-size: 11px;
 }
 
-.debug-pane .monaco-list-row .expression {
-	display: flex;
-}
-
 .debug-pane .monaco-list-row .expression .actionbar-spacer {
 	flex-grow: 1;
 }
