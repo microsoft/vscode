@@ -450,6 +450,13 @@ class ProgressManager {
 		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
 		onDidChange(_ => this.updateEnablement());
 		this.updateEnablement();
+
+		this.repository.onDidChangeOperations(() => {
+			const commitInProgress = this.repository.operations.isRunning(Operation.Commit);
+
+			this.repository.sourceControl.inputBox.enabled = !commitInProgress;
+			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+		});
 	}
 
 	private updateEnablement(): void {
@@ -1864,6 +1871,7 @@ export class Repository implements Disposable {
 		if (didHitLimit) {
 			/* __GDPR__
 				"statusLimit" : {
+					"owner": "lszomoru",
 					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"limit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }

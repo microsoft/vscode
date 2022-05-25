@@ -36,7 +36,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/model';
 
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
+import { Markers } from 'vs/workbench/contrib/markers/common/markers';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -430,7 +430,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => this.commandService.executeCommand(Constants.TOGGLE_MARKERS_VIEW_ACTION_ID));
+		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => this.commandService.executeCommand(Markers.TOGGLE_MARKERS_VIEW_ACTION_ID));
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.openUserTasks', async () => {
 			const resource = this.getResourceForKind(TaskSourceKind.User);

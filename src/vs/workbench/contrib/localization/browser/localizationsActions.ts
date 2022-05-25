@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -30,8 +30,8 @@ export class ConfigureLocaleAction extends Action2 {
 		});
 	}
 
-	private async getLanguageOptions(localizationService: ILocalizationsService): Promise<IQuickPickItem[]> {
-		const availableLanguages = await localizationService.getLanguageIds();
+	private async getLanguageOptions(localizationService: ILanguagePackService): Promise<IQuickPickItem[]> {
+		const availableLanguages = await localizationService.getInstalledLanguages();
 		availableLanguages.sort();
 
 		return availableLanguages
@@ -41,7 +41,7 @@ export class ConfigureLocaleAction extends Action2 {
 
 	public override async run(accessor: ServicesAccessor): Promise<void> {
 		const environmentService: IEnvironmentService = accessor.get(IEnvironmentService);
-		const localizationService: ILocalizationsService = accessor.get(ILocalizationsService);
+		const languagePackService: ILanguagePackService = accessor.get(ILanguagePackService);
 		const quickInputService: IQuickInputService = accessor.get(IQuickInputService);
 		const jsonEditingService: IJSONEditingService = accessor.get(IJSONEditingService);
 		const hostService: IHostService = accessor.get(IHostService);
@@ -50,7 +50,7 @@ export class ConfigureLocaleAction extends Action2 {
 		const dialogService: IDialogService = accessor.get(IDialogService);
 		const productService: IProductService = accessor.get(IProductService);
 
-		const languageOptions = await this.getLanguageOptions(localizationService);
+		const languageOptions = await this.getLanguageOptions(languagePackService);
 		const currentLanguageIndex = languageOptions.findIndex(l => l.label === language);
 
 		try {

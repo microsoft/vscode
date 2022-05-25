@@ -612,6 +612,7 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		const sendTelemetry = (userReaction: 'install' | 'enable' | 'cancel') => {
 			/* __GDPR__
 			"remoteExtensionRecommendations:popup" : {
+				"owner": "sandy081",
 				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 			}

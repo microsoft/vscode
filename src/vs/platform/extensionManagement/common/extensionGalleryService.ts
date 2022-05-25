@@ -994,6 +994,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const startTime = new Date().getTime();
 		/* __GDPR__
 			"galleryService:downloadVSIX" : {
+				"owner": "sandy081",
 				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"

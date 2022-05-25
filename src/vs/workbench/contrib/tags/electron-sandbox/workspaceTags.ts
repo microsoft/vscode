@@ -89,6 +89,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 	private reportWorkspaceTags(tags: Tags): void {
 		/* __GDPR__
 			"workspce.tags" : {
+				"owner": "lramos15",
 				"${include}": [
 					"${WorkspaceTags}"
 				]
@@ -116,6 +117,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 			set.forEach(item => list.push(item));
 			/* __GDPR__
 				"workspace.remotes" : {
+					"owner": "lramos15",
 					"domains" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
@@ -192,6 +194,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 			if (Object.keys(tags).length) {
 				/* __GDPR__
 					"workspace.azure" : {
+						"owner": "lramos15",
 						"${include}": [
 							"${AzureTags}"
 						]
