@@ -99,7 +99,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		rows: number,
 		location: TerminalLocation,
 		private readonly _capabilities: ITerminalCapabilityStore,
-		disableShellIntegrationTelemetry: boolean | undefined,
+		disableShellIntegrationTelemetry: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
