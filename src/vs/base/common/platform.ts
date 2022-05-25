@@ -72,6 +72,11 @@ interface INavigator {
 }
 declare const navigator: INavigator;
 
+interface IWindow {
+	localStorage: { getItem: (key: string) => string | null };
+}
+declare const window: IWindow;
+
 // Web environment
 if (typeof navigator === 'object' && !isElectronRenderer) {
 	_userAgent = navigator.userAgent;
