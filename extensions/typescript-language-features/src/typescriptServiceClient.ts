@@ -388,6 +388,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		/* __GDPR__
 			"tsserver.spawned" : {
+				"owner": "mjbvz",
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				],
@@ -418,6 +419,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 			/* __GDPR__
 				"tsserver.error" : {
+					"owner": "mjbvz",
 					"${include}": [
 						"${TypeScriptCommonProperties}"
 					]
@@ -443,6 +445,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				this.error(`TSServer exited with code: ${code}. Signal: ${signal}`);
 				/* __GDPR__
 					"tsserver.exitWithCode" : {
+						"owner": "mjbvz",
 						"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"${include}": [
@@ -601,6 +604,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 					/* __GDPR__
 						"serviceExited" : {
+							"owner": "mjbvz",
 							"${include}": [
 								"${TypeScriptCommonProperties}"
 							]
@@ -846,6 +850,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private fatalError(command: string, error: unknown): void {
 		/* __GDPR__
 			"fatalError" : {
+				"owner": "mjbvz",
 				"${include}": [
 					"${TypeScriptCommonProperties}",
 					"${TypeScriptRequestErrorProperties}"
@@ -977,6 +982,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		/* __GDPR__
 			"typingsInstalled" : {
+				"owner": "mjbvz",
 				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 				"installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },

@@ -778,6 +778,67 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents an event describing the change in a {@link NotebookEditor.selections notebook editor's selections}.
+	 */
+	export interface NotebookEditorSelectionChangeEvent {
+		/**
+		 * The {@link NotebookEditor notebook editor} for which the selections have changed.
+		 */
+		readonly notebookEditor: NotebookEditor;
+
+		/**
+		 * The new value for the {@link NotebookEditor.selections notebook editor's selections}.
+		 */
+		readonly selections: readonly NotebookRange[];
+	}
+
+	/**
+	 * Represents an event describing the change in a {@link NotebookEditor.visibleRanges notebook editor's visibleRanges}.
+	 */
+	export interface NotebookEditorVisibleRangesChangeEvent {
+		/**
+		 * The {@link NotebookEditor notebook editor} for which the visible ranges have changed.
+		 */
+		readonly notebookEditor: NotebookEditor;
+
+		/**
+		 * The new value for the {@link NotebookEditor.visibleRanges notebook editor's visibleRanges}.
+		 */
+		readonly visibleRanges: readonly NotebookRange[];
+	}
+
+	/**
+	 * Represents options to configure the behavior of showing a {@link NotebookDocument notebook document} in an {@link NotebookEditor notebook editor}.
+	 */
+	export interface NotebookDocumentShowOptions {
+		/**
+		 * An optional view column in which the {@link NotebookEditor notebook editor} should be shown.
+		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
+		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
+		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
+		 * editor to the side of the currently active one.
+		 */
+		readonly viewColumn?: ViewColumn;
+
+		/**
+		 * An optional flag that when `true` will stop the {@link NotebookEditor notebook editor} from taking focus.
+		 */
+		readonly preserveFocus?: boolean;
+
+		/**
+		 * An optional flag that controls if an {@link NotebookEditor notebook editor}-tab shows as preview. Preview tabs will
+		 * be replaced and reused until set to stay - either explicitly or through editing. The default behaviour depends
+		 * on the `workbench.editor.enablePreview`-setting.
+		 */
+		readonly preview?: boolean;
+
+		/**
+		 * An optional selection to apply for the document in the {@link NotebookEditor notebook editor}.
+		 */
+		readonly selections?: readonly NotebookRange[];
+	}
+
+	/**
 	 * A reference to one of the workbench colors as defined in https://code.visualstudio.com/docs/getstarted/theme-color-reference.
 	 * Using a theme color is preferred over a custom color as it gives theme authors and users the possibility to change the color.
 	 */
@@ -4435,6 +4496,144 @@ declare module 'vscode' {
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
 		resolveCompletionItem?(item: T, token: CancellationToken): ProviderResult<T>;
+	}
+
+
+	/**
+	 * The inline completion item provider interface defines the contract between extensions and
+	 * the inline completion feature.
+	 *
+	 * Providers are asked for completions either explicitly by a user gesture or implicitly when typing.
+	 */
+	export interface InlineCompletionItemProvider {
+
+		/**
+		 * Provides inline completion items for the given position and document.
+		 * If inline completions are enabled, this method will be called whenever the user stopped typing.
+		 * It will also be called when the user explicitly triggers inline completions or explicitly asks for the next or previous inline completion.
+		 * In that case, all available inline completions should be returned.
+		 * `context.triggerKind` can be used to distinguish between these scenarios.
+		 *
+		 * @param document The document inline completions are requested for.
+		 * @param position The position inline completions are requested for.
+		 * @param context A context object with additional information.
+		 * @param token A cancellation token.
+		 * @return An array of completion items or a thenable that resolves to an array of completion items.
+		 */
+		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
+	}
+
+	/**
+	 * Represents a collection of {@link InlineCompletionItem inline completion items} to be presented
+	 * in the editor.
+	 */
+	export class InlineCompletionList {
+		/**
+		 * The inline completion items.
+		 */
+		items: InlineCompletionItem[];
+
+		/**
+		 * Creates a new list of inline completion items.
+		*/
+		constructor(items: InlineCompletionItem[]);
+	}
+
+	/**
+	 * Provides information about the context in which an inline completion was requested.
+	 */
+	export interface InlineCompletionContext {
+		/**
+		 * Describes how the inline completion was triggered.
+		 */
+		readonly triggerKind: InlineCompletionTriggerKind;
+
+		/**
+		 * Provides information about the currently selected item in the autocomplete widget if it is visible.
+		 *
+		 * If set, provided inline completions must extend the text of the selected item
+		 * and use the same range, otherwise they are not shown as preview.
+		 * As an example, if the document text is `console.` and the selected item is `.log` replacing the `.` in the document,
+		 * the inline completion must also replace `.` and start with `.log`, for example `.log()`.
+		 *
+		 * Inline completion providers are requested again whenever the selected item changes.
+		 */
+		readonly selectedCompletionInfo: SelectedCompletionInfo | undefined;
+	}
+
+	/**
+	 * Describes the currently selected completion item.
+	 */
+	export interface SelectedCompletionInfo {
+		/**
+		 * The range that will be replaced if this completion item is accepted.
+		 */
+		readonly range: Range;
+
+		/**
+		 * The text the range will be replaced with if this completion is accepted.
+		 */
+		readonly text: string;
+	}
+
+	/**
+	 * Describes how an {@link InlineCompletionItemProvider inline completion provider} was triggered.
+	 */
+	export enum InlineCompletionTriggerKind {
+		/**
+		 * Completion was triggered explicitly by a user gesture.
+		 * Return multiple completion items to enable cycling through them.
+		 */
+		Invoke = 0,
+
+		/**
+		 * Completion was triggered automatically while editing.
+		 * It is sufficient to return a single completion item in this case.
+		 */
+		Automatic = 1,
+	}
+
+	/**
+	 * An inline completion item represents a text snippet that is proposed inline to complete text that is being typed.
+	 *
+	 * @see {@link InlineCompletionItemProvider.provideInlineCompletionItems}
+	 */
+	export class InlineCompletionItem {
+		/**
+		 * The text to replace the range with. Must be set.
+		 * Is used both for the preview and the accept operation.
+		 */
+		insertText: string | SnippetString;
+
+		/**
+		 * A text that is used to decide if this inline completion should be shown. When `falsy`
+		 * the {@link InlineCompletionItem.insertText} is used.
+		 *
+		 * An inline completion is shown if the text to replace is a prefix of the filter text.
+		 */
+		filterText?: string;
+
+		/**
+		 * The range to replace.
+		 * Must begin and end on the same line.
+		 *
+		 * Prefer replacements over insertions to provide a better experience when the user deletes typed text.
+		 */
+		range?: Range;
+
+		/**
+		 * An optional {@link Command} that is executed *after* inserting this completion.
+		 */
+		command?: Command;
+
+		/**
+		 * Creates a new inline completion item.
+		 *
+		 * @param insertText The text to replace the range with.
+		 * @param range The range to replace. If not set, the word at the requested position will be used.
+		 * @param command An optional {@link Command} that is executed *after* inserting this completion.
+		 */
+		constructor(insertText: string | SnippetString, range?: Range, command?: Command);
 	}
 
 	/**
@@ -9122,6 +9321,43 @@ declare module 'vscode' {
 		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
 
 		/**
+		 * The currently visible {@link NotebookEditor notebook editors} or an empty array.
+		 */
+		export const visibleNotebookEditors: readonly NotebookEditor[];
+
+		/**
+		 * An {@link Event} which fires when the {@link window.visibleNotebookEditors visible notebook editors}
+		 * has changed.
+		 */
+		export const onDidChangeVisibleNotebookEditors: Event<readonly NotebookEditor[]>;
+
+		/**
+		 * The currently active {@link NotebookEditor notebook editor} or `undefined`. The active editor is the one
+		 * that currently has focus or, when none has focus, the one that has changed
+		 * input most recently.
+		 */
+		export const activeNotebookEditor: NotebookEditor | undefined;
+
+		/**
+		 * An {@link Event} which fires when the {@link window.activeNotebookEditor active notebook editor}
+		 * has changed. *Note* that the event also fires when the active editor changes
+		 * to `undefined`.
+		 */
+		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
+
+		/**
+		 * An {@link Event} which fires when the {@link NotebookEditor.selections notebook editor selections}
+		 * have changed.
+		 */
+		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
+
+		/**
+		 * An {@link Event} which fires when the {@link NotebookEditor.visibleRanges notebook editor visible ranges}
+		 * have changed.
+		 */
+		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
+
+		/**
 		 * The currently opened terminals or an empty array.
 		 */
 		export const terminals: readonly Terminal[];
@@ -9199,6 +9435,16 @@ declare module 'vscode' {
 		 * @return A promise that resolves to an {@link TextEditor editor}.
 		 */
 		export function showTextDocument(uri: Uri, options?: TextDocumentShowOptions): Thenable<TextEditor>;
+
+		/**
+		 * Show the given {@link NotebookDocument} in a {@link NotebookEditor notebook editor}.
+		 *
+		 * @param document A text document to be shown.
+		 * @param options {@link NotebookDocumentShowOptions Editor options} to configure the behavior of showing the {@link NotebookEditor notebook editor}.
+		 *
+		 * @return A promise that resolves to an {@link NotebookEditor notebook editor}.
+		 */
+		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
 
 		/**
 		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.
@@ -12095,6 +12341,19 @@ declare module 'vscode' {
 		export function registerCompletionItemProvider(selector: DocumentSelector, provider: CompletionItemProvider, ...triggerCharacters: string[]): Disposable;
 
 		/**
+		 * Registers an inline completion provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inline completion provider.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 */
+		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
+
+		/**
 		 * Register a code action provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
@@ -12479,7 +12738,32 @@ declare module 'vscode' {
 		 * @return A {@link Disposable} that unsets this configuration.
 		 */
 		export function setLanguageConfiguration(language: string, configuration: LanguageConfiguration): Disposable;
+	}
 
+	/**
+	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
+	 */
+	export enum NotebookEditorRevealType {
+		/**
+		 * The range will be revealed with as little scrolling as possible.
+		 */
+		Default = 0,
+
+		/**
+		 * The range will always be revealed in the center of the viewport.
+		 */
+		InCenter = 1,
+
+		/**
+		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
+		 * Otherwise, it will be revealed with as little scrolling as possible.
+		 */
+		InCenterIfOutsideViewport = 2,
+
+		/**
+		 * The range will always be revealed at the top of the viewport.
+		 */
+		AtTop = 3
 	}
 
 	/**
@@ -12489,6 +12773,40 @@ declare module 'vscode' {
 	 */
 	export interface NotebookEditor {
 
+		/**
+		 * The {@link NotebookDocument notebook document} associated with this notebook editor.
+		 */
+		readonly notebook: NotebookDocument;
+
+		/**
+		 * The primary selection in this notebook editor.
+		 */
+		selection: NotebookRange;
+
+		/**
+		 * All selections in this notebook editor.
+		 *
+		 * The primary selection (or focused range) is `selections[0]`. When the document has no cells, the primary selection is empty `{ start: 0, end: 0 }`;
+		 */
+		selections: readonly NotebookRange[];
+
+		/**
+		 * The current visible ranges in the editor (vertically).
+		 */
+		readonly visibleRanges: readonly NotebookRange[];
+
+		/**
+		 * The column in which this editor shows.
+		 */
+		readonly viewColumn?: ViewColumn;
+
+		/**
+		 * Scroll as indicated by `revealType` in order to reveal the given range.
+		 *
+		 * @param range A range.
+		 * @param revealType The scrolling strategy for revealing `range`.
+		 */
+		revealRange(range: NotebookRange, revealType?: NotebookEditorRevealType): void;
 	}
 
 	/**

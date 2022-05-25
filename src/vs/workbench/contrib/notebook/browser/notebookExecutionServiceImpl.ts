@@ -14,7 +14,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {
 	declare _serviceBrand: undefined;
@@ -40,34 +40,15 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 
 		let kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		if (!kernel) {
+			kernel = await this.resolveSourceActions(notebook);
+		}
+
+		if (!kernel) {
 			await this._commandService.executeCommand(SELECT_KERNEL_ID);
 			kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		}
 
 		if (!kernel) {
-			return;
-		}
-
-		if (kernel.type === NotebookKernelType.Proxy) {
-			this._activeProxyKernelExecutionToken?.dispose(true);
-			const tokenSource = this._activeProxyKernelExecutionToken = new CancellationTokenSource();
-			const resolved = await kernel.resolveKernel(notebook.uri);
-			const kernels = this._notebookKernelService.getMatchingKernel(notebook);
-			const newlyMatchedKernel = kernels.all.find(k => k.id === resolved);
-
-			if (!newlyMatchedKernel) {
-				return;
-			}
-
-			kernel = newlyMatchedKernel;
-			if (tokenSource.token.isCancellationRequested) {
-				// execution was cancelled but we still need to update the active kernel
-				this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
-				return;
-			}
-		}
-
-		if (kernel.type === NotebookKernelType.Proxy) {
 			return;
 		}
 
@@ -88,6 +69,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 
 			const exes = executeCells.map(c => this._notebookExecutionStateService.createCellExecution(kernel!.id, notebook.uri, c.handle));
 			await kernel.executeNotebookCellsRequest(notebook.uri, executeCells.map(c => c.handle));
+			// the connecting state can change before the kernel resolves executeNotebookCellsRequest
 			const unconfirmed = exes.filter(exe => exe.state === NotebookCellExecutionState.Unconfirmed);
 			if (unconfirmed.length) {
 				this._logService.debug(`NotebookExecutionService#executeNotebookCells completing unconfirmed executions ${JSON.stringify(unconfirmed.map(exe => exe.cellHandle))}`);
@@ -96,16 +78,27 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		}
 	}
 
+	private async resolveSourceActions(notebook: INotebookTextModel) {
+		let kernel: INotebookKernel | undefined;
+		const info = this._notebookKernelService.getMatchingKernel(notebook);
+		if (info.all.length === 0) {
+			// no kernel at all
+			const sourceActions = this._notebookKernelService.getSourceActions();
+			if (sourceActions.length === 1) {
+				await sourceActions[0].runAction();
+				kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
+			}
+		}
+
+		return kernel;
+	}
+
 	async cancelNotebookCellHandles(notebook: INotebookTextModel, cells: Iterable<number>): Promise<void> {
 		const cellsArr = Array.from(cells);
 		this._logService.debug(`NotebookExecutionService#cancelNotebookCellHandles ${JSON.stringify(cellsArr)}`);
 		const kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		if (kernel) {
-			if (kernel.type === NotebookKernelType.Proxy) {
-				this._activeProxyKernelExecutionToken?.dispose(true);
-			} else {
-				await kernel.cancelNotebookCellExecution(notebook.uri, cellsArr);
-			}
+			await kernel.cancelNotebookCellExecution(notebook.uri, cellsArr);
 
 		}
 	}

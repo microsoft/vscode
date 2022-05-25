@@ -61,6 +61,7 @@ import { isOfflineError } from 'vs/base/parts/request/common/request';
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.git-base', 'vscode.search-result'];
 
 type WorkspaceRecommendationsClassification = {
+	owner: 'sandy081';
 	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'isMeasurement': true };
 };
 

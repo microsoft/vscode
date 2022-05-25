@@ -27,11 +27,7 @@ configurationRegistry.registerConfiguration({
 				localize('manual', "Disable automatic background update checks. Updates will be available if you manually check for updates."),
 				localize('start', "Check for updates only on startup. Disable automatic background update checks."),
 				localize('default', "Enable automatic update checks. Code will check for updates automatically and periodically.")
-			],
-			policy: {
-				name: 'UpdateMode',
-				minimumVersion: '1.67',
-			}
+			]
 		},
 		'update.channel': {
 			type: 'string',

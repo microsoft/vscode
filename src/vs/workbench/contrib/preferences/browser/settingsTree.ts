@@ -62,6 +62,7 @@ import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/prefere
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { focusedRowBackground, focusedRowBorder, rowHoverBackground, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
+import { getIndicatorsLabelAriaLabel, ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
 
 const $ = DOM.$;
 
@@ -588,7 +589,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	descriptionElement: HTMLElement;
 	controlElement: HTMLElement;
 	deprecationWarningElement: HTMLElement;
-	miscLabel: SettingsTreeMiscLabel;
+	indicatorsLabel: SettingsTreeIndicatorsLabel;
 	toolbar: ToolBar;
 	elementDisposables: DisposableStore;
 }
@@ -663,11 +664,6 @@ export interface ISettingChangeEvent {
 
 export interface ISettingLinkClickEvent {
 	source: SettingsTreeSettingElement;
-	targetKey: string;
-}
-
-export interface ISettingOverrideClickEvent {
-	scope: string;
 	targetKey: string;
 }
 
@@ -783,7 +779,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const labelElement = new SimpleIconLabel(labelElementContainer);
-		const miscLabel = new SettingsTreeMiscLabel(titleElement);
+		const indicatorsLabel = new SettingsTreeIndicatorsLabel(titleElement);
+
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
 		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
@@ -810,7 +807,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			descriptionElement,
 			controlElement,
 			deprecationWarningElement,
-			miscLabel,
+			indicatorsLabel,
 			toolbar
 		};
 
@@ -914,7 +911,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			template.descriptionElement.innerText = element.description;
 		}
 
-		template.miscLabel.updateOtherOverrides(element, template.elementDisposables, this._onDidClickOverrideElement);
+		template.indicatorsLabel.updateScopeOverrides(element, template.elementDisposables, this._onDidClickOverrideElement);
 
 		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType, manualReset: false });
 		const deprecationText = element.setting.deprecationMessage || '';
@@ -931,10 +928,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
-		template.miscLabel.updateSyncIgnored(element, this.ignoredSettings);
-		template.miscLabel.updateDefaultOverrideIndicator(element);
+		template.indicatorsLabel.updateSyncIgnored(element, this.ignoredSettings);
+		template.indicatorsLabel.updateDefaultOverrideIndicator(element);
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
-			template.miscLabel.updateSyncIgnored(element, this.ignoredSettings);
+			template.indicatorsLabel.updateSyncIgnored(element, this.ignoredSettings);
 		}));
 
 		template.policyWarningElement.hidden = !element.hasPolicyValue;
@@ -1118,7 +1115,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 		template.elementDisposables.add(template.button.onDidClick(() => {
 			if (isLanguageTagSetting) {
-				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}:${plainKey}`);
+				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}${plainKey}`);
 			} else {
 				this._onDidOpenSettings.fire(dataElement.setting.key);
 			}
@@ -1819,7 +1816,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(titleElement, $('span.setting-item-label'));
 		const labelElement = new SimpleIconLabel(labelElementContainer);
-		const miscLabel = new SettingsTreeMiscLabel(titleElement);
+		const indicatorsLabel = new SettingsTreeIndicatorsLabel(titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
@@ -1870,7 +1867,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 			policyWarningElement,
 			descriptionElement,
 			deprecationWarningElement,
-			miscLabel,
+			indicatorsLabel,
 			toolbar
 		};
 
@@ -2142,120 +2139,6 @@ function escapeInvisibleChars(enumValue: string): string {
 		.replace(/\r/g, '\\r');
 }
 
-/**
- * Controls logic and rendering of the label next to each setting header.
- * For example, the "Modified by" and "Overridden by" labels go here.
- */
-class SettingsTreeMiscLabel {
-	private labelElement: HTMLElement;
-	private otherOverridesElement: HTMLElement;
-	private syncIgnoredElement: HTMLElement;
-	private defaultOverrideIndicatorElement: HTMLElement;
-	private defaultOverrideIndicatorLabel: SimpleIconLabel;
-
-	constructor(container: HTMLElement) {
-		this.labelElement = DOM.append(container, $('.misc-label'));
-		this.labelElement.style.display = 'inline';
-
-		this.otherOverridesElement = this.createOtherOverridesElement();
-		this.syncIgnoredElement = this.createSyncIgnoredElement();
-		const { element, label } = this.createDefaultOverrideIndicator();
-		this.defaultOverrideIndicatorElement = element;
-		this.defaultOverrideIndicatorLabel = label;
-	}
-
-	private createOtherOverridesElement(): HTMLElement {
-		const otherOverridesElement = $('span.setting-item-overrides');
-		return otherOverridesElement;
-	}
-
-	private createSyncIgnoredElement(): HTMLElement {
-		const syncIgnoredElement = $('span.setting-item-ignored');
-		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
-		syncIgnoredLabel.text = `$(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')}`;
-		syncIgnoredLabel.title = localize('syncIgnoredTitle', "Settings sync does not sync this setting");
-		return syncIgnoredElement;
-	}
-
-	private createDefaultOverrideIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
-		const defaultOverrideIndicator = $('span.setting-item-default-overridden');
-		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
-		return { element: defaultOverrideIndicator, label: defaultOverrideLabel };
-	}
-
-	private render() {
-		const elementsToShow = [this.otherOverridesElement, this.syncIgnoredElement, this.defaultOverrideIndicatorElement].filter(element => {
-			return element.style.display !== 'none';
-		});
-
-		this.labelElement.innerText = '';
-		this.labelElement.style.display = 'none';
-		if (elementsToShow.length) {
-			this.labelElement.style.display = 'inline';
-			DOM.append(this.labelElement, $('span', undefined, '('));
-			for (let i = 0; i < elementsToShow.length - 1; i++) {
-				DOM.append(this.labelElement, elementsToShow[i]);
-				DOM.append(this.labelElement, $('span.comma', undefined, ', '));
-			}
-			DOM.append(this.labelElement, elementsToShow[elementsToShow.length - 1]);
-			DOM.append(this.labelElement, $('span', undefined, ')'));
-		}
-	}
-
-	updateSyncIgnored(element: SettingsTreeSettingElement, ignoredSettings: string[]) {
-		this.syncIgnoredElement.style.display = ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
-		this.render();
-	}
-
-	updateOtherOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
-		this.otherOverridesElement.innerText = '';
-		this.otherOverridesElement.style.display = 'none';
-		if (element.overriddenScopeList.length) {
-			this.otherOverridesElement.style.display = 'inline';
-			const otherOverridesLabel = element.isConfigured ?
-				localize('alsoConfiguredIn', "Also modified in") :
-				localize('configuredIn', "Modified in");
-
-			DOM.append(this.otherOverridesElement, $('span', undefined, `${otherOverridesLabel}: `));
-
-			for (let i = 0; i < element.overriddenScopeList.length; i++) {
-				const view = DOM.append(this.otherOverridesElement, $('a.modified-scope', undefined, element.overriddenScopeList[i]));
-
-				if (i !== element.overriddenScopeList.length - 1) {
-					DOM.append(this.otherOverridesElement, $('span', undefined, ', '));
-				}
-
-				elementDisposables.add(
-					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
-						onDidClickOverrideElement.fire({
-							targetKey: element.setting.key,
-							scope: element.overriddenScopeList[i]
-						});
-						e.preventDefault();
-						e.stopPropagation();
-					}));
-			}
-		}
-		this.render();
-	}
-
-	updateDefaultOverrideIndicator(element: SettingsTreeSettingElement) {
-		this.defaultOverrideIndicatorElement.style.display = 'none';
-		if (element.setting.defaultValueSource) {
-			this.defaultOverrideIndicatorElement.style.display = 'inline';
-			const defaultValueSource = element.setting.defaultValueSource;
-			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
-				const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
-				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default value overridden by {0}", extensionSource);
-				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(wrench) Overridden by: {0}", extensionSource);
-			} else if (typeof defaultValueSource === 'string') {
-				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default value overridden by {0}", defaultValueSource);
-				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(wrench) Overridden by: {0}", defaultValueSource);
-			}
-		}
-		this.render();
-	}
-}
 
 export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	constructor(
@@ -2419,9 +2302,9 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 				ariaLabelSections.push(modifiedText);
 			}
 
-			const miscLabelAriaLabel = this.getMiscLabelAriaLabel(element);
-			if (miscLabelAriaLabel.length) {
-				ariaLabelSections.push(`${miscLabelAriaLabel}.`);
+			const indicatorsLabelAriaLabel = getIndicatorsLabelAriaLabel(element, this.configurationService);
+			if (indicatorsLabelAriaLabel.length) {
+				ariaLabelSections.push(`${indicatorsLabelAriaLabel}.`);
 			}
 
 			const descriptionWithoutSettingLinks = fixSettingLinks(element.description, false);
@@ -2438,39 +2321,6 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 
 	getWidgetAriaLabel() {
 		return localize('settings', "Settings");
-	}
-
-	private getMiscLabelAriaLabel(element: SettingsTreeSettingElement): string {
-		const ariaLabelSections: string[] = [];
-
-		// Add other overrides text
-		const otherOverridesStart = element.isConfigured ?
-			localize('alsoConfiguredIn', "Also modified in") :
-			localize('configuredIn', "Modified in");
-		const otherOverridesList = element.overriddenScopeList.join(', ');
-		if (element.overriddenScopeList.length) {
-			ariaLabelSections.push(`${otherOverridesStart} ${otherOverridesList}`);
-		}
-
-		// Add sync ignored text
-		const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this.configurationService);
-		if (ignoredSettings.includes(element.setting.key)) {
-			ariaLabelSections.push(localize('syncIgnoredTitle', "Settings sync does not sync this setting"));
-		}
-
-		// Add default override indicator text
-		if (element.setting.defaultValueSource) {
-			const defaultValueSource = element.setting.defaultValueSource;
-			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
-				const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
-				ariaLabelSections.push(localize('defaultOverriddenDetails', "Default value overridden by {0}", extensionSource));
-			} else if (typeof defaultValueSource === 'string') {
-				ariaLabelSections.push(localize('defaultOverriddenDetails', "Default value overridden by {0}", defaultValueSource));
-			}
-		}
-
-		const ariaLabel = ariaLabelSections.join('. ');
-		return ariaLabel;
 	}
 }
 

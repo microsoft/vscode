@@ -29,7 +29,7 @@ import {
 	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, ExtensionStatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
 	RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
 	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
-	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction
+	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtension
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -338,6 +338,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.uninstall', UninstallAction.UninstallLabel, [
 				[
+					this.instantiationService.createInstance(MigrateDeprecatedExtension, false),
 					this.instantiationService.createInstance(UninstallAction),
 					this.instantiationService.createInstance(InstallAnotherVersionAction),
 				]
@@ -561,6 +562,7 @@ export class ExtensionEditor extends EditorPane {
 		}
 		/* __GDPR__
 		"extensionGallery:openExtension" : {
+			"owner": "sandy081",
 			"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"${include}": [
 				"${GalleryExtensionTelemetryData}"
@@ -643,6 +645,7 @@ export class ExtensionEditor extends EditorPane {
 
 	private setRecommendationText(extension: IExtension, template: IExtensionEditorTemplate): void {
 		const updateRecommendationText = (layout: boolean) => {
+			reset(template.recommendation);
 			const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
 			if (extRecommendations[extension.identifier.id.toLowerCase()]) {
 				const reasonText = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
@@ -657,8 +660,8 @@ export class ExtensionEditor extends EditorPane {
 				this.layout(this.dimension);
 			}
 		};
-		reset(template.recommendation);
 		if (extension.deprecationInfo || extension.state === ExtensionState.Installed) {
+			reset(template.recommendation);
 			return;
 		}
 		updateRecommendationText(false);

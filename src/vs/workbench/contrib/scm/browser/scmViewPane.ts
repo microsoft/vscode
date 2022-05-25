@@ -1862,6 +1862,13 @@ class SCMInputWidget extends Disposable {
 		this.repositoryDisposables.add(input.repository.provider.onDidChangeCommitTemplate(updateTemplate, this));
 		updateTemplate();
 
+		// Update input enablement
+		const updateEnablement = (enabled: boolean) => {
+			this.inputEditor.updateOptions({ readOnly: !enabled });
+		};
+		this.repositoryDisposables.add(input.onDidChangeEnablement(enabled => updateEnablement(enabled)));
+		updateEnablement(input.enabled);
+
 		// Save model
 		this.model = { input, textModel };
 	}

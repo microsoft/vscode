@@ -28,7 +28,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService, ISourceAction } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -157,86 +157,114 @@ registerAction2(class extends Action2 {
 			}
 		}
 
-		if (!newKernel) {
-			type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
-			const configButton: IQuickInputButton = {
-				iconClass: ThemeIcon.asClassName(configureKernelIcon),
-				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.textModel.viewType)
-			};
-			function toQuickPick(kernel: INotebookKernel) {
-				const res = <KernelPick>{
-					kernel,
-					picked: kernel.id === selected?.id,
-					label: kernel.label,
-					description: kernel.description,
-					detail: kernel.detail,
-					buttons: [configButton]
-				};
-				if (kernel.id === selected?.id) {
-					if (!res.description) {
-						res.description = nls.localize('current1', "Currently Selected");
-					} else {
-						res.description = nls.localize('current2', "{0} - Currently Selected", res.description);
-					}
-				}
-				return res;
-			}
-			const quickPickItems: QuickPickInput<IQuickPickItem | KernelPick>[] = [];
-			if (all.length) {
-				// Always display suggested kernels on the top.
-				if (suggestions.length) {
-					quickPickItems.push({
-						type: 'separator',
-						label: nls.localize('suggestedKernels', "Suggested")
-					});
-					quickPickItems.push(...suggestions.map(toQuickPick));
-				}
-
-				// Next display all of the kernels grouped by categories or extensions.
-				// If we don't have a kind, always display those at the bottom.
-				const picks = all.filter(item => !suggestions.includes(item)).map(toQuickPick);
-				const kernelsPerCategory = groupBy(picks, (a, b) => compareIgnoreCase(a.kernel.kind || 'z', b.kernel.kind || 'z'));
-				kernelsPerCategory.forEach(items => {
-					quickPickItems.push({
-						type: 'separator',
-						label: items[0].kernel.kind || nls.localize('otherKernelKinds', "Other")
-					});
-					quickPickItems.push(...items);
-				});
-			}
-
-			if (!all.find(item => item.type === NotebookKernelType.Resolved)) {
-				// there is no resolved kernel, show the install from marketplace
-				quickPickItems.push({
-					id: 'install',
-					label: nls.localize('installKernels', "Install kernels from the marketplace"),
-				});
-			}
-
-			const pick = await quickInputService.pick(quickPickItems, {
-				placeHolder: selected
-					? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
-					: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),
-				onDidTriggerItemButton: (context) => {
-					if ('kernel' in context.item) {
-						notebookKernelService.selectKernelForNotebookType(context.item.kernel, notebook.viewType);
-					}
-				}
-			});
-
-			if (pick) {
-				if (pick.id === 'install') {
-					await this._showKernelExtension(paneCompositeService, notebook.viewType);
-				} else if ('kernel' in pick) {
-					newKernel = pick.kernel;
-				}
-			}
-		}
-
 		if (newKernel) {
 			notebookKernelService.selectKernelForNotebook(newKernel, notebook);
 			return true;
 		}
+
+		type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
+		type SourcePick = IQuickPickItem & { action: ISourceAction };
+
+		const configButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(configureKernelIcon),
+			tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.textModel.viewType)
+		};
+		function toQuickPick(kernel: INotebookKernel) {
+			const res = <KernelPick>{
+				kernel,
+				picked: kernel.id === selected?.id,
+				label: kernel.label,
+				description: kernel.description,
+				detail: kernel.detail,
+				buttons: [configButton]
+			};
+			if (kernel.id === selected?.id) {
+				if (!res.description) {
+					res.description = nls.localize('current1', "Currently Selected");
+				} else {
+					res.description = nls.localize('current2', "{0} - Currently Selected", res.description);
+				}
+			}
+			return res;
+		}
+		const quickPickItems: QuickPickInput<IQuickPickItem | KernelPick | SourcePick>[] = [];
+		if (all.length) {
+			// Always display suggested kernels on the top.
+			if (suggestions.length) {
+				quickPickItems.push({
+					type: 'separator',
+					label: nls.localize('suggestedKernels', "Suggested")
+				});
+				quickPickItems.push(...suggestions.map(toQuickPick));
+			}
+
+			// Next display all of the kernels grouped by categories or extensions.
+			// If we don't have a kind, always display those at the bottom.
+			const picks = all.filter(item => !suggestions.includes(item)).map(toQuickPick);
+			const kernelsPerCategory = groupBy(picks, (a, b) => compareIgnoreCase(a.kernel.kind || 'z', b.kernel.kind || 'z'));
+			kernelsPerCategory.forEach(items => {
+				quickPickItems.push({
+					type: 'separator',
+					label: items[0].kernel.kind || nls.localize('otherKernelKinds', "Other")
+				});
+				quickPickItems.push(...items);
+			});
+		}
+
+		const sourceActions = notebookKernelService.getSourceActions();
+		if (sourceActions.length) {
+			quickPickItems.push({
+				type: 'separator',
+				// label: nls.localize('sourceActions', "")
+			});
+
+			sourceActions.forEach(sourceAction => {
+				const res = <SourcePick>{
+					action: sourceAction,
+					picked: false,
+					label: sourceAction.action.label,
+				};
+
+				quickPickItems.push(res);
+			});
+		}
+
+		if (!all.length && !sourceActions.length) {
+			// there is no kernel, show the install from marketplace
+			quickPickItems.push({
+				id: 'install',
+				label: nls.localize('installKernels', "Install kernels from the marketplace"),
+			});
+		}
+
+		const pick = await quickInputService.pick(quickPickItems, {
+			placeHolder: selected
+				? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
+				: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),
+			onDidTriggerItemButton: (context) => {
+				if ('kernel' in context.item) {
+					notebookKernelService.selectKernelForNotebookType(context.item.kernel, notebook.viewType);
+				}
+			}
+		});
+
+		if (pick) {
+			if ('kernel' in pick) {
+				newKernel = pick.kernel;
+				notebookKernelService.selectKernelForNotebook(newKernel, notebook);
+				return true;
+			}
+
+			// actions
+
+			if (pick.id === 'install') {
+				await this._showKernelExtension(paneCompositeService, notebook.viewType);
+			} else if ('action' in pick) {
+				// selected explicilty, it should trigger the execution?
+				pick.action.runAction();
+			}
+		}
+
 		return false;
 	}
 

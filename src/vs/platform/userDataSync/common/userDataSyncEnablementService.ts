@@ -12,6 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ALL_SYNC_RESOURCES, getEnablementKey, IUserDataSyncEnablementService, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncEnablementClassification = {
+	owner: 'sandy081';
 	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
