@@ -288,6 +288,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
 		} else if (platform === 'darwin') {
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
+				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/code'));
 
 			all = es.merge(all, shortcut);
@@ -336,7 +337,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@PRODNAME@@', product.nameLong))
-				.pipe(replace('@@NAME@@', product.applicationName))
+				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
