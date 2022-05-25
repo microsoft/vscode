@@ -58,8 +58,7 @@ import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/m
 import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
 import { ITableContextMenuEvent, ITableEvent } from 'vs/base/browser/ui/table/table';
 import { MarkersTable } from 'vs/workbench/contrib/markers/browser/markersTable';
-import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markersContextKey';
-import { Markers, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
+import { Markers, MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {

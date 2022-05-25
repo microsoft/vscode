@@ -49,8 +49,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Link } from 'vs/platform/opener/browser/link';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
-import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markersContextKey';
+import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;

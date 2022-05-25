@@ -30,7 +30,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
-import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markersContextKey';
+import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
 
 export interface IMarkersFiltersChangeEvent {
 	filterText?: boolean;

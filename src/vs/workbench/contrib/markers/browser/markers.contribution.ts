@@ -14,8 +14,7 @@ import { Marker, RelatedInformation, ResourceMarkers } from 'vs/workbench/contri
 import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { MarkersViewMode, Markers } from 'vs/workbench/contrib/markers/common/markers';
-import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markersContextKey';
+import { MarkersViewMode, Markers, MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';

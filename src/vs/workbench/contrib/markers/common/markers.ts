@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
 export const enum MarkersViewMode {
 	Table = 'table',
 	Tree = 'tree'
@@ -25,4 +27,13 @@ export namespace Markers {
 	export const MARKER_SHOW_PANEL_ID = 'workbench.action.showErrorsWarnings';
 	export const MARKER_SHOW_QUICK_FIX = 'problems.action.showQuickFixes';
 	export const TOGGLE_MARKERS_VIEW_ACTION_ID = 'workbench.actions.view.toggleProblems';
+}
+
+export namespace MarkersContextKeys {
+	export const MarkersViewModeContextKey = new RawContextKey<MarkersViewMode>('problemsViewMode', MarkersViewMode.Tree);
+	export const MarkersViewSmallLayoutContextKey = new RawContextKey<boolean>(`problemsView.smallLayout`, false);
+	export const MarkersTreeVisibilityContextKey = new RawContextKey<boolean>('problemsVisibility', false);
+	export const MarkerFocusContextKey = new RawContextKey<boolean>('problemFocus', false);
+	export const MarkerViewFilterFocusContextKey = new RawContextKey<boolean>('problemsFilterFocus', false);
+	export const RelatedInformationFocusContextKey = new RawContextKey<boolean>('relatedInformationFocus', false);
 }
