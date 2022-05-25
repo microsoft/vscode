@@ -105,6 +105,69 @@ export interface IDiffEditorModel {
 }
 
 /**
+ * A model for the merge editor.
+ */
+export interface IMergeEditorModel {
+	/**
+	 * Common ancestor model.
+	 */
+	commonAncestor: ITextModel;
+	/**
+	 * Current branch model.
+	 */
+	current: ITextModel;
+	/**
+	 * Output model.
+	 */
+	output: ITextModel;
+	/**
+	 * Incoming branch model.
+	 */
+	incoming: ITextModel;
+	/**
+	 * Model state that stores the merge progress.
+	 */
+	state: IMergeEditorModelState;
+}
+
+/**
+ * A state that stores the merge editor model state.
+ */
+export interface IMergeEditorModelState {
+	initialized?: boolean;
+	resolvedRegions: IMergeEditorModelResolvedRegion[];
+
+	currentEditorBanner?: HTMLElement;
+	outputEditorBanner?: HTMLElement;
+	incomingEditorBanner?: HTMLElement;
+
+	bannerHeight?: number;
+}
+
+/**
+ * Represents a resolved conflict region in the merge editor.
+ */
+export interface IMergeEditorModelResolvedRegion {
+	index: number;
+	versionId: number;
+	lastState: ConflictState;
+}
+
+/** State of a merge region with respect to the conflict. */
+export enum ConflictState {
+	/** No conflict to resolve. */
+	Resolved,
+	/** Conflict before any resolution action. */
+	Unresolved,
+	/** Resolved conflict by accepting left. */
+	AppliedLeft,
+	/** Resolved conflict by accepting right. */
+	AppliedRight,
+	/** Resolved conflict by accepting both. */
+	AppliedBoth,
+}
+
+/**
  * An event describing that an editor has had its model reset (i.e. `editor.setModel()`).
  */
 export interface IModelChangedEvent {
@@ -153,7 +216,7 @@ export interface IEditorAction {
 	run(): Promise<void>;
 }
 
-export type IEditorModel = ITextModel | IDiffEditorModel;
+export type IEditorModel = ITextModel | IDiffEditorModel | IMergeEditorModel;
 
 /**
  * A (serializable) state of the cursors.
@@ -191,9 +254,17 @@ export interface IDiffEditorViewState {
 	modified: ICodeEditorViewState | null;
 }
 /**
+ * (Serializable) View state for the merge editor.
+ */
+export interface IMergeEditorViewState {
+	current: ICodeEditorViewState | null;
+	output: ICodeEditorViewState | null;
+	incoming: ICodeEditorViewState | null;
+}
+/**
  * An editor view state.
  */
-export type IEditorViewState = ICodeEditorViewState | IDiffEditorViewState;
+export type IEditorViewState = ICodeEditorViewState | IDiffEditorViewState | IMergeEditorViewState;
 
 export const enum ScrollType {
 	Smooth = 0,
@@ -501,6 +572,34 @@ export interface IDiffEditor extends IEditor {
 }
 
 /**
+ * A merge editor.
+ *
+ * @vscode-internal
+ */
+export interface IMergeEditor extends IEditor {
+
+	/**
+	 * Type the getModel() of IEditor.
+	 */
+	getModel(): IMergeEditorModel | null;
+
+	/**
+	 * Get the `current branch` editor.
+	 */
+	getCurrentEditor(): IEditor;
+
+	/**
+	 * Get the `output` editor.
+	 */
+	getOutputEditor(): IEditor;
+
+	/**
+	 * Get the `incoming branch` editor.
+	 */
+	getIncomingEditor(): IEditor;
+}
+
+/**
  * @internal
  */
 export interface ICompositeCodeEditor {
@@ -709,7 +808,8 @@ export interface IDecorationOptions {
  */
 export const EditorType = {
 	ICodeEditor: 'vs.editor.ICodeEditor',
-	IDiffEditor: 'vs.editor.IDiffEditor'
+	IDiffEditor: 'vs.editor.IDiffEditor',
+	IMergeEditor: 'vs.editor.IMergeEditor'
 };
 
 /**

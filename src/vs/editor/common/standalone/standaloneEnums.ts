@@ -71,6 +71,20 @@ export enum CompletionTriggerKind {
 	TriggerForIncompleteCompletions = 2
 }
 
+/** State of a merge region with respect to the conflict. */
+export enum ConflictState {
+	/** No conflict to resolve. */
+	Resolved = 0,
+	/** Conflict before any resolution action. */
+	Unresolved = 1,
+	/** Resolved conflict by accepting left. */
+	AppliedLeft = 2,
+	/** Resolved conflict by accepting right. */
+	AppliedRight = 3,
+	/** Resolved conflict by accepting both. */
+	AppliedBoth = 4
+}
+
 /**
  * A positioning preference for rendering content widgets.
  */

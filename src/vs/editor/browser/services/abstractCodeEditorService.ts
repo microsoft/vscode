@@ -9,6 +9,7 @@ import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecyc
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IMergeEditor } from 'vs/editor/browser/mergeEditorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -31,6 +32,12 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	private readonly _onDiffEditorRemove: Emitter<IDiffEditor> = this._register(new Emitter<IDiffEditor>());
 	public readonly onDiffEditorRemove: Event<IDiffEditor> = this._onDiffEditorRemove.event;
 
+	private readonly _onMergeEditorAdd: Emitter<IMergeEditor> = this._register(new Emitter<IMergeEditor>());
+	public readonly onMergeEditorAdd: Event<IMergeEditor> = this._onMergeEditorAdd.event;
+
+	private readonly _onMergeEditorRemove: Emitter<IMergeEditor> = this._register(new Emitter<IMergeEditor>());
+	public readonly onMergeEditorRemove: Event<IMergeEditor> = this._onMergeEditorRemove.event;
+
 	private readonly _onDidChangeTransientModelProperty: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onDidChangeTransientModelProperty: Event<ITextModel> = this._onDidChangeTransientModelProperty.event;
 
@@ -39,6 +46,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	private readonly _codeEditors: { [editorId: string]: ICodeEditor };
 	private readonly _diffEditors: { [editorId: string]: IDiffEditor };
+	private readonly _mergeEditors: { [editorId: string]: IMergeEditor };
 	protected _globalStyleSheet: GlobalStyleSheet | null;
 	private readonly _decorationOptionProviders = new Map<string, IModelDecorationOptionsProvider>();
 	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
@@ -49,6 +57,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		super();
 		this._codeEditors = Object.create(null);
 		this._diffEditors = Object.create(null);
+		this._mergeEditors = Object.create(null);
 		this._globalStyleSheet = null;
 	}
 
@@ -80,6 +89,21 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	listDiffEditors(): IDiffEditor[] {
 		return Object.keys(this._diffEditors).map(id => this._diffEditors[id]);
+	}
+
+	addMergeEditor(editor: IMergeEditor): void {
+		this._mergeEditors[editor.getId()] = editor;
+		this._onMergeEditorAdd.fire(editor);
+	}
+
+	removeMergeEditor(editor: IMergeEditor): void {
+		if (delete this._mergeEditors[editor.getId()]) {
+			this._onMergeEditorRemove.fire(editor);
+		}
+	}
+
+	listMergeEditors(): IMergeEditor[] {
+		return Object.keys(this._mergeEditors).map(id => this._mergeEditors[id]);
 	}
 
 	getFocusedCodeEditor(): ICodeEditor | null {

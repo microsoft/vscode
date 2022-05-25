@@ -44,7 +44,7 @@ import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/qui
 import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState, IMergeEditorViewState } from 'vs/editor/common/editorCommon';
 import { once } from 'vs/base/common/functional';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
@@ -85,7 +85,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		editorViewState: {
 			editor: EditorInput;
 			group: IEditorGroup;
-			state: ICodeEditorViewState | IDiffEditorViewState | undefined;
+			state: ICodeEditorViewState | IDiffEditorViewState | IMergeEditorViewState | undefined;
 		} | undefined = undefined;
 
 		scorerCache: FuzzyScorerCache = Object.create(null);

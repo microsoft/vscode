@@ -341,6 +341,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// enums
 		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
+		ConflictState: standaloneEnums.ConflictState,
 		ContentWidgetPositionPreference: standaloneEnums.ContentWidgetPositionPreference,
 		CursorChangeReason: standaloneEnums.CursorChangeReason,
 		DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,

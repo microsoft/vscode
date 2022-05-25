@@ -7,11 +7,12 @@ import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isResourceMergeEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INewUntitledTextEditorOptions, IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { Schemas } from 'vs/base/common/network';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { MergeEditorInput } from 'vs/workbench/common/editor/mergeEditorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -99,6 +100,18 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 			const secondary = this.createTextEditor({ ...input.secondary });
 
 			return this.instantiationService.createInstance(SideBySideEditorInput, input.label, input.description, secondary, primary);
+		}
+
+		// Merge Editor Support
+		if (isResourceMergeEditorInput(input)) {
+			const commonAncestor = this.createTextEditor({ ...input.commonAncestor });
+			const current = this.createTextEditor({ ...input.current });
+			const incoming = this.createTextEditor({ ...input.incoming });
+
+			// Save output model in memory first, only save it when the user explicitly saves
+			const untitledOutput = this.createTextEditor({ ...input.output, forceUntitled: true });
+
+			return this.instantiationService.createInstance(MergeEditorInput, input.label, input.description, commonAncestor, current, untitledOutput, incoming, /* forceOpenAsBinary */ undefined);
 		}
 
 		// Untitled text file support

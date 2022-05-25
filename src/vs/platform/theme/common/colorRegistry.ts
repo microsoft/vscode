@@ -422,6 +422,13 @@ export const diffBorder = registerColor('diffEditor.border', { dark: null, light
 export const diffDiagonalFill = registerColor('diffEditor.diagonalFill', { dark: '#cccccc33', light: '#22222233', hcDark: null, hcLight: null }, nls.localize('diffDiagonalFill', "Color of the diff editor's diagonal fill. The diagonal fill is used in side-by-side diff views."));
 
 /**
+ * Merge Editor Colors
+ */
+export const defaultConflictColor = new Color(new RGBA(220, 100, 220, 0.2));
+export const mergeConflict = registerColor('mergeEditor.conflictTextBackground', { dark: defaultConflictColor, light: defaultConflictColor, hcDark: null, hcLight: null }, nls.localize('mergeEditorConflict', 'Background color for text that is in conflict. The color must not be opaque so as not to hide underlying decorations.'), true);
+export const mergeEditorBorder = registerColor('mergeEditor.border', { dark: null, light: null, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('mergeEditorBorder', 'Border color between text editors.'));
+
+/**
  * List and tree colors
  */
 export const listFocusBackground = registerColor('list.focusBackground', { dark: null, light: null, hcDark: null, hcLight: null }, nls.localize('listFocusBackground', "List/Tree background color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));

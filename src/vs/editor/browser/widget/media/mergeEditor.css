@@ -1,0 +1,35 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+/* ---------- MergeEditor ---------- */
+
+:root {
+	--merge-editor-line-height: 18px;
+}
+
+.monaco-editor .arrow-accept-left,
+.monaco-editor .arrow-accept-right,
+.monaco-editor .arrow-add-left-after-right,
+.monaco-editor .arrow-add-right-after-left {
+	z-index: 60;
+}
+
+.monaco-editor .arrow-accept-left:hover,
+.monaco-editor .arrow-accept-right:hover,
+.monaco-editor .arrow-add-left-after-right:hover,
+.monaco-editor .arrow-add-right-after-left:hover {
+	cursor: pointer;
+}
+
+.monaco-editor .next-line {
+	top: var(--merge-editor-line-height);
+}
+
+.monaco-editor .arrow-add-left-after-right {
+	transform: rotate(45deg);
+}
+
+.monaco-editor .arrow-add-right-after-left {
+	transform: rotate(-45deg);
+}

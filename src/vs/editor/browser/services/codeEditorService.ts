@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IMergeEditor } from 'vs/editor/browser/mergeEditorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -33,6 +34,10 @@ export interface ICodeEditorService {
 	addDiffEditor(editor: IDiffEditor): void;
 	removeDiffEditor(editor: IDiffEditor): void;
 	listDiffEditors(): readonly IDiffEditor[];
+
+	addMergeEditor(editor: IMergeEditor): void;
+	removeMergeEditor(editor: IMergeEditor): void;
+	listMergeEditors(): readonly IMergeEditor[];
 
 	/**
 	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.

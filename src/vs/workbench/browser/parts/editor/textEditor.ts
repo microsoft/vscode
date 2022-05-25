@@ -35,6 +35,7 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 export interface IEditorConfiguration {
 	editor: object;
 	diffEditor: object;
+	mergeEditor: object;
 }
 
 /**
