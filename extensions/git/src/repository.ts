@@ -296,6 +296,10 @@ export class Resource implements SourceControlResourceState {
 		const command = this._commandResolver.resolveChangeCommand(this);
 		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
 	}
+
+	clone() {
+		return new Resource(this._commandResolver, this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
+	}
 }
 
 export const enum Operation {
@@ -602,18 +606,21 @@ class ResourceCommandResolver {
 	resolveChangeCommand(resource: Resource): Command {
 		const title = this.getTitle(resource);
 
-		if (!resource.leftUri && resource.rightUri && resource.type === Status.BOTH_MODIFIED) {
-			return {
-				command: '_git.openMergeEditor',
-				title: localize('open.merge', "Open Merge"),
-				arguments: [resource.rightUri]
-			};
-		} else if (!resource.leftUri) {
-			return {
-				command: 'vscode.open',
-				title: localize('open', "Open"),
-				arguments: [resource.rightUri, { override: resource.type === Status.BOTH_MODIFIED ? false : undefined }, title]
-			};
+		if (!resource.leftUri) {
+			const bothModified = resource.type === Status.BOTH_MODIFIED;
+			if (resource.rightUri && bothModified && workspace.getConfiguration('git').get<boolean>('experimental.mergeEditor', false)) {
+				return {
+					command: '_git.openMergeEditor',
+					title: localize('open.merge', "Open Merge"),
+					arguments: [resource.rightUri]
+				};
+			} else {
+				return {
+					command: 'vscode.open',
+					title: localize('open', "Open"),
+					arguments: [resource.rightUri, { override: bothModified ? false : undefined }, title]
+				};
+			}
 		} else {
 			return {
 				command: 'vscode.diff',
@@ -917,6 +924,12 @@ export class Repository implements Disposable {
 		const onConfigListener = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.alwaysShowStagedChangesResourceGroup', root));
 		onConfigListener(updateIndexGroupVisibility, this, this.disposables);
 		updateIndexGroupVisibility();
+
+		workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('git.experimental.mergeEditor')) {
+				this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
+			}
+		}, undefined, this.disposables);
 
 		filterEvent(workspace.onDidChangeConfiguration, e =>
 			e.affectsConfiguration('git.branchSortOrder', root)

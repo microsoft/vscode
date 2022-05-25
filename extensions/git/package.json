@@ -2445,6 +2445,12 @@
           ],
           "markdownDescription": "%config.logLevel%",
           "scope": "window"
+        },
+        "git.experimental.mergeEditor": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.experimental.mergeEditor%",
+          "scope": "window"
         }
       }
     },
