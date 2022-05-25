@@ -16,6 +16,7 @@ import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFil
 import { DBClosedError, IndexedDB } from 'vs/base/browser/indexedDB';
 
 export type IndexedDBFileSystemProviderErrorDataClassification = {
+	owner: 'sandy081';
 	readonly scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };

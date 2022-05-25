@@ -37,6 +37,10 @@ export class VSDataTransfer {
 		this._data.set(mimeType, value);
 	}
 
+	public delete(mimeType: string) {
+		this._data.delete(mimeType);
+	}
+
 	public setString(mimeType: string, stringOrPromise: string | Promise<string>) {
 		this.set(mimeType, {
 			asString: async () => stringOrPromise,

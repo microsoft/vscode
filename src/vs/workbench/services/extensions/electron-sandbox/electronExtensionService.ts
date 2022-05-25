@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, LocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-browser/localProcessExtensionHost';
-
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-sandbox/cachedExtensionScanner';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractExtensionService, ExtensionHostCrashTracker, ExtensionRunningPreference, extensionRunningPreferenceToString, filterByRunningLocation } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import * as nls from 'vs/nls';
 import { runWhenIdle } from 'vs/base/common/async';
@@ -50,8 +47,9 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCI } from 'vs/base/common/platform';
 import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { URI } from 'vs/base/common/uri';
+import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, SandboxLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
 
-export class ExtensionService extends AbstractExtensionService implements IExtensionService {
+export abstract class ElectronExtensionService extends AbstractExtensionService implements IExtensionService {
 
 	private readonly _enableLocalWebWorker: boolean;
 	private readonly _lazyLocalWebWorker: boolean;
@@ -155,7 +153,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		]));
 	}
 
-	private _createLocalExtensionHostDataProvider(isInitialStart: boolean, desiredRunningLocation: ExtensionRunningLocation): ILocalProcessExtensionHostDataProvider & IWebWorkerExtensionHostDataProvider {
+	protected _createLocalExtensionHostDataProvider(isInitialStart: boolean, desiredRunningLocation: ExtensionRunningLocation): ILocalProcessExtensionHostDataProvider & IWebWorkerExtensionHostDataProvider {
 		return {
 			getInitData: async (): Promise<ILocalProcessExtensionHostInitData & IWebWorkerExtensionHostInitData> => {
 				if (isInitialStart) {
@@ -193,7 +191,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	protected _pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
-		const result = ExtensionService.pickExtensionHostKind(extensionKinds, isInstalledLocally, isInstalledRemotely, preference, Boolean(this._environmentService.remoteAuthority), this._enableLocalWebWorker);
+		const result = ElectronExtensionService.pickExtensionHostKind(extensionKinds, isInstalledLocally, isInstalledRemotely, preference, Boolean(this._environmentService.remoteAuthority), this._enableLocalWebWorker);
 		this._logService.trace(`pickRunningLocation for ${extensionId.value}, extension kinds: [${extensionKinds.join(', ')}], isInstalledLocally: ${isInstalledLocally}, isInstalledRemotely: ${isInstalledRemotely}, preference: ${extensionRunningPreferenceToString(preference)} => ${extensionHostKindToString(result)}`);
 		return result;
 	}
@@ -240,7 +238,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null {
 		switch (runningLocation.kind) {
 			case ExtensionHostKind.LocalProcess: {
-				return this._instantiationService.createInstance(LocalProcessExtensionHost, runningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
+				return this._instantiationService.createInstance(SandboxLocalProcessExtensionHost, runningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
 			}
 			case ExtensionHostKind.LocalWebWorker: {
 				if (this._enableLocalWebWorker) {
@@ -614,6 +612,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const sendTelemetry = (userReaction: 'install' | 'enable' | 'cancel') => {
 			/* __GDPR__
 			"remoteExtensionRecommendations:popup" : {
+				"owner": "sandy081",
 				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 			}
@@ -675,8 +674,6 @@ function getRemoteAuthorityPrefix(remoteAuthority: string): string {
 	}
 	return remoteAuthority.substring(0, plusIndex);
 }
-
-registerSingleton(IExtensionService, ExtensionService);
 
 class RestartExtensionHostAction extends Action2 {
 

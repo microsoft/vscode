@@ -16,7 +16,8 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "textEditorDrop"
+    "textEditorDrop",
+    "documentPaste"
   ],
   "activationEvents": [
     "onLanguage:markdown",
@@ -412,6 +413,12 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
+          "scope": "resource"
+        },
+        "markdown.experimental.editor.pasteLinks.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.markdown.editor.pasteLinks.enabled%",
           "scope": "resource"
         },
         "markdown.experimental.validate.enabled": {

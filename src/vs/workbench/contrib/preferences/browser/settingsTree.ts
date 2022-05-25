@@ -1115,7 +1115,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 		template.elementDisposables.add(template.button.onDidClick(() => {
 			if (isLanguageTagSetting) {
-				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}:${plainKey}`);
+				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}${plainKey}`);
 			} else {
 				this._onDidOpenSettings.fire(dataElement.setting.key);
 			}

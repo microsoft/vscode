@@ -28,6 +28,7 @@ import { TasksSynchroniser } from 'vs/platform/userDataSync/common/tasksSync';
 import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, IUserDataManifest, IUserDataSyncConfiguration, IUserDataSyncEnablementService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncErrorClassification = {
+	owner: 'sandy081';
 	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };

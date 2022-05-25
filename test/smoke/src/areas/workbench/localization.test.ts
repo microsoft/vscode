@@ -9,11 +9,11 @@ import { installAllHandlers } from '../../utils';
 export function setup(logger: Logger) {
 
 	describe('Localization', () => {
-
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-		it('starts with "DE" locale and verifies title and viewlets text is in German', async function () {
+		// skipped until translations are available https://github.com/microsoft/vscode/issues/150324
+		it.skip('starts with "DE" locale and verifies title and viewlets text is in German', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.extensions.openExtensionsViewlet();

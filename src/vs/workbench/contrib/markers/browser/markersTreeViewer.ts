@@ -48,9 +48,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Link } from 'vs/platform/opener/browser/link';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { MarkersViewMode } from 'vs/workbench/contrib/markers/browser/markersView';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
+import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
@@ -718,7 +717,7 @@ export class MarkersViewModel extends Disposable {
 		this._multiline = multiline;
 		this._viewMode = viewMode;
 
-		this.viewModeContextKey = Constants.MarkersViewModeContextKey.bindTo(this.contextKeyService);
+		this.viewModeContextKey = MarkersContextKeys.MarkersViewModeContextKey.bindTo(this.contextKeyService);
 		this.viewModeContextKey.set(viewMode);
 	}
 

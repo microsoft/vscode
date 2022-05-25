@@ -18,7 +18,7 @@ import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_S
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -130,6 +130,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	defaultValue?: any;
 
 	/**
+	 * The source of the default value to display.
+	 * This value also accounts for extension-contributed language-specific default value overrides.
+	 */
+	defaultValueSource: string | IExtensionInfo | undefined;
+
+	/**
 	 * Whether the setting is configured in the selected scope.
 	 */
 	isConfigured = false;
@@ -146,7 +152,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
+
+	/**
+	 * For each language that contributes setting values or default overrides, we can see those values here.
+	 */
 	languageOverrideValues: Map<string, IConfigurationValue<unknown>> = new Map<string, IConfigurationValue<unknown>>();
+
 	description!: string;
 	valueType!: SettingValueType;
 
@@ -219,6 +230,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		}
 
+		// The user might have added, removed, or modified a language filter,
+		// so we reset the default value source to the non-language-specific default value source for now.
+		this.defaultValueSource = this.setting.nonLanguageSpecificDefaultValueSource;
+
 		if (inspected.policyValue) {
 			this.hasPolicyValue = true;
 			isConfigured = false; // The user did not manually configure the setting themselves.
@@ -236,7 +251,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			const registryValues = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationDefaultsOverrides();
 			const overrideValueSource = registryValues.get(`[${languageSelector}]`)?.valuesSources?.get(this.setting.key);
 			if (overrideValueSource) {
-				this.setting.defaultValueSource = overrideValueSource;
+				this.defaultValueSource = overrideValueSource;
 			}
 		} else {
 			this.scopeValue = isConfigured && inspected[targetSelector];

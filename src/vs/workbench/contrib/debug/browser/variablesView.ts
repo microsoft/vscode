@@ -541,6 +541,7 @@ CommandsRegistry.registerCommand({
 		if (ext || await tryInstallHexEditor(notifications, progressService, extensionService, commandService)) {
 			/* __GDPR__
 				"debug/didViewMemory" : {
+					"owner": "connor4312",
 					"debugType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/

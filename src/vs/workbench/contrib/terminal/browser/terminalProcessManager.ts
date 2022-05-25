@@ -335,7 +335,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						this._hasChildProcesses = value;
 						break;
 					case ProcessPropertyType.FailedShellIntegrationActivation:
-						this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationFailureCustomArgs');
+						this._telemetryService?.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates shell integration was not activated because of custom args' }>('terminal/shellIntegrationActivationFailureCustomArgs');
 						break;
 				}
 				this._onDidChangeProperty.fire({ type, value });
