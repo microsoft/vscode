@@ -277,7 +277,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				const trafficLightUpdater = () => {
 					const on = this.configurationService.getValue<boolean>(ccConfigKey);
 					if (on) {
-						this._win.setTrafficLightPosition({ x: 7, y: 8 });
+						this._win.setTrafficLightPosition({ x: 7, y: 9 });
 					} else {
 						this._win.setTrafficLightPosition({ x: 7, y: 6 });
 					}
