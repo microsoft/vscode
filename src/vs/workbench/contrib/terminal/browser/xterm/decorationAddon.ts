@@ -44,8 +44,7 @@ interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposa
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	protected _terminal: Terminal | undefined;
 	private _hoverDelayer: Delayer<void>;
-	private _commandStartedListener: IDisposable | undefined;
-	private _commandFinishedListener: IDisposable | undefined;
+	private _commandDetectionListeners: IDisposable[] | undefined;
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
@@ -63,7 +62,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
-		this._register(toDisposable(() => this.clearDecorations(true)));
+		this._register(toDisposable(() => this._dispose()));
 		this._register(this._contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
@@ -111,10 +110,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	public clearDecorations(disableDecorations?: boolean): void {
-		if (disableDecorations) {
-			this._commandStartedListener?.dispose();
-			this._commandFinishedListener?.dispose();
+	private _dispose(): void {
+		if (this._commandDetectionListeners) {
+			dispose(this._commandDetectionListeners);
 		}
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
@@ -127,57 +125,61 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private _attachToCommandCapability(): void {
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			this._addCommandFinishedListener();
-			this._addCommandStartedListener();
+			this._addCommandDetectionListeners();
 		} else {
 			this._register(this._capabilities.onDidAddCapability(c => {
 				if (c === TerminalCapability.CommandDetection) {
-					this._addCommandFinishedListener();
-					this._addCommandStartedListener();
+					this._addCommandDetectionListeners();
 				}
 			}));
 		}
 		this._register(this._capabilities.onDidRemoveCapability(c => {
 			if (c === TerminalCapability.CommandDetection) {
-				this._commandStartedListener?.dispose();
-				this._commandFinishedListener?.dispose();
+				if (this._commandDetectionListeners) {
+					dispose(this._commandDetectionListeners);
+					this._commandDetectionListeners = undefined;
+				}
 			}
 		}));
 	}
 
-	private _addCommandStartedListener(): void {
-		if (this._commandStartedListener) {
+	private _addCommandDetectionListeners(): void {
+		if (this._commandDetectionListeners) {
 			return;
 		}
 		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (!capability) {
 			return;
 		}
+		this._commandDetectionListeners = [];
+		// Command started
 		if (capability.executingCommandObject?.marker) {
 			this.registerCommandDecoration(capability.executingCommandObject, true);
 		}
-		this._commandStartedListener = capability.onCommandStarted(command => this.registerCommandDecoration(command, true));
-	}
-
-
-	private _addCommandFinishedListener(): void {
-		if (this._commandFinishedListener) {
-			return;
-		}
-		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
-		if (!capability) {
-			return;
-		}
+		this._commandDetectionListeners.push(capability.onCommandStarted(command => this.registerCommandDecoration(command, true)));
+		// Command finished
 		for (const command of capability.commands) {
 			this.registerCommandDecoration(command);
 		}
-		this._commandFinishedListener = capability.onCommandFinished(command => {
-			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
-				this.clearDecorations();
-				return;
+		this._commandDetectionListeners.push(capability.onCommandFinished(command => this.registerCommandDecoration(command)));
+		// Command invalidated
+		this._commandDetectionListeners.push(capability.onCommandInvalidated(commands => {
+			for (const command of commands) {
+				const id = command.marker?.id;
+				if (id) {
+					const match = this._decorations.get(id);
+					if (match) {
+						match.decoration.dispose();
+						dispose(match.disposables);
+					}
+				}
 			}
-			this.registerCommandDecoration(command);
-		});
+		}));
+		// Current command invalidated
+		this._commandDetectionListeners.push(capability.onCurrentCommandInvalidated(() => {
+			this._placeholderDecoration?.dispose();
+			this._placeholderDecoration = undefined;
+		}));
 	}
 
 	activate(terminal: Terminal): void {
@@ -215,7 +217,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (beforeCommandExecution && !this._placeholderDecoration) {
 				this._placeholderDecoration = decoration;
 				this._placeholderDecoration.onDispose(() => this._placeholderDecoration = undefined);
-			} else {
+			} else if (!this._decorations.get(decoration.marker.id)) {
 				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
 				this._decorations.set(decoration.marker.id,
 					{

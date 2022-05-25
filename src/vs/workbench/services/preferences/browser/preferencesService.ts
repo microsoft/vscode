@@ -304,6 +304,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	async openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void> {
 		type OpenKeybindingsClassification = {
+			owner: 'sandy081';
 			textual: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 		};
 		this.telemetryService.publicLog2<{ textual: boolean }, OpenKeybindingsClassification>('openKeybindings', { textual });

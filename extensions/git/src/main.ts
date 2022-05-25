@@ -25,6 +25,8 @@ import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
 import { OutputChannelLogger } from './log';
+import { createIPCServer, IIPCServer } from './ipc/ipcServer';
+import { GitEditor } from './gitEditor/gitEditor';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -60,13 +62,25 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		return !skip;
 	});
 
-	const askpass = await Askpass.create(outputChannelLogger, context.storagePath);
+	let ipc: IIPCServer | undefined = undefined;
+
+	try {
+		ipc = await createIPCServer(context.storagePath);
+	} catch (err) {
+		outputChannelLogger.logError(`Failed to create git IPC: ${err}`);
+	}
+
+	const askpass = new Askpass(ipc);
 	disposables.push(askpass);
 
-	const environment = askpass.getEnv();
+	const gitEditor = new GitEditor(ipc);
+	disposables.push(gitEditor);
+
+	const environment = { ...askpass.getEnv(), ...gitEditor.getEnv() };
 	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, environment);
 	disposables.push(terminalEnvironmentManager);
 
+	outputChannelLogger.logInfo(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
 	const git = new Git({
 		gitPath: info.path,
@@ -81,8 +95,6 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 	model.onDidOpenRepository(onRepository, null, disposables);
 	model.onDidCloseRepository(onRepository, null, disposables);
 	onRepository();
-
-	outputChannelLogger.logInfo(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
 	const onOutput = (str: string) => {
 		const lines = str.split(/\r?\n/mg);
@@ -193,7 +205,9 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		outputChannelLogger.logWarning(err.message);
 
 		/* __GDPR__
-			"git.missing" : {}
+			"git.missing" : {
+				"owner": "lszomoru"
+			}
 		*/
 		telemetryReporter.sendTelemetryEvent('git.missing');
 

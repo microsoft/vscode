@@ -5,15 +5,17 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
+import * as picomatch from 'picomatch';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
+import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
-import { fromGitUri, toGitUri, isGitUri } from './uri';
+import { fromGitUri, toGitUri, isGitUri, toMergeUris } from './uri';
 import { grep, isDescendant, pathEquals, relativePath } from './util';
 import { LogLevel, OutputChannelLogger } from './log';
 import { GitTimelineItem } from './timelineProvider';
@@ -403,6 +405,51 @@ export class CommandCenter {
 		}
 	}
 
+	@command('_git.openMergeEditor')
+	async openMergeEditor(uri: unknown) {
+		if (!(uri instanceof Uri)) {
+			return;
+		}
+		const repo = this.model.getRepository(uri);
+		if (!repo) {
+			return;
+		}
+
+
+		type InputData = { uri: Uri; detail?: string; description?: string };
+		const mergeUris = toMergeUris(uri);
+		let input1: InputData = { uri: mergeUris.ours };
+		let input2: InputData = { uri: mergeUris.theirs };
+
+		try {
+			const [head, mergeHead] = await Promise.all([repo.getCommit('HEAD'), repo.getCommit('MERGE_HEAD')]);
+			// ours (current branch and commit)
+			input1.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
+			input1.description = head.hash.substring(0, 7);
+
+			// theirs
+			input2.detail = mergeHead.refNames.join(', ');
+			input2.description = mergeHead.hash.substring(0, 7);
+
+		} catch (error) {
+			// not so bad, can continue with just uris
+			console.error('FAILED to read HEAD, MERGE_HEAD commits');
+			console.error(error);
+		}
+
+		const options = {
+			ancestor: mergeUris.base,
+			input1,
+			input2,
+			output: uri
+		};
+
+		await commands.executeCommand(
+			'_open.mergeEditor',
+			options
+		);
+	}
+
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
@@ -414,6 +461,7 @@ export class CommandCenter {
 		if (!url) {
 			/* __GDPR__
 				"clone" : {
+					"owner": "lszomoru",
 					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
@@ -439,6 +487,7 @@ export class CommandCenter {
 			if (!uris || uris.length === 0) {
 				/* __GDPR__
 					"clone" : {
+						"owner": "lszomoru",
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -497,6 +546,7 @@ export class CommandCenter {
 
 			/* __GDPR__
 				"clone" : {
+					"owner": "lszomoru",
 					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
@@ -516,6 +566,7 @@ export class CommandCenter {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
 				/* __GDPR__
 					"clone" : {
+						"owner": "lszomoru",
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -525,6 +576,7 @@ export class CommandCenter {
 			} else {
 				/* __GDPR__
 					"clone" : {
+						"owner": "lszomoru",
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -1033,6 +1085,34 @@ export class CommandCenter {
 		await this._stageChanges(textEditor, selectedChanges);
 	}
 
+	@command('git.acceptMerge')
+	async acceptMerge(uri: Uri | unknown): Promise<void> {
+		if (!(uri instanceof Uri)) {
+			return;
+		}
+		const repository = this.model.getRepository(uri);
+		if (!repository) {
+			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't belong to any repository`);
+			return;
+		}
+
+		const doc = workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
+		if (!doc) {
+			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't match a document`);
+			return;
+		}
+
+		await doc.save();
+		await repository.add([uri]);
+
+		// TODO@jrieken there isn't a `TabInputTextMerge` instance yet, till now the merge editor
+		// uses the `TabInputText` for the out-resource and we use that to identify and CLOSE the tab
+		const { activeTab } = window.tabGroups.activeTabGroup;
+		if (activeTab && activeTab?.input instanceof TabInputText && activeTab.input.uri.toString() === uri.toString()) {
+			await window.tabGroups.close(activeTab, true);
+		}
+	}
+
 	private async _stageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
@@ -1436,6 +1516,14 @@ export class CommandCenter {
 			opts.signoff = true;
 		}
 
+		if (config.get<boolean>('useEditorAsCommitInput')) {
+			opts.useEditor = true;
+
+			if (config.get<boolean>('verboseCommit')) {
+				opts.verbose = true;
+			}
+		}
+
 		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges');
 
 		if (
@@ -1483,7 +1571,7 @@ export class CommandCenter {
 
 		let message = await getCommitMessage();
 
-		if (!message && !opts.amend) {
+		if (!message && !opts.amend && !opts.useEditor) {
 			return false;
 		}
 
@@ -1493,6 +1581,36 @@ export class CommandCenter {
 
 		if (opts.all && config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges') !== 'mixed') {
 			opts.all = 'tracked';
+		}
+
+		// Branch protection
+		const branchProtection = config.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
+		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
+		const branchIsProtected = branchProtection.some(bp => picomatch.isMatch(repository.HEAD?.name ?? '', bp));
+
+		if (branchIsProtected && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
+			const commitToNewBranch = localize('commit to branch', "Commit to a New Branch");
+
+			let pick: string | undefined = commitToNewBranch;
+
+			if (branchProtectionPrompt === 'alwaysPrompt') {
+				const message = localize('confirm branch protection commit', "You are trying to commit to a protected branch and you might not have permission to push your commits to the remote.\n\nHow would you like to proceed?");
+				const commit = localize('commit changes', "Commit Anyway");
+
+				pick = await window.showWarningMessage(message, { modal: true }, commitToNewBranch, commit);
+			}
+
+			if (!pick) {
+				return false;
+			} else if (pick === commitToNewBranch) {
+				const branchName = await this.promptForBranchName(repository);
+
+				if (!branchName) {
+					return false;
+				}
+
+				await repository.branch(branchName, true);
+			}
 		}
 
 		await repository.commit(message, opts);
@@ -1513,10 +1631,13 @@ export class CommandCenter {
 
 	private async commitWithAnyInput(repository: Repository, opts?: CommitOptions): Promise<void> {
 		const message = repository.inputBox.value;
+		const root = Uri.file(repository.root);
+		const config = workspace.getConfiguration('git', root);
+
 		const getCommitMessage = async () => {
 			let _message: string | undefined = message;
 
-			if (!_message) {
+			if (!_message && !config.get<boolean>('useEditorAsCommitInput')) {
 				let value: string | undefined = undefined;
 
 				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
@@ -1772,34 +1893,100 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private async promptForBranchName(defaultName?: string, initialValue?: string): Promise<string> {
+	private generateRandomBranchName(repository: Repository, separator: string): string {
 		const config = workspace.getConfiguration('git');
+		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary')!;
+
+		const dictionaries: string[][] = [];
+		for (const dictionary of branchRandomNameDictionary) {
+			if (dictionary.toLowerCase() === 'adjectives') {
+				dictionaries.push(adjectives);
+			}
+			if (dictionary.toLowerCase() === 'animals') {
+				dictionaries.push(animals);
+			}
+			if (dictionary.toLowerCase() === 'colors') {
+				dictionaries.push(colors);
+			}
+			if (dictionary.toLowerCase() === 'numbers') {
+				dictionaries.push(NumberDictionary.generate({ length: 3 }));
+			}
+		}
+
+		if (dictionaries.length === 0) {
+			return '';
+		}
+
+		// 5 attempts to generate a random branch name
+		for (let index = 0; index < 5; index++) {
+			const randomName = uniqueNamesGenerator({
+				dictionaries,
+				length: dictionaries.length,
+				separator
+			});
+
+			// Check for local ref conflict
+			if (!repository.refs.find(r => r.type === RefType.Head && r.name === randomName)) {
+				return randomName;
+			}
+		}
+
+		return '';
+	}
+
+	private async promptForBranchName(repository: Repository, defaultName?: string, initialValue?: string): Promise<string> {
+		const config = workspace.getConfiguration('git');
+		const branchPrefix = config.get<string>('branchPrefix')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const sanitize = (name: string) => name ?
 			name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
 			: name;
 
-		const rawBranchName = defaultName || await window.showInputBox({
-			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a new branch name"),
-			value: initialValue,
-			ignoreFocusOut: true,
-			validateInput: (name: string) => {
-				const validateName = new RegExp(branchValidationRegex);
-				if (validateName.test(sanitize(name))) {
-					return null;
-				}
+		let rawBranchName = defaultName;
 
-				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
+		if (!rawBranchName) {
+			// Branch name
+			if (!initialValue) {
+				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
+				initialValue = `${branchPrefix}${branchRandomNameEnabled ? this.generateRandomBranchName(repository, branchWhitespaceChar) : ''}`;
 			}
-		});
+
+			// Branch name selection
+			const initialValueSelection: [number, number] | undefined =
+				initialValue.startsWith(branchPrefix) ? [branchPrefix.length, initialValue.length] : undefined;
+
+			rawBranchName = await window.showInputBox({
+				placeHolder: localize('branch name', "Branch name"),
+				prompt: localize('provide branch name', "Please provide a new branch name"),
+				value: initialValue,
+				valueSelection: initialValueSelection,
+				ignoreFocusOut: true,
+				validateInput: (name: string) => {
+					const validateName = new RegExp(branchValidationRegex);
+					const sanitizedName = sanitize(name);
+					if (validateName.test(sanitizedName)) {
+						// If the sanitized name that we will use is different than what is
+						// in the input box, show an info message to the user informing them
+						// the branch name that will be used.
+						return name === sanitizedName
+							? null
+							: {
+								message: localize('branch name does not match sanitized', "The new branch will be '{0}'", sanitizedName),
+								severity: InputBoxValidationSeverity.Info
+							};
+					}
+
+					return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
+				}
+			});
+		}
 
 		return sanitize(rawBranchName || '');
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
-		const branchName = await this.promptForBranchName(defaultName);
+		const branchName = await this.promptForBranchName(repository, defaultName);
 
 		if (!branchName) {
 			return;
@@ -1862,7 +2049,7 @@ export class CommandCenter {
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
 		const currentBranchName = repository.HEAD && repository.HEAD.name;
-		const branchName = await this.promptForBranchName(undefined, currentBranchName);
+		const branchName = await this.promptForBranchName(repository, undefined, currentBranchName);
 
 		if (!branchName) {
 			return;
@@ -2479,6 +2666,21 @@ export class CommandCenter {
 		await commands.executeCommand('revealInExplorer', resourceState.resourceUri);
 	}
 
+	@command('git.revealFileInOS.linux')
+	@command('git.revealFileInOS.mac')
+	@command('git.revealFileInOS.windows')
+	async revealFileInOS(resourceState: SourceControlResourceState): Promise<void> {
+		if (!resourceState) {
+			return;
+		}
+
+		if (!(resourceState.resourceUri instanceof Uri)) {
+			return;
+		}
+
+		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
+	}
+
 	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
 			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
@@ -2807,6 +3009,7 @@ export class CommandCenter {
 
 			/* __GDPR__
 				"git.command" : {
+					"owner": "lszomoru",
 					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
@@ -2818,7 +3021,7 @@ export class CommandCenter {
 				};
 
 				let message: string;
-				let type: 'error' | 'warning' = 'error';
+				let type: 'error' | 'warning' | 'information' = 'error';
 
 				const choices = new Map<string, () => void>();
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
@@ -2881,6 +3084,12 @@ export class CommandCenter {
 						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
 						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-setup-git')));
 						break;
+					case GitErrorCodes.EmptyCommitMessage:
+						message = localize('empty commit', "Commit operation was cancelled due to empty commit message.");
+						choices.clear();
+						type = 'information';
+						options.modal = false;
+						break;
 					default: {
 						const hint = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
@@ -2902,10 +3111,20 @@ export class CommandCenter {
 					return;
 				}
 
+				let result: string | undefined;
 				const allChoices = Array.from(choices.keys());
-				const result = type === 'error'
-					? await window.showErrorMessage(message, options, ...allChoices)
-					: await window.showWarningMessage(message, options, ...allChoices);
+
+				switch (type) {
+					case 'error':
+						result = await window.showErrorMessage(message, options, ...allChoices);
+						break;
+					case 'warning':
+						result = await window.showWarningMessage(message, options, ...allChoices);
+						break;
+					case 'information':
+						result = await window.showInformationMessage(message, options, ...allChoices);
+						break;
+				}
 
 				if (result) {
 					const resultFn = choices.get(result);

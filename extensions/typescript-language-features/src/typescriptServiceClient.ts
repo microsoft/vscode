@@ -95,6 +95,7 @@ namespace ServerState {
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 
 	private readonly pathSeparator: string;
+	private readonly emptyAuthority = 'ts-nul-authority';
 	private readonly inMemoryResourcePrefix = '^';
 
 	private readonly workspaceState: vscode.Memento;
@@ -387,6 +388,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		/* __GDPR__
 			"tsserver.spawned" : {
+				"owner": "mjbvz",
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				],
@@ -417,6 +419,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 			/* __GDPR__
 				"tsserver.error" : {
+					"owner": "mjbvz",
 					"${include}": [
 						"${TypeScriptCommonProperties}"
 					]
@@ -442,6 +445,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				this.error(`TSServer exited with code: ${code}. Signal: ${signal}`);
 				/* __GDPR__
 					"tsserver.exitWithCode" : {
+						"owner": "mjbvz",
 						"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"${include}": [
@@ -600,6 +604,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 					/* __GDPR__
 						"serviceExited" : {
+							"owner": "mjbvz",
 							"${include}": [
 								"${TypeScriptCommonProperties}"
 							]
@@ -676,7 +681,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				{
 					return this.inMemoryResourcePrefix
 						+ '/' + resource.scheme
-						+ '/' + resource.authority
+						+ '/' + (resource.authority || this.emptyAuthority)
 						+ (resource.path.startsWith('/') ? resource.path : '/' + resource.path)
 						+ (resource.fragment ? '#' + resource.fragment : '');
 				}
@@ -724,9 +729,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (filepath.startsWith(this.inMemoryResourcePrefix)) {
-			const parts = filepath.match(/^\^\/([^\/]+)\/(.+)$/);
+			const parts = filepath.match(/^\^\/([^\/]+)\/([^\/]*)\/(.+)$/);
 			if (parts) {
-				const resource = vscode.Uri.parse(parts[1] + '://' + parts[2]);
+				const resource = vscode.Uri.parse(parts[1] + '://' + (parts[2] === this.emptyAuthority ? '' : parts[2]) + '/' + parts[3]);
 				return this.bufferSyncSupport.toVsCodeResource(resource);
 			}
 		}
@@ -845,6 +850,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private fatalError(command: string, error: unknown): void {
 		/* __GDPR__
 			"fatalError" : {
+				"owner": "mjbvz",
 				"${include}": [
 					"${TypeScriptCommonProperties}",
 					"${TypeScriptRequestErrorProperties}"
@@ -976,6 +982,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		/* __GDPR__
 			"typingsInstalled" : {
+				"owner": "mjbvz",
 				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 				"installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },

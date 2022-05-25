@@ -49,7 +49,7 @@ import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeg
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BORDER, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, CellRevealType, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
@@ -239,6 +239,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
 	private readonly _onDidRenderOutput = this._register(new Emitter<ICellOutputViewModel>());
 	private readonly onDidRenderOutput = this._onDidRenderOutput.event;
+	private readonly _onDidResizeOutputEmitter = this._register(new Emitter<ICellViewModel>());
+	readonly onDidResizeOutput = this._onDidResizeOutputEmitter.event;
 
 
 	//#endregion
@@ -1077,14 +1079,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 	}
 
-	private _updateForCursorNavigationMode(applyFocusChange: () => void): void {
+	private async _updateForCursorNavigationMode(applyFocusChange: () => void): Promise<void> {
 		if (this._cursorNavigationMode) {
 			// Will fire onDidChangeFocus, resetting the state to Container
 			applyFocusChange();
 
 			const newFocusedCell = this._list.getFocusedElements()[0];
 			if (newFocusedCell.cellKind === CellKind.Code || newFocusedCell.getEditState() === CellEditState.Editing) {
-				this.focusNotebookCell(newFocusedCell, 'editor');
+				await this.focusNotebookCell(newFocusedCell, 'editor');
 			} else {
 				// Reset to "Editor", the state has not been consumed
 				this._cursorNavigationMode = true;
@@ -1130,6 +1132,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				});
 			}
 			type WorkbenchNotebookOpenClassification = {
+				owner: 'rebornix';
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -1241,6 +1244,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				const selection = cellOptions.options?.selection;
 				if (selection) {
 					await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
+				} else if (options?.cellRevealType === CellRevealType.NearTopIfOutsideViewport) {
+					await this.revealNearTopIfOutsideViewportAync(cell);
 				} else {
 					await this.revealInCenterIfOutsideViewportAsync(cell);
 				}
@@ -1354,9 +1359,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			this._localStore.add(this._webview.webview.onDidBlur(() => {
 				this._outputFocus.set(false);
-				this.updateEditorFocus();
-
 				this._webviewFocused = false;
+
+				this.updateEditorFocus();
+				this.updateCellFocusMode();
 			}));
 
 			this._localStore.add(this._webview.webview.onDidFocus(() => {
@@ -1394,7 +1400,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			didStartDragMarkupCell: that._didStartDragMarkupCell.bind(that),
 			didDragMarkupCell: that._didDragMarkupCell.bind(that),
 			didDropMarkupCell: that._didDropMarkupCell.bind(that),
-			didEndDragMarkupCell: that._didEndDragMarkupCell.bind(that)
+			didEndDragMarkupCell: that._didEndDragMarkupCell.bind(that),
+			didResizeOutput: that._didResizeOutput.bind(that)
 		}, id, resource, {
 			...this._notebookOptions.computeWebviewOptions(),
 			fontFamily: this._generateFontFamily()
@@ -1917,6 +1924,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.viewModel?.setEditorFocus(focused);
 	}
 
+	updateCellFocusMode() {
+		const activeCell = this.getActiveCell();
+
+		if (activeCell?.focusMode === CellFocusMode.Output && !this._webviewFocused) {
+			// output previously has focus, but now it's blurred.
+			activeCell.focusMode = CellFocusMode.Container;
+		}
+	}
+
 	hasEditorFocus() {
 		// _editorFocus is driven by the FocusTracker, which is only guaranteed to _eventually_ fire blur.
 		// If we need to know whether we have focus at this instant, we need to check the DOM manually.
@@ -2014,6 +2030,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._listViewInfoAccessor.revealInCenter(cell);
 	}
 
+	revealNearTopIfOutsideViewportAync(cell: ICellViewModel) {
+		return this._listViewInfoAccessor.revealNearTopIfOutsideViewportAync(cell);
+	}
+
 	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
 		return this._listViewInfoAccessor.revealLineInViewAsync(cell, line);
 	}
@@ -2078,8 +2098,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._listViewInfoAccessor.setHiddenAreas(_ranges);
 	}
 
-	getVisibleRangesPlusViewportBelow(): ICellRange[] {
-		return this._listViewInfoAccessor.getVisibleRangesPlusViewportBelow();
+	getVisibleRangesPlusViewportAboveAndBelow(): ICellRange[] {
+		return this._listViewInfoAccessor.getVisibleRangesPlusViewportAboveAndBelow();
 	}
 
 	setScrollTop(scrollTop: number) {
@@ -2316,7 +2336,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return selectedCellsInRange;
 	}
 
-	focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions) {
+	async focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions) {
 		if (this._isDisposed) {
 			return;
 		}
@@ -2329,26 +2349,43 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			cell.updateEditState(CellEditState.Editing, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Editor;
 			if (!options?.skipReveal) {
-				const selectionsStartPosition = cell.getSelectionsStartPosition();
-				if (selectionsStartPosition?.length) {
-					const firstSelectionPosition = selectionsStartPosition[0];
-					this.revealRangeInCenterIfOutsideViewportAsync(cell, Range.fromPositions(firstSelectionPosition, firstSelectionPosition));
+				if (typeof options?.focusEditorLine === 'number') {
+					await this.revealLineInViewAsync(cell, options.focusEditorLine);
+					const editor = this._renderedEditors.get(cell)!;
+					const focusEditorLine = options.focusEditorLine!;
+					editor?.setSelection({
+						startLineNumber: focusEditorLine,
+						startColumn: 1,
+						endLineNumber: focusEditorLine,
+						endColumn: 1
+					});
 				} else {
-					this.revealInCenterIfOutsideViewport(cell);
+					const selectionsStartPosition = cell.getSelectionsStartPosition();
+					if (selectionsStartPosition?.length) {
+						const firstSelectionPosition = selectionsStartPosition[0];
+						await this.revealRangeInCenterIfOutsideViewportAsync(cell, Range.fromPositions(firstSelectionPosition, firstSelectionPosition));
+					} else {
+						this.revealInCenterIfOutsideViewport(cell);
+					}
 				}
+
 			}
 		} else if (focusItem === 'output') {
 			this.focusElement(cell);
 			this._cellFocusAria(cell, focusItem);
-			this._list.focusView();
+
+			if (!this.hasEditorFocus()) {
+				this._list.focusView();
+			}
 
 			if (!this._webview) {
 				return;
 			}
-			this._webview.focusOutput(cell.id);
+
+			this._webview.focusOutput(cell.id, this._webviewFocused);
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
-			cell.focusMode = CellFocusMode.Container;
+			cell.focusMode = CellFocusMode.Output;
 			if (!options?.skipReveal) {
 				this.revealInCenterIfOutsideViewport(cell);
 			}
@@ -2370,7 +2407,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 	}
 
-	focusNextNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
+	async focusNextNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
 		const idx = this.viewModel?.getCellIndex(cell);
 		if (typeof idx !== 'number') {
 			return;
@@ -2381,7 +2418,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
-		this.focusNotebookCell(newCell, focusItem);
+		await this.focusNotebookCell(newCell, focusItem);
 	}
 
 	//#endregion
@@ -2949,6 +2986,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
 			this._dndController?.endExplicitDrag(cell);
+		}
+	}
+
+	private _didResizeOutput(cellId: string): void {
+		const cell = this._getCellById(cellId);
+		if (cell) {
+			this._onDidResizeOutputEmitter.fire(cell);
 		}
 	}
 

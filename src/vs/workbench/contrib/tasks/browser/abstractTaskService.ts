@@ -36,7 +36,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/model';
 
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
+import { Markers } from 'vs/workbench/contrib/markers/common/markers';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -52,9 +52,10 @@ import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
 	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
-	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition, RuntimeType
+	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition, RuntimeType,
+	USER_TASKS_GROUP_KEY
 } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult, USER_TASKS_GROUP_KEY, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
@@ -205,7 +206,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _showIgnoreMessage?: boolean;
 	private _providers: Map<number, ITaskProvider>;
 	private _providerTypes: Map<number, string>;
-	protected _taskSystemInfos: Map<string, TaskSystemInfo>;
+	protected _taskSystemInfos: Map<string, TaskSystemInfo[]>;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
 
@@ -265,7 +266,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._outputChannel = this.outputService.getChannel(AbstractTaskService.OutputChannelId)!;
 		this._providers = new Map<number, ITaskProvider>();
 		this._providerTypes = new Map<number, string>();
-		this._taskSystemInfos = new Map<string, TaskSystemInfo>();
+		this._taskSystemInfos = new Map<string, TaskSystemInfo[]>();
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
@@ -429,7 +430,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => this.commandService.executeCommand(Constants.TOGGLE_MARKERS_VIEW_ACTION_ID));
+		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => this.commandService.executeCommand(Markers.TOGGLE_MARKERS_VIEW_ACTION_ID));
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.openUserTasks', async () => {
 			const resource = this.getResourceForKind(TaskSourceKind.User);
@@ -567,25 +568,41 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	get hasTaskSystemInfo(): boolean {
+		let infosCount = Array.from(this._taskSystemInfos.values()).flat().length;
 		// If there's a remoteAuthority, then we end up with 2 taskSystemInfos,
 		// one for each extension host.
 		if (this.environmentService.remoteAuthority) {
-			return this._taskSystemInfos.size > 1;
+			return infosCount > 1;
 		}
-		return this._taskSystemInfos.size > 0;
+		return infosCount > 0;
 	}
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
-		if (!this._taskSystemInfos.has(key) || info.platform !== Platform.Platform.Web) {
-			this._taskSystemInfos.set(key, info);
-			if (this.hasTaskSystemInfo) {
-				this._onDidChangeTaskSystemInfo.fire();
+		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
+		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
+		if (info.platform === Platform.Platform.Web) {
+			key = this.workspaceFolders.length ? this.workspaceFolders[0].uri.scheme : key;
+		}
+		if (!this._taskSystemInfos.has(key)) {
+			this._taskSystemInfos.set(key, [info]);
+		} else {
+			const infos = this._taskSystemInfos.get(key)!;
+			if (info.platform === Platform.Platform.Web) {
+				// Web infos should be pushed last.
+				infos.push(info);
+			} else {
+				infos.unshift(info);
 			}
+		}
+
+		if (this.hasTaskSystemInfo) {
+			this._onDidChangeTaskSystemInfo.fire();
 		}
 	}
 
 	private getTaskSystemInfo(key: string): TaskSystemInfo | undefined {
-		return this._taskSystemInfos.get(key);
+		const infos = this._taskSystemInfos.get(key);
+		return (infos && infos.length) ? infos[0] : undefined;
 	}
 
 	public extensionCallbackTaskComplete(task: Task, result: number): Promise<void> {
@@ -1791,9 +1808,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					const infos = Array.from(this._taskSystemInfos.entries());
 					const notFile = infos.filter(info => info[0] !== Schemas.file);
 					if (notFile.length > 0) {
-						return notFile[0][1];
+						return notFile[0][1][0];
 					}
-					return infos[0][1];
+					return infos[0][1][0];
 				} else {
 					return undefined;
 				}

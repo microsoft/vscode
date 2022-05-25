@@ -10,7 +10,6 @@ import { Menu } from 'vs/base/browser/ui/menu/menu';
 import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { isCancellationError } from 'vs/base/common/errors';
 import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import 'vs/css!./contextMenuHandler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';

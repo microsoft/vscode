@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookKernelService, IResolvedNotebookKernel, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { mock } from 'vs/base/test/common/mock';
@@ -16,6 +16,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 
 suite('NotebookKernelService', () => {
 
@@ -36,6 +37,15 @@ suite('NotebookKernelService', () => {
 			override onDidAddNotebookDocument = onDidAddNotebookDocument.event;
 			override onWillRemoveNotebookDocument = Event.None;
 			override getNotebookTextModels() { return []; }
+		});
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu() {
+				return new class extends mock<IMenu>() {
+					override onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose() { }
+				};
+			}
 		});
 		kernelService = instantiationService.createInstance(NotebookKernelService);
 		instantiationService.set(INotebookKernelService, kernelService);
@@ -159,8 +169,7 @@ suite('NotebookKernelService', () => {
 	});
 });
 
-class TestNotebookKernel implements IResolvedNotebookKernel {
-	type: NotebookKernelType.Resolved = NotebookKernelType.Resolved;
+class TestNotebookKernel implements INotebookKernel {
 	id: string = Math.random() + 'kernel';
 	label: string = 'test-label';
 	viewType = '*';

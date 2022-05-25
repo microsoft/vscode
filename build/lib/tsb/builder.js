@@ -286,7 +286,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
             if (config.verbose) {
                 const headNow = process.memoryUsage().heapUsed;
                 const MB = 1024 * 1024;
-                log('[tsb]', 'time:', colors.yellow((Date.now() - t1) + 'ms'), 'mem:', colors.cyan(Math.ceil(headNow / MB) + 'MB'), colors.bgcyan('delta: ' + Math.ceil((headNow - headUsed) / MB)));
+                log('[tsb]', 'time:', colors.yellow((Date.now() - t1) + 'ms'), 'mem:', colors.cyan(Math.ceil(headNow / MB) + 'MB'), colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB)));
                 headUsed = headNow;
             }
         });

@@ -23,7 +23,7 @@ export interface IExplorerService {
 	readonly roots: ExplorerItem[];
 	readonly sortOrderConfiguration: ISortOrderConfiguration;
 
-	getContext(respectMultiSelection: boolean, includeNestedChildren?: boolean): ExplorerItem[];
+	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	hasViewFocus(): boolean;
 	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
 	getEditable(): { stat: ExplorerItem; data: IEditableData } | undefined;

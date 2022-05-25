@@ -39,6 +39,7 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderW
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
+import { IPolicyService } from 'vs/platform/policy/common/policy';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -149,6 +150,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IPolicyService private readonly policyService: IPolicyService,
 		@IFileService private readonly fileService: IFileService,
 		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,
@@ -248,7 +250,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					options.frame = false;
 				}
 
-				if (isWindows) {
+				if (isWindows && this.environmentMainService.isBuilt) {
 					// This logic will not perfectly guess the right colors to use on initialization,
 					// but prefer to keep things simple as it is temporary and not noticeable
 					const titleBarColor = this.themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? this.themeMainService.getBackgroundColor();
@@ -870,6 +872,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		configuration.isInitialStartup = false; // since this is a reload
+		configuration.policiesData = this.policyService.serialize(); // set policies data again
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });

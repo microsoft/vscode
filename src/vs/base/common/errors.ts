@@ -259,8 +259,8 @@ export class ErrorNoTelemetry extends Error {
  * Only catch this error to recover gracefully from bugs.
  */
 export class BugIndicatingError extends Error {
-	constructor(message: string) {
-		super(message);
+	constructor(message?: string) {
+		super(message || 'An unexpected bug occurred.');
 		Object.setPrototypeOf(this, BugIndicatingError.prototype);
 
 		// Because we know for sure only buggy code throws this,

@@ -64,7 +64,6 @@ import './mainThreadWorkspace';
 import './mainThreadComments';
 import './mainThreadNotebook';
 import './mainThreadNotebookKernels';
-import './mainThreadNotebookProxyKernels';
 import './mainThreadNotebookDocumentsAndEditors';
 import './mainThreadNotebookRenderers';
 import './mainThreadInteractive';
