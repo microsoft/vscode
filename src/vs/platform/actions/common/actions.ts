@@ -158,6 +158,7 @@ export class MenuId {
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly NewFile = new MenuId('NewFile');
+	static readonly MergeToolbar = new MenuId('MergeToolbar');
 
 	readonly id: number;
 	readonly _debugName: string;

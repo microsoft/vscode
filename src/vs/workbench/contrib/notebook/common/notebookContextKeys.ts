@@ -43,6 +43,7 @@ export const NOTEBOOK_CELL_RESOURCE = new RawContextKey<string>('notebookCellRes
 // Kernels
 export const NOTEBOOK_KERNEL = new RawContextKey<string>('notebookKernel', undefined);
 export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
+export const NOTEBOOK_KERNEL_SOURCE_COUNT = new RawContextKey<number>('notebookKernelSourceCount', 0);
 export const NOTEBOOK_KERNEL_SELECTED = new RawContextKey<boolean>('notebookKernelSelected', false);
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
 export const NOTEBOOK_MISSING_KERNEL_EXTENSION = new RawContextKey<boolean>('notebookMissingKernelExtension', false);

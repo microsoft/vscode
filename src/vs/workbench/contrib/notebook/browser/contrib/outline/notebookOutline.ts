@@ -8,7 +8,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, IDisposable, Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IActiveNotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealType, IActiveNotebookEditor, ICellViewModel, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
@@ -583,7 +583,11 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 		await this._editorService.openEditor({
 			resource: entry.cell.uri,
-			options: { ...options, override: this._editor.input?.editorId },
+			options: {
+				...options,
+				override: this._editor.input?.editorId,
+				cellRevealType: CellRevealType.NearTopIfOutsideViewport
+			} as INotebookEditorOptions,
 		}, sideBySide ? SIDE_GROUP : undefined);
 	}
 

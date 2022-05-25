@@ -277,8 +277,15 @@ export interface INotebookDeltaCellStatusBarItems {
 	items: INotebookCellStatusBarItem[];
 }
 
+
+export enum CellRevealType {
+	NearTopIfOutsideViewport,
+	CenterIfOutsideViewport
+}
+
 export interface INotebookEditorOptions extends ITextEditorOptions {
 	readonly cellOptions?: ITextResourceEditorInput;
+	readonly cellRevealType?: CellRevealType;
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
 	readonly viewState?: INotebookEditorViewState;
