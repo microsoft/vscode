@@ -256,6 +256,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 		proposed: 'inlineCompletionsAdditions'
 	},
+	{
+		key: 'merge/toolbar',
+		id: MenuId.MergeToolbar,
+		description: localize('merge.toolbar', "The prominent botton in the merge editor"),
+		proposed: 'contribMergeEditorToolbar'
+	}
 ];
 
 namespace schema {
