@@ -443,8 +443,8 @@ class InputCodeEditorView extends CodeEditorView {
 					range: new Range(range.startLineNumber, 1, range.endLineNumberExclusive - 1, 1),
 					options: {
 						isWholeLine: true,
-						className: 'merge-accept-foo',
-						description: 'foo2'
+						className: 'merge-base-range-projection',
+						description: 'Base Range Projection'
 					}
 				});
 			}
@@ -509,7 +509,8 @@ class MergeConflictGutterItemView extends Disposable implements IGutterItemView<
 		target.classList.add('merge-accept-gutter-marker');
 		target.classList.add(item.range.lineCount > 1 ? 'multi-line' : 'single-line');
 
-		const checkBox = new Toggle({ isChecked: false, title: 'TODO', icon: Codicon.check, actionClassName: 'monaco-checkbox' });
+		// TODO: Tri-State-Toggle, localized title
+		const checkBox = new Toggle({ isChecked: false, title: 'Accept Merge', icon: Codicon.check, actionClassName: 'monaco-checkbox' });
 		checkBox.domNode.classList.add('accept-conflict-group');
 
 		this._register(
@@ -550,8 +551,9 @@ class ResultCodeEditorView extends CodeEditorView {
 					range: new Range(range.startLineNumber, 1, range.endLineNumberExclusive - 1, 1),
 					options: {
 						isWholeLine: true,
-						className: 'merge-accept-foo',
-						description: 'foo2'
+						// TODO
+						className: 'merge-base-range-projection',
+						description: 'Result Diff'
 					}
 				});
 			}
