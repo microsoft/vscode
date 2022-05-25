@@ -1,0 +1,78 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .merge-editor .code-view > .title {
+	padding: 0 10px;
+	height: 30px;
+	display: flex;
+	align-content: center;
+	justify-content: space-between;
+}
+
+.monaco-workbench .merge-editor .code-view > .title .monaco-icon-label {
+	margin: auto 0;
+}
+
+.monaco-workbench .merge-editor .code-view > .container {
+	display: flex;
+	flex-direction: row;
+}
+
+.monaco-workbench .merge-editor .code-view > .container > .gutter {
+	width: 24px;
+	position: relative;
+	overflow: hidden;
+
+	flex-shrink: 0;
+	flex-grow: 0;
+}
+
+.monaco-editor .merge-accept-conflict-glyph {
+	cursor: pointer;
+}
+
+.merge-base-range-projection {
+	background-color: rgb(170 175 170 / 15%);
+}
+
+.gutter-item {
+	position: absolute;
+}
+
+.merge-accept-gutter-marker {
+	width: 28px;
+	/* background-color: yellow; */
+
+
+	margin-left: 4px;
+}
+
+.merge-accept-gutter-marker .background {
+	height: 100%;
+	width: 50%;
+	position: absolute;
+}
+
+.merge-accept-gutter-marker.multi-line .background {
+	border: 2px solid var(--vscode-checkbox-border);
+	border-right: 0;
+	left: 8px;
+	width: 10px;
+}
+
+.merge-accept-gutter-marker .checkbox {
+	height: 100%;
+	width: 100%;
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+}
+
+.merge-accept-gutter-marker .checkbox .accept-conflict-group.monaco-custom-toggle.monaco-checkbox {
+	margin: 0;
+	padding: 0;
+	background-color: var(--vscode-checkbox-border);
+}
