@@ -122,7 +122,7 @@ export class SettingsTreeIndicatorsLabel {
 
 	updateDefaultOverrideIndicator(element: SettingsTreeSettingElement) {
 		this.defaultOverrideIndicatorElement.style.display = 'none';
-		const defaultValueSource = element.setting.defaultValueSource;
+		const defaultValueSource = element.defaultValueSource;
 		if (defaultValueSource) {
 			this.defaultOverrideIndicatorElement.style.display = 'inline';
 			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
@@ -157,8 +157,8 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	}
 
 	// Add default override indicator text
-	if (element.setting.defaultValueSource) {
-		const defaultValueSource = element.setting.defaultValueSource;
+	if (element.defaultValueSource) {
+		const defaultValueSource = element.defaultValueSource;
 		if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
 			const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
 			ariaLabelSections.push(localize('defaultOverriddenDetails', "Default setting value overridden by {0}", extensionSource));

@@ -19,7 +19,7 @@ import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticT
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
 function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
-	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
+	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
 
 	let currentTextDocument = TextDocument.create('init', 'javascript', 1, '');
 	const jsLanguageService = import(/* webpackChunkName: "javascriptLibs" */ './javascriptLibs').then(libs => {
@@ -52,7 +52,7 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 				};
 			},
 			getCurrentDirectory: () => '',
-			getDefaultLibFileName: (_options: ts.CompilerOptions) => 'es6',
+			getDefaultLibFileName: (_options: ts.CompilerOptions) => 'es2020.full',
 			readFile: (path: string, _encoding?: string | undefined): string | undefined => {
 				if (path === currentTextDocument.uri) {
 					return currentTextDocument.getText();
@@ -66,6 +66,15 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 				} else {
 					return !!libs.loadLibrary(path);
 				}
+			},
+			directoryExists: (path: string): boolean => {
+				// typescript tries to first find libraries in node_modules/@types and node_modules/@typescript
+				// there's no node_modules in our setup
+				if (path.startsWith('node_modules')) {
+					return false;
+				}
+				return true;
+
 			}
 		};
 		return ts.createLanguageService(host);

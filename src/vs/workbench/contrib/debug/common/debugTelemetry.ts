@@ -18,6 +18,7 @@ export class DebugTelemetry {
 		const extension = dbgr.getMainExtensionDescriptor();
 		/* __GDPR__
 			"debugSessionStart" : {
+				"owner": "connor4312",
 				"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"exceptionBreakpoints": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -44,6 +45,7 @@ export class DebugTelemetry {
 
 		/* __GDPR__
 			"debugSessionStop" : {
+				"owner": "connor4312",
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"sessionLengthInSeconds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

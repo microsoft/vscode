@@ -22,6 +22,7 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
@@ -257,7 +258,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: readonly string[]; dragMimeTypes: readonly string[]; hasHandleDrag: boolean; hasHandleDrop: boolean }): Promise<void>;
+	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: readonly string[]; dragMimeTypes: readonly string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; supportsFileDataTransfers: boolean }): Promise<void>;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Promise<void>;
 	$reveal(treeViewId: string, itemInfo: { item: ITreeItem; parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void>;
 	$setMessage(treeViewId: string, message: string): void;
@@ -371,6 +372,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void;
+	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], supportsCopy: boolean): void;
 	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
@@ -398,7 +400,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 
 export interface MainThreadLanguagesShape extends IDisposable {
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
-	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: languages.StandardTokenType; range: IRange }>;
+	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType; range: IRange }>;
 	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
 	$removeLanguageStatus(handle: number): void;
 }
@@ -1186,6 +1188,7 @@ export interface MainThreadSCMShape extends IDisposable {
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
+	$setInputBoxEnablement(sourceControlHandle: number, enabled: boolean): void;
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
@@ -1728,6 +1731,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: languages.CodeActionContext, token: CancellationToken): Promise<ICodeActionListDto | undefined>;
 	$resolveCodeAction(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<IWorkspaceEditDto | undefined>;
 	$releaseCodeActions(handle: number, cacheId: number): void;
+	$prepareDocumentPaste(handle: number, uri: UriComponents, range: IRange, dataTransfer: DataTransferDTO, token: CancellationToken): Promise<DataTransferDTO | undefined>;
+	$providePasteEdits(handle: number, uri: UriComponents, range: IRange, dataTransfer: DataTransferDTO, token: CancellationToken): Promise<IWorkspaceEditDto | Dto<languages.SnippetTextEdit> | undefined>;
 	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;

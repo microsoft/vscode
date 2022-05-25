@@ -10,7 +10,6 @@ import * as dom from 'vs/base/browser/dom';
 import { IAction, Action, Separator } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation, MarkerChangesEvent, MarkersModel, compareMarkersByUri, MarkerElement, MarkerTableItem } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkersFilterActionViewItem, MarkersFilters, IMarkersFiltersChangeEvent } from 'vs/workbench/contrib/markers/browser/markersViewActions';
@@ -59,6 +58,7 @@ import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/m
 import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
 import { ITableContextMenuEvent, ITableEvent } from 'vs/base/browser/ui/table/table';
 import { MarkersTable } from 'vs/workbench/contrib/markers/browser/markersTable';
+import { Markers, MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -67,11 +67,6 @@ function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterab
 
 		return { element: m, children };
 	});
-}
-
-export const enum MarkersViewMode {
-	Table = 'table',
-	Tree = 'tree'
 }
 
 export interface IProblemsWidget {
@@ -162,8 +157,8 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		@IThemeService themeService: IThemeService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.smallLayoutContextKey = Constants.MarkersViewSmallLayoutContextKey.bindTo(this.contextKeyService);
-		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+		this.smallLayoutContextKey = MarkersContextKeys.MarkersViewSmallLayoutContextKey.bindTo(this.contextKeyService);
+		this.panelState = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
 
 		this.markersModel = this._register(instantiationService.createInstance(MarkersModel));
 		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline'], this.panelState['viewMode'] ?? this.getDefaultViewMode()));
@@ -419,8 +414,8 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		this.widget = this.markersViewModel.viewMode === MarkersViewMode.Table ? this.createTable(parent) : this.createTree(parent);
 		this.widgetDisposables.add(this.widget);
 
-		const markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(this.widget.contextKeyService);
-		const relatedInformationFocusContextKey = Constants.RelatedInformationFocusContextKey.bindTo(this.widget.contextKeyService);
+		const markerFocusContextKey = MarkersContextKeys.MarkerFocusContextKey.bindTo(this.widget.contextKeyService);
+		const relatedInformationFocusContextKey = MarkersContextKeys.RelatedInformationFocusContextKey.bindTo(this.widget.contextKeyService);
 		this.widgetDisposables.add(this.widget.onDidChangeFocus(focus => {
 			markerFocusContextKey.set(focus.elements.some(e => e instanceof Marker));
 			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
@@ -915,7 +910,7 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		super(user, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService);
-		this.visibilityContextKey = Constants.MarkersTreeVisibilityContextKey.bindTo(contextKeyService);
+		this.visibilityContextKey = MarkersContextKeys.MarkersTreeVisibilityContextKey.bindTo(contextKeyService);
 	}
 
 	collapseMarkers(): void {

@@ -102,6 +102,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
+			owner: 'sbatten';
 			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};

@@ -457,6 +457,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeActionProvider(extension, checkSelector(selector), provider, metadata);
 			},
+			registerDocumentPasteEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentPasteEditProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'documentPaste');
+				return extHostLanguageFeatures.registerDocumentPasteEditProvider(extension, checkSelector(selector), provider);
+			},
 			registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeLensProvider(extension, checkSelector(selector), provider);
 			},
@@ -524,7 +528,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageFeatures.registerCompletionItemProvider(extension, checkSelector(selector), provider, triggerCharacters);
 			},
 			registerInlineCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension, 'inlineCompletions');
 				if (provider.handleDidShowCompletionItem) {
 					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
 				}

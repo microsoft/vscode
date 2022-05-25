@@ -254,7 +254,7 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
 		supportsSubmenus: false,
-		proposed: 'inlineCompletions'
+		proposed: 'inlineCompletionsAdditions'
 	},
 	{
 		key: 'merge/toolbar',

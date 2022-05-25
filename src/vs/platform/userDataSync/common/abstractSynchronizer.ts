@@ -29,6 +29,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, ISyncResourceHandle, ISyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncSourceClassification = {
+	owner: 'sandy081';
 	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 

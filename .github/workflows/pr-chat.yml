@@ -6,6 +6,7 @@ on:
 jobs:
   main:
     runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
     steps:
       - name: Checkout Actions
         uses: actions/checkout@v2

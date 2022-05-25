@@ -454,6 +454,13 @@ class ProgressManager {
 		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
 		onDidChange(_ => this.updateEnablement());
 		this.updateEnablement();
+
+		this.repository.onDidChangeOperations(() => {
+			const commitInProgress = this.repository.operations.isRunning(Operation.Commit);
+
+			this.repository.sourceControl.inputBox.enabled = !commitInProgress;
+			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+		});
 	}
 
 	private updateEnablement(): void {
@@ -550,7 +557,7 @@ class DotGitWatcher implements IFileWatcher {
 
 		// Ignore changes to the "index.lock" file, and watchman fsmonitor hook (https://git-scm.com/docs/githooks#_fsmonitor_watchman) cookie files.
 		// Watchman creates a cookie file inside the git directory whenever a query is run (https://facebook.github.io/watchman/docs/cookies.html).
-		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => !/\/\.git(\/index\.lock)?$|\/\.watchman-cookie-/.test(uri.path));
+		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => uri.scheme === 'file' && !/\/\.git(\/index\.lock)?$|\/\.watchman-cookie-/.test(uri.path));
 		this.event = anyEvent(filteredRootWatcher, this.emitter.event);
 
 		repository.onDidRunGitStatus(this.updateTransientWatchers, this, this.disposables);
@@ -1883,6 +1890,7 @@ export class Repository implements Disposable {
 		if (didHitLimit) {
 			/* __GDPR__
 				"statusLimit" : {
+					"owner": "lszomoru",
 					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"limit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }

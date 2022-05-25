@@ -616,6 +616,7 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 	const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ExtensionManagementErrorCode.Internal : undefined;
 	/* __GDPR__
 		"extensionGallery:install" : {
+			"owner": "sandy081",
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"durationSinceUpdate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -628,6 +629,7 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 	*/
 	/* __GDPR__
 		"extensionGallery:uninstall" : {
+			"owner": "sandy081",
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
@@ -638,6 +640,7 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 	*/
 	/* __GDPR__
 		"extensionGallery:update" : {
+			"owner": "sandy081",
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },

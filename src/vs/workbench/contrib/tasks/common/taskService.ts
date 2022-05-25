@@ -55,8 +55,6 @@ export interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
 	workspaceFolder: IWorkspaceFolder;
 }
 
-export const USER_TASKS_GROUP_KEY = 'settings';
-
 export interface ITaskService {
 	readonly _serviceBrand: undefined;
 	onDidStateChange: Event<TaskEvent>;

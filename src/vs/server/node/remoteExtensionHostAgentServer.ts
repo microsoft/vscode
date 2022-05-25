@@ -757,10 +757,10 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		type ServerStartClassification = {
 			owner: 'alexdima';
 			comment: 'The server has started up';
-			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			startedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			codeLoadedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			readyTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time the server started at.' };
+			startedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time the server began listening for connections.' };
+			codeLoadedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time which the code loaded on the server' };
+			readyTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time when the server was completely ready' };
 		};
 		type ServerStartEvent = {
 			startTime: number;

@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -17,27 +16,22 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-export class ConfigureLocaleAction extends Action {
-	public static readonly ID = 'workbench.action.configureLocale';
-	public static readonly LABEL = localize('configureLocale', "Configure Display Language");
-
-	constructor(id: string, label: string,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILocalizationsService private readonly localizationService: ILocalizationsService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
-		@IHostService private readonly hostService: IHostService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IProductService private readonly productService: IProductService
-	) {
-		super(id, label);
+export class ConfigureLocaleAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.configureLocale',
+			title: { original: 'Configure Display Language', value: localize('configureLocale', "Configure Display Language") },
+			menu: {
+				id: MenuId.CommandPalette
+			}
+		});
 	}
 
-	private async getLanguageOptions(): Promise<IQuickPickItem[]> {
-		const availableLanguages = await this.localizationService.getLanguageIds();
+	private async getLanguageOptions(localizationService: ILanguagePackService): Promise<IQuickPickItem[]> {
+		const availableLanguages = await localizationService.getInstalledLanguages();
 		availableLanguages.sort();
 
 		return availableLanguages
@@ -45,12 +39,22 @@ export class ConfigureLocaleAction extends Action {
 			.concat({ label: localize('installAdditionalLanguages', "Install Additional Languages...") });
 	}
 
-	public override async run(): Promise<void> {
-		const languageOptions = await this.getLanguageOptions();
+	public override async run(accessor: ServicesAccessor): Promise<void> {
+		const environmentService: IEnvironmentService = accessor.get(IEnvironmentService);
+		const languagePackService: ILanguagePackService = accessor.get(ILanguagePackService);
+		const quickInputService: IQuickInputService = accessor.get(IQuickInputService);
+		const jsonEditingService: IJSONEditingService = accessor.get(IJSONEditingService);
+		const hostService: IHostService = accessor.get(IHostService);
+		const notificationService: INotificationService = accessor.get(INotificationService);
+		const paneCompositeService: IPaneCompositePartService = accessor.get(IPaneCompositePartService);
+		const dialogService: IDialogService = accessor.get(IDialogService);
+		const productService: IProductService = accessor.get(IProductService);
+
+		const languageOptions = await this.getLanguageOptions(languagePackService);
 		const currentLanguageIndex = languageOptions.findIndex(l => l.label === language);
 
 		try {
-			const selectedLanguage = await this.quickInputService.pick(languageOptions,
+			const selectedLanguage = await quickInputService.pick(languageOptions,
 				{
 					canPickMany: false,
 					placeHolder: localize('chooseDisplayLanguage', "Select Display Language"),
@@ -58,7 +62,7 @@ export class ConfigureLocaleAction extends Action {
 				});
 
 			if (selectedLanguage === languageOptions[languageOptions.length - 1]) {
-				return this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
+				return paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
 					.then(viewlet => viewlet?.getViewPaneContainer())
 					.then(viewlet => {
 						const extensionsViewlet = viewlet as IExtensionsViewPaneContainer;
@@ -68,20 +72,20 @@ export class ConfigureLocaleAction extends Action {
 			}
 
 			if (selectedLanguage) {
-				await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: selectedLanguage.label }], true);
-				const restart = await this.dialogService.confirm({
+				await jsonEditingService.write(environmentService.argvResource, [{ path: ['locale'], value: selectedLanguage.label }], true);
+				const restart = await dialogService.confirm({
 					type: 'info',
 					message: localize('relaunchDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),
-					detail: localize('relaunchDisplayLanguageDetail', "Press the restart button to restart {0} and change the display language.", this.productService.nameLong),
+					detail: localize('relaunchDisplayLanguageDetail', "Press the restart button to restart {0} and change the display language.", productService.nameLong),
 					primaryButton: localize('restart', "&&Restart")
 				});
 
 				if (restart.confirmed) {
-					this.hostService.restart();
+					hostService.restart();
 				}
 			}
 		} catch (e) {
-			this.notificationService.error(e);
+			notificationService.error(e);
 		}
 	}
 }

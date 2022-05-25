@@ -16,7 +16,9 @@ import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/comm
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
+
+
+export const USER_TASKS_GROUP_KEY = 'settings';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false, nls.localize('tasks.taskRunningContext', "Whether a task is currently running."));
 export const TASKS_CATEGORY = { value: nls.localize('tasksCategory', "Tasks"), original: 'Tasks' };

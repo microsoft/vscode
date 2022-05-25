@@ -66,7 +66,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
-import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
+import { CodeDataTransfers, FileAdditionalNativeProperties } from 'vs/platform/dnd/browser/dnd';
 
 export class TreeViewPane extends ViewPane {
 
@@ -1503,40 +1503,21 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 		const treeDataTransfer = new VSDataTransfer();
 		const uris: URI[] = [];
-		let itemsCount = Array.from(originalEvent.dataTransfer.items).reduce((previous, current) => {
-			if ((current.kind === 'string') || (current.kind === 'file')) {
-				return previous + 1;
-			}
-			return previous;
-		}, 0);
 
 		let treeSourceInfo: TreeDragSourceInfo | undefined;
 		let willDropUuid: string | undefined;
 		if (this.treeItemsTransfer.hasData(DraggedTreeItemsIdentifier.prototype)) {
 			willDropUuid = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype)![0].identifier;
 		}
-		await new Promise<void>(resolve => {
-			function decrementStringCount() {
-				itemsCount--;
-				if (itemsCount === 0) {
-					// Check if there are uris to add and add them
-					if (uris.length) {
-						treeDataTransfer.setString(Mimes.uriList, uris.map(uri => uri.toString()).join('\n'));
-					}
-					resolve();
-				}
-			}
 
-			if (!originalEvent.dataTransfer) {
-				return;
-			}
-			for (const dataItem of originalEvent.dataTransfer.items) {
-				const type = dataItem.type;
-				const kind = dataItem.kind;
-				const convertedType = this.convertKnownMimes(type, kind).type;
-				if ((INTERNAL_MIME_TYPES.indexOf(convertedType) < 0)
-					&& (convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0)) {
-					if (dataItem.kind === 'string') {
+		await Promise.all([...originalEvent.dataTransfer.items].map(async dataItem => {
+			const type = dataItem.type;
+			const kind = dataItem.kind;
+			const convertedType = this.convertKnownMimes(type, kind).type;
+			if ((INTERNAL_MIME_TYPES.indexOf(convertedType) < 0)
+				&& (convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0)) {
+				if (dataItem.kind === 'string') {
+					await new Promise<void>(resolve =>
 						dataItem.getAsString(dataValue => {
 							if (convertedType === this.treeMimeType) {
 								treeSourceInfo = JSON.parse(dataValue);
@@ -1545,20 +1526,27 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 								const converted = this.convertKnownMimes(type, kind, dataValue);
 								treeDataTransfer.setString(converted.type, converted.value + '');
 							}
-							decrementStringCount();
-						});
-					} else if (dataItem.kind === 'file') {
-						const dataValue = dataItem.getAsFile();
-						if (dataValue) {
-							uris.push(URI.file(dataValue.path));
+							resolve();
+						}));
+				} else if (dataItem.kind === 'file') {
+					const file = dataItem.getAsFile();
+					if (file) {
+						uris.push(URI.file(file.path));
+						const uri = (file as FileAdditionalNativeProperties).path ? URI.parse((file as FileAdditionalNativeProperties).path!) : undefined;
+						if (dndController.supportsFileDataTransfers) {
+							treeDataTransfer.setFile(type, file.name, uri, async () => {
+								return new Uint8Array(await file.arrayBuffer());
+							});
 						}
-						decrementStringCount();
 					}
-				} else if (dataItem.kind === 'string' || dataItem.kind === 'file') {
-					decrementStringCount();
 				}
 			}
-		});
+		}));
+
+		// Check if there are uris to add and add them
+		if (uris.length) {
+			treeDataTransfer.setString(Mimes.uriList, uris.map(uri => uri.toString()).join('\n'));
+		}
 
 		const additionalWillDropPromise = this.treeViewsDragAndDropService.removeDragOperationTransfer(willDropUuid);
 		if (!additionalWillDropPromise) {

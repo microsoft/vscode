@@ -22,10 +22,12 @@ import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/use
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 type AutoSyncClassification = {
+	owner: 'sandy081';
 	sources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
 type AutoSyncErrorClassification = {
+	owner: 'sandy081';
 	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
@@ -194,7 +196,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 			// Reset
 			if (everywhere) {
-				this.telemetryService.publicLog2('sync/turnOffEveryWhere');
+				this.telemetryService.publicLog2<{}, { owner: 'sandy081' }>('sync/turnOffEveryWhere');
 				await this.userDataSyncService.reset();
 			} else {
 				await this.userDataSyncService.resetLocal();
