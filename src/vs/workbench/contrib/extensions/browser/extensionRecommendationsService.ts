@@ -30,6 +30,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 
 type IgnoreRecommendationClassification = {
 	owner: 'sandy081';
+	comment: 'Report when a recommendation is ignored';
 	recommendationReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 	extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 };

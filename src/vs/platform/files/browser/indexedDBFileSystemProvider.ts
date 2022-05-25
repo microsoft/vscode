@@ -17,6 +17,7 @@ import { DBClosedError, IndexedDB } from 'vs/base/browser/indexedDB';
 
 export type IndexedDBFileSystemProviderErrorDataClassification = {
 	owner: 'sandy081';
+	comment: 'Information about errors that occur in the IndexedDB file system provider';
 	readonly scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };

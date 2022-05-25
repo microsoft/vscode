@@ -29,6 +29,7 @@ import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, IManualSyncTask, IResour
 
 type SyncErrorClassification = {
 	owner: 'sandy081';
+	comment: 'Information about the error that occurred while syncing';
 	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };

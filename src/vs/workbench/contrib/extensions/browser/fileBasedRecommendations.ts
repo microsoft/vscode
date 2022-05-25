@@ -38,6 +38,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 
 type FileExtensionSuggestionClassification = {
 	owner: 'sandy081';
+	comment: 'Response information when a file based reccommendation is suggested';
 	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	fileExtension: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 };

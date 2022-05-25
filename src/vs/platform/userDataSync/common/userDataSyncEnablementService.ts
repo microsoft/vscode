@@ -13,6 +13,7 @@ import { ALL_SYNC_RESOURCES, getEnablementKey, IUserDataSyncEnablementService, I
 
 type SyncEnablementClassification = {
 	owner: 'sandy081';
+	comment: 'Reporting when Settings Sync is turned on or off';
 	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 

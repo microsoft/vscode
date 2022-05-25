@@ -60,11 +60,6 @@ import { isOfflineError } from 'vs/base/parts/request/common/request';
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.git-base', 'vscode.search-result'];
 
-type WorkspaceRecommendationsClassification = {
-	owner: 'sandy081';
-	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'isMeasurement': true };
-};
-
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
 	private readonly _onFocus: Emitter<IExtension> = this._register(new Emitter<IExtension>());
@@ -832,7 +827,6 @@ export class ExtensionsListView extends ViewPane {
 	private async getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const recommendations = await this.getWorkspaceRecommendations();
 		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-workspace' }, token));
-		this.telemetryService.publicLog2<{ count: number }, WorkspaceRecommendationsClassification>('extensionWorkspaceRecommendations:open', { count: installableRecommendations.length });
 		const result: IExtension[] = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
 		return new PagedModel(result);
 	}

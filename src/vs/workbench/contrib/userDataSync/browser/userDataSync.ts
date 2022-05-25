@@ -67,6 +67,7 @@ type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description
 
 type SyncConflictsClassification = {
 	owner: 'sandy081';
+	comment: 'Response information when conflict happens during settings sync';
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };

@@ -236,6 +236,7 @@ const DefaultQueryState: IQueryState = {
 
 type GalleryServiceQueryClassification = {
 	owner: 'sandy081';
+	comment: 'Information about Marketplace query and its response';
 	readonly filterTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly flags: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly sortBy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -274,6 +275,7 @@ type GalleryServiceQueryEvent = QueryTelemetryData & {
 
 type GalleryServiceAdditionalQueryClassification = {
 	owner: 'sandy081';
+	comment: 'Response information about the additional query to the Marketplace for fetching all versions to get release version';
 	readonly duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true };
 	readonly count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
@@ -1128,6 +1130,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			const message = getErrorMessage(err);
 			type GalleryServiceCDNFallbackClassification = {
 				owner: 'sandy081';
+				comment: 'Fallback request information when the primary asset request to CDN fails';
 				url: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				message: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};

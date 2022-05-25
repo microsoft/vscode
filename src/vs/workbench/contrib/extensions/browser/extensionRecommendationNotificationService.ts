@@ -28,6 +28,7 @@ import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/e
 
 type ExtensionRecommendationsNotificationClassification = {
 	owner: 'sandy081';
+	comment: 'Response information when an extension is recommended';
 	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	extensionId?: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -35,6 +36,7 @@ type ExtensionRecommendationsNotificationClassification = {
 
 type ExtensionWorkspaceRecommendationsNotificationClassification = {
 	owner: 'sandy081';
+	comment: 'Response information when a recommendation from workspace is recommended';
 	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 

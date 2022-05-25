@@ -17,6 +17,7 @@ import { localize } from 'vs/nls';
 
 type DynamicWorkspaceRecommendationsClassification = {
 	owner: 'sandy081';
+	comment: 'Information about recommendations by scanning the workspace';
 	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 	cache: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
