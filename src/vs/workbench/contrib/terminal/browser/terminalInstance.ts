@@ -1369,6 +1369,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Send it to the process
 		await this._processManager.write(text);
 		this._onDidInputData.fire(this);
+		this.xterm?.scrollToBottom();
 	}
 
 	async sendPath(originalPath: string, addNewLine: boolean): Promise<void> {
