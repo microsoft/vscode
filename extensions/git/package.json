@@ -11,6 +11,7 @@
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enabledApiProposals": [
     "diffCommand",
+    "contribMergeEditorToolbar",
     "contribViewsWelcome",
     "resolvers",
     "scmActionButton",
@@ -24,7 +25,8 @@
   ],
   "activationEvents": [
     "*",
-    "onFileSystem:git"
+    "onFileSystem:git",
+    "onFileSystem:git-show"
   ],
   "extensionDependencies": [
     "vscode.git-base"
@@ -582,6 +584,11 @@
         "command": "git.api.getRemoteSources",
         "title": "%command.api.getRemoteSources%",
         "category": "Git API"
+      },
+      {
+        "command": "git.acceptMerge",
+        "title": "%command.git.acceptMerge%",
+        "category": "Git"
       }
     ],
     "keybindings": [
@@ -1506,6 +1513,12 @@
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
           "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        }
+      ],
+      "merge/toolbar": [
+        {
+          "command": "git.acceptMerge",
+          "when": "isMergeEditor"
         }
       ],
       "scm/change/title": [
@@ -2461,6 +2474,12 @@
             "%config.logLevel.off%"
           ],
           "markdownDescription": "%config.logLevel%",
+          "scope": "window"
+        },
+        "git.experimental.mergeEditor": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.experimental.mergeEditor%",
           "scope": "window"
         }
       }
