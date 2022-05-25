@@ -150,19 +150,24 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 			return false;
 		}
 		const didDelete = await keytar.deletePassword(service, account);
-		let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
-		if (content && hasNextChunk) {
-			// need to delete additional chunks
-			let index = 1;
-			while (hasNextChunk) {
-				const accountWithIndex = `${account}-${index}`;
-				const nextChunk = await keytar.getPassword(service, accountWithIndex);
-				await keytar.deletePassword(service, accountWithIndex);
+		try {
+			let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+			if (content && hasNextChunk) {
+				// need to delete additional chunks
+				let index = 1;
+				while (hasNextChunk) {
+					const accountWithIndex = `${account}-${index}`;
+					const nextChunk = await keytar.getPassword(service, accountWithIndex);
+					await keytar.deletePassword(service, accountWithIndex);
 
-				const result: ChunkedPassword = JSON.parse(nextChunk!);
-				hasNextChunk = result.hasNextChunk;
-				index++;
+					const result: ChunkedPassword = JSON.parse(nextChunk!);
+					hasNextChunk = result.hasNextChunk;
+					index++;
+				}
 			}
+		} catch {
+			// Don't fail on trying to JSON.parse the password chunk deletion. Just go ahead with the results
+			// of didDelete
 		}
 
 		if (didDelete) {
