@@ -17,17 +17,14 @@ const enum Constants {
 	 * The maximum number of links in a line to resolve against the file system. This limit is put
 	 * in place to avoid sending excessive data when remote connections are in place.
 	 */
-	MaxResolvedLinksInLine = 10,
-
-	/**
-	 * The maximum length of a link to resolve against the file system. This limit is put in place
-	 * to avoid sending excessive data when remote connections are in place.
-	 */
-	MaxResolvedLinkLength = 1024,
+	MaxResolvedLinksInLine = 10
 }
 
 export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 	static id = 'uri';
+
+	// 2048 is the maximum URL length
+	readonly maxLinkLength = 2048;
 
 	constructor(
 		readonly xterm: Terminal,
@@ -70,7 +67,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 			}
 
 			// Don't try resolve any links of excessive length
-			if (text.length > Constants.MaxResolvedLinkLength) {
+			if (text.length > this.maxLinkLength) {
 				continue;
 			}
 

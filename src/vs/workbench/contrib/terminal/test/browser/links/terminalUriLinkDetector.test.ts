@@ -91,13 +91,13 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 			text: `https://${'foobarbaz/'.repeat(102)}`
 		}]);
 	});
-	test('should filter out file:// links that exceed 1024 characters', async () => {
-		// 8 + 101 * 10 = 1018 characters
-		await assertLink(TerminalBuiltinLinkType.LocalFile, `file:///${'foobarbaz/'.repeat(101)}`, [{
-			text: `file:///${'foobarbaz/'.repeat(101)}`,
-			range: [[1, 1], [58, 13]]
+	test('should filter out file:// links that exceed 4096 characters', async () => {
+		// 8 + 200 * 10 = 2008 characters
+		await assertLink(TerminalBuiltinLinkType.LocalFile, `file:///${'foobarbaz/'.repeat(200)}`, [{
+			text: `file:///${'foobarbaz/'.repeat(200)}`,
+			range: [[1, 1], [8, 26]]
 		}]);
-		// 8 + 102 * 10 = 1028 characters
-		await assertLink(TerminalBuiltinLinkType.LocalFile, `file:///${'foobarbaz/'.repeat(102)}`, []);
+		// 8 + 450 * 10 = 4508 characters
+		await assertLink(TerminalBuiltinLinkType.LocalFile, `file:///${'foobarbaz/'.repeat(450)}`, []);
 	});
 });
