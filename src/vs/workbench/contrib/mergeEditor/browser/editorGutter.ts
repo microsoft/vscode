@@ -86,13 +86,17 @@ export class EditorGutter<
 				}
 
 				const top =
-					this._editor.getTopForLineNumber(gutterItem.range.startLineNumber - 1) -
-					scrollTop + lineHeight;
+					(gutterItem.range.startLineNumber === 1
+						? -lineHeight
+						: this._editor.getTopForLineNumber(
+							gutterItem.range.startLineNumber - 1
+						)) -
+					scrollTop +
+					lineHeight;
 
-				// +1 line and -lineHeight makes the height to cover view zones at the end of the range.
 				const bottom =
-					this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive + 1) -
-					scrollTop - lineHeight;
+					this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive) -
+					scrollTop;
 
 				const height = bottom - top;
 
