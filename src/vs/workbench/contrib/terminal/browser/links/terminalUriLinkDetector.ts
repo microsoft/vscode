@@ -55,6 +55,11 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 
 			const text = computedLink.url?.toString() || '';
 
+			// Don't try resolve any links of excessive length
+			if (text.length > this.maxLinkLength) {
+				continue;
+			}
+
 			// Handle non-file scheme links
 			if (uri.scheme !== Schemas.file) {
 				links.push({
@@ -63,11 +68,6 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 					bufferRange,
 					type: TerminalBuiltinLinkType.Url
 				});
-				continue;
-			}
-
-			// Don't try resolve any links of excessive length
-			if (text.length > this.maxLinkLength) {
 				continue;
 			}
 
