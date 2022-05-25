@@ -36,8 +36,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
-import { LanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePack';
+import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePackService';
 import { ConsoleLogger, getLogLevel, ILogger, ILogService, LogLevel, MultiplexLogService } from 'vs/platform/log/common/log';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
@@ -161,7 +161,7 @@ class CliMain extends Disposable {
 		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
 
 		// Localizations
-		services.set(ILanguagePackService, new SyncDescriptor(LanguagePackService));
+		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
 
 		// Telemetry
 		const appenders: AppInsightsAppender[] = [];

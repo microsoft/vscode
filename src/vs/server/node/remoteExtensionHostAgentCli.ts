@@ -28,8 +28,8 @@ import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IServerEnvironmentService, ServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
-import { LanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePack';
+import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePackService';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { isAbsolute, join } from 'vs/base/common/path';
@@ -104,7 +104,7 @@ class CliMain extends Disposable {
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
-		services.set(ILanguagePackService, new SyncDescriptor(LanguagePackService));
+		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
 
 		return new InstantiationService(services);
 	}

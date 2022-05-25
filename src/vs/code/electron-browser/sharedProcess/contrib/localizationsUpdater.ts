@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
-import { LanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePack';
+import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePackService';
 
 export class LocalizationsUpdater extends Disposable {
 
 	constructor(
-		@ILanguagePackService private readonly localizationsService: LanguagePackService
+		@ILanguagePackService private readonly localizationsService: NativeLanguagePackService
 	) {
 		super();
 
