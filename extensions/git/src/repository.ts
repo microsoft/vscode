@@ -1408,15 +1408,15 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async fetchAll(): Promise<void> {
-		await this._fetch({ all: true });
+	async fetchAll(cancellationToken?: CancellationToken): Promise<void> {
+		await this._fetch({ all: true, cancellationToken });
 	}
 
 	async fetch(options: FetchOptions): Promise<void> {
 		await this._fetch(options);
 	}
 
-	private async _fetch(options: { remote?: string; ref?: string; all?: boolean; prune?: boolean; depth?: number; silent?: boolean } = {}): Promise<void> {
+	private async _fetch(options: { remote?: string; ref?: string; all?: boolean; prune?: boolean; depth?: number; silent?: boolean; cancellationToken?: CancellationToken } = {}): Promise<void> {
 		if (!options.prune) {
 			const config = workspace.getConfiguration('git', Uri.file(this.root));
 			const prune = config.get<boolean>('pruneOnFetch');
@@ -1461,7 +1461,7 @@ export class Repository implements Disposable {
 
 				// When fetchOnPull is enabled, fetch all branches when pulling
 				if (fetchOnPull) {
-					await this.repository.fetch({ all: true });
+					await this.fetchAll();
 				}
 
 				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
@@ -1532,7 +1532,7 @@ export class Repository implements Disposable {
 				const fn = async (cancellationToken?: CancellationToken) => {
 					// When fetchOnPull is enabled, fetch all branches when pulling
 					if (fetchOnPull) {
-						await this.repository.fetch({ all: true, cancellationToken });
+						await this.fetchAll(cancellationToken);
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
