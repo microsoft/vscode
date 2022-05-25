@@ -294,7 +294,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		private readonly _observer: ResizeObserver;
 
-		private readonly _observedElements = new WeakMap<Element, { id: string; output: boolean; lastKnownHeight: number }>();
+		private readonly _observedElements = new WeakMap<Element, { id: string; output: boolean; lastKnownHeight: number; cellId: string }>();
+		private _outputResizeTimer: any;
 
 		constructor() {
 			this._observer = new ResizeObserver(entries => {
@@ -307,6 +308,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 					if (!observedElementInfo) {
 						continue;
 					}
+
+					this.postResizeMessage(observedElementInfo.cellId);
 
 					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
 						if (observedElementInfo.output) {
@@ -329,13 +332,25 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}
 
-		public observe(container: Element, id: string, output: boolean) {
+		public observe(container: Element, id: string, output: boolean, cellId: string) {
 			if (this._observedElements.has(container)) {
 				return;
 			}
 
-			this._observedElements.set(container, { id, output, lastKnownHeight: -1 });
+			this._observedElements.set(container, { id, output, lastKnownHeight: -1, cellId });
 			this._observer.observe(container);
+		}
+
+		private postResizeMessage(cellId: string) {
+			// Debounce this callback to only happen after
+			// 250 ms. Don't need resize events that often.
+			clearTimeout(this._outputResizeTimer);
+			this._outputResizeTimer = setTimeout(() => {
+				postNotebookMessage('outputResized', {
+					cellId
+				});
+			}, 250);
+
 		}
 	};
 
@@ -387,6 +402,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	function createFocusSink(cellId: string, focusNext?: boolean) {
 		const element = document.createElement('div');
+		element.id = `focus-sink-${cellId}`;
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
 			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
@@ -1512,7 +1528,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			const cellOutput = this.ensureOutputCell(data.cellId, data.cellTop, false);
-			const outputNode = cellOutput.createOutputElement(data.outputId, data.outputOffset, data.left);
+			const outputNode = cellOutput.createOutputElement(data.outputId, data.outputOffset, data.left, data.cellId);
 			outputNode.render(data.content, preloadsAndErrors);
 
 			// don't hide until after this step so that the height is right
@@ -1665,7 +1681,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.addEventListeners();
 
 			this.updateContentAndRender(this._content.value).then(() => {
-				resizeObserver.observe(this.element, this.id, false);
+				resizeObserver.observe(this.element, this.id, false, this.id);
 				resolveReady();
 			});
 		}
@@ -1799,7 +1815,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 	class OutputCell {
 
 		public readonly element: HTMLElement;
-
 		private readonly outputElements = new Map</*outputId*/ string, OutputContainer>();
 
 		constructor(cellId: string) {
@@ -1821,7 +1836,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			container.appendChild(lowerWrapperElement);
 		}
 
-		public createOutputElement(outputId: string, outputOffset: number, left: number): OutputElement {
+		public createOutputElement(outputId: string, outputOffset: number, left: number, cellId: string): OutputElement {
 			let outputContainer = this.outputElements.get(outputId);
 			if (!outputContainer) {
 				outputContainer = new OutputContainer(outputId);
@@ -1829,7 +1844,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				this.outputElements.set(outputId, outputContainer);
 			}
 
-			return outputContainer.createOutputElement(outputId, outputOffset, left);
+			return outputContainer.createOutputElement(outputId, outputOffset, left, cellId);
 		}
 
 		public clearOutput(outputId: string, rendererId: string | undefined) {
@@ -1911,12 +1926,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.top = `${outputOffset}px`;
 		}
 
-		public createOutputElement(outputId: string, outputOffset: number, left: number): OutputElement {
+		public createOutputElement(outputId: string, outputOffset: number, left: number, cellId: string): OutputElement {
 			this.element.innerText = '';
 			this.element.style.maxHeight = '0px';
 			this.element.style.top = `${outputOffset}px`;
 
-			this._outputNode = new OutputElement(outputId, left);
+			this._outputNode = new OutputElement(outputId, left, cellId);
 			this.element.appendChild(this._outputNode.element);
 			return this._outputNode;
 		}
@@ -1948,13 +1963,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	class OutputElement {
 		public readonly element: HTMLElement;
-
 		private _content?: { content: webviewMessages.ICreationContent; preloadsAndErrors: unknown[] };
 		private hasResizeObserver = false;
 
 		constructor(
 			private readonly outputId: string,
 			left: number,
+			public readonly cellId: string
 		) {
 			this.element = document.createElement('div');
 			this.element.id = outputId;
@@ -1988,7 +2003,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (!this.hasResizeObserver) {
 				this.hasResizeObserver = true;
-				resizeObserver.observe(this.element, this.outputId, true);
+				resizeObserver.observe(this.element, this.outputId, true, this.cellId);
 			}
 
 			const offsetHeight = this.element.offsetHeight;
