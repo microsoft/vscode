@@ -9,7 +9,7 @@
 	position: absolute;
 	top: 0;
 	right: 18px;
-	min-width: 360px;
+	width: 360px;
 	max-width: calc(100% - 28px - 28px - 8px);
 	pointer-events: none;
 	padding: 0 10px 10px;
