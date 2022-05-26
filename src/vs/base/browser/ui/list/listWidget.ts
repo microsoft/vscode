@@ -1597,14 +1597,12 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	async focusNextPage(browserEvent?: UIEvent, filter?: (element: T) => boolean): Promise<void> {
 		let lastPageIndex = this.view.indexAt(this.view.getScrollTop() + this.view.renderHeight);
 		lastPageIndex = lastPageIndex === 0 ? 0 : lastPageIndex - 1;
-		const lastPageElement = this.view.element(lastPageIndex);
 		const currentlyFocusedElementIndex = this.getFocus()[0];
-		const currentlyFocusedElement = this.view.element(currentlyFocusedElementIndex);
 
-		if (currentlyFocusedElement !== lastPageElement && lastPageIndex > currentlyFocusedElementIndex) {
+		if (currentlyFocusedElementIndex !== lastPageIndex && (currentlyFocusedElementIndex === undefined || lastPageIndex > currentlyFocusedElementIndex)) {
 			const lastGoodPageIndex = this.findPreviousIndex(lastPageIndex, false, filter);
 
-			if (lastGoodPageIndex > -1 && currentlyFocusedElement !== this.view.element(lastGoodPageIndex)) {
+			if (lastGoodPageIndex > -1 && currentlyFocusedElementIndex !== lastGoodPageIndex) {
 				this.setFocus([lastGoodPageIndex], browserEvent);
 			} else {
 				this.setFocus([lastPageIndex], browserEvent);
@@ -1639,14 +1637,12 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			firstPageIndex = this.view.indexAfter(scrollTop - 1);
 		}
 
-		const firstPageElement = this.view.element(firstPageIndex);
 		const currentlyFocusedElementIndex = this.getFocus()[0];
-		const currentlyFocusedElement = this.view.element(currentlyFocusedElementIndex);
 
-		if (currentlyFocusedElement !== firstPageElement && currentlyFocusedElementIndex >= firstPageIndex) {
+		if (currentlyFocusedElementIndex !== firstPageIndex && (currentlyFocusedElementIndex === undefined || currentlyFocusedElementIndex >= firstPageIndex)) {
 			const firstGoodPageIndex = this.findNextIndex(firstPageIndex, false, filter);
 
-			if (firstGoodPageIndex > -1 && currentlyFocusedElement !== this.view.element(firstGoodPageIndex)) {
+			if (firstGoodPageIndex > -1 && currentlyFocusedElementIndex !== firstGoodPageIndex) {
 				this.setFocus([firstGoodPageIndex], browserEvent);
 			} else {
 				this.setFocus([firstPageIndex], browserEvent);
