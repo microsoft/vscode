@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { toVSDataTransfer } from 'vs/editor/browser/dnd';
+import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -22,7 +22,6 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { extractEditorsDropData } from 'vs/platform/dnd/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
@@ -102,15 +101,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		}
 
 		const textEditorDataTransfer = toVSDataTransfer(dragEvent.dataTransfer);
-		const editorData = (await this._instantiationService.invokeFunction(extractEditorsDropData, dragEvent))
-			.filter(input => input.resource)
-			.map(input => input.resource!.toString());
-
-		if (editorData.length) {
-			const str = distinct(editorData).join('\n');
-			textEditorDataTransfer.replace(Mimes.uriList, createStringDataTransferItem(str));
-		}
-
+		await this._instantiationService.invokeFunction(addExternalEditorsDropData, textEditorDataTransfer, dragEvent);
 		return textEditorDataTransfer;
 	}
 }
