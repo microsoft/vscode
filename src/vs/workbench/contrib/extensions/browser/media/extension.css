@@ -152,6 +152,10 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.monaco-list-row.selected .extension-list-item > .details > .description{
+	color: unset;
+}
+
 .hc-black .extension-list-item > .details > .description,
 .hc-light .extension-list-item > .details > .description {
 	color: unset;
