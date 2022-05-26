@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { distinct, equals } from 'vs/base/common/arrays';
+import { equals } from 'vs/base/common/arrays';
 import { Queue } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionIdentifier, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILocalizationContribution } from 'vs/platform/extensions/common/extensions';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ILocalizationContribution } from 'vs/platform/extensions/common/extensions';
+import { ILanguagePackItem, LanguagePackBaseService } from 'vs/platform/languagePacks/common/languagePacks';
 
 interface ILanguagePack {
 	hash: string;
+	label: string | undefined;
 	extensions: {
 		extensionIdentifier: IExtensionIdentifier;
 		version: string;
@@ -26,7 +27,7 @@ interface ILanguagePack {
 	translations: { [id: string]: string };
 }
 
-export class LanguagePackService extends Disposable implements ILanguagePackService {
+export class NativeLanguagePackService extends LanguagePackBaseService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -35,9 +36,10 @@ export class LanguagePackService extends Disposable implements ILanguagePackServ
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService
 	) {
-		super();
+		super(extensionGalleryService);
 		this.cache = this._register(new LanguagePacksCache(environmentService, logService));
 		this.extensionManagementService.registerParticipant({
 			postInstall: async (extension: ILocalExtension): Promise<void> => {
@@ -49,11 +51,21 @@ export class LanguagePackService extends Disposable implements ILanguagePackServ
 		});
 	}
 
-	async getInstalledLanguages(): Promise<string[]> {
+	async getInstalledLanguages(): Promise<Array<ILanguagePackItem>> {
 		const languagePacks = await this.cache.getLanguagePacks();
-		// Contributed languages are those installed via extension packs, so does not include English
-		const languages = ['en', ...Object.keys(languagePacks)];
-		return distinct(languages);
+		const languages = Object.keys(languagePacks).map(locale => {
+			const languagePack = languagePacks[locale];
+			const baseQuickPick = this.createQuickPickItem({ locale, label: languagePack.label });
+			return {
+				...baseQuickPick,
+				extensionId: languagePack.extensions[0].extensionIdentifier.id,
+			};
+		});
+		languages.push({
+			...this.createQuickPickItem({ locale: 'en', label: 'English' }),
+			extensionId: 'default',
+		});
+		return languages;
 	}
 
 	private async postInstallExtension(extension: ILocalExtension): Promise<void> {
@@ -126,7 +138,12 @@ class LanguagePacksCache extends Disposable {
 			if (extension.location.scheme === Schemas.file && isValidLocalization(localizationContribution)) {
 				let languagePack = languagePacks[localizationContribution.languageId];
 				if (!languagePack) {
-					languagePack = { hash: '', extensions: [], translations: {} };
+					languagePack = {
+						hash: '',
+						extensions: [],
+						translations: {},
+						label: localizationContribution.localizedLanguageName ?? localizationContribution.languageName
+					};
 					languagePacks[localizationContribution.languageId] = languagePack;
 				}
 				let extensionInLanguagePack = languagePack.extensions.filter(e => areSameExtensions(e.extensionIdentifier, extensionIdentifier))[0];
