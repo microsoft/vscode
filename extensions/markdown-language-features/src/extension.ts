@@ -6,6 +6,9 @@
 import * as vscode from 'vscode';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
+import { registerPasteProvider } from './languageFeatures/copyPaste';
+import { MdDefinitionProvider } from './languageFeatures/definitionProvider';
+import { register as registerDiagnostics } from './languageFeatures/diagnostics';
 import { MdLinkProvider } from './languageFeatures/documentLinkProvider';
 import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbolProvider';
 import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
@@ -72,8 +75,11 @@ function registerMarkdownLanguageFeatures(
 		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, workspaceContents)),
 		vscode.languages.registerReferenceProvider(selector, referencesProvider),
 		vscode.languages.registerRenameProvider(selector, new MdRenameProvider(referencesProvider, workspaceContents, githubSlugifier)),
+		vscode.languages.registerDefinitionProvider(selector, new MdDefinitionProvider(referencesProvider)),
 		MdPathCompletionProvider.register(selector, engine, linkProvider),
+		registerDiagnostics(selector, engine, workspaceContents, linkProvider, commandManager),
 		registerDropIntoEditor(selector),
+		registerPasteProvider(selector),
 		registerFindFileReferences(commandManager, referencesProvider),
 	);
 }
@@ -100,4 +106,3 @@ function registerMarkdownCommands(
 	commandManager.register(new commands.ReloadPlugins(previewManager, engine));
 	return commandManager;
 }
-

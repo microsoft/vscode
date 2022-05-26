@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/56b7270f094b036256774702e3b7f96490981190",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/4d30ff834ec324f56291addd197aa1e423cedfdd",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"patterns": [
@@ -4042,10 +4042,10 @@
 					"include": "#type-object"
 				},
 				{
-					"include": "#type-conditional"
+					"include": "#type-operators"
 				},
 				{
-					"include": "#type-operators"
+					"include": "#type-conditional"
 				},
 				{
 					"include": "#type-fn-type-parameters"
@@ -4394,6 +4394,9 @@
 					"include": "#typeof-operator"
 				},
 				{
+					"include": "#type-infer"
+				},
+				{
 					"begin": "([&|])(?=\\s*\\{)",
 					"beginCaptures": {
 						"0": {
@@ -4425,12 +4428,27 @@
 					"match": "(\\?|\\:)"
 				},
 				{
-					"name": "keyword.operator.expression.infer.ts",
-					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))infer(?=\\s+[_$[:alpha:]])"
-				},
-				{
 					"name": "keyword.operator.expression.import.ts",
 					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))import(?=\\s*\\()"
+				}
+			]
+		},
+		"type-infer": {
+			"patterns": [
+				{
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(infer)\\s+([_$[:alpha:]][_$[:alnum:]]*)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))(?:\\s+(extends)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))?",
+					"name": "meta.type.infer.ts",
+					"captures": {
+						"1": {
+							"name": "keyword.operator.expression.infer.ts"
+						},
+						"2": {
+							"name": "entity.name.type.ts"
+						},
+						"3": {
+							"name": "keyword.operator.expression.extends.ts"
+						}
+					}
 				}
 			]
 		},

@@ -27,12 +27,14 @@ import { EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtens
 import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 
 type ExtensionRecommendationsNotificationClassification = {
+	owner: 'sandy081';
 	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	extensionId?: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 type ExtensionWorkspaceRecommendationsNotificationClassification = {
+	owner: 'sandy081';
 	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 

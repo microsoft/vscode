@@ -78,13 +78,6 @@ steps:
     displayName: Codesign
 
   - script: |
-      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      APP_NAME="`ls $APP_ROOT | head -n 1`"
-      BUNDLE_IDENTIFIER=$(node -p "require(\"$APP_ROOT/$APP_NAME/Contents/Resources/app/product.json\").darwinBundleIdentifier")
-      echo "##vso[task.setvariable variable=BundleIdentifier]$BUNDLE_IDENTIFIER"
-    displayName: Export bundle identifier
-
-  - script: |
       set -e
       node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(agent.builddirectory) VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Notarize

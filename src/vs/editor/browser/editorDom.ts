@@ -136,10 +136,6 @@ export class EditorMouseEvent extends StandardMouseEvent {
 	}
 }
 
-export interface EditorMouseEventMerger {
-	(lastEvent: EditorMouseEvent | null, currentEvent: EditorMouseEvent): EditorMouseEvent;
-}
-
 export class EditorMouseEventFactory {
 
 	private readonly _editorViewDomNode: HTMLElement;
@@ -170,9 +166,9 @@ export class EditorMouseEventFactory {
 		});
 	}
 
-	public onPointerDown(target: HTMLElement, callback: (e: EditorMouseEvent, pointerType: string, pointerId: number) => void): IDisposable {
+	public onPointerDown(target: HTMLElement, callback: (e: EditorMouseEvent, pointerId: number) => void): IDisposable {
 		return dom.addDisposableListener(target, dom.EventType.POINTER_DOWN, (e: PointerEvent) => {
-			callback(this._create(e), e.pointerType, e.pointerId);
+			callback(this._create(e), e.pointerId);
 		});
 	}
 
@@ -182,11 +178,8 @@ export class EditorMouseEventFactory {
 		});
 	}
 
-	public onMouseMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
-			return merger(lastEvent, this._create(currentEvent));
-		};
-		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'mousemove', callback, myMerger, minimumTimeMs);
+	public onMouseMove(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+		return dom.addDisposableListener(target, 'mousemove', (e) => callback(this._create(e)));
 	}
 }
 
@@ -220,24 +213,21 @@ export class EditorPointerEventFactory {
 		});
 	}
 
-	public onPointerMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
-			return merger(lastEvent, this._create(currentEvent));
-		};
-		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'pointermove', callback, myMerger, minimumTimeMs);
+	public onPointerMove(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+		return dom.addDisposableListener(target, 'pointermove', (e) => callback(this._create(e)));
 	}
 }
 
 export class GlobalEditorPointerMoveMonitor extends Disposable {
 
 	private readonly _editorViewDomNode: HTMLElement;
-	private readonly _globalPointerMoveMonitor: GlobalPointerMoveMonitor<EditorMouseEvent>;
+	private readonly _globalPointerMoveMonitor: GlobalPointerMoveMonitor;
 	private _keydownListener: IDisposable | null;
 
 	constructor(editorViewDomNode: HTMLElement) {
 		super();
 		this._editorViewDomNode = editorViewDomNode;
-		this._globalPointerMoveMonitor = this._register(new GlobalPointerMoveMonitor<EditorMouseEvent>());
+		this._globalPointerMoveMonitor = this._register(new GlobalPointerMoveMonitor());
 		this._keydownListener = null;
 	}
 
@@ -245,7 +235,6 @@ export class GlobalEditorPointerMoveMonitor extends Disposable {
 		initialElement: Element,
 		pointerId: number,
 		initialButtons: number,
-		merger: EditorMouseEventMerger,
 		pointerMoveCallback: (e: EditorMouseEvent) => void,
 		onStopCallback: (browserEvent?: PointerEvent | KeyboardEvent) => void
 	): void {
@@ -261,14 +250,18 @@ export class GlobalEditorPointerMoveMonitor extends Disposable {
 			this._globalPointerMoveMonitor.stopMonitoring(true, e.browserEvent);
 		}, true);
 
-		const myMerger: dom.IEventMerger<EditorMouseEvent, PointerEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: PointerEvent): EditorMouseEvent => {
-			return merger(lastEvent, new EditorMouseEvent(currentEvent, true, this._editorViewDomNode));
-		};
-
-		this._globalPointerMoveMonitor.startMonitoring(initialElement, pointerId, initialButtons, myMerger, pointerMoveCallback, (e) => {
-			this._keydownListener!.dispose();
-			onStopCallback(e);
-		});
+		this._globalPointerMoveMonitor.startMonitoring(
+			initialElement,
+			pointerId,
+			initialButtons,
+			(e) => {
+				pointerMoveCallback(new EditorMouseEvent(e, true, this._editorViewDomNode));
+			},
+			(e) => {
+				this._keydownListener!.dispose();
+				onStopCallback(e);
+			}
+		);
 	}
 
 	public stopMonitoring(): void {

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { score } from 'vs/editor/common/languageSelector';
+import { LanguageSelector, score } from 'vs/editor/common/languageSelector';
 
 suite('LanguageSelector', function () {
 
@@ -15,18 +15,18 @@ suite('LanguageSelector', function () {
 	};
 
 	test('score, invalid selector', function () {
-		assert.strictEqual(score({}, model.uri, model.language, true, undefined), 0);
-		assert.strictEqual(score(undefined!, model.uri, model.language, true, undefined), 0);
-		assert.strictEqual(score(null!, model.uri, model.language, true, undefined), 0);
-		assert.strictEqual(score('', model.uri, model.language, true, undefined), 0);
+		assert.strictEqual(score({}, model.uri, model.language, true, undefined, undefined), 0);
+		assert.strictEqual(score(undefined!, model.uri, model.language, true, undefined, undefined), 0);
+		assert.strictEqual(score(null!, model.uri, model.language, true, undefined, undefined), 0);
+		assert.strictEqual(score('', model.uri, model.language, true, undefined, undefined), 0);
 	});
 
 	test('score, any language', function () {
-		assert.strictEqual(score({ language: '*' }, model.uri, model.language, true, undefined), 5);
-		assert.strictEqual(score('*', model.uri, model.language, true, undefined), 5);
+		assert.strictEqual(score({ language: '*' }, model.uri, model.language, true, undefined, undefined), 5);
+		assert.strictEqual(score('*', model.uri, model.language, true, undefined, undefined), 5);
 
-		assert.strictEqual(score('*', URI.parse('foo:bar'), model.language, true, undefined), 5);
-		assert.strictEqual(score('farboo', URI.parse('foo:bar'), model.language, true, undefined), 10);
+		assert.strictEqual(score('*', URI.parse('foo:bar'), model.language, true, undefined, undefined), 5);
+		assert.strictEqual(score('farboo', URI.parse('foo:bar'), model.language, true, undefined, undefined), 10);
 	});
 
 	test('score, default schemes', function () {
@@ -34,50 +34,50 @@ suite('LanguageSelector', function () {
 		const uri = URI.parse('git:foo/file.txt');
 		const language = 'farboo';
 
-		assert.strictEqual(score('*', uri, language, true, undefined), 5);
-		assert.strictEqual(score('farboo', uri, language, true, undefined), 10);
-		assert.strictEqual(score({ language: 'farboo', scheme: '' }, uri, language, true, undefined), 10);
-		assert.strictEqual(score({ language: 'farboo', scheme: 'git' }, uri, language, true, undefined), 10);
-		assert.strictEqual(score({ language: 'farboo', scheme: '*' }, uri, language, true, undefined), 10);
-		assert.strictEqual(score({ language: 'farboo' }, uri, language, true, undefined), 10);
-		assert.strictEqual(score({ language: '*' }, uri, language, true, undefined), 5);
+		assert.strictEqual(score('*', uri, language, true, undefined, undefined), 5);
+		assert.strictEqual(score('farboo', uri, language, true, undefined, undefined), 10);
+		assert.strictEqual(score({ language: 'farboo', scheme: '' }, uri, language, true, undefined, undefined), 10);
+		assert.strictEqual(score({ language: 'farboo', scheme: 'git' }, uri, language, true, undefined, undefined), 10);
+		assert.strictEqual(score({ language: 'farboo', scheme: '*' }, uri, language, true, undefined, undefined), 10);
+		assert.strictEqual(score({ language: 'farboo' }, uri, language, true, undefined, undefined), 10);
+		assert.strictEqual(score({ language: '*' }, uri, language, true, undefined, undefined), 5);
 
-		assert.strictEqual(score({ scheme: '*' }, uri, language, true, undefined), 5);
-		assert.strictEqual(score({ scheme: 'git' }, uri, language, true, undefined), 10);
+		assert.strictEqual(score({ scheme: '*' }, uri, language, true, undefined, undefined), 5);
+		assert.strictEqual(score({ scheme: 'git' }, uri, language, true, undefined, undefined), 10);
 	});
 
 	test('score, filter', function () {
-		assert.strictEqual(score('farboo', model.uri, model.language, true, undefined), 10);
-		assert.strictEqual(score({ language: 'farboo' }, model.uri, model.language, true, undefined), 10);
-		assert.strictEqual(score({ language: 'farboo', scheme: 'file' }, model.uri, model.language, true, undefined), 10);
-		assert.strictEqual(score({ language: 'farboo', scheme: 'http' }, model.uri, model.language, true, undefined), 0);
+		assert.strictEqual(score('farboo', model.uri, model.language, true, undefined, undefined), 10);
+		assert.strictEqual(score({ language: 'farboo' }, model.uri, model.language, true, undefined, undefined), 10);
+		assert.strictEqual(score({ language: 'farboo', scheme: 'file' }, model.uri, model.language, true, undefined, undefined), 10);
+		assert.strictEqual(score({ language: 'farboo', scheme: 'http' }, model.uri, model.language, true, undefined, undefined), 0);
 
-		assert.strictEqual(score({ pattern: '**/*.fb' }, model.uri, model.language, true, undefined), 10);
-		assert.strictEqual(score({ pattern: '**/*.fb', scheme: 'file' }, model.uri, model.language, true, undefined), 10);
-		assert.strictEqual(score({ pattern: '**/*.fb' }, URI.parse('foo:bar'), model.language, true, undefined), 0);
-		assert.strictEqual(score({ pattern: '**/*.fb', scheme: 'foo' }, URI.parse('foo:bar'), model.language, true, undefined), 0);
+		assert.strictEqual(score({ pattern: '**/*.fb' }, model.uri, model.language, true, undefined, undefined), 10);
+		assert.strictEqual(score({ pattern: '**/*.fb', scheme: 'file' }, model.uri, model.language, true, undefined, undefined), 10);
+		assert.strictEqual(score({ pattern: '**/*.fb' }, URI.parse('foo:bar'), model.language, true, undefined, undefined), 0);
+		assert.strictEqual(score({ pattern: '**/*.fb', scheme: 'foo' }, URI.parse('foo:bar'), model.language, true, undefined, undefined), 0);
 
 		let doc = {
 			uri: URI.parse('git:/my/file.js'),
 			langId: 'javascript'
 		};
-		assert.strictEqual(score('javascript', doc.uri, doc.langId, true, undefined), 10); // 0;
-		assert.strictEqual(score({ language: 'javascript', scheme: 'git' }, doc.uri, doc.langId, true, undefined), 10); // 10;
-		assert.strictEqual(score('*', doc.uri, doc.langId, true, undefined), 5); // 5
-		assert.strictEqual(score('fooLang', doc.uri, doc.langId, true, undefined), 0); // 0
-		assert.strictEqual(score(['fooLang', '*'], doc.uri, doc.langId, true, undefined), 5); // 5
+		assert.strictEqual(score('javascript', doc.uri, doc.langId, true, undefined, undefined), 10); // 0;
+		assert.strictEqual(score({ language: 'javascript', scheme: 'git' }, doc.uri, doc.langId, true, undefined, undefined), 10); // 10;
+		assert.strictEqual(score('*', doc.uri, doc.langId, true, undefined, undefined), 5); // 5
+		assert.strictEqual(score('fooLang', doc.uri, doc.langId, true, undefined, undefined), 0); // 0
+		assert.strictEqual(score(['fooLang', '*'], doc.uri, doc.langId, true, undefined, undefined), 5); // 5
 	});
 
 	test('score, max(filters)', function () {
 		let match = { language: 'farboo', scheme: 'file' };
 		let fail = { language: 'farboo', scheme: 'http' };
 
-		assert.strictEqual(score(match, model.uri, model.language, true, undefined), 10);
-		assert.strictEqual(score(fail, model.uri, model.language, true, undefined), 0);
-		assert.strictEqual(score([match, fail], model.uri, model.language, true, undefined), 10);
-		assert.strictEqual(score([fail, fail], model.uri, model.language, true, undefined), 0);
-		assert.strictEqual(score(['farboo', '*'], model.uri, model.language, true, undefined), 10);
-		assert.strictEqual(score(['*', 'farboo'], model.uri, model.language, true, undefined), 10);
+		assert.strictEqual(score(match, model.uri, model.language, true, undefined, undefined), 10);
+		assert.strictEqual(score(fail, model.uri, model.language, true, undefined, undefined), 0);
+		assert.strictEqual(score([match, fail], model.uri, model.language, true, undefined, undefined), 10);
+		assert.strictEqual(score([fail, fail], model.uri, model.language, true, undefined, undefined), 0);
+		assert.strictEqual(score(['farboo', '*'], model.uri, model.language, true, undefined, undefined), 10);
+		assert.strictEqual(score(['*', 'farboo'], model.uri, model.language, true, undefined, undefined), 10);
 	});
 
 	test('score hasAccessToAllModels', function () {
@@ -85,30 +85,50 @@ suite('LanguageSelector', function () {
 			uri: URI.parse('file:/my/file.js'),
 			langId: 'javascript'
 		};
-		assert.strictEqual(score('javascript', doc.uri, doc.langId, false, undefined), 0);
-		assert.strictEqual(score({ language: 'javascript', scheme: 'file' }, doc.uri, doc.langId, false, undefined), 0);
-		assert.strictEqual(score('*', doc.uri, doc.langId, false, undefined), 0);
-		assert.strictEqual(score('fooLang', doc.uri, doc.langId, false, undefined), 0);
-		assert.strictEqual(score(['fooLang', '*'], doc.uri, doc.langId, false, undefined), 0);
+		assert.strictEqual(score('javascript', doc.uri, doc.langId, false, undefined, undefined), 0);
+		assert.strictEqual(score({ language: 'javascript', scheme: 'file' }, doc.uri, doc.langId, false, undefined, undefined), 0);
+		assert.strictEqual(score('*', doc.uri, doc.langId, false, undefined, undefined), 0);
+		assert.strictEqual(score('fooLang', doc.uri, doc.langId, false, undefined, undefined), 0);
+		assert.strictEqual(score(['fooLang', '*'], doc.uri, doc.langId, false, undefined, undefined), 0);
 
-		assert.strictEqual(score({ language: 'javascript', scheme: 'file', hasAccessToAllModels: true }, doc.uri, doc.langId, false, undefined), 10);
-		assert.strictEqual(score(['fooLang', '*', { language: '*', hasAccessToAllModels: true }], doc.uri, doc.langId, false, undefined), 5);
+		assert.strictEqual(score({ language: 'javascript', scheme: 'file', hasAccessToAllModels: true }, doc.uri, doc.langId, false, undefined, undefined), 10);
+		assert.strictEqual(score(['fooLang', '*', { language: '*', hasAccessToAllModels: true }], doc.uri, doc.langId, false, undefined, undefined), 5);
 	});
 
 	test('score, notebookType', function () {
 		let obj = {
-			uri: URI.parse('file:/my/file.js'),
+			uri: URI.parse('vscode-notebook-cell:///my/file.js#blabla'),
 			langId: 'javascript',
-			notebookType: 'fooBook'
+			notebookType: 'fooBook',
+			notebookUri: URI.parse('file:///my/file.js')
 		};
 
-		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, undefined), 10);
-		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, obj.notebookType), 10);
-		assert.strictEqual(score({ notebookType: 'fooBook' }, obj.uri, obj.langId, true, obj.notebookType), 10);
-		assert.strictEqual(score({ notebookType: 'fooBook', language: 'javascript', scheme: 'file' }, obj.uri, obj.langId, true, obj.notebookType), 10);
-		assert.strictEqual(score({ notebookType: 'fooBook', language: '*' }, obj.uri, obj.langId, true, obj.notebookType), 10);
-		assert.strictEqual(score({ notebookType: '*', language: '*' }, obj.uri, obj.langId, true, obj.notebookType), 5);
-		assert.strictEqual(score({ notebookType: '*', language: 'javascript' }, obj.uri, obj.langId, true, obj.notebookType), 10);
+		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, undefined, undefined), 10);
+		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, obj.notebookUri, obj.notebookType), 10);
+		assert.strictEqual(score({ notebookType: 'fooBook' }, obj.uri, obj.langId, true, obj.notebookUri, obj.notebookType), 10);
+		assert.strictEqual(score({ notebookType: 'fooBook', language: 'javascript', scheme: 'file' }, obj.uri, obj.langId, true, obj.notebookUri, obj.notebookType), 10);
+		assert.strictEqual(score({ notebookType: 'fooBook', language: '*' }, obj.uri, obj.langId, true, obj.notebookUri, obj.notebookType), 10);
+		assert.strictEqual(score({ notebookType: '*', language: '*' }, obj.uri, obj.langId, true, obj.notebookUri, obj.notebookType), 5);
+		assert.strictEqual(score({ notebookType: '*', language: 'javascript' }, obj.uri, obj.langId, true, obj.notebookUri, obj.notebookType), 10);
+	});
+
+	test('Snippet choices lost #149363', function () {
+		let selector: LanguageSelector = {
+			scheme: 'vscode-notebook-cell',
+			pattern: '/some/path/file.py',
+			language: 'python'
+		};
+
+		const modelUri = URI.parse('vscode-notebook-cell:///some/path/file.py');
+		const nbUri = URI.parse('file:///some/path/file.py');
+		assert.strictEqual(score(selector, modelUri, 'python', true, nbUri, 'jupyter'), 10);
+
+		let selector2: LanguageSelector = {
+			...selector,
+			notebookType: 'jupyter'
+		};
+
+		assert.strictEqual(score(selector2, modelUri, 'python', true, nbUri, 'jupyter'), 0);
 	});
 
 	test('Document selector match - unexpected result value #60232', function () {
@@ -117,7 +137,7 @@ suite('LanguageSelector', function () {
 			scheme: 'file',
 			pattern: '**/*.interface.json'
 		};
-		let value = score(selector, URI.parse('file:///C:/Users/zlhe/Desktop/test.interface.json'), 'json', true, undefined);
+		let value = score(selector, URI.parse('file:///C:/Users/zlhe/Desktop/test.interface.json'), 'json', true, undefined, undefined);
 		assert.strictEqual(value, 10);
 	});
 
@@ -128,7 +148,7 @@ suite('LanguageSelector', function () {
 				pattern: '*.json'
 			}
 		};
-		let value = score(selector, URI.file('/home/user/Desktop/test.json'), 'json', true, undefined);
+		let value = score(selector, URI.file('/home/user/Desktop/test.json'), 'json', true, undefined, undefined);
 		assert.strictEqual(value, 10);
 	});
 
@@ -141,13 +161,13 @@ suite('LanguageSelector', function () {
 		let value = score({
 			language: 'bat',
 			notebookType: 'xxx'
-		}, obj.uri, obj.langId, true, undefined);
+		}, obj.uri, obj.langId, true, undefined, undefined);
 		assert.strictEqual(value, 0);
 
 		value = score({
 			language: 'bat',
 			notebookType: '*'
-		}, obj.uri, obj.langId, true, undefined);
+		}, obj.uri, obj.langId, true, undefined, undefined);
 		assert.strictEqual(value, 0);
 	});
 });

@@ -2232,6 +2232,40 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.indexOf(input4), 2);
 	});
 
+	test('Sticky/Unsticky Editors sends correct editor index', function () {
+		const group = createEditorGroupModel();
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: false, active: true });
+
+		assert.strictEqual(group.stickyCount, 0);
+
+		const events = groupListener(group);
+
+		group.stick(input3);
+
+		assert.strictEqual(events.sticky[0].editorIndex, 0);
+		assert.strictEqual(group.isSticky(input3), true);
+		assert.strictEqual(group.stickyCount, 1);
+
+		group.stick(input2);
+
+		assert.strictEqual(events.sticky[1].editorIndex, 1);
+		assert.strictEqual(group.isSticky(input2), true);
+		assert.strictEqual(group.stickyCount, 2);
+
+		group.unstick(input3);
+		assert.strictEqual(events.unsticky[0].editorIndex, 1);
+		assert.strictEqual(group.isSticky(input3), false);
+		assert.strictEqual(group.isSticky(input2), true);
+		assert.strictEqual(group.stickyCount, 1);
+	});
+
 	test('onDidMoveEditor Event', () => {
 		const group1 = createEditorGroupModel();
 		const group2 = createEditorGroupModel();

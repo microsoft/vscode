@@ -85,6 +85,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/mar
 import { Button, ButtonWithDescription } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
+import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -1642,19 +1643,19 @@ abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
 
 class SetSortByNameAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Name, localize('sortByName', "Sort by Name"));
+		super(ViewModelSortKey.Name, localize('sortChangesByName', "Sort Changes by Name"));
 	}
 }
 
 class SetSortByPathAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Path, localize('sortByPath', "Sort by Path"));
+		super(ViewModelSortKey.Path, localize('sortChangesByPath', "Sort Changes by Path"));
 	}
 }
 
 class SetSortByStatusAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Status, localize('sortByStatus', "Sort by Status"));
+		super(ViewModelSortKey.Status, localize('sortChangesByStatus', "Sort Changes by Status"));
 	}
 }
 
@@ -1724,7 +1725,7 @@ class SCMInputWidget extends Disposable {
 	private inputEditor: CodeEditorWidget;
 
 	private model: { readonly input: ISCMInput; readonly textModel: ITextModel } | undefined;
-	private repositoryContextKey: IContextKey<ISCMRepository | undefined>;
+	private repositoryIdContextKey: IContextKey<string | undefined>;
 	private repositoryDisposables = new DisposableStore();
 
 	private validation: IInputValidation | undefined;
@@ -1753,7 +1754,7 @@ class SCMInputWidget extends Disposable {
 
 		this.repositoryDisposables.dispose();
 		this.repositoryDisposables = new DisposableStore();
-		this.repositoryContextKey.set(input?.repository);
+		this.repositoryIdContextKey.set(input?.repository.id);
 
 		if (!input) {
 			this.model?.textModel.dispose();
@@ -1861,6 +1862,13 @@ class SCMInputWidget extends Disposable {
 		this.repositoryDisposables.add(input.repository.provider.onDidChangeCommitTemplate(updateTemplate, this));
 		updateTemplate();
 
+		// Update input enablement
+		const updateEnablement = (enabled: boolean) => {
+			this.inputEditor.updateOptions({ readOnly: !enabled });
+		};
+		this.repositoryDisposables.add(input.onDidChangeEnablement(enabled => updateEnablement(enabled)));
+		updateEnablement(input.enabled);
+
 		// Save model
 		this.model = { input, textModel };
 	}
@@ -1919,7 +1927,7 @@ class SCMInputWidget extends Disposable {
 		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
 
 		const contextKeyService2 = contextKeyService.createScoped(this.element);
-		this.repositoryContextKey = contextKeyService2.createKey('scmRepository', undefined);
+		this.repositoryIdContextKey = contextKeyService2.createKey('scmRepository', undefined);
 
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(),
@@ -1935,7 +1943,8 @@ class SCMInputWidget extends Disposable {
 			quickSuggestions: false,
 			scrollbar: { alwaysConsumeMouseWheel: false },
 			overflowWidgetsDomNode,
-			renderWhitespace: 'none'
+			renderWhitespace: 'none',
+			enableDropIntoEditor: true,
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -1948,7 +1957,8 @@ class SCMInputWidget extends Disposable {
 				ContextMenuController.ID,
 				ColorDetector.ID,
 				ModesHoverController.ID,
-				LinkDetector.ID
+				LinkDetector.ID,
+				DropIntoEditorController.ID
 			])
 		};
 
@@ -1975,8 +1985,8 @@ class SCMInputWidget extends Disposable {
 			}, 0);
 		}));
 
-		const firstLineKey = contextKeyService2.createKey('scmInputIsInFirstPosition', false);
-		const lastLineKey = contextKeyService2.createKey('scmInputIsInLastPosition', false);
+		const firstLineKey = contextKeyService2.createKey<boolean>('scmInputIsInFirstPosition', false);
+		const lastLineKey = contextKeyService2.createKey<boolean>('scmInputIsInLastPosition', false);
 
 		this._register(this.inputEditor.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this.inputEditor._getViewModel()!;
@@ -2326,14 +2336,14 @@ export class SCMViewPane extends ViewPane {
 			return;
 		} else if (isSCMResourceGroup(e.element)) {
 			const provider = e.element.provider;
-			const repository = this.scmService.repositories.find(r => r.provider === provider);
+			const repository = Iterable.find(this.scmService.repositories, r => r.provider === provider);
 			if (repository) {
 				this.scmViewService.focus(repository);
 			}
 			return;
 		} else if (ResourceTree.isResourceNode(e.element)) {
 			const provider = e.element.context.provider;
-			const repository = this.scmService.repositories.find(r => r.provider === provider);
+			const repository = Iterable.find(this.scmService.repositories, r => r.provider === provider);
 			if (repository) {
 				this.scmViewService.focus(repository);
 			}
@@ -2376,7 +2386,7 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		const provider = e.element.resourceGroup.provider;
-		const repository = this.scmService.repositories.find(r => r.provider === provider);
+		const repository = Iterable.find(this.scmService.repositories, r => r.provider === provider);
 
 		if (repository) {
 			this.scmViewService.focus(repository);
@@ -2451,7 +2461,7 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		return this.scmService.repositories.length === 0;
+		return this.scmService.repositoryCount === 0;
 	}
 
 	override getActionsContext(): unknown {

@@ -24,7 +24,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as Platform from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
+import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
 import { NotSupportedError } from 'vs/base/common/errors';
 
 export interface IExtHostTask extends ExtHostTaskShape {
@@ -320,7 +320,7 @@ export namespace TaskDTO {
 			result.group = types.TaskGroup.from(value.group._id);
 			if (result.group && value.group.isDefault) {
 				result.group = new types.TaskGroup(result.group.id, result.group.label);
-				if (value.group.isDefault) {
+				if (value.group.isDefault === true) {
 					result.group.isDefault = value.group.isDefault;
 				}
 			}

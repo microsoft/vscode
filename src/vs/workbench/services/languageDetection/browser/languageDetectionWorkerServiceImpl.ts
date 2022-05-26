@@ -203,6 +203,7 @@ export class LanguageDetectionWorkerHost {
 	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
 		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number };
 		type LanguageDetectionStatsClassification = {
+			owner: 'TylerLeonhardt';
 			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -319,6 +320,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 	}
 
 	public async detectLanguage(resource: URI, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
+		const startTime = Date.now();
 		const quickGuess = this._guessLanguageIdByUri(resource);
 		if (quickGuess) {
 			return quickGuess;
@@ -326,7 +328,27 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 
 		await this._withSyncedResources([resource]);
 		const modelId = await (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory, supportedLangs);
-		return this.getLanguageId(modelId);
+		const langaugeId = this.getLanguageId(modelId);
+
+		const LanguageDetectionStatsId = 'automaticlanguagedetection.perf';
+
+		interface ILanguageDetectionPerf {
+			timeSpent: number;
+			detection: string;
+		}
+
+		type LanguageDetectionPerfClassification = {
+			owner: 'TylerLeonhardt';
+			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			detection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+		};
+
+		this._telemetryService.publicLog2<ILanguageDetectionPerf, LanguageDetectionPerfClassification>(LanguageDetectionStatsId, {
+			timeSpent: Date.now() - startTime,
+			detection: langaugeId || 'unknown',
+		});
+
+		return langaugeId;
 	}
 }
 

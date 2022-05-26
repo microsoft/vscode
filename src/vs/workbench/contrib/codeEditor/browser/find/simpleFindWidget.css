@@ -9,10 +9,14 @@
 	position: absolute;
 	top: 0;
 	right: 18px;
-	width: 220px;
+	width: 360px;
 	max-width: calc(100% - 28px - 28px - 8px);
 	pointer-events: none;
 	padding: 0 10px 10px;
+}
+
+.simple-find-part .monaco-inputbox > .ibwrapper > input {
+	text-overflow: clip;
 }
 
 .monaco-workbench .simple-find-part {
@@ -25,6 +29,7 @@
 	align-items: center;
 	pointer-events: all;
 	transition: top 200ms linear;
+	min-width: 360px;
 }
 
 .monaco-workbench.reduce-motion .monaco-editor .find-widget {
@@ -41,6 +46,7 @@
 
 .monaco-workbench .simple-find-part .monaco-findInput {
 	flex: 1;
+	min-width: 220px;
 }
 
 .monaco-workbench .simple-find-part .button {
@@ -57,7 +63,11 @@
 	cursor: pointer;
 }
 
-.monaco-workbench .simple-find-part .button.disabled {
-	opacity: 0.3;
+.monaco-workbench div.simple-find-part div.button.disabled {
+	opacity: 0.3 !important;
 	cursor: default;
+}
+
+div.simple-find-part-wrapper div.button {
+	border-radius: 5px;
 }

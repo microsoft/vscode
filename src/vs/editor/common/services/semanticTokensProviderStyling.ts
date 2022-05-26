@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, SemanticTokens } from 'vs/editor/common/languages';
+import { SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/languages';
+import { FontStyle, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
@@ -16,7 +17,9 @@ export const enum SemanticTokensProviderStylingConstants {
 export class SemanticTokensProviderStyling {
 
 	private readonly _hashTable: HashTable;
-	private _hasWarnedOverlappingTokens: boolean;
+	private _hasWarnedOverlappingTokens = false;
+	private _hasWarnedInvalidLengthTokens = false;
+	private _hasWarnedInvalidEditStart = false;
 
 	constructor(
 		private readonly _legend: SemanticTokensLegend,
@@ -25,7 +28,6 @@ export class SemanticTokensProviderStyling {
 		@ILogService private readonly _logService: ILogService
 	) {
 		this._hashTable = new HashTable();
-		this._hasWarnedOverlappingTokens = false;
 	}
 
 	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: string): number {
@@ -107,6 +109,20 @@ export class SemanticTokensProviderStyling {
 		}
 	}
 
+	public warnInvalidLengthSemanticTokens(lineNumber: number, startColumn: number): void {
+		if (!this._hasWarnedInvalidLengthTokens) {
+			this._hasWarnedInvalidLengthTokens = true;
+			console.warn(`Semantic token with invalid length detected at lineNumber ${lineNumber}, column ${startColumn}`);
+		}
+	}
+
+	public warnInvalidEditStart(previousResultId: string | undefined, resultId: string | undefined, editIndex: number, editStart: number, maxExpectedStart: number): void {
+		if (!this._hasWarnedInvalidEditStart) {
+			this._hasWarnedInvalidEditStart = true;
+			console.warn(`Invalid semantic tokens edit detected (previousResultId: ${previousResultId}, resultId: ${resultId}) at edit #${editIndex}: The provided start offset ${editStart} is outside the previous data (length ${maxExpectedStart}).`);
+		}
+	}
+
 }
 
 const enum SemanticColoringConstants {
@@ -160,44 +176,42 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 		let destOffset = 0;
 		let areaLine = 0;
 		let prevLineNumber = 0;
-		let prevStartCharacter = 0;
 		let prevEndCharacter = 0;
 		while (tokenIndex < tokenEndIndex) {
 			const srcOffset = 5 * tokenIndex;
 			const deltaLine = srcData[srcOffset];
 			const deltaCharacter = srcData[srcOffset + 1];
-			// Casting both `lineNumber` and `startCharacter` here to uint32 using `|0`
-			// to do checks below with the actual value that will be inserted in the Uint32Array result
+			// Casting both `lineNumber`, `startCharacter` and `endCharacter` here to uint32 using `|0`
+			// to validate below with the actual values that will be inserted in the Uint32Array result
 			const lineNumber = (lastLineNumber + deltaLine) | 0;
 			const startCharacter = (deltaLine === 0 ? (lastStartCharacter + deltaCharacter) | 0 : deltaCharacter);
 			const length = srcData[srcOffset + 2];
+			const endCharacter = (startCharacter + length) | 0;
 			const tokenTypeIndex = srcData[srcOffset + 3];
 			const tokenModifierSet = srcData[srcOffset + 4];
-			const metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet, languageId);
 
-			if (metadata !== SemanticTokensProviderStylingConstants.NO_STYLING) {
-				if (areaLine === 0) {
-					areaLine = lineNumber;
-				}
-				if (prevLineNumber === lineNumber && prevEndCharacter > startCharacter) {
-					styling.warnOverlappingSemanticTokens(lineNumber, startCharacter + 1);
-					if (prevStartCharacter < startCharacter) {
-						// the previous token survives after the overlapping one
-						destData[destOffset - 4 + 2] = startCharacter;
-					} else {
-						// the previous token is entirely covered by the overlapping one
-						destOffset -= 4;
+			if (endCharacter <= startCharacter) {
+				// this token is invalid (most likely a negative length casted to uint32)
+				styling.warnInvalidLengthSemanticTokens(lineNumber, startCharacter + 1);
+			} else if (prevLineNumber === lineNumber && prevEndCharacter > startCharacter) {
+				// this token overlaps with the previous token
+				styling.warnOverlappingSemanticTokens(lineNumber, startCharacter + 1);
+			} else {
+				const metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet, languageId);
+
+				if (metadata !== SemanticTokensProviderStylingConstants.NO_STYLING) {
+					if (areaLine === 0) {
+						areaLine = lineNumber;
 					}
-				}
-				destData[destOffset] = lineNumber - areaLine;
-				destData[destOffset + 1] = startCharacter;
-				destData[destOffset + 2] = startCharacter + length;
-				destData[destOffset + 3] = metadata;
-				destOffset += 4;
+					destData[destOffset] = lineNumber - areaLine;
+					destData[destOffset + 1] = startCharacter;
+					destData[destOffset + 2] = endCharacter;
+					destData[destOffset + 3] = metadata;
+					destOffset += 4;
 
-				prevLineNumber = lineNumber;
-				prevStartCharacter = startCharacter;
-				prevEndCharacter = startCharacter + length;
+					prevLineNumber = lineNumber;
+					prevEndCharacter = endCharacter;
+				}
 			}
 
 			lastLineNumber = lineNumber;

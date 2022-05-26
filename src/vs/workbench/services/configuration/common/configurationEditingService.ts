@@ -93,6 +93,11 @@ export const enum ConfigurationEditingErrorCode {
 	ERROR_INVALID_CONFIGURATION,
 
 	/**
+	 * Error when trying to write a policy configuration
+	 */
+	ERROR_POLICY_CONFIGURATION,
+
+	/**
 	 * Internal Error.
 	 */
 	ERROR_INTERNAL
@@ -359,6 +364,7 @@ export class ConfigurationEditingService {
 		switch (error) {
 
 			// API constraints
+			case ConfigurationEditingErrorCode.ERROR_POLICY_CONFIGURATION: return nls.localize('errorPolicyConfiguration', "Unable to write {0} because it is configured in system policy.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to {0} because {1} is not a registered configuration.", this.stringifyTarget(target), operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION: return nls.localize('errorInvalidWorkspaceConfigurationApplication', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE: return nls.localize('errorInvalidWorkspaceConfigurationMachine', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
@@ -491,6 +497,10 @@ export class ConfigurationEditingService {
 	}
 
 	private async validate(target: EditableConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean, overrides: IConfigurationUpdateOverrides): Promise<void> {
+
+		if (this.configurationService.inspect(operation.key).policyValue !== undefined) {
+			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_POLICY_CONFIGURATION, target, operation);
+		}
 
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const configurationScope = configurationProperties[operation.key]?.scope;

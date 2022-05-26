@@ -17,7 +17,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { LocationLink } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -42,7 +42,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	private readonly editor: ICodeEditor;
 	private readonly toUnhook = new DisposableStore();
 	private readonly toUnhookForKeyboard = new DisposableStore();
-	private linkDecorations: string[] = [];
+	private readonly linkDecorations: IEditorDecorationsCollection;
 	private currentWordAtPosition: IWordAtPosition | null = null;
 	private previousPromise: CancelablePromise<LocationLink[] | null> | null = null;
 
@@ -53,6 +53,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this.editor = editor;
+		this.linkDecorations = this.editor.createDecorationsCollection();
 
 		let linkGesture = new ClickLinkGesture(editor);
 		this.toUnhook.add(linkGesture);
@@ -268,13 +269,11 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			}
 		};
 
-		this.linkDecorations = this.editor.deltaDecorations(this.linkDecorations, [newDecorations]);
+		this.linkDecorations.set([newDecorations]);
 	}
 
 	private removeLinkDecorations(): void {
-		if (this.linkDecorations.length > 0) {
-			this.linkDecorations = this.editor.deltaDecorations(this.linkDecorations, []);
-		}
+		this.linkDecorations.clear();
 	}
 
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {

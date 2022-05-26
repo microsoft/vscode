@@ -705,7 +705,7 @@
         },
         "js/ts.implicitProjectConfig.strictNullChecks": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "%configuration.implicitProjectConfig.strictNullChecks%",
           "scope": "window"
         },

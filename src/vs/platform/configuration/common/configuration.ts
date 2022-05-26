@@ -80,6 +80,7 @@ export interface IConfigurationValue<T> {
 	readonly workspaceValue?: T;
 	readonly workspaceFolderValue?: T;
 	readonly memoryValue?: T;
+	readonly policyValue?: T;
 	readonly value?: T;
 
 	readonly default?: { value?: T; override?: T };
@@ -89,6 +90,7 @@ export interface IConfigurationValue<T> {
 	readonly workspace?: { value?: T; override?: T };
 	readonly workspaceFolder?: { value?: T; override?: T };
 	readonly memory?: { value?: T; override?: T };
+	readonly policy?: { value?: T };
 
 	readonly overrideIdentifiers?: string[];
 }
@@ -163,6 +165,7 @@ export interface IOverrides {
 
 export interface IConfigurationData {
 	defaults: IConfigurationModel;
+	policy: IConfigurationModel;
 	user: IConfigurationModel;
 	workspace: IConfigurationModel;
 	folders: [UriComponents, IConfigurationModel][];
