@@ -88,22 +88,29 @@ __vsc_precmd() {
 	fi
 }
 
-# capture any debug trap so it is not overwritten
-__vsc_original_trap="$(trap -p DEBUG)"
-if [[ -n "$__vsc_original_trap" ]]; then
-	__vsc_original_trap=${__vsc_original_trap#'trap -- '*}
-	__vsc_original_trap=${__vsc_original_trap%'DEBUG'}
-fi
-
 __vsc_preexec() {
-	__vsc_status="$?"
-	eval ${__vsc_original_trap}
 	PS1="$__vsc_prior_prompt"
 	if [ -z "${__vsc_in_command_execution-}" ]; then
 		__vsc_in_command_execution="1"
 		__vsc_command_output_start
 	fi
 }
+
+# Debug trapping/preexec inspired by starship (ISC)
+dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+if [[ -z "$dbg_trap" ]]; then
+	__vsc_preexec_only() {
+		__vsc_status="$?"
+		__vsc_preexec
+	}
+	trap '__vsc_preexec_only "$_"' DEBUG
+elif [[ "$dbg_trap" != '__vsc_preexec "$_"' && "$dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
+	__vsc_preexec_all() {
+		__vsc_status="$?"
+		local PREV_LAST_ARG=$1 ; $dbg_trap; __vsc_preexec; : "$PREV_LAST_ARG";
+	}
+	trap '__vsc_preexec_all "$_"' DEBUG
+fi
 
 __vsc_update_prompt
 
@@ -148,5 +155,3 @@ if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" !=
 else
 	PROMPT_COMMAND=__vsc_prompt_cmd
 fi
-
-trap '__vsc_preexec' DEBUG
