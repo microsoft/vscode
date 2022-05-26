@@ -14,13 +14,13 @@ import * as UUID from 'vs/base/common/uuid';
 
 import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/base/common/parsers';
 import {
-	NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
-	isNamedProblemMatcher, ProblemMatcherRegistry
+	NamedProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
+	isNamedProblemMatcher, ProblemMatcherRegistry, ProblemMatcher
 } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import * as Tasks from './tasks';
-import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
+import { ITaskDefinitionRegistry, TaskDefinitionRegistry } from './taskDefinitionRegistry';
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { URI } from 'vs/base/common/uri';
 import { ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
@@ -710,7 +710,7 @@ export namespace RunOptions {
 	}
 }
 
-interface ParseContext {
+export interface ParseContext {
 	workspaceFolder: IWorkspaceFolder;
 	workspace: IWorkspace | undefined;
 	problemReporter: IProblemReporter;
@@ -1130,7 +1130,7 @@ namespace CommandConfiguration {
 	}
 }
 
-namespace ProblemMatcherConverter {
+export namespace ProblemMatcherConverter {
 
 	export function namedFrom(this: void, declares: ProblemMatcherConfig.NamedProblemMatcher[] | undefined, context: ParseContext): IStringDictionary<NamedProblemMatcher> {
 		let result: IStringDictionary<NamedProblemMatcher> = Object.create(null);
@@ -1389,7 +1389,7 @@ namespace ConfiguringTask {
 		customize: string;
 	}
 
-	export function from(this: void, external: ConfiguringTask, context: ParseContext, index: number, source: TaskConfigSource): Tasks.ConfiguringTask | undefined {
+	export function from(this: void, external: ConfiguringTask, context: ParseContext, index: number, source: TaskConfigSource, registry?: Partial<ITaskDefinitionRegistry>): Tasks.ConfiguringTask | undefined {
 		if (!external) {
 			return undefined;
 		}
@@ -1399,7 +1399,7 @@ namespace ConfiguringTask {
 			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskType', 'Error: tasks configuration must have a type property. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
-		let typeDeclaration = type ? TaskDefinitionRegistry.get(type) : undefined;
+		let typeDeclaration = type ? registry?.get?.(type) || TaskDefinitionRegistry.get(type) : undefined;
 		if (!typeDeclaration) {
 			let message = nls.localize('ConfigurationParser.noTypeDefinition', 'Error: there is no registered task type \'{0}\'. Did you miss installing an extension that provides a corresponding task provider?', type);
 			context.problemReporter.error(message);
@@ -1654,12 +1654,12 @@ namespace CustomTask {
 	}
 }
 
-interface TaskParseResult {
+export interface TaskParseResult {
 	custom: Tasks.CustomTask[];
 	configured: Tasks.ConfiguringTask[];
 }
 
-namespace TaskParser {
+export namespace TaskParser {
 
 	function isCustomTask(value: CustomTask | ConfiguringTask): value is CustomTask {
 		let type = value.type;
@@ -1672,7 +1672,7 @@ namespace TaskParser {
 		process: ProcessExecutionSupportedContext
 	};
 
-	export function from(this: void, externals: Array<CustomTask | ConfiguringTask> | undefined, globals: Globals, context: ParseContext, source: TaskConfigSource): TaskParseResult {
+	export function from(this: void, externals: Array<CustomTask | ConfiguringTask> | undefined, globals: Globals, context: ParseContext, source: TaskConfigSource, registry?: Partial<ITaskDefinitionRegistry>): TaskParseResult {
 		let result: TaskParseResult = { custom: [], configured: [] };
 		if (!externals) {
 			return result;
@@ -1683,7 +1683,7 @@ namespace TaskParser {
 		const baseLoadIssues = Objects.deepClone(context.taskLoadIssues);
 		for (let index = 0; index < externals.length; index++) {
 			let external = externals[index];
-			const definition = external.type ? TaskDefinitionRegistry.get(external.type) : undefined;
+			const definition = external.type ? registry?.get?.(external.type) || TaskDefinitionRegistry.get(external.type) : undefined;
 			let typeNotSupported: boolean = false;
 			if (definition && definition.when && !context.contextKeyService.contextMatchesRules(definition.when)) {
 				typeNotSupported = true;
@@ -1743,7 +1743,7 @@ namespace TaskParser {
 					result.custom.push(customTask);
 				}
 			} else {
-				let configuredTask = ConfiguringTask.from(external, context, index, source);
+				let configuredTask = ConfiguringTask.from(external, context, index, source, registry);
 				if (configuredTask) {
 					configuredTask.addTaskLoadMessages(context.taskLoadIssues);
 					result.configured.push(configuredTask);
@@ -1795,7 +1795,7 @@ namespace TaskParser {
 	}
 }
 
-interface Globals {
+export interface Globals {
 	command?: Tasks.CommandConfiguration;
 	problemMatcher?: ProblemMatcher[];
 	promptOnClose?: boolean;
@@ -1933,7 +1933,7 @@ export interface ParseResult {
 export interface IProblemReporter extends IProblemReporterBase {
 }
 
-class UUIDMap {
+export class UUIDMap {
 
 	private last: IStringDictionary<string | string[]> | undefined;
 	private current: IStringDictionary<string | string[]>;

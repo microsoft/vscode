@@ -10,14 +10,16 @@ import * as UUID from 'vs/base/common/uuid';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import { ValidationStatus } from 'vs/base/common/parsers';
-import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind, NamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { WorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
-import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask, TaskConfigSource } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
+import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask, TaskConfigSource, ParseContext, ProblemMatcherConverter, Globals, TaskParseResult, UUIDMap, TaskParser } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContext } from 'vs/platform/contextkey/common/contextkey';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ITaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 
 const workspaceFolder: WorkspaceFolder = new WorkspaceFolder({
 	uri: URI.file('/workspace/folderOne'),
@@ -57,6 +59,10 @@ class ProblemReporter implements IProblemReporter {
 	private log(message: string): void {
 		this.receivedMessage = true;
 		this.lastMessage = message;
+	}
+
+	public clearMessage(): void {
+		this.lastMessage = undefined;
 	}
 }
 
@@ -1760,3 +1766,124 @@ suite('Bugs / regression tests', () => {
 		testConfiguration(external, builder);
 	});
 });
+
+class TestNamedProblemMatcher implements Partial<ProblemMatcher> {
+}
+
+class TestParseContext implements Partial<ParseContext> {
+}
+
+class TestTaskDefinitionRegistry implements Partial<ITaskDefinitionRegistry> {
+	private _task: Tasks.TaskDefinition | undefined;
+	public get(key: string): Tasks.TaskDefinition {
+		return this._task!;
+	}
+	public set(task: Tasks.TaskDefinition) {
+		this._task = task;
+	}
+}
+
+suite('Task configuration conversions', () => {
+	const globals = {} as Globals;
+	const taskConfigSource = {} as TaskConfigSource;
+	const TaskDefinitionRegistry = new TestTaskDefinitionRegistry();
+	let instantiationService: TestInstantiationService;
+	let parseContext: ParseContext;
+	let namedProblemMatcher: NamedProblemMatcher;
+	let problemReporter: ProblemReporter;
+	setup(() => {
+		instantiationService = new TestInstantiationService();
+		namedProblemMatcher = instantiationService.createInstance(TestNamedProblemMatcher);
+		namedProblemMatcher.name = 'real';
+		namedProblemMatcher.label = 'real label';
+		problemReporter = new ProblemReporter();
+		parseContext = instantiationService.createInstance(TestParseContext);
+		parseContext.problemReporter = problemReporter;
+		parseContext.namedProblemMatchers = { 'real': namedProblemMatcher };
+		parseContext.uuidMap = new UUIDMap();
+	});
+	suite('ProblemMatcherConverter.from', () => {
+		test('returns [] and an error for an unknown problem matcher', () => {
+			const result = (ProblemMatcherConverter.from('$fake', parseContext));
+			assert.deepEqual(result.value, []);
+			assert.strictEqual(result.errors?.length, 1);
+		});
+		test('returns config for a known problem matcher', () => {
+			const result = (ProblemMatcherConverter.from('$real', parseContext));
+			assert.strictEqual(result.errors?.length, 0);
+			assert.deepEqual(result.value, [{ "label": "real label" }]);
+		});
+		test('returns config for a known problem matcher including applyTo', () => {
+			namedProblemMatcher.applyTo = ApplyToKind.closedDocuments;
+			const result = (ProblemMatcherConverter.from('$real', parseContext));
+			assert.strictEqual(result.errors?.length, 0);
+			assert.deepEqual(result.value, [{ "label": "real label", "applyTo": ApplyToKind.closedDocuments }]);
+		});
+	});
+	suite('TaskParser.from', () => {
+		suite('CustomTask', () => {
+			suite('incomplete config reports an appropriate error for missing', () => {
+				test('name', () => {
+					const result = TaskParser.from([{} as CustomTask], globals, parseContext, taskConfigSource);
+					assertTaskParseResult(result, undefined, problemReporter, 'Error: a task must provide a label property');
+				});
+				test('command', () => {
+					const result = TaskParser.from([{ taskName: 'task' } as CustomTask], globals, parseContext, taskConfigSource);
+					assertTaskParseResult(result, undefined, problemReporter, "Error: the task 'task' doesn't define a command");
+				});
+			});
+			test('returns expected result', () => {
+				const expected = [
+					{ taskName: 'task', command: 'echo test' } as CustomTask,
+					{ taskName: 'task 2', command: 'echo test' } as CustomTask
+				];
+				const result = TaskParser.from(expected, globals, parseContext, taskConfigSource);
+				assertTaskParseResult(result, { custom: expected }, problemReporter, undefined);
+			});
+		});
+		suite('ConfiguredTask', () => {
+			test('returns expected result', () => {
+				const expected = [{ taskName: 'task', command: 'echo test', type: 'any', label: 'task' }, { taskName: 'task 2', command: 'echo test', type: 'any', label: 'task 2' }];
+				TaskDefinitionRegistry.set({ extensionId: 'registered', taskType: 'any', properties: {} } as Tasks.TaskDefinition);
+				const result = TaskParser.from(expected, globals, parseContext, taskConfigSource, TaskDefinitionRegistry);
+				assertTaskParseResult(result, { configured: expected }, problemReporter, undefined);
+			});
+		});
+	});
+});
+
+function assertTaskParseResult(actual: TaskParseResult, expected: ITestTaskParseResult | undefined, problemReporter: ProblemReporter, expectedMessage?: string): void {
+	if (expectedMessage === undefined) {
+		assert.strictEqual(problemReporter.lastMessage, undefined);
+	} else {
+		assert.ok(problemReporter.lastMessage?.includes(expectedMessage));
+	}
+
+	assert.deepEqual(actual.custom.length, expected?.custom?.length || 0);
+	assert.deepEqual(actual.configured.length, expected?.configured?.length || 0);
+
+	let index = 0;
+	if (expected?.configured) {
+		for (const taskParseResult of expected?.configured) {
+			assert.strictEqual(actual.configured[index]._label, taskParseResult.label);
+			index++;
+		}
+	}
+	index = 0;
+	if (expected?.custom) {
+		for (const taskParseResult of expected?.custom) {
+			assert.strictEqual(actual.custom[index]._label, taskParseResult.taskName);
+			index++;
+		}
+	}
+	problemReporter.clearMessage();
+}
+
+interface ITestTaskParseResult {
+	custom?: Partial<CustomTask>[];
+	configured?: Partial<TestConfiguringTask>[];
+}
+
+interface TestConfiguringTask extends Partial<Tasks.ConfiguringTask> {
+	label: string;
+}
