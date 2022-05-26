@@ -299,7 +299,11 @@ export class OutlinePane extends ViewPane {
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorControlDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, e.editorOptions, e.sideBySide)));
+		this._editorControlDisposables.add(tree.onDidOpen(e => {
+			// feature #149034:  If shift key, tell reveal to use entire selection
+			let entireSelection = (e.browserEvent instanceof PointerEvent && (e.browserEvent as PointerEvent).shiftKey);
+			newOutline.reveal(e.element, e.editorOptions, e.sideBySide, entireSelection);
+		}));
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
 			if (!this._outlineViewState.followCursor || !newOutline.activeElement) {

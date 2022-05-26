@@ -217,16 +217,20 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		return this._outlineModel?.uri;
 	}
 
-	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
+	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean, entireSelection?: boolean): Promise<void> {
 		const model = OutlineModel.get(entry);
 		if (!model || !(entry instanceof OutlineElement)) {
 			return;
 		}
+
+		// #149034 Use entire selection range conditionally (i.e. When user is holding the Shift key)
+		let range = entireSelection ? entry.symbol.selectionRange : Range.collapseToStart(entry.symbol.selectionRange);
+
 		await this._codeEditorService.openCodeEditor({
 			resource: model.uri,
 			options: {
 				...options,
-				selection: Range.collapseToStart(entry.symbol.selectionRange),
+				selection: range,
 				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
 			}
 		}, this._editor, sideBySide);
