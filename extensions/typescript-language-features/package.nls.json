@@ -97,7 +97,7 @@
 		"message": "Enable/disable inlay hints for implicit variable types:\n```typescript\n\nconst foo /* :number */ = Date.now();\n \n```\nRequires using TypeScript 4.4+ in the workspace.",
 		"comment": "The text inside the ``` block is code and should not be localized."
 	},
-	"configuration.inlayHints.variableTypes.supressWhenTypeMatchesName": "Suppress type hints on variables whose name is identical to the type name. Requires using TypeScript 4.8+ in the workspace.",
+	"configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName": "Suppress type hints on variables whose name is identical to the type name. Requires using TypeScript 4.8+ in the workspace.",
 	"configuration.inlayHints.propertyDeclarationTypes.enabled": {
 		"message": "Enable/disable inlay hints for implicit types on property declarations:\n```typescript\n\nclass Foo {\n\tprop /* :number */ = Date.now();\n}\n \n```\nRequires using TypeScript 4.4+ in the workspace.",
 		"comment": "The text inside the ``` block is code and should not be localized."

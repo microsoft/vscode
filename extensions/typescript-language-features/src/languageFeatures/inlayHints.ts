@@ -19,7 +19,7 @@ const inlayHintSettingNames = Object.freeze([
 	InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName,
 	InlayHintSettingNames.parameterNamesEnabled,
 	InlayHintSettingNames.variableTypesEnabled,
-	InlayHintSettingNames.variableTypesSupressWhenTypeMatchesName,
+	InlayHintSettingNames.variableTypesSuppressWhenTypeMatchesName,
 	InlayHintSettingNames.propertyDeclarationTypesEnabled,
 	InlayHintSettingNames.functionLikeReturnTypesEnabled,
 	InlayHintSettingNames.enumMemberValuesEnabled,

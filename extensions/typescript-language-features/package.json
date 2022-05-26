@@ -301,10 +301,10 @@
           "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
           "scope": "resource"
         },
-        "typescript.inlayHints.variableTypes.supressWhenTypeMatchesName": {
+        "typescript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "%configuration.inlayHints.variableTypes.supressWhenTypeMatchesName%",
+          "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
           "scope": "resource"
         },
         "typescript.inlayHints.propertyDeclarationTypes.enabled": {
@@ -359,10 +359,10 @@
           "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
           "scope": "resource"
         },
-        "javascript.inlayHints.variableTypes.supressWhenTypeMatchesName": {
+        "javascript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "%configuration.inlayHints.variableTypes.supressWhenTypeMatchesName%",
+          "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
           "scope": "resource"
         },
         "javascript.inlayHints.propertyDeclarationTypes.enabled": {
