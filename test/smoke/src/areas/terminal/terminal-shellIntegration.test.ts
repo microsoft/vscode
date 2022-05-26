@@ -40,7 +40,7 @@ export function setup() {
 						await terminal.runCommandInTerminal(`ls`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
 					});
-					it('Error', async () => {
+					(process.platform === 'linux' ? it.skip : it)('Error', async () => {
 						await createShellIntegrationProfile();
 						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
