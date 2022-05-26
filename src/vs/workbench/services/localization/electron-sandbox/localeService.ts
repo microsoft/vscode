@@ -21,7 +21,7 @@ export class NativeLocaleService implements ILocaleService {
 
 	async setLocale(locale: string | undefined): Promise<boolean> {
 		try {
-			if (locale === language || (!locale && (language === 'en' || language === 'en-US'))) {
+			if (locale === language || (!locale && language === 'en')) {
 				return false;
 			}
 			await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true);
