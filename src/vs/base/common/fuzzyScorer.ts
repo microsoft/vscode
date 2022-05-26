@@ -500,7 +500,8 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 		}
 	}
 
-	// Finally compute description + label scores if we have a description
+	let itemScore = NO_ITEM_SCORE;
+	// Otherwise, compute description + label scores if we have a description
 	if (description) {
 		let descriptionPrefix = description;
 		if (!!path) {
@@ -540,11 +541,51 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 				}
 			});
 
-			return { score: labelDescriptionScore, labelMatch, descriptionMatch };
+			itemScore = { score: labelDescriptionScore, labelMatch, descriptionMatch };
 		}
 	}
 
-	return NO_ITEM_SCORE;
+	// Finally try to compute a score based on the path if we have one.
+	// This allows us to partially match on the absolute path of the item
+	// instead of only matching on the workspace folder relative path.
+	//
+	// We assume the label is the path's basename and the description, if
+	// present, is a subpath of the path's dirname or '.'.
+	if (path?.endsWith(label) &&
+		(!description || description === '.' || path.endsWith(`${description}${sep}${label}`))) {
+		const [pathScore, pathPositions] = scoreFuzzy(
+			path,
+			query.normalized,
+			query.normalizedLowercase,
+			allowNonContiguousMatches && !query.expectContiguousMatch);
+
+		// FIXME: Should we ignore low quality matches across the paths? How?
+		if (pathScore > itemScore.score) {
+			const labelStartInPath = path.length - label.length;
+			let descEndInPath = -1;
+			let descStartInPath = -1;
+			if (description && description !== '.') {
+				descEndInPath = labelStartInPath - sep.length;
+				descStartInPath = descEndInPath - description.length;
+			}
+			const pathMatches = createMatches(pathPositions);
+			const labelMatch: IMatch[] = [];
+			const descriptionMatch: IMatch[] = [];
+
+			for (const match of pathMatches) {
+				if (match.end > labelStartInPath) {
+					labelMatch.push({ start: Math.max(0, match.start - labelStartInPath), end: match.end - labelStartInPath });
+				}
+				if (match.start < descEndInPath && descStartInPath < match.end) {
+					descriptionMatch.push({ start: Math.max(0, match.start - descStartInPath), end: Math.min(descEndInPath, match.end) - descStartInPath });
+				}
+			}
+
+			itemScore = { score: pathScore, labelMatch, descriptionMatch };
+		}
+	}
+
+	return itemScore;
 }
 
 function createMatches(offsets: number[] | undefined): IMatch[] {

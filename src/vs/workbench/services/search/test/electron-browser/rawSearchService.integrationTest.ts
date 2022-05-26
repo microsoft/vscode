@@ -244,6 +244,38 @@ flakySuite('RawSearchService', () => {
 		assert.deepStrictEqual(results, [path.normalize('/some/where/bbc'), path.normalize('/some/where/bab')]);
 	});
 
+	test('Sorted results match on absolute path', async function () {
+		const paths = ['foo/bab', 'foo/bbc', 'foo/abb'];
+		const matches: IRawFileMatch[] = paths.map(relativePath => ({
+			base: path.normalize('/some/where'),
+			relativePath,
+			basename: relativePath,
+			size: 3,
+			searchPath: undefined
+		}));
+		const Engine = TestSearchEngine.bind(null, () => matches.shift()!);
+		const service = new RawSearchService();
+
+		const results: any[] = [];
+		const cb: IProgressCallback = value => {
+			if (Array.isArray(value)) {
+				results.push(...value.map(v => v.path));
+			} else {
+				assert.fail(JSON.stringify(value));
+			}
+		};
+
+		await service.doFileSearchWithEngine(Engine, {
+			type: QueryType.File,
+			folderQueries: TEST_FOLDER_QUERIES,
+			filePattern: '/some/where/bb',
+			sortByScore: true,
+			maxResults: 2
+		}, cb, undefined, 1);
+		assert.notStrictEqual(typeof TestSearchEngine.last.config!.maxResults, 'number');
+		assert.deepStrictEqual(results, [path.normalize('/some/where/foo/bbc'), path.normalize('/some/where/foo/abb')]);
+	});
+
 	test('Sorted result batches', async function () {
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);

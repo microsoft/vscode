@@ -205,7 +205,7 @@ flakySuite('FileSearchEngine', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.strictEqual(count, 7);
+			assert.strictEqual(count, 11);
 			done();
 		});
 	});
@@ -224,7 +224,7 @@ flakySuite('FileSearchEngine', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.strictEqual(count, 3);
+			assert.strictEqual(count, 7);
 			done();
 		});
 	});
