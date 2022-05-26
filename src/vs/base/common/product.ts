@@ -74,6 +74,7 @@ export interface IProductConfiguration {
 		readonly resourceUrlTemplate: string;
 		readonly controlUrl: string;
 		readonly recommendationsUrl: string;
+		readonly nlsBaseUrl: string;
 	};
 
 	readonly extensionTips?: { [id: string]: string };
