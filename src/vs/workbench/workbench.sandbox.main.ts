@@ -83,6 +83,7 @@ import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
 import 'vs/workbench/services/search/electron-sandbox/searchService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
+import 'vs/workbench/services/localization/electron-sandbox/localeService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';

@@ -24,10 +24,11 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { ConfigureLocaleAction } from 'vs/workbench/contrib/localization/browser/localizationsActions';
+import { ClearDisplayLanguageAction, ConfigureDisplayLanguageAction } from 'vs/workbench/contrib/localization/browser/localizationsActions';
 
 // Register action to configure locale and related settings
-registerAction2(ConfigureLocaleAction);
+registerAction2(ConfigureDisplayLanguageAction);
+registerAction2(ClearDisplayLanguageAction);
 
 const LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY = 'extensionsAssistant/languagePackSuggestionIgnore';
 
@@ -195,14 +196,13 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	}
 
-	private isLanguageInstalled(language: string | undefined): Promise<boolean> {
-		return this.extensionManagementService.getInstalled()
-			.then(installed => installed.some(i =>
-				!!(i.manifest
-					&& i.manifest.contributes
-					&& i.manifest.contributes.localizations
-					&& i.manifest.contributes.localizations.length
-					&& i.manifest.contributes.localizations.some(l => l.languageId.toLowerCase() === language))));
+	private async isLanguageInstalled(language: string | undefined): Promise<boolean> {
+		const installed = await this.extensionManagementService.getInstalled();
+		return installed.some(i => !!(i.manifest
+			&& i.manifest.contributes
+			&& i.manifest.contributes.localizations
+			&& i.manifest.contributes.localizations.length
+			&& i.manifest.contributes.localizations.some(l => l.languageId.toLowerCase() === language)));
 	}
 
 	private installExtension(extension: IGalleryExtension): Promise<void> {
