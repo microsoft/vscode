@@ -82,14 +82,11 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 			const selectedLanguage = qp.activeItems[0];
 			qp.hide();
 
-			if (
-				// Only Desktop has the concept of installing language packs so we only do this for Desktop
-				!isWeb &&
-				// Only if the language pack is not installed
-				!(await extensionManagementService.getInstalled()).find(e => e.identifier.id === selectedLanguage.extensionId)
-			) {
-				// install language pack
+			// Only Desktop has the concept of installing language packs so we only do this for Desktop
+			// and only if the language pack is not installed
+			if (!isWeb && !installedSet.has(selectedLanguage.id!)) {
 				try {
+					// Show the view so the user can see the language pack to be installed
 					let viewlet = await paneCompositePartService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar);
 					(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`@id:${selectedLanguage.extensionId}`);
 
