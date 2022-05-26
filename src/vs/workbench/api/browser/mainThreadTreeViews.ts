@@ -14,7 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DataTransferCache } from 'vs/workbench/api/common/shared/dataTransferCache';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
@@ -225,7 +225,7 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
 		const additionalDataTransfer = new VSDataTransfer();
 		additionalDataTransferDTO.items.forEach(([type, item]) => {
-			additionalDataTransfer.setString(type, item.asString);
+			additionalDataTransfer.replace(type, createStringDataTransferItem(item.asString));
 		});
 		return additionalDataTransfer;
 	}

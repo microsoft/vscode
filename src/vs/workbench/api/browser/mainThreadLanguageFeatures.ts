@@ -5,7 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -385,7 +385,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 					const dataTransferOut = new VSDataTransfer();
 					result.items.forEach(([type, item]) => {
-						dataTransferOut.setString(type, item.asString);
+						dataTransferOut.replace(type, createStringDataTransferItem(item.asString));
 					});
 					return dataTransferOut;
 				}

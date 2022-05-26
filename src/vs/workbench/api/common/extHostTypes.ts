@@ -2451,18 +2451,33 @@ export class DataTransferItem {
 
 @es5ClassCompat
 export class DataTransfer {
-	#items = new Map<string, DataTransferItem>();
+	#items = new Map<string, DataTransferItem[]>();
+
+	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
+		for (const [mime, item] of init ?? []) {
+			const existing = this.#items.get(mime);
+			if (existing) {
+				existing.push(item);
+			} else {
+				this.#items.set(mime, [item]);
+			}
+		}
+	}
 
 	get(mimeType: string): DataTransferItem | undefined {
-		return this.#items.get(mimeType);
+		return this.#items.get(mimeType)?.[0];
 	}
 
 	set(mimeType: string, value: DataTransferItem): void {
-		this.#items.set(mimeType, value);
+		// This intentionally overwrites all entries for a given mimetype.
+		// This is similar to how the DOM DataTransfer type works
+		this.#items.set(mimeType, [value]);
 	}
 
 	forEach(callbackfn: (value: DataTransferItem, key: string) => void): void {
-		this.#items.forEach(callbackfn);
+		for (const [mime, items] of this.#items) {
+			items.forEach(item => callbackfn(item, mime));
+		}
 	}
 }
 
