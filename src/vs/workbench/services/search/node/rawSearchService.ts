@@ -417,6 +417,9 @@ const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> 
 	}
 
 	getItemPath(match: IRawFileMatch): string {
+		if (match.base) {
+			return join(match.base, match.relativePath);  // e.g. /home/user/some/path/to/file/myFile.txt
+		}
 		return match.relativePath; // e.g. some/path/to/file/myFile.txt
 	}
 };

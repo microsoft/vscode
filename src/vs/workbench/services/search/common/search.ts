@@ -558,7 +558,14 @@ export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg i
 
 export function isFilePatternMatch(candidate: IRawFileMatch, normalizedFilePatternLowercase: string): boolean {
 	const pathToMatch = candidate.searchPath ? candidate.searchPath : candidate.relativePath;
-	return fuzzyContains(pathToMatch, normalizedFilePatternLowercase);
+	if (fuzzyContains(pathToMatch, normalizedFilePatternLowercase)) {
+		return true;
+	}
+	// Also try matching against the absolute path of the file.
+	if (candidate.base) {
+		return fuzzyContains(paths.join(candidate.base, candidate.relativePath), normalizedFilePatternLowercase);
+	}
+	return false;
 }
 
 export interface ISerializedFileMatch {
