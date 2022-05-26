@@ -1516,14 +1516,6 @@ export class CommandCenter {
 			opts.signoff = true;
 		}
 
-		if (config.get<boolean>('useEditorAsCommitInput')) {
-			opts.useEditor = true;
-
-			if (config.get<boolean>('verboseCommit')) {
-				opts.verbose = true;
-			}
-		}
-
 		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges');
 
 		if (
@@ -1571,7 +1563,7 @@ export class CommandCenter {
 
 		let message = await getCommitMessage();
 
-		if (!message && !opts.amend && !opts.useEditor) {
+		if (!message && !opts.amend) {
 			return false;
 		}
 
@@ -1631,13 +1623,10 @@ export class CommandCenter {
 
 	private async commitWithAnyInput(repository: Repository, opts?: CommitOptions): Promise<void> {
 		const message = repository.inputBox.value;
-		const root = Uri.file(repository.root);
-		const config = workspace.getConfiguration('git', root);
-
 		const getCommitMessage = async () => {
 			let _message: string | undefined = message;
 
-			if (!_message && !config.get<boolean>('useEditorAsCommitInput')) {
+			if (!_message) {
 				let value: string | undefined = undefined;
 
 				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
@@ -3021,7 +3010,7 @@ export class CommandCenter {
 				};
 
 				let message: string;
-				let type: 'error' | 'warning' | 'information' = 'error';
+				let type: 'error' | 'warning' = 'error';
 
 				const choices = new Map<string, () => void>();
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
@@ -3084,12 +3073,6 @@ export class CommandCenter {
 						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
 						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-setup-git')));
 						break;
-					case GitErrorCodes.EmptyCommitMessage:
-						message = localize('empty commit', "Commit operation was cancelled due to empty commit message.");
-						choices.clear();
-						type = 'information';
-						options.modal = false;
-						break;
 					default: {
 						const hint = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
@@ -3111,20 +3094,10 @@ export class CommandCenter {
 					return;
 				}
 
-				let result: string | undefined;
 				const allChoices = Array.from(choices.keys());
-
-				switch (type) {
-					case 'error':
-						result = await window.showErrorMessage(message, options, ...allChoices);
-						break;
-					case 'warning':
-						result = await window.showWarningMessage(message, options, ...allChoices);
-						break;
-					case 'information':
-						result = await window.showInformationMessage(message, options, ...allChoices);
-						break;
-				}
+				const result = type === 'error'
+					? await window.showErrorMessage(message, options, ...allChoices)
+					: await window.showWarningMessage(message, options, ...allChoices);
 
 				if (result) {
 					const resultFn = choices.get(result);

@@ -13,9 +13,7 @@
     "diffCommand",
     "contribMergeEditorToolbar",
     "contribViewsWelcome",
-    "resolvers",
     "scmActionButton",
-    "scmInput",
     "scmSelectedProvider",
     "scmValidation",
     "timeline"
@@ -215,99 +213,83 @@
         "command": "git.commit",
         "title": "%command.commit%",
         "category": "Git",
-        "icon": "$(check)",
-        "enablement": "!commitInProgress"
+        "icon": "$(check)"
       },
       {
         "command": "git.commitStaged",
         "title": "%command.commitStaged%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitEmpty",
         "title": "%command.commitEmpty%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitStagedSigned",
         "title": "%command.commitStagedSigned%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitStagedAmend",
         "title": "%command.commitStagedAmend%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitAll",
         "title": "%command.commitAll%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitAllSigned",
         "title": "%command.commitAllSigned%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitAllAmend",
         "title": "%command.commitAllAmend%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitNoVerify",
         "title": "%command.commitNoVerify%",
         "category": "Git",
-        "icon": "$(check)",
-        "enablement": "!commitInProgress"
+        "icon": "$(check)"
       },
       {
         "command": "git.commitStagedNoVerify",
         "title": "%command.commitStagedNoVerify%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitEmptyNoVerify",
         "title": "%command.commitEmptyNoVerify%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitStagedSignedNoVerify",
         "title": "%command.commitStagedSignedNoVerify%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitStagedAmendNoVerify",
         "title": "%command.commitStagedAmendNoVerify%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitAllNoVerify",
         "title": "%command.commitAllNoVerify%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitAllSignedNoVerify",
         "title": "%command.commitAllSignedNoVerify%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.commitAllAmendNoVerify",
         "title": "%command.commitAllAmendNoVerify%",
-        "category": "Git",
-        "enablement": "!commitInProgress"
+        "category": "Git"
       },
       {
         "command": "git.restoreCommitTemplate",
@@ -2016,18 +1998,6 @@
           "default": null,
           "scope": "machine",
           "description": "%config.defaultCloneDirectory%"
-        },
-        "git.useEditorAsCommitInput": {
-          "type": "boolean",
-          "scope": "resource",
-          "description": "%config.useEditorAsCommitInput%",
-          "default": false
-        },
-        "git.verboseCommit": {
-          "type": "boolean",
-          "scope": "resource",
-          "markdownDescription": "%config.verboseCommit%",
-          "default": false
         },
         "git.enableSmartCommit": {
           "type": "boolean",

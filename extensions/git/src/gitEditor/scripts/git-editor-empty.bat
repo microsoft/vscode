@@ -1,1 +1,0 @@
-@ECHO off
