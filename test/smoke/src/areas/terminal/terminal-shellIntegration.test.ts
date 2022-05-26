@@ -29,7 +29,7 @@ export function setup() {
 		}
 
 		describe('Shell integration', function () {
-			(process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
+			(process.platform === 'linux' || process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
 				describe('Should show default icons', function () {
 					it('Placeholder', async () => {
 						await createShellIntegrationProfile();
@@ -40,7 +40,7 @@ export function setup() {
 						await terminal.runCommandInTerminal(`ls`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
 					});
-					(process.platform === 'linux' ? it.skip : it)('Error', async () => {
+					it('Error', async () => {
 						await createShellIntegrationProfile();
 						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
