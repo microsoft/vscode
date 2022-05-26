@@ -31,7 +31,7 @@ import { isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import 'vs/css!./media/views';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Command } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -66,7 +66,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
-import { CodeDataTransfers, FileAdditionalNativeProperties } from 'vs/platform/dnd/browser/dnd';
+import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
+import { createFileDataTransferItemFromFile } from 'vs/editor/browser/dnd';
 
 export class TreeViewPane extends ViewPane {
 
@@ -1524,7 +1525,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 							}
 							if (dataValue) {
 								const converted = this.convertKnownMimes(type, kind, dataValue);
-								treeDataTransfer.setString(converted.type, converted.value + '');
+								treeDataTransfer.append(converted.type, createStringDataTransferItem(converted.value + ''));
 							}
 							resolve();
 						}));
@@ -1532,11 +1533,8 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 					const file = dataItem.getAsFile();
 					if (file) {
 						uris.push(URI.file(file.path));
-						const uri = (file as FileAdditionalNativeProperties).path ? URI.parse((file as FileAdditionalNativeProperties).path!) : undefined;
 						if (dndController.supportsFileDataTransfers) {
-							treeDataTransfer.setFile(type, file.name, uri, async () => {
-								return new Uint8Array(await file.arrayBuffer());
-							});
+							treeDataTransfer.append(type, createFileDataTransferItemFromFile(file));
 						}
 					}
 				}
@@ -1545,7 +1543,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 		// Check if there are uris to add and add them
 		if (uris.length) {
-			treeDataTransfer.setString(Mimes.uriList, uris.map(uri => uri.toString()).join('\n'));
+			treeDataTransfer.replace(Mimes.uriList, createStringDataTransferItem(uris.map(uri => uri.toString()).join('\n')));
 		}
 
 		const additionalWillDropPromise = this.treeViewsDragAndDropService.removeDragOperationTransfer(willDropUuid);
@@ -1555,7 +1553,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		return additionalWillDropPromise.then(additionalDataTransfer => {
 			if (additionalDataTransfer) {
 				for (const item of additionalDataTransfer.entries()) {
-					treeDataTransfer.set(item[0], item[1]);
+					treeDataTransfer.append(item[0], item[1]);
 				}
 			}
 			return dndController.handleDrop(treeDataTransfer, targetNode, new CancellationTokenSource().token, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);

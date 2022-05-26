@@ -6,7 +6,7 @@
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -103,7 +103,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				for (const result of results) {
 					result?.forEach((value, key) => {
-						dataTransfer.set(key, value);
+						dataTransfer.replace(key, value);
 					});
 				}
 
@@ -148,7 +148,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				if (handle && this._currentClipboardItem?.handle === handle) {
 					const toMergeDataTransfer = await this._currentClipboardItem.dataTransferPromise;
 					toMergeDataTransfer.forEach((value, key) => {
-						dataTransfer.set(key, value);
+						dataTransfer.append(key, value);
 					});
 				}
 
@@ -156,11 +156,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					const resources = await this._clipboardService.readResources();
 					if (resources.length) {
 						const value = resources.join('\n');
-						dataTransfer.set(Mimes.uriList, {
-							value,
-							asString: async () => value,
-							asFile: () => undefined,
-						});
+						dataTransfer.append(Mimes.uriList, createStringDataTransferItem(value));
 					}
 				}
 
