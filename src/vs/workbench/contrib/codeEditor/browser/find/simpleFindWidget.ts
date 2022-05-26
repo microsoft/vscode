@@ -22,6 +22,7 @@ import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import * as strings from 'vs/base/common/strings';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find (\u21C5 for history)");
@@ -80,9 +81,9 @@ export abstract class SimpleFindWidget extends Widget {
 			},
 			appendCaseSensitiveLabel: options.appendCaseSensitiveLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindCaseSensitive) : undefined,
 			appendRegexLabel: options.appendRegexLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindRegex) : undefined,
-			appendWholeWordsLabel: options.appendWholeWordsLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindWholeWord) : undefined
+			appendWholeWordsLabel: options.appendWholeWordsLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindWholeWord) : undefined,
+			showHistoryHint: () => showHistoryKeybindingHint(_keybindingService)
 		}, contextKeyService, options.showOptionButtons));
-
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 

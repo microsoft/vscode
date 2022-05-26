@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { assertThrowsAsync } from 'vs/base/test/common/utils';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -20,7 +21,7 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService, IResolvedNotebookKernel, ISelectedNotebooksChangeEvent, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService, ISelectedNotebooksChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
@@ -40,6 +41,16 @@ suite('NotebookExecutionService', () => {
 			override onDidAddNotebookDocument = Event.None;
 			override onWillRemoveNotebookDocument = Event.None;
 			override getNotebookTextModels() { return []; }
+		});
+
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu() {
+				return new class extends mock<IMenu>() {
+					override onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose() { }
+				};
+			}
 		});
 
 		kernelService = instantiationService.createInstance(NotebookKernelService);
@@ -166,8 +177,7 @@ suite('NotebookExecutionService', () => {
 	});
 });
 
-class TestNotebookKernel implements IResolvedNotebookKernel {
-	type: NotebookKernelType.Resolved = NotebookKernelType.Resolved;
+class TestNotebookKernel implements INotebookKernel {
 	id: string = 'test';
 	label: string = '';
 	viewType = '*';
@@ -185,8 +195,10 @@ class TestNotebookKernel implements IResolvedNotebookKernel {
 	cancelNotebookCellExecution(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-
 	constructor(opts?: { languages: string[] }) {
 		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];
 	}
+	kind?: string | undefined;
+	implementsInterrupt?: boolean | undefined;
+	implementsExecutionOrder?: boolean | undefined;
 }

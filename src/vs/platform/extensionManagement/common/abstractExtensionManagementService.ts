@@ -363,13 +363,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
 		}
 
-		const deprecated = report.deprecated[extension.identifier.id.toLowerCase()];
-		if (deprecated?.disallowInstall) {
-			const message = deprecated.extension ? nls.localize('unsupported extension with alternative', "Can't install '{0}' extension because it is deprecated. Use {1} extension instead.", extension.identifier.id, deprecated.extension.displayName)
-				: nls.localize('unsupported extension without alternative and no message', "Can't install '{0}' extension because it is deprecated.", extension.identifier.id);
-			throw new ExtensionManagementError(message, ExtensionManagementErrorCode.Deprecated);
-		}
-
 		if (!await this.canInstall(extension)) {
 			const targetPlatform = await this.getTargetPlatform();
 			throw new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.IncompatibleTargetPlatform);
@@ -623,6 +616,7 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 	const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ExtensionManagementErrorCode.Internal : undefined;
 	/* __GDPR__
 		"extensionGallery:install" : {
+			"owner": "sandy081",
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"durationSinceUpdate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -635,6 +629,7 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 	*/
 	/* __GDPR__
 		"extensionGallery:uninstall" : {
+			"owner": "sandy081",
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
@@ -645,6 +640,7 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 	*/
 	/* __GDPR__
 		"extensionGallery:update" : {
+			"owner": "sandy081",
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },

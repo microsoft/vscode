@@ -11,8 +11,11 @@
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enabledApiProposals": [
     "diffCommand",
+    "contribMergeEditorToolbar",
     "contribViewsWelcome",
+    "resolvers",
     "scmActionButton",
+    "scmInput",
     "scmSelectedProvider",
     "scmValidation",
     "timeline"
@@ -22,7 +25,8 @@
   ],
   "activationEvents": [
     "*",
-    "onFileSystem:git"
+    "onFileSystem:git",
+    "onFileSystem:git-show"
   ],
   "extensionDependencies": [
     "vscode.git-base"
@@ -211,83 +215,99 @@
         "command": "git.commit",
         "title": "%command.commit%",
         "category": "Git",
-        "icon": "$(check)"
+        "icon": "$(check)",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStaged",
         "title": "%command.commitStaged%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitEmpty",
         "title": "%command.commitEmpty%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStagedSigned",
         "title": "%command.commitStagedSigned%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStagedAmend",
         "title": "%command.commitStagedAmend%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAll",
         "title": "%command.commitAll%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAllSigned",
         "title": "%command.commitAllSigned%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAllAmend",
         "title": "%command.commitAllAmend%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitNoVerify",
         "title": "%command.commitNoVerify%",
         "category": "Git",
-        "icon": "$(check)"
+        "icon": "$(check)",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStagedNoVerify",
         "title": "%command.commitStagedNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitEmptyNoVerify",
         "title": "%command.commitEmptyNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStagedSignedNoVerify",
         "title": "%command.commitStagedSignedNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStagedAmendNoVerify",
         "title": "%command.commitStagedAmendNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAllNoVerify",
         "title": "%command.commitAllNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAllSignedNoVerify",
         "title": "%command.commitAllSignedNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAllAmendNoVerify",
         "title": "%command.commitAllAmendNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.restoreCommitTemplate",
@@ -564,6 +584,11 @@
         "command": "git.api.getRemoteSources",
         "title": "%command.api.getRemoteSources%",
         "category": "Git API"
+      },
+      {
+        "command": "git.acceptMerge",
+        "title": "%command.git.acceptMerge%",
+        "category": "Git"
       }
     ],
     "keybindings": [
@@ -1490,6 +1515,12 @@
           "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         }
       ],
+      "merge/toolbar": [
+        {
+          "command": "git.acceptMerge",
+          "when": "isMergeEditor"
+        }
+      ],
       "scm/change/title": [
         {
           "command": "git.stageChange",
@@ -1986,6 +2017,18 @@
           "scope": "machine",
           "description": "%config.defaultCloneDirectory%"
         },
+        "git.useEditorAsCommitInput": {
+          "type": "boolean",
+          "scope": "resource",
+          "description": "%config.useEditorAsCommitInput%",
+          "default": false
+        },
+        "git.verboseCommit": {
+          "type": "boolean",
+          "scope": "resource",
+          "markdownDescription": "%config.verboseCommit%",
+          "default": false
+        },
         "git.enableSmartCommit": {
           "type": "boolean",
           "scope": "resource",
@@ -2431,6 +2474,12 @@
             "%config.logLevel.off%"
           ],
           "markdownDescription": "%config.logLevel%",
+          "scope": "window"
+        },
+        "git.experimental.mergeEditor": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.experimental.mergeEditor%",
           "scope": "window"
         }
       }

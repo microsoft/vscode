@@ -237,6 +237,19 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
 
+	@memoize
+	get policyFile(): URI | undefined {
+		if (this.args['__enable-file-policy']) {
+			const vscodePortable = env['VSCODE_PORTABLE'];
+			if (vscodePortable) {
+				return URI.file(join(vscodePortable, 'policy.json'));
+			}
+
+			return joinPath(this.userHome, this.productService.dataFolderName, 'policy.json');
+		}
+		return undefined;
+	}
+
 	get args(): NativeParsedArgs { return this._args; }
 
 	constructor(

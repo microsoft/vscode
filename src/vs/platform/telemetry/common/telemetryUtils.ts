@@ -84,8 +84,10 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
 			type UpdateConfigurationClassification = {
-				configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				owner: 'lramos15, sbatten';
+				comment: 'Event which fires when user updates telemetry configuration';
+				configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
+				configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
 			};
 			type UpdateConfigurationEvent = {
 				configurationSource: string;

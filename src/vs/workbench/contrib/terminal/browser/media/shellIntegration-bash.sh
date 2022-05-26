@@ -96,6 +96,7 @@ if [[ -n "$__vsc_original_trap" ]]; then
 fi
 
 __vsc_preexec() {
+	__vsc_status="$?"
 	eval ${__vsc_original_trap}
 	PS1="$__vsc_prior_prompt"
 	if [ -z "${__vsc_in_command_execution-}" ]; then
@@ -110,7 +111,6 @@ __vsc_prompt_cmd_original() {
 	if [[ ${IFS+set} ]]; then
 		__vsc_original_ifs="$IFS"
 	fi
-	__vsc_status="$?"
 	if [[ "$__vsc_original_prompt_command" =~ .+\;.+ ]]; then
 		IFS=';'
 	else
@@ -124,7 +124,7 @@ __vsc_prompt_cmd_original() {
 		unset IFS
 	fi
 	for ((i = 0; i < ${#ADDR[@]}; i++)); do
-		# unset IFS
+		(exit ${__vsc_status})
 		builtin eval ${ADDR[i]}
 	done
 	__vsc_precmd

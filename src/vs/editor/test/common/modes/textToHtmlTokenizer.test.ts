@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EncodedTokenizationResult, ColorId, FontStyle, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
+import { FontStyle, ColorId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeLineToHTML, _tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';

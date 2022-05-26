@@ -14,7 +14,6 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export class NotebookExecutionStateService extends Disposable implements INotebookExecutionStateService {
@@ -28,7 +27,6 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	onDidChangeCellExecution = this._onDidChangeCellExecution.event;
 
 	constructor(
-		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookService private readonly _notebookService: INotebookService,
@@ -91,15 +89,10 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		this._onDidChangeCellExecution.fire(new NotebookExecutionEvent(notebookUri, cellHandle));
 	}
 
-	createCellExecution(controllerId: string, notebookUri: URI, cellHandle: number): INotebookCellExecution {
+	createCellExecution(notebookUri: URI, cellHandle: number): INotebookCellExecution {
 		const notebook = this._notebookService.getNotebookTextModel(notebookUri);
 		if (!notebook) {
 			throw new Error(`Notebook not found: ${notebookUri.toString()}`);
-		}
-
-		const kernel = this._notebookKernelService.getMatchingKernel(notebook);
-		if (!kernel.selected || kernel.selected.id !== controllerId) {
-			throw new Error(`Kernel is not selected: ${kernel.selected?.id} !== ${controllerId}`);
 		}
 
 		let notebookExecutionMap = this._executions.get(notebookUri);

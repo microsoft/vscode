@@ -16,7 +16,8 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "textEditorDrop"
+    "textEditorDrop",
+    "documentPaste"
   ],
   "activationEvents": [
     "onLanguage:markdown",
@@ -414,6 +415,12 @@
           "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
           "scope": "resource"
         },
+        "markdown.experimental.editor.pasteLinks.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.markdown.editor.pasteLinks.enabled%",
+          "scope": "resource"
+        },
         "markdown.experimental.validate.enabled": {
           "type": "boolean",
           "scope": "resource",
@@ -453,10 +460,10 @@
             "error"
           ]
         },
-        "markdown.experimental.validate.fileLinks.skipPaths": {
+        "markdown.experimental.validate.ignoreLinks": {
           "type": "array",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.skipPaths.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.ignoreLinks.description%",
           "items": {
             "type": "string"
           }

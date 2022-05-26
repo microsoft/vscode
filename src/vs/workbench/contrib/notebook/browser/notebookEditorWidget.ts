@@ -49,7 +49,7 @@ import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeg
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BORDER, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, CellRevealType, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
@@ -239,6 +239,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
 	private readonly _onDidRenderOutput = this._register(new Emitter<ICellOutputViewModel>());
 	private readonly onDidRenderOutput = this._onDidRenderOutput.event;
+	private readonly _onDidResizeOutputEmitter = this._register(new Emitter<ICellViewModel>());
+	readonly onDidResizeOutput = this._onDidResizeOutputEmitter.event;
 
 
 	//#endregion
@@ -1130,6 +1132,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				});
 			}
 			type WorkbenchNotebookOpenClassification = {
+				owner: 'rebornix';
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -1241,6 +1244,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				const selection = cellOptions.options?.selection;
 				if (selection) {
 					await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
+				} else if (options?.cellRevealType === CellRevealType.NearTopIfOutsideViewport) {
+					await this.revealNearTopIfOutsideViewportAync(cell);
 				} else {
 					await this.revealInCenterIfOutsideViewportAsync(cell);
 				}
@@ -1395,7 +1400,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			didStartDragMarkupCell: that._didStartDragMarkupCell.bind(that),
 			didDragMarkupCell: that._didDragMarkupCell.bind(that),
 			didDropMarkupCell: that._didDropMarkupCell.bind(that),
-			didEndDragMarkupCell: that._didEndDragMarkupCell.bind(that)
+			didEndDragMarkupCell: that._didEndDragMarkupCell.bind(that),
+			didResizeOutput: that._didResizeOutput.bind(that)
 		}, id, resource, {
 			...this._notebookOptions.computeWebviewOptions(),
 			fontFamily: this._generateFontFamily()
@@ -2024,6 +2030,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._listViewInfoAccessor.revealInCenter(cell);
 	}
 
+	revealNearTopIfOutsideViewportAync(cell: ICellViewModel) {
+		return this._listViewInfoAccessor.revealNearTopIfOutsideViewportAync(cell);
+	}
+
 	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
 		return this._listViewInfoAccessor.revealLineInViewAsync(cell, line);
 	}
@@ -2088,8 +2098,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._listViewInfoAccessor.setHiddenAreas(_ranges);
 	}
 
-	getVisibleRangesPlusViewportBelow(): ICellRange[] {
-		return this._listViewInfoAccessor.getVisibleRangesPlusViewportBelow();
+	getVisibleRangesPlusViewportAboveAndBelow(): ICellRange[] {
+		return this._listViewInfoAccessor.getVisibleRangesPlusViewportAboveAndBelow();
 	}
 
 	setScrollTop(scrollTop: number) {
@@ -2976,6 +2986,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
 			this._dndController?.endExplicitDrag(cell);
+		}
+	}
+
+	private _didResizeOutput(cellId: string): void {
+		const cell = this._getCellById(cellId);
+		if (cell) {
+			this._onDidResizeOutputEmitter.fire(cell);
 		}
 	}
 
