@@ -385,6 +385,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
 		const isCompressionEnabled = () => this.configurationService.getValue<IFilesConfiguration>().explorer.compactFolders;
+		const autoExpandSingleChildren = () => this.configurationService.getValue<IFilesConfiguration>().explorer.autoExpandSingleChildren;
 
 		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
@@ -422,11 +423,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				return true;
 			},
 			autoExpandSingleChildren: (e: unknown) => {
-				console.log(e);
 				if (e instanceof ExplorerItem && (!e.isDirectory) && !getFileNestingSettings(e).expand) {
 					return false;
 				}
-				return true;
+				return isCompressionEnabled() || autoExpandSingleChildren();
 			},
 			expandOnlyOnTwistieClick: (e: unknown) => {
 				if (e instanceof ExplorerItem) {
@@ -447,7 +447,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(this.tree);
 
 		// Bind configuration
-		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders') || e.affectsConfiguration('explorer.autoExpandSingleChildren'));
+		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'));
 		this._register(onDidChangeCompressionConfiguration(_ => this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() })));
 
 		// Bind context keys
