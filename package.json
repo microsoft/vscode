@@ -78,7 +78,7 @@
     "native-watchdog": "1.4.0",
     "node-pty": "0.11.0-beta11",
     "spdlog": "^0.13.0",
-    "tas-client-umd": "0.1.5",
+    "tas-client-umd": "0.1.6",
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.6.1",
     "vscode-policy-watcher": "^1.1.0",
