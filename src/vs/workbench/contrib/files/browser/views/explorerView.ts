@@ -84,10 +84,10 @@ function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerI
 const identityProvider = {
 	getId: (stat: ExplorerItem) => {
 		if (stat instanceof NewExplorerItem) {
-			return `new:${stat.resource}`;
+			return `new:${stat.getId()}`;
 		}
 
-		return stat.resource;
+		return stat.getId();
 	}
 };
 
