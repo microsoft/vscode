@@ -23,7 +23,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label > .monaco-icon-label-container {
-	flex: none; /* helps to show decorations right next to the label and not at the end */
+	flex: initial; /* helps to show decorations right next to the label and not at the end while still preserving text overflow ellipsis */
 }
 
 /* Breadcrumbs */
