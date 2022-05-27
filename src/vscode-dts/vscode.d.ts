@@ -766,8 +766,9 @@ declare module 'vscode' {
 
 		/**
 		 * An optional flag that controls if an {@link TextEditor editor}-tab shows as preview. Preview tabs will
-		 * be replaced and reused until set to stay - either explicitly or through editing. The default behaviour depends
-		 * on the `workbench.editor.enablePreview`-setting.
+		 * be replaced and reused until set to stay - either explicitly or through editing.
+		 *
+		 * *Note* that the flag is ignored if a user has disabled preview editors in settings.
 		 */
 		preview?: boolean;
 
