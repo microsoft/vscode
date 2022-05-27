@@ -29,7 +29,7 @@ import {
 	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, ExtensionStatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
 	RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
 	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
-	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtension
+	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtension, SponsorExtensionAction, SponsorExtensionActionViewItem
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -345,6 +345,7 @@ export class ExtensionEditor extends EditorPane {
 			]),
 			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, false),
 			this.instantiationService.createInstance(SwitchToReleasedVersionAction, false),
+			this.instantiationService.createInstance(SponsorExtensionAction),
 			this.instantiationService.createInstance(ToggleSyncExtensionAction),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
@@ -355,6 +356,9 @@ export class ExtensionEditor extends EditorPane {
 			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof ExtensionDropDownAction) {
 					return action.createActionViewItem();
+				}
+				if (action instanceof SponsorExtensionAction) {
+					return new SponsorExtensionActionViewItem(undefined, action, { icon: true, label: true });
 				}
 				if (action instanceof ActionWithDropDownAction) {
 					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
@@ -977,9 +981,8 @@ export class ExtensionEditor extends EditorPane {
 		if (extension.url && extension.licenseUrl) {
 			resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
 		}
-		if (extension.publisherDomain?.verified) {
-			const publisherDomainUri = URI.parse(extension.publisherDomain.link);
-			resources.push([publisherDomainUri.authority, publisherDomainUri]);
+		if (extension.publisherUrl) {
+			resources.push([extension.publisherDisplayName, extension.publisherUrl]);
 		}
 		if (resources.length) {
 			const resourcesContainer = append(container, $('.resources-container'));

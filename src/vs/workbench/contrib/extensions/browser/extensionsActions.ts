@@ -66,6 +66,9 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { flatten } from 'vs/base/common/arrays';
 import { fromNow } from 'vs/base/common/date';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { Codicon } from 'vs/base/common/codicons';
+import { assertType } from 'vs/base/common/types';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -873,6 +876,46 @@ export class MigrateDeprecatedExtension extends ExtensionAction {
 		await this.extensionsWorkbenchService.uninstall(this.extension);
 		const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: this.extension.deprecationInfo.extension.id, preRelease: this.extension.deprecationInfo?.extension?.preRelease }], CancellationToken.None);
 		await this.extensionsWorkbenchService.install(extension);
+	}
+}
+
+export class SponsorExtensionAction extends ExtensionAction {
+
+	private static readonly EnabledClass = `${SponsorExtensionAction.LABEL_ACTION_CLASS} extension-sponsor`;
+	private static readonly DisabledClass = `${SponsorExtensionAction.EnabledClass} disabled`;
+
+	constructor(
+		@IOpenerService private openerService: IOpenerService,
+	) {
+		super('extensions.sponsor', localize('sponsor', "Sponsor"), SponsorExtensionAction.DisabledClass, false);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = SponsorExtensionAction.DisabledClass;
+		if (this.extension?.publisherSponsorLink) {
+			this.enabled = true;
+			this.class = SponsorExtensionAction.EnabledClass;
+			// this.tooltip = localize('sponsorActionToolTip', "Sponsor this extensions at {0}", this.extension.publisherSponsorLink.toString());
+		}
+	}
+
+	override async run(): Promise<any> {
+		if (this.extension?.publisherSponsorLink) {
+			return this.openerService.open(this.extension.publisherSponsorLink);
+		}
+	}
+}
+
+export class SponsorExtensionActionViewItem extends ActionViewItem {
+	override render(container: HTMLElement): void {
+		super.render(container);
+		assertType(this.label);
+		const sponsorIcon = renderIcon(Codicon.heart);
+		const label = document.createElement('span');
+		label.textContent = this.getAction().label;
+		DOM.reset(this.label, sponsorIcon, label);
 	}
 }
 
@@ -2841,75 +2884,67 @@ export const extensionButtonProminentHoverBackground = registerColor('extensionB
 	hcLight: null
 }, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
 
+registerColor('extensionSponsorButton.background', { light: '#E94AAA', dark: '#E90A91', hcDark: null, hcLight: '#E94AAA' }, localize('extensionSponsorButton.background', "Background color for extension sponsor button."), true);
+registerColor('extensionSponsorButton.hoverBackground', { light: '#E90A91', dark: '#E94AAA', hcDark: null, hcLight: '#E94AAA' }, localize('extensionSponsorButton.hoverBackground', "Background hover color for extension sponsor button."), true);
+
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const foregroundColor = theme.getColor(foreground);
 	if (foregroundColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
 	}
 
 	const buttonBackgroundColor = theme.getColor(buttonBackground);
 	if (buttonBackgroundColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label { background-color: ${buttonBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label { background-color: ${buttonBackgroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label { background-color: ${buttonBackgroundColor}; }`);
 	}
 
 	const buttonForegroundColor = theme.getColor(buttonForeground);
 	if (buttonForegroundColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label { color: ${buttonForegroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label { color: ${buttonForegroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label { color: ${buttonForegroundColor}; }`);
 	}
 
 	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
 	if (buttonHoverBackgroundColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item:hover .action-label.extension-action.label { background-color: ${buttonHoverBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item:hover .action-label.extension-action.label { background-color: ${buttonHoverBackgroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item:hover .action-label.extension-action.label { background-color: ${buttonHoverBackgroundColor}; }`);
 	}
 
 	const extensionButtonProminentBackgroundColor = theme.getColor(extensionButtonProminentBackground);
 	if (extensionButtonProminentBackground) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
 	}
 
 	const extensionButtonProminentForegroundColor = theme.getColor(extensionButtonProminentForeground);
 	if (extensionButtonProminentForeground) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.label.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.label.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.label.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
 	}
 
 	const extensionButtonProminentHoverBackgroundColor = theme.getColor(extensionButtonProminentHoverBackground);
 	if (extensionButtonProminentHoverBackground) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item:hover .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item:hover .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item:hover .action-label.extension-action.label.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
 	}
 
 	const contrastBorderColor = theme.getColor(contrastBorder);
 	if (contrastBorderColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action:not(.disabled) { border: 1px solid ${contrastBorderColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action:not(.disabled) { border: 1px solid ${contrastBorderColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action:not(.disabled) { border: 1px solid ${contrastBorderColor}; }`);
 	}
 
 	const errorColor = theme.getColor(editorErrorForeground);
 	if (errorColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 	}
 
 	const warningColor = theme.getColor(editorWarningForeground);
 	if (warningColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 	}
 
 	const infoColor = theme.getColor(editorInfoForeground);
 	if (infoColor) {
-		collector.addRule(`.extension-list-item .monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 	}
