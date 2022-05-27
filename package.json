@@ -2,9 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.68.0",
   "distro": "19bbe01e3aa85625f35f1fb2df6818a8e491670f",
-  "author": {
-    "name": "Microsoft Corporation"
-  },
+  "author": "Microsoft Corporation",
   "license": "MIT",
   "main": "./out/main",
   "private": true,
@@ -212,10 +210,7 @@
     "xml2js": "^0.4.17",
     "yaserver": "^0.2.0"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
-  },
+  "repository": "https://github.com/microsoft/vscode.git",
   "bugs": {
     "url": "https://github.com/microsoft/vscode/issues"
   },
