@@ -448,10 +448,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.items[index].size = size;
 
 		this.render(lastRenderRange, Math.max(0, this.lastRenderTop + heightDiff), this.lastRenderHeight, undefined, undefined, true);
+		this.setScrollTop(this.lastRenderTop);
 
 		// Must update scrollHeight before scrollTop, in case scrollTop won't fit in the old scrollHeight
 		this.eventuallyUpdateScrollDimensions();
-		this.setScrollTop(this.lastRenderTop);
 
 		if (this.supportDynamicHeights) {
 			this._rerender(this.lastRenderTop, this.lastRenderHeight);
