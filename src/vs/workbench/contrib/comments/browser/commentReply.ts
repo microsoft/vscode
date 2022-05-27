@@ -266,11 +266,22 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._commentFormActions.setActions(menu);
 	}
 
+	private get isReplyExpanded(): boolean {
+		return this.form.classList.contains('expand');
+	}
+
 	private expandReplyArea() {
-		if (!this.form.classList.contains('expand')) {
+		if (!this.isReplyExpanded) {
 			this.form.classList.add('expand');
 			this.commentEditor.focus();
 			this.commentEditor.layout();
+		}
+	}
+
+	private clearAndExpandReplyArea() {
+		if (!this.isReplyExpanded) {
+			this.commentEditor.setValue('');
+			this.expandReplyArea();
 		}
 	}
 
@@ -288,8 +299,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 		this._reviewThreadReplyButton.textContent = this._commentOptions?.prompt || nls.localize('reply', "Reply...");
 		// bind click/escape actions for reviewThreadReplyButton and textArea
-		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'click', _ => this.expandReplyArea()));
-		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.expandReplyArea()));
+		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'click', _ => this.clearAndExpandReplyArea()));
+		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.clearAndExpandReplyArea()));
 
 		commentEditor.onDidBlurEditorWidget(() => {
 			if (commentEditor.getModel()!.getValueLength() === 0 && commentForm.classList.contains('expand')) {

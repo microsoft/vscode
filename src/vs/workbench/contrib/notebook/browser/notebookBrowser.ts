@@ -277,8 +277,15 @@ export interface INotebookDeltaCellStatusBarItems {
 	items: INotebookCellStatusBarItem[];
 }
 
+
+export enum CellRevealType {
+	NearTopIfOutsideViewport,
+	CenterIfOutsideViewport
+}
+
 export interface INotebookEditorOptions extends ITextEditorOptions {
 	readonly cellOptions?: ITextResourceEditorInput;
+	readonly cellRevealType?: CellRevealType;
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
 	readonly viewState?: INotebookEditorViewState;
@@ -442,7 +449,7 @@ export interface INotebookEditor {
 	 */
 	getLayoutInfo(): NotebookLayoutInfo;
 
-	getVisibleRangesPlusViewportBelow(): ICellRange[];
+	getVisibleRangesPlusViewportAboveAndBelow(): ICellRange[];
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).

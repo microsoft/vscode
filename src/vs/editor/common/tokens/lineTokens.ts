@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorId, FontStyle, ILanguageIdCodec, ITokenPresentation, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/languages';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
+import { FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 
 export interface IViewLineTokens {
 	equals(other: IViewLineTokens): boolean;

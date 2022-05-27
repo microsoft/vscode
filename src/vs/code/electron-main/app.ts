@@ -46,7 +46,7 @@ import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
-import { WorkerMainProcessExtensionHostStarter } from 'vs/platform/extensions/electron-main/workerMainProcessExtensionHostStarter';
+import { ExtensionHostStarter } from 'vs/platform/extensions/electron-main/extensionHostStarter';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
@@ -99,6 +99,8 @@ import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { CredentialsNativeMainService } from 'vs/platform/credentials/electron-main/credentialsMainService';
+import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -641,7 +643,7 @@ export class CodeApplication extends Disposable {
 		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
 		// Extension Host Starter
-		services.set(IExtensionHostStarter, new SyncDescriptor(WorkerMainProcessExtensionHostStarter));
+		services.set(IExtensionHostStarter, new SyncDescriptor(ExtensionHostStarter));
 
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
@@ -694,6 +696,11 @@ export class CodeApplication extends Disposable {
 
 		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsMainService), { disableMarshalling: true });
 		this.mainProcessNodeIpcServer.registerChannel('diagnostics', diagnosticsChannel);
+
+		// Policies (main & shared process)
+		const policyChannel = new PolicyChannel(accessor.get(IPolicyService));
+		mainProcessElectronServer.registerChannel('policy', policyChannel);
+		sharedProcessClient.then(client => client.registerChannel('policy', policyChannel));
 
 		// Local Files
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
@@ -1098,7 +1105,7 @@ export class CodeApplication extends Disposable {
 				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of shared process crash to understand the nature of the crash better.' };
 				visible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether shared process window was visible or not.' };
 				shuttingdown: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the application is shutting down when the crash happens.' };
-				owner: 'bpaser';
+				owner: 'bpasero';
 				comment: 'Event which fires whenever an error occurs in the shared process';
 
 			};
@@ -1141,7 +1148,7 @@ export class CodeApplication extends Disposable {
 		// Initialize update service
 		const updateService = accessor.get(IUpdateService);
 		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
-			await updateService.initialize();
+			updateService.initialize();
 		}
 
 		// Start to fetch shell environment (if needed) after window has opened

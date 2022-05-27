@@ -25,12 +25,12 @@ if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
 	:: Run from a built: need to compile all test extensions
 	:: because we run extension tests from their source folders
 	:: and the build bundles extensions into .build webpacked
-	call yarn gulp	compile-extension:vscode-api-tests^
-					compile-extension:markdown-language-features^
-					compile-extension:typescript-language-features^
-					compile-extension:emmet^
-					compile-extension:git^
-					compile-extension-media
+	:: call yarn gulp	compile-extension:vscode-api-tests^
+	::				compile-extension:markdown-language-features^
+	::				compile-extension:typescript-language-features^
+	::				compile-extension:emmet^
+	::				compile-extension:git^
+	::				compile-extension-media
 )
 
 if not exist ".\test\integration\browser\out\index.js" (

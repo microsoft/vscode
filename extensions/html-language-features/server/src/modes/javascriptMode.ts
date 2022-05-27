@@ -8,7 +8,7 @@ import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover,
 	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
-	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext
+	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext, CompletionItemData, isCompletionItemData
 } from './languageModes';
 import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
@@ -19,7 +19,7 @@ import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticT
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
 function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
-	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
+	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
 
 	let currentTextDocument = TextDocument.create('init', 'javascript', 1, '');
 	const jsLanguageService = import(/* webpackChunkName: "javascriptLibs" */ './javascriptLibs').then(libs => {
@@ -52,7 +52,7 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 				};
 			},
 			getCurrentDirectory: () => '',
-			getDefaultLibFileName: (_options: ts.CompilerOptions) => 'es6',
+			getDefaultLibFileName: (_options: ts.CompilerOptions) => 'es2020.full',
 			readFile: (path: string, _encoding?: string | undefined): string | undefined => {
 				if (path === currentTextDocument.uri) {
 					return currentTextDocument.getText();
@@ -66,6 +66,15 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 				} else {
 					return !!libs.loadLibrary(path);
 				}
+			},
+			directoryExists: (path: string): boolean => {
+				// typescript tries to first find libraries in node_modules/@types and node_modules/@typescript
+				// there's no node_modules in our setup
+				if (path.startsWith('node_modules')) {
+					return false;
+				}
+				return true;
+
 			}
 		};
 		return ts.createLanguageService(host);
@@ -122,6 +131,11 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			return {
 				isIncomplete: false,
 				items: completions.entries.map(entry => {
+					const data: CompletionItemData = { // data used for resolving item details (see 'doResolve')
+						languageId,
+						uri: document.uri,
+						offset: offset
+					};
 					return {
 						uri: document.uri,
 						position: position,
@@ -129,23 +143,21 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 						sortText: entry.sortText,
 						kind: convertKind(entry.kind),
 						textEdit: TextEdit.replace(replaceRange, entry.name),
-						data: { // data used for resolving item details (see 'doResolve')
-							languageId,
-							uri: document.uri,
-							offset: offset
-						}
+						data
 					};
 				})
 			};
 		},
 		async doResolve(document: TextDocument, item: CompletionItem): Promise<CompletionItem> {
-			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let details = jsLanguageService.getCompletionEntryDetails(jsDocument.uri, item.data.offset, item.label, undefined, undefined, undefined, undefined);
-			if (details) {
-				item.detail = ts.displayPartsToString(details.displayParts);
-				item.documentation = ts.displayPartsToString(details.documentation);
-				delete item.data;
+			if (isCompletionItemData(item.data)) {
+				const jsDocument = jsDocuments.get(document);
+				const jsLanguageService = await host.getLanguageService(jsDocument);
+				let details = jsLanguageService.getCompletionEntryDetails(jsDocument.uri, item.data.offset, item.label, undefined, undefined, undefined, undefined);
+				if (details) {
+					item.detail = ts.displayPartsToString(details.displayParts);
+					item.documentation = ts.displayPartsToString(details.documentation);
+					delete item.data;
+				}
 			}
 			return item;
 		},

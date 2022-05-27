@@ -15,13 +15,14 @@ import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBo
 import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from 'vs/editor/contrib/find/browser/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, errorForeground, toolbarHoverBackground, toolbarHoverOutline } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, errorForeground, toolbarHoverBackground, toolbarHoverOutline, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import * as strings from 'vs/base/common/strings';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find (\u21C5 for history)");
@@ -80,9 +81,9 @@ export abstract class SimpleFindWidget extends Widget {
 			},
 			appendCaseSensitiveLabel: options.appendCaseSensitiveLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindCaseSensitive) : undefined,
 			appendRegexLabel: options.appendRegexLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindRegex) : undefined,
-			appendWholeWordsLabel: options.appendWholeWordsLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindWholeWord) : undefined
+			appendWholeWordsLabel: options.appendWholeWordsLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindWholeWord) : undefined,
+			showHistoryHint: () => showHistoryKeybindingHint(_keybindingService)
 		}, contextKeyService, options.showOptionButtons));
-
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
@@ -357,6 +358,11 @@ registerThemingParticipant((theme, collector) => {
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
 		collector.addRule(`.monaco-workbench .simple-find-part { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
+	}
+
+	const hcBorder = theme.getColor(contrastBorder);
+	if (hcBorder) {
+		collector.addRule(`.monaco-workbench .simple-find-part { border: 1px solid ${hcBorder}; }`);
 	}
 
 	const error = theme.getColor(errorForeground);

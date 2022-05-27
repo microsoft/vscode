@@ -25,6 +25,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isDark } from 'vs/platform/theme/common/theme';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): IDisposable {
 	const groups = menu.getActions(options);
@@ -125,6 +126,7 @@ function fillInActions(
 export interface IMenuEntryActionViewItemOptions {
 	draggable?: boolean;
 	keybinding?: string;
+	hoverDelegate?: IHoverDelegate;
 }
 
 export class MenuEntryActionViewItem extends ActionViewItem {
@@ -134,14 +136,14 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	private readonly _altKey: ModifierKeyEmitter;
 
 	constructor(
-		_action: MenuItemAction,
+		action: MenuItemAction,
 		options: IMenuEntryActionViewItemOptions | undefined,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextKeyService protected _contextKeyService: IContextKeyService,
 		@IThemeService protected _themeService: IThemeService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon, draggable: options?.draggable, keybinding: options?.keybinding });
+		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: options?.draggable, keybinding: options?.keybinding, hoverDelegate: options?.hoverDelegate });
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
@@ -209,26 +211,24 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	}
 
 	override updateTooltip(): void {
-		if (this.label) {
-			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id, this._contextKeyService);
-			const keybindingLabel = keybinding && keybinding.getLabel();
+		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id, this._contextKeyService);
+		const keybindingLabel = keybinding && keybinding.getLabel();
 
-			const tooltip = this._commandAction.tooltip || this._commandAction.label;
-			let title = keybindingLabel
-				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
-				: tooltip;
-			if (!this._wantsAltCommand && this._menuItemAction.alt?.enabled) {
-				const altTooltip = this._menuItemAction.alt.tooltip || this._menuItemAction.alt.label;
-				const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id, this._contextKeyService);
-				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
-				const altTitleSection = altKeybindingLabel
-					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
-					: altTooltip;
-				title += `\n[${UILabelProvider.modifierLabels[OS].altKey}] ${altTitleSection}`;
-			}
-			this.label.title = title;
-			this.label.setAttribute('aria-label', title);
+		const tooltip = this._commandAction.tooltip || this._commandAction.label;
+		let title = keybindingLabel
+			? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
+			: tooltip;
+		if (!this._wantsAltCommand && this._menuItemAction.alt?.enabled) {
+			const altTooltip = this._menuItemAction.alt.tooltip || this._menuItemAction.alt.label;
+			const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id, this._contextKeyService);
+			const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
+			const altTitleSection = altKeybindingLabel
+				? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
+				: altTooltip;
+
+			title = localize('titleAndKbAndAlt', "{0}\n[{1}] {2}", title, UILabelProvider.modifierLabels[OS].altKey, altTitleSection);
 		}
+		this._applyUpdateTooltip(title);
 	}
 
 	override updateClass(): void {
@@ -481,9 +481,9 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 /**
  * Creates action view items for menu actions or submenu actions.
  */
-export function createActionViewItem(instaService: IInstantiationService, action: IAction, options?: IDropdownMenuActionViewItemOptions): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem | BaseActionViewItem {
+export function createActionViewItem(instaService: IInstantiationService, action: IAction, options?: IDropdownMenuActionViewItemOptions | IMenuEntryActionViewItemOptions): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem | BaseActionViewItem {
 	if (action instanceof MenuItemAction) {
-		return instaService.createInstance(MenuEntryActionViewItem, action, undefined);
+		return instaService.createInstance(MenuEntryActionViewItem, action, options);
 	} else if (action instanceof SubmenuItemAction) {
 		if (action.item.rememberDefaultAction) {
 			return instaService.createInstance(DropdownWithDefaultActionViewItem, action, options);

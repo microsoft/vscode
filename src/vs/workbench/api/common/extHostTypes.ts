@@ -598,6 +598,55 @@ export class TextEdit {
 	}
 }
 
+@es5ClassCompat
+export class NotebookEdit implements vscode.NotebookEdit {
+
+	static isNotebookCellEdit(thing: any): thing is NotebookEdit {
+		if (thing instanceof NotebookEdit) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return NotebookRange.isNotebookRange((<NotebookEdit>thing))
+			&& Array.isArray((<NotebookEdit>thing).newCells);
+	}
+
+	static replaceCells(range: NotebookRange, newCells: NotebookCellData[]): NotebookEdit {
+		return new NotebookEdit(range, newCells);
+	}
+
+	static insertCells(index: number, newCells: vscode.NotebookCellData[]): vscode.NotebookEdit {
+		return new NotebookEdit(new NotebookRange(index, index), newCells);
+	}
+
+	static deleteCells(range: NotebookRange): NotebookEdit {
+		return new NotebookEdit(range, []);
+	}
+
+	static updateCellMetadata(index: number, newMetadata: { [key: string]: any }): NotebookEdit {
+		const edit = new NotebookEdit(new NotebookRange(index, index), []);
+		edit.newCellMetadata = newMetadata;
+		return edit;
+	}
+
+	static updateNotebookMetadata(newMetadata: { [key: string]: any }): NotebookEdit {
+		const edit = new NotebookEdit(new NotebookRange(0, 0), []);
+		edit.newNotebookMetadata = newMetadata;
+		return edit;
+	}
+
+	range: NotebookRange;
+	newCells: NotebookCellData[];
+	newCellMetadata?: { [key: string]: any };
+	newNotebookMetadata?: { [key: string]: any };
+
+	constructor(range: NotebookRange, newCells: NotebookCellData[]) {
+		this.range = range;
+		this.newCells = newCells;
+	}
+}
+
 export class SnippetTextEdit implements vscode.SnippetTextEdit {
 
 	range: vscode.Range;
@@ -741,7 +790,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return this._edits.some(edit => edit._type === FileEditType.Text && edit.uri.toString() === uri.toString());
 	}
 
-	set(uri: URI, edits: TextEdit[]): void {
+	set(uri: URI, edits: TextEdit[] | unknown): void {
 		if (!edits) {
 			// remove all text edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
@@ -753,9 +802,17 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			coalesceInPlace(this._edits);
 		} else {
 			// append edit to the end
-			for (const edit of edits) {
+			for (const edit of edits as TextEdit[] | NotebookEdit[]) {
 				if (edit) {
-					this._edits.push({ _type: FileEditType.Text, uri, edit });
+					if (NotebookEdit.isNotebookCellEdit(edit)) {
+						if (edit.newCellMetadata) {
+							this.replaceNotebookCellMetadata(uri, edit.range.start, edit.newCellMetadata);
+						} else {
+							this.replaceNotebookCells(uri, edit.range, edit.newCells);
+						}
+					} else {
+						this._edits.push({ _type: FileEditType.Text, uri, edit });
+					}
 				}
 			}
 		}
@@ -2385,7 +2442,7 @@ export class DataTransferItem {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
 	}
 
-	asFile(): undefined {
+	asFile(): undefined | vscode.DataTransferFile {
 		return undefined;
 	}
 
@@ -2394,15 +2451,33 @@ export class DataTransferItem {
 
 @es5ClassCompat
 export class DataTransfer {
-	private readonly _items: Map<string, DataTransferItem> = new Map();
+	#items = new Map<string, DataTransferItem[]>();
+
+	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
+		for (const [mime, item] of init ?? []) {
+			const existing = this.#items.get(mime);
+			if (existing) {
+				existing.push(item);
+			} else {
+				this.#items.set(mime, [item]);
+			}
+		}
+	}
+
 	get(mimeType: string): DataTransferItem | undefined {
-		return this._items.get(mimeType);
+		return this.#items.get(mimeType)?.[0];
 	}
+
 	set(mimeType: string, value: DataTransferItem): void {
-		this._items.set(mimeType, value);
+		// This intentionally overwrites all entries for a given mimetype.
+		// This is similar to how the DOM DataTransfer type works
+		this.#items.set(mimeType, [value]);
 	}
+
 	forEach(callbackfn: (value: DataTransferItem, key: string) => void): void {
-		this._items.forEach(callbackfn);
+		for (const [mime, items] of this.#items) {
+			items.forEach(item => callbackfn(item, mime));
+		}
 	}
 }
 

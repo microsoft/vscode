@@ -36,7 +36,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/model';
 
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
+import { Markers } from 'vs/workbench/contrib/markers/common/markers';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -52,9 +52,10 @@ import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
 	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
-	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition, RuntimeType
+	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition, RuntimeType,
+	USER_TASKS_GROUP_KEY
 } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult, USER_TASKS_GROUP_KEY, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
@@ -429,7 +430,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => this.commandService.executeCommand(Constants.TOGGLE_MARKERS_VIEW_ACTION_ID));
+		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => this.commandService.executeCommand(Markers.TOGGLE_MARKERS_VIEW_ACTION_ID));
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.openUserTasks', async () => {
 			const resource = this.getResourceForKind(TaskSourceKind.User);

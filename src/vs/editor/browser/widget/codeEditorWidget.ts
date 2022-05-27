@@ -14,7 +14,7 @@ import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, EmitterOptions, Event, EventDeliveryQueue } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -368,35 +368,42 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._actions[internalAction.id] = internalAction;
 		});
 
-		if (_options.enableDropIntoEditor) {
-			this._register(new dom.DragAndDropObserver(this._domElement, {
-				onDragEnter: () => undefined,
-				onDragOver: e => {
-					const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
-					if (target?.position) {
-						this.showDropIndicatorAt(target.position);
-					}
-				},
-				onDrop: async e => {
-					this.removeDropIndicator();
+		this._register(new dom.DragAndDropObserver(this._domElement, {
+			onDragEnter: () => undefined,
+			onDragOver: e => {
+				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+					return;
+				}
 
-					if (!e.dataTransfer) {
-						return;
-					}
+				const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
+				if (target?.position) {
+					this.showDropIndicatorAt(target.position);
+				}
+			},
+			onDrop: async e => {
+				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+					return;
+				}
 
-					const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
-					if (target?.position) {
-						this._onDropIntoEditor.fire({ position: target.position, event: e });
-					}
-				},
-				onDragLeave: () => {
-					this.removeDropIndicator();
-				},
-				onDragEnd: () => {
-					this.removeDropIndicator();
-				},
-			}));
-		}
+				this.removeDropIndicator();
+
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
+				if (target?.position) {
+					this._onDropIntoEditor.fire({ position: target.position, event: e });
+				}
+			},
+			onDragLeave: () => {
+				this.removeDropIndicator();
+			},
+			onDragEnd: () => {
+				this.removeDropIndicator();
+			},
+		}));
+
 
 		this._codeEditorService.addCodeEditor(this);
 	}
@@ -1253,6 +1260,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 		this._modelData.viewModel.executeCommands(commands, source);
+	}
+
+	public createDecorationsCollection(decorations?: IModelDeltaDecoration[]): EditorDecorationsCollection {
+		return new EditorDecorationsCollection(this, decorations);
 	}
 
 	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
@@ -2127,6 +2138,82 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	public refreshState(): void {
 		if (this._domFocusTracker.refreshState) {
 			this._domFocusTracker.refreshState();
+		}
+	}
+}
+
+class EditorDecorationsCollection implements editorCommon.IEditorDecorationsCollection {
+
+	private _decorationIds: string[] = [];
+	private _isChangingDecorations: boolean = false;
+
+	public get length(): number {
+		return this._decorationIds.length;
+	}
+
+	constructor(
+		private readonly _editor: editorBrowser.ICodeEditor,
+		decorations: IModelDeltaDecoration[] | undefined
+	) {
+		if (Array.isArray(decorations) && decorations.length > 0) {
+			this.set(decorations);
+		}
+	}
+
+	public onDidChange(listener: (e: IModelDecorationsChangedEvent) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable {
+		return this._editor.onDidChangeModelDecorations((e) => {
+			if (this._isChangingDecorations) {
+				return;
+			}
+			listener.call(thisArgs, e);
+		}, disposables);
+	}
+
+	public getRange(index: number): Range | null {
+		if (!this._editor.hasModel()) {
+			return null;
+		}
+		if (index >= this._decorationIds.length) {
+			return null;
+		}
+		return this._editor.getModel().getDecorationRange(this._decorationIds[index]);
+	}
+
+	public getRanges(): Range[] {
+		if (!this._editor.hasModel()) {
+			return [];
+		}
+		const model = this._editor.getModel();
+		const result: Range[] = [];
+		for (const decorationId of this._decorationIds) {
+			const range = model.getDecorationRange(decorationId);
+			if (range) {
+				result.push(range);
+			}
+		}
+		return result;
+	}
+
+	public has(decoration: IModelDecoration): boolean {
+		return this._decorationIds.includes(decoration.id);
+	}
+
+	public clear(): void {
+		if (this._decorationIds.length === 0) {
+			// nothing to do
+			return;
+		}
+		this.set([]);
+	}
+
+	public set(newDecorations: IModelDeltaDecoration[]): void {
+		try {
+			this._isChangingDecorations = true;
+			this._editor.changeDecorations((accessor) => {
+				this._decorationIds = accessor.deltaDecorations(this._decorationIds, newDecorations);
+			});
+		} finally {
+			this._isChangingDecorations = false;
 		}
 	}
 }

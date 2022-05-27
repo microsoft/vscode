@@ -5,7 +5,8 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity } from 'vscode';
+import * as picomatch from 'picomatch';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
@@ -14,7 +15,7 @@ import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
-import { fromGitUri, toGitUri, isGitUri } from './uri';
+import { fromGitUri, toGitUri, isGitUri, toMergeUris } from './uri';
 import { grep, isDescendant, pathEquals, relativePath } from './util';
 import { LogLevel, OutputChannelLogger } from './log';
 import { GitTimelineItem } from './timelineProvider';
@@ -404,6 +405,51 @@ export class CommandCenter {
 		}
 	}
 
+	@command('_git.openMergeEditor')
+	async openMergeEditor(uri: unknown) {
+		if (!(uri instanceof Uri)) {
+			return;
+		}
+		const repo = this.model.getRepository(uri);
+		if (!repo) {
+			return;
+		}
+
+
+		type InputData = { uri: Uri; detail?: string; description?: string };
+		const mergeUris = toMergeUris(uri);
+		let input1: InputData = { uri: mergeUris.ours };
+		let input2: InputData = { uri: mergeUris.theirs };
+
+		try {
+			const [head, mergeHead] = await Promise.all([repo.getCommit('HEAD'), repo.getCommit('MERGE_HEAD')]);
+			// ours (current branch and commit)
+			input1.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
+			input1.description = head.hash.substring(0, 7);
+
+			// theirs
+			input2.detail = mergeHead.refNames.join(', ');
+			input2.description = mergeHead.hash.substring(0, 7);
+
+		} catch (error) {
+			// not so bad, can continue with just uris
+			console.error('FAILED to read HEAD, MERGE_HEAD commits');
+			console.error(error);
+		}
+
+		const options = {
+			ancestor: mergeUris.base,
+			input1,
+			input2,
+			output: uri
+		};
+
+		await commands.executeCommand(
+			'_open.mergeEditor',
+			options
+		);
+	}
+
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
@@ -415,6 +461,7 @@ export class CommandCenter {
 		if (!url) {
 			/* __GDPR__
 				"clone" : {
+					"owner": "lszomoru",
 					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
@@ -440,6 +487,7 @@ export class CommandCenter {
 			if (!uris || uris.length === 0) {
 				/* __GDPR__
 					"clone" : {
+						"owner": "lszomoru",
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -498,6 +546,7 @@ export class CommandCenter {
 
 			/* __GDPR__
 				"clone" : {
+					"owner": "lszomoru",
 					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
@@ -517,6 +566,7 @@ export class CommandCenter {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
 				/* __GDPR__
 					"clone" : {
+						"owner": "lszomoru",
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -526,6 +576,7 @@ export class CommandCenter {
 			} else {
 				/* __GDPR__
 					"clone" : {
+						"owner": "lszomoru",
 						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -1034,6 +1085,34 @@ export class CommandCenter {
 		await this._stageChanges(textEditor, selectedChanges);
 	}
 
+	@command('git.acceptMerge')
+	async acceptMerge(uri: Uri | unknown): Promise<void> {
+		if (!(uri instanceof Uri)) {
+			return;
+		}
+		const repository = this.model.getRepository(uri);
+		if (!repository) {
+			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't belong to any repository`);
+			return;
+		}
+
+		const doc = workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
+		if (!doc) {
+			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't match a document`);
+			return;
+		}
+
+		await doc.save();
+		await repository.add([uri]);
+
+		// TODO@jrieken there isn't a `TabInputTextMerge` instance yet, till now the merge editor
+		// uses the `TabInputText` for the out-resource and we use that to identify and CLOSE the tab
+		const { activeTab } = window.tabGroups.activeTabGroup;
+		if (activeTab && activeTab?.input instanceof TabInputText && activeTab.input.uri.toString() === uri.toString()) {
+			await window.tabGroups.close(activeTab, true);
+		}
+	}
+
 	private async _stageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
@@ -1494,6 +1573,36 @@ export class CommandCenter {
 
 		if (opts.all && config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges') !== 'mixed') {
 			opts.all = 'tracked';
+		}
+
+		// Branch protection
+		const branchProtection = config.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
+		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
+		const branchIsProtected = branchProtection.some(bp => picomatch.isMatch(repository.HEAD?.name ?? '', bp));
+
+		if (branchIsProtected && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
+			const commitToNewBranch = localize('commit to branch', "Commit to a New Branch");
+
+			let pick: string | undefined = commitToNewBranch;
+
+			if (branchProtectionPrompt === 'alwaysPrompt') {
+				const message = localize('confirm branch protection commit', "You are trying to commit to a protected branch and you might not have permission to push your commits to the remote.\n\nHow would you like to proceed?");
+				const commit = localize('commit changes', "Commit Anyway");
+
+				pick = await window.showWarningMessage(message, { modal: true }, commitToNewBranch, commit);
+			}
+
+			if (!pick) {
+				return false;
+			} else if (pick === commitToNewBranch) {
+				const branchName = await this.promptForBranchName(repository);
+
+				if (!branchName) {
+					return false;
+				}
+
+				await repository.branch(branchName, true);
+			}
 		}
 
 		await repository.commit(message, opts);
@@ -2546,6 +2655,21 @@ export class CommandCenter {
 		await commands.executeCommand('revealInExplorer', resourceState.resourceUri);
 	}
 
+	@command('git.revealFileInOS.linux')
+	@command('git.revealFileInOS.mac')
+	@command('git.revealFileInOS.windows')
+	async revealFileInOS(resourceState: SourceControlResourceState): Promise<void> {
+		if (!resourceState) {
+			return;
+		}
+
+		if (!(resourceState.resourceUri instanceof Uri)) {
+			return;
+		}
+
+		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
+	}
+
 	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
 			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
@@ -2874,6 +2998,7 @@ export class CommandCenter {
 
 			/* __GDPR__
 				"git.command" : {
+					"owner": "lszomoru",
 					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/

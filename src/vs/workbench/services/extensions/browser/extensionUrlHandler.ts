@@ -82,6 +82,7 @@ export interface ExtensionUrlHandlerEvent {
 }
 
 export interface ExtensionUrlHandlerClassification extends GDPRClassification<ExtensionUrlHandlerEvent> {
+	owner: 'joaomoreno';
 	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 }
 

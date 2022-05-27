@@ -11,7 +11,7 @@ import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common
 import { IViewModelLines } from 'vs/editor/common/viewModel/viewModelLines';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export interface IDecorationsViewportData {
 	/**

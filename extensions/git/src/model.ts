@@ -143,9 +143,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	private async scanWorkspaceFolders(): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
-
-		// Log repository scan settings
-		this.outputChannelLogger.logTrace(`autoRepositoryDetection="${autoRepositoryDetection}"`);
+		this.outputChannelLogger.logTrace(`[swsf] Scan workspace sub folders. autoRepositoryDetection=${autoRepositoryDetection}`);
 
 		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'subFolders') {
 			return;
@@ -153,6 +151,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 			const root = folder.uri.fsPath;
+			this.outputChannelLogger.logTrace(`[swsf] Workspace folder: ${root}`);
 
 			// Workspace folder children
 			const repositoryScanMaxDepth = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<number>('repositoryScanMaxDepth', 1);
@@ -162,19 +161,25 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 			// Repository scan folders
 			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
+			this.outputChannelLogger.logTrace(`[swsf] Workspace scan settings: repositoryScanMaxDepth=${repositoryScanMaxDepth}; repositoryScanIgnoredFolders=[${repositoryScanIgnoredFolders.join(', ')}]; scanRepositories=[${scanPaths.join(', ')}]`);
+
 			for (const scanPath of scanPaths) {
 				if (scanPath === '.git') {
+					this.outputChannelLogger.logTrace('[swsf] \'.git\' not supported in \'git.scanRepositories\' setting.');
 					continue;
 				}
 
 				if (path.isAbsolute(scanPath)) {
-					console.warn(localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting."));
+					const notSupportedMessage = localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting.");
+					this.outputChannelLogger.logWarning(notSupportedMessage);
+					console.warn(notSupportedMessage);
 					continue;
 				}
 
 				subfolders.add(path.join(root, scanPath));
 			}
 
+			this.outputChannelLogger.logTrace(`[swsf] Workspace scan sub folders: [${[...subfolders].join(', ')}]`);
 			await Promise.all([...subfolders].map(f => this.openRepository(f)));
 		}));
 	}
@@ -245,6 +250,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
 
 		openRepositoriesToDispose.forEach(r => r.dispose());
+		this.outputChannelLogger.logTrace(`[swf] Scan workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
 		await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
 	}
 
@@ -258,17 +264,20 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			.filter(({ root }) => workspace.getConfiguration('git', root).get<boolean>('enabled') !== true)
 			.map(({ repository }) => repository);
 
+		this.outputChannelLogger.logTrace(`[swf] Scan workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
 		possibleRepositoryFolders.forEach(p => this.openRepository(p.uri.fsPath));
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
 
 	private async onDidChangeVisibleTextEditors(editors: readonly TextEditor[]): Promise<void> {
 		if (!workspace.isTrusted) {
+			this.outputChannelLogger.logTrace('[svte] Workspace is not trusted.');
 			return;
 		}
 
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+		this.outputChannelLogger.logTrace(`[svte] Scan visible text editors. autoRepositoryDetection=${autoRepositoryDetection}`);
 
 		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'openEditors') {
 			return;
@@ -284,16 +293,20 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			const repository = this.getRepository(uri);
 
 			if (repository) {
+				this.outputChannelLogger.logTrace(`[svte] Repository for editor resource ${uri.fsPath} already exists: ${repository.root}`);
 				return;
 			}
 
+			this.outputChannelLogger.logTrace(`[svte] Open repository for editor resource ${uri.fsPath}`);
 			await this.openRepository(path.dirname(uri.fsPath));
 		}));
 	}
 
 	@sequentialize
 	async openRepository(repoPath: string): Promise<void> {
+		this.outputChannelLogger.logTrace(`Opening repository: ${repoPath}`);
 		if (this.getRepository(repoPath)) {
+			this.outputChannelLogger.logTrace(`Repository for path ${repoPath} already exists`);
 			return;
 		}
 
@@ -301,6 +314,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 		const enabled = config.get<boolean>('enabled') === true;
 
 		if (!enabled) {
+			this.outputChannelLogger.logTrace('Git is not enabled');
 			return;
 		}
 
@@ -310,6 +324,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 				fs.accessSync(path.join(repoPath, 'HEAD'), fs.constants.F_OK);
 				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup']);
 				if (result.stderr.trim() === '' && result.stdout.trim() === '') {
+					this.outputChannelLogger.logTrace(`Bare repository: ${repoPath}`);
 					return;
 				}
 			} catch {
@@ -324,12 +339,15 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			// case insensitive file systems
 			// https://github.com/microsoft/vscode/issues/33498
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
+			this.outputChannelLogger.logTrace(`Repository root: ${repositoryRoot}`);
 
 			if (this.getRepository(repositoryRoot)) {
+				this.outputChannelLogger.logTrace(`Repository for path ${repositoryRoot} already exists`);
 				return;
 			}
 
 			if (this.shouldRepositoryBeIgnored(rawRoot)) {
+				this.outputChannelLogger.logTrace(`Repository for path ${repositoryRoot} is ignored`);
 				return;
 			}
 
@@ -345,6 +363,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 						this.showRepoOnHomeDriveRootWarning = false;
 					}
 
+					this.outputChannelLogger.logTrace(`Repository for path ${repositoryRoot} is on the root of the HOMEDRIVE`);
 					return;
 				}
 			}

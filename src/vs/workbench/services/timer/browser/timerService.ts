@@ -514,6 +514,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		// report IStartupMetrics as telemetry
 		/* __GDPR__
 			"startupTimeVaried" : {
+				"owner": "jrieken",
 				"${include}": [
 					"${IStartupMetrics}"
 				]
