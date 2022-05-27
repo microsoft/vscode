@@ -408,15 +408,42 @@
 	box-sizing: border-box;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .additional-details-title {
-	font-size: 120%;
+.extension-editor > .body > .content > .details > .additional-details-container .additional-details-element:not(:first-child) {
+	padding-top: 15px;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories,
-.extension-editor > .body > .content > .details > .additional-details-container .tags-container > .tags,
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources,
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info {
-	margin: 15px 0px;
+.extension-editor > .body > .content > .details > .additional-details-container .additional-details-element {
+	padding-bottom: 15px;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .additional-details-element:not(:last-child) {
+	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .additional-details-element > .additional-details-title {
+	font-size: 120%;
+	padding-bottom: 15px;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container .extension-sponsor-container {
+	margin-top: 5px;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container .extension-sponsor-container > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
+	border-radius: 0px;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+.extension-editor>.body>.content>.details>.additional-details-container .resources-container .extension-sponsor-container>.monaco-action-bar>.actions-container>.action-item {
+	width: 100%;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container .extension-sponsor-container > .monaco-action-bar > .actions-container > .action-item .extension-action.extension-sponsor {
+	padding-top: 2px;
+	padding-bottom: 2px;
+	max-width: 150px;
+	justify-content: center;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category,
