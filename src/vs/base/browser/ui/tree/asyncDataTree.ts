@@ -286,7 +286,7 @@ export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncData
 	readonly collapseByDefault?: { (e: T): boolean };
 	readonly identityProvider?: IIdentityProvider<T>;
 	readonly sorter?: ITreeSorter<T>;
-	readonly autoExpandSingleChildren?: boolean;
+	readonly autoExpandSingleChildren?: { (e: T): boolean } | boolean;
 }
 
 export interface IAsyncDataTreeViewState {
@@ -319,7 +319,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly refreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<Iterable<T>>>();
 
 	protected readonly identityProvider?: IIdentityProvider<T>;
-	private readonly autoExpandSingleChildren: boolean;
+	private readonly autoExpandSingleChildren: boolean | { (e: T): boolean };
 
 	private readonly _onDidRender = new Emitter<void>();
 	protected readonly _onDidChangeNodeSlowState = new Emitter<IAsyncDataTreeNode<TInput, T>>();
@@ -929,8 +929,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		// TODO@joao this doesn't take filter into account
 		if (node !== this.root && this.autoExpandSingleChildren && children.length === 1 && childrenToRefresh.length === 0) {
-			children[0].collapsedByDefault = false;
-			childrenToRefresh.push(children[0]);
+			if (typeof this.autoExpandSingleChildren !== 'function' || this.autoExpandSingleChildren(node.children[0].element as T)) {
+				children[0].collapsedByDefault = false;
+				childrenToRefresh.push(children[0]);
+			}
 		}
 
 		return childrenToRefresh;

@@ -385,7 +385,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
 		const isCompressionEnabled = () => this.configurationService.getValue<IFilesConfiguration>().explorer.compactFolders;
-		const autoExpandSingleChildren = () => this.configurationService.getValue<IFilesConfiguration>().explorer.autoExpandSingleChildren;
 
 		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
@@ -422,7 +421,13 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				}
 				return true;
 			},
-			autoExpandSingleChildren: autoExpandSingleChildren(),
+			autoExpandSingleChildren: (e: unknown) => {
+				console.log(e);
+				if (e instanceof ExplorerItem && (!e.isDirectory) && !getFileNestingSettings(e).expand) {
+					return false;
+				}
+				return true;
+			},
 			expandOnlyOnTwistieClick: (e: unknown) => {
 				if (e instanceof ExplorerItem) {
 					if (e.hasNests) {
