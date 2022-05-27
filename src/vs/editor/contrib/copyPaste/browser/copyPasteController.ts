@@ -12,7 +12,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { generateUuid } from 'vs/base/common/uuid';
 import { toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { DocumentPasteEditProvider, SnippetTextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
@@ -25,20 +25,22 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 const vscodeClipboardMime = 'application/vnd.code.copyId';
 
-class DefaultPasteEditProvider implements DocumentPasteEditProvider {
-
+const defaultPasteEditProvider = new class implements DocumentPasteEditProvider {
 	async provideDocumentPasteEdits(model: ITextModel, selection: Selection, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<WorkspaceEdit | undefined> {
 		const textDataTransfer = dataTransfer.get(Mimes.text) ?? dataTransfer.get('text');
 		if (textDataTransfer) {
 			const text = await textDataTransfer.asString();
 			return {
-				edits: [new ResourceTextEdit(model.uri, { range: selection, text })]
+				edits: [{
+					resource: model.uri,
+					edit: { range: selection, text },
+				}]
 			};
 		}
 
 		return undefined;
 	}
-}
+};
 
 export class CopyPasteController extends Disposable implements IEditorContribution {
 
@@ -65,8 +67,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		super();
 
 		this._editor = editor;
-
-		this._languageFeaturesService.documentPasteEditProvider.register('*', new DefaultPasteEditProvider());
 
 		const container = editor.getContainerDomNode();
 
@@ -162,7 +162,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				dataTransfer.delete(vscodeClipboardMime);
 
-				for (const provider of providers) {
+				for (const provider of [...providers, defaultPasteEditProvider]) {
 					const edit = await provider.provideDocumentPasteEdits(model, selection, dataTransfer, tokenSource.token);
 					if (originalDocVersion !== model.getVersionId()) {
 						return;
