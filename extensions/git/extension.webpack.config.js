@@ -13,7 +13,6 @@ module.exports = withDefaults({
 	context: __dirname,
 	entry: {
 		main: './src/main.ts',
-		['askpass-main']: './src/askpass-main.ts',
-		['git-editor-main']: './src/gitEditor/main.ts'
+		['askpass-main']: './src/askpass-main.ts'
 	}
 });

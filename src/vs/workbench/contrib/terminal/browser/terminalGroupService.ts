@@ -229,14 +229,22 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			this._onDidChangeGroups.fire();
 		}
 
-		// Adjust focus if the group was active
-		if (wasActiveGroup && this.groups.length > 0) {
-			const newIndex = index < this.groups.length ? index : this.groups.length - 1;
-			this.setActiveGroupByIndex(newIndex, true);
-			this.activeInstance?.focus(true);
-		} else if (this.activeGroupIndex >= this.groups.length) {
-			const newIndex = this.groups.length - 1;
-			this.setActiveGroupByIndex(newIndex);
+		if (wasActiveGroup) {
+			// Adjust focus if the group was active
+			if (this.groups.length > 0) {
+				const newIndex = index < this.groups.length ? index : this.groups.length - 1;
+				this.setActiveGroupByIndex(newIndex, true);
+				this.activeInstance?.focus(true);
+			}
+		} else {
+			// Adjust the active group if the removed group was above the active group
+			if (this.activeGroupIndex > index) {
+				this.setActiveGroupByIndex(this.activeGroupIndex - 1);
+			}
+			// Ensure the active group is still valid
+			if (this.activeGroupIndex >= this.groups.length) {
+				this.setActiveGroupByIndex(this.groups.length - 1);
+			}
 		}
 
 		this._onDidChangeInstances.fire();

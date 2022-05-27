@@ -79,6 +79,16 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 			{ range: [[16, 1], [29, 1]], text: 'http://bar.foo' }
 		]);
 	});
+	test('should detect file:// links with :line suffix', async () => {
+		await assertLink(TerminalBuiltinLinkType.LocalFile, 'file:///c:/folder/file:23', [
+			{ range: [[1, 1], [25, 1]], text: 'file:///c:/folder/file:23' }
+		]);
+	});
+	test('should detect file:// links with :line:col suffix', async () => {
+		await assertLink(TerminalBuiltinLinkType.LocalFile, 'file:///c:/folder/file:23:10', [
+			{ range: [[1, 1], [28, 1]], text: 'file:///c:/folder/file:23:10' }
+		]);
+	});
 	test('should filter out https:// link that exceed 4096 characters', async () => {
 		// 8 + 200 * 10 = 2008 characters
 		await assertLink(TerminalBuiltinLinkType.Url, `https://${'foobarbaz/'.repeat(200)}`, [{

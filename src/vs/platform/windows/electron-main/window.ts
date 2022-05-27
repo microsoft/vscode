@@ -307,7 +307,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.setFullScreen(true);
 				}
 
-				if (!this._win.isVisible()) {
+				if (
+					!this._win.isVisible() ||
+					// TODO@electron: Required condition ever since https://github.com/electron/electron/pull/33536
+					// landed in Electron 17.4.2: calling `window.maximize()` on macOS will wrongly result in
+					// `window.isVisible()` to return `true` even though a different window might still be on top.
+					// As such, we also need to ask for `window.isFocused()` which on macOS will ask whether the
+					// window is a "key" window.
+					(isMacintosh && !this._win.isFocused())
+				) {
 					this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
 				}
 				mark('code/didMaximizeCodeWindow');
@@ -792,7 +800,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.focus({ force: true });
 					this._win.webContents.openDevTools();
 				}
-
 			}, 10000)).schedule();
 		}
 

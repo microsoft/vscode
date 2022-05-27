@@ -29,7 +29,7 @@ export function setup() {
 		}
 
 		describe('Shell integration', function () {
-			(process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
+			(process.platform === 'linux' || process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
 				describe('Should show default icons', function () {
 					it('Placeholder', async () => {
 						await createShellIntegrationProfile();
