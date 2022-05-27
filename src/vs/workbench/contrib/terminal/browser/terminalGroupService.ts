@@ -241,10 +241,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			if (this.activeGroupIndex > index) {
 				this.setActiveGroupByIndex(this.activeGroupIndex - 1);
 			}
-			// Ensure the active group is still valid
-			if (this.activeGroupIndex >= this.groups.length) {
-				this.setActiveGroupByIndex(this.groups.length - 1);
-			}
+		}
+		// Ensure the active group is still valid, this should set the activeGroupIndex to -1 if
+		// there are no groups
+		if (this.activeGroupIndex >= this.groups.length) {
+			this.setActiveGroupByIndex(this.groups.length - 1);
 		}
 
 		this._onDidChangeInstances.fire();
