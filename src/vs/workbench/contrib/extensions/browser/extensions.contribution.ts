@@ -90,7 +90,7 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 	ctor: ManageExtensionsQuickAccessProvider,
 	prefix: ManageExtensionsQuickAccessProvider.PREFIX,
 	placeholder: localize('manageExtensionsQuickAccessPlaceholder', "Press Enter to manage extensions."),
-	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions"), needsEditor: false }]
+	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions") }]
 });
 
 // Editor
@@ -491,7 +491,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				ctor: InstallExtensionQuickAccessProvider,
 				prefix: InstallExtensionQuickAccessProvider.PREFIX,
 				placeholder: localize('installExtensionQuickAccessPlaceholder', "Type the name of an extension to install or search."),
-				helpEntries: [{ description: localize('installExtensionQuickAccessHelp', "Install or Search Extensions"), needsEditor: false }]
+				helpEntries: [{ description: localize('installExtensionQuickAccessHelp', "Install or Search Extensions") }]
 			});
 		}
 	}
