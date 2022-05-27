@@ -223,5 +223,6 @@
   "resolutions": {
     "elliptic": "^6.5.3",
     "nwmatcher": "^1.4.4"
-  }
+  },
+  "packageManager": "yarn@3.2.1"
 }
