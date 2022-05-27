@@ -393,8 +393,7 @@
 															"packages": {
 																"type": "string",
 																"enum": [
-																	"read",
-																	"write"
+																	"read"
 																]
 															},
 															"pages": {
@@ -428,7 +427,6 @@
 															"workflows": {
 																"type": "string",
 																"enum": [
-																	"read",
 																	"write"
 																]
 															}
