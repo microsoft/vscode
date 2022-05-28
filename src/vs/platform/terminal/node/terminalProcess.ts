@@ -97,7 +97,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined
+		overrideDimensions: undefined,
+		failedShellIntegrationActivation: false
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -213,6 +214,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 						await fs.copyFile(f.source, f.dest);
 					}
 				}
+			} else {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.FailedShellIntegrationActivation, value: true });
 			}
 		}
 

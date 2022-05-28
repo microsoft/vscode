@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Terminal, SettingsEditor } from '../../../../automation';
+import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
@@ -24,28 +24,31 @@ export function setup() {
 			await settingsEditor.clearUserSettings();
 		});
 
+		async function createShellIntegrationProfile() {
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, process.platform === 'win32' ? 'PowerShell' : 'bash');
+		}
+
 		describe('Shell integration', function () {
-			// TODO: Fix on Linux, some distros use sh as the default shell in which case shell integration will fail
-			(process.platform === 'win32' || process.platform === 'linux' ? describe.skip : describe)('Decorations', function () {
+			(process.platform === 'linux' || process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
 				describe('Should show default icons', function () {
 					it('Placeholder', async () => {
-						await terminal.createTerminal();
+						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 					});
 					it('Success', async () => {
-						await terminal.createTerminal();
+						await createShellIntegrationProfile();
 						await terminal.runCommandInTerminal(`ls`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
 					});
 					it('Error', async () => {
-						await terminal.createTerminal();
+						await createShellIntegrationProfile();
 						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
 					});
 				});
 				describe('Custom configuration', function () {
 					it('Should update and show custom icons', async () => {
-						await terminal.createTerminal();
+						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 						await terminal.runCommandInTerminal(`ls`);
 						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);

@@ -40,6 +40,19 @@
 		Object.keys(self.webPackagePaths).map(function (key, index) {
 			self.webPackagePaths[key] = `${baseUrl}/node_modules/${key}/${self.webPackagePaths[key]}`;
 		});
+
+		// Set up nls if the user is not using the default language (English)
+		const nlsConfig = {};
+		const locale = navigator.language;
+		if (!locale.startsWith('en')) {
+			nlsConfig['vs/nls'] = {
+				availableLanguages: {
+					'*': locale
+				},
+				baseUrl: '{{WORKBENCH_NLS_BASE_URL}}'
+			};
+		}
+
 		require.config({
 			baseUrl: `${baseUrl}/out`,
 			recordStats: true,
@@ -48,7 +61,8 @@
 					return value;
 				}
 			}),
-			paths: self.webPackagePaths
+			paths: self.webPackagePaths,
+			...nlsConfig
 		});
 	</script>
 	<script>

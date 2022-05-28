@@ -141,7 +141,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 			},
 			f1: true,
 			menu: {
-				id: MenuId.TitleMenu,
+				id: MenuId.CommandCenter,
 				order: 100
 			}
 		});

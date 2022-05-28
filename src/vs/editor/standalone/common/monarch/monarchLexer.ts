@@ -16,6 +16,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 
 const CACHE_STACK_DEPTH = 5;
 
@@ -297,7 +298,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	private readonly _theme: TokenTheme;
 	private _prependTokens: Uint32Array | null;
 	private _tokens: number[];
-	private _currentLanguageId: languages.LanguageId;
+	private _currentLanguageId: LanguageId;
 	private _lastTokenMetadata: number;
 
 	constructor(languageService: ILanguageService, theme: TokenTheme) {
@@ -305,7 +306,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 		this._theme = theme;
 		this._prependTokens = null;
 		this._tokens = [];
-		this._currentLanguageId = languages.LanguageId.Null;
+		this._currentLanguageId = LanguageId.Null;
 		this._lastTokenMetadata = 0;
 	}
 

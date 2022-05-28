@@ -59,6 +59,7 @@ class TestAuthProvider implements AuthenticationProvider {
 	private id = 1;
 	private sessions = new Map<string, AuthenticationSession>();
 	onDidChangeSessions = () => { return { dispose() { } }; };
+	constructor(private readonly authProviderName: string) { }
 	async getSessions(scopes?: readonly string[]): Promise<AuthenticationSession[]> {
 		if (!scopes) {
 			return [...this.sessions.values()];
@@ -76,7 +77,7 @@ class TestAuthProvider implements AuthenticationProvider {
 			scopes,
 			id: `${this.id}`,
 			account: {
-				label: `${this.id}`,
+				label: this.authProviderName,
 				id: `${this.id}`,
 			},
 			accessToken: Math.random() + '',
@@ -118,11 +119,11 @@ suite('ExtHostAuthentication', () => {
 
 	setup(async () => {
 		disposables = new DisposableStore();
-		disposables.add(extHostAuthentication.registerAuthenticationProvider('test', 'test provider', new TestAuthProvider()));
+		disposables.add(extHostAuthentication.registerAuthenticationProvider('test', 'test provider', new TestAuthProvider('test')));
 		disposables.add(extHostAuthentication.registerAuthenticationProvider(
 			'test-multiple',
 			'test multiple provider',
-			new TestAuthProvider(),
+			new TestAuthProvider('test-multiple'),
 			{ supportsMultipleAccounts: true }));
 	});
 
@@ -440,6 +441,64 @@ suite('ExtHostAuthentication', () => {
 		assert.strictEqual(session?.id, '1');
 		assert.strictEqual(session?.scopes[0], 'foo');
 	});
+
+	test('Can get multiple sessions (from different providers) in one extension', async () => {
+		let session: AuthenticationSession | undefined = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			['foo'],
+			{
+				createIfNone: true
+			});
+		session = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test',
+			['foo'],
+			{
+				createIfNone: true
+			});
+		assert.strictEqual(session?.id, '1');
+		assert.strictEqual(session?.scopes[0], 'foo');
+		assert.strictEqual(session?.account.label, 'test');
+
+		const session2 = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			['foo'],
+			{
+				createIfNone: false
+			});
+		assert.strictEqual(session2?.id, '1');
+		assert.strictEqual(session2?.scopes[0], 'foo');
+		assert.strictEqual(session2?.account.label, 'test-multiple');
+	});
+
+	test('Can get multiple sessions (from different providers) in one extension at the same time', async () => {
+		let sessionP: Promise<AuthenticationSession | undefined> = extHostAuthentication.getSession(
+			extensionDescription,
+			'test',
+			['foo'],
+			{
+				createIfNone: true
+			});
+		let session2P: Promise<AuthenticationSession | undefined> = extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			['foo'],
+			{
+				createIfNone: true
+			});
+		const session = await sessionP;
+		assert.strictEqual(session?.id, '1');
+		assert.strictEqual(session?.scopes[0], 'foo');
+		assert.strictEqual(session?.account.label, 'test');
+
+		const session2 = await session2P;
+		assert.strictEqual(session2?.id, '1');
+		assert.strictEqual(session2?.scopes[0], 'foo');
+		assert.strictEqual(session2?.account.label, 'test-multiple');
+	});
+
 
 	//#endregion
 });

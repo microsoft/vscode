@@ -37,7 +37,8 @@ import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebo
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellUri, INotebookRendererInfo, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, IResolvedNotebookKernel, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
@@ -75,6 +76,7 @@ export interface INotebookDelegateForWebview {
 	didDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
 	didDropMarkupCell(cellId: string, event: { dragOffsetY: number; ctrlKey: boolean; altKey: boolean }): void;
 	didEndDragMarkupCell(cellId: string): void;
+	didResizeOutput(cellId: string): void;
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
 }
@@ -134,6 +136,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService
 	) {
 		super();
 
@@ -818,6 +821,10 @@ var requirejs = (function() {
 					this._handleHighlightCodeBlock(data.codeBlocks);
 					break;
 				}
+
+				case 'outputResized':
+					this.notebookEditor.didResizeOutput(data.cellId);
+					break;
 			}
 		}));
 	}
@@ -884,15 +891,20 @@ var requirejs = (function() {
 			...workspaceFolders,
 			...this.getBuiltinLocalResourceRoots(),
 		];
-		const webview = webviewService.createWebviewElement(this.id, {
-			purpose: WebviewContentPurpose.NotebookRenderer,
-			enableFindWidget: false,
-			transformCssVariables: transformWebviewThemeVars,
-		}, {
-			allowMultipleAPIAcquire: true,
-			allowScripts: true,
-			localResourceRoots: this.localResourceRootsCache,
-		}, undefined);
+		const webview = webviewService.createWebviewElement({
+			id: this.id,
+			options: {
+				purpose: WebviewContentPurpose.NotebookRenderer,
+				enableFindWidget: false,
+				transformCssVariables: transformWebviewThemeVars,
+			},
+			contentOptions: {
+				allowMultipleAPIAcquire: true,
+				allowScripts: true,
+				localResourceRoots: this.localResourceRootsCache,
+			},
+			extension: undefined
+		});
 
 		webview.html = content;
 		return webview;
@@ -907,7 +919,7 @@ var requirejs = (function() {
 		}
 
 		this._preloadsCache.clear();
-		if (this._currentKernel?.type === NotebookKernelType.Resolved) {
+		if (this._currentKernel) {
 			this._updatePreloadsFromKernel(this._currentKernel);
 		}
 
@@ -1407,14 +1419,14 @@ var requirejs = (function() {
 		const previousKernel = this._currentKernel;
 		this._currentKernel = kernel;
 
-		if (previousKernel?.type === NotebookKernelType.Resolved && previousKernel.preloadUris.length > 0) {
+		if (previousKernel && previousKernel.preloadUris.length > 0) {
 			this.webview?.reload(); // preloads will be restored after reload
-		} else if (kernel?.type === NotebookKernelType.Resolved) {
+		} else if (kernel) {
 			this._updatePreloadsFromKernel(kernel);
 		}
 	}
 
-	private _updatePreloadsFromKernel(kernel: IResolvedNotebookKernel) {
+	private _updatePreloadsFromKernel(kernel: INotebookKernel) {
 		const resources: IControllerPreload[] = [];
 		for (const preload of kernel.preloadUris) {
 			const uri = this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')
@@ -1440,7 +1452,7 @@ var requirejs = (function() {
 
 		const mixedResourceRoots = [
 			...(this.localResourceRootsCache || []),
-			...(this._currentKernel?.type === NotebookKernelType.Resolved ? [this._currentKernel.localResourceRoot] : []),
+			...(this._currentKernel ? [this._currentKernel.localResourceRoot] : []),
 		];
 
 		this.webview.localResourcesRoot = mixedResourceRoots;

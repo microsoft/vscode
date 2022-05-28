@@ -85,7 +85,7 @@ export class BracketTokens {
 
 	findClosingTokenText(openingBracketIds: SmallImmutableSet<OpeningBracketId>): string | undefined {
 		for (const [closingText, info] of this.map) {
-			if (info.bracketIds.intersects(openingBracketIds)) {
+			if (info.kind === TokenKind.ClosingBracket && info.bracketIds.intersects(openingBracketIds)) {
 				return closingText;
 			}
 		}

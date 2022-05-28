@@ -23,6 +23,10 @@
 	line-height: var(--vscode-repl-line-height);
 }
 
+.monaco-workbench .repl .repl-tree .monaco-tl-contents .expression .lazy-button {
+	cursor: pointer;
+}
+
 .monaco-workbench .repl .repl-tree .monaco-tl-twistie {
 	background-position-y: calc(100% - (var(--vscode-repl-font-size-for-twistie)));
 }
@@ -33,6 +37,10 @@
 	white-space: pre-wrap;
 	/* Break on all #7533 */
 	word-break: break-all;
+}
+
+.monaco-workbench .repl .repl-tree.word-wrap .monaco-tl-contents .expression.nested-variable {
+	white-space: pre; /* Preserve whitespace but don't wrap */
 }
 
 .monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie.collapsible + .monaco-tl-contents,

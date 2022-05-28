@@ -22,6 +22,7 @@ import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/com
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { WindowError } from 'vs/platform/window/electron-main/window';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IPolicyService } from 'vs/platform/policy/common/policy';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -39,6 +40,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
+		@IPolicyService private readonly policyService: IPolicyService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
 	) {
@@ -242,7 +244,8 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			userEnv: this.userEnv,
 			args: this.environmentMainService.args,
 			logLevel: this.logService.getLevel(),
-			product
+			product,
+			policiesData: this.policyService.serialize()
 		});
 
 		// Load with config

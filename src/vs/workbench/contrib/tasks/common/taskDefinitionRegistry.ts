@@ -99,7 +99,7 @@ export interface ITaskDefinitionRegistry {
 	onDefinitionsChanged: Event<void>;
 }
 
-class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
+export class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
 	private taskTypes: IStringDictionary<Tasks.TaskDefinition>;
 	private readyPromise: Promise<void>;

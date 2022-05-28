@@ -967,7 +967,7 @@ registerAction2(class extends Action2 {
 
 abstract class BaseResizeViewAction extends Action2 {
 
-	protected static readonly RESIZE_INCREMENT = 6.5; // This is a media-size percentage
+	protected static readonly RESIZE_INCREMENT = 60; // This is a css pixel size
 
 	protected resizePart(widthChange: number, heightChange: number, layoutService: IWorkbenchLayoutService, partToResize?: Parts): void {
 

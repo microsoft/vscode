@@ -11,6 +11,7 @@
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enabledApiProposals": [
     "diffCommand",
+    "contribMergeEditorToolbar",
     "contribViewsWelcome",
     "scmActionButton",
     "scmSelectedProvider",
@@ -22,7 +23,8 @@
   ],
   "activationEvents": [
     "*",
-    "onFileSystem:git"
+    "onFileSystem:git",
+    "onFileSystem:git-show"
   ],
   "extensionDependencies": [
     "vscode.git-base"
@@ -564,6 +566,11 @@
         "command": "git.api.getRemoteSources",
         "title": "%command.api.getRemoteSources%",
         "category": "Git API"
+      },
+      {
+        "command": "git.acceptMerge",
+        "title": "%command.git.acceptMerge%",
+        "category": "Git"
       }
     ],
     "keybindings": [
@@ -1490,6 +1497,12 @@
           "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         }
       ],
+      "merge/toolbar": [
+        {
+          "command": "git.acceptMerge",
+          "when": "isMergeEditor"
+        }
+      ],
       "scm/change/title": [
         {
           "command": "git.stageChange",
@@ -1852,7 +1865,8 @@
         "git.branchPrefix": {
           "type": "string",
           "description": "%config.branchPrefix%",
-          "default": ""
+          "default": "",
+          "scope": "resource"
         },
         "git.branchProtection": {
           "type": "array",
@@ -1860,7 +1874,8 @@
           "items": {
             "type": "string"
           },
-          "default": []
+          "default": [],
+          "scope": "resource"
         },
         "git.branchProtectionPrompt": {
           "type": "string",
@@ -1875,7 +1890,8 @@
             "%config.branchProtectionPrompt.alwaysCommitToNewBranch%",
             "%config.branchProtectionPrompt.alwaysPrompt%"
           ],
-          "default": "alwaysPrompt"
+          "default": "alwaysPrompt",
+          "scope": "resource"
         },
         "git.branchValidationRegex": {
           "type": "string",
@@ -1890,7 +1906,8 @@
         "git.branchRandomName.enable": {
           "type": "boolean",
           "description": "%config.branchRandomNameEnable%",
-          "default": false
+          "default": false,
+          "scope": "resource"
         },
         "git.branchRandomName.dictionary": {
           "type": "array",
@@ -1901,7 +1918,8 @@
           "default": [
             "adjectives",
             "animals"
-          ]
+          ],
+          "scope": "resource"
         },
         "git.confirmSync": {
           "type": "boolean",
@@ -2426,6 +2444,12 @@
             "%config.logLevel.off%"
           ],
           "markdownDescription": "%config.logLevel%",
+          "scope": "window"
+        },
+        "git.experimental.mergeEditor": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.experimental.mergeEditor%",
           "scope": "window"
         }
       }

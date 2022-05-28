@@ -125,10 +125,10 @@ export class ExplorerService implements IExplorerService {
 				this.view.setTreeInput();
 			}
 		}));
+
 		// Refresh explorer when window gets focus to compensate for missing file events #126817
-		const skipRefreshExplorerOnWindowFocus = this.configurationService.getValue('skipRefreshExplorerOnWindowFocus');
 		this.disposables.add(hostService.onDidChangeFocus(hasFocus => {
-			if (!skipRefreshExplorerOnWindowFocus && hasFocus) {
+			if (hasFocus) {
 				this.refresh(false);
 			}
 		}));
@@ -156,7 +156,7 @@ export class ExplorerService implements IExplorerService {
 
 		const items = new Set<ExplorerItem>(this.view.getContext(respectMultiSelection));
 		items.forEach(item => {
-			if (this.view?.isItemCollapsed(item) && item.nestedChildren) {
+			if (respectMultiSelection && this.view?.isItemCollapsed(item) && item.nestedChildren) {
 				for (const child of item.nestedChildren) {
 					items.add(child);
 				}

@@ -277,8 +277,10 @@ var AMDLoader;
                     return;
                 }
                 if (err.phase === 'factory') {
-                    console.error('The factory method of "' + err.moduleId + '" has thrown an exception');
+                    console.error('The factory function of "' + err.moduleId + '" has thrown an exception');
                     console.error(err);
+                    console.error('Here are the modules that depend on it:');
+                    console.error(err.neededBy);
                     return;
                 }
             }
@@ -1183,7 +1185,7 @@ var AMDLoader;
                 producedError: null
             };
         };
-        Module.prototype.complete = function (recorder, config, dependenciesValues) {
+        Module.prototype.complete = function (recorder, config, dependenciesValues, inversedependenciesProvider) {
             this._isComplete = true;
             var producedError = null;
             if (this._callback) {
@@ -1204,6 +1206,7 @@ var AMDLoader;
                 var err = AMDLoader.ensureError(producedError);
                 err.phase = 'factory';
                 err.moduleId = this.strId;
+                err.neededBy = inversedependenciesProvider(this.id);
                 this.error = err;
                 config.onError(err);
             }
@@ -1815,7 +1818,10 @@ var AMDLoader;
                     dependenciesValues[i] = null;
                 }
             }
-            module.complete(recorder, this._config, dependenciesValues);
+            var inversedependenciesProvider = function (moduleId) {
+                return (_this._inverseDependencies2[moduleId] || []).map(function (intModuleId) { return _this._moduleIdProvider.getStrModuleId(intModuleId); });
+            };
+            module.complete(recorder, this._config, dependenciesValues, inversedependenciesProvider);
             // Fetch and clear inverse dependencies
             var inverseDeps = this._inverseDependencies2[module.id];
             this._inverseDependencies2[module.id] = null;

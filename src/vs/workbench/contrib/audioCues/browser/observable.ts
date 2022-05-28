@@ -612,3 +612,13 @@ export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, 
 
 	return observable;
 }
+
+/**
+ * This ensures the observable is kept up-to-date.
+ * This is useful when the observables `get` method is used.
+*/
+export function keepAlive(observable: IObservable<any>): IDisposable {
+	return autorun(reader => {
+		observable.read(reader);
+	}, 'keep-alive');
+}

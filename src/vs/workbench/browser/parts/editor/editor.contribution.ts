@@ -142,7 +142,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX,
 	contextKey: editorPickerContextKey,
 	placeholder: localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
-	helpEntries: [{ description: localize('activeGroupEditorsByMostRecentlyUsedQuickAccess', "Show Editors in Active Group by Most Recently Used"), needsEditor: false }]
+	helpEntries: [{ description: localize('activeGroupEditorsByMostRecentlyUsedQuickAccess', "Show Editors in Active Group by Most Recently Used"), commandId: ShowEditorsInActiveGroupByMostRecentlyUsedAction.ID }]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
@@ -150,7 +150,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: AllEditorsByAppearanceQuickAccess.PREFIX,
 	contextKey: editorPickerContextKey,
 	placeholder: localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
-	helpEntries: [{ description: localize('allEditorsByAppearanceQuickAccess', "Show All Opened Editors By Appearance"), needsEditor: false }]
+	helpEntries: [{ description: localize('allEditorsByAppearanceQuickAccess', "Show All Opened Editors By Appearance"), commandId: ShowAllEditorsByAppearanceAction.ID }]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
@@ -158,7 +158,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: AllEditorsByMostRecentlyUsedQuickAccess.PREFIX,
 	contextKey: editorPickerContextKey,
 	placeholder: localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
-	helpEntries: [{ description: localize('allEditorsByMostRecentlyUsedQuickAccess', "Show All Opened Editors By Most Recently Used"), needsEditor: false }]
+	helpEntries: [{ description: localize('allEditorsByMostRecentlyUsedQuickAccess', "Show All Opened Editors By Most Recently Used"), commandId: ShowAllEditorsByMostRecentlyUsedAction.ID }]
 });
 
 //#endregion
@@ -314,8 +314,8 @@ if (isMacintosh) {
 	});
 }
 
-MenuRegistry.appendMenuItem(MenuId.TitleMenu, { command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: Codicon.arrowLeft } });
-MenuRegistry.appendMenuItem(MenuId.TitleMenu, { command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: Codicon.arrowRight } });
+MenuRegistry.appendMenuItem(MenuId.CommandCenter, { order: 1, command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: Codicon.arrowLeft } });
+MenuRegistry.appendMenuItem(MenuId.CommandCenter, { order: 2, command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: Codicon.arrowRight } });
 
 // Empty Editor Group Toolbar
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: UNLOCK_GROUP_COMMAND_ID, title: localize('unlockGroupAction', "Unlock Group"), icon: Codicon.lock }, group: 'navigation', order: 10, when: ActiveEditorGroupLockedContext });

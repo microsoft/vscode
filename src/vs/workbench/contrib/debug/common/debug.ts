@@ -772,6 +772,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	configurationSnippets?: IJSONSchemaSnippet[];
 	variables?: { [key: string]: string };
 	when?: string;
+	uiMessages?: { [key in DebuggerUiMessage]: string };
 }
 
 export interface IBreakpointContribution {
@@ -847,6 +848,10 @@ export interface IConfigurationManager {
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
 }
 
+export enum DebuggerUiMessage {
+	UnverifiedBreakpoints = 'unverifiedBreakpoints'
+}
+
 export interface IAdapterManager {
 
 	onDidRegisterDebugger: Event<void>;
@@ -855,6 +860,7 @@ export interface IAdapterManager {
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 	getDebuggerLabel(type: string): string | undefined;
 	isDebuggerInterestedInLanguage(language: string): boolean;
+	getDebuggerUiMessages(type: string): { [key in DebuggerUiMessage]?: string };
 
 	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;

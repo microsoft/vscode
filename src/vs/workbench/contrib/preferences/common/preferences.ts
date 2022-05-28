@@ -78,6 +78,7 @@ export const FEATURE_SETTING_TAG = 'feature:';
 export const ID_SETTING_TAG = 'id:';
 export const LANGUAGE_SETTING_TAG = 'lang:';
 export const GENERAL_TAG_SETTING_TAG = 'tag:';
+export const POLICY_SETTING_TAG = 'hasPolicy';
 export const WORKSPACE_TRUST_SETTING_TAG = 'workspaceTrust';
 export const REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG = 'requireTrustedWorkspace';
 export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';
