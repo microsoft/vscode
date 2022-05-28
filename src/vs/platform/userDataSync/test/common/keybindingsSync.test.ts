@@ -10,7 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getKeybindingsContentFromSyncContent, KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
-import { IUserDataSyncStoreService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, SyncResource, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 suite('KeybindingsSync', () => {
@@ -200,6 +200,17 @@ suite('KeybindingsSync', () => {
 		await testObject.accept(preview.resourcePreviews[0].remoteResource, content);
 		await testObject.apply(false);
 		assert.deepStrictEqual(server.requests, []);
+	});
+
+	test('sync throws invalid content error - content is an object', async () => {
+		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).keybindingsResource, VSBuffer.fromString('{}'));
+		try {
+			await testObject.sync(await client.manifest());
+			assert.fail('should fail with invalid content error');
+		} catch (e) {
+			assert.ok(e instanceof UserDataSyncError);
+			assert.deepStrictEqual((<UserDataSyncError>e).code, UserDataSyncErrorCode.LocalInvalidContent);
+		}
 	});
 
 });
