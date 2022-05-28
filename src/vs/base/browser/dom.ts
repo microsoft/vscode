@@ -1684,8 +1684,7 @@ export interface IDragAndDropObserverCallbacks {
 	readonly onDragLeave: (e: DragEvent) => void;
 	readonly onDrop: (e: DragEvent) => void;
 	readonly onDragEnd: (e: DragEvent) => void;
-	// Added dragDuration for this https://github.com/microsoft/vscode/issues/148664
-	readonly onDragOver?: (e: DragEvent, dragDuration?: number) => void;
+	readonly onDragOver?: (e: DragEvent, dragDuration: number) => void;
 }
 
 export class DragAndDropObserver extends Disposable {
@@ -1696,10 +1695,8 @@ export class DragAndDropObserver extends Disposable {
 	// repeadedly.
 	private counter: number = 0;
 
-	// We need to know how long since the element received the DRAG_ENTER event
-	// to fulfill the requirements asked for in the following issue
-	// https://github.com/microsoft/vscode/issues/148664
-	protected dragStartTime: number = 0;
+	// Allows to measure the duration of the drag operation.
+	private dragStartTime = 0;
 
 	constructor(private readonly element: HTMLElement, private readonly callbacks: IDragAndDropObserverCallbacks) {
 		super();
@@ -1718,10 +1715,8 @@ export class DragAndDropObserver extends Disposable {
 		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
 			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
 
-			let dragDuration = e.timeStamp - this.dragStartTime;
-
 			if (this.callbacks.onDragOver) {
-				this.callbacks.onDragOver(e, dragDuration);
+				this.callbacks.onDragOver(e, e.timeStamp - this.dragStartTime);
 			}
 		}));
 
@@ -1730,6 +1725,7 @@ export class DragAndDropObserver extends Disposable {
 
 			if (this.counter === 0) {
 				this.dragStartTime = 0;
+
 				this.callbacks.onDragLeave(e);
 			}
 		}));
@@ -1737,12 +1733,14 @@ export class DragAndDropObserver extends Disposable {
 		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
 			this.counter = 0;
 			this.dragStartTime = 0;
+
 			this.callbacks.onDragEnd(e);
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
 			this.counter = 0;
 			this.dragStartTime = 0;
+
 			this.callbacks.onDrop(e);
 		}));
 	}
