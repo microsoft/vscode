@@ -204,7 +204,7 @@ const PropertyType = {
 	PreRelease: 'Microsoft.VisualStudio.Code.PreRelease',
 	LocalizedLanguages: 'Microsoft.VisualStudio.Code.LocalizedLanguages',
 	WebExtension: 'Microsoft.VisualStudio.Code.WebExtension',
-	PublisherSponsorLink: 'Microsoft.VisualStudio.Code.PublisherSponsorLink'
+	SponsorLink: 'Microsoft.VisualStudio.Code.SponsorLink'
 };
 
 interface ICriterium {
@@ -423,8 +423,8 @@ function getLocalizedLanguages(version: IRawGalleryExtensionVersion): string[] {
 	return value ? value.split(',') : [];
 }
 
-function getPublisherSponsorLink(version: IRawGalleryExtensionVersion): string | undefined {
-	return version.properties?.find(p => p.key === PropertyType.PublisherSponsorLink)?.value;
+function getSponsorLink(version: IRawGalleryExtensionVersion): string | undefined {
+	return version.properties?.find(p => p.key === PropertyType.SponsorLink)?.value;
 }
 
 function getIsPreview(flags: string): boolean {
@@ -518,7 +518,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		publisher: galleryExtension.publisher.publisherName,
 		publisherDisplayName: galleryExtension.publisher.displayName,
 		publisherDomain: galleryExtension.publisher.domain ? { link: galleryExtension.publisher.domain, verified: !!galleryExtension.publisher.isDomainVerified } : undefined,
-		publisherSponsorLink: getPublisherSponsorLink(version),
+		publisherSponsorLink: getSponsorLink(version),
 		description: galleryExtension.shortDescription || '',
 		installCount: getStatistic(galleryExtension.statistics, 'install'),
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
