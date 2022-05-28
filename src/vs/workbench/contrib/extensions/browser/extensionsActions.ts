@@ -831,22 +831,22 @@ export class UpdateAction extends ExtensionAction {
 	}
 }
 
-export class MigrateDeprecatedExtension extends ExtensionAction {
+export class MigrateDeprecatedExtensionAction extends ExtensionAction {
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent migrate`;
-	private static readonly DisabledClass = `${MigrateDeprecatedExtension.EnabledClass} disabled`;
+	private static readonly DisabledClass = `${MigrateDeprecatedExtensionAction.EnabledClass} disabled`;
 
 	constructor(
 		private readonly small: boolean,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensions.uninstall', localize('migrateExtension', "Migrate"), MigrateDeprecatedExtension.DisabledClass, false);
+		super('extensions.uninstall', localize('migrateExtension', "Migrate"), MigrateDeprecatedExtensionAction.DisabledClass, false);
 		this.update();
 	}
 
 	update(): void {
 		this.enabled = false;
-		this.class = MigrateDeprecatedExtension.DisabledClass;
+		this.class = MigrateDeprecatedExtensionAction.DisabledClass;
 		if (!this.extension?.local) {
 			return;
 		}
@@ -861,7 +861,7 @@ export class MigrateDeprecatedExtension extends ExtensionAction {
 			return;
 		}
 		this.enabled = true;
-		this.class = MigrateDeprecatedExtension.EnabledClass;
+		this.class = MigrateDeprecatedExtensionAction.EnabledClass;
 		this.tooltip = localize('migrate to', "Migrate to {0}", this.extension.deprecationInfo.extension.displayName);
 		this.label = this.small ? localize('migrate', "Migrate") : this.tooltip;
 	}
