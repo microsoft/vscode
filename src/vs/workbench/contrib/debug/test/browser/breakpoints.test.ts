@@ -15,7 +15,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { createMockDebugModel, MockDebugService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 
 function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakpointData[]): void {
 	let eventCount = 0;
@@ -350,7 +350,8 @@ suite('Debug - Breakpoints', () => {
 		]);
 		const breakpoints = model.getBreakpoints();
 
-		let decorations = createBreakpointDecorations(textModel, breakpoints, State.Running, true, true);
+		const debugService = new MockDebugService();
+		let decorations = createBreakpointDecorations(debugService, textModel, breakpoints, State.Running, true, true);
 		assert.strictEqual(decorations.length, 3); // last breakpoint filtered out since it has a large line number
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 1, 1, 2));
 		assert.deepStrictEqual(decorations[1].range, new Range(2, 4, 2, 5));
@@ -358,10 +359,10 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(decorations[0].options.beforeContentClassName, undefined);
 		assert.strictEqual(decorations[1].options.before?.inlineClassName, `debug-breakpoint-placeholder`);
 		assert.strictEqual(decorations[0].options.overviewRuler?.position, OverviewRulerLane.Left);
-		const expected = new MarkdownString().appendCodeblock(languageId, 'Expression condition: x > 5');
+		const expected = new MarkdownString(undefined, { isTrusted: true }).appendCodeblock(languageId, 'Expression condition: x > 5');
 		assert.deepStrictEqual(decorations[0].options.glyphMarginHoverMessage, expected);
 
-		decorations = createBreakpointDecorations(textModel, breakpoints, State.Running, true, false);
+		decorations = createBreakpointDecorations(debugService, textModel, breakpoints, State.Running, true, false);
 		assert.strictEqual(decorations[0].options.overviewRuler, null);
 
 		textModel.dispose();
