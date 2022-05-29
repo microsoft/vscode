@@ -1,0 +1,5 @@
+#Create cosx-vm.yml
+</cosx-vm.yml>{-o-}(repository)
+#Add_Update(WindowsAzureRepository)
+#Review_Commit
+Commit.
