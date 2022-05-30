@@ -195,6 +195,8 @@ export const locale = _locale;
  */
 export const translationsConfigFile = _translationsConfigFile;
 
+export const setTimeout0IsFaster = (typeof globals.postMessage === 'function' && !globals.importScripts);
+
 /**
  * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
  *
@@ -202,7 +204,7 @@ export const translationsConfigFile = _translationsConfigFile;
  * that browsers set when the nesting level is > 5.
  */
 export const setTimeout0 = (() => {
-	if (typeof globals.postMessage === 'function' && !globals.importScripts) {
+	if (setTimeout0IsFaster) {
 		interface IQueueElement {
 			id: number;
 			callback: () => void;
