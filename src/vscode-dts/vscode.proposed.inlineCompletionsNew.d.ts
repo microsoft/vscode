@@ -100,6 +100,11 @@ declare module 'vscode' {
 		 * It is sufficient to return a single completion item in this case.
 		 */
 		Automatic = 1,
+
+		/**
+		 * Completion was triggered automatically while moving the cursor.
+		 */
+		CursorMove = 2,
 	}
 
 	/**

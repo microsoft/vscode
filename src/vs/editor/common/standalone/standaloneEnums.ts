@@ -384,7 +384,11 @@ export enum InlineCompletionTriggerKind {
 	 * Completion was triggered explicitly by a user gesture.
 	 * Return multiple completion items to enable cycling through them.
 	 */
-	Explicit = 1
+	Explicit = 1,
+	/**
+	 * Completion was triggered automatically while moving the cursor.
+	 */
+	CursorMove = 2
 }
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
