@@ -18,8 +18,8 @@ import { localize } from 'vs/nls';
 type DynamicWorkspaceRecommendationsClassification = {
 	owner: 'sandy081';
 	comment: 'Information about recommendations by scanning the workspace';
-	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	cache: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of extensions those are recommended' };
+	cache: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag if extensions are recommended from cache or not' };
 };
 
 type IStoredDynamicWorkspaceRecommendations = { recommendations: string[]; timestamp: number };

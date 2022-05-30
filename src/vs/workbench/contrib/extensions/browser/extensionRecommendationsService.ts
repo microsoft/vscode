@@ -31,8 +31,8 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 type IgnoreRecommendationClassification = {
 	owner: 'sandy081';
 	comment: 'Report when a recommendation is ignored';
-	recommendationReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	recommendationReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Reason why extension is recommended' };
+	extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Id of the extension recommendation that is being ignored' };
 };
 
 export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {

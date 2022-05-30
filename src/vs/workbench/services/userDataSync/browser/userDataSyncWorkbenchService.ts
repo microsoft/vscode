@@ -39,7 +39,7 @@ import { CancellationError } from 'vs/base/common/errors';
 type FirstTimeSyncClassification = {
 	owner: 'sandy081';
 	comment: 'Action taken when there are merges while turning on settins sync';
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'action taken turning on sync. Eg: merge, pull, manual or cancel' };
 };
 
 type FirstTimeSyncAction = 'pull' | 'push' | 'merge' | 'manual';

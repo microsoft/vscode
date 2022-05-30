@@ -31,7 +31,7 @@ import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IB
 type IncompatibleSyncSourceClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the sync resource that is incompatible';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'settings sync resource. eg., settings, keybindings...' };
 };
 
 export function isSyncData(thing: any): thing is ISyncData {
