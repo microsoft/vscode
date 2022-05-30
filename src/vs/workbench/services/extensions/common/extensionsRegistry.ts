@@ -517,6 +517,10 @@ export const schema: IJSONSchema = {
 				}
 			}
 		},
+		sponsorLink: {
+			description: nls.localize('vscode.extension.contributes.sponsorLink', "The website URL where others can sponosor the extension."),
+			type: 'string',
+		},
 		scripts: {
 			type: 'object',
 			properties: {
