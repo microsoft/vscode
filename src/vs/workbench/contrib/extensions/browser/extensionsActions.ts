@@ -894,10 +894,11 @@ export class SponsorExtensionAction extends ExtensionAction {
 	update(): void {
 		this.enabled = false;
 		this.class = SponsorExtensionAction.DisabledClass;
+		this.tooltip = '';
 		if (this.extension?.publisherSponsorLink) {
 			this.enabled = true;
 			this.class = SponsorExtensionAction.EnabledClass;
-			// this.tooltip = localize('sponsorActionToolTip', "Sponsor this extensions at {0}", this.extension.publisherSponsorLink.toString());
+			this.tooltip = this.extension.publisherSponsorLink.toString();
 		}
 	}
 
