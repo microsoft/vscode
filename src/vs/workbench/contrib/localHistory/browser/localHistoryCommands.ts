@@ -7,6 +7,8 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
+import Severity from 'vs/base/common/severity';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -274,7 +276,19 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 		}
 
 		// Replace target with contents of history entry
-		await fileService.cloneFile(entry.location, entry.workingCopy.resource);
+		try {
+			await fileService.cloneFile(entry.location, entry.workingCopy.resource);
+		} catch (error) {
+
+			// It is possible that we fail to copy the history entry to the
+			// destination, for example when the destination is write protected.
+			// In that case tell the user and return, it is still possible for
+			// the user to manually copy the changes over from the diff editor.
+
+			await dialogService.show(Severity.Error, localize('unableToRestore', "Unable to restore '{0}'.", basename(entry.workingCopy.resource)), undefined, { detail: toErrorMessage(error) });
+
+			return;
+		}
 
 		// Restore all working copies for target
 		if (workingCopies) {
