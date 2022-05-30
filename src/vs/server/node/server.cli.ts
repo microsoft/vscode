@@ -107,13 +107,14 @@ export function main(desc: ProductDescription, args: string[]): void {
 
 	const errorReporter: ErrorReporter = {
 		onMultipleValues: (id: string, usedValue: string) => {
-			console.error(`Option ${id} can only be defined once. Using value ${usedValue}.`);
+			console.error(`Option '${id}' can only be defined once. Using value ${usedValue}.`);
 		},
-
+		onEmptyValue: (id) => {
+			console.error(`Ignoring option '${id}': Value must not be empty.`);
+		},
 		onUnknownOption: (id: string) => {
-			console.error(`Ignoring option ${id}: not supported for ${desc.executableName}.`);
+			console.error(`Ignoring option '${id}': not supported for ${desc.executableName}.`);
 		},
-
 		onDeprecatedOption: (deprecatedOption: string, message: string) => {
 			console.warn(`Option '${deprecatedOption}' is deprecated: ${message}`);
 		}
