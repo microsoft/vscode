@@ -58,7 +58,7 @@ export class GitEditor implements IIPCHandler {
 
 		const config = workspace.getConfiguration('git');
 		if (config.get<boolean>('useEditorAsCommitInput')) {
-			env.GIT_EDITOR = gitEditor;
+			env.GIT_EDITOR = `'${gitEditor}'`;
 		}
 
 		return env;
