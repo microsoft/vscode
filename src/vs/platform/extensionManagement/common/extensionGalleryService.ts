@@ -518,7 +518,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		publisher: galleryExtension.publisher.publisherName,
 		publisherDisplayName: galleryExtension.publisher.displayName,
 		publisherDomain: galleryExtension.publisher.domain ? { link: galleryExtension.publisher.domain, verified: !!galleryExtension.publisher.isDomainVerified } : undefined,
-		publisherSponsorLink: getSponsorLink(version),
+		publisherSponsorLink: getSponsorLink(latestVersion),
 		description: galleryExtension.shortDescription || '',
 		installCount: getStatistic(galleryExtension.statistics, 'install'),
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
