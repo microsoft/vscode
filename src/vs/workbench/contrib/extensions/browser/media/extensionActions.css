@@ -61,8 +61,23 @@
 .monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-status.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
-.monaco-action-bar .action-item .action-label.extension-action.manage.hide {
+.monaco-action-bar .action-item .action-label.extension-action.manage.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.extension-sponsor {
 	display: none;
+}
+
+.monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.extension-sponsor.label {
+	background-color: var(--vscode-extensionSponsorButton-background);
+	display: flex;
+}
+
+.monaco-action-bar .action-item:hover .action-label.extension-action.extension-sponsor.label {
+	background-color: var(--vscode-extensionSponsorButton-hoverBackground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.extension-sponsor .codicon {
+	color: var(--vscode-button-foreground);
+	padding-right: 3px;
 }
 
 .monaco-action-bar .extension-action.label {

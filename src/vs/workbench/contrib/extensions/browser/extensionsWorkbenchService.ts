@@ -125,8 +125,20 @@ export class Extension implements IExtension {
 		return this.local!.manifest.publisher;
 	}
 
+	get publisherUrl(): URI | undefined {
+		if (!this.productService.extensionsGallery || !this.gallery) {
+			return undefined;
+		}
+
+		return resources.joinPath(URI.parse(this.productService.extensionsGallery.publisherUrl), this.publisher);
+	}
+
 	get publisherDomain(): { link: string; verified: boolean } | undefined {
 		return this.gallery?.publisherDomain;
+	}
+
+	get publisherSponsorLink(): URI | undefined {
+		return this.gallery?.publisherSponsorLink ? URI.parse(this.gallery.publisherSponsorLink) : undefined;
 	}
 
 	get version(): string {
