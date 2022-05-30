@@ -212,6 +212,7 @@ export interface IGalleryExtension {
 	publisher: string;
 	publisherDisplayName: string;
 	publisherDomain?: { link: string; verified: boolean };
+	publisherSponsorLink?: string;
 	description: string;
 	installCount: number;
 	rating: number;
