@@ -32,7 +32,7 @@ suite('UserDataAutoSyncService', () => {
 	teardown(() => disposableStore.clear());
 
 	test('test auto sync with sync resource change triggers sync', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -56,7 +56,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test auto sync with sync resource change triggers sync for every change', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -84,7 +84,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test auto sync with non sync resource change triggers sync', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -108,7 +108,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test auto sync with non sync resource change does not trigger continuous syncs', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -134,7 +134,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test first auto sync requests', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -174,7 +174,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test further auto sync requests without changes', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -195,7 +195,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test further auto sync requests with changes', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -231,7 +231,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test auto sync send execution id header', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -256,7 +256,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test delete on one client throws turned off error on other client while syncing', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			const target = new UserDataSyncTestServer();
 
 			// Set up and sync from the client
@@ -292,7 +292,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test disabling the machine turns off sync', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			const target = new UserDataSyncTestServer();
 
 			// Set up and sync from the test client
@@ -326,7 +326,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test removing the machine adds machine back', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			const target = new UserDataSyncTestServer();
 
 			// Set up and sync from the test client
@@ -351,7 +351,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test creating new session from one client throws session expired error on another client while syncing', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			const target = new UserDataSyncTestServer();
 
 			// Set up and sync from the client
@@ -390,7 +390,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test rate limit on server', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			const target = new UserDataSyncTestServer(5);
 
 			// Set up and sync from the test client
@@ -410,7 +410,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test auto sync is suspended when server donot accepts requests', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			const target = new UserDataSyncTestServer(5, 1);
 
 			// Set up and sync from the test client
@@ -430,7 +430,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test cache control header with no cache is sent when triggered with disable cache option', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			const target = new UserDataSyncTestServer(5, 1);
 
 			// Set up and sync from the test client
@@ -444,7 +444,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test cache control header is not sent when triggered without disable cache option', async () => {
-		await runWithFakedTimers({}, async () => {
+		await runWithFakedTimers({ useSetImmediate: true }, async () => {
 			const target = new UserDataSyncTestServer(5, 1);
 
 			// Set up and sync from the test client
