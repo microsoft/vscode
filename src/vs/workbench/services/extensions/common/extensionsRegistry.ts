@@ -517,8 +517,8 @@ export const schema: IJSONSchema = {
 				}
 			}
 		},
-		sponsorLink: {
-			description: nls.localize('vscode.extension.contributes.sponsorLink', "The website URL where others can sponosor the extension."),
+		sponsor: {
+			description: nls.localize('vscode.extension.contributes.sponsorLink', "The website URL from where others can sponosor the extension."),
 			type: 'string',
 		},
 		scripts: {
