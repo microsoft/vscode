@@ -24,6 +24,7 @@ export interface Option<OptionType> {
 	args?: string | string[];
 	description?: string;
 	deprecationMessage?: string;
+	allowEmptyValue?: boolean;
 	cat?: keyof typeof helpCategories;
 }
 
@@ -59,7 +60,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'install-extension': { type: 'string[]', cat: 'e', args: 'ext-id | path', description: localize('installExtension', "Installs or updates an extension. The argument is either an extension id or a path to a VSIX. The identifier of an extension is '${publisher}.${name}'. Use '--force' argument to update to latest version. To install a specific version provide '@${version}'. For example: 'vscode.csharp@1.2.3'.") },
 	'pre-release': { type: 'boolean', cat: 'e', description: localize('install prerelease', "Installs the pre-release version of the extension, when using --install-extension") },
 	'uninstall-extension': { type: 'string[]', cat: 'e', args: 'ext-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
-	'enable-proposed-api': { type: 'string[]', cat: 'e', args: 'ext-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
+	'enable-proposed-api': { type: 'string[]', allowEmptyValue: true, cat: 'e', args: 'ext-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
 	'version': { type: 'boolean', cat: 't', alias: 'v', description: localize('version', "Print version.") },
 	'verbose': { type: 'boolean', cat: 't', description: localize('verbose', "Print verbose output (implies --wait).") },
@@ -74,14 +75,14 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'disable-extension': { type: 'string[]', cat: 't', args: 'ext-id', description: localize('disableExtension', "Disable an extension.") },
 	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off."), args: ['on | off'] },
 
-	'inspect-extensions': { type: 'string', deprecates: ['debugPluginHost'], args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
-	'inspect-brk-extensions': { type: 'string', deprecates: ['debugBrkPluginHost'], args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
+	'inspect-extensions': { type: 'string', allowEmptyValue: true, deprecates: ['debugPluginHost'], args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
+	'inspect-brk-extensions': { type: 'string', allowEmptyValue: true, deprecates: ['debugBrkPluginHost'], args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
 	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
 	'ms-enable-electron-run-as-node': { type: 'boolean' },
 	'max-memory': { type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes)."), args: 'memory' },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
-	'remote': { type: 'string' },
+	'remote': { type: 'string', allowEmptyValue: true },
 	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri' },
 	'file-uri': { type: 'string[]', cat: 'o', args: 'uri' },
 
@@ -92,10 +93,10 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'extensionEnvironment': { type: 'string' },
 	'debugId': { type: 'string' },
 	'debugRenderer': { type: 'boolean' },
-	'inspect-ptyhost': { type: 'string' },
-	'inspect-brk-ptyhost': { type: 'string' },
-	'inspect-search': { type: 'string', deprecates: ['debugSearch'] },
-	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'] },
+	'inspect-ptyhost': { type: 'string', allowEmptyValue: true },
+	'inspect-brk-ptyhost': { type: 'string', allowEmptyValue: true },
+	'inspect-search': { type: 'string', deprecates: ['debugSearch'], allowEmptyValue: true },
+	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'], allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
@@ -139,8 +140,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'proxy-bypass-list': { type: 'string' },
 	'proxy-pac-url': { type: 'string' },
 	'js-flags': { type: 'string' }, // chrome js flags
-	'inspect': { type: 'string' },
-	'inspect-brk': { type: 'string' },
+	'inspect': { type: 'string', allowEmptyValue: true },
+	'inspect-brk': { type: 'string', allowEmptyValue: true },
 	'nolazy': { type: 'boolean' }, // node inspect
 	'force-device-scale-factor': { type: 'string' },
 	'force-renderer-accessibility': { type: 'boolean' },
@@ -157,12 +158,14 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 export interface ErrorReporter {
 	onUnknownOption(id: string): void;
 	onMultipleValues(id: string, usedValue: string): void;
+	onEmptyValue(id: string): void;
 	onDeprecatedOption(deprecatedId: string, message: string): void;
 }
 
 const ignoringReporter: ErrorReporter = {
 	onUnknownOption: () => { },
 	onMultipleValues: () => { },
+	onEmptyValue: () => { },
 	onDeprecatedOption: () => { }
 };
 
@@ -222,13 +225,23 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 
 		if (typeof val !== 'undefined') {
 			if (o.type === 'string[]') {
-				if (val && !Array.isArray(val)) {
+				if (!Array.isArray(val)) {
 					val = [val];
+				}
+				if (!o.allowEmptyValue) {
+					const sanitized = val.filter((v: string) => v.length > 0);
+					if (sanitized.length !== val.length) {
+						errorReporter.onEmptyValue(optionId);
+						val = sanitized.length > 0 ? sanitized : undefined;
+					}
 				}
 			} else if (o.type === 'string') {
 				if (Array.isArray(val)) {
 					val = val.pop(); // take the last
 					errorReporter.onMultipleValues(optionId, val);
+				} else if (!val && !o.allowEmptyValue) {
+					errorReporter.onEmptyValue(optionId);
+					val = undefined;
 				}
 			}
 			cleanedArgs[optionId] = val;
