@@ -1642,9 +1642,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('selectAllMatches', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
