@@ -106,48 +106,40 @@ export class MergeEditor extends EditorPane {
 		this._register(keepAlive(input1ResultMapping));
 		this._register(keepAlive(input2ResultMapping));
 
-		this._store.add(this.input1View.editor.onDidScrollChange(c => {
-			if (c.scrollTopChanged) {
-				reentrancyBarrier.runExclusively(() => {
-					const mapping = input1ResultMapping.get();
-					if (!mapping) {
-						return;
+		this._store.add(
+			this.input1View.editor.onDidScrollChange(
+				reentrancyBarrier.makeExclusive((c) => {
+					if (c.scrollTopChanged) {
+						const mapping = input1ResultMapping.get();
+						synchronizeScrolling(this.input1View.editor, this.inputResultView.editor, mapping, 1);
+						this.input2View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
 					}
-					synchronizeScrolling(this.input1View.editor, this.inputResultView.editor, mapping, 1);
-					this.input2View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
-				});
-			}
-		}));
-
-		this._store.add(this.input2View.editor.onDidScrollChange(c => {
-			if (c.scrollTopChanged) {
-				reentrancyBarrier.runExclusively(() => {
-					const mapping = input2ResultMapping.get();
-					if (!mapping) {
-						return;
+				})
+			)
+		);
+		this._store.add(
+			this.input2View.editor.onDidScrollChange(
+				reentrancyBarrier.makeExclusive((c) => {
+					if (c.scrollTopChanged) {
+						const mapping = input2ResultMapping.get();
+						synchronizeScrolling(this.input2View.editor, this.inputResultView.editor, mapping, 1);
+						this.input1View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
 					}
-					synchronizeScrolling(this.input2View.editor, this.inputResultView.editor, mapping, 1);
-					this.input1View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
-				});
-			}
-		}));
-		this._store.add(this.inputResultView.editor.onDidScrollChange(c => {
-			if (c.scrollTopChanged) {
-				reentrancyBarrier.runExclusively(() => {
-					const mapping = input1ResultMapping.get();
-					if (!mapping) {
-						return;
+				})
+			)
+		);
+		this._store.add(
+			this.inputResultView.editor.onDidScrollChange(
+				reentrancyBarrier.makeExclusive((c) => {
+					if (c.scrollTopChanged) {
+						const mapping1 = input1ResultMapping.get();
+						synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping1, 2);
+						const mapping2 = input2ResultMapping.get();
+						synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2, 2);
 					}
-					synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping, 2);
-
-					const mapping2 = input2ResultMapping.get();
-					if (!mapping2) {
-						return;
-					}
-					synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2, 2);
-				});
-			}
-		}));
+				})
+			)
+		);
 
 
 		// TODO@jrieken make this proper: add menu id and allow extensions to contribute
@@ -307,11 +299,11 @@ export class MergeEditor extends EditorPane {
 	}
 }
 
-function flip(value: 1 | 2): 1 | 2 {
-	return value === 1 ? 2 : 1;
-}
+function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: CodeEditorWidget, mapping: ModifiedBaseRange[] | undefined, sourceNumber: 1 | 2) {
+	if (!mapping) {
+		return;
+	}
 
-function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: CodeEditorWidget, mapping: ModifiedBaseRange[], sourceNumber: 1 | 2) {
 	const visibleRanges = scrollingEditor.getVisibleRanges();
 	if (visibleRanges.length === 0) {
 		return;
@@ -322,21 +314,24 @@ function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: C
 	let sourceRange: LineRange;
 	let targetRange: LineRange;
 
-	const targetNumber = flip(sourceNumber);
+	const targetNumber = sourceNumber === 1 ? 2 : 1;
 
-	if (firstBefore && firstBefore.getInputRange(sourceNumber).contains(topLineNumber)) {
-		sourceRange = firstBefore.getInputRange(sourceNumber);
-		targetRange = firstBefore.getInputRange(targetNumber);
-	} else if (firstBefore && firstBefore.getInputRange(sourceNumber).isEmpty && firstBefore.getInputRange(sourceNumber).startLineNumber === topLineNumber) {
-		sourceRange = firstBefore.getInputRange(sourceNumber).deltaEnd(1);
-		targetRange = firstBefore.getInputRange(targetNumber).deltaEnd(1);
+	const firstBeforeSourceRange = firstBefore?.getInputRange(sourceNumber);
+	const firstBeforeTargetRange = firstBefore?.getInputRange(targetNumber);
+
+	if (firstBeforeSourceRange && firstBeforeSourceRange.contains(topLineNumber)) {
+		sourceRange = firstBeforeSourceRange;
+		targetRange = firstBeforeTargetRange!;
+	} else if (firstBeforeSourceRange && firstBeforeSourceRange.isEmpty && firstBeforeSourceRange.startLineNumber === topLineNumber) {
+		sourceRange = firstBeforeSourceRange.deltaEnd(1);
+		targetRange = firstBeforeTargetRange!.deltaEnd(1);
 	} else {
-		const delta = firstBefore ? firstBefore.getInputRange(targetNumber).endLineNumberExclusive - firstBefore.getInputRange(sourceNumber).endLineNumberExclusive : 0;
+		const delta = firstBeforeSourceRange ? firstBeforeTargetRange!.endLineNumberExclusive - firstBeforeSourceRange.endLineNumberExclusive : 0;
 		sourceRange = new LineRange(topLineNumber, 1);
 		targetRange = new LineRange(topLineNumber + delta, 1);
 	}
 
-	// sourceRange is not empty!
+	// sourceRange contains topLineNumber!
 
 	const resultStartTopPx = targetEditor.getTopForLineNumber(targetRange.startLineNumber);
 	const resultEndPx = targetEditor.getTopForLineNumber(targetRange.endLineNumberExclusive);
@@ -344,8 +339,21 @@ function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: C
 	const sourceStartTopPx = scrollingEditor.getTopForLineNumber(sourceRange.startLineNumber);
 	const sourceEndPx = scrollingEditor.getTopForLineNumber(sourceRange.endLineNumberExclusive);
 
-	const factor = (scrollingEditor.getScrollTop() - sourceStartTopPx) / (sourceEndPx - sourceStartTopPx);
+	const factor = Math.min((scrollingEditor.getScrollTop() - sourceStartTopPx) / (sourceEndPx - sourceStartTopPx), 1);
 	const resultScrollPosition = resultStartTopPx + (resultEndPx - resultStartTopPx) * factor;
+	/*
+		console.log({
+			topLineNumber,
+			sourceRange: sourceRange.toString(),
+			targetRange: targetRange.toString(),
+			// resultStartTopPx,
+			// resultEndPx,
+			// sourceStartTopPx,
+			// sourceEndPx,
+			factor,
+			resultScrollPosition,
+			top: scrollingEditor.getScrollTop(),
+		});*/
 
 	targetEditor.setScrollTop(resultScrollPosition, ScrollType.Immediate);
 }
@@ -468,7 +476,7 @@ class InputCodeEditorView extends CodeEditorView {
 					if (!model) { return []; }
 					return model.modifiedBaseRanges
 						.filter((r) => r.getInputDiffs(this.inputNumber).length > 0)
-						.map<MergeConflictData>((baseRange, idx) => ({
+						.map<ModifiedBaseRangeGutterItemInfo>((baseRange, idx) => ({
 							id: idx.toString(),
 							additionalHeightInPx: 0,
 							offsetInPx: 0,
@@ -497,25 +505,31 @@ class InputCodeEditorView extends CodeEditorView {
 	}
 }
 
-interface MergeConflictData extends IGutterItemInfo {
+interface ModifiedBaseRangeGutterItemInfo extends IGutterItemInfo {
 	toggleState: IObservable<boolean | undefined>;
 	setState(value: boolean, tx: ITransaction | undefined): void;
 }
 
-class MergeConflictGutterItemView extends Disposable implements IGutterItemView<MergeConflictData> {
-	constructor(private item: MergeConflictData, target: HTMLElement) {
+class MergeConflictGutterItemView extends Disposable implements IGutterItemView<ModifiedBaseRangeGutterItemInfo> {
+	constructor(private item: ModifiedBaseRangeGutterItemInfo, private readonly target: HTMLElement) {
 		super();
 
 		target.classList.add('merge-accept-gutter-marker');
-		target.classList.add(item.range.lineCount > 1 ? 'multi-line' : 'single-line');
 
-		// TODO: Tri-State-Toggle, localized title
-		const checkBox = new Toggle({ isChecked: false, title: 'Accept Merge', icon: Codicon.check, actionClassName: 'monaco-checkbox' });
+		// TODO: localized title
+		const checkBox = new Toggle({ isChecked: false, title: 'Accept Merge', icon: Codicon.check });
 		checkBox.domNode.classList.add('accept-conflict-group');
 
 		this._register(
 			autorun((reader) => {
 				const value = this.item.toggleState.read(reader);
+				checkBox.setIcon(
+					value === true
+						? Codicon.check
+						: value === false
+							? undefined
+							: Codicon.circleFilled
+				);
 				checkBox.checked = value === true;
 			}, 'Update Toggle State')
 		);
@@ -524,15 +538,19 @@ class MergeConflictGutterItemView extends Disposable implements IGutterItemView<
 			this.item.setState(checkBox.checked, undefined);
 		}));
 
-		target.appendChild($('div.background', {}, noBreakWhitespace));
-		target.appendChild($('div.checkbox', {}, checkBox.domNode));
+		target.appendChild(n('div.background', [noBreakWhitespace]).root);
+		target.appendChild(
+			n('div.checkbox', [n('div.checkbox-background', [checkBox.domNode])]).root
+		);
 	}
 
 	layout(top: number, height: number, viewTop: number, viewHeight: number): void {
-
+		this.target.classList.remove('multi-line');
+		this.target.classList.remove('single-line');
+		this.target.classList.add(height > 30 ? 'multi-line' : 'single-line');
 	}
 
-	update(baseRange: MergeConflictData): void {
+	update(baseRange: ModifiedBaseRangeGutterItemInfo): void {
 		this.item = baseRange;
 	}
 }

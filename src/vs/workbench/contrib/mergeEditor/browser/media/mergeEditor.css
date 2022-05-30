@@ -71,8 +71,19 @@
 	justify-content: center;
 }
 
-.merge-accept-gutter-marker .checkbox .accept-conflict-group.monaco-custom-toggle.monaco-checkbox {
-	margin: 0;
-	padding: 0;
+.accept-conflict-group.monaco-custom-toggle {
+	height: 18px;
+	width: 18px;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	margin-right: 0px;
+	margin-left: 0px;
+	padding: 0px;
+	opacity: 1;
+	background-size: 16px !important;
 	background-color: var(--vscode-checkbox-border);
+}
+
+.checkbox-background {
+	background: var(--vscode-editor-background);
 }

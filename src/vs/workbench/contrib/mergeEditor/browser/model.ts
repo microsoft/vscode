@@ -371,7 +371,10 @@ export class ModifiedBaseRangeState {
 		public readonly conflicting: boolean,
 	) { }
 
-	public getInput(inputNumber: 1 | 2): boolean {
+	public getInput(inputNumber: 1 | 2): boolean | undefined {
+		if (this.conflicting) {
+			return undefined;
+		}
 		if (inputNumber === 1) {
 			return this.input1;
 		} else {
@@ -386,17 +389,17 @@ export class ModifiedBaseRangeState {
 	public withInput1(value: boolean): ModifiedBaseRangeState {
 		return new ModifiedBaseRangeState(
 			value,
-			false,
-			value && this.isEmpty ? false : this.input2First,
+			this.input2,
+			value !== this.input2 ? this.input2 : this.input2First,
 			false,
 		);
 	}
 
 	public withInput2(value: boolean): ModifiedBaseRangeState {
 		return new ModifiedBaseRangeState(
-			false,
+			this.input1,
 			value,
-			value && this.isEmpty ? true : this.input2First,
+			value !== this.input1 ? value : this.input2First,
 			false
 		);
 	}
