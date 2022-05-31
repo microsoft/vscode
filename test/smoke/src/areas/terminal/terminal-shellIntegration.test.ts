@@ -40,7 +40,9 @@ export function setup() {
 						await terminal.runCommandInTerminal(`ls`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
 					});
-					it('Error', async () => {
+					// TODO: Skip error case on all platforms, it seems particularly flaky currently
+					// https://github.com/microsoft/vscode/issues/150742
+					it.skip('Error', async () => {
 						await createShellIntegrationProfile();
 						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
