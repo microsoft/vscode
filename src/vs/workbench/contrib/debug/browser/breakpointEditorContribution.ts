@@ -82,20 +82,21 @@ function getBreakpointDecorationOptions(debugService: IDebugService, model: ITex
 		.filter(messages => !!messages)[0];
 
 	if (message) {
+		glyphMarginHoverMessage = new MarkdownString(undefined, { isTrusted: true, supportThemeIcons: true });
 		if (breakpoint.condition || breakpoint.hitCondition) {
 			const languageId = model.getLanguageId();
-			glyphMarginHoverMessage = new MarkdownString(undefined, { isTrusted: true }).appendCodeblock(languageId, message);
+			glyphMarginHoverMessage.appendCodeblock(languageId, message);
 			if (unverifiedMessage) {
-				glyphMarginHoverMessage.appendMarkdown(unverifiedMessage);
+				glyphMarginHoverMessage.appendMarkdown('$(warning) ' + unverifiedMessage);
 			}
 		} else {
-			glyphMarginHoverMessage = new MarkdownString(undefined, { isTrusted: true }).appendText(message);
+			glyphMarginHoverMessage.appendText(message);
 			if (unverifiedMessage) {
-				glyphMarginHoverMessage.appendMarkdown('\n\n' + unverifiedMessage);
+				glyphMarginHoverMessage.appendMarkdown('\n\n$(warning) ' + unverifiedMessage);
 			}
 		}
 	} else if (unverifiedMessage) {
-		glyphMarginHoverMessage = new MarkdownString(undefined, { isTrusted: true }).appendMarkdown(unverifiedMessage);
+		glyphMarginHoverMessage = new MarkdownString(undefined, { isTrusted: true, supportThemeIcons: true }).appendMarkdown(unverifiedMessage);
 	}
 
 	let overviewRulerDecoration: IModelDecorationOverviewRulerOptions | null = null;
