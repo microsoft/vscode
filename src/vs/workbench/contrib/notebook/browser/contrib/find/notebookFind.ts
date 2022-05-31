@@ -131,7 +131,6 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
 
-	// Get the search string result, following the same logic in StartFindAction.addImplementation function in 'vs/editor/contrib/find/browser/findController'
 	const searchString = getSearchString(codeEditor, {
 		forceRevealReplace: false,
 		seedSearchStringFromSelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
@@ -157,7 +156,6 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
 
-	// Get the search string result, following the same logic in StartFindAction.addImplementation function in 'vs/editor/contrib/find/browser/findController'
 	const searchString = getSearchString(codeEditor, {
 		forceRevealReplace: false,
 		seedSearchStringFromSelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
