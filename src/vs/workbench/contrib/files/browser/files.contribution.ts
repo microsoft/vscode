@@ -186,12 +186,6 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only `#files.encoding#` is respected."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
-		'files.excludeGitIgnore': {
-			type: 'boolean',
-			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the explorer. Similar to `#files.exclude#`."),
-			default: false,
-			scope: ConfigurationScope.RESOURCE
-		},
 		'files.eol': {
 			'type': 'string',
 			'enum': [
@@ -476,6 +470,12 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
 			'default': 'auto'
+		},
+		'explorer.excludeGitIgnore': {
+			type: 'boolean',
+			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the explorer. Similar to `#files.exclude#`."),
+			default: false,
+			scope: ConfigurationScope.RESOURCE
 		},
 		'explorer.fileNesting.enabled': {
 			'type': 'boolean',
