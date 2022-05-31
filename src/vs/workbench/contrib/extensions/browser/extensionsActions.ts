@@ -2886,8 +2886,8 @@ export const extensionButtonProminentHoverBackground = registerColor('extensionB
 	hcLight: null
 }, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
 
-registerColor('extensionSponsorButton.background', { light: '#E94AAA', dark: '#E90A91', hcDark: null, hcLight: '#E94AAA' }, localize('extensionSponsorButton.background', "Background color for extension sponsor button."), true);
-registerColor('extensionSponsorButton.hoverBackground', { light: '#E90A91', dark: '#E94AAA', hcDark: null, hcLight: '#E94AAA' }, localize('extensionSponsorButton.hoverBackground', "Background hover color for extension sponsor button."), true);
+registerColor('extensionSponsorButton.background', { light: '#B51E78', dark: '#B51E78', hcDark: null, hcLight: '#B51E78' }, localize('extensionSponsorButton.background', "Background color for extension sponsor button."), true);
+registerColor('extensionSponsorButton.hoverBackground', { light: '#D61B8C', dark: '#D61B8C', hcDark: null, hcLight: '#D61B8C' }, localize('extensionSponsorButton.hoverBackground', "Background hover color for extension sponsor button."), true);
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const foregroundColor = theme.getColor(foreground);
