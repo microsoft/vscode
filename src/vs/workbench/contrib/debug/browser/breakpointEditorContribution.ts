@@ -12,7 +12,7 @@ import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/action
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IModelDecorationOptions, TrackedRangeStickiness, ITextModel, OverviewRulerLane, IModelDecorationOverviewRulerOptions } from 'vs/editor/common/model';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession, DebuggerUiMessage } from 'vs/workbench/contrib/debug/common/debug';
@@ -36,6 +36,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { noBreakWhitespace } from 'vs/base/common/strings';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const $ = dom.$;
 
@@ -52,7 +54,7 @@ const breakpointHelperDecoration: IModelDecorationOptions = {
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
-export function createBreakpointDecorations(debugService: IDebugService, model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): { range: Range; options: IModelDecorationOptions }[] {
+export function createBreakpointDecorations(accessor: ServicesAccessor, model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): { range: Range; options: IModelDecorationOptions }[] {
 	const result: { range: Range; options: IModelDecorationOptions }[] = [];
 	breakpoints.forEach((breakpoint) => {
 		if (breakpoint.lineNumber > model.getLineCount()) {
@@ -65,7 +67,7 @@ export function createBreakpointDecorations(debugService: IDebugService, model: 
 		);
 
 		result.push({
-			options: getBreakpointDecorationOptions(debugService, model, breakpoint, state, breakpointsActivated, showBreakpointsInOverviewRuler),
+			options: getBreakpointDecorationOptions(accessor, model, breakpoint, state, breakpointsActivated, showBreakpointsInOverviewRuler),
 			range
 		});
 	});
@@ -73,13 +75,30 @@ export function createBreakpointDecorations(debugService: IDebugService, model: 
 	return result;
 }
 
-function getBreakpointDecorationOptions(debugService: IDebugService, model: ITextModel, breakpoint: IBreakpoint, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): IModelDecorationOptions {
+function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: ITextModel, breakpoint: IBreakpoint, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): IModelDecorationOptions {
+	const debugService = accessor.get(IDebugService);
+	const languageService = accessor.get(ILanguageService);
 	const { icon, message, showAdapterUnverifiedMessage } = getBreakpointMessageAndIcon(state, breakpointsActivated, breakpoint, undefined);
 	let glyphMarginHoverMessage: MarkdownString | undefined;
 
-	const unverifiedMessage = showAdapterUnverifiedMessage && debugService.getModel().getSessions()
-		.map(s => debugService.getAdapterManager().getDebuggerUiMessages(s.configuration.type)[DebuggerUiMessage.UnverifiedBreakpoints])
-		.filter(messages => !!messages)[0];
+	let unverifiedMessage: string | undefined;
+	if (showAdapterUnverifiedMessage) {
+		let langId: string | undefined;
+		unverifiedMessage = debugService.getModel().getSessions().map(s => {
+			const dbg = debugService.getAdapterManager().getDebugger(s.configuration.type);
+			const message = dbg?.uiMessages?.[DebuggerUiMessage.UnverifiedBreakpoints];
+			if (message) {
+				if (!langId) {
+					// Lazily compute this, only if needed for some debug adapter
+					langId = withNullAsUndefined(languageService.guessLanguageIdByFilepathOrFirstLine(breakpoint.uri));
+				}
+				return langId && dbg.interestedInLanguage(langId) ? message : undefined;
+			}
+
+			return undefined;
+		})
+			.filter(messages => !!messages)[0];
+	}
 
 	if (message) {
 		glyphMarginHoverMessage = new MarkdownString(undefined, { isTrusted: true, supportThemeIcons: true });
@@ -482,7 +501,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		const model = activeCodeEditor.getModel();
 		const breakpoints = this.debugService.getModel().getBreakpoints({ uri: model.uri });
 		const debugSettings = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const desiredBreakpointDecorations = createBreakpointDecorations(this.debugService, model, breakpoints, this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), debugSettings.showBreakpointsInOverviewRuler);
+		const desiredBreakpointDecorations = this.instantiationService.invokeFunction(accessor => createBreakpointDecorations(accessor, model, breakpoints, this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), debugSettings.showBreakpointsInOverviewRuler));
 
 		try {
 			this.ignoreDecorationsChangedEvent = true;

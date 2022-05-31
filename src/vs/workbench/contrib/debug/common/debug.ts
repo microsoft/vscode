@@ -159,6 +159,13 @@ export interface IDebugger {
 	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined;
 }
 
+export interface IDebuggerMetadata {
+	label: string;
+	type: string;
+	uiMessages?: { [key in DebuggerUiMessage]: string };
+	interestedInLanguage(languageId: string): boolean;
+}
+
 export const enum State {
 	Inactive,
 	Initializing,
@@ -859,8 +866,8 @@ export interface IAdapterManager {
 	hasEnabledDebuggers(): boolean;
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 	getDebuggerLabel(type: string): string | undefined;
-	isDebuggerInterestedInLanguage(language: string): boolean;
-	getDebuggerUiMessages(type: string): { [key in DebuggerUiMessage]?: string };
+	someDebuggerInterestedInLanguage(language: string): boolean;
+	getDebugger(type: string): IDebuggerMetadata | undefined;
 
 	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
