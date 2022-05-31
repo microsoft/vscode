@@ -113,6 +113,8 @@ export class MergeEditorModel extends EditorModel {
 			this.recomputeState();
 		});
 		this.recomputeState();
+
+		this.resetUnknown();
 	}
 
 	private recomputeState(): void {
@@ -131,6 +133,16 @@ export class MergeEditorModel extends EditorModel {
 
 			for (const row of baseRangeWithStoreAndTouchingDiffs) {
 				row.left[1].set(this.computeState(row.left[0], row.rights), tx);
+			}
+		});
+	}
+
+	public resetUnknown(): void {
+		transaction(tx => {
+			for (const range of this.modifiedBaseRanges) {
+				if (this.getState(range).get().conflicting) {
+					this.setState(range, ModifiedBaseRangeState.default, tx);
+				}
 			}
 		});
 	}
@@ -215,7 +227,7 @@ export class MergeEditorModel extends EditorModel {
 		if (!existingState) {
 			throw new BugIndicatingError('object must be from this instance');
 		}
-		existingState.set(state, transaction);
+
 
 		const conflictingDiffs = this.resultEdits.findTouchingDiffs(
 			baseRange.baseRange
@@ -224,13 +236,73 @@ export class MergeEditorModel extends EditorModel {
 			this.resultEdits.removeDiffs(conflictingDiffs, transaction);
 		}
 
-		const diff = state.input1
-			? baseRange.input1CombinedDiff
-			: state.input2
-				? baseRange.input2CombinedDiff
-				: undefined;
-		if (diff) {
-			this.resultEdits.applyEditRelativeToOriginal(diff.getLineEdit(), transaction);
+		function getEdit(baseRange: ModifiedBaseRange, state: ModifiedBaseRangeState): { edit: LineEdit | undefined; effectiveState: ModifiedBaseRangeState } {
+			interface LineDiffWithInputNumber {
+				diff: LineDiff;
+				inputNumber: 1 | 2;
+			}
+
+			const diffs = new Array<LineDiffWithInputNumber>();
+			if (state.input1) {
+				if (baseRange.input1CombinedDiff) {
+					diffs.push({ diff: baseRange.input1CombinedDiff, inputNumber: 1 });
+				}
+			}
+			if (state.input2) {
+				if (baseRange.input2CombinedDiff) {
+					diffs.push({ diff: baseRange.input2CombinedDiff, inputNumber: 2 });
+				}
+			}
+			if (state.input2First) {
+				diffs.reverse();
+			}
+			const firstDiff: LineDiffWithInputNumber | undefined = diffs[0];
+			const secondDiff: LineDiffWithInputNumber | undefined = diffs[1];
+			diffs.sort(compareBy(d => d.diff.originalRange, LineRange.compareByStart));
+
+			if (!firstDiff) {
+				return { edit: undefined, effectiveState: state };
+			}
+
+			if (!secondDiff) {
+				return { edit: firstDiff.diff.getLineEdit(), effectiveState: state };
+			}
+
+			// Two inserts
+			if (
+				firstDiff.diff.originalRange.lineCount === 0 &&
+				firstDiff.diff.originalRange.equals(secondDiff.diff.originalRange)
+			) {
+				return {
+					edit: new LineEdit(
+						firstDiff.diff.originalRange,
+						firstDiff.diff
+							.getLineEdit()
+							.newLines.concat(secondDiff.diff.getLineEdit().newLines)
+					),
+					effectiveState: state,
+				};
+			}
+
+			// Technically non-conflicting diffs
+			if (diffs.length === 2 && diffs[0].diff.originalRange.endLineNumberExclusive === diffs[1].diff.originalRange.startLineNumber) {
+				return {
+					edit: new LineEdit(
+						LineRange.join(diffs.map(d => d.diff.originalRange))!,
+						diffs.flatMap(d => d.diff.getLineEdit().newLines)
+					),
+					effectiveState: state,
+				};
+			}
+
+			return { edit: firstDiff.diff.getLineEdit(), effectiveState: state };
+		}
+		const { edit, effectiveState } = getEdit(baseRange, state);
+
+		existingState.set(effectiveState, transaction);
+
+		if (edit) {
+			this.resultEdits.applyEditRelativeToOriginal(edit, transaction);
 		}
 	}
 
@@ -359,11 +431,11 @@ class ResultEdits {
 				new LineRange(edit.range.startLineNumber + delta, edit.newLines.length)
 			));
 		}
-		this._diffs.set(newDiffs, transaction);
 
 		this.barrier.runExclusivelyOrThrow(() => {
 			new LineEdit(edit.range.delta(delta), edit.newLines).apply(this.resultTextModel);
 		});
+		this._diffs.set(newDiffs, transaction);
 	}
 
 	public findTouchingDiffs(baseRange: LineRange): LineDiff[] {

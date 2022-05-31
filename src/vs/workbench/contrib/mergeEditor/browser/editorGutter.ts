@@ -94,9 +94,11 @@ export class EditorGutter<
 					scrollTop +
 					lineHeight;
 
-				const bottom =
-					this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive) -
-					scrollTop;
+				const bottom = (
+					gutterItem.range.endLineNumberExclusive <= this._editor.getModel()!.getLineCount()
+						? this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive)
+						: this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive - 1) + lineHeight
+				) - scrollTop;
 
 				const height = bottom - top;
 
