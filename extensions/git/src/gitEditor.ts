@@ -40,16 +40,10 @@ export class GitEditor implements IIPCHandler {
 
 	getEnv(): { [key: string]: string } {
 		if (!this.ipc) {
-			const fileType = process.platform === 'win32' ? 'bat' : 'sh';
-			const gitEditor = path.join(__dirname, `scripts/git-editor-empty.${fileType}`);
-
 			return {
-				GIT_EDITOR: `'${gitEditor}'`
+				GIT_EDITOR: path.join(__dirname, 'git-editor-empty.sh')
 			};
 		}
-
-		const fileType = process.platform === 'win32' ? 'bat' : 'sh';
-		const gitEditor = path.join(__dirname, `scripts/git-editor.${fileType}`);
 
 		let env: { [key: string]: string } = {
 			VSCODE_GIT_EDITOR_NODE: process.execPath,
@@ -58,7 +52,7 @@ export class GitEditor implements IIPCHandler {
 
 		const config = workspace.getConfiguration('git');
 		if (config.get<boolean>('useEditorAsCommitInput')) {
-			env.GIT_EDITOR = `'${gitEditor}'`;
+			env.GIT_EDITOR = path.join(__dirname, 'git-editor.sh');
 		}
 
 		return env;
