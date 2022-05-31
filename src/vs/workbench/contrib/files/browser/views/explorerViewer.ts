@@ -610,6 +610,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	// List of ignoreFile resources. Used to detect changes to the ignoreFiles.
 	private ignoreFileResourcesPerRoot = new Map<string, ResourceSet>();
 	// Ignore tree per root. Similar to `hiddenExpressionPerRoot`
+	// Note: URI in the ternary search tree is the URI of the folder containing the ignore file
+	// It is not the ignore file itself. This is because of the way the IgnoreFile works and nested paths
 	private ignoreTreesPerRoot = new Map<string, TernarySearchTree<URI, IgnoreFile>>();
 
 	constructor(
@@ -627,6 +629,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			}
 		}));
 		this.toDispose.push(this.fileService.onDidFilesChange(e => {
+			console.log(JSON.stringify(e));
 			// Check to see if the update contains any of the ignoreFileResources
 			for (const [root, ignoreFileResourceSet] of this.ignoreFileResourcesPerRoot.entries()) {
 				ignoreFileResourceSet.forEach(async ignoreResource => {
@@ -634,7 +637,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 						await this.processIgnoreFile(root, ignoreResource, true);
 					}
 					if (e.contains(ignoreResource, FileChangeType.DELETED)) {
-						this.ignoreTreesPerRoot.get(root)?.delete(ignoreResource);
+						this.ignoreTreesPerRoot.get(root)?.delete(dirname(ignoreResource));
 						ignoreFileResourceSet.delete(ignoreResource);
 					}
 				});
