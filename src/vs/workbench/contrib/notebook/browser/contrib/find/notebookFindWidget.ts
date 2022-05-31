@@ -20,9 +20,9 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
-import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { CellEditState, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 

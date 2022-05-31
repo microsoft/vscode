@@ -632,7 +632,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	}
 
 	public showWithReplace(initialInput?: string, replaceInput?: string): void {
-		// isVisible deleted, only need input to show the result
 		if (initialInput) {
 			this._findInput.setValue(initialInput);
 		}
