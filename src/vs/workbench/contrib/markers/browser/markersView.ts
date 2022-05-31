@@ -607,6 +607,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 
 		// Restore selection
 		if (selection && selection.length > 0 && (selection[0] instanceof Marker || selection[0] instanceof MarkerTableItem)) {
+			this.widget.domFocus();
 			this.widget.setMarkerSelection(selection[0]);
 		}
 	}
