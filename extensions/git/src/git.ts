@@ -354,7 +354,7 @@ function sanitizePath(path: string): string {
 	return path.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`);
 }
 
-const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%B';
+const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
@@ -396,7 +396,7 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repository: string, dotGit: string): Repository {
+	open(repository: string, dotGit: { path: string; commonPath?: string }): Repository {
 		return new Repository(this, repository, dotGit);
 	}
 
@@ -469,7 +469,7 @@ export class Git {
 	}
 
 	async getRepositoryRoot(repositoryPath: string): Promise<string> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel'], { log: false });
+		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
 
 		// Keep trailing spaces which are part of the directory name
 		const repoPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
@@ -509,15 +509,25 @@ export class Git {
 		return repoPath;
 	}
 
-	async getRepositoryDotGit(repositoryPath: string): Promise<string> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--git-dir']);
-		let dotGitPath = result.stdout.trim();
+	async getRepositoryDotGit(repositoryPath: string): Promise<{ path: string; commonPath?: string }> {
+		const result = await this.exec(repositoryPath, ['rev-parse', '--git-dir', '--git-common-dir']);
+		let [dotGitPath, commonDotGitPath] = result.stdout.split('\n').map(r => r.trim());
 
 		if (!path.isAbsolute(dotGitPath)) {
 			dotGitPath = path.join(repositoryPath, dotGitPath);
 		}
+		dotGitPath = path.normalize(dotGitPath);
 
-		return path.normalize(dotGitPath);
+		if (commonDotGitPath) {
+			if (!path.isAbsolute(commonDotGitPath)) {
+				commonDotGitPath = path.join(repositoryPath, commonDotGitPath);
+			}
+			commonDotGitPath = path.normalize(commonDotGitPath);
+
+			return { path: dotGitPath, commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined };
+		}
+
+		return { path: dotGitPath };
 	}
 
 	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
@@ -650,6 +660,7 @@ export interface Commit {
 	authorName?: string;
 	authorEmail?: string;
 	commitDate?: Date;
+	refNames: string[];
 }
 
 export class GitStatusParser {
@@ -780,7 +791,7 @@ export function parseGitmodules(raw: string): Submodule[] {
 	return result;
 }
 
-const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
+const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
 
 export function parseGitCommits(data: string): Commit[] {
 	let commits: Commit[] = [];
@@ -791,6 +802,7 @@ export function parseGitCommits(data: string): Commit[] {
 	let authorDate;
 	let commitDate;
 	let parents;
+	let refNames;
 	let message;
 	let match;
 
@@ -800,7 +812,7 @@ export function parseGitCommits(data: string): Commit[] {
 			break;
 		}
 
-		[, ref, authorName, authorEmail, authorDate, commitDate, parents, message] = match;
+		[, ref, authorName, authorEmail, authorDate, commitDate, parents, refNames, message] = match;
 
 		if (message[message.length - 1] === '\n') {
 			message = message.substr(0, message.length - 1);
@@ -815,6 +827,7 @@ export function parseGitCommits(data: string): Commit[] {
 			authorName: ` ${authorName}`.substr(1),
 			authorEmail: ` ${authorEmail}`.substr(1),
 			commitDate: new Date(Number(commitDate) * 1000),
+			refNames: refNames.split(',').map(s => s.trim())
 		});
 	} while (true);
 
@@ -863,7 +876,7 @@ export class Repository {
 	constructor(
 		private _git: Git,
 		private repositoryRoot: string,
-		readonly dotGit: string
+		readonly dotGit: { path: string; commonPath?: string }
 	) { }
 
 	get git(): Git {
@@ -1387,20 +1400,37 @@ export class Repository {
 	}
 
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const args = ['commit', '--quiet', '--allow-empty-message'];
+		const args = ['commit', '--quiet'];
+		const options: SpawnOptions = {};
+
+		if (message) {
+			options.input = message;
+			args.push('--file', '-');
+		}
+
+		if (opts.verbose) {
+			args.push('--verbose');
+		}
 
 		if (opts.all) {
 			args.push('--all');
 		}
 
-		if (opts.amend && message) {
+		if (opts.amend) {
 			args.push('--amend');
 		}
 
-		if (opts.amend && !message) {
-			args.push('--amend', '--no-edit');
-		} else {
-			args.push('--file', '-');
+		if (!opts.useEditor) {
+			if (!message) {
+				if (opts.amend) {
+					args.push('--no-edit');
+				} else {
+					options.input = '';
+					args.push('--file', '-');
+				}
+			}
+
+			args.push('--allow-empty-message');
 		}
 
 		if (opts.signoff) {
@@ -1425,7 +1455,7 @@ export class Repository {
 		}
 
 		try {
-			await this.exec(args, !opts.amend || message ? { input: message || '' } : {});
+			await this.exec(args, options);
 		} catch (commitErr) {
 			await this.handleCommitError(commitErr);
 		}
@@ -1448,6 +1478,9 @@ export class Repository {
 	private async handleCommitError(commitErr: any): Promise<void> {
 		if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
+			throw commitErr;
+		} else if (/Aborting commit due to empty commit message/.test(commitErr.stderr || '')) {
+			commitErr.gitErrorCode = GitErrorCodes.EmptyCommitMessage;
 			throw commitErr;
 		}
 
@@ -2043,8 +2076,10 @@ export class Repository {
 		if (this._git.compareGitVersionTo('1.9.0') === -1) {
 			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)');
 			supportsAheadBehind = false;
-		} else {
+		} else if (this._git.compareGitVersionTo('2.16.0') === -1) {
 			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)');
+		} else {
+			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref)');
 		}
 
 		if (/^refs\/(head|remotes)\//i.test(name)) {
@@ -2055,7 +2090,7 @@ export class Repository {
 
 		const result = await this.exec(args);
 		const branches: Branch[] = result.stdout.trim().split('\n').map<Branch | undefined>(line => {
-			let [branchName, upstream, ref, status] = line.trim().split('\0');
+			let [branchName, upstream, ref, status, remoteName, upstreamRef] = line.trim().split('\0');
 
 			if (branchName.startsWith('refs/heads/')) {
 				branchName = branchName.substring(11);
@@ -2072,8 +2107,8 @@ export class Repository {
 					type: RefType.Head,
 					name: branchName,
 					upstream: upstream ? {
-						name: upstream.substring(index + 1),
-						remote: upstream.substring(0, index)
+						name: upstreamRef ? upstreamRef.substring(11) : upstream.substring(index + 1),
+						remote: remoteName ? remoteName : upstream.substring(0, index)
 					} : undefined,
 					commit: ref || undefined,
 					ahead: Number(ahead) || 0,

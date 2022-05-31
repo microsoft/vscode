@@ -25,6 +25,10 @@ interface Word {
 export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 	static id = 'word';
 
+	// Word links typically search the workspace so it makes sense that their maximum link length is
+	// quite small.
+	readonly maxLinkLength = 100;
+
 	constructor(
 		readonly xterm: Terminal,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,

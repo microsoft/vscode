@@ -929,7 +929,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		matches.forEach(match => {
 			match.matches.forEach((singleMatch, index) => {
-				if ((singleMatch as OutputFindMatch).index !== undefined) {
+				if ((singleMatch as OutputFindMatch).index === undefined) {
 					textEdits.push({
 						edit: { range: (singleMatch as FindMatch).range, text: texts[index] },
 						resource: match.cell.uri

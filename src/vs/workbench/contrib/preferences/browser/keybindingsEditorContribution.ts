@@ -163,7 +163,7 @@ export class KeybindingWidgetRenderer extends Disposable {
 export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 	private _updateDecorations: RunOnceScheduler;
-	private _dec: string[] = [];
+	private readonly _dec = this._editor.createDecorationsCollection();
 
 	constructor(
 		private _editor: ICodeEditor,
@@ -178,7 +178,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		this._register(this._keybindingService.onDidUpdateKeybindings((e) => this._updateDecorations.schedule()));
 		this._register({
 			dispose: () => {
-				this._dec = this._editor.deltaDecorations(this._dec, []);
+				this._dec.clear();
 				this._updateDecorations.cancel();
 			}
 		});
@@ -201,7 +201,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			}
 		}
 
-		this._dec = this._editor.deltaDecorations(this._dec, newDecorations);
+		this._dec.set(newDecorations);
 	}
 
 	private _getDecorationForEntry(model: ITextModel, entry: Node): IModelDeltaDecoration | null {

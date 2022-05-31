@@ -1598,9 +1598,10 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		let lastPageIndex = this.view.indexAt(this.view.getScrollTop() + this.view.renderHeight);
 		lastPageIndex = lastPageIndex === 0 ? 0 : lastPageIndex - 1;
 		const lastPageElement = this.view.element(lastPageIndex);
-		const currentlyFocusedElement = this.getFocusedElements()[0];
+		const currentlyFocusedElementIndex = this.getFocus()[0];
+		const currentlyFocusedElement = this.view.element(currentlyFocusedElementIndex);
 
-		if (currentlyFocusedElement !== lastPageElement) {
+		if (currentlyFocusedElement !== lastPageElement && lastPageIndex > currentlyFocusedElementIndex) {
 			const lastGoodPageIndex = this.findPreviousIndex(lastPageIndex, false, filter);
 
 			if (lastGoodPageIndex > -1 && currentlyFocusedElement !== this.view.element(lastGoodPageIndex)) {
@@ -1610,7 +1611,13 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			}
 		} else {
 			const previousScrollTop = this.view.getScrollTop();
-			this.view.setScrollTop(previousScrollTop + this.view.renderHeight - this.view.elementHeight(lastPageIndex));
+			let nextpageScrollTop = previousScrollTop + this.view.renderHeight;
+			if (lastPageIndex > currentlyFocusedElementIndex) {
+				// scroll last page element to the top only if the last page element is below the focused element
+				nextpageScrollTop -= this.view.elementHeight(lastPageIndex);
+			}
+
+			this.view.setScrollTop(nextpageScrollTop);
 
 			if (this.view.getScrollTop() !== previousScrollTop) {
 				this.setFocus([]);
@@ -1633,9 +1640,10 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		}
 
 		const firstPageElement = this.view.element(firstPageIndex);
-		const currentlyFocusedElement = this.getFocusedElements()[0];
+		const currentlyFocusedElementIndex = this.getFocus()[0];
+		const currentlyFocusedElement = this.view.element(currentlyFocusedElementIndex);
 
-		if (currentlyFocusedElement !== firstPageElement) {
+		if (currentlyFocusedElement !== firstPageElement && currentlyFocusedElementIndex >= firstPageIndex) {
 			const firstGoodPageIndex = this.findNextIndex(firstPageIndex, false, filter);
 
 			if (firstGoodPageIndex > -1 && currentlyFocusedElement !== this.view.element(firstGoodPageIndex)) {

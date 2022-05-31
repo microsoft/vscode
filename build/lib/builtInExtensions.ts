@@ -69,17 +69,20 @@ function isUpToDate(extension: IExtensionDefinition): boolean {
 }
 
 function syncMarketplaceExtension(extension: IExtensionDefinition): Stream {
+	const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
+	const source = ansiColors.blue(galleryServiceUrl ? '[marketplace]' : '[github]');
+
 	if (isUpToDate(extension)) {
-		log(ansiColors.blue('[marketplace]'), `${extension.name}@${extension.version}`, ansiColors.green('✔︎'));
+		log(source, `${extension.name}@${extension.version}`, ansiColors.green('✔︎'));
 		return es.readArray([]);
 	}
 
 	rimraf.sync(getExtensionPath(extension));
 
-	return ext.fromMarketplace(extension.name, extension.version, extension.metadata)
+	return (galleryServiceUrl ? ext.fromMarketplace(galleryServiceUrl, extension) : ext.fromGithub(extension))
 		.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`))
 		.pipe(vfs.dest('.build/builtInExtensions'))
-		.on('end', () => log(ansiColors.blue('[marketplace]'), extension.name, ansiColors.green('✔︎')));
+		.on('end', () => log(source, extension.name, ansiColors.green('✔︎')));
 }
 
 function syncExtension(extension: IExtensionDefinition, controlState: 'disabled' | 'marketplace'): Stream {
@@ -133,7 +136,7 @@ function writeControlFile(control: IControlFile): void {
 }
 
 export function getBuiltInExtensions(): Promise<void> {
-	log('Syncronizing built-in extensions...');
+	log('Synchronizing built-in extensions...');
 	log(`You can manage built-in extensions with the ${ansiColors.cyan('--builtin')} flag`);
 
 	const control = readControlFile();

@@ -167,7 +167,7 @@ registerSingleton(IExtensionBisectService, ExtensionBisectService, true);
 
 class ExtensionBisectUi {
 
-	static ctxIsBisectActive = new RawContextKey('isExtensionBisectActive', false);
+	static ctxIsBisectActive = new RawContextKey<boolean>('isExtensionBisectActive', false);
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,

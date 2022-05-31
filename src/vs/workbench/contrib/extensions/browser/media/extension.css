@@ -82,10 +82,6 @@
 	overflow: hidden;
 }
 
-.extension-list-item > .details > .header-container > .header > .extension-pre-release .codicon {
-	color: var(--vscode-extensionIcon-preReleaseForeground) !important;
-}
-
 .extension-list-item > .details > .header-container > .header > .activation-status,
 .extension-list-item > .details > .header-container > .header > .install-count,
 .extension-list-item > .details > .header-container > .header > .ratings {
@@ -143,10 +139,6 @@
 	color: currentColor;
 }
 
-.extension-list-item > .details > .header-container > .header .pre-release {
-	display: flex;
-}
-
 .extension-list-item > .details > .header-container > .header .sync-ignored {
 	display: flex;
 }
@@ -157,6 +149,16 @@
 
 .extension-list-item > .details > .description {
 	padding-right: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-list-row.selected .extension-list-item > .details > .description{
+	color: unset;
+}
+
+.hc-black .extension-list-item > .details > .description,
+.hc-light .extension-list-item > .details > .description {
+	color: unset;
 }
 
 .extension-list-item > .details > .footer {

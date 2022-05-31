@@ -156,8 +156,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._onDidChangeState.fire({ outputCollapsedChanged: true });
 	}
 
-	private _textEditorRestore: any;
-
 	constructor(
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
@@ -236,25 +234,25 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._textEditor = editor;
 
 		if (this._editorViewStates) {
-			this._textEditorRestore = setTimeout(() => {
-				this._restoreViewState(this._editorViewStates);
-			});
+			this._restoreViewState(this._editorViewStates);
 		}
 
 		if (this._editorTransientState) {
 			writeTransientState(editor.getModel(), this._editorTransientState, this._codeEditorService);
 		}
 
-		this._resolvedDecorations.forEach((value, key) => {
-			if (key.startsWith('_lazy_')) {
-				// lazy ones
-				const ret = this._textEditor!.deltaDecorations([], [value.options]);
-				this._resolvedDecorations.get(key)!.id = ret[0];
-			}
-			else {
-				const ret = this._textEditor!.deltaDecorations([], [value.options]);
-				this._resolvedDecorations.get(key)!.id = ret[0];
-			}
+		this._textEditor.changeDecorations((accessor) => {
+			this._resolvedDecorations.forEach((value, key) => {
+				if (key.startsWith('_lazy_')) {
+					// lazy ones
+					const ret = accessor.addDecoration(value.options.range, value.options.options);
+					this._resolvedDecorations.get(key)!.id = ret;
+				}
+				else {
+					const ret = accessor.addDecoration(value.options.range, value.options.options);
+					this._resolvedDecorations.get(key)!.id = ret;
+				}
+			});
 		});
 
 		this._editorListeners.push(this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
@@ -264,16 +262,17 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	detachTextEditor() {
-		clearTimeout(this._textEditorRestore);
 		this.saveViewState();
 		this.saveTransientState();
 		// decorations need to be cleared first as editors can be resued.
-		this._resolvedDecorations.forEach(value => {
-			const resolvedid = value.id;
+		this._textEditor?.changeDecorations((accessor) => {
+			this._resolvedDecorations.forEach(value => {
+				const resolvedid = value.id;
 
-			if (resolvedid) {
-				this._textEditor?.deltaDecorations([resolvedid], []);
-			}
+				if (resolvedid) {
+					accessor.removeDecoration(resolvedid);
+				}
+			});
 		});
 
 		this._textEditor = undefined;
@@ -337,16 +336,21 @@ export abstract class BaseCellViewModel extends Disposable {
 			return decorationId;
 		}
 
-		const result = this._textEditor.deltaDecorations([], [decoration]);
-		this._resolvedDecorations.set(result[0], { id: result[0], options: decoration });
-		return result[0];
+		let id: string;
+		this._textEditor.changeDecorations((accessor) => {
+			id = accessor.addDecoration(decoration.range, decoration.options);
+			this._resolvedDecorations.set(id, { id, options: decoration });
+		});
+		return id!;
 	}
 
 	removeModelDecoration(decorationId: string) {
 		const realDecorationId = this._resolvedDecorations.get(decorationId);
 
 		if (this._textEditor && realDecorationId && realDecorationId.id !== undefined) {
-			this._textEditor.deltaDecorations([realDecorationId.id!], []);
+			this._textEditor.changeDecorations((accessor) => {
+				accessor.removeDecoration(realDecorationId.id!);
+			});
 		}
 
 		// lastly, remove all the cache
@@ -589,7 +593,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		super.dispose();
 
 		dispose(this._editorListeners);
-		clearTimeout(this._textEditorRestore);
 
 		// Only remove the undo redo stack if we map this cell uri to itself
 		// If we are not in perCell mode, it will map to the full NotebookDocument and

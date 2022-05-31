@@ -707,15 +707,17 @@ export class DefaultSettings extends Disposable {
 					});
 				}
 
-				const registeredConfigurationProp = prop as IRegisteredConfigurationPropertySchema;
-				let defaultValueSource: string | IExtensionInfo | undefined;
-				if (registeredConfigurationProp && registeredConfigurationProp.defaultValueSource) {
-					defaultValueSource = registeredConfigurationProp.defaultValueSource;
-				}
-
 				let isLanguageTagSetting = false;
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 					isLanguageTagSetting = true;
+				}
+
+				let defaultValueSource: string | IExtensionInfo | undefined;
+				if (!isLanguageTagSetting) {
+					const registeredConfigurationProp = prop as IRegisteredConfigurationPropertySchema;
+					if (registeredConfigurationProp && registeredConfigurationProp.defaultValueSource) {
+						defaultValueSource = registeredConfigurationProp.defaultValueSource;
+					}
 				}
 
 				result.push({
@@ -749,7 +751,7 @@ export class DefaultSettings extends Disposable {
 					allKeysAreBoolean,
 					editPresentation: prop.editPresentation,
 					order: prop.order,
-					defaultValueSource,
+					nonLanguageSpecificDefaultValueSource: defaultValueSource,
 					isLanguageTagSetting,
 					categoryLabel,
 					categoryOrder
@@ -903,7 +905,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 		// Force tokenization now - otherwise it may be slightly delayed, causing a flash of white text
 		const tokenizeTo = Math.min(startLine + 60, this._model.getLineCount());
-		this._model.forceTokenization(tokenizeTo);
+		this._model.tokenization.forceTokenization(tokenizeTo);
 
 		return { matches, settingsGroups };
 	}

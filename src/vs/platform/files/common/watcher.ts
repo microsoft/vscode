@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from 'vs/base/common/glob';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { isAbsolute } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
@@ -23,6 +25,11 @@ interface IWatchRequest {
 
 	/**
 	 * A set of glob patterns or paths to exclude from watching.
+	 *
+	 * Paths or basic glob patterns that are relative will be
+	 * resolved to an absolute path using the currently opened
+	 * workspace. Complex glob patterns must match on absolute
+	 * paths via leading or trailing `**`.
 	 */
 	excludes: string[];
 
@@ -30,8 +37,13 @@ interface IWatchRequest {
 	 * An optional set of glob patterns or paths to include for
 	 * watching. If not provided, all paths are considered for
 	 * events.
+	 *
+	 * Paths or basic glob patterns that are relative will be
+	 * resolved to an absolute path using the currently opened
+	 * workspace. Complex glob patterns must match on absolute
+	 * paths via leading or trailing `**`.
 	 */
-	includes?: string[];
+	includes?: Array<string | IRelativePattern>;
 }
 
 export interface INonRecursiveWatchRequest extends IWatchRequest {
@@ -277,6 +289,26 @@ export function coalesceEvents(changes: IDiskFileChange[]): IDiskFileChange[] {
 	}
 
 	return coalescer.coalesce();
+}
+
+export function parseWatcherPatterns(path: string, patterns: Array<string | IRelativePattern>): ParsedPattern[] {
+	const parsedPatterns: ParsedPattern[] = [];
+
+	for (const pattern of patterns) {
+		let normalizedPattern = pattern;
+
+		// Patterns are always matched on the full absolute path
+		// of the event. As such, if the pattern is not absolute
+		// and does not start with a leading `**`, we have to
+		// convert it to a relative pattern with the given `base`
+		if (typeof normalizedPattern === 'string' && !normalizedPattern.startsWith(GLOBSTAR) && !isAbsolute(normalizedPattern)) {
+			normalizedPattern = { base: path, pattern: normalizedPattern };
+		}
+
+		parsedPatterns.push(parse(normalizedPattern));
+	}
+
+	return parsedPatterns;
 }
 
 class EventCoalescer {

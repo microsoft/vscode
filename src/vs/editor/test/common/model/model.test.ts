@@ -10,10 +10,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { InternalModelContentChangeEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
-import { EncodedTokenizationResult, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 
@@ -381,16 +381,19 @@ suite('Editor Model - Words', () => {
 	const OUTER_LANGUAGE_ID = 'outerMode';
 	const INNER_LANGUAGE_ID = 'innerMode';
 
-	class OuterMode extends MockMode {
+	class OuterMode extends Disposable {
+
+		public readonly languageId = OUTER_LANGUAGE_ID;
+
 		constructor(
 			@ILanguageService languageService: ILanguageService,
 			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 		) {
-			super(OUTER_LANGUAGE_ID);
-			const languageIdCodec = languageService.languageIdCodec;
-
+			super();
+			this._register(languageService.registerLanguage({ id: this.languageId }));
 			this._register(languageConfigurationService.register(this.languageId, {}));
 
+			const languageIdCodec = languageService.languageIdCodec;
 			this._register(TokenizationRegistry.register(this.languageId, {
 				getInitialState: (): IState => NullState,
 				tokenize: undefined!,
@@ -417,11 +420,16 @@ suite('Editor Model - Words', () => {
 		}
 	}
 
-	class InnerMode extends MockMode {
+	class InnerMode extends Disposable {
+
+		public readonly languageId = INNER_LANGUAGE_ID;
+
 		constructor(
+			@ILanguageService languageService: ILanguageService,
 			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 		) {
-			super(INNER_LANGUAGE_ID);
+			super();
+			this._register(languageService.registerLanguage({ id: this.languageId }));
 			this._register(languageConfigurationService.register(this.languageId, {}));
 		}
 	}

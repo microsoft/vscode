@@ -9,6 +9,7 @@ import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
+import { LinePart, LinePartMetadata } from 'vs/editor/common/viewLayout/linePart';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -16,38 +17,6 @@ export const enum RenderWhitespace {
 	Selection = 2,
 	Trailing = 3,
 	All = 4
-}
-
-export const enum LinePartMetadata {
-	IS_WHITESPACE = 1,
-	PSEUDO_BEFORE = 2,
-	PSEUDO_AFTER = 4,
-
-	IS_WHITESPACE_MASK = 0b001,
-	PSEUDO_BEFORE_MASK = 0b010,
-	PSEUDO_AFTER_MASK = 0b100,
-}
-
-class LinePart {
-	_linePartBrand: void = undefined;
-
-	constructor(
-		/**
-		 * last char index of this token (not inclusive).
-		 */
-		public readonly endIndex: number,
-		public readonly type: string,
-		public readonly metadata: number,
-		public readonly containsRTL: boolean
-	) { }
-
-	public isWhitespace(): boolean {
-		return (this.metadata & LinePartMetadata.IS_WHITESPACE_MASK ? true : false);
-	}
-
-	public isPseudoAfter(): boolean {
-		return (this.metadata & LinePartMetadata.PSEUDO_AFTER_MASK ? true : false);
-	}
 }
 
 export class LineRange {
@@ -773,6 +742,18 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 			isInWhitespace = lineIsEmptyOrWhitespace || charIndex > lastNonWhitespaceIndex;
 		}
 
+		if (isInWhitespace && tokenContainsRTL) {
+			// If the token contains RTL text, breaking it up into multiple line parts
+			// to render whitespace might affect the browser's bidi layout.
+			//
+			// We render whitespace in such tokens only if the whitespace
+			// is the leading or the trailing whitespace of the line,
+			// which doesn't affect the browser's bidi layout.
+			if (charIndex >= firstNonWhitespaceIndex && charIndex <= lastNonWhitespaceIndex) {
+				isInWhitespace = false;
+			}
+		}
+
 		if (wasInWhitespace) {
 			// was in whitespace token
 			if (!isInWhitespace || (!useMonospaceOptimizations && tmpIndent >= tabSize)) {
@@ -959,7 +940,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 		sb.appendASCIIString('<span ');
 		if (partContainsRTL) {
-			sb.appendASCIIString('dir="auto" ');
+			sb.appendASCIIString('style="unicode-bidi:isolate" ');
 		}
 		sb.appendASCIIString('class="');
 		sb.appendASCIIString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);

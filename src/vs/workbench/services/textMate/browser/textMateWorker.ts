@@ -5,7 +5,7 @@
 
 import { IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { LanguageId } from 'vs/editor/common/languages';
+import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import { IValidEmbeddedLanguagesMap, IValidTokenTypeMap, IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TMGrammarFactory, ICreateGrammarResult } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
@@ -25,6 +25,8 @@ export interface IValidGrammarDefinitionDTO {
 	embeddedLanguages: IValidEmbeddedLanguagesMap;
 	tokenTypes: IValidTokenTypeMap;
 	injectTo?: string[];
+	balancedBracketSelectors: string[];
+	unbalancedBracketSelectors: string[];
 }
 
 export interface ICreateData {
@@ -143,6 +145,8 @@ export class TextMateWorker {
 				embeddedLanguages: def.embeddedLanguages,
 				tokenTypes: def.tokenTypes,
 				injectTo: def.injectTo,
+				balancedBracketSelectors: def.balancedBracketSelectors,
+				unbalancedBracketSelectors: def.unbalancedBracketSelectors,
 			};
 		});
 		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions);

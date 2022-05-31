@@ -67,6 +67,12 @@ export const lineAndColumnClauseGroupCount = 6;
 export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	static id = 'local';
 
+	// This was chosen as a reasonable maximum line length given the tradeoff between performance
+	// and how likely it is to encounter such a large line length. Some useful reference points:
+	// - Window old max length: 260 ($MAX_PATH)
+	// - Linux max length: 4096 ($PATH_MAX)
+	readonly maxLinkLength = 500;
+
 	constructor(
 		readonly xterm: Terminal,
 		private readonly _capabilities: ITerminalCapabilityStore,

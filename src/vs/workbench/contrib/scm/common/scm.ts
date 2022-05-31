@@ -121,6 +121,9 @@ export interface ISCMInput {
 	validateInput: IInputValidator;
 	readonly onDidChangeValidateInput: Event<void>;
 
+	enabled: boolean;
+	readonly onDidChangeEnablement: Event<boolean>;
+
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
 
@@ -135,6 +138,7 @@ export interface ISCMInput {
 }
 
 export interface ISCMRepository extends IDisposable {
+	readonly id: string;
 	readonly provider: ISCMProvider;
 	readonly input: ISCMInput;
 }
@@ -144,9 +148,11 @@ export interface ISCMService {
 	readonly _serviceBrand: undefined;
 	readonly onDidAddRepository: Event<ISCMRepository>;
 	readonly onDidRemoveRepository: Event<ISCMRepository>;
-	readonly repositories: ISCMRepository[];
+	readonly repositories: Iterable<ISCMRepository>;
+	readonly repositoryCount: number;
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
+	getRepository(id: string): ISCMRepository | undefined;
 }
 
 export interface ISCMTitleMenu {
@@ -166,6 +172,12 @@ export interface ISCMRepositoryMenus {
 
 export interface ISCMMenus {
 	getRepositoryMenus(provider: ISCMProvider): ISCMRepositoryMenus;
+}
+
+export const enum ISCMRepositorySortKey {
+	DiscoveryTime = 'discoveryTime',
+	Name = 'name',
+	Path = 'path'
 }
 
 export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
@@ -188,6 +200,8 @@ export interface ISCMViewService {
 
 	isVisible(repository: ISCMRepository): boolean;
 	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
+
+	toggleSortKey(sortKey: ISCMRepositorySortKey): void;
 
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;

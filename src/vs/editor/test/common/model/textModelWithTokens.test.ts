@@ -9,7 +9,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITokenizationSupport, MetadataConsts, TokenizationRegistry, StandardTokenType, EncodedTokenizationResult } from 'vs/editor/common/languages';
+import { ITokenizationSupport, TokenizationRegistry, EncodedTokenizationResult } from 'vs/editor/common/languages';
+import { StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
@@ -31,17 +32,25 @@ function createTextModelWithBrackets(disposables: DisposableStore, text: string,
 }
 
 suite('TextModelWithTokens', () => {
-
 	function testBrackets(contents: string[], brackets: CharacterPair[]): void {
+		const languageId = 'testMode';
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		const languageService = instantiationService.get(ILanguageService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: brackets
+		}));
+
+
 		function toRelaxedFoundBracket(a: IFoundBracket | null) {
 			if (!a) {
 				return null;
 			}
 			return {
 				range: a.range.toString(),
-				open: a.open[0],
-				close: a.close[0],
-				isOpen: a.isOpen
+				info: a.bracketInfo,
 			};
 		}
 
@@ -71,25 +80,12 @@ suite('TextModelWithTokens', () => {
 				let ch = lineText.charAt(charIndex);
 				if (charIsBracket[ch]) {
 					expectedBrackets.push({
-						open: [openForChar[ch]],
-						close: [closeForChar[ch]],
-						isOpen: charIsOpenBracket[ch],
+						bracketInfo: languageConfigurationService.getLanguageConfiguration(languageId).bracketsNew.getBracketInfo(ch)!,
 						range: new Range(lineIndex + 1, charIndex + 1, lineIndex + 1, charIndex + 2)
 					});
 				}
 			}
 		}
-
-		const languageId = 'testMode';
-		const disposables = new DisposableStore();
-		const instantiationService = createModelServices(disposables);
-		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-		const languageService = instantiationService.get(ILanguageService);
-
-		disposables.add(languageService.registerLanguage({ id: languageId }));
-		disposables.add(languageConfigurationService.register(languageId, {
-			brackets: brackets
-		}));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, contents.join('\n'), languageId));
 
@@ -165,7 +161,11 @@ function assertIsNotBracket(model: TextModel, lineNumber: number, column: number
 }
 
 function assertIsBracket(model: TextModel, testPosition: Position, expected: [Range, Range]): void {
+	expected.sort(Range.compareRangesUsingStarts);
 	const actual = model.bracketPairs.matchBracket(testPosition);
+	if (actual) {
+		actual.sort(Range.compareRangesUsingStarts);
+	}
 	assert.deepStrictEqual(actual, expected, 'matches brackets at ' + testPosition);
 }
 
@@ -273,7 +273,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 	});
 });
 
-suite('TextModelWithTokens', () => {
+suite('TextModelWithTokens 2', () => {
 
 	test('bracket matching 3', () => {
 		const text = [
@@ -360,10 +360,12 @@ suite('TextModelWithTokens', () => {
 		const otherMetadata1 = (
 			(encodedMode1 << MetadataConsts.LANGUAGEID_OFFSET)
 			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+			| (MetadataConsts.BALANCED_BRACKETS_MASK)
 		) >>> 0;
 		const otherMetadata2 = (
 			(encodedMode2 << MetadataConsts.LANGUAGEID_OFFSET)
 			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+			| (MetadataConsts.BALANCED_BRACKETS_MASK)
 		) >>> 0;
 
 		const tokenizationSupport: ITokenizationSupport = {
@@ -438,11 +440,14 @@ suite('TextModelWithTokens', () => {
 			mode1
 		));
 
-		model.forceTokenization(1);
-		model.forceTokenization(2);
-		model.forceTokenization(3);
+		model.tokenization.forceTokenization(1);
+		model.tokenization.forceTokenization(2);
+		model.tokenization.forceTokenization(3);
 
-		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 14)), [new Range(2, 13, 2, 14), new Range(2, 18, 2, 19)]);
+		assert.deepStrictEqual(
+			model.bracketPairs.matchBracket(new Position(2, 14)),
+			[new Range(2, 13, 2, 14), new Range(2, 18, 2, 19)]
+		);
 
 		disposables.dispose();
 	});
@@ -517,9 +522,9 @@ suite('TextModelWithTokens', () => {
 			mode
 		));
 
-		model.forceTokenization(1);
-		model.forceTokenization(2);
-		model.forceTokenization(3);
+		model.tokenization.forceTokenization(1);
+		model.tokenization.forceTokenization(2);
+		model.tokenization.forceTokenization(3);
 
 		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 23)), null);
 		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 20)), null);
@@ -534,9 +539,9 @@ suite('TextModelWithTokens regression tests', () => {
 	test('microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
 		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: TestLineToken[]): void {
 			if (forceTokenization) {
-				model.forceTokenization(lineNumber);
+				model.tokenization.forceTokenization(lineNumber);
 			}
-			let _actual = model.getLineTokens(lineNumber).inflate();
+			let _actual = model.tokenization.getLineTokens(lineNumber).inflate();
 			interface ISimpleViewToken {
 				endIndex: number;
 				foreground: number;
@@ -652,7 +657,7 @@ suite('TextModelWithTokens regression tests', () => {
 		);
 
 		const actual = model.bracketPairs.matchBracket(new Position(3, 9));
-		assert.deepStrictEqual(actual, [new Range(3, 6, 3, 17), new Range(2, 6, 2, 14)]);
+		assert.deepStrictEqual(actual, [new Range(2, 6, 2, 14), new Range(3, 6, 3, 17)]);
 
 		disposables.dispose();
 	});
@@ -688,7 +693,7 @@ suite('TextModelWithTokens regression tests', () => {
 
 		const model = disposables.add(instantiateTextModel(instantiationService, 'A model with one line', outerMode));
 
-		model.forceTokenization(1);
+		model.tokenization.forceTokenization(1);
 		assert.strictEqual(model.getLanguageIdAtPosition(1, 1), innerMode);
 
 		disposables.dispose();

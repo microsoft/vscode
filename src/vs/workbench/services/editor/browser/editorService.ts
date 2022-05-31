@@ -148,7 +148,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const groupDisposables = new DisposableStore();
 
 		groupDisposables.add(group.onDidModelChange(e => {
-			this._onDidEditorsChange.fire({ groupId: group.id, ...e });
+			this._onDidEditorsChange.fire({ groupId: group.id, event: e });
 		}));
 
 		groupDisposables.add(group.onDidActiveEditorChange(() => {

@@ -12,7 +12,8 @@ import * as resources from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import { IState, ITokenizationSupport, LanguageId, TokenizationRegistry, StandardTokenType, ITokenizationSupportFactory, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages';
+import { IState, ITokenizationSupport, TokenizationRegistry, ITokenizationSupportFactory, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages';
+import { LanguageId, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -133,6 +134,16 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 						validLanguageId = grammar.language;
 					}
 
+					function asStringArray(array: unknown, defaultValue: string[]): string[] {
+						if (!Array.isArray(array)) {
+							return defaultValue;
+						}
+						if (!array.every(e => typeof e === 'string')) {
+							return defaultValue;
+						}
+						return array;
+					}
+
 					this._grammarDefinitions.push({
 						location: grammarLocation,
 						language: validLanguageId ? validLanguageId : undefined,
@@ -140,6 +151,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 						embeddedLanguages: embeddedLanguages,
 						tokenTypes: tokenTypes,
 						injectTo: grammar.injectTo,
+						balancedBracketSelectors: asStringArray(grammar.balancedBracketScopes, ['*']),
+						unbalancedBracketSelectors: asStringArray(grammar.unbalancedBracketScopes, []),
 					});
 
 					if (validLanguageId) {

@@ -19,6 +19,7 @@ import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from 'vs/workbenc
 import { NullLogService } from 'vs/platform/log/common/log';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { nullExtensionDescription as extensionsDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 suite('ExtHostTreeView', function () {
 
@@ -250,15 +251,17 @@ suite('ExtHostTreeView', function () {
 	});
 
 	async function runWithEventMerging(action: (resolve: () => void) => void) {
-		await new Promise<void>((resolve) => {
-			let subscription: IDisposable | undefined = undefined;
-			subscription = target.onRefresh.event(() => {
-				subscription!.dispose();
-				resolve();
+		await runWithFakedTimers({}, async () => {
+			await new Promise<void>((resolve) => {
+				let subscription: IDisposable | undefined = undefined;
+				subscription = target.onRefresh.event(() => {
+					subscription!.dispose();
+					resolve();
+				});
+				onDidChangeTreeNode.fire(getNode('b'));
 			});
-			onDidChangeTreeNode.fire(getNode('b'));
+			await new Promise<void>(action);
 		});
-		await new Promise<void>(action);
 	}
 
 	test('refresh parent and child node trigger refresh only on parent - scenario 1', async () => {

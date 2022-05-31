@@ -16,6 +16,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { TerminateResponseCode } from 'vs/base/common/processes';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
+import * as glob from 'vs/base/common/glob';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { LRUCache, Touch } from 'vs/base/common/map';
@@ -35,13 +36,13 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/model';
 
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
+import { Markers } from 'vs/workbench/contrib/markers/common/markers';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService, IOutputChannel } from 'vs/workbench/services/output/common/output';
 
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -51,9 +52,10 @@ import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
 	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
-	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition, RuntimeType
+	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition, RuntimeType,
+	USER_TASKS_GROUP_KEY
 } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult, USER_TASKS_GROUP_KEY, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
@@ -69,7 +71,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -204,7 +206,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _showIgnoreMessage?: boolean;
 	private _providers: Map<number, ITaskProvider>;
 	private _providerTypes: Map<number, string>;
-	protected _taskSystemInfos: Map<string, TaskSystemInfo>;
+	protected _taskSystemInfos: Map<string, TaskSystemInfo[]>;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
 
@@ -264,7 +266,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._outputChannel = this.outputService.getChannel(AbstractTaskService.OutputChannelId)!;
 		this._providers = new Map<number, ITaskProvider>();
 		this._providerTypes = new Map<number, string>();
-		this._taskSystemInfos = new Map<string, TaskSystemInfo>();
+		this._taskSystemInfos = new Map<string, TaskSystemInfo[]>();
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
@@ -428,7 +430,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 
-		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => this.commandService.executeCommand(Constants.TOGGLE_MARKERS_VIEW_ACTION_ID));
+		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => this.commandService.executeCommand(Markers.TOGGLE_MARKERS_VIEW_ACTION_ID));
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.openUserTasks', async () => {
 			const resource = this.getResourceForKind(TaskSourceKind.User);
@@ -566,25 +568,41 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	get hasTaskSystemInfo(): boolean {
+		let infosCount = Array.from(this._taskSystemInfos.values()).flat().length;
 		// If there's a remoteAuthority, then we end up with 2 taskSystemInfos,
 		// one for each extension host.
 		if (this.environmentService.remoteAuthority) {
-			return this._taskSystemInfos.size > 1;
+			return infosCount > 1;
 		}
-		return this._taskSystemInfos.size > 0;
+		return infosCount > 0;
 	}
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
-		if (!this._taskSystemInfos.has(key) || info.platform !== Platform.Platform.Web) {
-			this._taskSystemInfos.set(key, info);
-			if (this.hasTaskSystemInfo) {
-				this._onDidChangeTaskSystemInfo.fire();
+		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
+		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
+		if (info.platform === Platform.Platform.Web) {
+			key = this.workspaceFolders.length ? this.workspaceFolders[0].uri.scheme : key;
+		}
+		if (!this._taskSystemInfos.has(key)) {
+			this._taskSystemInfos.set(key, [info]);
+		} else {
+			const infos = this._taskSystemInfos.get(key)!;
+			if (info.platform === Platform.Platform.Web) {
+				// Web infos should be pushed last.
+				infos.push(info);
+			} else {
+				infos.unshift(info);
 			}
+		}
+
+		if (this.hasTaskSystemInfo) {
+			this._onDidChangeTaskSystemInfo.fire();
 		}
 	}
 
 	private getTaskSystemInfo(key: string): TaskSystemInfo | undefined {
-		return this._taskSystemInfos.get(key);
+		const infos = this._taskSystemInfos.get(key);
+		return (infos && infos.length) ? infos[0] : undefined;
 	}
 
 	public extensionCallbackTaskComplete(task: Task, result: number): Promise<void> {
@@ -1778,7 +1796,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected createTerminalTaskSystem(): ITaskSystem {
 		return new TerminalTaskSystem(
 			this.terminalService, this.terminalGroupService, this.outputService, this.paneCompositeService, this.viewsService, this.markerService,
-			this.modelService, this.configurationResolverService, this.telemetryService,
+			this.modelService, this.configurationResolverService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalProfileResolverService,
 			this.pathService, this.viewDescriptorService, this.logService, this.configurationService, this.notificationService,
@@ -1790,9 +1808,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					const infos = Array.from(this._taskSystemInfos.entries());
 					const notFile = infos.filter(info => info[0] !== Schemas.file);
 					if (notFile.length > 0) {
-						return notFile[0][1];
+						return notFile[0][1][0];
 					}
-					return infos[0][1];
+					return infos[0][1][0];
 				} else {
 					return undefined;
 				}
@@ -2266,7 +2284,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			};
 			/* __GDPR__
 				"taskService.engineVersion" : {
-					"executionEngineVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"owner": "alexr00",
+					"comment": "The engine version of tasks. Used to determine if a user is using a deprecated version.",
+					"executionEngineVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The engine version of tasks." }
 				}
 			*/
 			this.telemetryService.publicLog('taskService.engineVersion', telemetryData);
@@ -2753,11 +2773,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private splitPerGroupType(tasks: Task[]): { none: Task[]; defaults: Task[] } {
+	/**
+	 *
+	 * @param tasks - The tasks which need filtering from defaults and non-defaults
+	 * @param defaultType - If there are globs want globs in the default list, otherwise only tasks with true
+	 * @param taskGlobsInList - This tells splitPerGroupType to filter out globbed tasks (into default), otherwise fall back to boolean
+	 * @returns
+	 */
+	private splitPerGroupType(tasks: Task[], taskGlobsInList: boolean = false): { none: Task[]; defaults: Task[] } {
 		let none: Task[] = [];
 		let defaults: Task[] = [];
 		for (let task of tasks) {
-			if ((task.configurationProperties.group as TaskGroup).isDefault) {
+			// At this point (assuming taskGlobsInList is true) there are tasks with matching globs, so only put those in defaults
+			if (taskGlobsInList && typeof (task.configurationProperties.group as TaskGroup).isDefault === 'string') {
+				defaults.push(task);
+			} else if (!taskGlobsInList && (task.configurationProperties.group as TaskGroup).isDefault === true) {
 				defaults.push(task);
 			} else {
 				none.push(task);
@@ -2766,54 +2796,38 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return { none, defaults };
 	}
 
-	private runBuildCommand(): void {
+	private runTaskGroupCommand(taskGroup: TaskGroup, strings: {
+		fetching: string;
+		select: string;
+		notFoundConfigure: string;
+	}, configure: () => void, legacyCommand: () => void): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
 		if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
-			this.build();
+			legacyCommand();
 			return;
 		}
 		let options: IProgressOptions = {
 			location: ProgressLocation.Window,
-			title: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...')
+			title: strings.fetching
 		};
 		let promise = (async () => {
-			const buildTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, false);
 
-			async function runSingleBuildTask(task: Task | undefined, problemMatcherOptions: ProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
+			let taskGroupTasks: (Task | ConfiguringTask)[] = [];
+
+			async function runSingleTask(task: Task | undefined, problemMatcherOptions: ProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
 				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {
 					// eat the error, it has already been surfaced to the user and we don't care about it here
 				});
 			}
 
-			if (buildTasks.length === 1) {
-				const buildTask = buildTasks[0];
-				if (ConfiguringTask.is(buildTask)) {
-					return this.tryResolveTask(buildTask).then(resolvedTask => {
-						runSingleBuildTask(resolvedTask, undefined, this);
-					});
-				} else {
-					runSingleBuildTask(buildTask, undefined, this);
-					return;
-				}
-			}
-
-			return this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
-				if (tasks.length > 0) {
-					let { none, defaults } = this.splitPerGroupType(tasks);
-					if (defaults.length === 1) {
-						runSingleBuildTask(defaults[0], undefined, this);
-						return;
-					} else if (defaults.length + none.length > 0) {
-						tasks = defaults.concat(none);
-					}
-				}
+			const chooseAndRunTask = (tasks: Task[]) => {
 				this.showIgnoredFoldersMessage().then(() => {
 					this.showQuickPick(tasks,
-						nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
+						strings.select,
 						{
-							label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
+							label: strings.notFoundConfigure,
 							task: null
 						},
 						true).then((entry) => {
@@ -2822,64 +2836,102 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								return;
 							}
 							if (task === null) {
-								this.runConfigureDefaultBuildTask();
+								configure();
 								return;
 							}
-							runSingleBuildTask(task, { attachProblemMatcher: true }, this);
+							runSingleTask(task, { attachProblemMatcher: true }, this);
 						});
 				});
-			});
+			};
+
+			// First check for globs before checking for the default tasks of the task group
+			const absoluteURI = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+			if (absoluteURI) {
+				const workspaceFolder = this.contextService.getWorkspaceFolder(absoluteURI);
+				// fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
+				const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
+
+				taskGroupTasks = await this._findWorkspaceTasks((task) => {
+					const taskGroup = task.configurationProperties.group;
+					if (taskGroup && typeof taskGroup !== 'string' && typeof taskGroup.isDefault === 'string') {
+						return (taskGroup._id === taskGroup._id && glob.match(taskGroup.isDefault, relativePath));
+					}
+
+					return false;
+				});
+			}
+
+			const handleMultipleTasks = (areGlobTasks: boolean) => {
+				return this.getTasksForGroup(taskGroup).then((tasks) => {
+					if (tasks.length > 0) {
+						// If we're dealing with tasks that were chosen because of a glob match,
+						// then put globs in the defaults and everything else in none
+						let { none, defaults } = this.splitPerGroupType(tasks, areGlobTasks);
+						if (defaults.length === 1) {
+							runSingleTask(defaults[0], undefined, this);
+							return;
+						} else if (defaults.length + none.length > 0) {
+							tasks = defaults.concat(none);
+						}
+					}
+
+					// At this this point there are multiple tasks.
+					chooseAndRunTask(tasks);
+				});
+			};
+
+			const resolveTaskAndRun = (taskGroupTask: Task | ConfiguringTask) => {
+				if (ConfiguringTask.is(taskGroupTask)) {
+					this.tryResolveTask(taskGroupTask).then(resolvedTask => {
+						runSingleTask(resolvedTask, undefined, this);
+					});
+				} else {
+					runSingleTask(taskGroupTask, undefined, this);
+				}
+			};
+
+			// A single default glob task was returned, just run it directly
+			if (taskGroupTasks.length === 1) {
+				return resolveTaskAndRun(taskGroupTasks[0]);
+			}
+
+			// If there's multiple globs that match we want to show the quick picker for those tasks
+			// We will need to call splitPerGroupType putting globs in defaults and the remaining tasks in none.
+			// We don't need to carry on after here
+			if (taskGroupTasks.length > 1) {
+				return handleMultipleTasks(true);
+			}
+
+			// If no globs are found or matched fallback to checking for default tasks of the task group
+			if (!taskGroupTasks.length) {
+				taskGroupTasks = await this._findWorkspaceTasksInGroup(taskGroup, false);
+			}
+
+			// A single default task was returned, just run it directly
+			if (taskGroupTasks.length === 1) {
+				return resolveTaskAndRun(taskGroupTasks[0]);
+			}
+
+			// Multiple default tasks returned, show the quickPicker
+			return handleMultipleTasks(false);
 		})();
 		this.progressService.withProgress(options, () => promise);
 	}
 
+	private runBuildCommand(): void {
+		return this.runTaskGroupCommand(TaskGroup.Build, {
+			fetching: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...'),
+			select: nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
+			notFoundConfigure: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...')
+		}, this.runConfigureDefaultBuildTask, this.build);
+	}
+
 	private runTestCommand(): void {
-		if (!this.canRunCommand()) {
-			return;
-		}
-		if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
-			this.runTest();
-			return;
-		}
-		let options: IProgressOptions = {
-			location: ProgressLocation.Window,
-			title: nls.localize('TaskService.fetchingTestTasks', 'Fetching test tasks...')
-		};
-		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
-			if (tasks.length > 0) {
-				let { none, defaults } = this.splitPerGroupType(tasks);
-				if (defaults.length === 1) {
-					this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
-					});
-					return;
-				} else if (defaults.length + none.length > 0) {
-					tasks = defaults.concat(none);
-				}
-			}
-			this.showIgnoredFoldersMessage().then(() => {
-				this.showQuickPick(tasks,
-					nls.localize('TaskService.pickTestTask', 'Select the test task to run'),
-					{
-						label: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...'),
-						task: null
-					}, true
-				).then((entry) => {
-					let task: Task | undefined | null = entry ? entry.task : undefined;
-					if (task === undefined) {
-						return;
-					}
-					if (task === null) {
-						this.runConfigureTasks();
-						return;
-					}
-					this.run(task, undefined, TaskRunSource.User).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
-					});
-				});
-			});
-		});
-		this.progressService.withProgress(options, () => promise);
+		return this.runTaskGroupCommand(TaskGroup.Test, {
+			fetching: nls.localize('TaskService.fetchingTestTasks', 'Fetching test tasks...'),
+			select: nls.localize('TaskService.pickTestTask', 'Select the test task to run'),
+			notFoundConfigure: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...')
+		}, this.runConfigureDefaultTestTask, this.runTest);
 	}
 
 	private runTerminateCommand(arg?: any): void {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from 'vs/base/browser/browser';
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IAction } from 'vs/base/common/actions';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -59,6 +59,7 @@ export const enum WebviewMessageChannels {
 	didKeydown = 'did-keydown',
 	didKeyup = 'did-keyup',
 	didContextMenu = 'did-context-menu',
+	dragStart = 'drag-start',
 }
 
 interface IKeydownEvent {
@@ -85,10 +86,11 @@ namespace WebviewState {
 		readonly type = Type.Initializing;
 
 		constructor(
-			public readonly pendingMessages: Array<{
+			public pendingMessages: Array<{
 				readonly channel: string;
 				readonly data?: any;
 				readonly transferable: Transferable[];
+				readonly resolve: (posted: boolean) => void;
 			}>
 		) { }
 	}
@@ -98,11 +100,34 @@ namespace WebviewState {
 	export type State = typeof Ready | Initializing;
 }
 
+export interface WebviewInitInfo {
+	readonly id: string;
+	readonly origin?: string;
+
+	readonly options: WebviewOptions;
+	readonly contentOptions: WebviewContentOptions;
+
+	readonly extension: WebviewExtensionDescription | undefined;
+}
+
+
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
+	/**
+	 * External identifier of this webview.
+	 */
 	public readonly id: string;
 
+	/**
+	 * The origin this webview itself is loaded from. May not be unique
+	 */
+	public readonly origin: string;
+
+	/**
+	 * Unique internal identifier of this webview's iframe element.
+	 */
 	private readonly iframeId: string;
+
 	private readonly encodedWebviewOriginPromise: Promise<string>;
 	private encodedWebviewOrigin: string | undefined;
 
@@ -151,11 +176,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	private _disposed = false;
 
+
+	public extension: WebviewExtensionDescription | undefined;
+	private readonly options: WebviewOptions;
+
 	constructor(
-		id: string,
-		private readonly options: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		public extension: WebviewExtensionDescription | undefined,
+		initInfo: WebviewInitInfo,
 		protected readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -172,13 +198,18 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	) {
 		super();
 
-		this.id = id;
+		this.id = initInfo.id;
 		this.iframeId = generateUuid();
-		this.encodedWebviewOriginPromise = parentOriginHash(window.origin, this.iframeId).then(id => this.encodedWebviewOrigin = id);
+		this.origin = initInfo.origin ?? this.iframeId;
+
+		this.encodedWebviewOriginPromise = parentOriginHash(window.origin, this.origin).then(id => this.encodedWebviewOrigin = id);
+
+		this.options = initInfo.options;
+		this.extension = initInfo.extension;
 
 		this.content = {
 			html: '',
-			options: contentOptions,
+			options: initInfo.contentOptions,
 			state: undefined
 		};
 
@@ -188,7 +219,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this._tunnelService
 		));
 
-		this._element = this.createElement(options, contentOptions);
+		this._element = this.createElement(initInfo.options, initInfo.contentOptions);
 
 
 		const subscription = this._register(addDisposableListener(window, 'message', (e: MessageEvent) => {
@@ -349,14 +380,18 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}
 		}));
 
-		if (options.enableFindWidget) {
+		this._register(this.on(WebviewMessageChannels.dragStart, () => {
+			this.startBlockingIframeDragEvents();
+		}));
+
+		if (initInfo.options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 			this.styledFindWidget();
 		}
 
 		this.encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
 			if (!this._disposed) {
-				this.initElement(encodedWebviewOrigin, extension, options);
+				this.initElement(encodedWebviewOrigin, this.extension, this.options);
 			}
 		});
 	}
@@ -368,6 +403,13 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._element = undefined;
 
 		this.messagePort = undefined;
+
+		if (this._state.type === WebviewState.Type.Initializing) {
+			for (const message of this._state.pendingMessages) {
+				message.resolve(false);
+			}
+			this._state.pendingMessages = [];
+		}
 
 		this._onDidDispose.fire();
 
@@ -410,15 +452,18 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public readonly onDidDispose = this._onDidDispose.event;
 
-	public postMessage(message: any, transfer?: ArrayBuffer[]): void {
-		this._send('message', { message, transfer });
+	public postMessage(message: any, transfer?: ArrayBuffer[]): Promise<boolean> {
+		return this._send('message', { message, transfer });
 	}
 
-	protected _send(channel: string, data?: any, transferable: Transferable[] = []): void {
+	protected async _send(channel: string, data?: any, transferable: Transferable[] = []): Promise<boolean> {
 		if (this._state.type === WebviewState.Type.Initializing) {
-			this._state.pendingMessages.push({ channel, data, transferable });
+			let resolve: (x: boolean) => void;
+			const promise = new Promise<boolean>(r => resolve = r);
+			this._state.pendingMessages.push({ channel, data, transferable, resolve: resolve! });
+			return promise;
 		} else {
-			this.doPostMessage(channel, data, transferable);
+			return this.doPostMessage(channel, data, transferable);
 		}
 	}
 
@@ -447,6 +492,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
 			id: this.iframeId,
+			origin: this.origin,
 			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
@@ -478,7 +524,30 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		if (this._webviewFindWidget) {
 			parent.appendChild(this._webviewFindWidget.getDomNode());
 		}
+
+		[EventType.MOUSE_DOWN, EventType.MOUSE_MOVE, EventType.DROP].forEach(eventName => {
+			this._register(addDisposableListener(parent, eventName, () => {
+				this.stopBlockingIframeDragEvents();
+			}));
+		});
+
+		[parent, window].forEach(node => this._register(addDisposableListener(node as HTMLElement, EventType.DRAG_END, () => {
+			this.stopBlockingIframeDragEvents();
+		})));
+
 		parent.appendChild(this.element);
+	}
+
+	private startBlockingIframeDragEvents() {
+		if (this.element) {
+			this.element.style.pointerEvents = 'none';
+		}
+	}
+
+	private stopBlockingIframeDragEvents() {
+		if (this.element) {
+			this.element.style.pointerEvents = 'auto';
+		}
 	}
 
 	protected webviewContentEndpoint(encodedWebviewOrigin: string): string {
@@ -494,10 +563,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		return uri.scheme + '://' + uri.authority.toLowerCase();
 	}
 
-	private doPostMessage(channel: string, data?: any, transferable: Transferable[] = []): void {
+	private doPostMessage(channel: string, data?: any, transferable: Transferable[] = []): boolean {
 		if (this.element && this.messagePort) {
 			this.messagePort.postMessage({ channel, args: data }, transferable);
+			return true;
 		}
+		return false;
 	}
 
 	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T, e: MessageEvent) => void): IDisposable {
@@ -530,7 +601,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			} as const;
 
 			type Classification = {
-				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'The id of the extension that created the webview.' };
+				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension that created the webview.' };
+				owner: 'mjbz';
+				comment: 'Helps find which extensions are contributing webviews with invalid CSPs';
 			};
 
 			this._telemetryService.publicLog2<typeof payload, Classification>('webviewMissingCsp', payload);
@@ -670,18 +743,14 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	windowDidDragStart(): void {
-		// Webview break drag and droping around the main window (no events are generated when you are over them)
+		// Webview break drag and dropping around the main window (no events are generated when you are over them)
 		// Work around this by disabling pointer events during the drag.
 		// https://github.com/electron/electron/issues/18226
-		if (this.element) {
-			this.element.style.pointerEvents = 'none';
-		}
+		this.startBlockingIframeDragEvents();
 	}
 
 	windowDidDragEnd(): void {
-		if (this.element) {
-			this.element.style.pointerEvents = '';
-		}
+		this.stopBlockingIframeDragEvents();
 	}
 
 	public selectAll() {

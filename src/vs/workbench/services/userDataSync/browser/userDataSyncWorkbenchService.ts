@@ -20,7 +20,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { localize } from 'vs/nls';
-import { canceled } from 'vs/base/common/errors';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -35,13 +34,16 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { CancellationError } from 'vs/base/common/errors';
 
 type UserAccountClassification = {
+	owner: 'sandy081';
 	id: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight' };
 	providerId: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight' };
 };
 
 type FirstTimeSyncClassification = {
+	owner: 'sandy081';
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
@@ -272,7 +274,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		const picked = await this.pick();
 		if (!picked) {
-			throw canceled();
+			throw new CancellationError();
 		}
 
 		// User did not pick an account or login failed
@@ -450,7 +452,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				return 'manual';
 		}
 		this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
-		throw canceled();
+		throw new CancellationError();
 	}
 
 	private async syncManually(task: IManualSyncTask): Promise<void> {
@@ -617,7 +619,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async onDidSuccessiveAuthFailures(): Promise<void> {
-		this.telemetryService.publicLog2('sync/successiveAuthFailures');
+		this.telemetryService.publicLog2<{}, { owner: 'sandy081' }>('sync/successiveAuthFailures');
 		this.currentSessionId = undefined;
 		await this.update();
 
@@ -769,7 +771,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		}
 		await this.manualSync.task.stop();
 		this.updatePreview([]);
-		this._onDidCompleteManualSync.fire(canceled());
+		this._onDidCompleteManualSync.fire(new CancellationError());
 	}
 
 	async pull(): Promise<void> {

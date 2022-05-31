@@ -39,13 +39,15 @@ class MatchCandidate {
 	constructor(
 		readonly uri: URI,
 		readonly languageId: string,
+		readonly notebookUri: URI | undefined,
 		readonly notebookType: string | undefined
 	) { }
 
 	equals(other: MatchCandidate): boolean {
 		return this.notebookType === other.notebookType
 			&& this.languageId === other.languageId
-			&& this.uri.toString() === other.uri.toString();
+			&& this.uri.toString() === other.uri.toString()
+			&& this.notebookUri?.toString() === other.notebookUri?.toString();
 	}
 }
 
@@ -151,8 +153,8 @@ export class LanguageFeatureRegistry<T> {
 		// use the uri (scheme, pattern) of the notebook info iff we have one
 		// otherwise it's the model's/document's uri
 		const candidate = notebookInfo
-			? new MatchCandidate(notebookInfo.uri, model.getLanguageId(), notebookInfo.type)
-			: new MatchCandidate(model.uri, model.getLanguageId(), undefined);
+			? new MatchCandidate(model.uri, model.getLanguageId(), notebookInfo.uri, notebookInfo.type)
+			: new MatchCandidate(model.uri, model.getLanguageId(), undefined, undefined);
 
 		if (this._lastCandidate?.equals(candidate)) {
 			// nothing has changed
@@ -162,7 +164,7 @@ export class LanguageFeatureRegistry<T> {
 		this._lastCandidate = candidate;
 
 		for (let entry of this._entries) {
-			entry._score = score(entry.selector, candidate.uri, candidate.languageId, shouldSynchronizeModel(model), candidate.notebookType);
+			entry._score = score(entry.selector, candidate.uri, candidate.languageId, shouldSynchronizeModel(model), candidate.notebookUri, candidate.notebookType);
 
 			if (isExclusive(entry.selector) && entry._score > 0) {
 				// support for one exclusive selector that overwrites

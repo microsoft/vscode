@@ -20,6 +20,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ISimpleModel, IModelLineProjection, createModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
 import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -342,7 +343,7 @@ suite('SplitLinesCollection', () => {
 				for (let i = 0; i < tokens.length; i++) {
 					result[2 * i] = tokens[i].startIndex;
 					result[2 * i + 1] = (
-						tokens[i].value << languages.MetadataConsts.FOREGROUND_OFFSET
+						tokens[i].value << MetadataConsts.FOREGROUND_OFFSET
 					);
 				}
 				return new languages.EncodedTokenizationResult(result, state);
@@ -352,7 +353,7 @@ suite('SplitLinesCollection', () => {
 		languageRegistration = languages.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
 		model = createTextModel(_text.join('\n'), LANGUAGE_ID);
 		// force tokenization
-		model.forceTokenization(model.getLineCount());
+		model.tokenization.forceTokenization(model.getLineCount());
 	});
 
 	teardown(() => {
@@ -988,8 +989,10 @@ function createLineBreakData(breakingLengths: number[], breakingOffsetsVisibleCo
 
 function createModel(text: string): ISimpleModel {
 	return {
-		getLineTokens: (lineNumber: number) => {
-			return null!;
+		tokenization: {
+			getLineTokens: (lineNumber: number) => {
+				return null!;
+			},
 		},
 		getLineContent: (lineNumber: number) => {
 			return text;

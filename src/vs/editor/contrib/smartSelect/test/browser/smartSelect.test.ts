@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
@@ -15,10 +16,14 @@ import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bro
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/wordSelections';
 import { createModelServices } from 'vs/editor/test/common/testTextModel';
-import { StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
+
+class StaticLanguageSelector implements ILanguageSelection {
+	readonly onDidChange: Event<string> = Event.None;
+	constructor(public readonly languageId: string) { }
+}
 
 suite('SmartSelect', () => {
 

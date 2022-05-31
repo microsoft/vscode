@@ -87,6 +87,9 @@ export interface IEnvironmentService {
 	telemetryLogResource: URI;
 	serviceMachineIdResource: URI;
 
+	// --- Policy
+	policyFile?: URI;
+
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
@@ -131,9 +134,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	extensionsPath: string;
 	extensionsDownloadPath: string;
 	builtinExtensionsPath: string;
-
-	// --- smoke test support
-	driverHandle?: string;
 
 	// --- use keytar for credentials
 	disableKeytar?: boolean;

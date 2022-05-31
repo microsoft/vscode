@@ -38,10 +38,6 @@ exports.base = [
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
-	},
-	{
-		name: 'vs/platform/extensions/node/extensionHostStarterWorker',
-		exclude: ['vs/base/common/worker/simpleWorker']
 	}
 ];
 
@@ -76,7 +72,6 @@ exports.code = [
 	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
 	createModuleDescription('vs/code/electron-sandbox/issue/issueReporterMain'),
 	createModuleDescription('vs/code/electron-browser/sharedProcess/sharedProcessMain'),
-	createModuleDescription('vs/platform/driver/node/driver'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];
 

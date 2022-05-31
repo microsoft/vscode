@@ -58,9 +58,10 @@ import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionMana
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionUrlTrustService';
 import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
-import 'vs/workbench/services/localizations/electron-sandbox/localizationsService';
+import 'vs/workbench/services/localization/electron-sandbox/languagePackService';
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
+import 'vs/platform/extensionManagement/electron-sandbox/extensionsScannerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionTipsService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncMachinesService';
@@ -81,14 +82,13 @@ import 'vs/platform/telemetry/electron-sandbox/customEndpointTelemetryService';
 import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
 import 'vs/workbench/services/search/electron-sandbox/searchService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
+import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
+import 'vs/workbench/services/localization/electron-sandbox/localeService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncEnablementService } from 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
 
 registerSingleton(IUserDataInitializationService, UserDataInitializationService);
-registerSingleton(IUserDataSyncEnablementService, UserDataSyncEnablementService);
 
 //#endregion
 
@@ -99,7 +99,7 @@ registerSingleton(IUserDataSyncEnablementService, UserDataSyncEnablementService)
 import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
 
 // Localizations
-import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
+import 'vs/workbench/contrib/localization/electron-sandbox/localization.contribution';
 
 // Explorer
 import 'vs/workbench/contrib/files/electron-sandbox/files.contribution';

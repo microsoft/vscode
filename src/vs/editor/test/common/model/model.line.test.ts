@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { MetadataConsts } from 'vs/editor/common/languages';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { TestLineToken, TestLineTokenFactory } from 'vs/editor/test/common/core/testLineToken';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
@@ -125,7 +125,7 @@ suite('ModelLinesTokens', () => {
 
 		for (let lineIndex = 0; lineIndex < expected.length; lineIndex++) {
 			const actualLine = model.getLineContent(lineIndex + 1);
-			const actualTokens = model.getLineTokens(lineIndex + 1);
+			const actualTokens = model.tokenization.getLineTokens(lineIndex + 1);
 			assert.strictEqual(actualLine, expected[lineIndex].text);
 			assertLineTokens(actualTokens, expected[lineIndex].tokens);
 		}
@@ -462,7 +462,7 @@ suite('ModelLinesTokens', () => {
 			text: 'a'
 		}]);
 
-		const actualTokens = model.getLineTokens(1);
+		const actualTokens = model.tokenization.getLineTokens(1);
 		assertLineTokens(actualTokens, [new TestToken(0, 1)]);
 
 		model.dispose();

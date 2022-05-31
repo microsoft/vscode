@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickPickItem, window, QuickPick } from 'vscode';
+import { QuickPickItem, window, QuickPick, QuickPickItemKind } from 'vscode';
 import * as nls from 'vscode-nls';
 import { RemoteSourceProvider, RemoteSource, PickRemoteSourceOptions, PickRemoteSourceResult } from './api/git-base';
 import { Model } from './model';
@@ -24,17 +24,20 @@ async function getQuickPickResult<T extends QuickPickItem>(quickpick: QuickPick<
 
 class RemoteSourceProviderQuickPick {
 
-	private quickpick: QuickPick<QuickPickItem & { remoteSource?: RemoteSource }>;
+	private quickpick: QuickPick<QuickPickItem & { remoteSource?: RemoteSource }> | undefined;
 
-	constructor(private provider: RemoteSourceProvider) {
-		this.quickpick = window.createQuickPick();
-		this.quickpick.ignoreFocusOut = true;
+	constructor(private provider: RemoteSourceProvider) { }
 
-		if (provider.supportsQuery) {
-			this.quickpick.placeholder = localize('type to search', "Repository name (type to search)");
-			this.quickpick.onDidChangeValue(this.onDidChangeValue, this);
-		} else {
-			this.quickpick.placeholder = localize('type to filter', "Repository name");
+	private ensureQuickPick() {
+		if (!this.quickpick) {
+			this.quickpick = window.createQuickPick();
+			this.quickpick.ignoreFocusOut = true;
+			if (this.provider.supportsQuery) {
+				this.quickpick.placeholder = this.provider.placeholder ?? localize('type to search', "Repository name (type to search)");
+				this.quickpick.onDidChangeValue(this.onDidChangeValue, this);
+			} else {
+				this.quickpick.placeholder = this.provider.placeholder ?? localize('type to filter', "Repository name");
+			}
 		}
 	}
 
@@ -45,35 +48,37 @@ class RemoteSourceProviderQuickPick {
 
 	@throttle
 	private async query(): Promise<void> {
-		this.quickpick.busy = true;
-
 		try {
-			const remoteSources = await this.provider.getRemoteSources(this.quickpick.value) || [];
+			const remoteSources = await this.provider.getRemoteSources(this.quickpick?.value) || [];
+
+			this.ensureQuickPick();
+			this.quickpick!.show();
 
 			if (remoteSources.length === 0) {
-				this.quickpick.items = [{
+				this.quickpick!.items = [{
 					label: localize('none found', "No remote repositories found."),
 					alwaysShow: true
 				}];
 			} else {
-				this.quickpick.items = remoteSources.map(remoteSource => ({
-					label: remoteSource.name,
+				this.quickpick!.items = remoteSources.map(remoteSource => ({
+					label: remoteSource.icon ? `$(${remoteSource.icon}) ${remoteSource.name}` : remoteSource.name,
 					description: remoteSource.description || (typeof remoteSource.url === 'string' ? remoteSource.url : remoteSource.url[0]),
+					detail: remoteSource.detail,
 					remoteSource,
 					alwaysShow: true
 				}));
 			}
 		} catch (err) {
-			this.quickpick.items = [{ label: localize('error', "$(error) Error: {0}", err.message), alwaysShow: true }];
+			this.quickpick!.items = [{ label: localize('error', "$(error) Error: {0}", err.message), alwaysShow: true }];
 			console.error(err);
 		} finally {
-			this.quickpick.busy = false;
+			this.quickpick!.busy = false;
 		}
 	}
 
 	async pick(): Promise<RemoteSource | undefined> {
-		this.query();
-		const result = await getQuickPickResult(this.quickpick);
+		await this.query();
+		const result = await getQuickPickResult(this.quickpick!);
 		return result?.remoteSource;
 	}
 }
@@ -83,6 +88,7 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {
 	const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider; url?: string })>();
 	quickpick.ignoreFocusOut = true;
+	quickpick.title = options.title;
 
 	if (options.providerName) {
 		const provider = model.getRemoteProviders()
@@ -93,24 +99,47 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 		}
 	}
 
-	const providers = model.getRemoteProviders()
+	const remoteProviders = model.getRemoteProviders()
 		.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + (options.providerLabel ? options.providerLabel(provider) : provider.name), alwaysShow: true, provider }));
 
-	quickpick.placeholder = providers.length === 0
+	const recentSources: (QuickPickItem & { url?: string; timestamp: number })[] = [];
+	if (options.showRecentSources) {
+		for (const { provider } of remoteProviders) {
+			const sources = (await provider.getRecentRemoteSources?.() ?? []).map((item) => {
+				return {
+					...item,
+					label: (item.icon ? `$(${item.icon}) ` : '') + item.name,
+					url: typeof item.url === 'string' ? item.url : item.url[0],
+				};
+			});
+			recentSources.push(...sources);
+		}
+	}
+
+	const items = [
+		{ kind: QuickPickItemKind.Separator, label: localize('remote sources', 'remote sources') },
+		...remoteProviders,
+		{ kind: QuickPickItemKind.Separator, label: localize('recently opened', 'recently opened') },
+		...recentSources.sort((a, b) => b.timestamp - a.timestamp)
+	];
+
+	quickpick.placeholder = options.placeholder ?? (remoteProviders.length === 0
 		? localize('provide url', "Provide repository URL")
-		: localize('provide url or pick', "Provide repository URL or pick a repository source.");
+		: localize('provide url or pick', "Provide repository URL or pick a repository source."));
 
 	const updatePicks = (value?: string) => {
 		if (value) {
+			const label = (typeof options.urlLabel === 'string' ? options.urlLabel : options.urlLabel?.(value)) ?? localize('url', "URL");
 			quickpick.items = [{
-				label: options.urlLabel ?? localize('url', "URL"),
+				label: label,
 				description: value,
 				alwaysShow: true,
 				url: value
 			},
-			...providers];
+			...items
+			];
 		} else {
-			quickpick.items = providers;
+			quickpick.items = items;
 		}
 	};
 
