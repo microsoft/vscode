@@ -2461,7 +2461,7 @@
         "defaults": {
           "light": "#587c0c",
           "dark": "#81b88b",
-          "highContrast": "#1b5225",
+          "highContrast": "#a1e3ad",
           "highContrastLight": "#374e06"
         }
       },
