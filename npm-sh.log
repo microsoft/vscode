@@ -1,0 +1,316 @@
+yarn install v1.22.18
+warning ../package.json: No license field
+$ node build/npm/preinstall.js
+[1/4] Resolving packages...
+success Already up-to-date.
+$ node build/npm/postinstall.js
+Installing dependencies in build...
+$ yarn 
+yarn install v1.22.18
+warning ../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 1.25s.
+Installing dependencies in extensions...
+$ yarn 
+yarn install v1.22.18
+warning ../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+$ node ./postinstall.mjs
+Done in 0.45s.
+Installing dependencies in extensions/configuration-editing...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.29s.
+Installing dependencies in extensions/css-language-features...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.32s.
+Installing dependencies in extensions/css-language-features/server...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.30s.
+Installing dependencies in extensions/debug-auto-launch...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.28s.
+Installing dependencies in extensions/debug-server-ready...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.29s.
+Installing dependencies in extensions/emmet...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.34s.
+Installing dependencies in extensions/extension-editing...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.30s.
+Installing dependencies in extensions/git...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.36s.
+Installing dependencies in extensions/git-base...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.29s.
+Installing dependencies in extensions/github...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.38s.
+Installing dependencies in extensions/github-authentication...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.34s.
+Installing dependencies in extensions/grunt...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.27s.
+Installing dependencies in extensions/gulp...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.27s.
+Installing dependencies in extensions/html-language-features...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.31s.
+Installing dependencies in extensions/html-language-features/server...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.31s.
+Installing dependencies in extensions/image-preview...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.29s.
+Installing dependencies in extensions/ipynb...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.28s.
+Installing dependencies in extensions/jake...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.27s.
+Installing dependencies in extensions/json-language-features...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.32s.
+Installing dependencies in extensions/json-language-features/server...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.31s.
+Installing dependencies in extensions/markdown-language-features...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.34s.
+Installing dependencies in extensions/markdown-math...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.29s.
+Installing dependencies in extensions/merge-conflict...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.28s.
+Installing dependencies in extensions/microsoft-authentication...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.35s.
+Installing dependencies in extensions/notebook-renderers...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.28s.
+Installing dependencies in extensions/npm...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.35s.
+Installing dependencies in extensions/php-language-features...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.30s.
+Installing dependencies in extensions/references-view...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.28s.
+Installing dependencies in extensions/search-result...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.27s.
+Installing dependencies in extensions/simple-browser...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.28s.
+Installing dependencies in extensions/typescript-language-features...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.30s.
+Installing dependencies in extensions/vscode-api-tests...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.27s.
+Installing dependencies in extensions/vscode-colorize-tests...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.27s.
+Installing dependencies in extensions/vscode-custom-editor-tests...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.30s.
+Installing dependencies in extensions/vscode-notebook-tests...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.27s.
+Installing dependencies in extensions/vscode-test-resolver...
+$ yarn --ignore-engines
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.28s.
+Installing dependencies in remote...
+$ yarn 
+yarn install v1.22.18
+warning ../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.55s.
+Installing dependencies in remote/web...
+$ yarn 
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.33s.
+Installing dependencies in test/automation...
+$ yarn 
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.47s.
+Installing dependencies in test/integration/browser...
+$ yarn 
+yarn install v1.22.18
+warning ../../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.33s.
+Installing dependencies in test/monaco...
+$ yarn 
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.29s.
+Installing dependencies in test/smoke...
+$ yarn 
+yarn install v1.22.18
+warning ../../../package.json: No license field
+[1/4] Resolving packages...
+success Already up-to-date.
+Done in 0.50s.
+Done in 41.11s.
