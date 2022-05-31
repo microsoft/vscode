@@ -353,6 +353,12 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				reference = match[5];
 				const offset = ((match.index ?? 0) + match[1].length) + 1;
 				linkStart = document.positionAt(offset);
+				const line = document.lineAt(linkStart.line);
+				// See if link looks like a checkbox
+				const checkboxMatch = line.text.match(/^\s*\-\s*\[x\]/i);
+				if (checkboxMatch && linkStart.character <= checkboxMatch[0].length) {
+					continue;
+				}
 				linkEnd = document.positionAt(offset + reference.length);
 			} else {
 				continue;
