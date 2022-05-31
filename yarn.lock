@@ -4287,10 +4287,10 @@ electron-to-chromium@^1.4.17:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.45.tgz#cf1144091d6683cbd45a231954a745f02fb24598"
   integrity sha512-czF9eYVuOmlY/vxyMQz2rGlNSjZpxNQYBe1gmQv7al171qOIhgyO9k7D5AKlgeTCSPKk+LHhj5ZyIdmEub9oNg==
 
-electron@17.4.4:
-  version "17.4.4"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-17.4.4.tgz#a289fa5cff6a59ef83647517a295eca780d64a86"
-  integrity sha512-/CqXJwm1VLfhF7+QhCrPEoePcpGMdRh09A+sVHX+kgT1twrmNH8S+ZeMPYxX8EU0O0Eki3UfA5zA2ADWaCDq2Q==
+electron@17.4.6:
+  version "17.4.6"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-17.4.6.tgz#4837b3adb2636992a33da734a77794dd932fb05c"
+  integrity sha512-9aPjlyWoVxchD/iw5KcbQ7ZaC5ezxsObBrMbGjpdMmDL5dktI0EkT6x2l2CYPZCi4rQG/6qlPfTZJeVPIIwI2Q==
   dependencies:
     "@electron/get" "^1.13.0"
     "@types/node" "^14.6.2"
@@ -11787,10 +11787,10 @@ vscode-oniguruma@1.6.1:
   resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.6.1.tgz#2bf4dfcfe3dd2e56eb549a3068c8ee39e6c30ce5"
   integrity sha512-vc4WhSIaVpgJ0jJIejjYxPvURJavX6QG41vu0mGhqywMkQqulezEqEQ3cO3gc8GvcOpX6ycmKGqRoROEMBNXTQ==
 
-vscode-policy-watcher@^1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-policy-watcher/-/vscode-policy-watcher-1.1.0.tgz#2921353c5080b3452929f1e350b9fab9ff852cc9"
-  integrity sha512-yPvy3Or66H0l8/FyWbJeGxpWW3GDZf65EIT7fqp1Ethdz4ecEnHThuHti7SlfdRJTf5qnifrX7af02INiHqDMA==
+vscode-policy-watcher@^1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/vscode-policy-watcher/-/vscode-policy-watcher-1.1.1.tgz#3646d17de9f82c741437fd6d687fd0c414ea513d"
+  integrity sha512-ZwJKg8gpIQ3UO8gdTqBvbXJBOBUStWPArjQJuqGIz8TimgMy+4H7tScVjvlxmzb/sS6rErn3wGMn8gRH824nnw==
   dependencies:
     bindings "^1.5.0"
     node-addon-api "*"

@@ -14,7 +14,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtUri } from 'vs/base/common/resources';
 import { uppercaseFirstLetter } from 'vs/base/common/strings';
-import { isString } from 'vs/base/common/types';
+import { isString, isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
@@ -798,10 +798,10 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 		super(file, resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 	}
 
-	protected hasErrors(content: string): boolean {
+	protected hasErrors(content: string, isArray: boolean): boolean {
 		const parseErrors: ParseError[] = [];
-		parse(content, parseErrors, { allowEmptyContent: true, allowTrailingComma: true });
-		return parseErrors.length > 0;
+		const result = parse(content, parseErrors, { allowEmptyContent: true, allowTrailingComma: true });
+		return parseErrors.length > 0 || (!isUndefined(result) && isArray !== Array.isArray(result));
 	}
 
 	private _formattingOptions: Promise<FormattingOptions> | undefined = undefined;

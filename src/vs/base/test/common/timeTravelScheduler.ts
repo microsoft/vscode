@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { setTimeout0, setTimeout0IsFaster } from 'vs/base/common/platform';
 
 interface PriorityQueue<T> {
 	length: number;
@@ -177,6 +178,8 @@ export class AsyncSchedulerProcessor extends Disposable {
 		Promise.resolve().then(() => {
 			if (this.useSetImmediate) {
 				originalGlobalValues.setImmediate(() => this.process());
+			} else if (setTimeout0IsFaster) {
+				setTimeout0(() => this.process());
 			} else {
 				originalGlobalValues.setTimeout(() => this.process());
 			}
