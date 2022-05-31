@@ -268,4 +268,17 @@ suite('markdown: Diagnostics', () => {
 		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
+
+	test('Should not detect checkboxes as invalid links', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`- [x]`,
+			`- [X]`,
+			`- [ ]`,
+		));
+
+		const contents = new InMemoryWorkspaceMarkdownDocuments([doc1]);
+		const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration(true, ['/doc2.md']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
 });
