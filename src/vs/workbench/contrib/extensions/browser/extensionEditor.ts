@@ -518,6 +518,7 @@ export class ExtensionEditor extends EditorPane {
 
 		template.name.textContent = extension.displayName;
 		template.name.classList.toggle('clickable', !!extension.url);
+		template.name.classList.toggle('deprecated', !!extension.deprecationInfo);
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
 		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 
