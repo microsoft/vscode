@@ -173,10 +173,20 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-        exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
-        echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
-      displayName: Build
+        $env:VSCODE_EXPLORER_APPX_DIR=$(Join-Path $pwd.Path "resources/win32/appx")
+        exec { node build/win32/explorer-appx-fetcher }
+      env:
+        VSCODE_ARCH: "$(VSCODE_ARCH)"
+      displayName: Download Explorer Sparse Package
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
+      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
+      echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
+    displayName: Build
 
   - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
     - task: DownloadPipelineArtifact@2
@@ -271,6 +281,7 @@ steps:
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node' }
+        exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx' }
       displayName: Codesign
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
