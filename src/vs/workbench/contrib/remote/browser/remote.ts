@@ -334,8 +334,9 @@ abstract class HelpItemBase implements IHelpItem {
 					await this.takeAction(action.extensionDescription, action.description);
 				}
 			}
+		} else {
+			await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
 		}
-		await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
 
 	}
 

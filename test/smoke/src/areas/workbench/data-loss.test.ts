@@ -127,7 +127,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		}
 	});
 
-	describe.skip('Data Loss (stable -> insiders)', () => { //TODO@bpasero enable again once we shipped 1.67.x
+	describe('Data Loss (stable -> insiders)', () => {
 
 		let insidersApp: Application | undefined = undefined;
 		let stableApp: Application | undefined = undefined;

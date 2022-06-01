@@ -39,6 +39,10 @@
 	word-break: break-all;
 }
 
+.monaco-workbench .repl .repl-tree.word-wrap .monaco-tl-contents .expression.nested-variable {
+	white-space: pre; /* Preserve whitespace but don't wrap */
+}
+
 .monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie.collapsible + .monaco-tl-contents,
 .monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie {
 	cursor: pointer;

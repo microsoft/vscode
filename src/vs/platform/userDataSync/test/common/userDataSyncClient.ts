@@ -42,6 +42,7 @@ import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/u
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { NullPolicyService } from 'vs/platform/policy/common/policy';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -86,7 +87,7 @@ export class UserDataSyncClient extends Disposable {
 
 		this.instantiationService.stub(IStorageService, this._register(new InMemoryStorageService()));
 
-		const configurationService = this._register(new ConfigurationService(userDataProfilesService, fileService));
+		const configurationService = this._register(new ConfigurationService(userDataProfilesService, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
 		this.instantiationService.stub(IUriIdentityService, this.instantiationService.createInstance(UriIdentityService));

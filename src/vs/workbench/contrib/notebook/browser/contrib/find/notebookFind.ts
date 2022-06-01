@@ -12,7 +12,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import { StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/browser/findController';
+import { FindStartFocusAction, getSelectionSearchString, IFindStartOptions, StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/browser/findController';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -24,6 +24,7 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 registerNotebookContribution(NotebookFindWidget.id, NotebookFindWidget);
 
@@ -91,6 +92,23 @@ function notebookContainsTextModel(uri: URI, textModel: ITextModel) {
 	return false;
 }
 
+function getSearchString(editor: ICodeEditor, opts: IFindStartOptions) {
+	// Get the search string result, following the same logic in _start function in 'vs/editor/contrib/find/browser/findController'
+	let searchString = '';
+	if (opts.seedSearchStringFromSelection === 'single') {
+		let selectionSearchString = getSelectionSearchString(editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromNonEmptySelection);
+		if (selectionSearchString) {
+			searchString = selectionSearchString;
+		}
+	} else if (opts.seedSearchStringFromSelection === 'multiple' && !opts.updateSearchScope) {
+		let selectionSearchString = getSelectionSearchString(editor, opts.seedSearchStringFromSelection);
+		if (selectionSearchString) {
+			searchString = selectionSearchString;
+		}
+	}
+	return searchString;
+}
+
 
 StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: ICodeEditor, args: any) => {
 	const editorService = accessor.get(IEditorService);
@@ -112,7 +130,19 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 	}
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
-	controller.show();
+
+	const searchString = getSearchString(codeEditor, {
+		forceRevealReplace: false,
+		seedSearchStringFromSelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
+		seedSearchStringFromNonEmptySelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
+		seedSearchStringFromGlobalClipboard: codeEditor.getOption(EditorOption.find).globalFindClipboard,
+		shouldFocus: FindStartFocusAction.FocusFindInput,
+		shouldAnimate: true,
+		updateSearchScope: false,
+		loop: codeEditor.getOption(EditorOption.find).loop
+	});
+
+	controller.show(searchString);
 	return true;
 });
 
@@ -125,8 +155,20 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 	}
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+
+	const searchString = getSearchString(codeEditor, {
+		forceRevealReplace: false,
+		seedSearchStringFromSelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
+		seedSearchStringFromNonEmptySelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
+		seedSearchStringFromGlobalClipboard: codeEditor.getOption(EditorOption.find).globalFindClipboard,
+		shouldFocus: FindStartFocusAction.FocusFindInput,
+		shouldAnimate: true,
+		updateSearchScope: false,
+		loop: codeEditor.getOption(EditorOption.find).loop
+	});
+
 	if (controller) {
-		controller.replace();
+		controller.replace(searchString);
 		return true;
 	}
 

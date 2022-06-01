@@ -35,8 +35,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
 import { AbstractLogger, DEFAULT_LOG_LEVEL, getLogLevel, ILogService, LogLevel, LogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
@@ -72,6 +72,7 @@ import { IExtensionsScannerService } from 'vs/platform/extensionManagement/commo
 import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { NullPolicyService } from 'vs/platform/policy/common/policy';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -111,7 +112,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	// Configuration
 	const userDataProfilesService = new UserDataProfilesService(undefined, undefined, environmentService, fileService, logService);
-	const configurationService = new ConfigurationService(userDataProfilesService, fileService);
+	const configurationService = new ConfigurationService(userDataProfilesService, fileService, new NullPolicyService(), logService);
 	services.set(IConfigurationService, configurationService);
 	configurationService.initialize(environmentService.machineSettingsResource);
 
@@ -164,7 +165,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
-	services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
+	services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
 
 	const extensionManagementCLIService = instantiationService.createInstance(ExtensionManagementCLIService);
 	services.set(IExtensionManagementCLIService, extensionManagementCLIService);

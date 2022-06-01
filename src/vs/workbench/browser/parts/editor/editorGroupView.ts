@@ -575,6 +575,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		/* __GDPR__
 			"editorOpened" : {
+				"owner": "bpasero",
 				"${include}": [
 					"${EditorTelemetryDescriptor}"
 				]
@@ -611,6 +612,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		/* __GDPR__
 			"editorClosed" : {
+				"owner": "bpasero",
 				"${include}": [
 					"${EditorTelemetryDescriptor}"
 				]

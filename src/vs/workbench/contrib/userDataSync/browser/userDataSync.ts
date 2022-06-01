@@ -67,6 +67,7 @@ const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', 
 type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description?: string };
 
 type SyncConflictsClassification = {
+	owner: 'sandy081';
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };

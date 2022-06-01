@@ -331,6 +331,124 @@
 									"description": "The port VS Code can use to connect to its backend."
 								}
 							}
+						},
+						"codespaces": {
+							"type": "object",
+							"properties": {
+								"repositories": {
+									"type": "object",
+									"description": "Configuration relative to a GitHub repository",
+									"pattern": "^[a-zA-Z0-9-_.]+[.]*\/[a-zA-Z0-9-_*]+[.]*$",
+									"errorMessage": "Expected format: 'owner/repo' (eg: 'microsoft/vscode'). A wildcard (*) is permitted for the repo name. (eg: 'microsoft/*').",
+									"oneOf": [
+										{
+											"properties": {
+												"permissions": {
+													"type": "object",
+													"description": "Addional repository permissions. See https://aka.ms/ghcs/multi-repo-auth for more info.",
+													"anyOf": [
+														{
+															"actions": {
+																"type": "string",
+																"enum": [
+																	"read",
+																	"write"
+																]
+															},
+															"checks": {
+																"type": "string",
+																"enum": [
+																	"read",
+																	"write"
+																]
+															},
+															"contents": {
+																"type": "string",
+																"enum": [
+																	"read",
+																	"write"
+																]
+															},
+															"deployments": {
+																"type": "string",
+																"enum": [
+																	"read",
+																	"write"
+																]
+															},
+															"discussions": {
+																"type": "string",
+																"enum": [
+																	"read",
+																	"write"
+																]
+															},
+															"issues": {
+																"type": "string",
+																"enum": [
+																	"read",
+																	"write"
+																]
+															},
+															"packages": {
+																"type": "string",
+																"enum": [
+																	"read"
+																]
+															},
+															"pages": {
+																"type": "string",
+																"enum": [
+																	"read",
+																	"write"
+																]
+															},
+															"pull_requests": {
+																"type": "string",
+																"enum": [
+																	"read",
+																	"write"
+																]
+															},
+															"repository_projects": {
+																"type": "string",
+																"enum": [
+																	"read",
+																	"write"
+																]
+															},
+															"statuses": {
+																"type": "string",
+																"enum": [
+																	"read",
+																	"write"
+																]
+															},
+															"workflows": {
+																"type": "string",
+																"enum": [
+																	"write"
+																]
+															}
+														}
+													]
+												}
+											}
+										},
+										{
+											"properties": {
+												"permissions": {
+													"type": "string",
+													"enum": [
+														"read-all",
+														"write-all"
+													]
+												}
+											}
+										}
+									]
+								}
+							}
 						}
 					},
 					"additionalProperties": {

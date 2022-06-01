@@ -9,7 +9,7 @@ import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { MetadataConsts, TokenMetadata, FontStyle, ColorId } from 'vs/editor/common/languages';
+import { FontStyle, ColorId, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';

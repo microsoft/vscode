@@ -99,6 +99,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		rows: number,
 		location: TerminalLocation,
 		private readonly _capabilities: ITerminalCapabilityStore,
+		disableShellIntegrationTelemetry: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -175,7 +176,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._updateUnicodeVersion();
 		this._commandNavigationAddon = this._instantiationService.createInstance(CommandNavigationAddon, _capabilities);
 		this.raw.loadAddon(this._commandNavigationAddon);
-		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, this._telemetryService);
+		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationTelemetry, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._updateShellIntegrationAddons();
 	}

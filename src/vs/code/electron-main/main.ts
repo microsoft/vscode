@@ -64,6 +64,10 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
+import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
+import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 /**
  * The main VS Code entry point.
@@ -91,13 +95,13 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService] = this.createServices();
+		const [instantiationService, instanceEnvironment, environmentMainService, policyService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService] = this.createServices();
 
 		try {
 
 			// Init services
 			try {
-				await this.initServices(environmentMainService, userDataProfilesMainService, configurationService, stateMainService);
+				await this.initServices(environmentMainService, userDataProfilesMainService, policyService, configurationService, stateMainService);
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -139,8 +143,10 @@ class CodeMain {
 		}
 	}
 
-	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService, UserDataProfilesMainService] {
+	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, IPolicyService, ConfigurationService, StateMainService, BufferLogService, IProductService, UserDataProfilesMainService] {
 		const services = new ServiceCollection();
+		const disposables = new DisposableStore();
+		process.once('exit', () => disposables.dispose());
 
 		// Product
 		const productService = { _serviceBrand: undefined, ...product };
@@ -155,8 +161,7 @@ class CodeMain {
 		// we are the only instance running, otherwise we'll have concurrent
 		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
 		const bufferLogService = new BufferLogService();
-		const logService = new MultiplexLogService([new ConsoleMainLogger(getLogLevel(environmentMainService)), bufferLogService]);
-		process.once('exit', () => logService.dispose());
+		const logService = disposables.add(new MultiplexLogService([new ConsoleMainLogger(getLogLevel(environmentMainService)), bufferLogService]));
 		services.set(ILogService, logService);
 
 		// Files
@@ -172,8 +177,14 @@ class CodeMain {
 		const userDataProfilesMainService = new UserDataProfilesMainService(environmentMainService, fileService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesMainService);
 
+		// Policy
+		const policyService = isWindows && productService.win32RegValueName ? disposables.add(new NativePolicyService(productService.win32RegValueName))
+			: environmentMainService.policyFile ? disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService))
+				: new NullPolicyService();
+		services.set(IPolicyService, policyService);
+
 		// Configuration
-		const configurationService = new ConfigurationService(userDataProfilesMainService, fileService);
+		const configurationService = new ConfigurationService(userDataProfilesMainService, fileService, policyService, logService);
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle
@@ -198,7 +209,7 @@ class CodeMain {
 		// Protocol
 		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, policyService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -218,10 +229,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
-		// State service
-		await stateMainService.init();
-
+	private initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, policyService: IPolicyService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
 		return Promises.settled<unknown>([
 
 			// Environment service (paths)

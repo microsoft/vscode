@@ -9,18 +9,21 @@ import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifec
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Configuration, ConfigurationChangeEvent, ConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
+import { DefaultConfiguration, IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
 	declare readonly _serviceBrand: undefined;
 
 	private configuration: Configuration;
-	private userConfiguration: MutableDisposable<UserSettings>;
+	private readonly userConfiguration: MutableDisposable<UserSettings>;
+	private readonly defaultConfiguration: DefaultConfiguration;
+	private readonly policyConfiguration: IPolicyConfiguration;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
 	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
@@ -28,14 +31,19 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 	constructor(
 		private readonly userDataProfilesService: IUserDataProfilesService,
-		private readonly fileService: IFileService
+		private readonly fileService: IFileService,
+		policyService: IPolicyService,
+		logService: ILogService,
 	) {
 		super();
-		this.configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
+		this.defaultConfiguration = this._register(new DefaultConfiguration());
+		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
+		this.configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel());
 		this.userConfiguration = this._register(new MutableDisposable<UserSettings>());
 
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reloadConfiguration(), 50));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(({ properties }) => this.onDidDefaultConfigurationChange(properties)));
+		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ defaults, properties }) => this.onDidDefaultConfigurationChange(defaults, properties)));
+		this._register(this.policyConfiguration.onDidChangeConfiguration(model => this.onDidPolicyConfigurationChange(model)));
 	}
 
 	private initPromise: Promise<void> | undefined;
@@ -44,8 +52,8 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 			this.initPromise = (async () => {
 				this.userConfiguration.value = new UserSettings(settingsResource ?? this.userDataProfilesService.currentProfile.settingsResource, undefined, extUriBiasedIgnorePathCase, this.fileService);
 				this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
-				const userConfiguration = await this.userConfiguration.value.loadConfiguration();
-				this.configuration = new Configuration(new DefaultConfigurationModel(), userConfiguration);
+				const [defaultModel, policyModel, userModel] = await Promise.all([this.defaultConfiguration.initialize(), this.policyConfiguration.initialize(), this.userConfiguration.value.loadConfiguration()]);
+				this.configuration = new Configuration(defaultModel, policyModel, userModel);
 			})();
 		}
 		return this.initPromise;
@@ -99,9 +107,15 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		this.trigger(change, previous, ConfigurationTarget.USER);
 	}
 
-	private onDidDefaultConfigurationChange(properties: string[]): void {
+	private onDidDefaultConfigurationChange(defaultConfigurationModel: ConfigurationModel, properties: string[]): void {
 		const previous = this.configuration.toData();
-		const change = this.configuration.compareAndUpdateDefaultConfiguration(new DefaultConfigurationModel(), properties);
+		const change = this.configuration.compareAndUpdateDefaultConfiguration(defaultConfigurationModel, properties);
+		this.trigger(change, previous, ConfigurationTarget.DEFAULT);
+	}
+
+	private onDidPolicyConfigurationChange(policyConfiguration: ConfigurationModel): void {
+		const previous = this.configuration.toData();
+		const change = this.configuration.compareAndUpdatePolicyConfiguration(policyConfiguration);
 		this.trigger(change, previous, ConfigurationTarget.DEFAULT);
 	}
 

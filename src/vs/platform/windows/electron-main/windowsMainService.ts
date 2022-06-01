@@ -52,6 +52,7 @@ import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/wind
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IPolicyService } from 'vs/platform/policy/common/policy';
 
 //#region Helper Interfaces
 
@@ -193,6 +194,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IPolicyService private readonly policyService: IPolicyService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -1325,7 +1327,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
 			autoDetectColorScheme: windowConfig?.autoDetectColorScheme ?? false,
 			accessibilitySupport: app.accessibilitySupportEnabled,
-			colorScheme: this.themeMainService.getColorScheme()
+			colorScheme: this.themeMainService.getColorScheme(),
+			policiesData: this.policyService.serialize(),
 		};
 
 		let window: ICodeWindow | undefined;

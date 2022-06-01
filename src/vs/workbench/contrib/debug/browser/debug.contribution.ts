@@ -80,7 +80,7 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	prefix: StartDebugQuickAccessProvider.PREFIX,
 	contextKey: 'inLaunchConfigurationsPicker',
 	placeholder: nls.localize('startDebugPlaceholder', "Type the name of a launch configuration to run."),
-	helpEntries: [{ description: nls.localize('startDebuggingHelp', "Start Debugging"), needsEditor: false }]
+	helpEntries: [{ description: nls.localize('startDebuggingHelp', "Start Debugging"), commandId: SELECT_AND_START_ID }]
 });
 
 

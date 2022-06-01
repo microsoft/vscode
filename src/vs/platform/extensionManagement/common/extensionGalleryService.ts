@@ -203,7 +203,8 @@ const PropertyType = {
 	Engine: 'Microsoft.VisualStudio.Code.Engine',
 	PreRelease: 'Microsoft.VisualStudio.Code.PreRelease',
 	LocalizedLanguages: 'Microsoft.VisualStudio.Code.LocalizedLanguages',
-	WebExtension: 'Microsoft.VisualStudio.Code.WebExtension'
+	WebExtension: 'Microsoft.VisualStudio.Code.WebExtension',
+	SponsorLink: 'Microsoft.VisualStudio.Code.SponsorLink'
 };
 
 interface ICriterium {
@@ -235,6 +236,7 @@ const DefaultQueryState: IQueryState = {
 };
 
 type GalleryServiceQueryClassification = {
+	owner: 'sandy081';
 	readonly filterTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly flags: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly sortBy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -272,6 +274,7 @@ type GalleryServiceQueryEvent = QueryTelemetryData & {
 };
 
 type GalleryServiceAdditionalQueryClassification = {
+	owner: 'sandy081';
 	readonly duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true };
 	readonly count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
@@ -420,6 +423,10 @@ function getLocalizedLanguages(version: IRawGalleryExtensionVersion): string[] {
 	return value ? value.split(',') : [];
 }
 
+function getSponsorLink(version: IRawGalleryExtensionVersion): string | undefined {
+	return version.properties?.find(p => p.key === PropertyType.SponsorLink)?.value;
+}
+
 function getIsPreview(flags: string): boolean {
 	return flags.indexOf('preview') !== -1;
 }
@@ -511,6 +518,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		publisher: galleryExtension.publisher.publisherName,
 		publisherDisplayName: galleryExtension.publisher.displayName,
 		publisherDomain: galleryExtension.publisher.domain ? { link: galleryExtension.publisher.domain, verified: !!galleryExtension.publisher.isDomainVerified } : undefined,
+		publisherSponsorLink: getSponsorLink(latestVersion),
 		description: galleryExtension.shortDescription || '',
 		installCount: getStatistic(galleryExtension.statistics, 'install'),
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
@@ -992,6 +1000,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const startTime = new Date().getTime();
 		/* __GDPR__
 			"galleryService:downloadVSIX" : {
+				"owner": "sandy081",
 				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
@@ -1124,6 +1133,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 			const message = getErrorMessage(err);
 			type GalleryServiceCDNFallbackClassification = {
+				owner: 'sandy081';
 				url: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				message: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};

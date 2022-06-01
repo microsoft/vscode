@@ -622,7 +622,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	) {
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('files.exclude') || e.affectsConfiguration('files.excludeGitIgnore')) {
+			if (e.affectsConfiguration('files.exclude') || e.affectsConfiguration('explorer.excludeGitIgnore')) {
 				this.updateConfiguration();
 			}
 		}));
@@ -683,7 +683,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig: glob.IExpression = configuration?.files?.exclude || Object.create(null);
-			const parseIgnoreFile: boolean = configuration.files.excludeGitIgnore;
+			const parseIgnoreFile: boolean = configuration.explorer.excludeGitIgnore;
 
 			// If we should be parsing ignoreFiles for this workspace and don't have an ignore tree initialize one
 			if (parseIgnoreFile && !this.ignoreTreesPerRoot.has(folder.uri.toString())) {
@@ -739,7 +739,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		// Maybe we need a cancellation token here in case it's super long?
 		const content = await this.fileService.readFile(ignoreFileResource);
 		const ignoreParent = ignoreTree.findSubstr(dirUri);
-		const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path + path.sep, ignoreParent);
+		const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path, ignoreParent);
 		ignoreTree.set(dirUri, ignoreFile);
 		// If we haven't seen this resource before then we need to add it to the list of resources we're tracking
 		if (!this.ignoreFileResourcesPerRoot.get(root)?.has(ignoreFileResource)) {

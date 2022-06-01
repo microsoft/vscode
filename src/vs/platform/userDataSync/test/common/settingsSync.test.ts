@@ -465,6 +465,17 @@ suite('SettingsSync - Auto', () => {
 		}
 	});
 
+	test('sync throws invalid content error - content is an array', async () => {
+		await updateSettings('[]', client);
+		try {
+			await testObject.sync(await client.manifest());
+			assert.fail('should fail with invalid content error');
+		} catch (e) {
+			assert.ok(e instanceof UserDataSyncError);
+			assert.deepStrictEqual((<UserDataSyncError>e).code, UserDataSyncErrorCode.LocalInvalidContent);
+		}
+	});
+
 	test('sync when there are conflicts', async () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);

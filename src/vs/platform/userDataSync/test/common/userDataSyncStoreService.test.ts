@@ -484,14 +484,14 @@ suite('UserDataSyncRequestsSession', () => {
 		assert.fail('Should fail with limit exceeded');
 	});
 
-	test('requests are handled after session is expired', async () => {
+	test('requests are handled after session is expired', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const testObject = new RequestsSession(1, 100, requestService, new NullLogService());
 		await testObject.request('url', {}, CancellationToken.None);
 		await timeout(125);
 		await testObject.request('url', {}, CancellationToken.None);
-	});
+	}));
 
-	test('too many requests are thrown after session is expired', async () => {
+	test('too many requests are thrown after session is expired', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const testObject = new RequestsSession(1, 100, requestService, new NullLogService());
 		await testObject.request('url', {}, CancellationToken.None);
 		await timeout(125);
@@ -505,6 +505,6 @@ suite('UserDataSyncRequestsSession', () => {
 			return;
 		}
 		assert.fail('Should fail with limit exceeded');
-	});
+	}));
 
 });

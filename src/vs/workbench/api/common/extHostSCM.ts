@@ -249,6 +249,25 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this.#proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, !!fn);
 	}
 
+	private _enabled: boolean = true;
+
+	get enabled(): boolean {
+		checkProposedApiEnabled(this._extension, 'scmInput');
+		return this._enabled;
+	}
+
+	set enabled(enabled: boolean) {
+		checkProposedApiEnabled(this._extension, 'scmInput');
+		enabled = !!enabled;
+
+		if (this._enabled === enabled) {
+			return;
+		}
+
+		this._enabled = enabled;
+		this.#proxy.$setInputBoxEnablement(this._sourceControlHandle, enabled);
+	}
+
 	private _visible: boolean = true;
 
 	get visible(): boolean {
@@ -722,7 +741,10 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		type TEvent = { extensionId: string };
-		type TMeta = { extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' } };
+		type TMeta = {
+			owner: 'joaomoreno';
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+		};
 		this._telemetry.$publicLog2<TEvent, TMeta>('api/scm/createSourceControl', {
 			extensionId: extension.identifier.value,
 		});

@@ -57,6 +57,7 @@ interface InstalledExtensionsEvent {
 	readonly count: number;
 }
 interface ExtensionsLoadClassification extends GDPRClassification<InstalledExtensionsEvent> {
+	owner: 'digitarald';
 	readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 }
@@ -124,8 +125,20 @@ export class Extension implements IExtension {
 		return this.local!.manifest.publisher;
 	}
 
+	get publisherUrl(): URI | undefined {
+		if (!this.productService.extensionsGallery || !this.gallery) {
+			return undefined;
+		}
+
+		return resources.joinPath(URI.parse(this.productService.extensionsGallery.publisherUrl), this.publisher);
+	}
+
 	get publisherDomain(): { link: string; verified: boolean } | undefined {
 		return this.gallery?.publisherDomain;
+	}
+
+	get publisherSponsorLink(): URI | undefined {
+		return this.gallery?.publisherSponsorLink ? URI.parse(this.gallery.publisherSponsorLink) : undefined;
 	}
 
 	get version(): string {
@@ -1454,6 +1467,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (changed[i]) {
 				/* __GDPR__
 				"extension:enable" : {
+					"owner": "sandy081",
 					"${include}": [
 						"${GalleryExtensionTelemetryData}"
 					]
@@ -1461,6 +1475,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				*/
 				/* __GDPR__
 				"extension:disable" : {
+					"owner": "sandy081",
 					"${include}": [
 						"${GalleryExtensionTelemetryData}"
 					]

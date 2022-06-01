@@ -39,6 +39,7 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderW
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
+import { IPolicyService } from 'vs/platform/policy/common/policy';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -149,6 +150,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IPolicyService private readonly policyService: IPolicyService,
 		@IFileService private readonly fileService: IFileService,
 		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,
@@ -305,7 +307,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.setFullScreen(true);
 				}
 
-				if (!this._win.isVisible()) {
+				if (
+					!this._win.isVisible() ||
+					// TODO@electron: Required condition ever since https://github.com/electron/electron/pull/33536
+					// landed in Electron 17.4.2: calling `window.maximize()` on macOS will wrongly result in
+					// `window.isVisible()` to return `true` even though a different window might still be on top.
+					// As such, we also need to ask for `window.isFocused()` which on macOS will ask whether the
+					// window is a "key" window.
+					(isMacintosh && !this._win.isFocused())
+				) {
 					this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
 				}
 				mark('code/didMaximizeCodeWindow');
@@ -790,7 +800,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.focus({ force: true });
 					this._win.webContents.openDevTools();
 				}
-
 			}, 10000)).schedule();
 		}
 
@@ -870,6 +879,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		configuration.isInitialStartup = false; // since this is a reload
+		configuration.policiesData = this.policyService.serialize(); // set policies data again
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
