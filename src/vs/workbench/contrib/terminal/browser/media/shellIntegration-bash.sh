@@ -97,25 +97,25 @@ __vsc_preexec() {
 }
 
 # Debug trapping/preexec inspired by starship (ISC)
-dbg_trap="$(trap -p DEBUG)"
-if [[ -n "$dbg_trap" ]]; then
-	dbg_trap=${dbg_trap#'trap -- '*}
-	dbg_trap=${dbg_trap%'DEBUG'}
+__vsc_dbg_trap="$(trap -p DEBUG)"
+if [[ -n "$__vsc_dbg_trap" ]]; then
+	__vsc_dbg_trap=${__vsc_dbg_trap#'trap -- '*}
+	__vsc_dbg_trap=${__vsc_dbg_trap%'DEBUG'}
 fi
 
-if [[ -z "$dbg_trap" ]]; then
+if [[ -z "$__vsc_dbg_trap" ]]; then
 	__vsc_preexec_only() {
 		__vsc_status="$?"
 		builtin eval ${__vsc_preexec}
 	}
 	trap '__vsc_preexec_only "$_"' DEBUG
-elif [[ "$dbg_trap" != '__vsc_preexec "$_"' && "$dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
+elif [[ "$__vsc_dbg_trap" != '__vsc_preexec "$_"' && "$__vsc_dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
 	__vsc_preexec_all() {
 		__vsc_status="$?"
 		local PREV_LAST_ARG=$1;
-		if [[ type dbg_trap >/dev/null ]]; then
+		if [[ type __vsc_dbg_trap >/dev/null ]]; then
 			# function
-			$dbg_trap
+			$__vsc_dbg_trap
 		else
 			# string that must be evaluated as a function
 			builtin eval ${dbg_trap}
