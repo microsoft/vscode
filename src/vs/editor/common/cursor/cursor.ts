@@ -897,7 +897,8 @@ class CommandExecutor {
 				range: range,
 				text: text,
 				forceMoveMarkers: forceMoveMarkers,
-				isAutoWhitespaceEdit: command.insertsAutoWhitespace
+				isAutoWhitespaceEdit: command.insertsAutoWhitespace,
+				source: command.source,
 			});
 		};
 

@@ -381,6 +381,12 @@ export interface IIdentifiedSingleEditOperation extends ISingleEditOperation {
 	 * @internal
 	 */
 	_isTracked?: boolean;
+	/**
+	 * Optional identifier of the top-most intent that triggered this operation e.g. all editing operations
+	 * triggered by user pasting text from clipboard will have "paste" source.
+	 * @internal
+	 */
+	source?: string;
 }
 
 export interface IValidEditOperation {
@@ -1245,6 +1251,7 @@ export class ValidAnnotatedEditOperation implements IIdentifiedSingleEditOperati
 		public readonly forceMoveMarkers: boolean,
 		public readonly isAutoWhitespaceEdit: boolean,
 		public readonly _isTracked: boolean,
+		public readonly source?: string | undefined,
 	) { }
 }
 
@@ -1324,7 +1331,8 @@ export class ApplyEditsResult {
 	constructor(
 		public readonly reverseEdits: IValidEditOperation[] | null,
 		public readonly changes: IInternalModelContentChange[],
-		public readonly trimAutoWhitespaceLineNumbers: number[] | null
+		public readonly trimAutoWhitespaceLineNumbers: number[] | null,
+		public readonly source: string | undefined,
 	) { }
 
 }

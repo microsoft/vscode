@@ -11229,6 +11229,12 @@ declare module 'vscode' {
 		 * Is `undefined` if the reason is not known.
 		*/
 		readonly reason: TextDocumentChangeReason | undefined;
+
+		/**
+		 * Optional identifier of the top-most intent that triggered this event e.g. all editing operations
+		 * triggered by user pasting text from clipboard will have "paste" source.
+		 */
+		readonly source?: string | undefined;
 	}
 
 	/**

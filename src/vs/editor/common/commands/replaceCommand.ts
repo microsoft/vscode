@@ -13,11 +13,13 @@ export class ReplaceCommand implements ICommand {
 	private readonly _range: Range;
 	private readonly _text: string;
 	public readonly insertsAutoWhitespace: boolean;
+	public readonly source: string | undefined;
 
-	constructor(range: Range, text: string, insertsAutoWhitespace: boolean = false) {
+	constructor(range: Range, text: string, insertsAutoWhitespace: boolean = false, source?: string) {
 		this._range = range;
 		this._text = text;
 		this.insertsAutoWhitespace = insertsAutoWhitespace;
+		this.source = source;
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
@@ -109,13 +111,15 @@ export class ReplaceCommandThatPreservesSelection implements ICommand {
 	private readonly _initialSelection: Selection;
 	private readonly _forceMoveMarkers: boolean;
 	private _selectionId: string | null;
+	public readonly source: string | undefined;
 
-	constructor(editRange: Range, text: string, initialSelection: Selection, forceMoveMarkers: boolean = false) {
+	constructor(editRange: Range, text: string, initialSelection: Selection, forceMoveMarkers: boolean = false, source?: string) {
 		this._range = editRange;
 		this._text = text;
 		this._initialSelection = initialSelection;
 		this._forceMoveMarkers = forceMoveMarkers;
 		this._selectionId = null;
+		this.source = source;
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {

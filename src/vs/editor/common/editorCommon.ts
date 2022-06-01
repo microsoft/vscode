@@ -88,6 +88,13 @@ export interface ICommand {
 	 * @return The cursor state after the command executed.
 	 */
 	computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection;
+
+	/**
+	 * Optional identifier of the top-most intent that triggered this command e.g. all editing commands
+	 * triggered by user pasting text from clipboard will have "paste" source.
+	 * @internal
+	 */
+	readonly source?: string;
 }
 
 /**

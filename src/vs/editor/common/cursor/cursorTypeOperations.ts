@@ -97,9 +97,9 @@ export class TypeOperations {
 			if (pasteOnNewLine) {
 				// Paste entire line at the beginning of line
 				const typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
-				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
+				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true, 'paste');
 			} else {
-				commands[i] = new ReplaceCommand(selection, text);
+				commands[i] = new ReplaceCommand(selection, text, false, 'paste');
 			}
 		}
 		return new EditOperationResult(EditOperationType.Other, commands, {

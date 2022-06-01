@@ -229,6 +229,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 		let mightContainUnusualLineTerminators = this._mightContainUnusualLineTerminators;
 		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
 		let canReduceOperations = true;
+		let source: string | undefined;
 
 		let operations: IValidatedEditOperation[] = [];
 		for (let i = 0; i < rawOperations.length; i++) {
@@ -236,6 +237,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 			if (canReduceOperations && op._isTracked) {
 				canReduceOperations = false;
 			}
+			source = source || op.source;
 			const validatedRange = op.range;
 			if (op.text) {
 				let textMightContainNonBasicASCII = true;
@@ -393,7 +395,8 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 		return new ApplyEditsResult(
 			reverseOperations,
 			contentChanges,
-			trimAutoWhitespaceLineNumbers
+			trimAutoWhitespaceLineNumbers,
+			source
 		);
 	}
 

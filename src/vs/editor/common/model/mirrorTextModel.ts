@@ -31,6 +31,11 @@ export interface IModelChangedEvent {
 	 * Flag that indicates that this event was generated while redoing.
 	 */
 	readonly isRedoing: boolean;
+	/**
+	 * Optional identifier of the top-most intent that triggered this event e.g. all editing operations
+	 * triggered by user pasting text from clipboard will have "paste" source.
+	 */
+	readonly source?: string;
 }
 
 export interface IMirrorTextModel {

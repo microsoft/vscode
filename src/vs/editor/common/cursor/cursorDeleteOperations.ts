@@ -258,7 +258,7 @@ export class DeleteOperations {
 					lastCutRange = deleteSelection;
 
 					if (!deleteSelection.isEmpty()) {
-						commands[i] = new ReplaceCommand(deleteSelection, '');
+						commands[i] = new ReplaceCommand(deleteSelection, '', false, 'cut');
 					} else {
 						commands[i] = null;
 					}
@@ -267,7 +267,7 @@ export class DeleteOperations {
 					commands[i] = null;
 				}
 			} else {
-				commands[i] = new ReplaceCommand(selection, '');
+				commands[i] = new ReplaceCommand(selection, '', false, 'cut');
 			}
 		}
 		return new EditOperationResult(EditOperationType.Other, commands, {

@@ -2658,6 +2658,11 @@ declare namespace monaco.editor {
 		 * The model has been reset to a new value.
 		 */
 		readonly isFlush: boolean;
+		/**
+		 * Optional identifier of the top-most intent that triggered this event e.g. all editing operations
+		 * triggered by user pasting text from clipboard will have "paste" source.
+		 */
+		readonly source?: string | undefined;
 	}
 
 	/**

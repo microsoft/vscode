@@ -166,7 +166,8 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 					text: change.text
 				};
 			}),
-			reason
+			reason,
+			source: events.source,
 		}));
 	}
 
