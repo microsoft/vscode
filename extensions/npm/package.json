@@ -112,6 +112,10 @@
       {
         "command": "npm.packageManager",
         "title": "%command.packageManager%"
+      },
+      {
+        "command": "npm.packageManagerLaunchArgs",
+        "title": "%command.packageManagerLaunchArgs%"
       }
     ],
     "menus": {
@@ -246,6 +250,12 @@
           ],
           "default": "auto",
           "description": "%config.npm.packageManager%"
+        },
+        "npm.useNvm": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "markdownDescription": "%config.npm.useNvm%"
         },
         "npm.exclude": {
           "type": [

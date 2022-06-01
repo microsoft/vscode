@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
+import { getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson, getPackageManagerLaunchArgs } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 import { NpmScriptLensProvider } from './npmScriptLens';
 import * as which from 'which';
@@ -66,6 +66,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('npm.packageManager', (args) => {
 		if (args instanceof vscode.Uri) {
 			return getPackageManager(context, args);
+		}
+		return '';
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('npm.packageManagerLaunchArgs', (args) => {
+		if (args instanceof vscode.Uri) {
+			return getPackageManagerLaunchArgs(context, args);
 		}
 		return '';
 	}));

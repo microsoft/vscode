@@ -149,6 +149,32 @@ export async function getPackageManager(extensionContext: ExtensionContext, fold
 	return packageManagerName;
 }
 
+/**
+ * Returns an array of args to launch the package manager, which may include additional commands such as nvm-exec.
+ * @returns an array of args to launch the package manager
+ */
+export async function getPackageManagerLaunchArgs(extensionContext: ExtensionContext, folder: Uri, showWarning: boolean = true): Promise<string[]> {
+	const packageManager = await getPackageManager(extensionContext, folder, showWarning);
+	const nvmExecPath = getNvmExecPath(folder);
+	if (nvmExecPath) {
+		return [nvmExecPath, packageManager];
+	} else {
+		return [packageManager];
+	}
+}
+
+/**
+ * @returns the path to nvm-exec if nvm is used, or `undefined`
+ */
+export function getNvmExecPath(folder: Uri | undefined): string | undefined {
+	const useNvm = workspace.getConfiguration('npm', folder).get<boolean>('useNvm');
+	if (useNvm) {
+		return `${process.env['NVM_DIR'] || '~/.nvm'}/nvm-exec`;
+	} else {
+		return undefined;
+	}
+}
+
 export async function hasNpmScripts(): Promise<boolean> {
 	let folders = workspace.workspaceFolders;
 	if (!folders) {
@@ -302,6 +328,14 @@ export async function createTask(packageManager: string, script: NpmTaskDefiniti
 		kind = script;
 	}
 
+	let launchCommand = packageManager;
+
+	const nvmExecPath = getNvmExecPath(folder.uri);
+	if (nvmExecPath) {
+		cmd = [packageManager, ...cmd];
+		launchCommand = nvmExecPath;
+	}
+
 	function getCommandLine(cmd: string[]): (string | ShellQuotedString)[] {
 		const result: (string | ShellQuotedString)[] = new Array(cmd.length);
 		for (let i = 0; i < cmd.length; i++) {
@@ -329,7 +363,7 @@ export async function createTask(packageManager: string, script: NpmTaskDefiniti
 	}
 	let taskName = getTaskName(kind.script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, getCommandLine(cmd), { cwd: cwd }), matcher);
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(launchCommand, getCommandLine(cmd), { cwd: cwd }), matcher);
 	task.detail = scriptValue;
 
 	const lowerCaseTaskName = kind.script.toLowerCase();
@@ -403,7 +437,7 @@ export async function runScript(context: ExtensionContext, script: string, docum
 export async function startDebugging(context: ExtensionContext, scriptName: string, cwd: string, folder: WorkspaceFolder) {
 	commands.executeCommand(
 		'extension.js-debug.createDebuggerTerminal',
-		`${await getPackageManager(context, folder.uri)} run ${scriptName}`,
+		`${(await getPackageManagerLaunchArgs(context, folder.uri)).join(' ')} run ${scriptName}`,
 		folder,
 		{ cwd },
 	);

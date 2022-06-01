@@ -17,6 +17,7 @@ import {
 import * as nls from 'vscode-nls';
 import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
+import { getNvmExecPath } from './tasks';
 
 const localize = nls.loadMessageBundle();
 
@@ -88,6 +89,7 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 
 		if (this.lensLocation === 'all') {
 			const packageManager = await findPreferredPM(Uri.joinPath(document.uri, '..').fsPath);
+			const nvmExecPath = getNvmExecPath(workspace.getWorkspaceFolder(document.uri)?.uri);
 			return tokens.scripts.map(
 				({ name, nameRange }) =>
 					new CodeLens(
@@ -95,7 +97,7 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 						{
 							title,
 							command: 'extension.js-debug.createDebuggerTerminal',
-							arguments: [`${packageManager.name} run ${name}`, workspace.getWorkspaceFolder(document.uri), { cwd }],
+							arguments: [`${nvmExecPath ? `${nvmExecPath} ` : ''}${packageManager.name} run ${name}`, workspace.getWorkspaceFolder(document.uri), { cwd }],
 						},
 					),
 			);
