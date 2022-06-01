@@ -127,9 +127,7 @@ steps:
   - script: |
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+        yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
     displayName: Build Server
 
   # Setting hardened entitlements is a requirement for:
