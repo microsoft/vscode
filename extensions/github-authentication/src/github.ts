@@ -153,8 +153,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const scopesSeen = new Set<string>();
 		const sessionPromises = sessionData.map(async (session: SessionData) => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
-			const sortedScopes = session.scopes.sort();
-			const scopesStr = sortedScopes.join(' ');
+			const scopesStr = [...session.scopes].sort().join(' ');
 			if (scopesSeen.has(scopesStr)) {
 				return undefined;
 			}
@@ -181,7 +180,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 						: userInfo?.accountName ?? '<unknown>',
 					id: session.account?.id ?? userInfo?.id ?? '<unknown>'
 				},
-				scopes: sortedScopes,
+				scopes: session.scopes,
 				accessToken: session.accessToken
 			};
 		});
@@ -208,8 +207,9 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
 		try {
-			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
-			const sortedScopes = scopes.sort();
+			// For GitHub scope list, order doesn't matter so we use a sorted scope to determine
+			// if we've got a session already.
+			const sortedScopes = [...scopes].sort();
 
 			/* __GDPR__
 				"login" : {
@@ -219,13 +219,13 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				}
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('login', {
-				scopes: JSON.stringify(sortedScopes),
+				scopes: JSON.stringify(scopes),
 			});
 
 
 			const scopeString = sortedScopes.join(' ');
 			const token = await this._githubServer.login(scopeString);
-			const session = await this.tokenToSession(token, sortedScopes);
+			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
 			const sessions = await this._sessionsPromise;
