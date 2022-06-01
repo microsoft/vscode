@@ -133,6 +133,7 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData, height: number | undefined): void {
 		if (element.marker.source && element.marker.code) {
 			templateData.codeColumn.classList.toggle('code-link', typeof element.marker.code !== 'string');
+			DOM.show(templateData.codeLabel.element);
 
 			if (typeof element.marker.code === 'string') {
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
@@ -149,6 +150,9 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 					label: codeLinkLabel.element,
 				};
 			}
+		} else {
+			templateData.sourceLabel.set('-');
+			DOM.hide(templateData.codeLabel.element);
 		}
 	}
 
