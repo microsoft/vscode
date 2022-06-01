@@ -2450,7 +2450,10 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "%config.experimental.mergeEditor%",
-          "scope": "window"
+          "scope": "window",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
