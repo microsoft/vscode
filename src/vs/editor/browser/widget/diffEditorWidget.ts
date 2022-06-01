@@ -2495,7 +2495,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			marginDomNode.appendChild(marginElement);
 		}
 
-		return output.characterMapping.getAbsoluteOffset(output.characterMapping.length);
+		return output.characterMapping.getVisibleColumn(output.characterMapping.length);
 	}
 }
 

@@ -903,11 +903,11 @@ suite('viewLineRenderer.renderLine', () => {
 			const domPosition = source.getDomPosition(charOffset + 1);
 			mapping.push({ charOffset, partIndex: domPosition.partIndex, charIndex: domPosition.charIndex });
 		}
-		const absoluteOffsets: number[] = [];
+		const visibleColumns: number[] = [];
 		for (let i = 0; i < source.length; i++) {
-			absoluteOffsets[i] = source.getAbsoluteOffset(i + 1);
+			visibleColumns[i] = source.getVisibleColumn(i + 1);
 		}
-		return { mapping, absoluteOffsets };
+		return { mapping, visibleColumns };
 	}
 
 	function assertCharacterMapping2(actual: CharacterMapping, expected: CharacterMapping): void {
@@ -921,7 +921,7 @@ type CharacterMappingInfo = [number, [number, number]];
 
 function assertCharacterMapping3(actual: CharacterMapping, expectedInfo: CharacterMappingInfo[]): void {
 	for (let i = 0; i < expectedInfo.length; i++) {
-		const [absoluteOffset, [partIndex, charIndex]] = expectedInfo[i];
+		const [visibleColumn, [partIndex, charIndex]] = expectedInfo[i];
 
 		const actualDomPosition = actual.getDomPosition(i + 1);
 		assert.deepStrictEqual(actualDomPosition, new DomPosition(partIndex, charIndex), `getDomPosition(${i + 1})`);
@@ -939,8 +939,8 @@ function assertCharacterMapping3(actual: CharacterMapping, expectedInfo: Charact
 		const actualColumn = actual.getColumn(new DomPosition(partIndex, charIndex), partLength);
 		assert.strictEqual(actualColumn, i + 1, `actual.getColumn(${partIndex}, ${charIndex})`);
 
-		const actualAbsoluteOffset = actual.getAbsoluteOffset(i + 1);
-		assert.strictEqual(actualAbsoluteOffset, absoluteOffset, `actual.getAbsoluteOffset(${i + 1})`);
+		const actualVisibleColumn = actual.getVisibleColumn(i + 1);
+		assert.strictEqual(actualVisibleColumn, visibleColumn, `actual.getVisibleColumn(${i + 1})`);
 	}
 
 	assert.strictEqual(actual.length, expectedInfo.length, `length mismatch`);

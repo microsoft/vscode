@@ -205,12 +205,12 @@ export class CharacterMapping {
 
 	public readonly length: number;
 	private readonly _data: Uint32Array;
-	private readonly _absoluteOffsets: Uint32Array;
+	private readonly _visibleColumn: Uint32Array;
 
 	constructor(length: number, partCount: number) {
 		this.length = length;
 		this._data = new Uint32Array(this.length);
-		this._absoluteOffsets = new Uint32Array(this.length);
+		this._visibleColumn = new Uint32Array(this.length);
 	}
 
 	public setColumnInfo(column: number, partIndex: number, charIndex: number, partAbsoluteOffset: number): void {
@@ -219,15 +219,15 @@ export class CharacterMapping {
 			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
 		) >>> 0;
 		this._data[column - 1] = partData;
-		this._absoluteOffsets[column - 1] = partAbsoluteOffset + charIndex;
+		this._visibleColumn[column - 1] = partAbsoluteOffset + charIndex;
 	}
 
-	public getAbsoluteOffset(column: number): number {
-		if (this._absoluteOffsets.length === 0) {
+	public getVisibleColumn(column: number): number {
+		if (this._visibleColumn.length === 0) {
 			// No characters on this line
 			return 0;
 		}
-		return this._absoluteOffsets[column - 1];
+		return this._visibleColumn[column - 1];
 	}
 
 	private charOffsetToPartData(charOffset: number): number {
