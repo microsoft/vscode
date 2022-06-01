@@ -101,13 +101,13 @@ dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
 if [[ -z "$dbg_trap" ]]; then
 	__vsc_preexec_only() {
 		__vsc_status="$?"
-		__vsc_preexec
+		eval ${__vsc_preexec}
 	}
 	trap '__vsc_preexec_only "$_"' DEBUG
 elif [[ "$dbg_trap" != '__vsc_preexec "$_"' && "$dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
 	__vsc_preexec_all() {
 		__vsc_status="$?"
-		local PREV_LAST_ARG=$1 ; $dbg_trap; __vsc_preexec; : "$PREV_LAST_ARG";
+		local PREV_LAST_ARG=$1 ; eval ${dbg_trap}; eval ${__vsc_preexec}; : "$PREV_LAST_ARG";
 	}
 	trap '__vsc_preexec_all "$_"' DEBUG
 fi
