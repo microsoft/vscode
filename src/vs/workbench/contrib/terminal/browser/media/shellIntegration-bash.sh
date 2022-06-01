@@ -107,7 +107,7 @@ if [[ -z "$dbg_trap" ]]; then
 elif [[ "$dbg_trap" != '__vsc_preexec "$_"' && "$dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
 	__vsc_preexec_all() {
 		__vsc_status="$?"
-		local PREV_LAST_ARG=$1 ; builtin eval ${dbg_trap}; builtin eval ${__vsc_preexec}; : "$PREV_LAST_ARG";
+		local PREV_LAST_ARG=$1 ; $dbg_trap; builtin eval ${__vsc_preexec}; : "$PREV_LAST_ARG";
 	}
 	trap '__vsc_preexec_all "$_"' DEBUG
 fi
