@@ -180,6 +180,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 						: userInfo?.accountName ?? '<unknown>',
 					id: session.account?.id ?? userInfo?.id ?? '<unknown>'
 				},
+				// we set this to session.scopes to maintain the original order of the scopes requested
+				// by the extension that called getSession()
 				scopes: session.scopes,
 				accessToken: session.accessToken
 			};
