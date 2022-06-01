@@ -71,7 +71,7 @@ function prepareDebPackage(arch) {
 		const exclusions = [
 			// Because of how this module works and how snaps are installed, they aren't compatible so we don't bundle it
 			// with the snap package.
-			'!node_modules/vscode-encrypt/**/*'
+			'!**/node_modules.asar.unpacked/vscode-encrypt/**/*'
 		];
 		const code = gulp.src(['**/*', ...exclusions], { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
