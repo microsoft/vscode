@@ -68,7 +68,12 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@APPNAME@@', product.applicationName))
 			.pipe(rename('usr/share/zsh/vendor-completions/_' + product.applicationName));
 
-		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
+		const exclusions = [
+			// Because of how this module works and how snaps are installed, they aren't compatible so we don't bundle it
+			// with the snap package.
+			'!node_modules/vscode-encrypt/**/*'
+		];
+		const code = gulp.src(['**/*', ...exclusions], { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
 
 		let size = 0;
