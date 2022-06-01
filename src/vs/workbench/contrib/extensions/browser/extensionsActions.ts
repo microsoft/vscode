@@ -281,7 +281,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		}
 
 		if (this.extension.deprecationInfo) {
-			let detail = localize('deprecated message', "This extensions is deprecated as it is no longer being maintained");
+			let detail = localize('deprecated message', "This extension is deprecated as it is no longer being maintained");
 			let action: () => Promise<any> = async () => undefined;
 			const buttons = [
 				localize('install anyway', "Install Anyway"),
@@ -2300,7 +2300,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 				const link = `[${localize('settings', "settings")}](${URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' ')]))}`)})`;
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "This extension is deprecated as this functionality is now built-in to VS Code. Configure these {0} to use this functionality.", link)) }, true);
 			} else {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated tooltip', "This extensions is deprecated as it is no longer being maintained")) }, true);
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained")) }, true);
 			}
 			return;
 		}
@@ -2886,8 +2886,8 @@ export const extensionButtonProminentHoverBackground = registerColor('extensionB
 	hcLight: null
 }, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
 
-registerColor('extensionSponsorButton.background', { light: '#E94AAA', dark: '#E90A91', hcDark: null, hcLight: '#E94AAA' }, localize('extensionSponsorButton.background', "Background color for extension sponsor button."), true);
-registerColor('extensionSponsorButton.hoverBackground', { light: '#E90A91', dark: '#E94AAA', hcDark: null, hcLight: '#E94AAA' }, localize('extensionSponsorButton.hoverBackground', "Background hover color for extension sponsor button."), true);
+registerColor('extensionSponsorButton.background', { light: '#B51E78', dark: '#B51E78', hcDark: null, hcLight: '#B51E78' }, localize('extensionSponsorButton.background', "Background color for extension sponsor button."), true);
+registerColor('extensionSponsorButton.hoverBackground', { light: '#D61B8C', dark: '#D61B8C', hcDark: null, hcLight: '#D61B8C' }, localize('extensionSponsorButton.hoverBackground', "Background hover color for extension sponsor button."), true);
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const foregroundColor = theme.getColor(foreground);

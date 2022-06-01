@@ -290,7 +290,7 @@ export interface GitExtension {
 	/**
 	 * Returns a specific API version.
 	 *
-	 * Throws error if git extension is disabled. You can listed to the
+	 * Throws error if git extension is disabled. You can listen to the
 	 * [GitExtension.onDidChangeEnablement](#GitExtension.onDidChangeEnablement) event
 	 * to know when the extension becomes enabled/disabled.
 	 *
