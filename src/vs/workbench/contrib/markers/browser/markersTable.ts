@@ -28,6 +28,8 @@ import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IProblemsWidget } from 'vs/workbench/contrib/markers/browser/markersView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { comparePaths } from 'vs/base/common/comparers';
+import { Range } from 'vs/editor/common/core/range';
 
 const $ = DOM.$;
 
@@ -441,7 +443,19 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 			}
 		}
 		this._itemCount = items.length;
-		this.table.splice(0, Number.POSITIVE_INFINITY, items.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity)));
+		this.table.splice(0, Number.POSITIVE_INFINITY, items.sort((a, b) => {
+			let result = MarkerSeverity.compare(a.marker.severity, b.marker.severity);
+
+			if (result === 0) {
+				result = comparePaths(a.marker.resource.fsPath, b.marker.resource.fsPath);
+			}
+
+			if (result === 0) {
+				result = Range.compareRangesUsingStarts(a.marker, b.marker);
+			}
+
+			return result;
+		}));
 	}
 
 	revealMarkers(activeResource: ResourceMarkers | null, focus: boolean, lastSelectedRelativeTop: number): void {
