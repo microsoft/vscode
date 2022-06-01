@@ -100,15 +100,13 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		}
 
 		const textEditorDataTransfer = toVSDataTransfer(dragEvent.dataTransfer);
-		if (!textEditorDataTransfer.has(Mimes.uriList)) {
-			const editorData = (await this._instantiationService.invokeFunction(extractEditorsDropData, dragEvent))
-				.filter(input => input.resource)
-				.map(input => input.resource!.toString());
+		const editorData = (await this._instantiationService.invokeFunction(extractEditorsDropData, dragEvent))
+			.filter(input => input.resource)
+			.map(input => input.resource!.toString());
 
-			if (editorData.length) {
-				const str = distinct(editorData).join('\n');
-				textEditorDataTransfer.replace(Mimes.uriList, createStringDataTransferItem(str));
-			}
+		if (editorData.length) {
+			const str = distinct(editorData).join('\n');
+			textEditorDataTransfer.replace(Mimes.uriList, createStringDataTransferItem(str));
 		}
 
 		return textEditorDataTransfer;
