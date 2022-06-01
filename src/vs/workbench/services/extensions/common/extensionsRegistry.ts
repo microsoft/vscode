@@ -518,8 +518,17 @@ export const schema: IJSONSchema = {
 			}
 		},
 		sponsor: {
-			description: nls.localize('vscode.extension.contributes.sponsorLink', "URL from where users can sponsor your extension. If a URL is provided a Sponsor button will get rendered in extension details page. Example value: https://github.com/sponsors/nvaccess"),
-			type: 'string',
+			description: nls.localize('vscode.extension.contributes.sponsor', "Specify the location from where users can sponsor your extension."),
+			type: 'object',
+			defaultSnippets: [
+				{ body: { url: '${1:https:}' } },
+			],
+			properties: {
+				'url': {
+					description: nls.localize('vscode.extension.contributes.sponsor.url', "URL from where users can sponsor your extension. It must be a valid URL with a HTTP or HTTPS protocol. Example value: https://github.com/sponsors/nvaccess"),
+					type: 'string',
+				}
+			}
 		},
 		scripts: {
 			type: 'object',
