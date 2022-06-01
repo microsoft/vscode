@@ -113,13 +113,7 @@ elif [[ "$__vsc_dbg_trap" != '__vsc_preexec "$_"' && "$__vsc_dbg_trap" != '__vsc
 	__vsc_preexec_all() {
 		__vsc_status="$?"
 		local PREV_LAST_ARG=$1;
-		if [[ type __vsc_dbg_trap >/dev/null ]]; then
-			# function
-			$__vsc_dbg_trap
-		else
-			# string that must be evaluated as a function
-			builtin eval ${dbg_trap}
-		fi
+		builtin eval ${__vsc_dbg_trap}
 		builtin eval ${__vsc_preexec} : "$PREV_LAST_ARG";
 	}
 	trap '__vsc_preexec_all "$_"' DEBUG
