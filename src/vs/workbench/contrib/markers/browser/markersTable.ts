@@ -12,7 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { Marker, MarkerTableItem, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -28,7 +28,6 @@ import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IProblemsWidget } from 'vs/workbench/contrib/markers/browser/markersView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { comparePaths } from 'vs/base/common/comparers';
 import { Range } from 'vs/editor/common/core/range';
 
 const $ = DOM.$;
@@ -447,7 +446,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 			let result = MarkerSeverity.compare(a.marker.severity, b.marker.severity);
 
 			if (result === 0) {
-				result = comparePaths(a.marker.resource.fsPath, b.marker.resource.fsPath);
+				result = compareMarkersByUri(a.marker, b.marker);
 			}
 
 			if (result === 0) {
