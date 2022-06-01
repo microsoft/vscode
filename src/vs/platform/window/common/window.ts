@@ -5,12 +5,13 @@
 
 import { IStringDictionary } from 'vs/base/common/collections';
 import { PerformanceMark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileType } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
@@ -168,6 +169,19 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 	}
 
 	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
+}
+
+export function useWindowControlsOverlay(configurationService: IConfigurationService, environmentService: IEnvironmentService): boolean {
+	// Window Controls Overlay are only configurable on Windows
+	if (!isWindows || isWeb || !environmentService.isBuilt) {
+		return false;
+	}
+
+	if (getTitleBarStyle(configurationService) === 'native') {
+		return false;
+	}
+
+	return configurationService.getValue<boolean>('window.experimental.windowControlsOverlay.enabled');
 }
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
