@@ -318,12 +318,15 @@ suite('markdown.DocumentLinkProvider', () => {
 		const links = await getLinksForFile(joinLines(
 			'- [x]',
 			'- [X]',
-			'- []',
+			'- [ ]',
+			'* [x]',
+			'* [X]',
+			'* [ ]',
 			``,
 			`[x]: http://example.com`
 		));
 		assert.strictEqual(links.length, 1);
-		assertRangeEqual(links[0].range, new vscode.Range(4, 5, 4, 23));
+		assertRangeEqual(links[0].range, new vscode.Range(7, 5, 7, 23));
 
 	});
 
