@@ -203,7 +203,7 @@ suite('KeybindingsSync', () => {
 	});
 
 	test('sync throws invalid content error - content is an object', async () => {
-		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).keybindingsResource, VSBuffer.fromString('{}'));
+		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource, VSBuffer.fromString('{}'));
 		try {
 			await testObject.sync(await client.manifest());
 			assert.fail('should fail with invalid content error');
