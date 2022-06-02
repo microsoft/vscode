@@ -554,7 +554,7 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+	private async onDidInstallExtensions(results: readonly InstallExtensionResult[]): Promise<void> {
 		for (const event of results) {
 			const { local, source } = event;
 			const gallery = source && !URI.isUri(source) ? source : undefined;
@@ -577,12 +577,13 @@ class Extensions extends Disposable {
 					if (!extension.gallery) {
 						extension.gallery = gallery;
 					}
+					Extensions.updateExtensionFromControlManifest(extension, await this.server.extensionManagementService.getExtensionsControlManifest());
 					extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 				}
 			}
 			this._onChange.fire(!local || !extension ? undefined : { extension, operation: event.operation });
 			if (extension && extension.local && !extension.gallery) {
-				this.syncInstalledExtensionWithGallery(extension);
+				await this.syncInstalledExtensionWithGallery(extension);
 			}
 		}
 	}
