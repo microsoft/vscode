@@ -265,7 +265,7 @@ function prepareSnapPackage(arch) {
 			`!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt`,
 			`!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt/**/*`,
 			`!../VSCode-linux-x64/resources/app/node_modules.asar.unpacked/vscode-encrypt/build/Release/vscode-encrypt-native.node`,
-			`${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt/build/Release/vscode-encrypt-native.node`,
+			`!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt/build/Release/vscode-encrypt-native.node`,
 			`!vscode-encrypt-native.node`,
 			`!**/vscode-encrypt-native.node`
 		];
