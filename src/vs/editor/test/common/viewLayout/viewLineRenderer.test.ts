@@ -246,7 +246,7 @@ suite('viewLineRenderer.renderLine', () => {
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), {
 			html: [
 				'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
-				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">export</span>',
 				'<span class="mtk3">\u00a0</span>',
 				'<span class="mtk4">class</span>',
@@ -257,12 +257,12 @@ suite('viewLineRenderer.renderLine', () => {
 				'<span class="mtk9">\u00a0</span>',
 				'<span class="mtk10">//\u00a0</span>',
 				'<span class="mtk11">http://test.com</span>',
-				'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:30px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>'
+				'<span class="mtkz" style="width:20px">\u00b7\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:30px">\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>'
 			],
 			mapping: [
 				[0, 0, 0],
-				[1, 0, 4], [1, 1, 5], [1, 2, 6], [1, 3, 7],
+				[1, 0, 4], [1, 2, 5], [1, 4, 6], [1, 6, 7],
 				[2, 0, 8], [2, 1, 9], [2, 2, 10], [2, 3, 11], [2, 4, 12], [2, 5, 13],
 				[3, 0, 14],
 				[4, 0, 15], [4, 1, 16], [4, 2, 17], [4, 3, 18], [4, 4, 19],
@@ -273,8 +273,8 @@ suite('viewLineRenderer.renderLine', () => {
 				[9, 0, 27],
 				[10, 0, 28], [10, 1, 29], [10, 2, 30],
 				[11, 0, 31], [11, 1, 32], [11, 2, 33], [11, 3, 34], [11, 4, 35], [11, 5, 36], [11, 6, 37], [11, 7, 38], [11, 8, 39], [11, 9, 40], [11, 10, 41], [11, 11, 42], [11, 12, 43], [11, 13, 44], [11, 14, 45],
-				[12, 0, 46], [12, 1, 47],
-				[13, 0, 48], [13, 1, 49], [13, 2, 50], [13, 3, 51],
+				[12, 0, 46], [12, 2, 47],
+				[13, 0, 48], [13, 2, 49], [13, 4, 50], [13, 6, 51],
 			]
 		});
 	});
@@ -603,7 +603,7 @@ suite('viewLineRenderer.renderLine', () => {
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
 			html: [
 				'<span dir="ltr">',
-				'<span class="mtkw">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+				'<span class="mtkw">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">[</span>',
 				'<span style="unicode-bidi:isolate" class="mtk3">"🖨️\u00a0چاپ\u00a0فاکتور"</span>',
 				'<span class="mtk2">,</span>',
@@ -611,7 +611,7 @@ suite('viewLineRenderer.renderLine', () => {
 				'<span class="mtk2">]</span>',
 			],
 			mapping: [
-				[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
+				[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
 				[1, 0, 4],
 				[2, 0, 5], [2, 1, 6], [2, 2, 7], [2, 3, 8], [2, 4, 9], [2, 5, 10], [2, 6, 11], [2, 7, 12], [2, 8, 13], [2, 9, 14], [2, 10, 15], [2, 11, 16], [2, 12, 17], [2, 13, 18], [2, 14, 19], [2, 15, 20],
 				[3, 0, 21],
@@ -1145,12 +1145,17 @@ suite('viewLineRenderer.renderLine 2', () => {
 				null
 			),
 			{
-				html: ["<span class=\"mtkz\" style=\"width:40px\">‌·‌‌·‌‌·‌‌·‌</span>", "<span class=\"mtk2\">He</span>", "<span class=\"mtk3\">llo world!</span>", "<span class=\"mtkz\" style=\"width:40px\">‌·‌‌·‌‌·‌‌·‌</span>"],
+				html: [
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
+					'<span class="mtk2">He</span>',
+					'<span class="mtk3">llo\u00a0world!</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
+				],
 				mapping: [
-					[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
+					[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
 					[1, 0, 4], [1, 1, 5],
 					[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12], [2, 7, 13], [2, 8, 14], [2, 9, 15],
-					[3, 0, 16], [3, 1, 17], [3, 2, 18], [3, 3, 19], [3, 4, 20]
+					[3, 0, 16], [3, 2, 17], [3, 4, 18], [3, 6, 19], [3, 8, 20]
 				]
 			}
 		);
@@ -1172,20 +1177,20 @@ suite('viewLineRenderer.renderLine 2', () => {
 			),
 			{
 				html: [
-					'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
-					'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
 					'<span class="mtk2">He</span>',
 					'<span class="mtk3">llo\u00a0world!</span>',
-					'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
-					'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
 				],
 				mapping: [
-					[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
-					[1, 0, 4], [1, 1, 5], [1, 2, 6], [1, 3, 7],
+					[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
+					[1, 0, 4], [1, 2, 5], [1, 4, 6], [1, 6, 7],
 					[2, 0, 8], [2, 1, 9],
 					[3, 0, 10], [3, 1, 11], [3, 2, 12], [3, 3, 13], [3, 4, 14], [3, 5, 15], [3, 6, 16], [3, 7, 17], [3, 8, 18], [3, 9, 19],
-					[4, 0, 20], [4, 1, 21], [4, 2, 22], [4, 3, 23],
-					[5, 0, 24], [5, 1, 25], [5, 2, 26], [5, 3, 27], [5, 4, 28]
+					[4, 0, 20], [4, 2, 21], [4, 4, 22], [4, 6, 23],
+					[5, 0, 24], [5, 2, 25], [5, 4, 26], [5, 6, 27], [5, 8, 28]
 				]
 			}
 		);
@@ -1239,17 +1244,27 @@ suite('viewLineRenderer.renderLine 2', () => {
 				null
 			),
 			{
-				html: ["<span class=\"mtkz\" style=\"width:40px\">‌·‌‌·‌→ </span>", "<span class=\"mtkz\" style=\"width:40px\">→   </span>", "<span class=\"mtkz\" style=\"width:20px\">‌·‌‌·‌</span>", "<span class=\"mtk2\">He</span>", "<span class=\"mtk3\">llo world!</span>", "<span class=\"mtkz\" style=\"width:20px\">‌·‌￫</span>", "<span class=\"mtkz\" style=\"width:40px\">‌·‌‌·‌→ </span>", "<span class=\"mtkz\" style=\"width:40px\">‌·‌‌·‌‌·‌￫</span>", "<span class=\"mtkz\" style=\"width:40px\">‌·‌‌·‌‌·‌‌·‌</span>"],
+				html: [
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u2192\u00a0</span>',
+					'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+					'<span class="mtkz" style="width:20px">\u00b7\u200c\u00b7\u200c</span>',
+					'<span class="mtk2">He</span>',
+					'<span class="mtk3">llo\u00a0world!</span>',
+					'<span class="mtkz" style="width:20px">\u00b7\u200c\uffeb</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u2192\u00a0</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\uffeb</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
+				],
 				mapping: [
-					[0, 0, 0], [0, 1, 1], [0, 2, 2],
+					[0, 0, 0], [0, 2, 1], [0, 4, 2],
 					[1, 0, 4],
-					[2, 0, 8], [2, 1, 9],
+					[2, 0, 8], [2, 2, 9],
 					[3, 0, 10], [3, 1, 11],
 					[4, 0, 12], [4, 1, 13], [4, 2, 14], [4, 3, 15], [4, 4, 16], [4, 5, 17], [4, 6, 18], [4, 7, 19], [4, 8, 20], [4, 9, 21],
-					[5, 0, 22], [5, 1, 23],
-					[6, 0, 24], [6, 1, 25], [6, 2, 26],
-					[7, 0, 28], [7, 1, 29], [7, 2, 30], [7, 3, 31],
-					[8, 0, 32], [8, 1, 33], [8, 2, 34], [8, 3, 35], [8, 4, 36]
+					[5, 0, 22], [5, 2, 23],
+					[6, 0, 24], [6, 2, 25], [6, 4, 26],
+					[7, 0, 28], [7, 2, 29], [7, 4, 30], [7, 6, 31],
+					[8, 0, 32], [8, 2, 33], [8, 4, 34], [8, 6, 35], [8, 8, 36]
 				]
 			}
 		);
@@ -1272,23 +1287,23 @@ suite('viewLineRenderer.renderLine 2', () => {
 			{
 				html: [
 					'<span class="">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
-					'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:20px">\u00b7\u200c\u00b7\u200c</span>',
 					'<span class="mtk2">He</span>',
 					'<span class="mtk3">llo\u00a0world!</span>',
-					'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\uffeb</span>',
-					'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u2192\u00a0</span>',
-					'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\uffeb</span>',
-					'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:20px">\u00b7\u200c\uffeb</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u2192\u00a0</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\uffeb</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
 				],
 				mapping: [
 					[0, 0, 0], [0, 4, 4],
-					[1, 0, 8], [1, 1, 9],
+					[1, 0, 8], [1, 2, 9],
 					[2, 0, 10], [2, 1, 11],
 					[3, 0, 12], [3, 1, 13], [3, 2, 14], [3, 3, 15], [3, 4, 16], [3, 5, 17], [3, 6, 18], [3, 7, 19], [3, 8, 20], [3, 9, 21],
-					[4, 0, 22], [4, 1, 23],
-					[5, 0, 24], [5, 1, 25], [5, 2, 26],
-					[6, 0, 28], [6, 1, 29], [6, 2, 30], [6, 3, 31],
-					[7, 0, 32], [7, 1, 33], [7, 2, 34], [7, 3, 35], [7, 4, 36]
+					[4, 0, 22], [4, 2, 23],
+					[5, 0, 24], [5, 2, 25], [5, 4, 26],
+					[6, 0, 28], [6, 2, 29], [6, 4, 30], [6, 6, 31],
+					[7, 0, 32], [7, 2, 33], [7, 4, 34], [7, 6, 35], [7, 8, 36]
 				]
 			}
 		);
@@ -1311,17 +1326,17 @@ suite('viewLineRenderer.renderLine 2', () => {
 			{
 				html: [
 					'<span class="">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
-					'<span class="mtkw">\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+					'<span class="mtkw">\u00b7\u200c\u00b7\u200c</span>',
 					'<span class="mtk2">He</span>',
 					'<span class="mtk3">llo\u00a0world!</span>',
-					'<span class="mtkw">\u200c\u00b7\u200c\uffeb\u200c\u00b7\u200c\u200c\u00b7\u200c\u2192\u00a0\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\uffeb\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+					'<span class="mtkw">\u00b7\u200c\uffeb\u00b7\u200c\u00b7\u200c\u2192\u00a0\u00b7\u200c\u00b7\u200c\u00b7\u200c\uffeb\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
 				],
 				mapping: [
 					[0, 0, 0], [0, 4, 4],
-					[1, 0, 8], [1, 1, 9],
+					[1, 0, 8], [1, 2, 9],
 					[2, 0, 10], [2, 1, 11],
 					[3, 0, 12], [3, 1, 13], [3, 2, 14], [3, 3, 15], [3, 4, 16], [3, 5, 17], [3, 6, 18], [3, 7, 19], [3, 8, 20], [3, 9, 21],
-					[4, 0, 22], [4, 1, 23], [4, 2, 24], [4, 3, 25], [4, 4, 26], [4, 6, 28], [4, 7, 29], [4, 8, 30], [4, 9, 31], [4, 10, 32], [4, 11, 33], [4, 12, 34], [4, 13, 35], [4, 14, 36]
+					[4, 0, 22], [4, 2, 23], [4, 3, 24], [4, 5, 25], [4, 7, 26], [4, 9, 28], [4, 11, 29], [4, 13, 30], [4, 15, 31], [4, 16, 32], [4, 18, 33], [4, 20, 34], [4, 22, 35], [4, 24, 36]
 				]
 			}
 		);
@@ -1344,20 +1359,20 @@ suite('viewLineRenderer.renderLine 2', () => {
 			{
 				html: [
 					'<span class="mtk1">it</span>',
-					'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:20px">\u00b7\u200c\u00b7\u200c</span>',
 					'<span class="mtk1">it</span>',
 					'<span class="mtk2">\u00a0</span>',
 					'<span class="mtk3">it</span>',
-					'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:20px">\u00b7\u200c\u00b7\u200c</span>',
 					'<span class="mtk3">it</span>',
 				],
 				mapping: [
 					[0, 0, 0], [0, 1, 1],
-					[1, 0, 2], [1, 1, 3],
+					[1, 0, 2], [1, 2, 3],
 					[2, 0, 4], [2, 1, 5],
 					[3, 0, 6],
 					[4, 0, 7], [4, 1, 8],
-					[5, 0, 9], [5, 1, 10],
+					[5, 0, 9], [5, 2, 10],
 					[6, 0, 11], [6, 1, 12], [6, 2, 13]
 				]
 			}
@@ -1380,10 +1395,10 @@ suite('viewLineRenderer.renderLine 2', () => {
 			),
 			{
 				html: [
-					'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 					'<span class="mtk0">Hel</span>',
 					'<span class="mtk1">lo</span>',
-					'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 					'<span class="mtk2">world!</span>',
 					'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
 				],
@@ -1444,10 +1459,10 @@ suite('viewLineRenderer.renderLine 2', () => {
 			),
 			{
 				html: [
-					'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 					'<span class="mtk0">Hel</span>',
 					'<span class="mtk1">lo</span>',
-					'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 					'<span class="mtk2">world!</span>',
 					'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
 				],
@@ -1479,7 +1494,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			),
 			{
 				html: [
-					'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 					'<span class="mtk0">Hel</span>',
 					'<span class="mtk1">lo</span>',
 					'<span class="mtk2">\u00a0world!\u00a0\u00a0\u00a0</span>',
@@ -1510,7 +1525,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			),
 			{
 				html: [
-					'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 					'<span class="mtk0">Hel</span>',
 					'<span class="mtk1">lo</span>',
 					'<span class="mtk2">\u00a0world!</span>',
@@ -1543,7 +1558,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			),
 			{
 				html: [
-					'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 					'<span class="mtk0">Hel</span>',
 					'<span class="mtk1">lo</span>',
 					'<span class="mtk2">\u00a0world!</span>',
@@ -1574,9 +1589,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			),
 			{
 				html: [
-					'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 					'<span class="mtk0">*</span>',
-					'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 					'<span class="mtk0">S</span>',
 				],
 				mapping: [
@@ -1637,13 +1652,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 					'<span class="mtk0">\u00a0Hel</span>',
 					'<span class="mtk1">lo</span>',
 					'<span class="mtk2">\u00a0world!</span>',
-					'<span class="mtkz" style="width:30px">\u200c\u00b7\u200c\u2192\u00a0</span>',
+					'<span class="mtkz" style="width:30px">\u00b7\u200c\u2192\u00a0</span>',
 				],
 				mapping: [
 					[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
 					[1, 0, 4], [1, 1, 5],
 					[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12],
-					[3, 0, 13], [3, 1, 14], [3, 3, 16]
+					[3, 0, 13], [3, 2, 14], [3, 4, 16]
 				]
 			}
 		);
@@ -1668,15 +1683,15 @@ suite('viewLineRenderer.renderLine 2', () => {
 					'<span class="mtk1">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
 					'<span class="mtk2">He</span>',
 					'<span class="mtk3">llo\u00a0world!</span>',
-					'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
-					'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
 				],
 				mapping: [
 					[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
 					[1, 0, 8], [1, 1, 9],
 					[2, 0, 10], [2, 1, 11], [2, 2, 12], [2, 3, 13], [2, 4, 14], [2, 5, 15], [2, 6, 16], [2, 7, 17], [2, 8, 18], [2, 9, 19],
-					[3, 0, 20], [3, 1, 21], [3, 2, 22], [3, 3, 23],
-					[4, 0, 24], [4, 1, 25], [4, 2, 26], [4, 3, 27], [4, 4, 28]
+					[3, 0, 20], [3, 2, 21], [3, 4, 22], [3, 6, 23],
+					[4, 0, 24], [4, 2, 25], [4, 4, 26], [4, 6, 27], [4, 8, 28]
 				]
 			}
 		);
@@ -1697,12 +1712,12 @@ suite('viewLineRenderer.renderLine 2', () => {
 			),
 			{
 				html: [
-					'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u2192\u00a0\u00a0</span>',
-					'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+					'<span class="mtkz" style="width:40px">\u00b7\u200c\u2192\u00a0\u00a0</span>',
+					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 				],
 				mapping: [
-					[0, 0, 0], [0, 1, 1],
-					[1, 0, 4], [1, 1, 5]
+					[0, 0, 0], [0, 2, 1],
+					[1, 0, 4], [1, 2, 5]
 				]
 			}
 		);
@@ -2103,8 +2118,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="mtk3">asd\u00a0=\u00a0"擦"\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0#asd</span>',
 			],
 			mapping: [
-				[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7], [0, 8, 8],
-				[0, 9, 9], [0, 11, 11], [0, 15, 15], [0, 16, 16], [0, 17, 17], [0, 18, 18], [0, 19, 19]
+				[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7], [0, 8, 9],
+				[0, 9, 10], [0, 11, 12], [0, 15, 16], [0, 16, 17], [0, 17, 18], [0, 18, 19], [0, 19, 20]
 			]
 		});
 	});
@@ -2136,9 +2151,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
 			html: [
 				'<span class="mtk3">asd</span>',
-				'<span class="mtkw">\u200c\u00b7\u200c</span>',
+				'<span class="mtkw">\u00b7\u200c</span>',
 				'<span class="mtk3">=</span>',
-				'<span class="mtkw">\u200c\u00b7\u200c</span>',
+				'<span class="mtkw">\u00b7\u200c</span>',
 				'<span class="mtk3">"擦"</span>',
 				'<span class="mtkw">\u2192\u00a0\u2192\u00a0\u00a0\u00a0</span>',
 				'<span class="mtk3">#asd</span>',
@@ -2148,9 +2163,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 				[1, 0, 3],
 				[2, 0, 4],
 				[3, 0, 5],
-				[4, 0, 6], [4, 1, 7], [4, 2, 8],
-				[5, 0, 9], [5, 2, 11],
-				[6, 0, 15], [6, 1, 16], [6, 2, 17], [6, 3, 18], [6, 4, 19]
+				[4, 0, 6], [4, 1, 7], [4, 2, 9],
+				[5, 0, 10], [5, 2, 12],
+				[6, 0, 16], [6, 1, 17], [6, 2, 18], [6, 3, 19], [6, 4, 20]
 			]
 		});
 	});
@@ -2507,40 +2522,40 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
 			html: [
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 				'<span class="mtk15">else</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 				'<span class="mtk15">if</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 				'<span class="mtk1">(</span>',
 				'<span class="mtk16">$s</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 				'<span class="mtk1">=</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 				'<span class="mtk6">08</span>',
 				'<span class="mtk1">)</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 				'<span class="mtk15">then</span>',
-				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
 				'<span class="mtk11">\'\\b\'</span>',
 			],
 			mapping: [
@@ -2689,14 +2704,14 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
 			html: [
-				'<span class="mtkw">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+				'<span class="mtkw">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">if</span>',
 				'<span class="ced-1-TextEditorDecorationType2-17c14d98-3 ced-1-TextEditorDecorationType2-3"></span>',
 				'<span class="ced-1-TextEditorDecorationType2-17c14d98-4 ced-1-TextEditorDecorationType2-4"></span>',
 				'<span class="ced-ghost-text-1-4"></span>',
 			],
 			mapping: [
-				[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
+				[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
 				[1, 0, 4], [1, 1, 5],
 				[3, 0, 6]
 			]
