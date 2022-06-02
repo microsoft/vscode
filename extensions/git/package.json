@@ -1913,7 +1913,19 @@
           "type": "array",
           "markdownDescription": "%config.branchRandomNameDictionary%",
           "items": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "adjectives",
+              "animals",
+              "colors",
+              "numbers"
+            ],
+            "enumDescriptions": [
+              "%config.branchRandomNameDictionary.adjectives%",
+              "%config.branchRandomNameDictionary.animals%",
+              "%config.branchRandomNameDictionary.colors%",
+              "%config.branchRandomNameDictionary.numbers%"
+            ]
           },
           "default": [
             "adjectives",
