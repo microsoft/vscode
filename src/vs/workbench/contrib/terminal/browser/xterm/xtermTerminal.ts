@@ -258,8 +258,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	}
 
 	clearDecorations(): void {
-		this._decorationAddon?.dispose();
-		this._decorationAddon = undefined;
+		this._decorationAddon?.clearDecorations();
 	}
 
 	forceRefresh() {
