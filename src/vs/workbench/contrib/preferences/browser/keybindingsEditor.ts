@@ -502,7 +502,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			this.keybindingFocusContextKey.reset();
 		}));
 		this._register(this.keybindingsTable.onDidOpen((e) => {
-			// stop double click action on the table #148493
+			// stop double click action on the input #148493
 			if (e.browserEvent?.defaultPrevented) {
 				return;
 			}
@@ -1077,7 +1077,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 			_onDidReject.fire();
 		})));
 
-		// stop double click action on the table #148493
+		// stop double click action on the input #148493
 		disposables.add((DOM.addDisposableListener(whenInput.inputElement, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
 
 		const renderDisposables = disposables.add(new DisposableStore());
