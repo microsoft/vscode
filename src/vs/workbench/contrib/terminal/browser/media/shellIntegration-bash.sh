@@ -3,8 +3,6 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-# set -x
-
 VSCODE_SHELL_INTEGRATION=1
 __vsc_initialized=0
 
