@@ -4,6 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 VSCODE_SHELL_INTEGRATION=1
+__vsc_initialized=0
 
 if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 	. ~/.bashrc
@@ -72,6 +73,7 @@ __vsc_command_complete() {
 }
 
 __vsc_update_prompt() {
+	__vsc_initialized=1
 	__vsc_prior_prompt="$PS1"
 	__vsc_in_command_execution=""
 	PS1="\[$(__vsc_prompt_start)\]$PREFIX$PS1\[$(__vsc_prompt_end)\]"
@@ -89,7 +91,9 @@ __vsc_precmd() {
 }
 
 __vsc_preexec() {
-	PS1="$__vsc_prior_prompt"
+	if [ -z "${__vsc_initialized-}" ]; then
+		PS1="$__vsc_prior_prompt"
+	fi
 	if [ -z "${__vsc_in_command_execution-}" ]; then
 		__vsc_in_command_execution="1"
 		__vsc_command_output_start
@@ -97,17 +101,18 @@ __vsc_preexec() {
 }
 
 # Debug trapping/preexec inspired by starship (ISC)
-dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
-if [[ -z "$dbg_trap" ]]; then
+__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+if [[ -z "$__vsc_dbg_trap" ]]; then
 	__vsc_preexec_only() {
 		__vsc_status="$?"
 		__vsc_preexec
 	}
 	trap '__vsc_preexec_only "$_"' DEBUG
-elif [[ "$dbg_trap" != '__vsc_preexec "$_"' && "$dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
+elif [[ "$__vsc_dbg_trap" != '__vsc_preexec "$_"' && "$__vsc_dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
 	__vsc_preexec_all() {
 		__vsc_status="$?"
-		local PREV_LAST_ARG=$1 ; $dbg_trap; __vsc_preexec; : "$PREV_LAST_ARG";
+		builtin eval ${__vsc_dbg_trap}
+		__vsc_preexec
 	}
 	trap '__vsc_preexec_all "$_"' DEBUG
 fi
