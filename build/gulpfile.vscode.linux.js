@@ -255,19 +255,8 @@ function prepareSnapPackage(arch) {
 			'**/*',
 			// Because of how this module works and how snaps are installed, they aren't compatible so we don't bundle it
 			// with the snap package.
-			`!node_modules.asar.unpacked/vscode-encrypt`,
-			// '!vscode-encrypt',
-			// `!**/vscode-encrypt`,
-			// `!**/vscode-encrypt/**`,
-			// `!**/vscode-encrypt/**/*`,
-			`!resources/app/node_modules.asar.unpacked/vscode-encrypt`,
-			`!resources/app/node_modules.asar.unpacked/vscode-encrypt/**/*`,
-			// `!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt`,
-			// `!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt/**/*`,
-			// `!../VSCode-linux-x64/resources/app/node_modules.asar.unpacked/vscode-encrypt/build/Release/vscode-encrypt-native.node`,
-			// `!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt/build/Release/vscode-encrypt-native.node`,
-			// `!vscode-encrypt-native.node`,
-			// `!**/vscode-encrypt-native.node`
+			'!resources/app/node_modules.asar.unpacked/vscode-encrypt',
+			'!resources/app/node_modules.asar.unpacked/vscode-encrypt/**/*',
 		];
 
 		const code = gulp.src(src, { cwd: binaryDir, base: binaryDir })
