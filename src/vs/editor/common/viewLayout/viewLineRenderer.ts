@@ -213,13 +213,13 @@ export class CharacterMapping {
 		this._visibleColumn = new Uint32Array(this.length);
 	}
 
-	public setColumnInfo(column: number, partIndex: number, charIndex: number, partAbsoluteOffset: number): void {
+	public setColumnInfo(column: number, partIndex: number, charIndex: number, visibleColumn: number): void {
 		const partData = (
 			(partIndex << CharacterMappingConstants.PART_INDEX_OFFSET)
 			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
 		) >>> 0;
 		this._data[column - 1] = partData;
-		this._visibleColumn[column - 1] = partAbsoluteOffset + charIndex;
+		this._visibleColumn[column - 1] = visibleColumn;
 	}
 
 	public getVisibleColumn(column: number): number {
@@ -313,6 +313,18 @@ export class CharacterMapping {
 			return min;
 		}
 		return max;
+	}
+
+	public inflate() {
+		const result: [number, number, number][] = [];
+		for (let i = 0; i < this.length; i++) {
+			const partData = this._data[i];
+			const partIndex = CharacterMapping.getPartIndex(partData);
+			const charIndex = CharacterMapping.getCharIndex(partData);
+			const visibleColumn = this._visibleColumn[i];
+			result.push([partIndex, charIndex, visibleColumn]);
+		}
+		return result;
 	}
 }
 
@@ -971,7 +983,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
+				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset + charOffsetInPart);
 				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
 				let charWidth: number;
@@ -1011,7 +1023,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
+				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset + charOffsetInPart);
 				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
 
@@ -1097,7 +1109,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 		if (charIndex >= len && !lastCharacterMappingDefined && part.isPseudoAfter()) {
 			lastCharacterMappingDefined = true;
-			characterMapping.setColumnInfo(charIndex + 1, partIndex, charOffsetInPart, partAbsoluteOffset);
+			characterMapping.setColumnInfo(charIndex + 1, partIndex, charOffsetInPart, partAbsoluteOffset + charOffsetInPart);
 		}
 
 		sb.appendASCIIString('</span>');
@@ -1107,7 +1119,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	if (!lastCharacterMappingDefined) {
 		// When getting client rects for the last character, we will position the
 		// text range at the end of the span, insteaf of at the beginning of next span
-		characterMapping.setColumnInfo(len + 1, parts.length - 1, charOffsetInPart, partAbsoluteOffset);
+		characterMapping.setColumnInfo(len + 1, parts.length - 1, charOffsetInPart, partAbsoluteOffset + charOffsetInPart);
 	}
 
 	if (isOverflowing) {
