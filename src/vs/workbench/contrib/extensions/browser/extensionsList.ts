@@ -214,8 +214,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.name.textContent = extension.displayName;
 		data.description.textContent = extension.description;
-		data.publisherDisplayName.textContent = extension.publisherDisplayName;
-		data.verifiedPublisherIcon.style.display = extension.publisherDomain?.verified ? 'inherit' : 'none';
+
+		const updatePublisher = () => {
+			data.publisherDisplayName.textContent = extension.publisherDisplayName;
+			data.verifiedPublisherIcon.style.display = extension.publisherDomain?.verified ? 'inherit' : 'none';
+		};
+		updatePublisher();
+		Event.filter(this.extensionsWorkbenchService.onChange, e => !!e && areSameExtensions(e.identifier, extension.identifier))(() => updatePublisher(), this, data.extensionDisposables);
 
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';

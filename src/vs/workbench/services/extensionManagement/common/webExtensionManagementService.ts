@@ -105,7 +105,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 	const metadata = getMetadata(undefined, extension);
 	return {
 		...extension,
-		identifier: { id: extension.identifier.id, uuid: metadata.id },
+		identifier: { id: extension.identifier.id, uuid: metadata.id ?? extension.identifier.uuid },
 		isMachineScoped: !!metadata.isMachineScoped,
 		publisherId: metadata.publisherId || null,
 		publisherDisplayName: metadata.publisherDisplayName || null,
