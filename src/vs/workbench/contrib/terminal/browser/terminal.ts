@@ -459,7 +459,7 @@ export interface ITerminalInstance {
 	target?: TerminalLocation;
 
 	/**
-	 * Whether or not shell integration telemetry should be recorded for this terminal.
+	 * Whether or not shell integration telemetry / warnings should be reported for this terminal.
 	 */
 	disableShellIntegrationTelemetry: boolean;
 
