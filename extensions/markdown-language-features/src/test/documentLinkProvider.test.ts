@@ -313,4 +313,36 @@ suite('markdown.DocumentLinkProvider', () => {
 		));
 		assert.strictEqual(links.length, 0);
 	});
+
+	test('Should not mark checkboxes as links', async () => {
+		const links = await getLinksForFile(joinLines(
+			'- [x]',
+			'- [X]',
+			'- [ ]',
+			'* [x]',
+			'* [X]',
+			'* [ ]',
+			``,
+			`[x]: http://example.com`
+		));
+		assert.strictEqual(links.length, 1);
+		assertRangeEqual(links[0].range, new vscode.Range(7, 5, 7, 23));
+
+	});
+
+	test('Should still find links on line with checkbox', async () => {
+		const links = await getLinksForFile(joinLines(
+			'- [x] [x]',
+			'- [X] [x]',
+			'- [] [x]',
+			``,
+			`[x]: http://example.com`
+		));
+		assert.strictEqual(links.length, 4);
+
+		assertRangeEqual(links[0].range, new vscode.Range(0, 7, 0, 8));
+		assertRangeEqual(links[1].range, new vscode.Range(1, 7, 1, 8));
+		assertRangeEqual(links[2].range, new vscode.Range(2, 6, 2, 7));
+		assertRangeEqual(links[3].range, new vscode.Range(4, 5, 4, 23));
+	});
 });

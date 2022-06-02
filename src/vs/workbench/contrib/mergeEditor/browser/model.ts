@@ -9,6 +9,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { ITextModel } from 'vs/editor/common/model';
 
+/**
+ * Represents an edit, expressed in whole lines:
+ * At {@link LineRange.startLineNumber}, delete {@link LineRange.lineCount} many lines and insert {@link newLines}.
+*/
 export class LineEdit {
 	constructor(
 		public readonly range: LineRange,
@@ -30,10 +34,26 @@ export class LineEdits {
 	public apply(model: ITextModel): void {
 		model.pushEditOperations(
 			null,
-			this.edits.map((e) => ({
-				range: new Range(e.range.startLineNumber, 1, e.range.endLineNumberExclusive, 1),
-				text: e.newLines.map(l => l + '\n').join(''),
-			})),
+			this.edits.map((e) => {
+				if (e.range.endLineNumberExclusive <= model.getLineCount()) {
+					return {
+						range: new Range(e.range.startLineNumber, 1, e.range.endLineNumberExclusive, 1),
+						text: e.newLines.map(s => s + '\n').join(''),
+					};
+				}
+
+				if (e.range.startLineNumber === 1) {
+					return {
+						range: new Range(1, 1, model.getLineCount(), Number.MAX_SAFE_INTEGER),
+						text: e.newLines.join('\n'),
+					};
+				}
+
+				return {
+					range: new Range(e.range.startLineNumber - 1, Number.MAX_SAFE_INTEGER, model.getLineCount(), Number.MAX_SAFE_INTEGER),
+					text: e.newLines.map(s => '\n' + s).join(''),
+				};
+			}),
 			() => null
 		);
 	}
@@ -109,6 +129,14 @@ export class LineRange {
 
 	public deltaEnd(delta: number): LineRange {
 		return new LineRange(this.startLineNumber, this.lineCount + delta);
+	}
+
+	public getLines(model: ITextModel): string[] {
+		const result = new Array(this.lineCount);
+		for (let i = 0; i < this.lineCount; i++) {
+			result[i] = model.getLineContent(this.startLineNumber + i);
+		}
+		return result;
 	}
 }
 
@@ -215,19 +243,11 @@ export class LineDiff {
 	}
 
 	private getModifiedLines(): string[] {
-		const result = new Array(this.modifiedRange.lineCount);
-		for (let i = 0; i < this.modifiedRange.lineCount; i++) {
-			result[i] = this.modifiedTextModel.getLineContent(this.modifiedRange.startLineNumber + i);
-		}
-		return result;
+		return this.modifiedRange.getLines(this.modifiedTextModel);
 	}
 
 	private getOriginalLines(): string[] {
-		const result = new Array(this.originalRange.lineCount);
-		for (let i = 0; i < this.originalRange.lineCount; i++) {
-			result[i] = this.originalTextModel.getLineContent(this.originalRange.startLineNumber + i);
-		}
-		return result;
+		return this.originalRange.getLines(this.originalTextModel);
 	}
 }
 
@@ -371,7 +391,10 @@ export class ModifiedBaseRangeState {
 		public readonly conflicting: boolean,
 	) { }
 
-	public getInput(inputNumber: 1 | 2): boolean {
+	public getInput(inputNumber: 1 | 2): boolean | undefined {
+		if (this.conflicting) {
+			return undefined;
+		}
 		if (inputNumber === 1) {
 			return this.input1;
 		} else {
@@ -386,17 +409,17 @@ export class ModifiedBaseRangeState {
 	public withInput1(value: boolean): ModifiedBaseRangeState {
 		return new ModifiedBaseRangeState(
 			value,
-			false,
-			value && this.isEmpty ? false : this.input2First,
+			this.input2,
+			value !== this.input2 ? this.input2 : this.input2First,
 			false,
 		);
 	}
 
 	public withInput2(value: boolean): ModifiedBaseRangeState {
 		return new ModifiedBaseRangeState(
-			false,
+			this.input1,
 			value,
-			value && this.isEmpty ? true : this.input2First,
+			value !== this.input1 ? value : this.input2First,
 			false
 		);
 	}

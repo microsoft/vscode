@@ -448,7 +448,7 @@ export class DiagnosticComputer {
 			if (link.href.kind === 'reference' && !definitionSet.lookup(link.href.ref)) {
 				yield new vscode.Diagnostic(
 					link.source.hrefRange,
-					localize('invalidReferenceLink', 'No link reference found: \'{0}\'', link.href.ref),
+					localize('invalidReferenceLink', 'No link definition found: \'{0}\'', link.href.ref),
 					severity);
 			}
 		}

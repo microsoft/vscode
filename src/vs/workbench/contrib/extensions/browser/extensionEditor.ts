@@ -29,7 +29,7 @@ import {
 	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, ExtensionStatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
 	RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
 	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
-	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtension, SponsorExtensionAction, SponsorExtensionActionViewItem
+	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtensionAction, SponsorExtensionAction, SponsorExtensionActionViewItem
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -338,7 +338,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.uninstall', UninstallAction.UninstallLabel, [
 				[
-					this.instantiationService.createInstance(MigrateDeprecatedExtension, false),
+					this.instantiationService.createInstance(MigrateDeprecatedExtensionAction, false),
 					this.instantiationService.createInstance(UninstallAction),
 					this.instantiationService.createInstance(InstallAnotherVersionAction),
 				]
@@ -518,6 +518,7 @@ export class ExtensionEditor extends EditorPane {
 
 		template.name.textContent = extension.displayName;
 		template.name.classList.toggle('clickable', !!extension.url);
+		template.name.classList.toggle('deprecated', !!extension.deprecationInfo);
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
 		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 

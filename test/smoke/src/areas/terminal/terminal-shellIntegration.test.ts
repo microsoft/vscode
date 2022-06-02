@@ -28,8 +28,9 @@ export function setup() {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, process.platform === 'win32' ? 'PowerShell' : 'bash');
 		}
 
-		describe('Shell integration', function () {
-			(process.platform === 'linux' || process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
+		// TODO: These are currently flaky https://github.com/microsoft/vscode/issues/150478
+		describe.skip('Shell integration', function () {
+			describe('Decorations', function () {
 				describe('Should show default icons', function () {
 					it('Placeholder', async () => {
 						await createShellIntegrationProfile();

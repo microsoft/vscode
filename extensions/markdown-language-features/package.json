@@ -417,15 +417,21 @@
         },
         "markdown.experimental.editor.pasteLinks.enabled": {
           "type": "boolean",
-          "default": false,
+          "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteLinks.enabled%",
-          "scope": "resource"
+          "default": false,
+          "tags": [
+            "experimental"
+          ]
         },
         "markdown.experimental.validate.enabled": {
           "type": "boolean",
           "scope": "resource",
           "description": "%configuration.markdown.experimental.validate.enabled.description%",
-          "default": false
+          "default": false,
+          "tags": [
+            "experimental"
+          ]
         },
         "markdown.experimental.validate.referenceLinks.enabled": {
           "type": "string",
@@ -436,6 +442,9 @@
             "ignore",
             "warning",
             "error"
+          ],
+          "tags": [
+            "experimental"
           ]
         },
         "markdown.experimental.validate.headerLinks.enabled": {
@@ -447,6 +456,9 @@
             "ignore",
             "warning",
             "error"
+          ],
+          "tags": [
+            "experimental"
           ]
         },
         "markdown.experimental.validate.fileLinks.enabled": {
@@ -458,6 +470,9 @@
             "ignore",
             "warning",
             "error"
+          ],
+          "tags": [
+            "experimental"
           ]
         },
         "markdown.experimental.validate.ignoreLinks": {
@@ -466,7 +481,10 @@
           "markdownDescription": "%configuration.markdown.experimental.validate.ignoreLinks.description%",
           "items": {
             "type": "string"
-          }
+          },
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },

@@ -872,7 +872,16 @@ export class CommentController implements IEditorContribution {
 				let pendingComment = zone.getPendingComment();
 				let providerCacheStore = this._pendingCommentCache[zone.owner];
 
-				if (pendingComment) {
+				let lastCommentBody;
+				if (zone.commentThread.comments && zone.commentThread.comments.length) {
+					const lastComment = zone.commentThread.comments[zone.commentThread.comments.length - 1];
+					if (typeof lastComment.body === 'string') {
+						lastCommentBody = lastComment.body;
+					} else {
+						lastCommentBody = lastComment.body.value;
+					}
+				}
+				if (pendingComment && (pendingComment !== lastCommentBody)) {
 					if (!providerCacheStore) {
 						this._pendingCommentCache[zone.owner] = {};
 					}

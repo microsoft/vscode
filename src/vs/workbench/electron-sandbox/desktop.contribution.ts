@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ToggleSharedProcessAction, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -202,6 +202,13 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 				'default': isLinux ? 'native' : 'custom',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
+			},
+			'window.experimental.windowControlsOverlay.enabled': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('windowControlsOverlay', "Use window controls provided by the platform instead of our HTML-based window controls. Changes require a full restart to apply."),
+				'included': isWindows
 			},
 			'window.dialogStyle': {
 				'type': 'string',

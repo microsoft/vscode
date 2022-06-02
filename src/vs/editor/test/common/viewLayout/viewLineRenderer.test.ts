@@ -201,7 +201,7 @@ suite('viewLineRenderer.renderLine', () => {
 		]);
 		const expectedOutput = [
 			'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
-			'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+			'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 			'<span class="mtk2">export</span>',
 			'<span class="mtk3">\u00a0</span>',
 			'<span class="mtk4">class</span>',
@@ -212,8 +212,8 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="mtk9">\u00a0</span>',
 			'<span class="mtk10">//\u00a0</span>',
 			'<span class="mtk11">http://test.com</span>',
-			'<span class="mtkz" style="width:20px">\u00b7\u00b7</span>',
-			'<span class="mtkz" style="width:30px">\u00b7\u00b7\u00b7</span>'
+			'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:30px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>'
 		].join('');
 
 		const info: CharacterMappingInfo[] = [
@@ -565,7 +565,7 @@ suite('viewLineRenderer.renderLine', () => {
 		]);
 
 		const expectedOutput = [
-			'<span class="mtkw">\u00b7\u00b7\u00b7\u00b7</span>',
+			'<span class="mtkw">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 			'<span class="mtk2">[</span>',
 			'<span style="unicode-bidi:isolate" class="mtk3">"🖨️\u00a0چاپ\u00a0فاکتور"</span>',
 			'<span class="mtk2">,</span>',
@@ -1108,10 +1108,10 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null,
 			[
 				'<span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'</span>',
 			].join('')
 		);
@@ -1130,12 +1130,12 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null,
 			[
 				'<span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'</span>',
 			].join('')
 		);
@@ -1177,15 +1177,15 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null,
 			[
 				'<span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u2192\u00a0</span>',
 				'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
-				'<span class="mtkz" style="width:20px">\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="mtkz" style="width:20px">\u00b7\uffeb</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\uffeb</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u2192\u00a0</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\uffeb</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'</span>',
 			].join('')
 		);
@@ -1206,13 +1206,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[
 				'<span>',
 				'<span class="">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
-				'<span class="mtkz" style="width:20px">\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="mtkz" style="width:20px">\u00b7\uffeb</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\uffeb</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u2192\u00a0</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\uffeb</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'</span>',
 			].join('')
 		);
@@ -1233,10 +1233,10 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[
 				'<span>',
 				'<span class="">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
-				'<span class="mtkw">\u00b7\u00b7</span>',
+				'<span class="mtkw">\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="mtkw">\u00b7\uffeb\u00b7\u00b7\u2192\u00a0\u00b7\u00b7\u00b7\uffeb\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkw">\u200c\u00b7\u200c\uffeb\u200c\u00b7\u200c\u200c\u00b7\u200c\u2192\u00a0\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\uffeb\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'</span>',
 			].join('')
 		);
@@ -1257,11 +1257,11 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[
 				'<span>',
 				'<span class="mtk1">it</span>',
-				'<span class="mtkz" style="width:20px">\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'<span class="mtk1">it</span>',
 				'<span class="mtk2">\u00a0</span>',
 				'<span class="mtk3">it</span>',
-				'<span class="mtkz" style="width:20px">\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:20px">\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'<span class="mtk3">it</span>',
 				'</span>',
 			].join('')
@@ -1282,10 +1282,10 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null,
 			[
 				'<span>',
-				'<span class="mtkz" style="width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 				'<span class="mtk0">Hel</span>',
 				'<span class="mtk1">lo</span>',
-				'<span class="mtkz" style="width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">world!</span>',
 				'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
 				'</span>',
@@ -1329,10 +1329,10 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineRange(0, 14)],
 			[
 				'<span>',
-				'<span class="mtkz" style="width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 				'<span class="mtk0">Hel</span>',
 				'<span class="mtk1">lo</span>',
-				'<span class="mtkz" style="width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">world!</span>',
 				'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
 				'</span>',
@@ -1354,7 +1354,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineRange(0, 5)],
 			[
 				'<span>',
-				'<span class="mtkz" style="width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 				'<span class="mtk0">Hel</span>',
 				'<span class="mtk1">lo</span>',
 				'<span class="mtk2">\u00a0world!\u00a0\u00a0\u00a0</span>',
@@ -1378,7 +1378,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineRange(0, 5), new LineRange(9, 14)],
 			[
 				'<span>',
-				'<span class="mtkz" style="width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 				'<span class="mtk0">Hel</span>',
 				'<span class="mtk1">lo</span>',
 				'<span class="mtk2">\u00a0world!</span>',
@@ -1403,7 +1403,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineRange(9, 14), new LineRange(0, 5)],
 			[
 				'<span>',
-				'<span class="mtkz" style="width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 				'<span class="mtk0">Hel</span>',
 				'<span class="mtk1">lo</span>',
 				'<span class="mtk2">\u00a0world!</span>',
@@ -1425,9 +1425,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineRange(0, 1), new LineRange(1, 2), new LineRange(2, 3)],
 			[
 				'<span>',
-				'<span class="mtkz" style="width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 				'<span class="mtk0">*</span>',
-				'<span class="mtkz" style="width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 				'<span class="mtk0">S</span>',
 				'</span>',
 			].join('')
@@ -1473,7 +1473,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="mtk0">\u00a0Hel</span>',
 				'<span class="mtk1">lo</span>',
 				'<span class="mtk2">\u00a0world!</span>',
-				'<span class="mtkz" style="width:30px">\u00b7\u2192\u00a0</span>',
+				'<span class="mtkz" style="width:30px">\u200c\u00b7\u200c\u2192\u00a0</span>',
 				'</span>',
 			].join('')
 		);
@@ -1496,8 +1496,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="mtk1">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span>',
 				'</span>',
 			].join('')
 		);
@@ -1516,8 +1516,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null,
 			[
 				'<span>',
-				'<span class="mtkz" style="width:40px">\u00b7\u2192\u00a0\u00a0</span>',
-				'<span class="mtkz" style="width:10px">\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u200c\u00b7\u200c\u2192\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 				'</span>',
 			].join('')
 		);
@@ -1925,9 +1925,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 		const expected = [
 			'<span>',
 			'<span class="mtk3">asd</span>',
-			'<span class="mtkw">\u00b7</span>',
+			'<span class="mtkw">\u200c\u00b7\u200c</span>',
 			'<span class="mtk3">=</span>',
-			'<span class="mtkw">\u00b7</span>',
+			'<span class="mtkw">\u200c\u00b7\u200c</span>',
 			'<span class="mtk3">"擦"</span>',
 			'<span class="mtkw">\u2192\u00a0\u2192\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk3">#asd</span>',
@@ -2184,40 +2184,40 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const expected = [
 			'<span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 			'<span class="mtk15">else</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 			'<span class="mtk15">if</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 			'<span class="mtk1">(</span>',
 			'<span class="mtk16">$s</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 			'<span class="mtk1">=</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 			'<span class="mtk6">08</span>',
 			'<span class="mtk1">)</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 			'<span class="mtk15">then</span>',
-			'<span class="mtkz" style="width:10px">\u00b7</span>',
+			'<span class="mtkz" style="width:10px">\u200c\u00b7\u200c</span>',
 			'<span class="mtk11">\'\\b\'</span>',
 			'</span>'
 		].join('');
@@ -2318,7 +2318,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const expected = [
 			'<span>',
-			'<span class="mtkw">····</span><span class="mtk2">if</span><span class="ced-1-TextEditorDecorationType2-17c14d98-3 ced-1-TextEditorDecorationType2-3"></span><span class="ced-1-TextEditorDecorationType2-17c14d98-4 ced-1-TextEditorDecorationType2-4"></span><span class="ced-ghost-text-1-4"></span>',
+			'<span class="mtkw">\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c\u200c\u00b7\u200c</span><span class="mtk2">if</span><span class="ced-1-TextEditorDecorationType2-17c14d98-3 ced-1-TextEditorDecorationType2-3"></span><span class="ced-1-TextEditorDecorationType2-17c14d98-4 ced-1-TextEditorDecorationType2-4"></span><span class="ced-ghost-text-1-4"></span>',
 			'</span>'
 		].join('');
 

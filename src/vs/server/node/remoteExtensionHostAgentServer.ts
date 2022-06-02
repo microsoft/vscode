@@ -192,7 +192,7 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 			}
 		}
 
-		if (req.headers['upgrade'] !== 'websocket') {
+		if (req.headers['upgrade'] === undefined || req.headers['upgrade'].toLowerCase() !== 'websocket') {
 			socket.end('HTTP/1.1 400 Bad Request');
 			return;
 		}

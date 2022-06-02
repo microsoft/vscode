@@ -75,6 +75,10 @@
 	white-space: nowrap;
 }
 
+.extension-editor > .header > .details > .title > .name.deprecated {
+	text-decoration: line-through;
+}
+
 .extension-editor > .header > .details > .title > .version {
 	margin-left: 10px;
 	user-select: text;

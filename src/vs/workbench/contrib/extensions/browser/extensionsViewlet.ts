@@ -607,6 +607,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private normalizedQuery(): string {
 		return this.searchBox
 			? this.searchBox.getValue()
+				.trim()
 				.replace(/@category/g, 'category')
 				.replace(/@tag:/g, 'tag:')
 				.replace(/@ext:/g, 'ext:')
