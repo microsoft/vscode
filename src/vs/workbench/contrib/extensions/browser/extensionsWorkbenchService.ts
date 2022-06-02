@@ -1246,7 +1246,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			throw new Error('Missing gallery');
 		}
 
-		const [gallery] = await this.galleryService.getExtensions([{ id: extension.gallery.identifier.id, version }], CancellationToken.None);
+		const targetPlatform = extension.server ? await extension.server.extensionManagementService.getTargetPlatform() : undefined;
+		const [gallery] = await this.galleryService.getExtensions([{ id: extension.gallery.identifier.id, version }], { targetPlatform }, CancellationToken.None);
 		if (!gallery) {
 			throw new Error(nls.localize('not found', "Unable to install extension '{0}' because the requested version '{1}' is not found.", extension.gallery!.identifier.id, version));
 		}
