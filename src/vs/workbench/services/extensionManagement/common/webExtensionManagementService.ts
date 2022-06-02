@@ -67,8 +67,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.installExtension(manifest, location, options);
 	}
 
-	protected override async getCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
-		const compatibleExtension = await super.getCompatibleVersion(extension, fetchCompatibleVersion, includePreRelease);
+	protected override async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
+		const compatibleExtension = await super.getCompatibleVersion(extension, sameVersion, includePreRelease);
 		if (compatibleExtension) {
 			return compatibleExtension;
 		}

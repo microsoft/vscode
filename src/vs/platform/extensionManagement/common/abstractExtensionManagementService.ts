@@ -88,7 +88,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			if (!this.galleryService.isEnabled()) {
 				throw new ExtensionManagementError(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"), ExtensionManagementErrorCode.Internal);
 			}
-			const compatible = await this.checkAndGetCompatibleVersion(extension, !options.installGivenVersion, !!options.installPreReleaseVersion);
+			const compatible = await this.checkAndGetCompatibleVersion(extension, !!options.installGivenVersion, !!options.installPreReleaseVersion);
 			return await this.installExtension(compatible.manifest, compatible.extension, options);
 		} catch (error) {
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', { extensionData: getGalleryExtensionTelemetryData(extension), error });
@@ -336,7 +336,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						const isDependency = dependecies.some(id => areSameExtensions({ id }, galleryExtension.identifier));
 						let compatible;
 						try {
-							compatible = await this.checkAndGetCompatibleVersion(galleryExtension, true, installPreRelease);
+							compatible = await this.checkAndGetCompatibleVersion(galleryExtension, false, installPreRelease);
 						} catch (error) {
 							if (error instanceof ExtensionManagementError && error.code === ExtensionManagementErrorCode.IncompatibleTargetPlatform && !isDependency) {
 								this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id);
@@ -357,7 +357,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return allDependenciesAndPacks.filter(e => !installed.some(i => areSameExtensions(i.identifier, e.gallery.identifier)));
 	}
 
-	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean, installPreRelease: boolean): Promise<{ extension: IGalleryExtension; manifest: IExtensionManifest }> {
+	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, installPreRelease: boolean): Promise<{ extension: IGalleryExtension; manifest: IExtensionManifest }> {
 		const report = await this.getExtensionsControlManifest();
 		if (getMaliciousExtensionsSet(report).has(extension.identifier.id)) {
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
@@ -368,9 +368,9 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			throw new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.IncompatibleTargetPlatform);
 		}
 
-		const compatibleExtension = await this.getCompatibleVersion(extension, fetchCompatibleVersion, installPreRelease);
+		const compatibleExtension = await this.getCompatibleVersion(extension, sameVersion, installPreRelease);
 		if (compatibleExtension) {
-			if (installPreRelease && fetchCompatibleVersion && extension.hasPreReleaseVersion && !compatibleExtension.properties.isPreReleaseVersion) {
+			if (installPreRelease && !sameVersion && extension.hasPreReleaseVersion && !compatibleExtension.properties.isPreReleaseVersion) {
 				throw new ExtensionManagementError(nls.localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.IncompatiblePreRelease);
 			}
 		} else {
@@ -394,11 +394,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return { extension: compatibleExtension, manifest };
 	}
 
-	protected async getCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
+	protected async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
 		const targetPlatform = await this.getTargetPlatform();
 		let compatibleExtension: IGalleryExtension | null = null;
 
-		if (fetchCompatibleVersion && extension.hasPreReleaseVersion && extension.properties.isPreReleaseVersion !== includePreRelease) {
+		if (!sameVersion && extension.hasPreReleaseVersion && extension.properties.isPreReleaseVersion !== includePreRelease) {
 			compatibleExtension = (await this.galleryService.getExtensions([{ ...extension.identifier, preRelease: includePreRelease }], { targetPlatform, compatible: true }, CancellationToken.None))[0] || null;
 		}
 
@@ -406,8 +406,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			compatibleExtension = extension;
 		}
 
-		if (!compatibleExtension && fetchCompatibleVersion) {
-			compatibleExtension = await this.galleryService.getCompatibleExtension(extension, includePreRelease, targetPlatform);
+		if (!compatibleExtension) {
+			if (sameVersion) {
+				compatibleExtension = (await this.galleryService.getExtensions([{ ...extension.identifier, version: extension.version }], { targetPlatform, compatible: true }, CancellationToken.None))[0] || null;
+			} else {
+				compatibleExtension = await this.galleryService.getCompatibleExtension(extension, includePreRelease, targetPlatform);
+			}
 		}
 
 		return compatibleExtension;
