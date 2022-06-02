@@ -1927,6 +1927,8 @@
               "%config.branchRandomNameDictionary.numbers%"
             ]
           },
+          "minItems": 1,
+          "maxItems": 5,
           "default": [
             "adjectives",
             "animals"
