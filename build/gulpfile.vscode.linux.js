@@ -68,7 +68,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@APPNAME@@', product.applicationName))
 			.pipe(rename('usr/share/zsh/vendor-completions/_' + product.applicationName));
 
-		const code = gulp.src(binaryDir + '**/*', { base: binaryDir })
+		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
 
 		let size = 0;
@@ -256,7 +256,7 @@ function prepareSnapPackage(arch) {
 			'!**/node_modules.asar.unpacked/vscode-encrypt/**/*'
 		];
 
-		const code = gulp.src(['**/*', ...exclusions], { base: binaryDir })
+		const code = gulp.src([binaryDir + '/**/*', ...exclusions], { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
 
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
