@@ -254,7 +254,7 @@ function prepareSnapPackage(arch) {
 		const exclusions = [
 			// Because of how this module works and how snaps are installed, they aren't compatible so we don't bundle it
 			// with the snap package.
-			`!${binaryDir}/**/node_modules.asar.unpacked/vscode-encrypt/**/*`
+			`!node_modules.asar.unpacked/vscode-encrypt/**/*`
 		];
 
 		const code = gulp.src([binaryDir + '/**/*', ...exclusions], { base: binaryDir })
