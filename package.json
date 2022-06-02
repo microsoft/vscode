@@ -148,7 +148,6 @@
     "gulp": "^4.0.0",
     "gulp-atom-electron": "^1.33.0",
     "gulp-azure-storage": "^0.12.1",
-    "gulp-debug": "^4.0.0",
     "gulp-bom": "^3.0.0",
     "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.1",
