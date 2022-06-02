@@ -98,11 +98,6 @@ __vsc_preexec() {
 
 # Debug trapping/preexec inspired by starship (ISC)
 __vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
-if [[ -n "$__vsc_dbg_trap" ]]; then
-	__vsc_dbg_trap=${__vsc_dbg_trap#'trap -- '*}
-	__vsc_dbg_trap=${__vsc_dbg_trap%'DEBUG'}
-fi
-
 if [[ -z "$__vsc_dbg_trap" ]]; then
 	__vsc_preexec_only() {
 		__vsc_status="$?"
