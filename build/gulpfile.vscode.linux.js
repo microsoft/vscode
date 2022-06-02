@@ -251,10 +251,19 @@ function prepareSnapPackage(arch) {
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename(`snap/gui/${product.linuxIconName}.png`));
 
-		const exclusions = [
+		const src = [
+			binaryDir + '/**/*',
 			// Because of how this module works and how snaps are installed, they aren't compatible so we don't bundle it
 			// with the snap package.
-			`!node_modules.asar.unpacked/vscode-encrypt{,/**/*}`
+			`!node_modules.asar.unpacked/vscode-encrypt`,
+			'!vscode-encrypt',
+			`!**/vscode-encrypt`,
+			`!**/vscode-encrypt/**`,
+			`!**/vscode-encrypt/**/*`,
+			`!resources/app/node_modules.asar.unpacked/vscode-encrypt`,
+			`!resources/app/node_modules.asar.unpacked/vscode-encrypt/**/*`,
+			`!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt`,
+			`!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt/**/*`
 		];
 
 		const code = gulp.src([binaryDir + '/**/*', ...exclusions], { base: binaryDir })
