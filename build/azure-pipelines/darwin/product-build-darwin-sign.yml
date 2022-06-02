@@ -15,7 +15,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: "buildNodeModules | $(Agent.OS) | build/yarn.lock"
+      key: "buildNodeModules | $(Agent.OS) | $(VSCODE_ARCH) | build/yarn.lock"
       path: build/node_modules
       cacheHitVar: BUILD_NODE_MODULES_RESTORED
     displayName: Restore build node_modules cache
