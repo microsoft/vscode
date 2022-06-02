@@ -266,7 +266,7 @@ function prepareSnapPackage(arch) {
 			`!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt/**/*`
 		];
 
-		const code = gulp.src([binaryDir + '/**/*', ...exclusions], { base: binaryDir })
+		const code = gulp.src(src, { base: binaryDir })
 			.pipe(debug({ title: 'code:' }))
 			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
 
