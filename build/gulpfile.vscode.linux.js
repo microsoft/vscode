@@ -9,6 +9,7 @@ const gulp = require('gulp');
 const replace = require('gulp-replace');
 const rename = require('gulp-rename');
 const shell = require('gulp-shell');
+const debug = require('gulp-debug');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
 const util = require('./lib/util');
@@ -257,6 +258,7 @@ function prepareSnapPackage(arch) {
 		];
 
 		const code = gulp.src([binaryDir + '/**/*', ...exclusions], { base: binaryDir })
+			.pipe(debug({ title: 'code:' }))
 			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
 
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
