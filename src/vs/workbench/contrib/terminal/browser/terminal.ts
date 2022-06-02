@@ -459,6 +459,11 @@ export interface ITerminalInstance {
 	target?: TerminalLocation;
 
 	/**
+	 * Whether or not shell integration telemetry should be recorded for this terminal.
+	 */
+	disableShellIntegrationTelemetry: boolean;
+
+	/**
 	 * The id of a persistent process. This is defined if this is a terminal created by a pty host
 	 * that supports reconnection.
 	 */
