@@ -252,25 +252,25 @@ function prepareSnapPackage(arch) {
 			.pipe(rename(`snap/gui/${product.linuxIconName}.png`));
 
 		const src = [
-			binaryDir + '/**/*',
+			'**/*',
 			// Because of how this module works and how snaps are installed, they aren't compatible so we don't bundle it
 			// with the snap package.
-			// `!node_modules.asar.unpacked/vscode-encrypt`,
-			// '!vscode-encrypt',
-			// `!**/vscode-encrypt`,
-			// `!**/vscode-encrypt/**`,
-			// `!**/vscode-encrypt/**/*`,
-			// `!resources/app/node_modules.asar.unpacked/vscode-encrypt`,
-			// `!resources/app/node_modules.asar.unpacked/vscode-encrypt/**/*`,
-			// `!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt`,
-			// `!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt/**/*`,
+			`!node_modules.asar.unpacked/vscode-encrypt`,
+			'!vscode-encrypt',
+			`!**/vscode-encrypt`,
+			`!**/vscode-encrypt/**`,
+			`!**/vscode-encrypt/**/*`,
+			`!resources/app/node_modules.asar.unpacked/vscode-encrypt`,
+			`!resources/app/node_modules.asar.unpacked/vscode-encrypt/**/*`,
+			`!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt`,
+			`!${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt/**/*`,
 			`!../VSCode-linux-x64/resources/app/node_modules.asar.unpacked/vscode-encrypt/build/Release/vscode-encrypt-native.node`,
 			`${binaryDir}/resources/app/node_modules.asar.unpacked/vscode-encrypt/build/Release/vscode-encrypt-native.node`,
 			`!vscode-encrypt-native.node`,
 			`!**/vscode-encrypt-native.node`
 		];
 
-		const code = gulp.src(src, { base: '.' })
+		const code = gulp.src(src, { cwd: binaryDir, base: binaryDir })
 			.pipe(debug({ title: 'code:' }))
 			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
 
