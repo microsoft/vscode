@@ -67,6 +67,9 @@ export class MergeEditor extends EditorPane {
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
 	private readonly _ctxUsesColumnLayout: IContextKey<boolean>;
 
+	private _model: MergeEditorModel | undefined;
+	public get model(): MergeEditorModel | undefined { return this._model; }
+
 	constructor(
 		@IInstantiationService private readonly instantiation: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -216,6 +219,7 @@ export class MergeEditor extends EditorPane {
 
 		this._sessionDisposables.clear();
 		const model = await input.resolve();
+		this._model = model;
 
 		this.input1View.setModel(model, model.input1, localize('yours', 'Yours'), model.input1Detail, model.input1Description);
 		this.input2View.setModel(model, model.input2, localize('theirs', 'Theirs',), model.input2Detail, model.input2Description);
