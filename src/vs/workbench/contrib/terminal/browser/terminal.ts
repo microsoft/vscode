@@ -461,7 +461,7 @@ export interface ITerminalInstance {
 	/**
 	 * Whether or not shell integration telemetry / warnings should be reported for this terminal.
 	 */
-	disableShellIntegrationTelemetry: boolean;
+	disableShellIntegrationReporting: boolean;
 
 	/**
 	 * The id of a persistent process. This is defined if this is a terminal created by a pty host

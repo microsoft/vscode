@@ -206,7 +206,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _userHome?: string;
 	private _hasScrollBar?: boolean;
 	private _target?: TerminalLocation | undefined;
-	private _disableShellIntegrationTelemetry: boolean | undefined;
+	private _disableShellIntegrationReporting: boolean | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -221,11 +221,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._target = value;
 	}
-	get disableShellIntegrationTelemetry(): boolean {
-		if (this._disableShellIntegrationTelemetry === undefined) {
-			this._disableShellIntegrationTelemetry = this.shellLaunchConfig.isFeatureTerminal || this.shellLaunchConfig.hideFromUser || this.shellLaunchConfig.executable === undefined;
+	get disableShellIntegrationReporting(): boolean {
+		if (this._disableShellIntegrationReporting === undefined) {
+			this._disableShellIntegrationReporting = this.shellLaunchConfig.isFeatureTerminal || this.shellLaunchConfig.hideFromUser || this.shellLaunchConfig.executable === undefined;
 		}
-		return this._disableShellIntegrationTelemetry;
+		return this._disableShellIntegrationReporting;
 	}
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI { return this._resource; }
@@ -664,7 +664,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
 		}
 
-		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, this.disableShellIntegrationTelemetry);
+		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, this.disableShellIntegrationReporting);
 		this.xterm = xterm;
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
