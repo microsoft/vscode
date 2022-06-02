@@ -939,7 +939,7 @@ type CharacterMappingInfo = [number, [number, number]];
 
 function assertCharacterMapping3(actual: CharacterMapping, expectedInfo: CharacterMappingInfo[]): void {
 	for (let i = 0; i < expectedInfo.length; i++) {
-		const [visibleColumn, [partIndex, charIndex]] = expectedInfo[i];
+		const [horizontalOffset, [partIndex, charIndex]] = expectedInfo[i];
 
 		const actualDomPosition = actual.getDomPosition(i + 1);
 		assert.deepStrictEqual(actualDomPosition, new DomPosition(partIndex, charIndex), `getDomPosition(${i + 1})`);
@@ -957,8 +957,8 @@ function assertCharacterMapping3(actual: CharacterMapping, expectedInfo: Charact
 		const actualColumn = actual.getColumn(new DomPosition(partIndex, charIndex), partLength);
 		assert.strictEqual(actualColumn, i + 1, `actual.getColumn(${partIndex}, ${charIndex})`);
 
-		const actualVisibleColumn = actual.getVisibleColumn(i + 1);
-		assert.strictEqual(actualVisibleColumn, visibleColumn, `actual.getVisibleColumn(${i + 1})`);
+		const actualHorizontalOffset = actual.getHorizontalOffset(i + 1);
+		assert.strictEqual(actualHorizontalOffset, horizontalOffset, `actual.getHorizontalOffset(${i + 1})`);
 	}
 
 	assert.strictEqual(actual.length, expectedInfo.length, `length mismatch`);

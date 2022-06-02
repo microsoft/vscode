@@ -205,29 +205,29 @@ export class CharacterMapping {
 
 	public readonly length: number;
 	private readonly _data: Uint32Array;
-	private readonly _visibleColumn: Uint32Array;
+	private readonly _horizontalOffset: Uint32Array;
 
 	constructor(length: number, partCount: number) {
 		this.length = length;
 		this._data = new Uint32Array(this.length);
-		this._visibleColumn = new Uint32Array(this.length);
+		this._horizontalOffset = new Uint32Array(this.length);
 	}
 
-	public setColumnInfo(column: number, partIndex: number, charIndex: number, visibleColumn: number): void {
+	public setColumnInfo(column: number, partIndex: number, charIndex: number, visibleOffset: number): void {
 		const partData = (
 			(partIndex << CharacterMappingConstants.PART_INDEX_OFFSET)
 			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
 		) >>> 0;
 		this._data[column - 1] = partData;
-		this._visibleColumn[column - 1] = visibleColumn;
+		this._horizontalOffset[column - 1] = visibleOffset;
 	}
 
-	public getVisibleColumn(column: number): number {
-		if (this._visibleColumn.length === 0) {
+	public getHorizontalOffset(column: number): number {
+		if (this._horizontalOffset.length === 0) {
 			// No characters on this line
 			return 0;
 		}
-		return this._visibleColumn[column - 1];
+		return this._horizontalOffset[column - 1];
 	}
 
 	private charOffsetToPartData(charOffset: number): number {
@@ -321,7 +321,7 @@ export class CharacterMapping {
 			const partData = this._data[i];
 			const partIndex = CharacterMapping.getPartIndex(partData);
 			const charIndex = CharacterMapping.getCharIndex(partData);
-			const visibleColumn = this._visibleColumn[i];
+			const visibleColumn = this._horizontalOffset[i];
 			result.push([partIndex, charIndex, visibleColumn]);
 		}
 		return result;
