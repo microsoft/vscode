@@ -508,4 +508,11 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(config.callbackRoute),
 		credentialsProvider: config.remoteAuthority ? undefined : new LocalStorageCredentialsProvider() // with a remote, we don't use a local credentials provider
 	});
+
+	if ('serviceWorker' in navigator) {
+		navigator.serviceWorker
+			.register('/service-worker.js')
+			.then(() => { })
+			.catch(() => { });
+	}
 })();

@@ -131,6 +131,20 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 			return serveError(req, res, 403, `Forbidden.`);
 		}
 
+		// Service worker
+		if (pathname === '/service-worker.js') {
+			res.writeHead(200, { 'Content-Type': 'text/javascript' });
+			return res.end(`
+				self.addEventListener('install', (e) => {
+					e.waitUntil(self.skipWaiting());
+				});
+				self.addEventListener('fetch', (e) => {
+					console.log(e.request.url);
+					e.respondWith(fetch(e.request));
+				});
+			`);
+		}
+
 		if (pathname === '/vscode-remote-resource') {
 			// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
 			// These resources could be files shipped with extensions or even workspace files.
