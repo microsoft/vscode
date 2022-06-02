@@ -368,7 +368,7 @@ export class CommandCenter {
 			return;
 		}
 
-		this.outputChannelLogger.setLogLevel(choice.logLevel);
+		this.outputChannelLogger.currentLogLevel = choice.logLevel;
 	}
 
 	@command('git.refresh', { repository: true })
