@@ -396,6 +396,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	clearBuffer(): void {
 		this.raw.clear();
+		// xterm.js does not clear the first prompt, so trigger these to simulate
+		// the prompt being written
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
 	}
