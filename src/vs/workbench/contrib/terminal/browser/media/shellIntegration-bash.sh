@@ -4,7 +4,6 @@
 # ---------------------------------------------------------------------------------------------
 
 VSCODE_SHELL_INTEGRATION=1
-__vsc_initialized=0
 
 if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 	. ~/.bashrc
@@ -34,6 +33,11 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+__vsc_initialized=0
+__vsc_original_PS1="$PS1"
+__vsc_original_PS2="$PS2"
+__vsc_custom_PS1=""
+__vsc_custom_PS2=""
 __vsc_in_command_execution="1"
 __vsc_last_history_id=$(history 1 | awk '{print $1;}')
 
@@ -73,28 +77,32 @@ __vsc_command_complete() {
 }
 
 __vsc_update_prompt() {
-	__vsc_initialized=1
-	__vsc_prior_prompt="$PS1"
-	__vsc_in_command_execution=""
-	PS1="\[$(__vsc_prompt_start)\]$PREFIX$PS1\[$(__vsc_prompt_end)\]"
-	PS2="\[$(__vsc_continuation_start)\]$PS2\[$(__vsc_continuation_end)\]"
+	# in command execution
+	if [ "$__vsc_in_command_execution" = "1" ]; then
+		# Wrap the prompt if it is not yet wrapped, if the PS1 changed this this was last set it
+		# means the user re-exported the PS1 so we should re-wrap it
+		if [[ "$__vsc_custom_PS1" == "" || "$__vsc_custom_PS1" != "$PS1" ]]; then
+			__vsc_original_PS1=$PS1
+			__vsc_custom_PS1="\[$(__vsc_prompt_start)\]$PREFIX$__vsc_original_PS1\[$(__vsc_prompt_end)\]"
+			PS1="$__vsc_custom_PS1"
+		fi
+		if [[ "$__vsc_custom_PS2" == "" || "$__vsc_custom_PS2" != "$PS2" ]]; then
+			__vsc_original_PS2=$PS2
+			__vsc_custom_PS2="\[$(__vsc_continuation_start)\]$__vsc_original_PS2\[$(__vsc_continuation_end)\]"
+			PS2="$__vsc_custom_PS2"
+		fi
+		__vsc_in_command_execution="0"
+	fi
 }
 
 __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
-
-	# in command execution
-	if [ -n "$__vsc_in_command_execution" ]; then
-		# non null
-		__vsc_update_prompt
-	fi
+	__vsc_update_prompt
 }
 
 __vsc_preexec() {
-	if [ -z "${__vsc_initialized-}" ]; then
-		PS1="$__vsc_prior_prompt"
-	fi
-	if [ -z "${__vsc_in_command_execution-}" ]; then
+	if [ "$__vsc_in_command_execution" = "0" ]; then
+		__vsc_initialized=1
 		__vsc_in_command_execution="1"
 		__vsc_command_output_start
 	fi
