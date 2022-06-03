@@ -826,7 +826,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const isTreeEmpty = !this.root.children || this.root.children.length === 0;
 		// Hide tree container only when there is a message and tree is empty and not refreshing
 		if (this._messageValue && isTreeEmpty && !this.refreshing) {
-			this.treeContainer.classList.add('hide');
+			// If there's a dnd controller then hiding the tree prevents it from being dragged into.
+			if (!this.dragAndDropController) {
+				this.treeContainer.classList.add('hide');
+			}
 			this.domNode.setAttribute('tabindex', '0');
 		} else {
 			this.treeContainer.classList.remove('hide');
