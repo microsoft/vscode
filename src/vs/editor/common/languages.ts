@@ -1118,7 +1118,11 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence };
+export interface TextEdit {
+	range: IRange;
+	text: string;
+	eol?: model.EndOfLineSequence;
+}
 
 export interface SnippetTextEdit {
 	range: IRange;
