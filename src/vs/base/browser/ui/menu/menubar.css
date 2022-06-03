@@ -68,9 +68,11 @@
 .menubar .toolbar-toggle-more {
 	width: 22px;
 	height: 22px;
+	padding: 0 8px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	vertical-align: sub;
 }
 
 .menubar.compact .toolbar-toggle-more {
@@ -82,11 +84,6 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-}
-
-.menubar .toolbar-toggle-more {
-	padding: 0;
-	vertical-align: sub;
 }
 
 .menubar.compact .toolbar-toggle-more::before {
