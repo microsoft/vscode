@@ -32,7 +32,7 @@ import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
-import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -396,8 +396,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	clearBuffer(): void {
 		this.raw.clear();
-		// hack so that the next placeholder shows
-		this._decorationAddon?.registerCommandDecoration({ marker: this.raw.registerMarker(0), hasOutput: false, timestamp: Date.now(), getOutput: () => { return undefined; }, command: '' }, true);
+		// xterm.js does not clear the first prompt, so trigger these to simulate
+		// the prompt being written
+		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
+		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
 	}
 
 	private _setCursorBlink(blink: boolean): void {
