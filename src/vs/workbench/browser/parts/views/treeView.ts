@@ -1089,10 +1089,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			return false;
 		}
 
-		if (hasResource && this.isFileKindThemeIcon(icon) && !this.shouldShowFileIcons()) {
-			return false;
-		} else if (hasResource && this.isFolderThemeIcon(icon) && !this.shouldShowFolderIcons()) {
-			return false;
+		if (hasResource && this.isFileKindThemeIcon(icon)) {
+			return !this.shouldShowFileIcons();
+		} else if (hasResource && this.isFolderThemeIcon(icon)) {
+			return !this.shouldShowFolderIcons();
 		}
 		return true;
 	}
