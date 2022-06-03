@@ -10,9 +10,7 @@
 	flex-shrink: 1;
 	box-sizing: border-box;
 	height: 100%;
-	padding: 4px 0;
 	overflow: hidden;
-	flex-wrap: wrap;
 }
 
 .fullscreen .menubar:not(.compact) {
@@ -21,10 +19,9 @@
 }
 
 .menubar > .menubar-menu-button {
+	display: flex;
 	align-items: center;
 	box-sizing: border-box;
-	padding: 0px 8px;
-	border-radius: 5px;
 	cursor: default;
 	-webkit-app-region: no-drag;
 	zoom: 1;
@@ -41,6 +38,11 @@
 	width: 100%;
 	height: 100%;
 	padding: 0px;
+}
+
+.menubar-menu-title {
+	padding: 0px 8px;
+	border-radius: 5px;
 }
 
 .menubar .menubar-menu-items-holder {
@@ -64,8 +66,11 @@
 }
 
 .menubar .toolbar-toggle-more {
-	width: 20px;
-	height: 100%;
+	width: 22px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .menubar.compact .toolbar-toggle-more {
