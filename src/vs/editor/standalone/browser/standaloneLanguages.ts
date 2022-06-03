@@ -526,6 +526,7 @@ export function registerCodeActionProvider(languageSelector: LanguageSelector, p
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
 	return languageFeaturesService.codeActionProvider.register(languageSelector, {
 		providedCodeActionKinds: metadata?.providedCodeActionKinds,
+		documentation: metadata?.documentation,
 		provideCodeActions: (model: model.ITextModel, range: Range, context: languages.CodeActionContext, token: CancellationToken): languages.ProviderResult<languages.CodeActionList> => {
 			const markerService = StandaloneServices.get(IMarkerService);
 			const markers = markerService.read({ resource: model.uri }).filter(m => {
@@ -702,6 +703,8 @@ export interface CodeActionProviderMetadata {
 	 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
 	 */
 	readonly providedCodeActionKinds?: readonly string[];
+
+	readonly documentation?: ReadonlyArray<{ readonly kind: string; readonly command: languages.Command }>;
 }
 
 /**
