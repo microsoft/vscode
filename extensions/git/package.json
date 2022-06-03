@@ -1249,17 +1249,17 @@
         },
         {
           "command": "git.revealFileInOS.linux",
-          "when": "scmProvider == git && scmResourceGroup == merge && resourceScheme == file && isLinux",
+          "when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isLinux",
           "group": "2_view@2"
         },
         {
           "command": "git.revealFileInOS.mac",
-          "when": "scmProvider == git && scmResourceGroup == merge && resourceScheme == file && isMac",
+          "when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isMac",
           "group": "2_view@2"
         },
         {
           "command": "git.revealFileInOS.windows",
-          "when": "scmProvider == git && scmResourceGroup == merge && resourceScheme == file && isWindows",
+          "when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isWindows",
           "group": "2_view@2"
         },
         {
@@ -1304,17 +1304,17 @@
         },
         {
           "command": "git.revealFileInOS.linux",
-          "when": "scmProvider == git && scmResourceGroup == index && resourceScheme == file && isLinux",
+          "when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isLinux",
           "group": "2_view@2"
         },
         {
           "command": "git.revealFileInOS.mac",
-          "when": "scmProvider == git && scmResourceGroup == index && resourceScheme == file && isMac",
+          "when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isMac",
           "group": "2_view@2"
         },
         {
           "command": "git.revealFileInOS.windows",
-          "when": "scmProvider == git && scmResourceGroup == index && resourceScheme == file && isWindows",
+          "when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isWindows",
           "group": "2_view@2"
         },
         {
@@ -1384,17 +1384,17 @@
         },
         {
           "command": "git.revealFileInOS.linux",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && resourceScheme == file && isLinux",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isLinux",
           "group": "2_view@2"
         },
         {
           "command": "git.revealFileInOS.mac",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && resourceScheme == file && isMac",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isMac",
           "group": "2_view@2"
         },
         {
           "command": "git.revealFileInOS.windows",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && resourceScheme == file && isWindows",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isWindows",
           "group": "2_view@2"
         },
         {
