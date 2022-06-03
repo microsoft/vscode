@@ -938,6 +938,11 @@ declare namespace monaco.editor {
 	export function setModelMarkers(model: ITextModel, owner: string, markers: IMarkerData[]): void;
 
 	/**
+	 * Remove all markers of an owner.
+	 */
+	export function removeAllMarkers(owner: string): void;
+
+	/**
 	 * Get markers for owner and/or resource
 	 *
 	 * @returns list of markers
