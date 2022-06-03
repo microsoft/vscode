@@ -237,20 +237,21 @@ const DefaultQueryState: IQueryState = {
 
 type GalleryServiceQueryClassification = {
 	owner: 'sandy081';
-	readonly filterTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly flags: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly sortBy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly sortOrder: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly pageNumber: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true };
-	readonly success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly requestBodySize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly responseBodySize?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly statusCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly errorCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly count?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	readonly searchTextLength?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	comment: 'Information about Marketplace query and its response';
+	readonly filterTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Filter types used in the query.' };
+	readonly flags: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flags passed in the query.' };
+	readonly sortBy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'sorted by option passed in the query' };
+	readonly sortOrder: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'sort order option passed in the query' };
+	readonly pageNumber: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'requested page number in the query' };
+	readonly duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true; comment: 'amount of time taken by the query request' };
+	readonly success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'whether the query reques is success or not' };
+	readonly requestBodySize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'size of the request body' };
+	readonly responseBodySize?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'size of the response body' };
+	readonly statusCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'status code of the response' };
+	readonly errorCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error code of the response' };
+	readonly count?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'total number of extensions matching the query' };
+	readonly source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source that requested this query, eg., recommendations, viewlet' };
+	readonly searchTextLength?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'length of the search text in the query' };
 };
 
 type QueryTelemetryData = {
@@ -275,8 +276,9 @@ type GalleryServiceQueryEvent = QueryTelemetryData & {
 
 type GalleryServiceAdditionalQueryClassification = {
 	owner: 'sandy081';
-	readonly duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true };
-	readonly count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	comment: 'Response information about the additional query to the Marketplace for fetching all versions to get release version';
+	readonly duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true; comment: 'Amount of time taken by the additional query' };
+	readonly count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total number of extensions returned by this additional query' };
 };
 
 type GalleryServiceAdditionalQueryEvent = {
@@ -1134,8 +1136,9 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			const message = getErrorMessage(err);
 			type GalleryServiceCDNFallbackClassification = {
 				owner: 'sandy081';
-				url: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				message: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				comment: 'Fallback request information when the primary asset request to CDN fails';
+				url: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'asset url that failed' };
+				message: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error message' };
 			};
 			type GalleryServiceCDNFallbackEvent = {
 				url: string;

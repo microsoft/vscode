@@ -28,14 +28,16 @@ import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/e
 
 type ExtensionRecommendationsNotificationClassification = {
 	owner: 'sandy081';
-	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	extensionId?: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	comment: 'Response information when an extension is recommended';
+	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'User reaction after showing the recommendation prompt. Eg., install, cancel, show, neverShowAgain' };
+	extensionId?: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Id of the extension that is recommended' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source from which this recommendation is coming from. Eg., file, exe.,' };
 };
 
 type ExtensionWorkspaceRecommendationsNotificationClassification = {
 	owner: 'sandy081';
-	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	comment: 'Response information when a recommendation from workspace is recommended';
+	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'User reaction after showing the recommendation prompt. Eg., install, cancel, show, neverShowAgain' };
 };
 
 const ignoreImportantExtensionRecommendationStorageKey = 'extensionsAssistant/importantRecommendationsIgnore';

@@ -50,12 +50,6 @@ import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browse
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 
-type KeybindingEditorActionClassification = {
-	owner: 'sandy081';
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-};
-
 const $ = DOM.$;
 
 class ThemableToggleActionViewItem extends ToggleActionViewItem {
@@ -189,7 +183,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		try {
 			const key = await this.defineKeybindingWidget.define();
 			if (key) {
-				this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command);
 				await this.updateKeybinding(keybindingEntry, key, keybindingEntry.keybindingItem.when, add);
 			}
 		} catch (error) {
@@ -224,7 +217,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	async removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybindingEntry);
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
-			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_REMOVE, keybindingEntry.keybindingItem.command);
 			try {
 				await this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem);
 				this.focus();
@@ -237,7 +229,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	async resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybindingEntry);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command);
 		try {
 			await this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem);
 			if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
@@ -252,7 +243,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	async copyKeybinding(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY, keybinding.keybindingItem.command);
 		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
 			key: keybinding.keybindingItem.keybinding ? keybinding.keybindingItem.keybinding.getUserSettingsLabel() || '' : '',
 			command: keybinding.keybindingItem.command
@@ -265,13 +255,11 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	async copyKeybindingCommand(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, keybinding.keybindingItem.command);
 		await this.clipboardService.writeText(keybinding.keybindingItem.command);
 	}
 
 	async copyKeybindingCommandTitle(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, keybinding.keybindingItem.command);
 		await this.clipboardService.writeText(keybinding.keybindingItem.commandLabel);
 	}
 
@@ -777,10 +765,6 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE,
 			run: () => this.copyKeybindingCommandTitle(keybinding)
 		};
-	}
-
-	private reportKeybindingAction(action: string, command: string): void {
-		this.telemetryService.publicLog2<{ action: string; command: string }, KeybindingEditorActionClassification>('keybindingsEditor.action', { command, action });
 	}
 
 	private onKeybindingEditingError(error: any): void {
