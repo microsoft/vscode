@@ -994,7 +994,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^8.0.1",
+    "vscode-languageclient": "^8.0.2-next.4",
     "vscode-nls": "^5.0.0",
     "vscode-uri": "^3.0.3"
   },
