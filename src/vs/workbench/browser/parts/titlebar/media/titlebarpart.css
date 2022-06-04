@@ -46,6 +46,13 @@
 	justify-content: left;
 }
 
+.monaco-workbench.web.safari .part.titlebar,
+.monaco-workbench.web.safari .part.titlebar>.titlebar-container {
+	/* Must be scoped to safari due to #148851 */
+	/* Is required in safari due to #149476 */
+	overflow: visible;
+}
+
 /* Draggable region */
 .monaco-workbench .part.titlebar>.titlebar-container>.titlebar-drag-region {
 	top: 0;

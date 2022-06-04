@@ -458,8 +458,14 @@
 	outline-style: dotted !important;
 }
 
-.hc-black .xterm-find-active-result-decoration,
-.hc-light .xterm-find-active-result-decoration {
+.hc-black .xterm-find-result-decoration,
+.hc-light .xterm-find-result-decoration {
+	outline-style: solid !important;
+}
+
+.xterm-find-active-result-decoration {
 	outline-style: solid !important;
 	outline-width: 2px !important;
+	/* Ensure the active decoration is above the regular decoration */
+	z-index: 7 !important;
 }

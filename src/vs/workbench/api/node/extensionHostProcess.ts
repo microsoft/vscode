@@ -210,7 +210,9 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
-				resolve(new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer')));
+				const protocol = new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer'));
+				protocol.sendResume();
+				resolve(protocol);
 			});
 			socket.once('error', reject);
 
