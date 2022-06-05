@@ -211,6 +211,7 @@ suite('Editor Contrib - Auto Indent On Paste', () => {
 	test('issue #119225: Do not add extra leading space when pasting JSDoc', () => {
 		const languageId = 'leadingSpacePaste';
 		let model = createTextModel("", languageId, {});
+		disposables.add(model);
 		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
 			const languageService = instantiationService.get(ILanguageService);
 			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
