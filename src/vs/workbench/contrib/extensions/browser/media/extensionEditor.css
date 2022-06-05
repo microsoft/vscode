@@ -452,6 +452,7 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category,
 .extension-editor > .body > .content > .details > .additional-details-container .tags-container > .tags > .tag {
+	width: min-content;
 	display: inline-block;
 	border: 1px solid rgba(136, 136, 136, 0.45);
 	padding: 2px 4px;
