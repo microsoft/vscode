@@ -15,10 +15,9 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { StandardTokenType } from 'vs/workbench/api/common/extHostTypes';
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (accessor, sel) => new IndentationToSpacesCommand(sel, tabSize), expectedLines, expectedSelection);
