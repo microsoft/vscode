@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession } from 'vs/workbench/services/sessionSync/common/sessionSync';
+import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType } from 'vs/workbench/services/sessionSync/common/sessionSync';
 import { ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -146,11 +146,16 @@ class SessionSyncContribution extends Disposable implements IWorkbenchContributi
 							name = name ?? workspaceFolder.name;
 							const relativeFilePath = relativePath(workspaceFolder.uri, uri) ?? uri.path;
 
+							// Only deal with file contents for now
+							if (!(await that.fileService.stat(uri)).isFile) {
+								continue;
+							}
+
 							if (await that.fileService.exists(uri)) {
-								workingChanges.push({ type: ChangeType.Addition, contents: (await that.fileService.readFile(uri)).value.toString(), relativeFilePath: relativeFilePath });
+								workingChanges.push({ type: ChangeType.Addition, fileType: FileType.File, contents: (await that.fileService.readFile(uri)).value.toString(), relativeFilePath: relativeFilePath });
 							} else {
 								// Assume it's a deletion
-								workingChanges.push({ type: ChangeType.Deletion, contents: undefined, relativeFilePath: relativeFilePath });
+								workingChanges.push({ type: ChangeType.Deletion, fileType: FileType.File, contents: undefined, relativeFilePath: relativeFilePath });
 							}
 						}
 

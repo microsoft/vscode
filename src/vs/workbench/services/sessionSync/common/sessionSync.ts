@@ -18,14 +18,20 @@ export enum ChangeType {
 	Deletion = 2,
 }
 
+export enum FileType {
+	File = 1,
+}
+
 interface Addition {
 	relativeFilePath: string;
+	fileType: FileType.File;
 	contents: string;
 	type: ChangeType.Addition;
 }
 
 interface Deletion {
 	relativeFilePath: string;
+	fileType: FileType.File;
 	contents: undefined;
 	type: ChangeType.Deletion;
 }
