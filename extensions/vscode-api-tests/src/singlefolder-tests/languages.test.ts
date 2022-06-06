@@ -96,6 +96,8 @@ suite('vscode API - languages', () => {
 		assert.ok(found);
 	});
 
+	// HINT: If this test fails, and you have been modifying code used in workers, you might have
+	// accidentally broken the workers. Check the logs for errors.
 	test('link detector', async function () {
 		const uri = await createRandomFile('class A { // http://a.com }', undefined, '.java');
 		const doc = await vscode.workspace.openTextDocument(uri);
