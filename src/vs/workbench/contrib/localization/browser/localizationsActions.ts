@@ -13,13 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILanguagePackItem, ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
-import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isWeb } from 'vs/base/common/platform';
+import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
 const restart = localize('restart', "&&Restart");
 
@@ -44,9 +38,6 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		const dialogService: IDialogService = accessor.get(IDialogService);
 		const productService: IProductService = accessor.get(IProductService);
 		const localeService: ILocaleService = accessor.get(ILocaleService);
-		const extensionManagementService: IExtensionManagementService = accessor.get(IExtensionManagementService);
-		const paneCompositePartService: IPaneCompositePartService = accessor.get(IPaneCompositePartService);
-		const notificationService: INotificationService = accessor.get(INotificationService);
 
 		const installedLanguages = await languagePackService.getInstalledLanguages();
 
@@ -82,27 +73,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 			const selectedLanguage = qp.activeItems[0];
 			qp.hide();
 
-			// Only Desktop has the concept of installing language packs so we only do this for Desktop
-			// and only if the language pack is not installed
-			if (!isWeb && !installedSet.has(selectedLanguage.id!)) {
-				try {
-					// Show the view so the user can see the language pack to be installed
-					let viewlet = await paneCompositePartService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar);
-					(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`@id:${selectedLanguage.extensionId}`);
-
-					// Only actually install a language pack from Microsoft
-					if (selectedLanguage.galleryExtension?.publisher.toLowerCase() !== 'ms-ceintl') {
-						return;
-					}
-
-					await extensionManagementService.installFromGallery(selectedLanguage.galleryExtension);
-				} catch (err) {
-					notificationService.error(err);
-					return;
-				}
-			}
-
-			if (await localeService.setLocale(selectedLanguage.id!)) {
+			if (await localeService.setLocale(selectedLanguage)) {
 				const restartDialog = await dialogService.confirm({
 					type: 'info',
 					message: localize('relaunchDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),
@@ -141,7 +112,7 @@ export class ClearDisplayLanguageAction extends Action2 {
 		const productService: IProductService = accessor.get(IProductService);
 		const hostService: IHostService = accessor.get(IHostService);
 
-		if (await localeService.setLocale(undefined)) {
+		if (await localeService.clearLocalePreference()) {
 			const restartDialog = await dialogService.confirm({
 				type: 'info',
 				message: localize('relaunchAfterClearDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),
