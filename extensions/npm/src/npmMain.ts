@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
+import { getPackageManager, invalidateTasksCache, INpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 import { NpmScriptLensProvider } from './npmScriptLens';
 import * as which from 'which';
@@ -90,7 +90,7 @@ function canRunNpmInCurrentWorkspace() {
 	return false;
 }
 
-let taskProvider: NpmTaskProvider;
+let taskProvider: INpmTaskProvider;
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
 	if (vscode.workspace.workspaceFolders) {
 		let watcher = vscode.workspace.createFileSystemWatcher('**/package.json');
@@ -102,7 +102,7 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 		let workspaceWatcher = vscode.workspace.onDidChangeWorkspaceFolders((_e) => invalidateScriptCaches());
 		context.subscriptions.push(workspaceWatcher);
 
-		taskProvider = new NpmTaskProvider(context);
+		taskProvider = new INpmTaskProvider(context);
 		let disposable = vscode.tasks.registerTaskProvider('npm', taskProvider);
 		context.subscriptions.push(disposable);
 		return disposable;

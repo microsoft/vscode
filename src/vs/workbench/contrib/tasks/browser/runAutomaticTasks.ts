@@ -7,9 +7,9 @@ import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITaskService, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskService, IWorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { forEach } from 'vs/base/common/collections';
-import { RunOnOptions, Task, TaskRunSource, TaskSource, TaskSourceKind, TASKS_CATEGORY, WorkspaceFileTaskSource, WorkspaceTaskSource } from 'vs/workbench/contrib/tasks/common/tasks';
+import { RunOnOptions, Task, TaskRunSource, TaskSource, TaskSourceKind, TASKS_CATEGORY, WorkspaceFileTaskSource, IWorkspaceTaskSource } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -77,7 +77,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		const taskKind = TaskSourceKind.toConfigurationTarget(source.kind);
 		switch (taskKind) {
 			case ConfigurationTarget.WORKSPACE_FOLDER: {
-				return resources.joinPath((<WorkspaceTaskSource>source).config.workspaceFolder!.uri, (<WorkspaceTaskSource>source).config.file);
+				return resources.joinPath((<IWorkspaceTaskSource>source).config.workspaceFolder!.uri, (<IWorkspaceTaskSource>source).config.file);
 			}
 			case ConfigurationTarget.WORKSPACE: {
 				return (<WorkspaceFileTaskSource>source).config.workspace?.configuration ?? undefined;
@@ -86,7 +86,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		return undefined;
 	}
 
-	private static findAutoTasks(taskService: ITaskService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>): { tasks: Array<Task | Promise<Task | undefined>>; taskNames: Array<string>; locations: Map<string, URI> } {
+	private static findAutoTasks(taskService: ITaskService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>): { tasks: Array<Task | Promise<Task | undefined>>; taskNames: Array<string>; locations: Map<string, URI> } {
 		const tasks = new Array<Task | Promise<Task | undefined>>();
 		const taskNames = new Array<string>();
 		const locations = new Map<string, URI>();
@@ -129,7 +129,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	}
 
 	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		openerService: IOpenerService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>) {
+		openerService: IOpenerService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>) {
 		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkspaceTrusted;
 		if (!isWorkspaceTrusted) {
 			return;

@@ -26,7 +26,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import { ProblemMatcherRegistry, INamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 
@@ -47,15 +47,15 @@ import { IOutputService, IOutputChannel } from 'vs/workbench/services/output/com
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
-import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
+import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, ITaskTerminateResponse, ITaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import {
-	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
-	TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
-	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition, RuntimeType,
+	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, ITaskEvent,
+	ITaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
+	TaskSorter, ITaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
+	KeyedTaskIdentifier as KeyedTaskIdentifier, TaskDefinition, RuntimeType,
 	USER_TASKS_GROUP_KEY
 } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
@@ -76,7 +76,7 @@ import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG, configureTaskIcon } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
+import { isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG, configureTaskIcon } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { ILogService } from 'vs/platform/log/common/log';
 import { once } from 'vs/base/common/functional';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -129,13 +129,13 @@ class ProblemReporter implements TaskConfig.IProblemReporter {
 	}
 }
 
-export interface WorkspaceFolderConfigurationResult {
+export interface IWorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
-	config: TaskConfig.ExternalTaskRunnerConfiguration | undefined;
+	config: TaskConfig.IExternalTaskRunnerConfiguration | undefined;
 	hasErrors: boolean;
 }
 
-interface CommandUpgrade {
+interface ICommandUpgrade {
 	command?: string;
 	args?: string[];
 }
@@ -206,9 +206,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _showIgnoreMessage?: boolean;
 	private _providers: Map<number, ITaskProvider>;
 	private _providerTypes: Map<number, string>;
-	protected _taskSystemInfos: Map<string, TaskSystemInfo[]>;
+	protected _taskSystemInfos: Map<string, ITaskSystemInfo[]>;
 
-	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
+	protected _workspaceTasksPromise?: Promise<Map<string, IWorkspaceFolderTaskResult>>;
 
 	protected _taskSystem?: ITaskSystem;
 	protected _taskSystemListener?: IDisposable;
@@ -218,7 +218,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _taskRunningState: IContextKey<boolean>;
 
 	protected _outputChannel: IOutputChannel;
-	protected readonly _onDidStateChange: Emitter<TaskEvent>;
+	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
 	private _waitForSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
@@ -266,7 +266,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._outputChannel = this.outputService.getChannel(AbstractTaskService.OutputChannelId)!;
 		this._providers = new Map<number, ITaskProvider>();
 		this._providerTypes = new Map<number, string>();
-		this._taskSystemInfos = new Map<string, TaskSystemInfo[]>();
+		this._taskSystemInfos = new Map<string, ITaskSystemInfo[]>();
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
@@ -301,7 +301,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 
-			let entry: TaskQuickPickEntry | null | undefined;
+			let entry: ITaskQuickPickEntry | null | undefined;
 			if (tasks && tasks.length > 0) {
 				entry = await this.showQuickPick(tasks, nls.localize('TaskService.pickBuildTaskForLabel', 'Select the build task (there is no default build task defined)'));
 			}
@@ -336,7 +336,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._onDidRegisterSupportedExecutions.fire();
 	}
 
-	public get onDidStateChange(): Event<TaskEvent> {
+	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
 	}
 
@@ -577,7 +577,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return infosCount > 0;
 	}
 
-	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
+	public registerTaskSystem(key: string, info: ITaskSystemInfo): void {
 		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
 		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
 		if (info.platform === Platform.Platform.Web) {
@@ -600,7 +600,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private getTaskSystemInfo(key: string): TaskSystemInfo | undefined {
+	private getTaskSystemInfo(key: string): ITaskSystemInfo | undefined {
 		const infos = this._taskSystemInfos.get(key);
 		return (infos && infos.length) ? infos[0] : undefined;
 	}
@@ -650,7 +650,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	public async getTask(folder: IWorkspace | IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
+	public async getTask(folder: IWorkspace | IWorkspaceFolder | string, identifier: string | ITaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
 		if (!(await this.trust())) {
 			return;
 		}
@@ -750,9 +750,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return;
 	}
 
-	protected abstract versionAndEngineCompatible(filter?: TaskFilter): boolean;
+	protected abstract versionAndEngineCompatible(filter?: ITaskFilter): boolean;
 
-	public async tasks(filter?: TaskFilter): Promise<Task[]> {
+	public async tasks(filter?: ITaskFilter): Promise<Task[]> {
 		if (!(await this.trust())) {
 			return [];
 		}
@@ -1056,7 +1056,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	public async run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
+	public async run(task: Task | undefined, options?: IProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
 		if (!(await this.trust())) {
 			return;
 		}
@@ -1111,7 +1111,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private getTypeForTask(task: Task): string {
 		let type: string;
 		if (CustomTask.is(task)) {
-			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
+			let configProperties: TaskConfig.IConfigurationProperties = task._source.config.element;
 			type = (<any>configProperties).type;
 		} else {
 			type = task.getDefinition()!.type;
@@ -1137,7 +1137,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return !task.hasDefinedMatchers && !!task.configurationProperties.problemMatchers && (task.configurationProperties.problemMatchers.length === 0);
 		}
 		if (CustomTask.is(task)) {
-			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
+			let configProperties: TaskConfig.IConfigurationProperties = task._source.config.element;
 			return configProperties.problemMatcher === undefined && !task.hasDefinedMatchers;
 		}
 		return false;
@@ -1159,13 +1159,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private attachProblemMatcher(task: ContributedTask | CustomTask): Promise<Task | undefined> {
-		interface ProblemMatcherPickEntry extends IQuickPickItem {
-			matcher: NamedProblemMatcher | undefined;
+		interface IProblemMatcherPickEntry extends IQuickPickItem {
+			matcher: INamedProblemMatcher | undefined;
 			never?: boolean;
 			learnMore?: boolean;
 			setting?: string;
 		}
-		let entries: QuickPickInput<ProblemMatcherPickEntry>[] = [];
+		let entries: QuickPickInput<IProblemMatcherPickEntry>[] = [];
 		for (let key of ProblemMatcherRegistry.keys()) {
 			let matcher = ProblemMatcherRegistry.get(key);
 			if (matcher.deprecated) {
@@ -1192,7 +1192,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			entries.unshift({ type: 'separator', label: nls.localize('TaskService.associate', 'associate') });
 			let taskType: string;
 			if (CustomTask.is(task)) {
-				let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
+				let configProperties: TaskConfig.IConfigurationProperties = task._source.config.element;
 				taskType = (<any>configProperties).type;
 			} else {
 				taskType = task.getDefinition().type;
@@ -1216,7 +1216,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					} else if (selected.matcher) {
 						let newTask = task.clone();
 						let matcherReference = `$${selected.matcher.name}`;
-						let properties: CustomizationProperties = { problemMatcher: [matcherReference] };
+						let properties: ICustomizationProperties = { problemMatcher: [matcherReference] };
 						newTask.configurationProperties.problemMatchers = [matcherReference];
 						let matcher = ProblemMatcherRegistry.get(selected.matcher.name);
 						if (matcher && matcher.watching !== undefined) {
@@ -1271,7 +1271,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return false;
 	}
 
-	private async formatTaskForJson(resource: URI, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask): Promise<string> {
+	private async formatTaskForJson(resource: URI, task: TaskConfig.ICustomTask | TaskConfig.IConfiguringTask): Promise<string> {
 		let reference: IReference<IResolvedTextEditorModel> | undefined;
 		let stringValue: string = '';
 		try {
@@ -1292,7 +1292,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return stringValue;
 	}
 
-	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined, configIndex: number = -1): Promise<boolean> {
+	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.ICustomTask | TaskConfig.IConfiguringTask | string | undefined, configIndex: number = -1): Promise<boolean> {
 		if (resource === undefined) {
 			return Promise.resolve(false);
 		}
@@ -1305,7 +1305,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const contentValue = content.toString();
 				let stringValue: string | undefined;
 				if (configIndex !== -1) {
-					const json: TaskConfig.ExternalTaskRunnerConfiguration = this.configurationService.getValue<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource });
+					const json: TaskConfig.IExternalTaskRunnerConfiguration = this.configurationService.getValue<TaskConfig.IExternalTaskRunnerConfiguration>('tasks', { resource });
 					if (json.tasks && (json.tasks.length > configIndex)) {
 						stringValue = await this.formatTaskForJson(resource, json.tasks[configIndex]);
 					}
@@ -1346,15 +1346,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private createCustomizableTask(task: ContributedTask | CustomTask | ConfiguringTask): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
-		let toCustomize: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined;
+	private createCustomizableTask(task: ContributedTask | CustomTask | ConfiguringTask): TaskConfig.ICustomTask | TaskConfig.IConfiguringTask | undefined {
+		let toCustomize: TaskConfig.ICustomTask | TaskConfig.IConfiguringTask | undefined;
 		let taskConfig = CustomTask.is(task) || ConfiguringTask.is(task) ? task._source.config : undefined;
 		if (taskConfig && taskConfig.element) {
 			toCustomize = { ...(taskConfig.element) };
 		} else if (ContributedTask.is(task)) {
 			toCustomize = {
 			};
-			let identifier: TaskConfig.TaskIdentifier = Object.assign(Object.create(null), task.defines);
+			let identifier: TaskConfig.ITaskIdentifier = Object.assign(Object.create(null), task.defines);
 			delete identifier['_key'];
 			Object.keys(identifier).forEach(key => (<any>toCustomize)![key] = identifier[key]);
 			if (task.configurationProperties.problemMatchers && task.configurationProperties.problemMatchers.length > 0 && Types.isStringArray(task.configurationProperties.problemMatchers)) {
@@ -1379,7 +1379,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return toCustomize;
 	}
 
-	public async customize(task: ContributedTask | CustomTask | ConfiguringTask, properties?: CustomizationProperties, openConfig?: boolean): Promise<void> {
+	public async customize(task: ContributedTask | CustomTask | ConfiguringTask, properties?: ICustomizationProperties, openConfig?: boolean): Promise<void> {
 		if (!(await this.trust())) {
 			return;
 		}
@@ -1519,13 +1519,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private createRunnableTask(tasks: TaskMap, group: TaskGroup): { task: Task; resolver: ITaskResolver } | undefined {
-		interface ResolverData {
+		interface IResolverData {
 			id: Map<string, Task>;
 			label: Map<string, Task>;
 			identifier: Map<string, Task>;
 		}
 
-		let resolverData: Map<string, ResolverData> = new Map();
+		let resolverData: Map<string, IResolverData> = new Map();
 		let workspaceTasks: Task[] = [];
 		let extensionTasks: Task[] = [];
 		tasks.forEach((tasks, folder) => {
@@ -1603,7 +1603,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		let resolverData: Map<string, ResolverData> | undefined;
 
-		async function quickResolve(that: AbstractTaskService, uri: URI | string, identifier: string | TaskIdentifier) {
+		async function quickResolve(that: AbstractTaskService, uri: URI | string, identifier: string | ITaskIdentifier) {
 			const foundTasks = await that._findWorkspaceTasks((task: Task | ConfiguringTask): boolean => {
 				const taskUri = ((ConfiguringTask.is(task) || CustomTask.is(task)) ? task._source.config.workspaceFolder?.uri : undefined);
 				const originalUri = (typeof uri === 'string' ? uri : uri.toString());
@@ -1652,7 +1652,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return resolverData;
 		}
 
-		async function fullResolve(that: AbstractTaskService, uri: URI | string, identifier: string | TaskIdentifier) {
+		async function fullResolve(that: AbstractTaskService, uri: URI | string, identifier: string | ITaskIdentifier) {
 			const allResolverData = await getResolverData(that);
 			let data = allResolverData.get(typeof uri === 'string' ? uri : uri.toString());
 			if (!data) {
@@ -1667,7 +1667,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		return {
-			resolve: async (uri: URI | string, identifier: string | TaskIdentifier | undefined) => {
+			resolve: async (uri: URI | string, identifier: string | ITaskIdentifier | undefined) => {
 				if (!identifier) {
 					return undefined;
 				}
@@ -1775,7 +1775,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	public async terminate(task: Task): Promise<TaskTerminateResponse> {
+	public async terminate(task: Task): Promise<ITaskTerminateResponse> {
 		if (!(await this.trust())) {
 			return { success: true, task: undefined };
 		}
@@ -1786,9 +1786,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._taskSystem.terminate(task);
 	}
 
-	private terminateAll(): Promise<TaskTerminateResponse[]> {
+	private terminateAll(): Promise<ITaskTerminateResponse[]> {
 		if (!this._taskSystem) {
-			return Promise.resolve<TaskTerminateResponse[]>([]);
+			return Promise.resolve<ITaskTerminateResponse[]>([]);
 		}
 		return this._taskSystem.terminateAll();
 	}
@@ -1832,10 +1832,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 			validTypes['shell'] = true;
 			validTypes['process'] = true;
-			return new Promise<TaskSet[]>(resolve => {
-				let result: TaskSet[] = [];
+			return new Promise<ITaskSet[]>(resolve => {
+				let result: ITaskSet[] = [];
 				let counter: number = 0;
-				let done = (value: TaskSet | undefined) => {
+				let done = (value: ITaskSet | undefined) => {
 					if (value) {
 						result.push(value);
 					}
@@ -1870,7 +1870,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							}
 							foundAnyProviders = true;
 							counter++;
-							provider.provideTasks(validTypes).then((taskSet: TaskSet) => {
+							provider.provideTasks(validTypes).then((taskSet: ITaskSet) => {
 								// Check that the tasks provided are of the correct type
 								for (const task of taskSet.tasks) {
 									if (task.type !== this._providerTypes.get(handle)) {
@@ -2043,7 +2043,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private getLegacyTaskConfigurations(workspaceTasks: TaskSet): IStringDictionary<CustomTask> | undefined {
+	private getLegacyTaskConfigurations(workspaceTasks: ITaskSet): IStringDictionary<CustomTask> | undefined {
 		let result: IStringDictionary<CustomTask> | undefined;
 		function getResult(): IStringDictionary<CustomTask> {
 			if (result) {
@@ -2058,7 +2058,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				// This is for backwards compatibility with the 0.1.0 task annotation code
 				// if we had a gulp, jake or grunt command a task specification was a annotation
 				if (commandName === 'gulp' || commandName === 'grunt' || commandName === 'jake') {
-					let identifier = NKeyedTaskIdentifier.create({
+					let identifier = KeyedTaskIdentifier.create({
 						type: commandName,
 						task: task.configurationProperties.name
 					});
@@ -2069,7 +2069,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return result;
 	}
 
-	public async getWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
+	public async getWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {
 		if (!(await this.trust())) {
 			return new Map();
 		}
@@ -2080,7 +2080,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this.updateWorkspaceTasks(runSource);
 	}
 
-	private updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
+	private updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {
 		this._workspaceTasksPromise = this.computeWorkspaceTasks(runSource);
 		return this._workspaceTasksPromise;
 	}
@@ -2094,13 +2094,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return folder;
 	}
 
-	protected computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
-		let promises: Promise<WorkspaceFolderTaskResult | undefined>[] = [];
+	protected computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {
+		let promises: Promise<IWorkspaceFolderTaskResult | undefined>[] = [];
 		for (let folder of this.workspaceFolders) {
 			promises.push(this.computeWorkspaceFolderTasks(folder, runSource).then((value) => value, () => undefined));
 		}
 		return Promise.all(promises).then(async (values) => {
-			let result = new Map<string, WorkspaceFolderTaskResult>();
+			let result = new Map<string, IWorkspaceFolderTaskResult>();
 			for (let value of values) {
 				if (value) {
 					result.set(value.workspaceFolder.uri.toString(), value);
@@ -2127,7 +2127,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return !!ShellExecutionSupportedContext.getValue(this.contextKeyService) && !!ProcessExecutionSupportedContext.getValue(this.contextKeyService);
 	}
 
-	private computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<WorkspaceFolderTaskResult> {
+	private computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<IWorkspaceFolderTaskResult> {
 		return (this.executionEngine === ExecutionEngine.Process
 			? this.computeLegacyConfiguration(workspaceFolder)
 			: this.computeConfiguration(workspaceFolder)).
@@ -2135,8 +2135,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (!workspaceFolderConfiguration || !workspaceFolderConfiguration.config || workspaceFolderConfiguration.hasErrors) {
 					return Promise.resolve({ workspaceFolder, set: undefined, configurations: undefined, hasErrors: workspaceFolderConfiguration ? workspaceFolderConfiguration.hasErrors : false });
 				}
-				return ProblemMatcherRegistry.onReady().then(async (): Promise<WorkspaceFolderTaskResult> => {
-					let taskSystemInfo: TaskSystemInfo | undefined = this.getTaskSystemInfo(workspaceFolder.uri.scheme);
+				return ProblemMatcherRegistry.onReady().then(async (): Promise<IWorkspaceFolderTaskResult> => {
+					let taskSystemInfo: ITaskSystemInfo | undefined = this.getTaskSystemInfo(workspaceFolder.uri.scheme);
 					let problemReporter = new ProblemReporter(this._outputChannel);
 					let parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this.contextKeyService);
 					let hasErrors = false;
@@ -2165,7 +2165,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			});
 	}
 
-	private testParseExternalConfig(config: TaskConfig.ExternalTaskRunnerConfiguration | undefined, location: string): { config: TaskConfig.ExternalTaskRunnerConfiguration | undefined; hasParseErrors: boolean } {
+	private testParseExternalConfig(config: TaskConfig.IExternalTaskRunnerConfiguration | undefined, location: string): { config: TaskConfig.IExternalTaskRunnerConfiguration | undefined; hasParseErrors: boolean } {
 		if (!config) {
 			return { config: undefined, hasParseErrors: false };
 		}
@@ -2187,7 +2187,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return { config, hasParseErrors: false };
 	}
 
-	private async computeWorkspaceFileTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<WorkspaceFolderTaskResult> {
+	private async computeWorkspaceFileTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<IWorkspaceFolderTaskResult> {
 		if (this.executionEngine === ExecutionEngine.Process) {
 			return this.emptyWorkspaceTaskResults(workspaceFolder);
 		}
@@ -2207,7 +2207,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return { workspaceFolder, set: { tasks: custom }, configurations: customizedTasks, hasErrors: configuration.hasParseErrors };
 	}
 
-	private async computeUserTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<WorkspaceFolderTaskResult> {
+	private async computeUserTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<IWorkspaceFolderTaskResult> {
 		if (this.executionEngine === ExecutionEngine.Process) {
 			return this.emptyWorkspaceTaskResults(workspaceFolder);
 		}
@@ -2227,15 +2227,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return { workspaceFolder, set: { tasks: custom }, configurations: customizedTasks, hasErrors: configuration.hasParseErrors };
 	}
 
-	private emptyWorkspaceTaskResults(workspaceFolder: IWorkspaceFolder): WorkspaceFolderTaskResult {
+	private emptyWorkspaceTaskResults(workspaceFolder: IWorkspaceFolder): IWorkspaceFolderTaskResult {
 		return { workspaceFolder, set: undefined, configurations: undefined, hasErrors: false };
 	}
 
-	private async computeTasksForSingleConfig(workspaceFolder: IWorkspaceFolder, config: TaskConfig.ExternalTaskRunnerConfiguration | undefined, runSource: TaskRunSource, custom: CustomTask[], customized: IStringDictionary<ConfiguringTask>, source: TaskConfig.TaskConfigSource, isRecentTask: boolean = false): Promise<boolean> {
+	private async computeTasksForSingleConfig(workspaceFolder: IWorkspaceFolder, config: TaskConfig.IExternalTaskRunnerConfiguration | undefined, runSource: TaskRunSource, custom: CustomTask[], customized: IStringDictionary<ConfiguringTask>, source: TaskConfig.TaskConfigSource, isRecentTask: boolean = false): Promise<boolean> {
 		if (!config) {
 			return false;
 		}
-		let taskSystemInfo: TaskSystemInfo | undefined = workspaceFolder ? this.getTaskSystemInfo(workspaceFolder.uri.scheme) : undefined;
+		let taskSystemInfo: ITaskSystemInfo | undefined = workspaceFolder ? this.getTaskSystemInfo(workspaceFolder.uri.scheme) : undefined;
 		let problemReporter = new ProblemReporter(this._outputChannel);
 		let parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this.contextKeyService, isRecentTask);
 		let hasErrors = false;
@@ -2262,12 +2262,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return hasErrors;
 	}
 
-	private computeConfiguration(workspaceFolder: IWorkspaceFolder): Promise<WorkspaceFolderConfigurationResult> {
+	private computeConfiguration(workspaceFolder: IWorkspaceFolder): Promise<IWorkspaceFolderConfigurationResult> {
 		let { config, hasParseErrors } = this.getConfiguration(workspaceFolder);
-		return Promise.resolve<WorkspaceFolderConfigurationResult>({ workspaceFolder, config, hasErrors: hasParseErrors });
+		return Promise.resolve<IWorkspaceFolderConfigurationResult>({ workspaceFolder, config, hasErrors: hasParseErrors });
 	}
 
-	protected abstract computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<WorkspaceFolderConfigurationResult>;
+	protected abstract computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<IWorkspaceFolderConfigurationResult>;
 
 	private computeWorkspaceFolderSetup(): [IWorkspaceFolder[], IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion, IWorkspace | undefined] {
 		let workspaceFolders: IWorkspaceFolder[] = [];
@@ -2324,12 +2324,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return TaskConfig.JsonSchemaVersion.from(config);
 	}
 
-	protected getConfiguration(workspaceFolder: IWorkspaceFolder, source?: string): { config: TaskConfig.ExternalTaskRunnerConfiguration | undefined; hasParseErrors: boolean } {
+	protected getConfiguration(workspaceFolder: IWorkspaceFolder, source?: string): { config: TaskConfig.IExternalTaskRunnerConfiguration | undefined; hasParseErrors: boolean } {
 		let result;
 		if ((source !== TaskSourceKind.User) && (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY)) {
 			result = undefined;
 		} else {
-			const wholeConfig = this.configurationService.inspect<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri });
+			const wholeConfig = this.configurationService.inspect<TaskConfig.IExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri });
 			switch (source) {
 				case TaskSourceKind.User: {
 					if (wholeConfig.userValue !== wholeConfig.workspaceFolderValue) {
@@ -2427,12 +2427,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this.configurationService.getValue<boolean>(QUICKOPEN_DETAIL_CONFIG);
 	}
 
-	private async createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, includeRecents: boolean = true): Promise<TaskQuickPickEntry[]> {
-		let encounteredTasks: { [key: string]: TaskQuickPickEntry[] } = {};
+	private async createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, includeRecents: boolean = true): Promise<ITaskQuickPickEntry[]> {
+		let encounteredTasks: { [key: string]: ITaskQuickPickEntry[] } = {};
 		if (tasks === undefined || tasks === null || tasks.length === 0) {
 			return [];
 		}
-		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
+		const TaskQuickPickEntry = (task: Task): ITaskQuickPickEntry => {
 			const newEntry = { label: task._label, description: this.getTaskDescription(task), task, detail: this.showDetail() ? task.configurationProperties.detail : undefined };
 			if (encounteredTasks[task._id]) {
 				if (encounteredTasks[task._id].length === 1) {
@@ -2446,12 +2446,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return newEntry;
 
 		};
-		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
+		function fillEntries(entries: QuickPickInput<ITaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
 			if (tasks.length) {
 				entries.push({ type: 'separator', label: groupLabel });
 			}
 			for (let task of tasks) {
-				let entry: TaskQuickPickEntry = TaskQuickPickEntry(task);
+				let entry: ITaskQuickPickEntry = TaskQuickPickEntry(task);
 				entry.buttons = [{ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") }];
 				if (selectedEntry && (task === selectedEntry.task)) {
 					entries.unshift(selectedEntry);
@@ -2460,7 +2460,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 		}
-		let entries: TaskQuickPickEntry[];
+		let entries: ITaskQuickPickEntry[];
 		if (group) {
 			entries = [];
 			if (tasks.length === 1) {
@@ -2512,20 +2512,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const sorter = this.createSorter();
 				tasks = tasks.sort((a, b) => sorter.compare(a, b));
 			}
-			entries = tasks.map<TaskQuickPickEntry>(task => TaskQuickPickEntry(task));
+			entries = tasks.map<ITaskQuickPickEntry>(task => TaskQuickPickEntry(task));
 		}
 		encounteredTasks = {};
 		return entries;
 	}
 
-	private async showTwoLevelQuickPick(placeHolder: string, defaultEntry?: TaskQuickPickEntry) {
+	private async showTwoLevelQuickPick(placeHolder: string, defaultEntry?: ITaskQuickPickEntry) {
 		return TaskQuickPick.show(this, this.configurationService, this.quickInputService, this.notificationService, this.dialogService, placeHolder, defaultEntry);
 	}
 
-	private async showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
+	private async showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[]): Promise<ITaskQuickPickEntry | undefined | null> {
 		const tokenSource = new CancellationTokenSource();
 		const cancellationToken: CancellationToken = tokenSource.token;
-		let _createEntries = new Promise<QuickPickInput<TaskQuickPickEntry>[]>((resolve) => {
+		let _createEntries = new Promise<QuickPickInput<ITaskQuickPickEntry>[]>((resolve) => {
 			if (Array.isArray(tasks)) {
 				resolve(this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
 			} else {
@@ -2543,7 +2543,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		})]);
 
 		if (!timeout && ((await _createEntries).length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
-			return (<TaskQuickPickEntry>(await _createEntries)[0]);
+			return (<ITaskQuickPickEntry>(await _createEntries)[0]);
 		}
 
 		const pickEntries = _createEntries.then((entries) => {
@@ -2558,7 +2558,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return entries;
 		});
 
-		const picker: IQuickPick<TaskQuickPickEntry> = this.quickInputService.createQuickPick();
+		const picker: IQuickPick<ITaskQuickPickEntry> = this.quickInputService.createQuickPick();
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
 
@@ -2578,14 +2578,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 		picker.show();
 
-		return new Promise<TaskQuickPickEntry | undefined | null>(resolve => {
+		return new Promise<ITaskQuickPickEntry | undefined | null>(resolve => {
 			this._register(picker.onDidAccept(async () => {
 				let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
 				if (cancellationToken.isCancellationRequested) {
 					// canceled when there's only one task
 					const task = (await pickEntries)[0];
 					if ((<any>task).task) {
-						selection = <TaskQuickPickEntry>task;
+						selection = <ITaskQuickPickEntry>task;
 					}
 				}
 				picker.dispose();
@@ -2682,7 +2682,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private tasksAndGroupedTasks(filter?: TaskFilter): { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } {
+	private tasksAndGroupedTasks(filter?: ITaskFilter): { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } {
 		if (!this.versionAndEngineCompatible(filter)) {
 			return { tasks: Promise.resolve<Task[]>([]), grouped: Promise.resolve(new TaskMap()) };
 		}
@@ -2816,7 +2816,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			let taskGroupTasks: (Task | ConfiguringTask)[] = [];
 
-			async function runSingleTask(task: Task | undefined, problemMatcherOptions: ProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
+			async function runSingleTask(task: Task | undefined, problemMatcherOptions: IProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
 				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {
 					// eat the error, it has already been surfaced to the user and we don't care about it here
 				});
@@ -3056,13 +3056,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let result: string | KeyedTaskIdentifier | undefined = undefined;
 		if (Types.isString(arg)) {
 			result = arg;
-		} else if (arg && Types.isString((arg as TaskIdentifier).type)) {
-			result = TaskDefinition.createTaskIdentifier(arg as TaskIdentifier, console);
+		} else if (arg && Types.isString((arg as ITaskIdentifier).type)) {
+			result = TaskDefinition.createTaskIdentifier(arg as ITaskIdentifier, console);
 		}
 		return result;
 	}
 
-	private configHasTasks(taskConfig?: TaskConfig.ExternalTaskRunnerConfiguration): boolean {
+	private configHasTasks(taskConfig?: TaskConfig.IExternalTaskRunnerConfiguration): boolean {
 		return !!taskConfig && !!taskConfig.tasks && taskConfig.tasks.length > 0;
 	}
 
@@ -3070,7 +3070,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let configFileCreated = false;
 		this.fileService.stat(resource).then((stat) => stat, () => undefined).then(async (stat) => {
 			const fileExists: boolean = !!stat;
-			const configValue = this.configurationService.inspect<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
+			const configValue = this.configurationService.inspect<TaskConfig.IExternalTaskRunnerConfiguration>('tasks');
 			let tasksExistInFile: boolean;
 			let target: ConfigurationTarget;
 			switch (taskSource) {
@@ -3270,7 +3270,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return;
 				}
 				let selectedTask: Task | undefined;
-				let selectedEntry: TaskQuickPickEntry;
+				let selectedEntry: ITaskQuickPickEntry;
 				for (let task of tasks) {
 					let taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
 					if (taskGroup && taskGroup.isDefault && taskGroup._id === TaskGroup.Build._id) {
@@ -3322,7 +3322,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return;
 				}
 				let selectedTask: Task | undefined;
-				let selectedEntry: TaskQuickPickEntry;
+				let selectedEntry: ITaskQuickPickEntry;
 
 				for (let task of tasks) {
 					let taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
@@ -3412,7 +3412,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return undefined;
 	}
 
-	private upgradeTask(task: Task, suppressTaskName: boolean, globalConfig: { windows?: CommandUpgrade; osx?: CommandUpgrade; linux?: CommandUpgrade }): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
+	private upgradeTask(task: Task, suppressTaskName: boolean, globalConfig: { windows?: ICommandUpgrade; osx?: ICommandUpgrade; linux?: ICommandUpgrade }): TaskConfig.ICustomTask | TaskConfig.IConfiguringTask | undefined {
 		if (!CustomTask.is(task)) {
 			return;
 		}
@@ -3488,12 +3488,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				continue;
 			}
 
-			const configTasks: (TaskConfig.CustomTask | TaskConfig.ConfiguringTask)[] = [];
+			const configTasks: (TaskConfig.ICustomTask | TaskConfig.IConfiguringTask)[] = [];
 			const suppressTaskName = !!this.configurationService.getValue('tasks.suppressTaskName', { resource: folder.uri });
 			const globalConfig = {
-				windows: <CommandUpgrade>this.configurationService.getValue('tasks.windows', { resource: folder.uri }),
-				osx: <CommandUpgrade>this.configurationService.getValue('tasks.osx', { resource: folder.uri }),
-				linux: <CommandUpgrade>this.configurationService.getValue('tasks.linux', { resource: folder.uri })
+				windows: <ICommandUpgrade>this.configurationService.getValue('tasks.windows', { resource: folder.uri }),
+				osx: <ICommandUpgrade>this.configurationService.getValue('tasks.osx', { resource: folder.uri }),
+				linux: <ICommandUpgrade>this.configurationService.getValue('tasks.linux', { resource: folder.uri })
 			};
 			tasks.get(folder).forEach(task => {
 				const configTask = this.upgradeTask(task, suppressTaskName, globalConfig);
