@@ -925,7 +925,8 @@ class ScrollableMarkdownMessage extends Disposable {
 	}
 
 	public layout(height: number, width: number) {
-		this.scrollable.setScrollDimensions({ width, height });
+		// Remove padding of `.monaco-editor .zone-widget.test-output-peek .preview-text`
+		this.scrollable.setScrollDimensions({ width: width - 32, height: height - 16 });
 	}
 }
 
