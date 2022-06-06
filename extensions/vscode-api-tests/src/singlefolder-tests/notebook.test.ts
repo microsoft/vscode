@@ -263,14 +263,17 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		const editor = await vscode.window.showNotebookDocument(notebook);
 
 		const notebookChangeEvent = asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
-		const version = editor.document.version;
-		await editor.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, { inputCollapsed: false });
-		});
-
+		const version = editor.notebook.version;
+		const edit = new vscode.WorkspaceEdit();
+		const cellEdit = vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(1, 0), [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
+		const cellMetadataEdit = vscode.NotebookEdit.updateCellMetadata(0, { inputCollapsed: false });
+		const metdataEdit = vscode.NotebookEdit.updateNotebookMetadata({ testMetadata: false });
+		edit.set(notebook.uri, [cellEdit, cellMetadataEdit, metdataEdit]);
+		await vscode.workspace.applyEdit(edit);
 		await notebookChangeEvent;
-		assert.strictEqual(version + 1, editor.document.version);
+		assert.strictEqual(version + 1, editor.notebook.version);
+		assert.strictEqual(cellMetadataEdit.newCellMetadata, editor.notebook.cellAt(0).metadata);
+		assert.strictEqual(metdataEdit.newNotebookMetadata, editor.notebook.metadata);
 	});
 
 	test('edit API batch edits undo/redo', async function () {
