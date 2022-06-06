@@ -28,8 +28,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type ExeExtensionRecommendationsClassification = {
 	owner: 'sandy081';
-	extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	exeName: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	comment: 'Information about executable based extension recommendation';
+	extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'id of the recommended extension' };
+	exeName: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'name of the executable for which extension is being recommended' };
 };
 
 type IExeBasedExtensionTips = {

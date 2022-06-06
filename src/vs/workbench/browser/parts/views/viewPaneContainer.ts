@@ -820,12 +820,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		// Check if view is active
 		if (this.viewContainerModel.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === viewId)) {
 			const visible = !this.viewContainerModel.isVisible(viewId);
-			type ViewsToggleVisibilityClassification = {
-				owner: 'sandy081';
-				viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			};
-			this.telemetryService.publicLog2<{ viewId: String; visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
 			this.viewContainerModel.setVisible(viewId, visible);
 		}
 	}

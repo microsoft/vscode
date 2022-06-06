@@ -11,7 +11,7 @@
   "browser": "./dist/browser/cssServerMain",
   "dependencies": {
     "vscode-css-languageservice": "^6.0.1",
-    "vscode-languageserver": "^8.0.1",
+    "vscode-languageserver": "^8.0.2-next.4",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
@@ -19,6 +19,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { DocumentOnDropEditProvider, SnippetTextEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { extractEditorsDropData } from 'vs/platform/dnd/browser/dnd';
@@ -76,21 +77,22 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			return;
 		}
 
-		const cts = new CancellationTokenSource();
-		editor.onDidDispose(() => cts.cancel());
-		model.onDidChangeContent(() => cts.cancel());
+		const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value);
+		try {
+			const providers = this._languageFeaturesService.documentOnDropEditProvider.ordered(model);
+			for (const provider of providers) {
+				const edit = await provider.provideDocumentOnDropEdits(model, position, ourDataTransfer, tokenSource.token);
+				if (tokenSource.token.isCancellationRequested || editor.getModel().getVersionId() !== modelVersionNow) {
+					return;
+				}
 
-		const providers = this._languageFeaturesService.documentOnDropEditProvider.ordered(model);
-		for (const provider of providers) {
-			const edit = await provider.provideDocumentOnDropEdits(model, position, ourDataTransfer, cts.token);
-			if (cts.token.isCancellationRequested || editor.getModel().getVersionId() !== modelVersionNow) {
-				return;
+				if (edit) {
+					performSnippetEdit(editor, edit);
+					return;
+				}
 			}
-
-			if (edit) {
-				performSnippetEdit(editor, edit);
-				return;
-			}
+		} finally {
+			tokenSource.dispose();
 		}
 	}
 
@@ -100,15 +102,13 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		}
 
 		const textEditorDataTransfer = toVSDataTransfer(dragEvent.dataTransfer);
-		if (!textEditorDataTransfer.has(Mimes.uriList)) {
-			const editorData = (await this._instantiationService.invokeFunction(extractEditorsDropData, dragEvent))
-				.filter(input => input.resource)
-				.map(input => input.resource!.toString());
+		const editorData = (await this._instantiationService.invokeFunction(extractEditorsDropData, dragEvent))
+			.filter(input => input.resource)
+			.map(input => input.resource!.toString());
 
-			if (editorData.length) {
-				const str = distinct(editorData).join('\n');
-				textEditorDataTransfer.replace(Mimes.uriList, createStringDataTransferItem(str));
-			}
+		if (editorData.length) {
+			const str = distinct(editorData).join('\n');
+			textEditorDataTransfer.replace(Mimes.uriList, createStringDataTransferItem(str));
 		}
 
 		return textEditorDataTransfer;

@@ -12,7 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { Marker, MarkerTableItem, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -28,6 +28,7 @@ import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IProblemsWidget } from 'vs/workbench/contrib/markers/browser/markersView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Range } from 'vs/editor/common/core/range';
 
 const $ = DOM.$;
 
@@ -133,6 +134,7 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData, height: number | undefined): void {
 		if (element.marker.source && element.marker.code) {
 			templateData.codeColumn.classList.toggle('code-link', typeof element.marker.code !== 'string');
+			DOM.show(templateData.codeLabel.element);
 
 			if (typeof element.marker.code === 'string') {
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
@@ -149,6 +151,9 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 					label: codeLinkLabel.element,
 				};
 			}
+		} else {
+			templateData.sourceLabel.set('-');
+			DOM.hide(templateData.codeLabel.element);
 		}
 	}
 
@@ -437,7 +442,19 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 			}
 		}
 		this._itemCount = items.length;
-		this.table.splice(0, Number.POSITIVE_INFINITY, items.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity)));
+		this.table.splice(0, Number.POSITIVE_INFINITY, items.sort((a, b) => {
+			let result = MarkerSeverity.compare(a.marker.severity, b.marker.severity);
+
+			if (result === 0) {
+				result = compareMarkersByUri(a.marker, b.marker);
+			}
+
+			if (result === 0) {
+				result = Range.compareRangesUsingStarts(a.marker, b.marker);
+			}
+
+			return result;
+		}));
 	}
 
 	revealMarkers(activeResource: ResourceMarkers | null, focus: boolean, lastSelectedRelativeTop: number): void {

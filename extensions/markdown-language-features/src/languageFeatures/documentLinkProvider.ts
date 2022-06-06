@@ -277,9 +277,11 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			case 'reference': {
 				const def = definitionSet.lookup(link.href.ref);
 				if (def) {
-					return new vscode.DocumentLink(
+					const documentLink = new vscode.DocumentLink(
 						link.source.hrefRange,
 						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.source.hrefRange.start.line, def.source.hrefRange.start.character]))}`));
+					documentLink.tooltip = localize('documentLink.referenceTooltip', 'Go to link definition');
+					return documentLink;
 				} else {
 					return undefined;
 				}
@@ -377,7 +379,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				linkStart = document.positionAt(offset);
 				const line = document.lineAt(linkStart.line);
 				// See if link looks like a checkbox
-				const checkboxMatch = line.text.match(/^\s*\-\s*\[x\]/i);
+				const checkboxMatch = line.text.match(/^\s*[\-\*]\s*\[x\]/i);
 				if (checkboxMatch && linkStart.character <= checkboxMatch[0].length) {
 					continue;
 				}

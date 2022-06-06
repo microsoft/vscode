@@ -309,6 +309,7 @@
 				},
 				"customizations": {
 					"type": "object",
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations.",
 					"properties": {
 						"vscode": {
 							"type": "object",
@@ -334,128 +335,180 @@
 						},
 						"codespaces": {
 							"type": "object",
+							"description": "Customizations specific to GitHub Codespaces",
 							"properties": {
 								"repositories": {
 									"type": "object",
-									"description": "Configuration relative to a GitHub repository",
-									"pattern": "^[a-zA-Z0-9-_.]+[.]*\/[a-zA-Z0-9-_*]+[.]*$",
-									"errorMessage": "Expected format: 'owner/repo' (eg: 'microsoft/vscode'). A wildcard (*) is permitted for the repo name. (eg: 'microsoft/*').",
-									"oneOf": [
-										{
-											"properties": {
-												"permissions": {
-													"type": "object",
-													"description": "Addional repository permissions. See https://aka.ms/ghcs/multi-repo-auth for more info.",
-													"anyOf": [
-														{
-															"actions": {
-																"type": "string",
-																"enum": [
-																	"read",
-																	"write"
-																]
-															},
-															"checks": {
-																"type": "string",
-																"enum": [
-																	"read",
-																	"write"
-																]
-															},
-															"contents": {
-																"type": "string",
-																"enum": [
-																	"read",
-																	"write"
-																]
-															},
-															"deployments": {
-																"type": "string",
-																"enum": [
-																	"read",
-																	"write"
-																]
-															},
-															"discussions": {
-																"type": "string",
-																"enum": [
-																	"read",
-																	"write"
-																]
-															},
-															"issues": {
-																"type": "string",
-																"enum": [
-																	"read",
-																	"write"
-																]
-															},
-															"packages": {
-																"type": "string",
-																"enum": [
-																	"read"
-																]
-															},
-															"pages": {
-																"type": "string",
-																"enum": [
-																	"read",
-																	"write"
-																]
-															},
-															"pull_requests": {
-																"type": "string",
-																"enum": [
-																	"read",
-																	"write"
-																]
-															},
-															"repository_projects": {
-																"type": "string",
-																"enum": [
-																	"read",
-																	"write"
-																]
-															},
-															"statuses": {
-																"type": "string",
-																"enum": [
-																	"read",
-																	"write"
-																]
-															},
-															"workflows": {
-																"type": "string",
-																"enum": [
-																	"write"
-																]
-															}
+									"description": "Configuration relative to the given repositories, following the format 'owner/repo'.\n  A wildcard (*) is permitted for the repo name (eg: 'microsoft/*')",
+									"patternProperties": {
+										"^[a-zA-Z0-9-_.]+[.]*\/[a-zA-Z0-9-_*]+[.]*$": {
+											"type": "object",
+											"additionalProperties": true,
+											"oneOf": [
+												{
+													"properties": {
+														"permissions": {
+															"type": "object",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"additionalProperties": true,
+															"anyOf": [
+																{
+																	"properties": {
+																		"actions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"checks": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"contents": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"deployments": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"discussions": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"issues": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"packages": {
+																			"type": "string",
+																			"enum": [
+																				"read"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pages": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"pull_requests": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"repository_projects": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"statuses": {
+																			"type": "string",
+																			"enum": [
+																				"read",
+																				"write"
+																			]
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"workflows": {
+																			"type": "string",
+																			"enum": [
+																				"write"
+																			]
+																		}
+																	}
+																}
+															]
 														}
-													]
+													}
+												},
+												{
+													"properties": {
+														"permissions": {
+															"type": "string",
+															"description": "Additional repository permissions.\n See https://aka.ms/ghcs/multi-repo-auth for more info.",
+															"enum": [
+																"read-all",
+																"write-all"
+															]
+														}
+													}
 												}
-											}
-										},
-										{
-											"properties": {
-												"permissions": {
-													"type": "string",
-													"enum": [
-														"read-all",
-														"write-all"
-													]
-												}
-											}
+											]
 										}
-									]
+									}
 								}
 							}
 						}
-					},
-					"additionalProperties": {
-						"type": "object",
-						"additionalProperties": true
-					},
-					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
+					}
+				},
+				"additionalProperties": {
+					"type": "object",
+					"additionalProperties": true
 				}
 			}
 		},

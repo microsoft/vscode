@@ -1121,7 +1121,7 @@ export class SearchModel extends Disposable {
 
 		/* __GDPR__
 			"searchResultsShown" : {
-				owner": "roblourens",
+				"owner": "roblourens",
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"options": { "${inline}": [ "${IPatternInfo}" ] },

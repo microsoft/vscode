@@ -142,8 +142,8 @@ export class LabelService extends Disposable implements ILabelService {
 		this.os = OS;
 		this.userHome = pathService.defaultUriScheme === Schemas.file ? this.pathService.userHome({ preferLocal: true }) : undefined;
 
-		const memento = this.storedFormattersMemento = new Memento('cachedResourceFormatters', storageService);
-		this.storedFormatters = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		const memento = this.storedFormattersMemento = new Memento('cachedResourceLabelFormatters', storageService);
+		this.storedFormatters = memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		this.formatters = this.storedFormatters?.formatters || [];
 
 		// Remote environment is potentially long running

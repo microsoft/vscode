@@ -1241,7 +1241,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (ignoreIfInsideViewport
 			&& elementTop >= scrollTop
-			&& elementTop < wrapperBottom) {
+			&& elementBottom < wrapperBottom) {
 
 			if (revealPosition === CellRevealPosition.Center
 				&& elementBottom > wrapperBottom

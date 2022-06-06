@@ -56,7 +56,7 @@
 }
 
 .merge-accept-gutter-marker.multi-line .background {
-	border: 2px solid var(--vscode-checkbox-border);
+	border: 1px solid var(--vscode-checkbox-border);
 	border-right: 0;
 	left: 8px;
 	width: 10px;

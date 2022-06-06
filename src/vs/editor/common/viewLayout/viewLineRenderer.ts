@@ -205,29 +205,29 @@ export class CharacterMapping {
 
 	public readonly length: number;
 	private readonly _data: Uint32Array;
-	private readonly _absoluteOffsets: Uint32Array;
+	private readonly _horizontalOffset: Uint32Array;
 
 	constructor(length: number, partCount: number) {
 		this.length = length;
 		this._data = new Uint32Array(this.length);
-		this._absoluteOffsets = new Uint32Array(this.length);
+		this._horizontalOffset = new Uint32Array(this.length);
 	}
 
-	public setColumnInfo(column: number, partIndex: number, charIndex: number, partAbsoluteOffset: number): void {
+	public setColumnInfo(column: number, partIndex: number, charIndex: number, horizontalOffset: number): void {
 		const partData = (
 			(partIndex << CharacterMappingConstants.PART_INDEX_OFFSET)
 			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
 		) >>> 0;
 		this._data[column - 1] = partData;
-		this._absoluteOffsets[column - 1] = partAbsoluteOffset + charIndex;
+		this._horizontalOffset[column - 1] = horizontalOffset;
 	}
 
-	public getAbsoluteOffset(column: number): number {
-		if (this._absoluteOffsets.length === 0) {
+	public getHorizontalOffset(column: number): number {
+		if (this._horizontalOffset.length === 0) {
 			// No characters on this line
 			return 0;
 		}
-		return this._absoluteOffsets[column - 1];
+		return this._horizontalOffset[column - 1];
 	}
 
 	private charOffsetToPartData(charOffset: number): number {
@@ -313,6 +313,18 @@ export class CharacterMapping {
 			return min;
 		}
 		return max;
+	}
+
+	public inflate() {
+		const result: [number, number, number][] = [];
+		for (let i = 0; i < this.length; i++) {
+			const partData = this._data[i];
+			const partIndex = CharacterMapping.getPartIndex(partData);
+			const charIndex = CharacterMapping.getCharIndex(partData);
+			const visibleColumn = this._horizontalOffset[i];
+			result.push([partIndex, charIndex, visibleColumn]);
+		}
+		return result;
 	}
 }
 
@@ -914,11 +926,10 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 	let charIndex = 0;
 	let visibleColumn = startVisibleColumn;
-	let charOffsetInPart = 0;
+	let charOffsetInPart = 0; // the character offset in the current part
+	let charHorizontalOffset = 0; // the character horizontal position in terms of chars relative to line start
 
 	let partDisplacement = 0;
-	let prevPartContentCnt = 0;
-	let partAbsoluteOffset = 0;
 
 	if (containsRTL) {
 		sb.appendASCIIString('<span dir="ltr">');
@@ -927,7 +938,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	}
 
 	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
-		partAbsoluteOffset += prevPartContentCnt;
 
 		const part = parts[partIndex];
 		const partEndIndex = part.endIndex;
@@ -948,7 +958,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 		if (partRendersWhitespace) {
 
-			let partContentCnt = 0;
+			let partWidth = 0;
 			{
 				let _charIndex = charIndex;
 				let _visibleColumn = visibleColumn;
@@ -956,7 +966,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 				for (; _charIndex < partEndIndex; _charIndex++) {
 					const charCode = lineContent.charCodeAt(_charIndex);
 					const charWidth = (charCode === CharCode.Tab ? (tabSize - (_visibleColumn % tabSize)) : 1) | 0;
-					partContentCnt += charWidth;
+					partWidth += charWidth;
 					if (_charIndex >= fauxIndentLength) {
 						_visibleColumn += charWidth;
 					}
@@ -965,19 +975,22 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 			if (partRendersWhitespaceWithWidth) {
 				sb.appendASCIIString(' style="width:');
-				sb.appendASCIIString(String(spaceWidth * partContentCnt));
+				sb.appendASCIIString(String(spaceWidth * partWidth));
 				sb.appendASCIIString('px"');
 			}
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
+				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, charHorizontalOffset);
 				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
+
+				let producedCharacters: number;
 				let charWidth: number;
 
 				if (charCode === CharCode.Tab) {
-					charWidth = (tabSize - (visibleColumn % tabSize)) | 0;
+					producedCharacters = (tabSize - (visibleColumn % tabSize)) | 0;
+					charWidth = producedCharacters;
 
 					if (!canUseHalfwidthRightwardsArrow || charWidth > 1) {
 						sb.write1(0x2192); // RIGHTWARDS ARROW
@@ -989,29 +1002,26 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 					}
 
 				} else { // must be CharCode.Space
+					producedCharacters = 2;
 					charWidth = 1;
 
-					sb.write1(0x200C); // ZERO WIDTH NON-JOINER
 					sb.write1(renderSpaceCharCode); // &middot; or word separator middle dot
 					sb.write1(0x200C); // ZERO WIDTH NON-JOINER
 				}
 
-				charOffsetInPart += charWidth;
+				charOffsetInPart += producedCharacters;
+				charHorizontalOffset += charWidth;
 				if (charIndex >= fauxIndentLength) {
 					visibleColumn += charWidth;
 				}
 			}
 
-			prevPartContentCnt = partContentCnt;
-
 		} else {
-
-			let partContentCnt = 0;
 
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
+				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, charHorizontalOffset);
 				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
 
@@ -1074,19 +1084,18 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 							sb.appendASCIIString(to4CharHex(charCode));
 							sb.appendASCIIString(']');
 							producedCharacters = 8;
+							charWidth = producedCharacters;
 						} else {
 							sb.write1(charCode);
 						}
 				}
 
 				charOffsetInPart += producedCharacters;
-				partContentCnt += producedCharacters;
+				charHorizontalOffset += charWidth;
 				if (charIndex >= fauxIndentLength) {
 					visibleColumn += charWidth;
 				}
 			}
-
-			prevPartContentCnt = partContentCnt;
 		}
 
 		if (partIsEmptyAndHasPseudoAfter) {
@@ -1097,7 +1106,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 		if (charIndex >= len && !lastCharacterMappingDefined && part.isPseudoAfter()) {
 			lastCharacterMappingDefined = true;
-			characterMapping.setColumnInfo(charIndex + 1, partIndex, charOffsetInPart, partAbsoluteOffset);
+			characterMapping.setColumnInfo(charIndex + 1, partIndex, charOffsetInPart, charHorizontalOffset);
 		}
 
 		sb.appendASCIIString('</span>');
@@ -1107,7 +1116,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	if (!lastCharacterMappingDefined) {
 		// When getting client rects for the last character, we will position the
 		// text range at the end of the span, insteaf of at the beginning of next span
-		characterMapping.setColumnInfo(len + 1, parts.length - 1, charOffsetInPart, partAbsoluteOffset);
+		characterMapping.setColumnInfo(len + 1, parts.length - 1, charOffsetInPart, charHorizontalOffset);
 	}
 
 	if (isOverflowing) {
