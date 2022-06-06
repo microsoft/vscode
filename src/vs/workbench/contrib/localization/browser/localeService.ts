@@ -5,12 +5,14 @@
 
 import { language } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
+import { ILanguagePackItem } from 'vs/platform/languagePacks/common/languagePacks';
+import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
 export class WebLocaleService implements ILocaleService {
 	declare readonly _serviceBrand: undefined;
 
-	async setLocale(locale: string | undefined): Promise<boolean> {
+	async setLocale(languagePackItem: ILanguagePackItem): Promise<boolean> {
+		const locale = languagePackItem.id;
 		if (locale === language || (!locale && language === navigator.language)) {
 			return false;
 		}
@@ -19,6 +21,14 @@ export class WebLocaleService implements ILocaleService {
 		} else {
 			window.localStorage.removeItem('vscode.nls.locale');
 		}
+		return true;
+	}
+
+	async clearLocalePreference(): Promise<boolean> {
+		if (language === navigator.language) {
+			return false;
+		}
+		window.localStorage.removeItem('vscode.nls.locale');
 		return true;
 	}
 }
