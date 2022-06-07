@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import { DebugModel, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getExpandedBodySize, getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { IBreakpointData, IBreakpointUpdateData, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
@@ -42,9 +42,14 @@ function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakp
 
 suite('Debug - Breakpoints', () => {
 	let model: DebugModel;
+	const disposables = new DisposableStore();
 
 	setup(() => {
 		model = createMockDebugModel();
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	// Breakpoints
@@ -355,7 +360,7 @@ suite('Debug - Breakpoints', () => {
 
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(IDebugService, new MockDebugService());
-		instantiationService.stub(ILanguageService, LanguageService);
+		instantiationService.stub(ILanguageService, disposables.add(new LanguageService()));
 		let decorations = instantiationService.invokeFunction(accessor => createBreakpointDecorations(accessor, textModel, breakpoints, State.Running, true, true));
 		assert.strictEqual(decorations.length, 3); // last breakpoint filtered out since it has a large line number
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 1, 1, 2));
@@ -364,7 +369,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(decorations[0].options.beforeContentClassName, undefined);
 		assert.strictEqual(decorations[1].options.before?.inlineClassName, `debug-breakpoint-placeholder`);
 		assert.strictEqual(decorations[0].options.overviewRuler?.position, OverviewRulerLane.Left);
-		const expected = new MarkdownString(undefined, { isTrusted: true }).appendCodeblock(languageId, 'Expression condition: x > 5');
+		const expected = new MarkdownString(undefined, { isTrusted: true, supportThemeIcons: true }).appendCodeblock(languageId, 'Expression condition: x > 5');
 		assert.deepStrictEqual(decorations[0].options.glyphMarginHoverMessage, expected);
 
 		decorations = instantiationService.invokeFunction(accessor => createBreakpointDecorations(accessor, textModel, breakpoints, State.Running, true, false));
