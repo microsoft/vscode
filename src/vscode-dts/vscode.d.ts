@@ -10064,7 +10064,7 @@ declare module 'vscode' {
 		/**
 		 * Get a string representation of this item.
 		 *
-		 * If {@linkcode DataTransferItem.value} is an object, this returns the result of json signifying {@linkcode DataTransferItem.value} value.
+		 * If {@linkcode DataTransferItem.value} is an object, this returns the result of json stringifying {@linkcode DataTransferItem.value} value.
 		 */
 		asString(): Thenable<string>;
 
@@ -10077,7 +10077,7 @@ declare module 'vscode' {
 		readonly value: any;
 
 		/**
-		 * @param value Custom data stored on this item. Can be retrieve using {@linkcode DataTransferItem.value}.
+		 * @param value Custom data stored on this item. Can be retrieved using {@linkcode DataTransferItem.value}.
 		 */
 		constructor(value: any);
 	}
