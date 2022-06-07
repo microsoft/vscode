@@ -111,6 +111,7 @@ export class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 		this.taskTypes = Object.create(null);
 		this.readyPromise = new Promise<void>((resolve, reject) => {
 			taskDefinitionsExtPoint.setHandler((extensions, delta) => {
+				this._schema = undefined;
 				try {
 					for (let extension of delta.removed) {
 						let taskTypes = extension.value;
