@@ -108,7 +108,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		}));
 	}
 
-	private async applyEditSession() {
+	async applyEditSession() {
 		const editSession = await this.sessionSyncWorkbenchService.read();
 		if (!editSession) {
 			return;
@@ -131,7 +131,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		}
 	}
 
-	private async storeEditSession() {
+	async storeEditSession() {
 		const folders: Folder[] = [];
 
 		for (const repository of this.scmService.repositories) {
