@@ -21,6 +21,14 @@ function getLinksForFile(fileContents: string) {
 	return provider.provideDocumentLinks(doc, noopToken);
 }
 
+function assertLinksEqual(actualLinks: readonly vscode.DocumentLink[], expectedRanges: readonly vscode.Range[]) {
+	assert.strictEqual(actualLinks.length, expectedRanges.length);
+
+	for (let i = 0; i < actualLinks.length; ++i) {
+		assertRangeEqual(actualLinks[i].range, expectedRanges[i], `Range ${i} to be equal`);
+	}
+}
+
 suite('markdown.DocumentLinkProvider', () => {
 	test('Should not return anything for empty document', async () => {
 		const links = await getLinksForFile('');
@@ -37,94 +45,93 @@ suite('markdown.DocumentLinkProvider', () => {
 
 	test('Should detect basic http links', async () => {
 		const links = await getLinksForFile('a [b](https://example.com) c');
-		assert.strictEqual(links.length, 1);
-		const [link] = links;
-		assertRangeEqual(link.range, new vscode.Range(0, 6, 0, 25));
+		assertLinksEqual(links, [
+			new vscode.Range(0, 6, 0, 25)
+		]);
 	});
 
 	test('Should detect basic workspace links', async () => {
 		{
 			const links = await getLinksForFile('a [b](./file) c');
-			assert.strictEqual(links.length, 1);
-			const [link] = links;
-			assertRangeEqual(link.range, new vscode.Range(0, 6, 0, 12));
+			assertLinksEqual(links, [
+				new vscode.Range(0, 6, 0, 12)
+			]);
 		}
 		{
 			const links = await getLinksForFile('a [b](file.png) c');
-			assert.strictEqual(links.length, 1);
-			const [link] = links;
-			assertRangeEqual(link.range, new vscode.Range(0, 6, 0, 14));
+			assertLinksEqual(links, [
+				new vscode.Range(0, 6, 0, 14)
+			]);
 		}
 	});
 
 	test('Should detect links with title', async () => {
 		const links = await getLinksForFile('a [b](https://example.com "abc") c');
-		assert.strictEqual(links.length, 1);
-		const [link] = links;
-		assertRangeEqual(link.range, new vscode.Range(0, 6, 0, 25));
+		assertLinksEqual(links, [
+			new vscode.Range(0, 6, 0, 25)
+		]);
 	});
 
 	test('Should handle links with escaped characters in name (#35245)', async () => {
 		const links = await getLinksForFile('a [b\\]](./file)');
-		assert.strictEqual(links.length, 1);
-		const [link] = links;
-		assertRangeEqual(link.range, new vscode.Range(0, 8, 0, 14));
+		assertLinksEqual(links, [
+			new vscode.Range(0, 8, 0, 14)
+		]);
 	});
 
 	test('Should handle links with balanced parens', async () => {
 		{
 			const links = await getLinksForFile('a [b](https://example.com/a()c) c');
-			assert.strictEqual(links.length, 1);
-			const [link] = links;
-			assertRangeEqual(link.range, new vscode.Range(0, 6, 0, 30));
+			assertLinksEqual(links, [
+				new vscode.Range(0, 6, 0, 30)
+			]);
 		}
 		{
 			const links = await getLinksForFile('a [b](https://example.com/a(b)c) c');
-			assert.strictEqual(links.length, 1);
-			const [link] = links;
-			assertRangeEqual(link.range, new vscode.Range(0, 6, 0, 31));
-
+			assertLinksEqual(links, [
+				new vscode.Range(0, 6, 0, 31)
+			]);
 		}
 		{
 			// #49011
 			const links = await getLinksForFile('[A link](http://ThisUrlhasParens/A_link(in_parens))');
-			assert.strictEqual(links.length, 1);
-			const [link] = links;
-			assertRangeEqual(link.range, new vscode.Range(0, 9, 0, 50));
+			assertLinksEqual(links, [
+				new vscode.Range(0, 9, 0, 50)
+			]);
 		}
 	});
 
 	test('Should handle two links without space', async () => {
 		const links = await getLinksForFile('a ([test](test)[test2](test2)) c');
-		assert.strictEqual(links.length, 2);
-		const [link1, link2] = links;
-		assertRangeEqual(link1.range, new vscode.Range(0, 10, 0, 14));
-		assertRangeEqual(link2.range, new vscode.Range(0, 23, 0, 28));
+		assertLinksEqual(links, [
+			new vscode.Range(0, 10, 0, 14),
+			new vscode.Range(0, 23, 0, 28)
+		]);
 	});
 
 	test('should handle hyperlinked images (#49238)', async () => {
 		{
 			const links = await getLinksForFile('[![alt text](image.jpg)](https://example.com)');
-			assert.strictEqual(links.length, 2);
-			const [link1, link2] = links;
-			assertRangeEqual(link1.range, new vscode.Range(0, 13, 0, 22));
-			assertRangeEqual(link2.range, new vscode.Range(0, 25, 0, 44));
+			assertLinksEqual(links, [
+				new vscode.Range(0, 13, 0, 22),
+				new vscode.Range(0, 25, 0, 44)
+			]);
 		}
 		{
 			const links = await getLinksForFile('[![a]( whitespace.jpg )]( https://whitespace.com )');
-			assert.strictEqual(links.length, 2);
-			const [link1, link2] = links;
-			assertRangeEqual(link1.range, new vscode.Range(0, 7, 0, 21));
-			assertRangeEqual(link2.range, new vscode.Range(0, 26, 0, 48));
+			assertLinksEqual(links, [
+				new vscode.Range(0, 7, 0, 21),
+				new vscode.Range(0, 26, 0, 48)
+			]);
 		}
 		{
 			const links = await getLinksForFile('[![a](img1.jpg)](file1.txt) text [![a](img2.jpg)](file2.txt)');
-			assert.strictEqual(links.length, 4);
-			const [link1, link2, link3, link4] = links;
-			assertRangeEqual(link1.range, new vscode.Range(0, 6, 0, 14));
-			assertRangeEqual(link2.range, new vscode.Range(0, 17, 0, 26));
-			assertRangeEqual(link3.range, new vscode.Range(0, 39, 0, 47));
-			assertRangeEqual(link4.range, new vscode.Range(0, 50, 0, 59));
+			assertLinksEqual(links, [
+				new vscode.Range(0, 6, 0, 14),
+				new vscode.Range(0, 17, 0, 26),
+				new vscode.Range(0, 39, 0, 47),
+				new vscode.Range(0, 50, 0, 59),
+			]);
 		}
 	});
 
@@ -138,11 +145,11 @@ suite('markdown.DocumentLinkProvider', () => {
 			'[a]: <b c>',
 			'[b]: <cd>',
 		));
-		assert.strictEqual(links.length, 2);
 
-		const [link1, link2] = links;
-		assertRangeEqual(link1.range, new vscode.Range(0, 6, 0, 9));
-		assertRangeEqual(link2.range, new vscode.Range(1, 6, 1, 8));
+		assertLinksEqual(links, [
+			new vscode.Range(0, 6, 0, 9),
+			new vscode.Range(1, 6, 1, 8),
+		]);
 	});
 
 	test('Should only find one link for reference sources [a]: source (#141285)', async () => {
@@ -178,8 +185,9 @@ suite('markdown.DocumentLinkProvider', () => {
 			`\\[good]`,
 			`[good]: http://example.com`,
 		));
-		assert.strictEqual(links.length, 1);
-		assertRangeEqual(links[0].range, new vscode.Range(2, 8, 2, 26)); // Should only find the definition
+		assertLinksEqual(links, [
+			new vscode.Range(2, 8, 2, 26) // Should only find the definition
+		]);
 	});
 
 	test('Should not consider links in code fenced with backticks', async () => {
@@ -265,10 +273,9 @@ suite('markdown.DocumentLinkProvider', () => {
 
 	test('Should find autolinks', async () => {
 		const links = await getLinksForFile('pre <http://example.com> post');
-		assert.strictEqual(links.length, 1);
-
-		const link = links[0];
-		assertRangeEqual(link.range, new vscode.Range(0, 5, 0, 23));
+		assertLinksEqual(links, [
+			new vscode.Range(0, 5, 0, 23)
+		]);
 	});
 
 	test('Should not detect links inside html comment blocks', async () => {
@@ -325,9 +332,9 @@ suite('markdown.DocumentLinkProvider', () => {
 			``,
 			`[x]: http://example.com`
 		));
-		assert.strictEqual(links.length, 1);
-		assertRangeEqual(links[0].range, new vscode.Range(7, 5, 7, 23));
-
+		assertLinksEqual(links, [
+			new vscode.Range(7, 5, 7, 23)
+		]);
 	});
 
 	test('Should still find links on line with checkbox', async () => {
@@ -338,11 +345,68 @@ suite('markdown.DocumentLinkProvider', () => {
 			``,
 			`[x]: http://example.com`
 		));
-		assert.strictEqual(links.length, 4);
 
-		assertRangeEqual(links[0].range, new vscode.Range(0, 7, 0, 8));
-		assertRangeEqual(links[1].range, new vscode.Range(1, 7, 1, 8));
-		assertRangeEqual(links[2].range, new vscode.Range(2, 6, 2, 7));
-		assertRangeEqual(links[3].range, new vscode.Range(4, 5, 4, 23));
+		assertLinksEqual(links, [
+			new vscode.Range(0, 7, 0, 8),
+			new vscode.Range(1, 7, 1, 8),
+			new vscode.Range(2, 6, 2, 7),
+			new vscode.Range(4, 5, 4, 23),
+		]);
 	});
+
+	test('Should find link only within angle brackets.', async () => {
+		const links = await getLinksForFile(joinLines(
+			`[link](<path>)`
+		));
+		assertLinksEqual(links, [new vscode.Range(0, 8, 0, 12)]);
+	});
+
+	test('Should find link within angle brackets even with link title.', async () => {
+		const links = await getLinksForFile(joinLines(
+			`[link](<path> "test title")`
+		));
+		assertLinksEqual(links, [new vscode.Range(0, 8, 0, 12)]);
+	});
+
+	test('Should find link within angle brackets even with surrounding spaces.', async () => {
+		const links = await getLinksForFile(joinLines(
+			`[link]( <path> )`
+		));
+		assertLinksEqual(links, [new vscode.Range(0, 9, 0, 13)]);
+	});
+
+	test('Should find link within angle brackets for image hyperlinks.', async () => {
+		const links = await getLinksForFile(joinLines(
+			`![link](<path>)`
+		));
+		assertLinksEqual(links, [new vscode.Range(0, 9, 0, 13)]);
+	});
+
+	test('Should find link with spaces in angle brackets for image hyperlinks with titles.', async () => {
+		const links = await getLinksForFile(joinLines(
+			`![link](< path > "test")`
+		));
+		assertLinksEqual(links, [new vscode.Range(0, 9, 0, 15)]);
+	});
+
+
+	test('Should not find link due to incorrect angle bracket notation or usage.', async () => {
+		const links = await getLinksForFile(joinLines(
+			`[link](<path )`,
+			`[link](<> path>)`,
+			`[link](> path)`,
+		));
+		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should find link within angle brackets even with space inside link.', async () => {
+
+		const links = await getLinksForFile(joinLines(
+			`[link](<pa th>)`
+		));
+
+		assertLinksEqual(links, [new vscode.Range(0, 8, 0, 13)]);
+	});
+
+
 });

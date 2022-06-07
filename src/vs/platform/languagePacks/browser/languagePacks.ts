@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILanguagePackItem, LanguagePackBaseService } from 'vs/platform/languagePacks/common/languagePacks';
 
-export const ILocaleService = createDecorator<ILocaleService>('localizationService');
-
-export interface ILocaleService {
-	readonly _serviceBrand: undefined;
-	setLocale(languagePackItem: string | undefined): Promise<boolean>;
+export class WebLanguagePacksService extends LanguagePackBaseService {
+	// Web doesn't have a concept of language packs, so we just return an empty array
+	getInstalledLanguages(): Promise<ILanguagePackItem[]> {
+		return Promise.resolve([]);
+	}
 }

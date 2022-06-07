@@ -188,6 +188,12 @@ function stripAngleBrackets(link: string) {
 const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
 
 /**
+ * Matches `[text](<link>)`
+ */
+const linkPatternAngle = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*<)(([^<>]|\([^\s\(\)]*?\))+)>\s*(".*?")?\)/g;
+
+
+/**
  * Matches `[text][ref]` or `[shorthand]`
  */
 const referenceLinkPattern = /(^|[^\]\\])(?:(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]|\[\s*?([^\s\]]*?)\])(?![\:\(]))/gm;
@@ -300,11 +306,27 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	private *getInlineLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 
+		for (const match of text.matchAll(linkPatternAngle)) {
+			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
+			if (matchImageData && !noLinkRanges.contains(matchImageData.source.hrefRange)) {
+				yield matchImageData;
+			}
+			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
+			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
+				yield matchLinkData;
+			}
+		}
+
 		for (const match of text.matchAll(linkPattern)) {
 			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
 			if (matchImageData && !noLinkRanges.contains(matchImageData.source.hrefRange)) {
 				yield matchImageData;
 			}
+
+			if (match[5] !== undefined && match[5].startsWith('<')) {
+				continue;
+			}
+
 			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
 			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
 				yield matchLinkData;

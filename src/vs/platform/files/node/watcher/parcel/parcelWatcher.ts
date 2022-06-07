@@ -11,7 +11,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { isEqualOrParent, randomPath } from 'vs/base/common/extpath';
-import { ParsedPattern, patternsEquals } from 'vs/base/common/glob';
+import { GLOBSTAR, ParsedPattern, patternsEquals } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -663,12 +663,17 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		// Only consider requests for watching that are not
 		// a child of an existing request path to prevent
-		// duplication.
+		// duplication. In addition, drop any request where
+		// everything is excluded (via `**` glob).
 		//
 		// However, allow explicit requests to watch folders
 		// that are symbolic links because the Parcel watcher
 		// does not allow to recursively watch symbolic links.
 		for (const request of requests) {
+			if (request.excludes.includes(GLOBSTAR)) {
+				continue; // path is ignored entirely (via `**` glob exclude)
+			}
+
 			if (requestTrie.findSubstr(request.path)) {
 				try {
 					const realpath = realpathSync(request.path);
