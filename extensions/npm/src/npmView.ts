@@ -15,7 +15,7 @@ import * as nls from 'vscode-nls';
 import { readScripts } from './readScripts';
 import {
 	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, INpmTaskDefinition,
-	INpmTaskProvider,
+	NpmTaskProvider,
 	startDebugging,
 	ITaskWithLocation
 } from './tasks';
@@ -139,7 +139,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
 
-	constructor(private context: ExtensionContext, public taskProvider: INpmTaskProvider) {
+	constructor(private context: ExtensionContext, public taskProvider: NpmTaskProvider) {
 		const subscriptions = context.subscriptions;
 		this.extensionContext = context;
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));

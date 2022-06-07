@@ -43,7 +43,7 @@ export interface ITaskWithLocation {
 	location?: Location;
 }
 
-export class INpmTaskProvider implements TaskProvider {
+export class NpmTaskProvider implements TaskProvider {
 
 	constructor(private context: ExtensionContext) {
 	}
