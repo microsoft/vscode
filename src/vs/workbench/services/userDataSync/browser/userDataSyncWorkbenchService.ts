@@ -36,18 +36,10 @@ import { UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/comm
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { CancellationError } from 'vs/base/common/errors';
 
-type UserAccountClassification = {
-	id: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight' };
-	providerId: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight' };
-};
-
 type FirstTimeSyncClassification = {
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-};
-
-type UserAccountEvent = {
-	id: string;
-	providerId: string;
+	owner: 'sandy081';
+	comment: 'Action taken when there are merges while turning on settins sync';
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'action taken turning on sync. Eg: merge, pull, manual or cancel' };
 };
 
 type FirstTimeSyncAction = 'pull' | 'push' | 'merge' | 'manual';
@@ -612,12 +604,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			// accounts are switched while sync is enabled.
 		}
 		this.currentSessionId = sessionId;
-		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: accountId, providerId: authenticationProviderId });
 		await this.update();
 	}
 
 	private async onDidSuccessiveAuthFailures(): Promise<void> {
-		this.telemetryService.publicLog2('sync/successiveAuthFailures');
+		this.telemetryService.publicLog2<{}, { owner: 'sandy081'; comment: 'Report when there are successive auth failures during settings sync' }>('sync/successiveAuthFailures');
 		this.currentSessionId = undefined;
 		await this.update();
 

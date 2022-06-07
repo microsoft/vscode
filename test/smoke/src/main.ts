@@ -137,6 +137,27 @@ function parseVersion(version: string): { major: number; minor: number; patch: n
 	return { major: parseInt(major), minor: parseInt(minor), patch: parseInt(patch) };
 }
 
+function parseQuality(): Quality {
+	if (process.env.VSCODE_DEV === '1') {
+		return Quality.Dev;
+	}
+
+	const quality = process.env.VSCODE_QUALITY ?? '';
+
+	switch (quality) {
+		case 'stable':
+			return Quality.Stable;
+		case 'insider':
+			return Quality.Insiders;
+		case 'exploration':
+			return Quality.Exploration;
+		case 'oss':
+			return Quality.OSS;
+		default:
+			return Quality.Dev;
+	}
+}
+
 //
 // #### Electron Smoke Tests ####
 //
@@ -159,13 +180,7 @@ if (!opts.web) {
 		fail(`Can't find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
 	}
 
-	if (process.env.VSCODE_DEV === '1') {
-		quality = Quality.Dev;
-	} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
-		quality = Quality.Insiders;
-	} else {
-		quality = Quality.Stable;
-	}
+	quality = parseQuality();
 
 	if (opts.remote) {
 		logger.log(`Running desktop remote smoke tests against ${electronPath}`);
@@ -196,12 +211,10 @@ else {
 		logger.log(`Running web smoke out of sources`);
 	}
 
-	if (process.env.VSCODE_DEV === '1') {
-		quality = Quality.Dev;
-	} else {
-		quality = Quality.Insiders;
-	}
+	quality = parseQuality();
 }
+
+logger.log(`VS Code product quality: ${quality}.`);
 
 const userDataDir = path.join(testDataPath, 'd');
 
@@ -373,8 +386,8 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupLanguagesTests(logger);
 	if (opts.web) { setupTerminalTests(logger); } // Tests require playwright driver (https://github.com/microsoft/vscode/issues/146811)
 	setupStatusbarTests(logger);
-	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
+	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
 	setupMultirootTests(logger);
-	if (!opts.web && !opts.remote && quality !== Quality.Dev) { setupLocalizationTests(logger); }
+	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 });

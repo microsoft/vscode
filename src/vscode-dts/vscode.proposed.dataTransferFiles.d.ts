@@ -5,7 +5,16 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/TODO
+	// https://github.com/microsoft/vscode/issues/147481
+
+	enum DataTransferItemKind {
+		String = 1,
+		File = 2,
+	}
+
+	interface DataTransferItem {
+		readonly kind: DataTransferItemKind;
+	}
 
 	/**
 	 * A file associated with a {@linkcode DataTransferItem}.

@@ -264,7 +264,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private unbindModel(): void {
 		if (this._model) {
 			this._updateScheduler.cancel();
-			this._model.deltaDecorations(this._modelDecorations, []);
+			this._model.changeDecorations((accessor) => {
+				this._modelDecorations = accessor.deltaDecorations(this._modelDecorations, []);
+			});
 			this._model = null;
 			this._modelListener!.dispose();
 		}
@@ -335,14 +337,17 @@ export class FileMatch extends Disposable implements IFileMatch {
 			return;
 		}
 
-		if (this.parent().showHighlights) {
-			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, this.matches().map(match => <IModelDeltaDecoration>{
-				range: match.range(),
-				options: FileMatch.getDecorationOption(this.isMatchSelected(match))
-			}));
-		} else {
-			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, []);
-		}
+		this._model.changeDecorations((accessor) => {
+			const newDecorations = (
+				this.parent().showHighlights
+					? this.matches().map(match => <IModelDeltaDecoration>{
+						range: match.range(),
+						options: FileMatch.getDecorationOption(this.isMatchSelected(match))
+					})
+					: []
+			);
+			this._modelDecorations = accessor.deltaDecorations(this._modelDecorations, newDecorations);
+		});
 	}
 
 	id(): string {
@@ -1071,6 +1076,7 @@ export class SearchModel extends Disposable {
 		Promise.race([currentRequest, Event.toPromise(progressEmitter.event)]).finally(() => {
 			/* __GDPR__
 				"searchResultsFirstRender" : {
+					"owner": "roblourens",
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
@@ -1086,6 +1092,7 @@ export class SearchModel extends Disposable {
 		} finally {
 			/* __GDPR__
 				"searchResultsFinished" : {
+					"owner": "roblourens",
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
@@ -1114,6 +1121,7 @@ export class SearchModel extends Disposable {
 
 		/* __GDPR__
 			"searchResultsShown" : {
+				"owner": "roblourens",
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"options": { "${inline}": [ "${IPatternInfo}" ] },
@@ -1222,7 +1230,10 @@ export class RangeHighlightDecorations implements IDisposable {
 
 	removeHighlightRange() {
 		if (this._model && this._decorationId) {
-			this._model.deltaDecorations([this._decorationId], []);
+			const decorationId = this._decorationId;
+			this._model.changeDecorations((accessor) => {
+				accessor.removeDecoration(decorationId);
+			});
 		}
 		this._decorationId = null;
 	}
@@ -1242,7 +1253,9 @@ export class RangeHighlightDecorations implements IDisposable {
 
 	private doHighlightRange(model: ITextModel, range: Range) {
 		this.removeHighlightRange();
-		this._decorationId = model.deltaDecorations([], [{ range: range, options: RangeHighlightDecorations._RANGE_HIGHLIGHT_DECORATION }])[0];
+		model.changeDecorations((accessor) => {
+			this._decorationId = accessor.addDecoration(range, RangeHighlightDecorations._RANGE_HIGHLIGHT_DECORATION);
+		});
 		this.setModel(model);
 	}
 

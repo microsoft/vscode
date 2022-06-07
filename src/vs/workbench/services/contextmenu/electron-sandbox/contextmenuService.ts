@@ -105,15 +105,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				// In areas where zoom is applied to the element or its ancestors, we need to adjust accordingly
 				// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
 				// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Coordinate Multiplier: 1.5 * 1.0 / 1.5 = 1.0
-				let testElement: HTMLElement | null = anchor;
-				do {
-					const elementZoomLevel = (dom.getComputedStyle(testElement) as any).zoom;
-					if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
-						zoom *= elementZoomLevel;
-					}
-
-					testElement = testElement.parentElement;
-				} while (testElement !== null && testElement !== document.documentElement);
+				zoom *= dom.getDomNodeZoomLevel(anchor);
 
 				x = elementPosition.left;
 				y = elementPosition.top + elementPosition.height;

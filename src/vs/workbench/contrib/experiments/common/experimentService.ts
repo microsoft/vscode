@@ -306,6 +306,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			const promises = rawExperiments.map(experiment => this.evaluateExperiment(experiment));
 			return Promise.all(promises).then(() => {
 				type ExperimentsClassification = {
+					owner: 'sbatten';
 					experiments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				};
 				this.telemetryService.publicLog2<{ experiments: string[] }, ExperimentsClassification>('experiments', { experiments: this._experiments.map(e => e.id) });

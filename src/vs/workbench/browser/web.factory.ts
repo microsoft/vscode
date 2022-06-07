@@ -15,6 +15,7 @@ import { asArray } from 'vs/base/common/arrays';
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { IObservableValue } from 'vs/base/common/observableValue';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -91,6 +92,16 @@ export namespace commands {
 		const workbench = await workbenchPromise.p;
 
 		return workbench.commands.executeCommand(command, ...args);
+	}
+}
+
+export namespace logger {
+
+	/**
+	 * {@linkcode IWorkbench.logger IWorkbench.logger.log}
+	 */
+	export function log(level: LogLevel, message: string) {
+		workbenchPromise.p.then(workbench => workbench.logger.log(level, message));
 	}
 }
 

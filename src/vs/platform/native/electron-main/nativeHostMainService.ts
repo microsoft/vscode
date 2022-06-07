@@ -213,10 +213,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async updateTitleBarOverlay(windowId: number | undefined, backgroundColor: string, foregroundColor: string): Promise<void> {
-		if (!isWindows) {
-			return; // Windows only
-		}
-
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			window.win.setTitleBarOverlay({

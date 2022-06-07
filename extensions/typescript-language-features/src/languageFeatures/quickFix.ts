@@ -37,6 +37,7 @@ class ApplyCodeActionCommand implements Command {
 	): Promise<boolean> {
 		/* __GDPR__
 			"quickFix.execute" : {
+				"owner": "mjbvz",
 				"fixName" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
@@ -67,6 +68,7 @@ class ApplyFixAllCodeAction implements Command {
 	public async execute(args: ApplyFixAllCodeAction_args): Promise<void> {
 		/* __GDPR__
 			"quickFixAll.execute" : {
+				"owner": "mjbvz",
 				"fixName" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"

@@ -210,6 +210,9 @@ import 'vs/workbench/contrib/debug/browser/debugViewlet';
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
+// Merge Editor
+import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
+
 // Comments
 import 'vs/workbench/contrib/comments/browser/comments.contribution';
 
@@ -342,8 +345,5 @@ import 'vs/workbench/contrib/list/browser/list.contribution';
 
 // Audio Cues
 import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
-
-// Drop into editor
-import 'vs/workbench/contrib/dropIntoEditor/browser/dropIntoEditor.contibution';
 
 //#endregion

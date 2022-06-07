@@ -67,6 +67,7 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, environment);
 	disposables.push(terminalEnvironmentManager);
 
+	outputChannelLogger.logInfo(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
 	const git = new Git({
 		gitPath: info.path,
@@ -82,8 +83,6 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 	model.onDidCloseRepository(onRepository, null, disposables);
 	onRepository();
 
-	outputChannelLogger.logInfo(localize('using git', "Using git {0} from {1}", info.version, info.path));
-
 	const onOutput = (str: string) => {
 		const lines = str.split(/\r?\n/mg);
 
@@ -91,7 +90,7 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 			lines.pop();
 		}
 
-		outputChannelLogger.logGitCommand(lines.join('\n'));
+		outputChannelLogger.log(lines.join('\n'));
 	};
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
@@ -193,7 +192,9 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		outputChannelLogger.logWarning(err.message);
 
 		/* __GDPR__
-			"git.missing" : {}
+			"git.missing" : {
+				"owner": "lszomoru"
+			}
 		*/
 		telemetryReporter.sendTelemetryEvent('git.missing');
 

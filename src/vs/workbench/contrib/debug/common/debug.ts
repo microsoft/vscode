@@ -24,7 +24,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
@@ -650,10 +650,10 @@ export interface IGlobalConfig {
 
 export interface IEnvConfig {
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
-	preRestartTask?: string | TaskIdentifier;
-	postRestartTask?: string | TaskIdentifier;
-	preLaunchTask?: string | TaskIdentifier;
-	postDebugTask?: string | TaskIdentifier;
+	preRestartTask?: string | ITaskIdentifier;
+	postRestartTask?: string | ITaskIdentifier;
+	preLaunchTask?: string | ITaskIdentifier;
+	postDebugTask?: string | ITaskIdentifier;
 	debugServer?: number;
 	noDebug?: boolean;
 }
@@ -687,7 +687,7 @@ export interface IConfig extends IEnvConfig {
 export interface ICompound {
 	name: string;
 	stopAll?: boolean;
-	preLaunchTask?: string | TaskIdentifier;
+	preLaunchTask?: string | ITaskIdentifier;
 	configurations: (string | { name: string; folder: string })[];
 	presentation?: IConfigPresentation;
 }
@@ -772,6 +772,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	configurationSnippets?: IJSONSchemaSnippet[];
 	variables?: { [key: string]: string };
 	when?: string;
+	uiMessages?: { [key in DebuggerUiMessage]: string };
 }
 
 export interface IBreakpointContribution {
@@ -847,6 +848,10 @@ export interface IConfigurationManager {
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
 }
 
+export enum DebuggerUiMessage {
+	UnverifiedBreakpoints = 'unverifiedBreakpoints'
+}
+
 export interface IAdapterManager {
 
 	onDidRegisterDebugger: Event<void>;
@@ -855,6 +860,7 @@ export interface IAdapterManager {
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 	getDebuggerLabel(type: string): string | undefined;
 	isDebuggerInterestedInLanguage(language: string): boolean;
+	getDebuggerUiMessages(type: string): { [key in DebuggerUiMessage]?: string };
 
 	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;

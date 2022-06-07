@@ -10,7 +10,7 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 import { IModelService } from 'vs/editor/common/services/model';
 
-import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import { ILineMatcher, createLineMatcher, ProblemMatcher, IProblemMatch, ApplyToKind, IWatchingPattern, getResource } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -21,11 +21,11 @@ export const enum ProblemCollectorEventKind {
 	BackgroundProcessingEnds = 'backgroundProcessingEnds'
 }
 
-export interface ProblemCollectorEvent {
+export interface IProblemCollectorEvent {
 	kind: ProblemCollectorEventKind;
 }
 
-namespace ProblemCollectorEvent {
+namespace IProblemCollectorEvent {
 	export function create(kind: ProblemCollectorEventKind) {
 		return Object.freeze({ kind });
 	}
@@ -56,7 +56,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	// [owner] -> [resource] -> number;
 	private deliveredMarkers: Map<string, Map<string, number>>;
 
-	protected _onDidStateChange: Emitter<ProblemCollectorEvent>;
+	protected _onDidStateChange: Emitter<IProblemCollectorEvent>;
 
 	constructor(public readonly problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
 		this.matchers = Object.create(null);
@@ -101,7 +101,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		this._onDidStateChange = new Emitter();
 	}
 
-	public get onDidStateChange(): Event<ProblemCollectorEvent> {
+	public get onDidStateChange(): Event<IProblemCollectorEvent> {
 		return this._onDidStateChange.event;
 	}
 
@@ -130,8 +130,8 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		return this._maxMarkerSeverity;
 	}
 
-	protected tryFindMarker(line: string): ProblemMatch | null {
-		let result: ProblemMatch | null = null;
+	protected tryFindMarker(line: string): IProblemMatch | null {
+		let result: IProblemMatch | null = null;
 		if (this.activeMatcher) {
 			result = this.activeMatcher.next(line);
 			if (result) {
@@ -158,7 +158,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		return result;
 	}
 
-	protected async shouldApplyMatch(result: ProblemMatch): Promise<boolean> {
+	protected async shouldApplyMatch(result: IProblemMatch): Promise<boolean> {
 		switch (result.description.applyTo) {
 			case ApplyToKind.allDocuments:
 				return true;
@@ -178,7 +178,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		return ApplyToKind.allDocuments;
 	}
 
-	private tryMatchers(): ProblemMatch | null {
+	private tryMatchers(): IProblemMatch | null {
 		this.activeMatcher = null;
 		let length = this.buffer.length;
 		for (let startIndex = 0; startIndex < length; startIndex++) {
@@ -200,7 +200,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		return null;
 	}
 
-	private captureMatch(match: ProblemMatch): void {
+	private captureMatch(match: IProblemMatch): void {
 		this._numberOfMatches++;
 		if (this._maxMarkerSeverity === undefined || match.marker.severity > this._maxMarkerSeverity) {
 			this._maxMarkerSeverity = match.marker.severity;
@@ -387,16 +387,16 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 	}
 }
 
-interface BackgroundPatterns {
+interface IBackgroundPatterns {
 	key: string;
 	matcher: ProblemMatcher;
-	begin: WatchingPattern;
-	end: WatchingPattern;
+	begin: IWatchingPattern;
+	end: IWatchingPattern;
 }
 
 export class WatchingProblemCollector extends AbstractProblemCollector implements IProblemMatcher {
 
-	private backgroundPatterns: BackgroundPatterns[];
+	private backgroundPatterns: IBackgroundPatterns[];
 
 	// workaround for https://github.com/microsoft/vscode/issues/44018
 	private _activeBackgroundMatchers: Set<string>;
@@ -450,7 +450,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		for (let background of this.backgroundPatterns) {
 			if (background.matcher.watching && background.matcher.watching.activeOnStart) {
 				this._activeBackgroundMatchers.add(background.key);
-				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
+				this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
 				this.recordResourcesToClean(background.matcher.owner);
 			}
 		}
@@ -496,7 +496,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				result = true;
 				this.lines = [];
 				this.lines.push(line);
-				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
+				this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
 				this.cleanMarkerCaches();
 				this.resetCurrentResource();
 				let owner = background.matcher.owner;
@@ -520,7 +520,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				if (this._activeBackgroundMatchers.has(background.key)) {
 					this._activeBackgroundMatchers.delete(background.key);
 					this.resetCurrentResource();
-					this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
+					this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
 					result = true;
 					this.lines.push(line);
 					let owner = background.matcher.owner;

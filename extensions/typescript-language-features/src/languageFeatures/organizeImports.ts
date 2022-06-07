@@ -32,6 +32,7 @@ class OrganizeImportsCommand implements Command {
 	public async execute(file: string, sortOnly = false): Promise<any> {
 		/* __GDPR__
 			"organizeImports.execute" : {
+				"owner": "mjbvz",
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				]

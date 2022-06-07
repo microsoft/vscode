@@ -16,16 +16,19 @@ import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
 import { assertRangeEqual, joinLines, workspacePath } from './util';
 
 
-function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: MdWorkspaceContents) {
+async function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: MdWorkspaceContents): Promise<vscode.Diagnostic[]> {
 	const engine = createNewMarkdownEngine();
 	const linkProvider = new MdLinkProvider(engine);
 	const computer = new DiagnosticComputer(engine, workspaceContents, linkProvider);
-	return computer.getDiagnostics(doc, {
-		enabled: true,
-		validateFilePaths: DiagnosticLevel.warning,
-		validateOwnHeaders: DiagnosticLevel.warning,
-		validateReferences: DiagnosticLevel.warning,
-	}, noopToken);
+	return (
+		await computer.getDiagnostics(doc, {
+			enabled: true,
+			validateFilePaths: DiagnosticLevel.warning,
+			validateOwnHeaders: DiagnosticLevel.warning,
+			validateReferences: DiagnosticLevel.warning,
+			ignoreLinks: [],
+		}, noopToken)
+	).diagnostics;
 }
 
 function createDiagnosticsManager(workspaceContents: MdWorkspaceContents, configuration = new MemoryDiagnosticConfiguration()) {
@@ -41,6 +44,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 
 	constructor(
 		private readonly enabled: boolean = true,
+		private readonly ignoreLinks: string[] = [],
 	) { }
 
 	getOptions(_resource: vscode.Uri): DiagnosticOptions {
@@ -50,6 +54,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 				validateFilePaths: DiagnosticLevel.ignore,
 				validateOwnHeaders: DiagnosticLevel.ignore,
 				validateReferences: DiagnosticLevel.ignore,
+				ignoreLinks: this.ignoreLinks,
 			};
 		}
 		return {
@@ -57,6 +62,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 			validateFilePaths: DiagnosticLevel.warning,
 			validateOwnHeaders: DiagnosticLevel.warning,
 			validateReferences: DiagnosticLevel.warning,
+			ignoreLinks: this.ignoreLinks,
 		};
 	}
 }
@@ -155,7 +161,124 @@ suite('markdown: Diagnostics', () => {
 		));
 
 		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(false));
-		const diagnostics = await manager.getDiagnostics(doc1, noopToken);
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('Should not generate diagnostics for email autolink', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`a <user@example.com> c`,
+		));
+
+		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1]));
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('Should not generate diagnostics for html tag that looks like an autolink', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`a <tag>b</tag> c`,
+			`a <scope:tag>b</scope:tag> c`,
+		));
+
+		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1]));
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('Should allow ignoring invalid file link using glob', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`[text](/no-such-file)`,
+			`![img](/no-such-file)`,
+			`[text]: /no-such-file`,
+		));
+
+		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['/no-such-file']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('ignoreLinks should allow skipping link to non-existent file', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`[text](/no-such-file#header)`,
+		));
+
+		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['/no-such-file']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('ignoreLinks should not consider link fragment', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`[text](/no-such-file#header)`,
+		));
+
+		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['/no-such-file']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('ignoreLinks should support globs', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`![i](/images/aaa.png)`,
+			`![i](/images/sub/bbb.png)`,
+			`![i](/images/sub/sub2/ccc.png)`,
+		));
+
+		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['/images/**/*.png']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('ignoreLinks should support ignoring header', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`![i](#no-such)`,
+		));
+
+		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['#no-such']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('ignoreLinks should support ignoring header in file', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`![i](/doc2.md#no-such)`,
+		));
+		const doc2 = new InMemoryDocument(workspacePath('doc2.md'), joinLines(''));
+
+		const contents = new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]);
+		{
+			const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration(true, ['/doc2.md#no-such']));
+			const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+			assert.deepStrictEqual(diagnostics.length, 0);
+		}
+		{
+			const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration(true, ['/doc2.md#*']));
+			const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+			assert.deepStrictEqual(diagnostics.length, 0);
+		}
+	});
+
+	test('ignoreLinks should support ignore header links if file is ignored', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`![i](/doc2.md#no-such)`,
+		));
+		const doc2 = new InMemoryDocument(workspacePath('doc2.md'), joinLines(''));
+
+		const contents = new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]);
+		const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration(true, ['/doc2.md']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('Should not detect checkboxes as invalid links', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`- [x]`,
+			`- [X]`,
+			`- [ ]`,
+		));
+
+		const contents = new InMemoryWorkspaceMarkdownDocuments([doc1]);
+		const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration(true, ['/doc2.md']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
 });

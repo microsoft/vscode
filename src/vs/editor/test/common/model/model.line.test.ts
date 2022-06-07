@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { MetadataConsts } from 'vs/editor/common/languages';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { TestLineToken, TestLineTokenFactory } from 'vs/editor/test/common/core/testLineToken';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 

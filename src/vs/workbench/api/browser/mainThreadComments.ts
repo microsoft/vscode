@@ -136,6 +136,10 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		this._onDidChangeState.fire(this._state);
 	}
 
+	public get isTemplate(): boolean {
+		return this._isTemplate;
+	}
+
 	private readonly _onDidChangeState = new Emitter<languages.CommentThreadState | undefined>();
 	public onDidChangeState = this._onDidChangeState.event;
 
@@ -146,7 +150,8 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		public threadId: string,
 		public resource: string,
 		private _range: T,
-		private _canReply: boolean
+		private _canReply: boolean,
+		private _isTemplate: boolean
 	) {
 		this._isDisposed = false;
 	}
@@ -162,6 +167,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }
 		if (modified('state')) { this.state = changes.state!; }
+		if (modified('isTemplate')) { this._isTemplate = changes.isTemplate!; }
 	}
 
 	dispose() {
@@ -244,6 +250,7 @@ export class MainThreadCommentController {
 		threadId: string,
 		resource: UriComponents,
 		range: IRange | ICellRange,
+		isTemplate: boolean
 	): languages.CommentThread<IRange | ICellRange> {
 		let thread = new MainThreadCommentThread(
 			commentThreadHandle,
@@ -252,7 +259,8 @@ export class MainThreadCommentController {
 			threadId,
 			URI.revive(resource).toString(),
 			range,
-			true
+			true,
+			isTemplate
 		);
 
 		this._threads.set(commentThreadHandle, thread);
@@ -523,7 +531,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		threadId: string,
 		resource: UriComponents,
 		range: IRange | ICellRange,
-		extensionId: ExtensionIdentifier
+		extensionId: ExtensionIdentifier,
+		isTemplate: boolean
 	): languages.CommentThread<IRange | ICellRange> | undefined {
 		let provider = this._commentControllers.get(handle);
 
@@ -531,7 +540,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			return undefined;
 		}
 
-		return provider.createCommentThread(extensionId.value, commentThreadHandle, threadId, resource, range);
+		return provider.createCommentThread(extensionId.value, commentThreadHandle, threadId, resource, range, isTemplate);
 	}
 
 	$updateCommentThread(handle: number,

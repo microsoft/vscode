@@ -11,6 +11,7 @@
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enabledApiProposals": [
     "diffCommand",
+    "contribMergeEditorToolbar",
     "contribViewsWelcome",
     "scmActionButton",
     "scmSelectedProvider",
@@ -22,7 +23,8 @@
   ],
   "activationEvents": [
     "*",
-    "onFileSystem:git"
+    "onFileSystem:git",
+    "onFileSystem:git-show"
   ],
   "extensionDependencies": [
     "vscode.git-base"
@@ -460,6 +462,21 @@
         "category": "Git"
       },
       {
+        "command": "git.revealFileInOS.linux",
+        "title": "%command.revealFileInOS.linux%",
+        "category": "Git"
+      },
+      {
+        "command": "git.revealFileInOS.mac",
+        "title": "%command.revealFileInOS.mac%",
+        "category": "Git"
+      },
+      {
+        "command": "git.revealFileInOS.windows",
+        "title": "%command.revealFileInOS.windows%",
+        "category": "Git"
+      },
+      {
         "command": "git.stashIncludeUntracked",
         "title": "%command.stashIncludeUntracked%",
         "category": "Git"
@@ -549,6 +566,11 @@
         "command": "git.api.getRemoteSources",
         "title": "%command.api.getRemoteSources%",
         "category": "Git API"
+      },
+      {
+        "command": "git.acceptMerge",
+        "title": "%command.git.acceptMerge%",
+        "category": "Git"
       }
     ],
     "keybindings": [
@@ -759,6 +781,18 @@
         },
         {
           "command": "git.revealInExplorer",
+          "when": "false"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "false"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "false"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
           "when": "false"
         },
         {
@@ -1211,7 +1245,22 @@
         {
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == merge",
-          "group": "2_view"
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isLinux",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isMac",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
+          "when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isWindows",
+          "group": "2_view@2"
         },
         {
           "command": "git.openFile2",
@@ -1251,7 +1300,22 @@
         {
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == index",
-          "group": "2_view"
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isLinux",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isMac",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
+          "when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isWindows",
+          "group": "2_view@2"
         },
         {
           "command": "git.openFile2",
@@ -1316,7 +1380,22 @@
         {
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "2_view"
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isLinux",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isMac",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isWindows",
+          "group": "2_view@2"
         },
         {
           "command": "git.openChange",
@@ -1416,6 +1495,12 @@
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
           "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        }
+      ],
+      "merge/toolbar": [
+        {
+          "command": "git.acceptMerge",
+          "when": "isMergeEditor"
         }
       ],
       "scm/change/title": [
@@ -1777,6 +1862,37 @@
           "markdownDescription": "%config.autofetchPeriod%",
           "default": 180
         },
+        "git.branchPrefix": {
+          "type": "string",
+          "description": "%config.branchPrefix%",
+          "default": "",
+          "scope": "resource"
+        },
+        "git.branchProtection": {
+          "type": "array",
+          "markdownDescription": "%config.branchProtection%",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource"
+        },
+        "git.branchProtectionPrompt": {
+          "type": "string",
+          "description": "%config.branchProtectionPrompt%",
+          "enum": [
+            "alwaysCommit",
+            "alwaysCommitToNewBranch",
+            "alwaysPrompt"
+          ],
+          "enumDescriptions": [
+            "%config.branchProtectionPrompt.alwaysCommit%",
+            "%config.branchProtectionPrompt.alwaysCommitToNewBranch%",
+            "%config.branchProtectionPrompt.alwaysPrompt%"
+          ],
+          "default": "alwaysPrompt",
+          "scope": "resource"
+        },
         "git.branchValidationRegex": {
           "type": "string",
           "description": "%config.branchValidationRegex%",
@@ -1786,6 +1902,38 @@
           "type": "string",
           "description": "%config.branchWhitespaceChar%",
           "default": "-"
+        },
+        "git.branchRandomName.enable": {
+          "type": "boolean",
+          "description": "%config.branchRandomNameEnable%",
+          "default": false,
+          "scope": "resource"
+        },
+        "git.branchRandomName.dictionary": {
+          "type": "array",
+          "markdownDescription": "%config.branchRandomNameDictionary%",
+          "items": {
+            "type": "string",
+            "enum": [
+              "adjectives",
+              "animals",
+              "colors",
+              "numbers"
+            ],
+            "enumDescriptions": [
+              "%config.branchRandomNameDictionary.adjectives%",
+              "%config.branchRandomNameDictionary.animals%",
+              "%config.branchRandomNameDictionary.colors%",
+              "%config.branchRandomNameDictionary.numbers%"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 5,
+          "default": [
+            "adjectives",
+            "animals"
+          ],
+          "scope": "resource"
         },
         "git.confirmSync": {
           "type": "boolean",
@@ -2311,6 +2459,15 @@
           ],
           "markdownDescription": "%config.logLevel%",
           "scope": "window"
+        },
+        "git.experimental.mergeEditor": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.experimental.mergeEditor%",
+          "scope": "window",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
@@ -2321,7 +2478,7 @@
         "defaults": {
           "light": "#587c0c",
           "dark": "#81b88b",
-          "highContrast": "#1b5225",
+          "highContrast": "#a1e3ad",
           "highContrastLight": "#374e06"
         }
       },
@@ -2503,11 +2660,13 @@
     ]
   },
   "dependencies": {
+    "@joaomoreno/unique-names-generator": "5.0.0",
     "@vscode/extension-telemetry": "0.4.10",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
     "jschardet": "3.0.0",
+    "picomatch": "2.3.1",
     "vscode-nls": "^4.0.0",
     "vscode-uri": "^2.0.0",
     "which": "^1.3.0"
@@ -2517,6 +2676,7 @@
     "@types/file-type": "^5.2.1",
     "@types/mocha": "^9.1.1",
     "@types/node": "16.x",
+    "@types/picomatch": "2.3.0",
     "@types/which": "^1.0.28"
   },
   "repository": {
