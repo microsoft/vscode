@@ -12,6 +12,10 @@ import { IWorkspace, IWorkspaceIdentifier } from 'vs/platform/workspace/common/w
 
 export class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
+
+	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		throw new Error('Method not implemented.');
+	}
 	getUriLabel(resource: URI, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined }): string {
 		return normalize(resource.fsPath);
 	}
