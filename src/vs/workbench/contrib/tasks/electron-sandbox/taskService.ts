@@ -10,7 +10,7 @@ import { ITaskSystem } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { ExecutionEngine } from 'vs/workbench/contrib/tasks/common/tasks';
 import * as TaskConfig from '../common/taskConfiguration';
 import { AbstractTaskService } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
-import { TaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { TerminalTaskSystem } from 'vs/workbench/contrib/tasks/browser/terminalTaskSystem';
 import { IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -44,9 +44,9 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
-interface WorkspaceFolderConfigurationResult {
+interface IWorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
-	config: TaskConfig.ExternalTaskRunnerConfiguration | undefined;
+	config: TaskConfig.IExternalTaskRunnerConfiguration | undefined;
 	hasErrors: boolean;
 }
 
@@ -133,7 +133,7 @@ export class TaskService extends AbstractTaskService {
 		return this._taskSystem;
 	}
 
-	protected computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<WorkspaceFolderConfigurationResult> {
+	protected computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<IWorkspaceFolderConfigurationResult> {
 		let { config, hasParseErrors } = this.getConfiguration(workspaceFolder);
 		if (hasParseErrors) {
 			return Promise.resolve({ workspaceFolder: workspaceFolder, hasErrors: true, config: undefined });
@@ -145,7 +145,7 @@ export class TaskService extends AbstractTaskService {
 		}
 	}
 
-	protected versionAndEngineCompatible(filter?: TaskFilter): boolean {
+	protected versionAndEngineCompatible(filter?: ITaskFilter): boolean {
 		let range = filter && filter.version ? filter.version : undefined;
 		let engine = this.executionEngine;
 

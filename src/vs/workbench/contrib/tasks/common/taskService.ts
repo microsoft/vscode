@@ -10,12 +10,12 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent, TaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskSummary, TaskTerminateResponse, TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
+import { Task, ContributedTask, CustomTask, ITaskSet, TaskSorter, ITaskEvent, ITaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-export { ITaskSummary, Task, TaskTerminateResponse };
+export { ITaskSummary, Task, ITaskTerminateResponse as TaskTerminateResponse };
 
 export const CustomExecutionSupportedContext = new RawContextKey<boolean>('customExecutionSupported', true, nls.localize('tasks.customExecutionSupported', "Whether CustomExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
 export const ShellExecutionSupportedContext = new RawContextKey<boolean>('shellExecutionSupported', false, nls.localize('tasks.shellExecutionSupported', "Whether ShellExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
@@ -24,57 +24,57 @@ export const ProcessExecutionSupportedContext = new RawContextKey<boolean>('proc
 export const ITaskService = createDecorator<ITaskService>('taskService');
 
 export interface ITaskProvider {
-	provideTasks(validTypes: IStringDictionary<boolean>): Promise<TaskSet>;
+	provideTasks(validTypes: IStringDictionary<boolean>): Promise<ITaskSet>;
 	resolveTask(task: ConfiguringTask): Promise<ContributedTask | undefined>;
 }
 
-export interface ProblemMatcherRunOptions {
+export interface IProblemMatcherRunOptions {
 	attachProblemMatcher?: boolean;
 }
 
-export interface CustomizationProperties {
+export interface ICustomizationProperties {
 	group?: string | { kind?: string; isDefault?: boolean };
 	problemMatcher?: string | string[];
 	isBackground?: boolean;
 }
 
-export interface TaskFilter {
+export interface ITaskFilter {
 	version?: string;
 	type?: string;
 }
 
-interface WorkspaceTaskResult {
-	set: TaskSet | undefined;
+interface IWorkspaceTaskResult {
+	set: ITaskSet | undefined;
 	configurations: {
 		byIdentifier: IStringDictionary<ConfiguringTask>;
 	} | undefined;
 	hasErrors: boolean;
 }
 
-export interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
+export interface IWorkspaceFolderTaskResult extends IWorkspaceTaskResult {
 	workspaceFolder: IWorkspaceFolder;
 }
 
 export interface ITaskService {
 	readonly _serviceBrand: undefined;
-	onDidStateChange: Event<TaskEvent>;
+	onDidStateChange: Event<ITaskEvent>;
 	supportsMultipleTaskExecutions: boolean;
 
 	configureAction(): Action;
-	run(task: Task | undefined, options?: ProblemMatcherRunOptions): Promise<ITaskSummary | undefined>;
+	run(task: Task | undefined, options?: IProblemMatcherRunOptions): Promise<ITaskSummary | undefined>;
 	inTerminal(): boolean;
 	getActiveTasks(): Promise<Task[]>;
 	getBusyTasks(): Promise<Task[]>;
-	terminate(task: Task): Promise<TaskTerminateResponse>;
-	tasks(filter?: TaskFilter): Promise<Task[]>;
+	terminate(task: Task): Promise<ITaskTerminateResponse>;
+	tasks(filter?: ITaskFilter): Promise<Task[]>;
 	taskTypes(): string[];
-	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>>;
+	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, IWorkspaceFolderTaskResult>>;
 	readRecentTasks(): Promise<(Task | ConfiguringTask)[]>;
 	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
-	getTask(workspaceFolder: IWorkspace | IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): Promise<Task | undefined>;
+	getTask(workspaceFolder: IWorkspace | IWorkspaceFolder | string, alias: string | ITaskIdentifier, compareId?: boolean): Promise<Task | undefined>;
 	tryResolveTask(configuringTask: ConfiguringTask): Promise<Task | undefined>;
 	createSorter(): TaskSorter;
 
@@ -84,7 +84,7 @@ export interface ITaskService {
 
 	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 
-	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
+	registerTaskSystem(scheme: string, taskSystemInfo: ITaskSystemInfo): void;
 	onDidChangeTaskSystemInfo: Event<void>;
 	readonly hasTaskSystemInfo: boolean;
 	registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): void;

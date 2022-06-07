@@ -9,7 +9,7 @@ import { TerminateResponse } from 'vs/base/common/processes';
 import { Event } from 'vs/base/common/event';
 import { Platform } from 'vs/base/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Task, TaskEvent, KeyedTaskIdentifier } from './tasks';
+import { Task, ITaskEvent, KeyedTaskIdentifier } from './tasks';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export const enum TaskErrors {
@@ -69,11 +69,11 @@ export interface ITaskResolver {
 	resolve(uri: URI | string, identifier: string | KeyedTaskIdentifier | undefined): Promise<Task | undefined>;
 }
 
-export interface TaskTerminateResponse extends TerminateResponse {
+export interface ITaskTerminateResponse extends TerminateResponse {
 	task: Task | undefined;
 }
 
-export interface ResolveSet {
+export interface IResolveSet {
 	process?: {
 		name: string;
 		cwd?: string;
@@ -82,25 +82,25 @@ export interface ResolveSet {
 	variables: Set<string>;
 }
 
-export interface ResolvedVariables {
+export interface IResolvedVariables {
 	process?: string;
 	variables: Map<string, string>;
 }
 
-export interface TaskSystemInfo {
+export interface ITaskSystemInfo {
 	platform: Platform;
 	context: any;
 	uriProvider: (this: void, path: string) => URI;
-	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables | undefined>;
+	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: IResolveSet, target: ConfigurationTarget): Promise<IResolvedVariables | undefined>;
 	findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;
 }
 
-export interface TaskSystemInfoResolver {
-	(workspaceFolder: IWorkspaceFolder | undefined): TaskSystemInfo | undefined;
+export interface ITaskSystemInfoResolver {
+	(workspaceFolder: IWorkspaceFolder | undefined): ITaskSystemInfo | undefined;
 }
 
 export interface ITaskSystem {
-	onDidStateChange: Event<TaskEvent>;
+	onDidStateChange: Event<ITaskEvent>;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	rerun(): ITaskExecuteResult | undefined;
 	isActive(): Promise<boolean>;
@@ -109,8 +109,8 @@ export interface ITaskSystem {
 	getLastInstance(task: Task): Task | undefined;
 	getBusyTasks(): Task[];
 	canAutoTerminate(): boolean;
-	terminate(task: Task): Promise<TaskTerminateResponse>;
-	terminateAll(): Promise<TaskTerminateResponse[]>;
+	terminate(task: Task): Promise<ITaskTerminateResponse>;
+	terminateAll(): Promise<ITaskTerminateResponse[]>;
 	revealTask(task: Task): boolean;
 	customExecutionComplete(task: Task, result: number): Promise<void>;
 	isTaskVisible(task: Task): boolean;
