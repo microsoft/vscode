@@ -528,6 +528,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						dependency.uri.toString()
 					));
 					this.showOutput();
+					return Promise.reject(promises);
 				}
 			}
 		}
