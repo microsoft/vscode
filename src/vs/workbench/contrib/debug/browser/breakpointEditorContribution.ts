@@ -97,7 +97,7 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 
 			return undefined;
 		})
-			.filter(messages => !!messages)[0];
+			.find(messages => !!messages);
 	}
 
 	if (message) {
