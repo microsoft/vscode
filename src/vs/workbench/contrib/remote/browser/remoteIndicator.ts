@@ -306,7 +306,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 			return;
 		}
-		// show when in a virtual workspace
+		// Show when in a virtual workspace
 		if (this.virtualWorkspaceLocation) {
 			// Workspace with label: indicate editing source
 			const workspaceLabel = this.labelService.getHostLabel(this.virtualWorkspaceLocation.scheme, this.virtualWorkspaceLocation.authority);
@@ -330,8 +330,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				return;
 			}
 		}
-		// Remote actions: offer menu
-		if (this.getRemoteMenuActions().length > 0) {
+		// Show when there are commands other than the 'install additional remote extensions' command.
+		if (this.hasRemoteMenuCommands(true)) {
 			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
 			return;
 		}
@@ -343,7 +343,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private renderRemoteStatusIndicator(text: string, tooltip?: string | IMarkdownString, command?: string, showProgress?: boolean): void {
 		const name = nls.localize('remoteHost', "Remote Host");
-		if (typeof command !== 'string' && this.getRemoteMenuActions().length > 0) {
+		if (typeof command !== 'string' && (this.hasRemoteMenuCommands(false))) {
 			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
 		}
 
@@ -492,5 +492,16 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		quickPick.onDidHide(itemUpdater.dispose);
 
 		quickPick.show();
+	}
+
+	private hasRemoteMenuCommands(ignoreInstallAdditional: boolean): boolean {
+		if (this.remoteAuthority !== undefined || this.virtualWorkspaceLocation !== undefined) {
+			if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
+				return true;
+			}
+		} else if (!ignoreInstallAdditional && this.extensionGalleryService.isEnabled()) {
+			return true;
+		}
+		return this.getRemoteMenuActions().length > 0;
 	}
 }
