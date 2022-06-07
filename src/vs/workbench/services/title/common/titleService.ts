@@ -24,6 +24,16 @@ export interface ITitleService {
 	readonly onMenubarVisibilityChange: Event<boolean>;
 
 	/**
+	 *  Title menu is visible
+	 */
+	readonly isCommandCenterVisible: boolean;
+
+	/**
+	 * An event when the title menu is enabled/disabled
+	 */
+	readonly onDidChangeTitleMenuVisibility: Event<void>;
+
+	/**
 	 * Update some environmental title properties.
 	 */
 	updateProperties(properties: ITitleProperties): void;

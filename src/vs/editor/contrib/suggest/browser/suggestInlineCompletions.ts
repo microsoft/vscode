@@ -11,22 +11,35 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
+import { Command, CompletionItemProvider, CompletionTriggerKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CompletionItemInsertTextRule } from 'vs/editor/common/standalone/standaloneEnums';
 import { CompletionModel, LineContext } from 'vs/editor/contrib/suggest/browser/completionModel';
-import { CompletionItemModel, provideSuggestionItems, QuickSuggestionsOptions } from 'vs/editor/contrib/suggest/browser/suggest';
+import { CompletionItem, CompletionItemModel, CompletionOptions, provideSuggestionItems, QuickSuggestionsOptions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-class InlineCompletionResults extends RefCountedDisposable implements InlineCompletions {
+class SuggestInlineCompletion implements InlineCompletion {
+
+	constructor(
+		readonly range: IRange,
+		readonly insertText: string | { snippet: string },
+		readonly filterText: string,
+		readonly additionalTextEdits: ISingleEditOperation[] | undefined,
+		readonly command: Command | undefined,
+		readonly completion: CompletionItem,
+	) { }
+}
+
+class InlineCompletionResults extends RefCountedDisposable implements InlineCompletions<SuggestInlineCompletion> {
 
 	constructor(
 		readonly model: ITextModel,
@@ -41,12 +54,14 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 
 	canBeReused(model: ITextModel, line: number, word: IWordAtPosition) {
 		return this.model === model // same model
-			&& this.line === line && this.word.startColumn === word.startColumn && this.word.endColumn < word.endColumn // same word
+			&& this.line === line
+			&& this.word.word.length > 0
+			&& this.word.startColumn === word.startColumn && this.word.endColumn < word.endColumn // same word
 			&& this.completionModel.incomplete.size === 0; // no incomplete results
 	}
 
-	get items(): InlineCompletion[] {
-		const result: InlineCompletion[] = [];
+	get items(): SuggestInlineCompletion[] {
+		const result: SuggestInlineCompletion[] = [];
 
 		// Split items by preselected index. This ensures the memory-selected item shows first and that better/worst
 		// ranked items are before/after
@@ -54,6 +69,8 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 		const selectedIndex = this._suggestMemoryService.select(this.model, { lineNumber: this.line, column: this.word.endColumn + this.completionModel.lineContext.characterCountDelta }, items);
 		const first = Iterable.slice(items, selectedIndex);
 		const second = Iterable.slice(items, 0, selectedIndex);
+
+		let resolveCount = 5;
 
 		for (const item of Iterable.concat(first, second)) {
 
@@ -70,20 +87,26 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 				? { snippet: item.completion.insertText }
 				: item.completion.insertText;
 
-			result.push({
+			result.push(new SuggestInlineCompletion(
 				range,
-				filterText: item.filterTextLow ?? item.labelLow,
 				insertText,
-				command: item.completion.command,
-				additionalTextEdits: item.completion.additionalTextEdits
-			});
+				item.filterTextLow ?? item.labelLow,
+				item.completion.additionalTextEdits,
+				item.completion.command,
+				item
+			));
+
+			// resolve the first N suggestions eagerly
+			if (resolveCount-- >= 0) {
+				item.resolve(CancellationToken.None);
+			}
 		}
 		return result;
 	}
 }
 
 
-class SuggestInlineCompletions implements InlineCompletionsProvider<InlineCompletionResults> {
+export class SuggestInlineCompletions implements InlineCompletionsProvider<InlineCompletionResults> {
 
 	private _lastResult?: InlineCompletionResults;
 
@@ -106,23 +129,40 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 			return;
 		}
 
-		model.tokenizeIfCheap(position.lineNumber);
-		const lineTokens = model.getLineTokens(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
 		const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(position.column - 1 - 1, 0)));
 		if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'inline') {
 			// quick suggest is off (for this token)
 			return undefined;
 		}
 
-		const wordInfo = model.getWordAtPosition(position);
-		if (!wordInfo || wordInfo.word.length === 0 || wordInfo.endColumn !== position.column) {
-			// not without true prefix, not inside word
+		// We consider non-empty leading words and trigger characters. The latter only
+		// when no word is being typed (word characters superseed trigger characters)
+		let wordInfo = model.getWordAtPosition(position);
+		let triggerCharacterInfo: { ch: string; providers: Set<CompletionItemProvider> } | undefined;
+
+		if (!wordInfo?.word) {
+			triggerCharacterInfo = this._getTriggerCharacterInfo(model, position);
+		}
+
+		if (!wordInfo?.word && !triggerCharacterInfo) {
+			// not at word, not a trigger character
+			return;
+		}
+
+		// ensure that we have word information and that we are at the end of a word
+		// otherwise we stop because we don't want to do quick suggestions inside words
+		if (!wordInfo) {
+			wordInfo = model.getWordUntilPosition(position);
+		}
+		if (wordInfo.endColumn !== position.column) {
 			return;
 		}
 
 		let result: InlineCompletionResults;
 		const leadingLineContents = model.getValueInRange(new Range(position.lineNumber, 1, position.lineNumber, position.column));
-		if (this._lastResult?.canBeReused(model, position.lineNumber, wordInfo)) {
+		if (!triggerCharacterInfo && this._lastResult?.canBeReused(model, position.lineNumber, wordInfo)) {
 			// reuse a previous result iff possible, only a refilter is needed
 			// TODO@jrieken this can be improved further and only incomplete results can be updated
 			// console.log(`REUSE with ${wordInfo.word}`);
@@ -136,8 +176,8 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 			const completions = await provideSuggestionItems(
 				this._languageFeatureService.completionProvider,
 				model, position,
-				undefined,
-				undefined,
+				new CompletionOptions(undefined, undefined, triggerCharacterInfo?.providers),
+				triggerCharacterInfo && { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: triggerCharacterInfo.ch },
 				token
 			);
 
@@ -153,6 +193,7 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 				WordDistance.None,
 				this._getEditorOption(EditorOption.suggest, model),
 				this._getEditorOption(EditorOption.snippetSuggestions, model),
+				{ boostFullMatch: false, firstMatchCanBeWeak: false },
 				clipboardText
 			);
 			result = new InlineCompletionResults(model, position.lineNumber, wordInfo, completionModel, completions, this._suggestMemoryService);
@@ -162,8 +203,26 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 		return result;
 	}
 
+	handleItemDidShow(_completions: InlineCompletionResults, item: SuggestInlineCompletion): void {
+		item.completion.resolve(CancellationToken.None);
+	}
+
 	freeInlineCompletions(result: InlineCompletionResults): void {
 		result.release();
+	}
+
+	private _getTriggerCharacterInfo(model: ITextModel, position: IPosition) {
+		const ch = model.getValueInRange(Range.fromPositions({ lineNumber: position.lineNumber, column: position.column - 1 }, position));
+		const providers = new Set<CompletionItemProvider>();
+		for (const provider of this._languageFeatureService.completionProvider.all(model)) {
+			if (provider.triggerCharacters?.includes(ch)) {
+				providers.add(provider);
+			}
+		}
+		if (providers.size === 0) {
+			return undefined;
+		}
+		return { providers, ch };
 	}
 }
 

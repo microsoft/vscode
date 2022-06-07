@@ -120,8 +120,12 @@ export class ExplorerItem {
 		this._isExcluded = value;
 	}
 
-	get hasChildren() {
-		return this.isDirectory || this.hasNests;
+	hasChildren(filter: (stat: ExplorerItem) => boolean): boolean {
+		if (this.hasNests) {
+			return this.nestedChildren?.some(c => filter(c)) ?? false;
+		} else {
+			return this.isDirectory;
+		}
 	}
 
 	get hasNests() {
@@ -184,7 +188,7 @@ export class ExplorerItem {
 	}
 
 	getId(): string {
-		return this.resource.toString();
+		return this.root.resource.toString() + '::' + this.resource.toString();
 	}
 
 	toString(): string {
@@ -298,7 +302,7 @@ export class ExplorerItem {
 	}
 
 	fetchChildren(sortOrder: SortOrder): ExplorerItem[] | Promise<ExplorerItem[]> {
-		const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.experimental.fileNesting;
+		const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.fileNesting;
 
 		// fast path when the children can be resolved sync
 		if (nestingConfig.enabled && this.nestedChildren) {
@@ -369,12 +373,15 @@ export class ExplorerItem {
 	private _fileNester: ExplorerFileNestingTrie | undefined;
 	private get fileNester(): ExplorerFileNestingTrie {
 		if (!this.root._fileNester) {
-			const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.experimental.fileNesting;
+			const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.fileNesting;
 			const patterns = Object.entries(nestingConfig.patterns)
 				.filter(entry =>
 					typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
 				.map(([parentPattern, childrenPatterns]) =>
-					[parentPattern.trim(), childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))] as [string, string[]]);
+					[
+						this.getPlatformAwareName(parentPattern.trim()),
+						childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))
+					] as [string, string[]]);
 
 			this.root._fileNester = new ExplorerFileNestingTrie(patterns);
 		}

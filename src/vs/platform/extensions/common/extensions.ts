@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
@@ -320,6 +321,8 @@ export interface IExtension {
 	readonly targetPlatform: TargetPlatform;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
+	readonly isValid: boolean;
+	readonly validations: readonly [Severity, string][];
 }
 
 /**

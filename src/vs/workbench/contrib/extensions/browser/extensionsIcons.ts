@@ -26,6 +26,7 @@ export const installCountIcon = registerIcon('extensions-install-count', Codicon
 export const ratingIcon = registerIcon('extensions-rating', Codicon.star, localize('ratingIcon', 'Icon shown along with the rating in the extensions view and editor.'));
 export const verifiedPublisherIcon = registerIcon('extensions-verified-publisher', Codicon.verifiedFilled, localize('verifiedPublisher', 'Icon used for the verified extension publisher in the extensions view and editor.'));
 export const preReleaseIcon = registerIcon('extensions-pre-release', Codicon.versions, localize('preReleaseIcon', 'Icon shown for extensions having pre-release versions in extensions view and editor.'));
+export const sponsorIcon = registerIcon('extensions-sponsor', Codicon.heart, localize('sponsorIcon', 'Icon used for sponsoring extensions in the extensions view and editor.'));
 
 export const starFullIcon = registerIcon('extensions-star-full', Codicon.starFull, localize('starFullIcon', 'Full star icon used for the rating in the extensions editor.'));
 export const starHalfIcon = registerIcon('extensions-star-half', Codicon.starHalf, localize('starHalfIcon', 'Half star icon used for the rating in the extensions editor.'));

@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostWebview, ExtHostWebviews, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
+import { ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from 'vs/workbench/api/common/extHostWebview';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewBadge } from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
@@ -173,7 +173,7 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		this._viewProviders.set(viewType, { provider, extension });
 		this._proxy.$registerWebviewViewProvider(toExtensionData(extension), viewType, {
 			retainContextWhenHidden: webviewOptions?.retainContextWhenHidden,
-			serializeBuffersForPostMessage: false,
+			serializeBuffersForPostMessage: shouldSerializeBuffersForPostMessage(extension),
 		});
 
 		return new extHostTypes.Disposable(() => {

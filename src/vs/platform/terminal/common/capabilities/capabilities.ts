@@ -92,6 +92,8 @@ export interface ICommandDetectionCapability {
 	readonly cwd: string | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
+	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
+	readonly onCurrentCommandInvalidated: Event<void>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
 	/**

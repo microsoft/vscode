@@ -20,7 +20,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { localize } from 'vs/nls';
-import { canceled } from 'vs/base/common/errors';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -35,19 +34,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-
-type UserAccountClassification = {
-	id: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight' };
-	providerId: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight' };
-};
+import { CancellationError } from 'vs/base/common/errors';
 
 type FirstTimeSyncClassification = {
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-};
-
-type UserAccountEvent = {
-	id: string;
-	providerId: string;
+	owner: 'sandy081';
+	comment: 'Action taken when there are merges while turning on settins sync';
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'action taken turning on sync. Eg: merge, pull, manual or cancel' };
 };
 
 type FirstTimeSyncAction = 'pull' | 'push' | 'merge' | 'manual';
@@ -272,7 +264,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		const picked = await this.pick();
 		if (!picked) {
-			throw canceled();
+			throw new CancellationError();
 		}
 
 		// User did not pick an account or login failed
@@ -450,7 +442,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				return 'manual';
 		}
 		this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
-		throw canceled();
+		throw new CancellationError();
 	}
 
 	private async syncManually(task: IManualSyncTask): Promise<void> {
@@ -612,12 +604,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			// accounts are switched while sync is enabled.
 		}
 		this.currentSessionId = sessionId;
-		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: accountId, providerId: authenticationProviderId });
 		await this.update();
 	}
 
 	private async onDidSuccessiveAuthFailures(): Promise<void> {
-		this.telemetryService.publicLog2('sync/successiveAuthFailures');
+		this.telemetryService.publicLog2<{}, { owner: 'sandy081'; comment: 'Report when there are successive auth failures during settings sync' }>('sync/successiveAuthFailures');
 		this.currentSessionId = undefined;
 		await this.update();
 
@@ -769,7 +760,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		}
 		await this.manualSync.task.stop();
 		this.updatePreview([]);
-		this._onDidCompleteManualSync.fire(canceled());
+		this._onDidCompleteManualSync.fire(new CancellationError());
 	}
 
 	async pull(): Promise<void> {

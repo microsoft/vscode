@@ -7,12 +7,17 @@ import * as assert from 'assert';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { MetadataConsts, TokenMetadata, FontStyle, ColorId } from 'vs/editor/common/languages';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { FontStyle, ColorId, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 suite('TokensStore', () => {
 
@@ -74,7 +79,7 @@ suite('TokensStore', () => {
 	function extractState(model: TextModel): string[] {
 		let result: string[] = [];
 		for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
-			const lineTokens = model.getLineTokens(lineNumber);
+			const lineTokens = model.tokenization.getLineTokens(lineNumber);
 			const lineContent = model.getLineContent(lineNumber);
 
 			let lineText = '';
@@ -101,7 +106,7 @@ suite('TokensStore', () => {
 	function testTokensAdjustment(rawInitialState: string[], edits: ISingleEditOperation[], rawFinalState: string[]) {
 		const initialState = parseTokensState(rawInitialState);
 		const model = createTextModel(initialState.text);
-		model.setSemanticTokens([initialState.tokens], true);
+		model.tokenization.setSemanticTokens([initialState.tokens], true);
 
 		model.applyEdits(edits);
 
@@ -174,45 +179,62 @@ suite('TokensStore', () => {
 
 	test('issue #91936: Semantic token color highlighting fails on line with selected text', () => {
 		const model = createTextModel('                    else if ($s = 08) then \'\\b\'');
-		model.setSemanticTokens([
+		model.tokenization.setSemanticTokens([
 			SparseMultilineTokens.create(1, new Uint32Array([
-				0, 20, 24, 0b0111100000000010000,
-				0, 25, 27, 0b0111100000000010000,
-				0, 28, 29, 0b0000100000000010000,
-				0, 29, 31, 0b1000000000000010000,
-				0, 32, 33, 0b0000100000000010000,
-				0, 34, 36, 0b0011000000000010000,
-				0, 36, 37, 0b0000100000000010000,
-				0, 38, 42, 0b0111100000000010000,
-				0, 43, 47, 0b0101100000000010000,
+				0, 20, 24, 0b01111000000000010000,
+				0, 25, 27, 0b01111000000000010000,
+				0, 28, 29, 0b00001000000000010000,
+				0, 29, 31, 0b10000000000000010000,
+				0, 32, 33, 0b00001000000000010000,
+				0, 34, 36, 0b00110000000000010000,
+				0, 36, 37, 0b00001000000000010000,
+				0, 38, 42, 0b01111000000000010000,
+				0, 43, 47, 0b01011000000000010000,
 			]))
 		], true);
-		const lineTokens = model.getLineTokens(1);
+		const lineTokens = model.tokenization.getLineTokens(1);
 		let decodedTokens: number[] = [];
 		for (let i = 0, len = lineTokens.getCount(); i < len; i++) {
 			decodedTokens.push(lineTokens.getEndOffset(i), lineTokens.getMetadata(i));
 		}
 
 		assert.deepStrictEqual(decodedTokens, [
-			20, 0b1000000000100000000000001,
-			24, 0b1000000111100000000000001,
-			25, 0b1000000000100000000000001,
-			27, 0b1000000111100000000000001,
-			28, 0b1000000000100000000000001,
-			29, 0b1000000000100000000000001,
-			31, 0b1000001000000000000000001,
-			32, 0b1000000000100000000000001,
-			33, 0b1000000000100000000000001,
-			34, 0b1000000000100000000000001,
-			36, 0b1000000011000000000000001,
-			37, 0b1000000000100000000000001,
-			38, 0b1000000000100000000000001,
-			42, 0b1000000111100000000000001,
-			43, 0b1000000000100000000000001,
-			47, 0b1000000101100000000000001
+			20, 0b10000000001000010000000001,
+			24, 0b10000001111000010000000001,
+			25, 0b10000000001000010000000001,
+			27, 0b10000001111000010000000001,
+			28, 0b10000000001000010000000001,
+			29, 0b10000000001000010000000001,
+			31, 0b10000010000000010000000001,
+			32, 0b10000000001000010000000001,
+			33, 0b10000000001000010000000001,
+			34, 0b10000000001000010000000001,
+			36, 0b10000000110000010000000001,
+			37, 0b10000000001000010000000001,
+			38, 0b10000000001000010000000001,
+			42, 0b10000001111000010000000001,
+			43, 0b10000000001000010000000001,
+			47, 0b10000001011000010000000001
 		]);
 
 		model.dispose();
+	});
+
+	test('issue #147944: Language id "vs.editor.nullLanguage" is not configured nor known', () => {
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables, new ServiceCollection([
+			ILanguageConfigurationService, new SyncDescriptor(LanguageConfigurationService)
+		]));
+		const model = instantiateTextModel(instantiationService, '--[[\n\n]]');
+		model.tokenization.setSemanticTokens([
+			SparseMultilineTokens.create(1, new Uint32Array([
+				0, 2, 4, 0b100000000000010000,
+				1, 0, 0, 0b100000000000010000,
+				2, 0, 2, 0b100000000000010000,
+			]))
+		], true);
+		assert.strictEqual(model.getWordAtPosition(new Position(2, 1)), null);
+		disposables.dispose();
 	});
 
 	test('partial tokens 1', () => {

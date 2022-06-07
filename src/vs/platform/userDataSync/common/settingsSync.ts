@@ -107,7 +107,8 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		// First time syncing to remote
 		else if (fileContent) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Remote settings does not exist. Synchronizing settings for the first time.`);
-			mergedContent = fileContent.value.toString();
+			mergedContent = fileContent.value.toString().trim() || '{}';
+			this.validateContent(mergedContent);
 			hasRemoteChanged = true;
 		}
 
@@ -340,7 +341,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 	}
 
 	private validateContent(content: string): void {
-		if (this.hasErrors(content)) {
+		if (this.hasErrors(content, false)) {
 			throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
 		}
 	}

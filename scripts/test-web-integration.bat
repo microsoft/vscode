@@ -25,12 +25,12 @@ if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
 	:: Run from a built: need to compile all test extensions
 	:: because we run extension tests from their source folders
 	:: and the build bundles extensions into .build webpacked
-	call yarn gulp	compile-extension:vscode-api-tests^
-					compile-extension:markdown-language-features^
-					compile-extension:typescript-language-features^
-					compile-extension:emmet^
-					compile-extension:git^
-					compile-extension-media
+	:: call yarn gulp	compile-extension:vscode-api-tests^
+	::				compile-extension:markdown-language-features^
+	::				compile-extension:typescript-language-features^
+	::				compile-extension:emmet^
+	::				compile-extension:git^
+	::				compile-extension-media
 )
 
 if not exist ".\test\integration\browser\out\index.js" (
@@ -68,5 +68,5 @@ echo ### Git tests
 for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set TEMPDIR=%%i
 set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
 mkdir %GITWORKSPACE%
-call node .\test\integration\browser\out\index.js --workspacePath=%GITWORKSPACE% --extensionDevelopmentPath=.\extensions\git --extensionTestsPath=.\extensions\git\out\test --enable-proposed-api=vscode.git %*
+call node .\test\integration\browser\out\index.js --workspacePath=%GITWORKSPACE% --extensionDevelopmentPath=.\extensions\git --extensionTestsPath=.\extensions\git\out\test %*
 if %errorlevel% neq 0 exit /b %errorlevel%

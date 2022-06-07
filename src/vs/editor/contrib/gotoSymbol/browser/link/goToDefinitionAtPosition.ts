@@ -17,9 +17,8 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
 import { LocationLink } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -43,7 +42,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	private readonly editor: ICodeEditor;
 	private readonly toUnhook = new DisposableStore();
 	private readonly toUnhookForKeyboard = new DisposableStore();
-	private linkDecorations: string[] = [];
+	private readonly linkDecorations: IEditorDecorationsCollection;
 	private currentWordAtPosition: IWordAtPosition | null = null;
 	private previousPromise: CancelablePromise<LocationLink[] | null> | null = null;
 
@@ -54,6 +53,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this.editor = editor;
+		this.linkDecorations = this.editor.createDecorationsCollection();
 
 		let linkGesture = new ClickLinkGesture(editor);
 		this.toUnhook.add(linkGesture);
@@ -219,7 +219,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	}
 
 	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number, result: LocationLink) {
-		let rangeToUse = result.targetSelectionRange ? result.range : this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
+		let rangeToUse = result.range;
 		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
 		if (numberOfLinesInRange >= GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
 			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
@@ -258,52 +258,6 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	private getPreviewRangeBasedOnBrackets(textEditorModel: ITextModel, startLineNumber: number) {
-		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES);
-
-		const brackets: IFoundBracket[] = [];
-
-		let ignoreFirstEmpty = true;
-		let currentBracket = textEditorModel.bracketPairs.findNextBracket(new Position(startLineNumber, 1));
-		while (currentBracket !== null) {
-
-			if (brackets.length === 0) {
-				brackets.push(currentBracket);
-			} else {
-				const lastBracket = brackets[brackets.length - 1];
-				if (lastBracket.open[0] === currentBracket.open[0] && lastBracket.isOpen && !currentBracket.isOpen) {
-					brackets.pop();
-				} else {
-					brackets.push(currentBracket);
-				}
-
-				if (brackets.length === 0) {
-					if (ignoreFirstEmpty) {
-						ignoreFirstEmpty = false;
-					} else {
-						return new Range(startLineNumber, 1, currentBracket.range.endLineNumber + 1, 1);
-					}
-				}
-			}
-
-			const maxColumn = textEditorModel.getLineMaxColumn(startLineNumber);
-			let nextLineNumber = currentBracket.range.endLineNumber;
-			let nextColumn = currentBracket.range.endColumn;
-			if (maxColumn === currentBracket.range.endColumn) {
-				nextLineNumber++;
-				nextColumn = 1;
-			}
-
-			if (nextLineNumber > maxLineNumber) {
-				return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
-			}
-
-			currentBracket = textEditorModel.bracketPairs.findNextBracket(new Position(nextLineNumber, nextColumn));
-		}
-
-		return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
-	}
-
 	private addDecoration(range: Range, hoverMessage: MarkdownString): void {
 
 		const newDecorations: IModelDeltaDecoration = {
@@ -315,13 +269,11 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			}
 		};
 
-		this.linkDecorations = this.editor.deltaDecorations(this.linkDecorations, [newDecorations]);
+		this.linkDecorations.set([newDecorations]);
 	}
 
 	private removeLinkDecorations(): void {
-		if (this.linkDecorations.length > 0) {
-			this.linkDecorations = this.editor.deltaDecorations(this.linkDecorations, []);
-		}
+		this.linkDecorations.clear();
 	}
 
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {

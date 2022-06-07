@@ -13,7 +13,7 @@ import {
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, Position as LspPosition, NotificationType, CommonLanguageClient
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, Position as LspPosition, NotificationType, BaseLanguageClient
 } from 'vscode-languageclient';
 import { FileSystemProvider, serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
@@ -73,7 +73,7 @@ export interface TelemetryReporter {
 	}): void;
 }
 
-export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
+export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
 export interface Runtime {
 	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
@@ -84,18 +84,18 @@ export interface Runtime {
 	};
 }
 
-export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
+export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
 
-	let toDispose = context.subscriptions;
+	const toDispose = context.subscriptions;
 
 	const htmlContributions: HtmlLanguageContribution[] = getHtmlLanguageContributions(toDispose);
-	let documentSelector = getDocumentSelector(htmlContributions);
-	let embeddedLanguages = { css: true, javascript: true };
+	const documentSelector = getDocumentSelector(htmlContributions);
+	const embeddedLanguages = { css: true, javascript: true };
 
 	let rangeFormatting: Disposable | undefined = undefined;
 
 	// Options to control the language client
-	let clientOptions: LanguageClientOptions = {
+	const clientOptions: LanguageClientOptions = {
 		documentSelector,
 		synchronize: {
 			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
@@ -136,31 +136,27 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	let client = newLanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), clientOptions);
 	client.registerProposedFeatures();
 
-	let disposable = client.start();
-	toDispose.push(disposable);
-	client.onReady().then(() => {
+	await client.start();
 
-		toDispose.push(serveFileSystemRequests(client, runtime));
+	toDispose.push(serveFileSystemRequests(client, runtime));
 
-		const customDataSource = getCustomDataSource(runtime, context.subscriptions);
+	const customDataSource = getCustomDataSource(runtime, context.subscriptions);
 
+	client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
+	customDataSource.onDidChange(() => {
 		client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
-		customDataSource.onDidChange(() => {
-			client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
-		});
-		client.onRequest(CustomDataContent.type, customDataSource.getContent);
+	});
+	client.onRequest(CustomDataContent.type, customDataSource.getContent);
 
 
-		const insertRequestor = (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position): Promise<string> => {
-			let param: AutoInsertParams = {
-				kind,
-				textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-				position: client.code2ProtocolConverter.asPosition(position)
-			};
-			return client.sendRequest(AutoInsertRequest.type, param);
+	const insertRequestor = (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position): Promise<string> => {
+		const param: AutoInsertParams = {
+			kind,
+			textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+			position: client.code2ProtocolConverter.asPosition(position)
 		};
 		const supportedLanguages = getSupportedLanguagesAutoInsert(htmlContributions);
-		let disposable = activateAutoInsertion(insertRequestor, supportedLanguages, runtime);
+		const disposable = activateAutoInsertion(insertRequestor, supportedLanguages, runtime);
 		toDispose.push(disposable);
 
 		disposable = client.onTelemetry(e => {
@@ -199,6 +195,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		});
 	});
 
+
 	function updateFormatterRegistration() {
 		const formatEnabled = workspace.getConfiguration().get(SettingIds.formatEnable);
 		if (!formatEnabled && rangeFormatting) {
@@ -221,7 +218,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 						client.protocol2CodeConverter.asTextEdits,
 						(error) => {
-							client.handleFailedRequest(DocumentRangeFormattingRequest.type, error, []);
+							client.handleFailedRequest(DocumentRangeFormattingRequest.type, undefined, error, []);
 							return Promise.resolve([]);
 						}
 					);
@@ -301,4 +298,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			toDispose.push(activeEditorListener);
 		}
 	}
+
+	return client;
 }

@@ -73,6 +73,12 @@
             }
           }
         },
+        "json.validate.enable": {
+          "type": "boolean",
+          "scope": "window",
+          "default": true,
+          "description": "%json.validate.enable.desc%"
+        },
         "json.format.enable": {
           "type": "boolean",
           "scope": "window",
@@ -141,10 +147,10 @@
     ]
   },
   "dependencies": {
-    "request-light": "^0.5.7",
-    "@vscode/extension-telemetry": "0.4.10",
-    "vscode-languageclient": "^7.0.0",
-    "vscode-nls": "^5.0.0"
+    "@vscode/extension-telemetry": "0.5.1",
+    "request-light": "^0.5.8",
+    "vscode-languageclient": "^8.0.2-next.4",
+    "vscode-nls": "^5.0.1"
   },
   "devDependencies": {
     "@types/node": "16.x"

@@ -7,11 +7,12 @@ import * as DOM from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IErrorWithActions } from 'vs/base/common/errorMessage';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -119,6 +120,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-editor'));
+		this._rootElement.id = `notebook-editor-element-${generateUuid()}`;
 	}
 
 	getDomNode() {
@@ -187,6 +189,12 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			}
 
 			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
+
+			if (this._rootElement && this._widget.value!.getDomNode()) {
+				this._rootElement.setAttribute('aria-flowto', this._widget.value!.getDomNode().id || '');
+				DOM.setParentFlowTo(this._widget.value!.getDomNode(), this._rootElement);
+			}
+
 			this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
 			this._widgetDisposableStore.add(this._widget.value!.onDidChangeActiveCell(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.USER })));
 
@@ -237,6 +245,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			mark(input.resource, 'editorLoaded');
 
 			type WorkbenchNotebookOpenClassification = {
+				owner: 'rebornix';
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -289,8 +298,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 				}
 			}
 		} catch (e) {
-			const error: Error & IErrorWithActions = e instanceof Error ? e : new Error(e.message);
-			error.actions = [
+			const error = createErrorWithActions(e instanceof Error ? e : new Error(e.message), [
 				toAction({
 					id: 'workbench.notebook.action.openInTextEditor', label: localize('notebookOpenInTextEditor', "Open in Text Editor"), run: async () => {
 						const activeEditorPane = this._editorService.activeEditorPane;
@@ -317,7 +325,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 						return;
 					}
 				})
-			];
+			]);
 
 			throw error;
 		}

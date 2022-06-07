@@ -251,4 +251,11 @@ suite('Editor Modes - Link Computer', () => {
 			'    https://zh.wikipedia.org/wiki/“常凯申”误译事件   '
 		);
 	});
+
+	test('issue #150905: Colon after bare hyperlink is treated as its part', () => {
+		assertLink(
+			'https://site.web/page.html: blah blah blah',
+			'https://site.web/page.html                '
+		);
+	});
 });

@@ -746,7 +746,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	private sendEditorResolutionTelemetry(chosenInput: EditorInput): void {
 		type editorResolutionClassification = {
-			viewType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'lramos15'; comment: 'The id of the editor opened. Used to gain an undertsanding of what editors are most popular' };
+			viewType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the editor opened. Used to gain an undertsanding of what editors are most popular' };
+			owner: 'lramos15';
+			comment: 'An event that fires when an editor type is picked';
 		};
 		type editorResolutionEvent = {
 			viewType: string;
