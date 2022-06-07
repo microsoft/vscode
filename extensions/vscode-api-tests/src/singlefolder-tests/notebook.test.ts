@@ -266,13 +266,19 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		const version = editor.notebook.version;
 		const edit = new vscode.WorkspaceEdit();
 		const cellEdit = vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(1, 0), [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
-		const cellMetadataEdit = vscode.NotebookEdit.updateCellMetadata(0, { extraCellMetadata: true });
 		const metdataEdit = vscode.NotebookEdit.updateNotebookMetadata({ ...notebook.metadata, custom: { ...(notebook.metadata.custom || {}), extraNotebookMetadata: true } });
-		edit.set(notebook.uri, [cellEdit, cellMetadataEdit, metdataEdit]);
+		edit.set(notebook.uri, [cellEdit, metdataEdit]);
 		await vscode.workspace.applyEdit(edit);
 		await notebookChangeEvent;
 
-		assert.strictEqual(version + 1, editor.notebook.version);
+		const notebookChangeEvent2 = asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
+		const edit2 = new vscode.WorkspaceEdit();
+		const cellMetadataEdit = vscode.NotebookEdit.updateCellMetadata(0, { extraCellMetadata: true });
+		edit2.set(notebook.uri, [cellMetadataEdit]);
+		await vscode.workspace.applyEdit(edit2);
+		await notebookChangeEvent2;
+
+		assert.strictEqual(version + 2, editor.notebook.version);
 		const cell = editor.notebook.cellAt(0);
 		assert.ok(editor.notebook.metadata.custom.extraNotebookMetadata, `Test metadata not found`);
 		assert.ok(cell.metadata.extraCellMetadata, `Test cell metdata not found`);
