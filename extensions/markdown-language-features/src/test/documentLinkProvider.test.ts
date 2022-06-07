@@ -408,5 +408,22 @@ suite('markdown.DocumentLinkProvider', () => {
 		assertLinksEqual(links, [new vscode.Range(0, 8, 0, 13)]);
 	});
 
-
+	test('Should find links with titles', async () => {
+		const links = await getLinksForFile(joinLines(
+			`[link](<no such.md> "text")`,
+			`[link](<no such.md> 'text')`,
+			`[link](<no such.md> (text))`,
+			`[link](no-such.md "text")`,
+			`[link](no-such.md 'text')`,
+			`[link](no-such.md (text))`,
+		));
+		assertLinksEqual(links, [
+			new vscode.Range(0, 8, 0, 18),
+			new vscode.Range(1, 8, 1, 18),
+			new vscode.Range(2, 8, 2, 18),
+			new vscode.Range(3, 7, 3, 17),
+			new vscode.Range(4, 7, 4, 17),
+			new vscode.Range(5, 7, 5, 17),
+		]);
+	});
 });
