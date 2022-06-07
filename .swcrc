@@ -15,7 +15,8 @@
 		}
 	},
 	"module": {
-		"type": "amd"
+		"type": "amd",
+		"noInterop": true
 	},
 	"minify": false
 }
