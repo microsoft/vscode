@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DataTransfers } from 'vs/base/browser/dnd';
 import { distinct } from 'vs/base/common/arrays';
 import { createFileDataTransferItem, createStringDataTransferItem, IDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Mimes } from 'vs/base/common/mime';
@@ -39,6 +40,7 @@ export function createFileDataTransferItemFromFile(file: File): IDataTransferIte
 const INTERNAL_DND_MIME_TYPES = Object.freeze([
 	CodeDataTransfers.EDITORS,
 	CodeDataTransfers.FILES,
+	DataTransfers.RESOURCES,
 ]);
 
 export function addExternalEditorsDropData(dataTransfer: VSDataTransfer, dragEvent: DragEvent) {

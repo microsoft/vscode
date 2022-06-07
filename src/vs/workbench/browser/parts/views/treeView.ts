@@ -1444,10 +1444,10 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 		const types = new Set<string>(Array.from(dataTransfer.entries()).map(x => x[0]));
 
-		// Also add uri-list if we have any files. At this stage we can't actually access the file itself though.
 		if (originalEvent.dataTransfer) {
+			// Also add uri-list if we have any files. At this stage we can't actually access the file itself though.
 			for (const item of originalEvent.dataTransfer.items) {
-				if (item.kind === 'file') {
+				if (item.kind === 'file' || item.type === DataTransfers.RESOURCES.toLowerCase()) {
 					types.add(Mimes.uriList);
 					break;
 				}
