@@ -49,7 +49,7 @@ suite('Debug - Breakpoints', () => {
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	// Breakpoints
