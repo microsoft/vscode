@@ -14,7 +14,7 @@ import { IPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult,
+	InstallExtensionEvent, DidUninstallExtensionEvent, InstallOperation, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult,
 	IExtensionsControlManifest, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -34,7 +34,7 @@ import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileAccess } from 'vs/base/common/network';
@@ -1331,7 +1331,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.ignoreAutoUpdate(new ExtensionKey(identifier, manifest.version));
 		}
 
-		return this.local.filter(local => areSameExtensions(local.identifier, identifier))[0];
+		return this.waitAndGetInstalledExtension(identifier);
 	}
 
 	private async installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<IExtension> {
@@ -1343,11 +1343,24 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			} else {
 				await this.extensionManagementService.installFromGallery(gallery, installOptions);
 			}
-			return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
+			return this.waitAndGetInstalledExtension(gallery.identifier);
 		} finally {
 			this.installing = this.installing.filter(e => e !== extension);
 			this._onChange.fire(this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0]);
 		}
+	}
+
+	private async waitAndGetInstalledExtension(identifier: IExtensionIdentifier): Promise<IExtension> {
+		let installedExtension = this.local.find(local => areSameExtensions(local.identifier, identifier));
+		if (!installedExtension) {
+			await Event.toPromise(Event.filter(this.onChange, e => !!e && this.local.some(local => areSameExtensions(local.identifier, identifier))));
+		}
+		installedExtension = this.local.find(local => areSameExtensions(local.identifier, identifier));
+		if (!installedExtension) {
+			// This should not happen
+			throw new Error('Extension should have been installed');
+		}
+		return installedExtension;
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): Promise<any> {
