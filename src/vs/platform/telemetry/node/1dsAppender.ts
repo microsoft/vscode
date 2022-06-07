@@ -58,8 +58,8 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 
 	appInsightsCore.addTelemetryInitializer((envelope) => {
 		if (envelope.tags) {
-			// Set part A to isInternal to allow for filtering
-			envelope.tags['utc.flags'] = 30;
+			// Sets it to be internal only
+			envelope.tags['utc.flags'] = 880971612160;
 		}
 	});
 
