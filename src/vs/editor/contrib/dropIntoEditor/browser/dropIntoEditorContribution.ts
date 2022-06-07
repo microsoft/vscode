@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { relativePath } from 'vs/base/common/resources';
@@ -22,7 +21,6 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 
@@ -33,7 +31,6 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	constructor(
 		editor: ICodeEditor,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
@@ -101,7 +98,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		}
 
 		const textEditorDataTransfer = toVSDataTransfer(dragEvent.dataTransfer);
-		await this._instantiationService.invokeFunction(addExternalEditorsDropData, textEditorDataTransfer, dragEvent);
+		addExternalEditorsDropData(textEditorDataTransfer, dragEvent);
 		return textEditorDataTransfer;
 	}
 }

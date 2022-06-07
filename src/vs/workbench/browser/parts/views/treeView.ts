@@ -67,7 +67,7 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
-import { addExternalEditorsDropData, INTERNAL_DND_MIME_TYPES, toVSDataTransfer } from 'vs/editor/browser/dnd';
+import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 
 export class TreeViewPane extends ViewPane {
 
@@ -1439,14 +1439,23 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		const types: Set<string> = new Set();
-		originalEvent.dataTransfer?.types.forEach((type) => {
-			if (INTERNAL_DND_MIME_TYPES.indexOf(type) < 0) {
-				types.add(type === DataTransfers.RESOURCES.toLowerCase() ? Mimes.uriList : type);
+		const dataTransfer = toVSDataTransfer(originalEvent.dataTransfer!);
+		addExternalEditorsDropData(dataTransfer, originalEvent);
+
+		const types = new Set<string>(Array.from(dataTransfer.entries()).map(x => x[0]));
+
+		// Also add uri-list if we have any files. At this stage we can't actually access the file itself though.
+		if (originalEvent.dataTransfer) {
+			for (const item of originalEvent.dataTransfer.items) {
+				if (item.kind === 'file') {
+					types.add(Mimes.uriList);
+					break;
+				}
 			}
-		});
+		}
 
 		this.debugLog(types);
+
 		const dndController = this.dndController;
 		if (!dndController || !originalEvent.dataTransfer || (dndController.dropMimeTypes.length === 0)) {
 			return false;
@@ -1495,7 +1504,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 
 		const originalDataTransfer = toVSDataTransfer(originalEvent.dataTransfer);
-		await this.instantiationService.invokeFunction(addExternalEditorsDropData, originalDataTransfer, originalEvent);
+		addExternalEditorsDropData(originalDataTransfer, originalEvent);
 
 		const outDataTransfer = new VSDataTransfer();
 		for (const [type, item] of originalDataTransfer.entries()) {

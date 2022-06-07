@@ -58,7 +58,7 @@ import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/act
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { coalesce } from 'vs/base/common/arrays';
-import { extractEditorsDropData } from 'vs/platform/dnd/browser/dnd';
+import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { extname } from 'vs/base/common/resources';
 
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -541,7 +541,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 				if (this.isSupportedDragElement(e)) {
 					hide(overlay);
 
-					const vsixs = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsDropData(accessor, e)))
+					const vsixs = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, e)))
 						.map(editor => editor.resource && extname(editor.resource) === '.vsix' ? editor.resource : undefined));
 
 					if (vsixs.length > 0) {

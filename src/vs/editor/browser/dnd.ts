@@ -8,7 +8,6 @@ import { createFileDataTransferItem, createStringDataTransferItem, IDataTransfer
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { CodeDataTransfers, extractEditorsDropData, FileAdditionalNativeProperties } from 'vs/platform/dnd/browser/dnd';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 
 export function toVSDataTransfer(dataTransfer: DataTransfer) {
@@ -22,6 +21,8 @@ export function toVSDataTransfer(dataTransfer: DataTransfer) {
 			const file = item.getAsFile();
 			if (file) {
 				vsDataTransfer.append(type, createFileDataTransferItemFromFile(file));
+			} else {
+
 			}
 		}
 	}
@@ -35,16 +36,24 @@ export function createFileDataTransferItemFromFile(file: File): IDataTransferIte
 	});
 }
 
-export const INTERNAL_DND_MIME_TYPES = Object.freeze([
+const INTERNAL_DND_MIME_TYPES = Object.freeze([
 	CodeDataTransfers.EDITORS,
 	CodeDataTransfers.FILES,
 ]);
 
-export async function addExternalEditorsDropData(accessor: ServicesAccessor, dataTransfer: VSDataTransfer, dragEvent: DragEvent) {
-	if (!dataTransfer.has(Mimes.uriList)) {
-		const editorData = (await extractEditorsDropData(accessor, dragEvent))
+export function addExternalEditorsDropData(dataTransfer: VSDataTransfer, dragEvent: DragEvent) {
+	if (dragEvent.dataTransfer && !dataTransfer.has(Mimes.uriList)) {
+		const editorData = extractEditorsDropData(dragEvent)
 			.filter(input => input.resource)
 			.map(input => input.resource!.toString());
+
+		// Also add in the files
+		for (const item of dragEvent.dataTransfer?.items) {
+			const file = item.getAsFile();
+			if (file) {
+				editorData.push(file.path || file.name);
+			}
+		}
 
 		if (editorData.length) {
 			const str = distinct(editorData).join('\n');
