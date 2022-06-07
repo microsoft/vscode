@@ -5,7 +5,6 @@
 
 import { language } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
@@ -75,5 +74,3 @@ export class NativeLocaleService implements ILocaleService {
 		}
 	}
 }
-
-registerSingleton(ILocaleService, NativeLocaleService, true);
