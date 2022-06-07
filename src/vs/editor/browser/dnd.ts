@@ -53,7 +53,7 @@ export function addExternalEditorsDropData(dataTransfer: VSDataTransfer, dragEve
 		for (const item of dragEvent.dataTransfer?.items) {
 			const file = item.getAsFile();
 			if (file) {
-				editorData.push(file.path || file.name);
+				editorData.push((file as FileAdditionalNativeProperties).path || file.name);
 			}
 		}
 
@@ -63,7 +63,7 @@ export function addExternalEditorsDropData(dataTransfer: VSDataTransfer, dragEve
 		}
 	}
 
-	for (const interal of INTERNAL_DND_MIME_TYPES) {
-		dataTransfer.delete(interal);
+	for (const internal of INTERNAL_DND_MIME_TYPES) {
+		dataTransfer.delete(internal);
 	}
 }
