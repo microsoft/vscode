@@ -145,7 +145,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Logging
 
 		if (requestsToStartWatching.length) {
-			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? request.includes : '<all>'})`).join(',')}`);
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'})`).join(',')}`);
 		}
 
 		if (pathsToStopWatching.length) {
