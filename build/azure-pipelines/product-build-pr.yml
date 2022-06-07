@@ -21,7 +21,7 @@ variables:
   - name: skipComponentGovernanceDetection
     value: true
   - name: ENABLE_TERRAPIN
-    value: true
+    value: false
   - name: VSCODE_PUBLISH
     value: false
   - name: VSCODE_QUALITY

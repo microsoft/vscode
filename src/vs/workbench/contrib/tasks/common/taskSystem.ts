@@ -35,34 +35,6 @@ export class TaskError {
 	}
 }
 
-/* __GDPR__FRAGMENT__
-	"TelemetryEvent" : {
-		"trigger" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"runner": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"taskKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"command": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"exitCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-	}
-*/
-export interface TelemetryEvent {
-	// How the task got trigger. Is either shortcut or command
-	trigger: string;
-
-	runner: 'terminal' | 'output';
-
-	taskKind: string;
-
-	// The command triggered
-	command: string;
-
-	// Whether the task ran successful
-	success: boolean;
-
-	// The exit code
-	exitCode?: number;
-}
-
 export namespace Triggers {
 	export let shortcut: string = 'shortcut';
 	export let command: string = 'command';

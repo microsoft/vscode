@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IShellIntegration } from 'vs/platform/terminal/common/terminal';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
@@ -128,10 +128,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _activationTimeout: any;
 
 	constructor(
+		private readonly _disableTelemetry: boolean | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
+		this._register(toDisposable(() => this._clearActivationTimeout()));
 	}
 
 	activate(xterm: Terminal) {
@@ -146,12 +148,29 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._hasUpdatedTelemetry && didHandle) {
 			this._telemetryService?.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates shell integration was activated' }>('terminal/shellIntegrationActivationSucceeded');
 			this._hasUpdatedTelemetry = true;
-			if (this._activationTimeout !== undefined) {
-				clearTimeout(this._activationTimeout);
-				this._activationTimeout = undefined;
-			}
+			this._clearActivationTimeout();
 		}
 		return didHandle;
+	}
+
+	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
+		if (!this._telemetryService || this._disableTelemetry) {
+			return;
+		}
+		this._activationTimeout = setTimeout(() => {
+			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
+				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationTimeout');
+				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
+			}
+			this._hasUpdatedTelemetry = true;
+		}, 10000);
+	}
+
+	private _clearActivationTimeout(): void {
+		if (this._activationTimeout !== undefined) {
+			clearTimeout(this._activationTimeout);
+			this._activationTimeout = undefined;
+		}
 	}
 
 	private _doHandleVSCodeSequence(data: string): boolean {
@@ -227,16 +246,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		// Unrecognized sequence
 		return false;
-	}
-
-	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
-		this._activationTimeout = setTimeout(() => {
-			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
-				this._telemetryService?.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates shell integration activation did not occur within 10 seconds' }>('terminal/shellIntegrationActivationTimeout');
-				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
-			}
-			this._hasUpdatedTelemetry = true;
-		}, 10000);
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {

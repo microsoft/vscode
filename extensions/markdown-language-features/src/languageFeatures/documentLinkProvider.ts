@@ -188,6 +188,12 @@ function stripAngleBrackets(link: string) {
 const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
 
 /**
+ * Matches `[text](<link>)`
+ */
+const linkPatternAngle = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*<)(([^<>]|\([^\s\(\)]*?\))+)>\s*(".*?")?\)/g;
+
+
+/**
  * Matches `[text][ref]` or `[shorthand]`
  */
 const referenceLinkPattern = /(^|[^\]\\])(?:(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]|\[\s*?([^\s\]]*?)\])(?![\:\(]))/gm;
@@ -271,9 +277,11 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			case 'reference': {
 				const def = definitionSet.lookup(link.href.ref);
 				if (def) {
-					return new vscode.DocumentLink(
+					const documentLink = new vscode.DocumentLink(
 						link.source.hrefRange,
 						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.source.hrefRange.start.line, def.source.hrefRange.start.character]))}`));
+					documentLink.tooltip = localize('documentLink.referenceTooltip', 'Go to link definition');
+					return documentLink;
 				} else {
 					return undefined;
 				}
@@ -298,11 +306,27 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	private *getInlineLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 
+		for (const match of text.matchAll(linkPatternAngle)) {
+			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
+			if (matchImageData && !noLinkRanges.contains(matchImageData.source.hrefRange)) {
+				yield matchImageData;
+			}
+			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
+			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
+				yield matchLinkData;
+			}
+		}
+
 		for (const match of text.matchAll(linkPattern)) {
 			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
 			if (matchImageData && !noLinkRanges.contains(matchImageData.source.hrefRange)) {
 				yield matchImageData;
 			}
+
+			if (match[5] !== undefined && match[5].startsWith('<')) {
+				continue;
+			}
+
 			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
 			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
 				yield matchLinkData;
@@ -353,6 +377,12 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				reference = match[5];
 				const offset = ((match.index ?? 0) + match[1].length) + 1;
 				linkStart = document.positionAt(offset);
+				const line = document.lineAt(linkStart.line);
+				// See if link looks like a checkbox
+				const checkboxMatch = line.text.match(/^\s*[\-\*]\s*\[x\]/i);
+				if (checkboxMatch && linkStart.character <= checkboxMatch[0].length) {
+					continue;
+				}
 				linkEnd = document.positionAt(offset + reference.length);
 			} else {
 				continue;

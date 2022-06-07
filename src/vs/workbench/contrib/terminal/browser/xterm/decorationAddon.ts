@@ -114,6 +114,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (this._commandDetectionListeners) {
 			dispose(this._commandDetectionListeners);
 		}
+		this.clearDecorations();
+	}
+
+	public clearDecorations(): void {
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
 		for (const value of this._decorations.values()) {

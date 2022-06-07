@@ -36,7 +36,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
-import { LanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
+import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
 import { AbstractLogger, DEFAULT_LOG_LEVEL, getLogLevel, ILogService, LogLevel, LogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
@@ -159,7 +159,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
-	services.set(ILanguagePackService, instantiationService.createInstance(LanguagePackService));
+	services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
 
 	const extensionManagementCLIService = instantiationService.createInstance(ExtensionManagementCLIService);
 	services.set(IExtensionManagementCLIService, extensionManagementCLIService);

@@ -125,8 +125,20 @@ export class Extension implements IExtension {
 		return this.local!.manifest.publisher;
 	}
 
+	get publisherUrl(): URI | undefined {
+		if (!this.productService.extensionsGallery || !this.gallery) {
+			return undefined;
+		}
+
+		return resources.joinPath(URI.parse(this.productService.extensionsGallery.publisherUrl), this.publisher);
+	}
+
 	get publisherDomain(): { link: string; verified: boolean } | undefined {
 		return this.gallery?.publisherDomain;
+	}
+
+	get publisherSponsorLink(): URI | undefined {
+		return this.gallery?.publisherSponsorLink ? URI.parse(this.gallery.publisherSponsorLink) : undefined;
 	}
 
 	get version(): string {
@@ -542,7 +554,7 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+	private async onDidInstallExtensions(results: readonly InstallExtensionResult[]): Promise<void> {
 		for (const event of results) {
 			const { local, source } = event;
 			const gallery = source && !URI.isUri(source) ? source : undefined;
@@ -565,12 +577,13 @@ class Extensions extends Disposable {
 					if (!extension.gallery) {
 						extension.gallery = gallery;
 					}
+					Extensions.updateExtensionFromControlManifest(extension, await this.server.extensionManagementService.getExtensionsControlManifest());
 					extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 				}
 			}
 			this._onChange.fire(!local || !extension ? undefined : { extension, operation: event.operation });
 			if (extension && extension.local && !extension.gallery) {
-				this.syncInstalledExtensionWithGallery(extension);
+				await this.syncInstalledExtensionWithGallery(extension);
 			}
 		}
 	}
@@ -1075,8 +1088,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				// Skip if check updates only for builtin extensions and current extension is not builtin.
 				continue;
 			}
-			if (installed.isBuiltin && (!installed.local?.identifier.uuid || this.productService.quality !== 'stable')) {
-				// Skip if the builtin extension does not have Marketplace identifier or the current quality is not stable.
+			if (installed.isBuiltin && (!installed.local?.identifier.uuid || (!isWeb && this.productService.quality === 'stable'))) {
+				// Skip checking updates for a builtin extension if it does not has Marketplace identifier or the current product is VS Code Desktop stable.
 				continue;
 			}
 			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
@@ -1234,7 +1247,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			throw new Error('Missing gallery');
 		}
 
-		const [gallery] = await this.galleryService.getExtensions([{ id: extension.gallery.identifier.id, version }], CancellationToken.None);
+		const targetPlatform = extension.server ? await extension.server.extensionManagementService.getTargetPlatform() : undefined;
+		const [gallery] = await this.galleryService.getExtensions([{ id: extension.gallery.identifier.id, version }], { targetPlatform }, CancellationToken.None);
 		if (!gallery) {
 			throw new Error(nls.localize('not found', "Unable to install extension '{0}' because the requested version '{1}' is not found.", extension.gallery!.identifier.id, version));
 		}

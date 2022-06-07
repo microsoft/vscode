@@ -40,6 +40,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
 import { once } from 'vs/base/common/functional';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 
 export namespace Command {
 
@@ -1980,14 +1981,13 @@ export namespace DataTransferItem {
 
 export namespace DataTransfer {
 	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (dataItemIndex: number) => Promise<Uint8Array>): types.DataTransfer {
-		const newDataTransfer = new types.DataTransfer();
-		value.items.forEach(([type, item], index) => {
-			newDataTransfer.set(type, DataTransferItem.toDataTransferItem(item, () => resolveFileData(index)));
+		const init = value.items.map(([type, item], index) => {
+			return [type, DataTransferItem.toDataTransferItem(item, () => resolveFileData(index))] as const;
 		});
-		return newDataTransfer;
+		return new types.DataTransfer(init);
 	}
 
-	export async function toDataTransferDTO(value: vscode.DataTransfer): Promise<extHostProtocol.DataTransferDTO> {
+	export async function toDataTransferDTO(value: vscode.DataTransfer | VSDataTransfer): Promise<extHostProtocol.DataTransferDTO> {
 		const newDTO: extHostProtocol.DataTransferDTO = { items: [] };
 
 		const promises: Promise<any>[] = [];

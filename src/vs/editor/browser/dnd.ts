@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { createFileDataTransferItem, createStringDataTransferItem, IDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { URI } from 'vs/base/common/uri';
+import { FileAdditionalNativeProperties } from 'vs/platform/dnd/browser/dnd';
 
 
 export function toVSDataTransfer(dataTransfer: DataTransfer) {
@@ -13,16 +14,20 @@ export function toVSDataTransfer(dataTransfer: DataTransfer) {
 		const type = item.type;
 		if (item.kind === 'string') {
 			const asStringValue = new Promise<string>(resolve => item.getAsString(resolve));
-			vsDataTransfer.setString(type, asStringValue);
+			vsDataTransfer.append(type, createStringDataTransferItem(asStringValue));
 		} else if (item.kind === 'file') {
-			const file = item.getAsFile() as null | (File & { path?: string });
+			const file = item.getAsFile();
 			if (file) {
-				const uri = file.path ? URI.parse(file.path) : undefined;
-				vsDataTransfer.setFile(type, file.name, uri, async () => {
-					return new Uint8Array(await file.arrayBuffer());
-				});
+				vsDataTransfer.append(type, createFileDataTransferItemFromFile(file));
 			}
 		}
 	}
 	return vsDataTransfer;
+}
+
+export function createFileDataTransferItemFromFile(file: File): IDataTransferItem {
+	const uri = (file as FileAdditionalNativeProperties).path ? URI.parse((file as FileAdditionalNativeProperties).path!) : undefined;
+	return createFileDataTransferItem(file.name, uri, async () => {
+		return new Uint8Array(await file.arrayBuffer());
+	});
 }

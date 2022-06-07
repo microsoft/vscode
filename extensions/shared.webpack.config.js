@@ -151,6 +151,7 @@ const browserPlugins = [
 		]
 	}),
 	new DefinePlugin({
+		'process.platform': JSON.stringify('web'),
 		'process.env': JSON.stringify({}),
 		'process.env.BROWSER_ENV': JSON.stringify('true')
 	})

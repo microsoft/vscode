@@ -13,7 +13,7 @@ import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controll
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {
@@ -38,6 +38,16 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 			return;
 		}
 
+		// create cell executions
+		const cellExecutions: [NotebookCellTextModel, INotebookCellExecution][] = [];
+		for (const cell of cellsArr) {
+			const cellExe = this._notebookExecutionStateService.getCellExecution(cell.uri);
+			if (cell.cellKind !== CellKind.Code || !!cellExe) {
+				continue;
+			}
+			cellExecutions.push([cell, this._notebookExecutionStateService.createCellExecution(notebook.uri, cell.handle)]);
+		}
+
 		let kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		if (!kernel) {
 			kernel = await this.resolveSourceActions(notebook);
@@ -49,28 +59,27 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		}
 
 		if (!kernel) {
+			// clear all pending cell executions
+			cellExecutions.forEach(cellExe => cellExe[1].complete({}));
 			return;
 		}
 
-		const executeCells: NotebookCellTextModel[] = [];
-		for (const cell of cellsArr) {
-			const cellExe = this._notebookExecutionStateService.getCellExecution(cell.uri);
-			if (cell.cellKind !== CellKind.Code || !!cellExe) {
-				continue;
-			}
+		// filter cell executions based on selected kernel
+		const validCellExecutions: INotebookCellExecution[] = [];
+		for (const [cell, cellExecution] of cellExecutions) {
 			if (!kernel.supportedLanguages.includes(cell.language)) {
-				continue;
+				cellExecution.complete({});
+			} else {
+				validCellExecutions.push(cellExecution);
 			}
-			executeCells.push(cell);
 		}
 
-		if (executeCells.length > 0) {
+		// request execution
+		if (validCellExecutions.length > 0) {
 			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
-
-			const exes = executeCells.map(c => this._notebookExecutionStateService.createCellExecution(kernel!.id, notebook.uri, c.handle));
-			await kernel.executeNotebookCellsRequest(notebook.uri, executeCells.map(c => c.handle));
+			await kernel.executeNotebookCellsRequest(notebook.uri, validCellExecutions.map(c => c.cellHandle));
 			// the connecting state can change before the kernel resolves executeNotebookCellsRequest
-			const unconfirmed = exes.filter(exe => exe.state === NotebookCellExecutionState.Unconfirmed);
+			const unconfirmed = validCellExecutions.filter(exe => exe.state === NotebookCellExecutionState.Unconfirmed);
 			if (unconfirmed.length) {
 				this._logService.debug(`NotebookExecutionService#executeNotebookCells completing unconfirmed executions ${JSON.stringify(unconfirmed.map(exe => exe.cellHandle))}`);
 				unconfirmed.forEach(exe => exe.complete({}));

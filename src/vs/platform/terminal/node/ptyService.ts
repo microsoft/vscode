@@ -742,7 +742,7 @@ class XtermSerializer implements ITerminalSerializer {
 			this._xterm.writeln(reviveBuffer);
 		}
 		this.setUnicodeVersion(unicodeVersion);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(undefined, logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(true, undefined, logService);
 		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 

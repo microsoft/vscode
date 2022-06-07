@@ -52,12 +52,27 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	 * @param link Url link which may contain line and column number.
 	 */
 	extractLineColumnInfo(link: string): ILineColumnInfo {
-		const matches: string[] | null = getLocalLinkRegex(this._os).exec(link);
 		const lineColumnInfo: ILineColumnInfo = {
 			lineNumber: 1,
 			columnNumber: 1
 		};
 
+		// The local link regex only works for non file:// links, check these for a simple
+		// `:line:col` suffix
+		if (link.startsWith('file://')) {
+			const simpleMatches = link.match(/:(\d+)(:(\d+))?$/);
+			if (simpleMatches) {
+				if (simpleMatches[1] !== undefined) {
+					lineColumnInfo.lineNumber = parseInt(simpleMatches[1]);
+				}
+				if (simpleMatches[3] !== undefined) {
+					lineColumnInfo.columnNumber = parseInt(simpleMatches[3]);
+				}
+			}
+			return lineColumnInfo;
+		}
+
+		const matches: string[] | null = getLocalLinkRegex(this._os).exec(link);
 		if (!matches) {
 			return lineColumnInfo;
 		}

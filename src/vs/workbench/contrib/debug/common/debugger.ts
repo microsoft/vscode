@@ -147,6 +147,10 @@ export class Debugger implements IDebugger {
 		return !this.debuggerWhen || this.contextKeyService.contextMatchesRules(this.debuggerWhen);
 	}
 
+	get uiMessages() {
+		return this.debuggerContribution.uiMessages;
+	}
+
 	hasInitialConfiguration(): boolean {
 		return !!this.debuggerContribution.initialConfigurations;
 	}
