@@ -13,6 +13,7 @@ export class CodeActionKind {
 	public static readonly Empty = new CodeActionKind('');
 	public static readonly QuickFix = new CodeActionKind('quickfix');
 	public static readonly Refactor = new CodeActionKind('refactor');
+	public static readonly Preview = new CodeActionKind('preview');
 	public static readonly Source = new CodeActionKind('source');
 	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
@@ -49,6 +50,7 @@ export interface CodeActionFilter {
 	readonly excludes?: readonly CodeActionKind[];
 	readonly includeSourceActions?: boolean;
 	readonly onlyIncludePreferredActions?: boolean;
+	readonly preview?: boolean;
 }
 
 export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: CodeActionKind): boolean {
