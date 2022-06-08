@@ -50,7 +50,7 @@ suite('Edit session sync', () => {
 		instantiationService.stub(ISessionSyncWorkbenchService, new class extends mock<ISessionSyncWorkbenchService>() { });
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(ISCMService, SCMService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ workbench: { experimental: { sessionSync: { enabled: true } } } }));
 		instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
 				return {
