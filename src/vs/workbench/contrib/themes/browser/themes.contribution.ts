@@ -575,6 +575,40 @@ registerAction2(class extends Action2 {
 	}
 });
 
+const TogglePreferredThemeCommandId = 'workbench.action.togglePreferredTheme';
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: TogglePreferredThemeCommandId,
+			title: { value: localize('togglePreferredTheme.label', "Toggle Preferred Theme"), original: 'Toggle Preferred Theme' },
+			category: CATEGORIES.Preferences,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor) {
+		const themeService = accessor.get(IWorkbenchThemeService);
+
+		const installMessage = localize('installColorThemes', "Install Additional Color Themes...");
+		const browseMessage = '$(plus) ' + localize('browseColorThemes', "Browse Additional Color Themes...");
+		const placeholderMessage = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
+		const marketplaceTag = 'category:themes';
+		const setTheme = (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => themeService.setColorTheme(theme as IWorkbenchColorTheme, settingsTarget);
+		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceColorThemes(publisher, name, version);
+
+		const instantiationService = accessor.get(IInstantiationService);
+		const picker = instantiationService.createInstance(InstalledThemesPicker, installMessage, browseMessage, placeholderMessage, marketplaceTag, setTheme, getMarketplaceColorThemes);
+
+		const themes = themeService.getPreferredColorThemes();
+		const currentTheme = themeService.getColorTheme();
+
+		const picks: QuickPickInput<ThemeItem>[] = toEntries(themes);
+		await picker.openQuickPick(picks, currentTheme);
+	}
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '4_themes',
 	command: {
@@ -600,6 +634,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 		title: localize({ key: 'miSelectProductIconTheme', comment: ['&& denotes a mnemonic'] }, "&&Product Icon Theme")
 	},
 	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '4_themes',
+	command: {
+		id: TogglePreferredThemeCommandId,
+		title: localize({ key: 'miTogglePreferredTheme', comment: ['&& denotes a mnemonic'] }, "&&Toggle Preferred Theme")
+	},
+	order: 4
 });
 
 

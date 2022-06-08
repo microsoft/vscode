@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, PREFERRED_THEME_SETTINGS } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -428,6 +428,20 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	public async getColorThemes(): Promise<IWorkbenchColorTheme[]> {
 		return this.colorThemeRegistry.getThemes();
+	}
+
+	public getPreferredColorThemes(): ColorThemeData[] {
+		const themes: ColorThemeData[] = [];
+		for (const settingId of PREFERRED_THEME_SETTINGS) {
+			const themeSettingId: string = this.configurationService.getValue(settingId);
+			if (themeSettingId) {
+				const theme = this.colorThemeRegistry.findThemeBySettingsId(themeSettingId, undefined);
+				if (theme) {
+					themes.push(theme);
+				}
+			}
+		}
+		return themes;
 	}
 
 	public async getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]> {
