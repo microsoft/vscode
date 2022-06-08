@@ -62,7 +62,6 @@ import 'vs/workbench/services/files/browser/elevatedFileService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyHistoryService';
 import 'vs/workbench/services/userDataSync/browser/webUserDataSyncEnablementService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import 'vs/workbench/services/sessionSync/browser/sessionSyncWorkbenchService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
