@@ -315,9 +315,6 @@ if (isMacintosh) {
 	});
 }
 
-MenuRegistry.appendMenuItem(MenuId.CommandCenter, { order: 1, command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: Codicon.arrowLeft } });
-MenuRegistry.appendMenuItem(MenuId.CommandCenter, { order: 2, command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: Codicon.arrowRight } });
-
 // Empty Editor Group Toolbar
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: UNLOCK_GROUP_COMMAND_ID, title: localize('unlockGroupAction', "Unlock Group"), icon: Codicon.lock }, group: 'navigation', order: 10, when: ActiveEditorGroupLockedContext });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('closeGroupAction', "Close Group"), icon: Codicon.close }, group: 'navigation', order: 20 });
@@ -775,25 +772,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 // Main Menu Bar Contributions:
-
-// Forward/Back
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '1_history_nav',
-	command: {
-		id: NavigateBackwardsAction.ID,
-		title: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back")
-	},
-	order: 1
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '1_history_nav',
-	command: {
-		id: NavigateForwardAction.ID,
-		title: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward")
-	},
-	order: 2
-});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '1_history_nav',

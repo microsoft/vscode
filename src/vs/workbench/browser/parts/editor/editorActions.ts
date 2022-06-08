@@ -26,7 +26,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
-import { Action2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -1271,15 +1271,20 @@ export class NavigateForwardAction extends Action2 {
 	constructor() {
 		super({
 			id: NavigateForwardAction.ID,
-			title: { value: localize('navigateForward', "Go Forward"), original: 'Go Forward' },
+			title: { value: localize('navigateForward', "Go Forward"), original: 'Go Forward', mnemonicTitle: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward") },
 			f1: true,
+			icon: Codicon.arrowRight,
 			precondition: ContextKeyExpr.has('canNavigateForward'),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus }
-			}
+			},
+			menu: [
+				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 2 },
+				{ id: MenuId.CommandCenter, order: 2 }
+			]
 		});
 	}
 
@@ -1298,15 +1303,20 @@ export class NavigateBackwardsAction extends Action2 {
 	constructor() {
 		super({
 			id: NavigateBackwardsAction.ID,
-			title: { value: localize('navigateBack', "Go Back"), original: 'Go Back' },
+			title: { value: localize('navigateBack', "Go Back"), original: 'Go Back', mnemonicTitle: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back") },
 			f1: true,
 			precondition: ContextKeyExpr.has('canNavigateBack'),
+			icon: Codicon.arrowLeft,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus }
-			}
+			},
+			menu: [
+				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 1 },
+				{ id: MenuId.CommandCenter, order: 1 }
+			]
 		});
 	}
 
