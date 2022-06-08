@@ -154,9 +154,11 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				const relativeFilePath = relativePath(workspaceFolder.uri, uri) ?? uri.path;
 
 				// Only deal with file contents for now
-				if (!(await this.fileService.stat(uri)).isFile) {
-					continue;
-				}
+				try {
+					if (!(await this.fileService.stat(uri)).isFile) {
+						continue;
+					}
+				} catch { }
 
 				if (await this.fileService.exists(uri)) {
 					workingChanges.push({ type: ChangeType.Addition, fileType: FileType.File, contents: (await this.fileService.readFile(uri)).value.toString(), relativeFilePath: relativeFilePath });
