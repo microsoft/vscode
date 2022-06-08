@@ -8,7 +8,6 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -235,5 +234,3 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		}
 	}
 }
-
-registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);

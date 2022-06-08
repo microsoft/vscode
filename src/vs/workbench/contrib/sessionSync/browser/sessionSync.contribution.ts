@@ -19,6 +19,10 @@ import { joinPath, relativePath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { SessionSyncWorkbenchService } from 'vs/workbench/services/sessionSync/browser/sessionSyncWorkbenchService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+
+registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
 const SYNC_TITLE = localize('session sync', 'Edit Sessions');
 const applyLatestCommand = {
