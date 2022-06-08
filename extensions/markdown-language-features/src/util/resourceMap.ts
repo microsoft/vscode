@@ -5,9 +5,19 @@
 
 import * as vscode from 'vscode';
 
+type ResourceToKey = (uri: vscode.Uri) => string;
+
+const defaultResourceToKey = (resource: vscode.Uri): string => resource.toString();
+
 export class ResourceMap<T> {
 
 	private readonly map = new Map<string, { readonly uri: vscode.Uri; readonly value: T }>();
+
+	private readonly toKey: ResourceToKey;
+
+	constructor(toKey: ResourceToKey = defaultResourceToKey) {
+		this.toKey = toKey;
+	}
 
 	public set(uri: vscode.Uri, value: T): this {
 		this.map.set(this.toKey(uri), { uri, value });
@@ -54,9 +64,5 @@ export class ResourceMap<T> {
 
 	public [Symbol.iterator](): IterableIterator<[vscode.Uri, T]> {
 		return this.entries();
-	}
-
-	private toKey(resource: vscode.Uri) {
-		return resource.toString();
 	}
 }
