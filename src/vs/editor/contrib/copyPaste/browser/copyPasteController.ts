@@ -177,10 +177,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					}
 
 					if (edit) {
-						// TODO: batch this
-						for (const selection of selections) {
-							performSnippetEdit(editor, { range: selection, snippet: edit.insertSnippet });
-						}
+						performSnippetEdit(editor, edit.insertSnippet, selections);
 
 						if (edit.additionalEdit) {
 							await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor });
