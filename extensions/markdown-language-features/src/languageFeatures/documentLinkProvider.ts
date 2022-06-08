@@ -208,7 +208,7 @@ class NoLinkRanges {
 	public static async compute(document: SkinnyTextDocument, engine: MarkdownEngine, includeHeadings?: boolean): Promise<NoLinkRanges> {
 		const tokens = await engine.parse(document);
 		const multiline = tokens.filter(t => (t.type === 'code_block' || t.type === 'fence' || t.type === 'html_block') && !!t.map).map(t => t.map) as [number, number][];
-		const headings = includeHeadings ? tokens.filter(t => t.type === 'heading' && !!t.map).map(t => t.map) as [number, number][] : undefined;
+		const headings = includeHeadings ? tokens.filter(t => t.type === 'heading_open' && !!t.map).map(t => t.map) as [number, number][] : undefined;
 
 		const text = document.getText();
 		const inline = [...text.matchAll(inlineCodePattern)].map(match => {
