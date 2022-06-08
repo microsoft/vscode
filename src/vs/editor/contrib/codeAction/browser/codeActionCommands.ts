@@ -335,7 +335,7 @@ export class RefactorPreview extends EditorAction {
 	constructor() {
 		super({
 			id: refactorPreviewCommandId,
-			label: nls.localize('refactor.preview.label', "Refactor Preview..."),
+			label: nls.localize('refactorPreview.label', "Refactor Preview..."),
 			alias: 'Refactor Preview...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			description: {
