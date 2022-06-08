@@ -18,7 +18,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, refactorPreviewCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
@@ -119,7 +119,8 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	public manualTriggerAtCurrentPosition(
 		notAvailableMessage: string,
 		filter?: CodeActionFilter,
-		autoApply?: CodeActionAutoApply
+		autoApply?: CodeActionAutoApply,
+		preview?: boolean
 	): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -127,7 +128,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		MessageController.get(this._editor)?.closeMessage();
 		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
+		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition }, preview });
 	}
 
 	private _trigger(trigger: CodeActionTrigger) {
@@ -171,7 +172,6 @@ export async function applyCodeAction(
 	await item.resolve(CancellationToken.None);
 
 	if (item.action.edit) {
-		// let temp  = CodeActionItem.RefactorAction;
 		await bulkEditService.apply(ResourceEdit.convert(item.action.edit), {
 			editor: options?.editor,
 			label: item.action.title,
@@ -209,12 +209,13 @@ function triggerCodeActionsForEditorSelection(
 	editor: ICodeEditor,
 	notAvailableMessage: string,
 	filter: CodeActionFilter | undefined,
-	autoApply: CodeActionAutoApply | undefined
+	autoApply: CodeActionAutoApply | undefined,
+	preview: boolean = false
 ): void {
 	if (editor.hasModel()) {
 		const controller = QuickFixController.get(editor);
 		if (controller) {
-			controller.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply);
+			controller.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply, preview);
 		}
 	}
 }
@@ -283,7 +284,7 @@ export class RefactorAction extends EditorAction {
 	constructor() {
 		super({
 			id: refactorCommandId,
-			label: nls.localize('refactor.label2', "Refactor..."),
+			label: nls.localize('refactor.label', "Refactor..."),
 			alias: 'Refactor...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
@@ -333,8 +334,8 @@ export class RefactorPreview extends EditorAction {
 
 	constructor() {
 		super({
-			id: refactorCommandId + 1,
-			label: nls.localize('refactor.label1', "Refactor Preview..."),
+			id: refactorPreviewCommandId,
+			label: nls.localize('refactor.preview.label', "Refactor Preview..."),
 			alias: 'Refactor Preview...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			description: {
@@ -359,9 +360,9 @@ export class RefactorPreview extends EditorAction {
 					: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
 			{
 				include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
-				onlyIncludePreferredActions: args.preferred, preview: true
+				onlyIncludePreferredActions: args.preferred,
 			},
-			args.apply);
+			args.apply, true);
 	}
 }
 
