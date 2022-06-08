@@ -25,16 +25,15 @@ const imageFileExtensions = new Set<string>([
 
 export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentOnDropEditProvider(selector, new class implements vscode.DocumentOnDropEditProvider {
-		async provideDocumentOnDropEdits(document: vscode.TextDocument, position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
+		async provideDocumentOnDropEdits(document: vscode.TextDocument, _position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
 			const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.drop.enabled', true);
 			if (!enabled) {
 				return undefined;
 			}
 
-			const replacementRange = new vscode.Range(position, position);
 			const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
 			if (snippet) {
-				return new vscode.SnippetTextEdit(replacementRange, snippet);
+				return { insertText: snippet };
 			}
 			return undefined;
 		}

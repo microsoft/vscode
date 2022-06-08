@@ -562,15 +562,6 @@ export namespace TextEdit {
 	}
 }
 
-export namespace SnippetTextEdit {
-	export function from(edit: vscode.SnippetTextEdit): languages.SnippetTextEdit {
-		return {
-			range: Range.from(edit.range),
-			snippet: edit.snippet.value
-		};
-	}
-}
-
 export namespace WorkspaceEdit {
 
 	export interface IVersionInformationProvider {

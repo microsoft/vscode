@@ -1714,7 +1714,12 @@ export interface IInlineValueContextDto {
 export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
 
 export interface IPasteEditDto {
-	insertSnippet: string;
+	insertText: string | { snippet: string };
+	additionalEdit?: IWorkspaceEditDto;
+}
+
+export interface IDocumentOnDropEditDto {
+	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
 }
 
@@ -1776,7 +1781,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
-	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined>;
+	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentOnDropEditDto | undefined>;
 }
 
 export interface ExtHostQuickOpenShape {
