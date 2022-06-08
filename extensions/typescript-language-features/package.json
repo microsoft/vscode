@@ -65,6 +65,7 @@
     "onCommand:_typescript.configurePlugin",
     "onCommand:_typescript.learnMoreAboutRefactorings",
     "onCommand:typescript.fileReferences",
+    "onCommand:typescript.goToSourceDefinition",
     "onTaskType:typescript",
     "onLanguage:jsonc"
   ],
@@ -300,6 +301,12 @@
           "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
           "scope": "resource"
         },
+        "typescript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
+          "scope": "resource"
+        },
         "typescript.inlayHints.propertyDeclarationTypes.enabled": {
           "type": "boolean",
           "default": false,
@@ -350,6 +357,12 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
           "scope": "resource"
         },
         "javascript.inlayHints.propertyDeclarationTypes.enabled": {
@@ -704,7 +717,7 @@
         },
         "js/ts.implicitProjectConfig.strictNullChecks": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "%configuration.implicitProjectConfig.strictNullChecks%",
           "scope": "window"
         },
@@ -1090,7 +1103,10 @@
           "type": "boolean",
           "default": false,
           "description": "%configuration.tsserver.experimental.enableProjectDiagnostics%",
-          "scope": "window"
+          "scope": "window",
+          "tags": [
+            "experimental"
+          ]
         },
         "typescript.tsserver.watchOptions": {
           "type": "object",
@@ -1229,6 +1245,11 @@
         "command": "typescript.findAllFileReferences",
         "title": "%typescript.findAllFileReferences%",
         "category": "TypeScript"
+      },
+      {
+        "command": "typescript.goToSourceDefinition",
+        "title": "%typescript.goToSourceDefinition%",
+        "category": "TypeScript"
       }
     ],
     "menus": {
@@ -1280,6 +1301,32 @@
         {
           "command": "typescript.findAllFileReferences",
           "when": "tsSupportsFileReferences && typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.goToSourceDefinition",
+          "when": "tsSupportsSourceDefinition && typescript.isManagedFile"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "typescript.goToSourceDefinition",
+          "when": "tsSupportsSourceDefinition && resourceLangId == typescript",
+          "group": "navigation@9"
+        },
+        {
+          "command": "typescript.goToSourceDefinition",
+          "when": "tsSupportsSourceDefinition && resourceLangId == typescriptreact",
+          "group": "navigation@9"
+        },
+        {
+          "command": "typescript.goToSourceDefinition",
+          "when": "tsSupportsSourceDefinition && resourceLangId == javascript",
+          "group": "navigation@9"
+        },
+        {
+          "command": "typescript.goToSourceDefinition",
+          "when": "tsSupportsSourceDefinition && resourceLangId == javascriptreact",
+          "group": "navigation@9"
         }
       ],
       "explorer/context": [

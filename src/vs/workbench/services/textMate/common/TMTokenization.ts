@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages';
+import { IState, ITokenizationSupport, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages';
+import { LanguageId, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import type { IGrammar, StackElement } from 'vscode-textmate';
 import { Disposable } from 'vs/base/common/lifecycle';
 

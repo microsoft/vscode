@@ -185,7 +185,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		// if this._commentThread.comments is undefined, it doesn't finish initialization yet, so we don't focus the editor immediately.
 		if (this._commentThread.canReply && this._commentReply) {
-			this._commentReply?.focusIfNeeded();
+			this._commentReply.focusIfNeeded();
 		}
 
 		this._bindCommentThreadListeners();
@@ -196,7 +196,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._onDidResize.fire(dimension);
 	}
 
-
+	override dispose() {
+		super.dispose();
+		this.updateCurrentThread(false, false);
+	}
 
 	private _bindCommentThreadListeners() {
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCanReply(() => {

@@ -659,6 +659,13 @@ export interface IEditorOptions {
 	 * Configures bracket pair colorization (disabled by default).
 	*/
 	bracketPairColorization?: IBracketPairColorizationOptions;
+
+	/**
+	 * Enables dropping into the editor from an external source.
+	 *
+	 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+	 */
+	enableDropIntoEditor?: boolean;
 }
 
 /**
@@ -2501,12 +2508,7 @@ export interface IEditorInlayHintsOptions {
 	 * Enable the inline hints.
 	 * Defaults to true.
 	 */
-	enabled?: boolean;
-
-	/**
-	 *
-	 */
-	toggle?: 'show' | 'hide' | null;
+	enabled?: 'on' | 'off' | 'offUnlessPressed' | 'onUnlessPressed';
 
 	/**
 	 * Font size of inline hints.
@@ -2521,11 +2523,10 @@ export interface IEditorInlayHintsOptions {
 	fontFamily?: string;
 
 	/**
-	 * The display style to render inlay hints with.
-	 * Compact mode disables the borders and padding around the inlay hint.
-	 * Defaults to 'standard'.
+	 * Enables the padding around the inlay hint.
+	 * Defaults to false.
 	 */
-	displayStyle: 'standard' | 'compact';
+	padding?: boolean;
 }
 
 /**
@@ -2536,24 +2537,21 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: true, toggle: null, fontSize: 0, fontFamily: '', displayStyle: 'compact' };
+		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
 				'editor.inlayHints.enabled': {
-					type: 'boolean',
-					default: defaults.enabled,
-					description: nls.localize('inlayHints.enable', "Enables the inlay hints in the editor.")
-				},
-				'editor.inlayHints.toggle': {
 					type: 'string',
-					enum: ['show', 'hide'],
+					default: defaults.enabled,
+					description: nls.localize('inlayHints.enable', "Enables the inlay hints in the editor."),
+					enum: ['on', 'onUnlessPressed', 'offUnlessPressed', 'off'],
 					markdownEnumDescriptions: [
-						nls.localize('toogle.show', "Inlay hints are hidden by default and only show when holding `Ctrl+Alt`"),
-						nls.localize('toogle.hide', "Inlay hints are showing by default and hide when holding `Ctrl+Alt`"),
+						nls.localize('editor.inlayHints.on', "Inlay hints are enabled"),
+						nls.localize('editor.inlayHints.onUnlessPressed', "Inlay hints are showing by default and hide when holding `Ctrl+Alt`"),
+						nls.localize('editor.inlayHints.offUnlessPressed', "Inlay hints are hidden by default and show when holding `Ctrl+Alt`"),
+						nls.localize('editor.inlayHints.off', "Inlay hints are disabled"),
 					],
-					default: defaults.toggle,
-					markdownDescription: nls.localize('inlayHints.toggle', "Control if inlay hints temporarily show or hide when `Ctrl+Alt` is pressed and held.")
 				},
 				'editor.inlayHints.fontSize': {
 					type: 'number',
@@ -2565,16 +2563,11 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.fontFamily,
 					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
-				// 'editor.inlayHints.displayStyle': {
-				// 	type: 'string',
-				// 	enum: ['standard', 'compact'],
-				// 	enumDescriptions: [
-				// 		nls.localize('inlayHints.displayStyle.standard', "Renders inlay hints with the default style."),
-				// 		nls.localize('inlayHints.displayStyle.compact', "Renders inlay hints without any padding, and removes the rounded borders."),
-				// 	],
-				// 	default: defaults.displayStyle,
-				// 	description: nls.localize('inlayHints.displayStyle', "Controls the display style of inlay hints.")
-				// }
+				'editor.inlayHints.padding': {
+					type: 'boolean',
+					default: defaults.padding,
+					description: nls.localize('inlayHints.padding', "Enables the padding around the inlay hints in the editor.")
+				}
 			}
 		);
 	}
@@ -2584,12 +2577,14 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			return this.defaultValue;
 		}
 		const input = _input as IEditorInlayHintsOptions;
+		if (typeof input.enabled === 'boolean') {
+			input.enabled = input.enabled ? 'on' : 'off';
+		}
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			toggle: stringSet<'show' | 'hide' | null>(input.toggle, this.defaultValue.toggle, ['show', 'hide']),
+			enabled: stringSet<'on' | 'off' | 'offUnlessPressed' | 'onUnlessPressed'>(input.enabled, this.defaultValue.enabled, ['on', 'off', 'offUnlessPressed', 'onUnlessPressed']),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
-			displayStyle: stringSet<'standard' | 'compact'>(input.displayStyle, this.defaultValue.displayStyle, ['standard', 'compact'])
+			padding: boolean(input.padding, this.defaultValue.padding)
 		};
 	}
 }
@@ -2933,35 +2928,29 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 				enumDescriptions: [nls.localize('on', "Quick suggestions show inside the suggest widget"), nls.localize('inline', "Quick suggestions show as ghost text"), nls.localize('off', "Quick suggestions are disabled")]
 			}
 		];
-		super(
-			EditorOption.quickSuggestions, 'quickSuggestions', defaults,
-			{
-				anyOf: [{
-					type: 'boolean',
-				}, {
-					type: 'object',
-					properties: {
-						strings: {
-							anyOf: types,
-							default: defaults.strings,
-							description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
-						},
-						comments: {
-							anyOf: types,
-							default: defaults.comments,
-							description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
-						},
-						other: {
-							anyOf: types,
-							default: defaults.other,
-							description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
-						},
-					}
-				}],
-				default: defaults,
-				markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing.")
-			}
-		);
+		super(EditorOption.quickSuggestions, 'quickSuggestions', defaults, {
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				strings: {
+					anyOf: types,
+					default: defaults.strings,
+					description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
+				},
+				comments: {
+					anyOf: types,
+					default: defaults.comments,
+					description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
+				},
+				other: {
+					anyOf: types,
+					default: defaults.other,
+					description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
+				},
+			},
+			default: defaults,
+			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget.")
+		});
 		this.defaultValue = defaults;
 	}
 
@@ -3693,7 +3682,7 @@ export interface IGuidesOptions {
 	 * Enable highlighting of the active indent guide.
 	 * Defaults to true.
 	 */
-	highlightActiveIndentation?: boolean;
+	highlightActiveIndentation?: boolean | 'always';
 }
 
 /**
@@ -3751,8 +3740,15 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 					description: nls.localize('editor.guides.indentation', "Controls whether the editor should render indent guides.")
 				},
 				'editor.guides.highlightActiveIndentation': {
-					type: 'boolean',
+					type: ['boolean', 'string'],
+					enum: [true, 'always', false],
+					enumDescriptions: [
+						nls.localize('editor.guides.highlightActiveIndentation.true', "Highlights the active indent guide."),
+						nls.localize('editor.guides.highlightActiveIndentation.always', "Highlights the active indent guide even if bracket guides are highlighted."),
+						nls.localize('editor.guides.highlightActiveIndentation.false', "Do not highlight the active indent guide."),
+					],
 					default: defaults.highlightActiveIndentation,
+
 					description: nls.localize('editor.guides.highlightActiveIndentation', "Controls whether the editor should highlight the active indent guide.")
 				}
 			}
@@ -3770,7 +3766,7 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 			highlightActiveBracketPair: boolean(input.highlightActiveBracketPair, this.defaultValue.highlightActiveBracketPair),
 
 			indentation: boolean(input.indentation, this.defaultValue.indentation),
-			highlightActiveIndentation: boolean(input.highlightActiveIndentation, this.defaultValue.highlightActiveIndentation),
+			highlightActiveIndentation: primitiveSet(input.highlightActiveIndentation, this.defaultValue.highlightActiveIndentation, [true, false, 'always']),
 		};
 	}
 }
@@ -4436,6 +4432,7 @@ export const enum EditorOption {
 	disableMonospaceOptimizations,
 	domReadOnly,
 	dragAndDrop,
+	enableDropIntoEditor,
 	emptySelectionClipboard,
 	extraEditorClassName,
 	fastScrollSensitivity,
@@ -4744,6 +4741,9 @@ export const EditorOptions = {
 		{ description: nls.localize('dragAndDrop', "Controls whether the editor should allow moving selections via drag and drop.") }
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
+	enableDropIntoEditor: register(new EditorBooleanOption(
+		EditorOption.enableDropIntoEditor, 'enableDropIntoEditor', true
+	)),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),

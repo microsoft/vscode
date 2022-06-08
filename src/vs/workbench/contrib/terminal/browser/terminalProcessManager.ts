@@ -33,6 +33,7 @@ import { NaiveCwdDetectionCapability } from 'vs/platform/terminal/common/capabil
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { URI } from 'vs/base/common/uri';
 import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -130,7 +131,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -249,8 +251,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					});
 					const options: ITerminalProcessOptions = {
 						shellIntegration: {
-							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-							showWelcome: this._configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome),
+							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)
 						},
 						windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled
 					};
@@ -332,6 +333,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				switch (type) {
 					case ProcessPropertyType.HasChildProcesses:
 						this._hasChildProcesses = value;
+						break;
+					case ProcessPropertyType.FailedShellIntegrationActivation:
+						this._telemetryService?.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates shell integration was not activated because of custom args' }>('terminal/shellIntegrationActivationFailureCustomArgs');
 						break;
 				}
 				this._onDidChangeProperty.fire({ type, value });
@@ -436,8 +440,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const options: ITerminalProcessOptions = {
 			shellIntegration: {
-				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-				showWelcome: this._configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome),
+				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)
 			},
 			windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled
 		};

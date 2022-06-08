@@ -7,7 +7,8 @@ import * as dom from 'vs/base/browser/dom';
 import { addMatchMediaChangeListener } from 'vs/base/browser/browser';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
-import { FontStyle, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/languages';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { FontStyle, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { hc_black, hc_light, vs, vs_dark } from 'vs/editor/standalone/common/themes';
@@ -16,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { ColorScheme, isDark } from 'vs/platform/theme/common/theme';
 import { getIconsStyleSheet, UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
 
 const VS_THEME_NAME = 'vs';
@@ -242,6 +243,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
+		this._knownThemes.set(HC_LIGHT_THEME_NAME, newBuiltInTheme(HC_LIGHT_THEME_NAME));
 
 		const iconsStyleSheet = getIconsStyleSheet(this);
 
@@ -339,10 +341,18 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._updateActualTheme();
 	}
 
+	private getHighContrastTheme() {
+		if (isDark(this._desiredTheme.type)) {
+			return HC_BLACK_THEME_NAME;
+		} else {
+			return HC_LIGHT_THEME_NAME;
+		}
+	}
+
 	private _updateActualTheme(): void {
 		const theme = (
 			this._autoDetectHighContrast && window.matchMedia(`(forced-colors: active)`).matches
-				? this._knownThemes.get(HC_BLACK_THEME_NAME)!
+				? this._knownThemes.get(this.getHighContrastTheme())!
 				: this._desiredTheme
 		);
 		if (this._theme === theme) {

@@ -26,11 +26,11 @@ import { ltrim } from 'vs/base/common/strings';
 
 	class TestParcelWatcher extends ParcelWatcher {
 
-		testNormalizePaths(paths: string[]): string[] {
+		testNormalizePaths(paths: string[], excludes: string[] = []): string[] {
 
 			// Work with strings as paths to simplify testing
 			const requests: IRecursiveWatchRequest[] = paths.map(path => {
-				return { path, excludes: [], recursive: true };
+				return { path, excludes, recursive: true };
 			});
 
 			return this.normalizeRequests(requests).map(request => request.path);
@@ -450,8 +450,14 @@ import { ltrim } from 'vs/base/common/strings';
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
 
-	test('includes are supported (relative pattern)', async function () {
+	test('includes are supported (relative pattern explicit)', async function () {
 		await watcher.watch([{ path: testDir, excludes: [], includes: [{ base: testDir, pattern: 'deep/newFile.txt' }], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
+	});
+
+	test('includes are supported (relative pattern implicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['deep/newFile.txt'], recursive: true }]);
 
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
@@ -547,6 +553,10 @@ import { ltrim } from 'vs/base/common/strings';
 			assert.deepStrictEqual(watcher.testNormalizePaths(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
 			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/a/b', '/a/c/d']), ['/a']);
 		}
+	});
+
+	test('should ignore when everything excluded', () => {
+		assert.deepStrictEqual(watcher.testNormalizePaths(['/foo/bar', '/bar'], ['**', 'something']), []);
 	});
 
 	test('excludes are converted to absolute paths', () => {

@@ -8,9 +8,10 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { MdPathCompletionProvider } from '../languageFeatures/pathCompletions';
+import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
-import { CURSOR, getCursorPositions, joinLines, noopToken, workspacePath } from './util';
+import { CURSOR, getCursorPositions, joinLines, workspacePath } from './util';
 
 
 function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string) {

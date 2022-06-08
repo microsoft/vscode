@@ -11,7 +11,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { isEqualOrParent, randomPath } from 'vs/base/common/extpath';
-import { parse, ParsedPattern, patternsEquals } from 'vs/base/common/glob';
+import { GLOBSTAR, ParsedPattern, patternsEquals } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -21,7 +21,7 @@ import { rtrim } from 'vs/base/common/strings';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 
 export interface IParcelWatcherInstance {
 
@@ -145,7 +145,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Logging
 
 		if (requestsToStartWatching.length) {
-			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? request.includes : '<all>'})`).join(',')}`);
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'})`).join(',')}`);
 		}
 
 		if (pathsToStopWatching.length) {
@@ -284,8 +284,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
 		// Warm up exclude/include patterns for usage
-		const excludePatterns = request.excludes.map(exclude => parse(exclude));
-		const includePatterns = request.includes?.map(include => parse(include));
+		const excludePatterns = parseWatcherPatterns(request.path, request.excludes);
+		const includePatterns = request.includes ? parseWatcherPatterns(request.path, request.includes) : undefined;
 
 		const ignore = this.toExcludePaths(realPath, watcher.request.excludes);
 
@@ -354,8 +354,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
 		// Warm up exclude/include patterns for usage
-		const excludePatterns = request.excludes.map(exclude => parse(exclude));
-		const includePatterns = request.includes?.map(include => parse(include));
+		const excludePatterns = parseWatcherPatterns(request.path, request.excludes);
+		const includePatterns = request.includes ? parseWatcherPatterns(request.path, request.includes) : undefined;
 
 		const ignore = this.toExcludePaths(realPath, watcher.request.excludes);
 		parcelWatcher.subscribe(realPath, (error, parcelEvents) => {
@@ -663,12 +663,17 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		// Only consider requests for watching that are not
 		// a child of an existing request path to prevent
-		// duplication.
+		// duplication. In addition, drop any request where
+		// everything is excluded (via `**` glob).
 		//
 		// However, allow explicit requests to watch folders
 		// that are symbolic links because the Parcel watcher
 		// does not allow to recursively watch symbolic links.
 		for (const request of requests) {
+			if (request.excludes.includes(GLOBSTAR)) {
+				continue; // path is ignored entirely (via `**` glob exclude)
+			}
+
 			if (requestTrie.findSubstr(request.path)) {
 				try {
 					const realpath = realpathSync(request.path);

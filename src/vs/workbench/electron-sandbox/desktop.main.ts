@@ -50,6 +50,8 @@ import { isCI, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
+import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 
 export class DesktopMain extends Disposable {
 
@@ -84,15 +86,15 @@ export class DesktopMain extends Disposable {
 		// Files
 		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait?.paths;
-		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {
+		for (const paths of [filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff]) {
 			if (Array.isArray(paths)) {
-				paths.forEach(path => {
+				for (const path of paths) {
 					if (path.fileUri) {
 						path.fileUri = URI.revive(path.fileUri);
 					}
-				});
+				}
 			}
-		});
+		}
 
 		if (filesToWait) {
 			filesToWait.waitMarkerFileUri = URI.revive(filesToWait.waitMarkerFileUri);
@@ -155,6 +157,10 @@ export class DesktopMain extends Disposable {
 		const mainProcessService = this._register(new ElectronIPCMainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
+		// Policies
+		const policyService = this.configuration.policiesData ? new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy')) : new NullPolicyService();
+		serviceCollection.set(IPolicyService, policyService);
+
 		// Product
 		const productService: IProductService = { _serviceBrand: undefined, ...product };
 		serviceCollection.set(IProductService, productService);
@@ -187,7 +193,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(ISharedProcessWorkerWorkbenchService, sharedProcessWorkerWorkbenchService);
 
 		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 
@@ -247,7 +253,7 @@ export class DesktopMain extends Disposable {
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 
 		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -279,7 +285,7 @@ export class DesktopMain extends Disposable {
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, logService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly
@@ -325,9 +331,17 @@ export class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async createWorkspaceService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+	private async createWorkspaceService(
+		payload: IAnyWorkspaceIdentifier,
+		environmentService: INativeWorkbenchEnvironmentService,
+		fileService: FileService,
+		remoteAgentService: IRemoteAgentService,
+		uriIdentityService: IUriIdentityService,
+		logService: ILogService,
+		policyService: IPolicyService
+	): Promise<WorkspaceService> {
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData] /* Cache all non native resources */, environmentService, fileService);
-		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
+		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, fileService, remoteAgentService, uriIdentityService, logService, policyService);
 
 		try {
 			await workspaceService.initialize(payload);

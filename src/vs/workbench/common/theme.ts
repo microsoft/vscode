@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -615,7 +615,7 @@ export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.bac
 	dark: '#007ACC',
 	light: '#007ACC',
 	hcDark: '#000000',
-	hcLight: '#007ACC'
+	hcLight: '#0F4A85'
 }, localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', {
@@ -763,8 +763,8 @@ export const MENUBAR_SELECTION_FOREGROUND = registerColor('menubar.selectionFore
 }, localize('menubarSelectionForeground', "Foreground color of the selected menu item in the menubar."));
 
 export const MENUBAR_SELECTION_BACKGROUND = registerColor('menubar.selectionBackground', {
-	dark: transparent(Color.white, 0.1),
-	light: transparent(Color.black, 0.1),
+	dark: toolbarHoverBackground,
+	light: toolbarHoverBackground,
 	hcDark: null,
 	hcLight: null,
 }, localize('menubarSelectionBackground', "Background color of the selected menu item in the menubar."));

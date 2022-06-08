@@ -6,7 +6,7 @@
 import 'vs/css!./minimap';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { GlobalPointerMoveMonitor, standardPointerMoveMerger } from 'vs/base/browser/globalPointerMoveMonitor';
+import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { CharCode } from 'vs/base/common/charCode';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -18,7 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { ColorId } from 'vs/editor/common/languages';
+import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
 import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
 import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
@@ -1230,7 +1230,6 @@ class InnerMinimap extends Disposable {
 			e.target,
 			e.pointerId,
 			e.buttons,
-			standardPointerMoveMerger,
 			pointerMoveData => handlePointerMove(pointerMoveData.pageY, pointerMoveData.pageX),
 			() => {
 				this._slider.toggleClassName('active', false);

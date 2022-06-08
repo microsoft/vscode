@@ -392,8 +392,14 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 		return basicCrudTest(join(testDir, 'files-includes.txt'));
 	});
 
-	test('includes are supported (folder watch, relative pattern)', async function () {
+	test('includes are supported (folder watch, relative pattern explicit)', async function () {
 		await watcher.watch([{ path: testDir, excludes: [], includes: [{ base: testDir, pattern: 'files-includes.txt' }], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('includes are supported (folder watch, relative pattern implicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['files-includes.txt'], recursive: false }]);
 
 		return basicCrudTest(join(testDir, 'files-includes.txt'));
 	});

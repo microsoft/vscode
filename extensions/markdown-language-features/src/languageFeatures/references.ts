@@ -7,6 +7,7 @@ import * as uri from 'vscode-uri';
 import { MarkdownEngine } from '../markdownEngine';
 import { Slugifier } from '../slugify';
 import { TableOfContents, TocEntry } from '../tableOfContents';
+import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref, MdLink, MdLinkProvider } from './documentLinkProvider';
@@ -70,7 +71,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	) {
 		super();
 
-		this._linkCache = this._register(new MdWorkspaceCache(workspaceContents, doc => linkProvider.getAllLinks(doc)));
+		this._linkCache = this._register(new MdWorkspaceCache(workspaceContents, doc => linkProvider.getAllLinks(doc, noopToken)));
 	}
 
 	async provideReferences(document: SkinnyTextDocument, position: vscode.Position, context: vscode.ReferenceContext, token: vscode.CancellationToken): Promise<vscode.Location[] | undefined> {
@@ -96,7 +97,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	}
 
 	private async getReferencesToHeader(document: SkinnyTextDocument, header: TocEntry): Promise<MdReference[]> {
-		const links = (await this._linkCache.getAll()).flat();
+		const links = (await this._linkCache.values()).flat();
 
 		const references: MdReference[] = [];
 
@@ -128,7 +129,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	}
 
 	private async getReferencesToLinkAtPosition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
-		const docLinks = await this.linkProvider.getAllLinks(document);
+		const docLinks = await this.linkProvider.getAllLinks(document, token);
 
 		for (const link of docLinks) {
 			if (link.kind === 'definition') {
@@ -136,11 +137,11 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 				if (link.ref.range.contains(position)) {
 					return Array.from(this.getReferencesToLinkReference(docLinks, link.ref.text, { resource: document.uri, range: link.ref.range }));
 				} else if (link.source.hrefRange.contains(position)) {
-					return this.getReferencesToLink(link, token);
+					return this.getReferencesToLink(link, position, token);
 				}
 			} else {
 				if (link.source.hrefRange.contains(position)) {
-					return this.getReferencesToLink(link, token);
+					return this.getReferencesToLink(link, position, token);
 				}
 			}
 		}
@@ -148,8 +149,8 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		return [];
 	}
 
-	private async getReferencesToLink(sourceLink: MdLink, token: vscode.CancellationToken): Promise<MdReference[]> {
-		const allLinksInWorkspace = (await this._linkCache.getAll()).flat();
+	private async getReferencesToLink(sourceLink: MdLink, triggerPosition: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
+		const allLinksInWorkspace = (await this._linkCache.values()).flat();
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -176,22 +177,14 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			return references;
 		}
 
-		let targetDoc = await this.workspaceContents.getMarkdownDocument(sourceLink.href.path);
-		if (!targetDoc) {
-			// We don't think the file exists. If it doesn't already have an extension, try tacking on a `.md` and using that instead
-			if (uri.Utils.extname(sourceLink.href.path) === '') {
-				const dotMdResource = sourceLink.href.path.with({ path: sourceLink.href.path.path + '.md' });
-				targetDoc = await this.workspaceContents.getMarkdownDocument(dotMdResource);
-			}
-		}
-
-		if (!targetDoc || token.isCancellationRequested) {
+		const targetDoc = await tryFindMdDocumentForLink(sourceLink.href, this.workspaceContents);
+		if (token.isCancellationRequested) {
 			return [];
 		}
 
 		const references: MdReference[] = [];
 
-		if (sourceLink.href.fragment) {
+		if (targetDoc && sourceLink.href.fragment && sourceLink.source.fragmentRange?.contains(triggerPosition)) {
 			const toc = await TableOfContents.create(this.engine, targetDoc);
 			const entry = toc.lookup(sourceLink.href.fragment);
 			if (entry) {
@@ -222,7 +215,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 				}
 			}
 		} else { // Triggered on a link without a fragment so we only require matching the file and ignore fragments
-			references.push(...this.findAllLinksToFile(targetDoc.uri, allLinksInWorkspace, sourceLink));
+			references.push(...this.findAllLinksToFile(targetDoc?.uri ?? sourceLink.href.path, allLinksInWorkspace, sourceLink));
 		}
 
 		return references;
@@ -234,7 +227,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	}
 
 	public async getAllReferencesToFile(resource: vscode.Uri, _token: vscode.CancellationToken): Promise<MdReference[]> {
-		const allLinksInWorkspace = (await this._linkCache.getAll()).flat();
+		const allLinksInWorkspace = (await this._linkCache.values()).flat();
 		return Array.from(this.findAllLinksToFile(resource, allLinksInWorkspace, undefined));
 	}
 
@@ -250,12 +243,13 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			}
 
 			const isTriggerLocation = !!sourceLink && sourceLink.source.resource.fsPath === link.source.resource.fsPath && sourceLink.source.hrefRange.isEqual(link.source.hrefRange);
+			const pathRange = this.getPathRange(link);
 			yield {
 				kind: 'link',
 				isTriggerLocation,
 				isDefinition: false,
 				link,
-				location: new vscode.Location(link.source.resource, link.source.hrefRange),
+				location: new vscode.Location(link.source.resource, pathRange),
 			};
 		}
 	}
@@ -274,14 +268,41 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			if (ref === refToFind && link.source.resource.fsPath === from.resource.fsPath) {
 				const isTriggerLocation = from.resource.fsPath === link.source.resource.fsPath && (
 					(link.href.kind === 'reference' && from.range.isEqual(link.source.hrefRange)) || (link.kind === 'definition' && from.range.isEqual(link.ref.range)));
+
+				const pathRange = this.getPathRange(link);
 				yield {
 					kind: 'link',
 					isTriggerLocation,
 					isDefinition: link.kind === 'definition',
 					link,
-					location: new vscode.Location(from.resource, link.source.hrefRange),
+					location: new vscode.Location(from.resource, pathRange),
 				};
 			}
 		}
 	}
+
+	/**
+	 * Get just the range of the file path, dropping the fragment
+	 */
+	private getPathRange(link: MdLink): vscode.Range {
+		return link.source.fragmentRange
+			? link.source.hrefRange.with(undefined, link.source.fragmentRange.start.translate(0, -1))
+			: link.source.hrefRange;
+	}
 }
+
+export async function tryFindMdDocumentForLink(href: InternalHref, workspaceContents: MdWorkspaceContents): Promise<SkinnyTextDocument | undefined> {
+	const targetDoc = await workspaceContents.getMarkdownDocument(href.path);
+	if (targetDoc) {
+		return targetDoc;
+	}
+
+	// We don't think the file exists. If it doesn't already have an extension, try tacking on a `.md` and using that instead
+	if (uri.Utils.extname(href.path) === '') {
+		const dotMdResource = href.path.with({ path: href.path.path + '.md' });
+		return workspaceContents.getMarkdownDocument(dotMdResource);
+	}
+
+	return undefined;
+}
+

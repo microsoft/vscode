@@ -920,6 +920,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._modifiedEditor.trigger(source, handlerId, payload);
 	}
 
+	public createDecorationsCollection(decorations?: IModelDeltaDecoration[]): editorCommon.IEditorDecorationsCollection {
+		return this._modifiedEditor.createDecorationsCollection(decorations);
+	}
+
 	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		return this._modifiedEditor.changeDecorations(callback);
 	}
@@ -2491,7 +2495,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			marginDomNode.appendChild(marginElement);
 		}
 
-		return output.characterMapping.getAbsoluteOffset(output.characterMapping.length);
+		return output.characterMapping.getHorizontalOffset(output.characterMapping.length);
 	}
 }
 

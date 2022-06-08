@@ -101,7 +101,7 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 					return;
 				} catch (e) {
 					error = e;
-					this.logService.warn('Error attempting to set a password: ', e);
+					this.logService.warn('Error attempting to set a password: ', e?.message ?? e);
 					attempts++;
 					await new Promise(resolve => setTimeout(resolve, 200));
 				}
@@ -145,7 +145,35 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 			throw e;
 		}
 
+		const password = await keytar.getPassword(service, account);
+		if (!password) {
+			return false;
+		}
 		const didDelete = await keytar.deletePassword(service, account);
+		try {
+			let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+			if (content && hasNextChunk) {
+				// need to delete additional chunks
+				let index = 1;
+				while (hasNextChunk) {
+					const accountWithIndex = `${account}-${index}`;
+					const nextChunk = await keytar.getPassword(service, accountWithIndex);
+					await keytar.deletePassword(service, accountWithIndex);
+
+					const result: ChunkedPassword = JSON.parse(nextChunk!);
+					hasNextChunk = result.hasNextChunk;
+					index++;
+				}
+			}
+		} catch {
+			// When the password is saved the entire JSON payload is encrypted then stored, thus the result from getPassword might not be valid JSON
+			// https://github.com/microsoft/vscode/blob/c22cb87311b5eb1a3bf5600d18733f7485355dc0/src/vs/workbench/api/browser/mainThreadSecretState.ts#L83
+			// However in the chunked case we JSONify each chunk after encryption so for the chunked case we do expect valid JSON here
+			// https://github.com/microsoft/vscode/blob/708cb0c507d656b760f9d08115b8ebaf8964fd73/src/vs/platform/credentials/common/credentialsMainService.ts#L128
+			// Empty catch here just as in getPassword because we expect to handle both JSON cases and non JSON cases here it's not an error case to fail to parse
+			// https://github.com/microsoft/vscode/blob/708cb0c507d656b760f9d08115b8ebaf8964fd73/src/vs/platform/credentials/common/credentialsMainService.ts#L76
+		}
+
 		if (didDelete) {
 			this._onDidChangePassword.fire({ service, account });
 		}

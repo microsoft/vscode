@@ -19,6 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { realpath } from 'vs/base/node/extpath';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
+import { findFreePort } from 'vs/base/node/ports';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { localize } from 'vs/nls';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
@@ -208,6 +209,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			window.win.minimize();
+		}
+	}
+
+	async updateTitleBarOverlay(windowId: number | undefined, backgroundColor: string, foregroundColor: string): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window?.win) {
+			window.win.setTitleBarOverlay({
+				color: backgroundColor,
+				symbolColor: foregroundColor
+			});
 		}
 	}
 
@@ -734,6 +745,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		} else {
 			return undefined;
 		}
+	}
+
+	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
+		return findFreePort(startPort, giveUpAfter, timeout, stride);
 	}
 
 	//#endregion

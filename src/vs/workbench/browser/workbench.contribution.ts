@@ -9,6 +9,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
+import 'vs/workbench/common/configurationMigration';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -110,6 +111,23 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: false,
 				tags: ['experimental'],
 				description: localize('workbench.editor.preferBasedLanguageDetection', "When enabled, a language detection model that takes into account editor history will be given higher precedence."),
+			},
+			'workbench.editor.languageDetectionHints': {
+				type: 'object',
+				default: { 'untitledEditors': true, 'notebookEditors': true },
+				tags: ['experimental'],
+				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a status bar quick fix when the editor language doesn't match detected content language."),
+				additionalProperties: false,
+				properties: {
+					untitledEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.editors', "Show in untitled text editors"),
+					},
+					notebookEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.notebook', "Show in notebook editors"),
+					}
+				}
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
@@ -464,9 +482,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 				'markdownDeprecationMessage': localize({ key: 'layoutControlTypeDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.type#`')
 			},
-			'workbench.editor.dropIntoEditor.enabled': {
+			'workbench.experimental.editor.dropIntoEditor.enabled': {
 				'type': 'boolean',
 				'default': true,
+				'tags': ['experimental'],
 				'markdownDescription': localize('dropIntoEditor', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
 			}
 		}
@@ -518,6 +537,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
+			},
+			'window.experimental.commandCenter': {
+				type: 'boolean',
+				default: false,
+				markdownDescription: localize('window.experimental.commandCenter', "Show command launcher together with the window title. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',

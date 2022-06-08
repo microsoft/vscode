@@ -11,15 +11,16 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { ConfigurationScope, EditPresentationTypes } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -129,6 +130,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	defaultValue?: any;
 
 	/**
+	 * The source of the default value to display.
+	 * This value also accounts for extension-contributed language-specific default value overrides.
+	 */
+	defaultValueSource: string | IExtensionInfo | undefined;
+
+	/**
 	 * Whether the setting is configured in the selected scope.
 	 */
 	isConfigured = false;
@@ -138,9 +145,19 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 */
 	isUntrusted = false;
 
+	/**
+	 * Whether the setting is under a policy that blocks all changes.
+	 */
+	hasPolicyValue = false;
+
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
+
+	/**
+	 * For each language that contributes setting values or default overrides, we can see those values here.
+	 */
 	languageOverrideValues: Map<string, IConfigurationValue<unknown>> = new Map<string, IConfigurationValue<unknown>>();
+
 	description!: string;
 	valueType!: SettingValueType;
 
@@ -181,7 +198,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	update(inspectResult: IInspectResult, isWorkspaceTrusted: boolean): void {
-		const { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector } = inspectResult;
+		let { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector } = inspectResult;
 
 		switch (targetSelector) {
 			case 'workspaceFolderValue':
@@ -213,22 +230,37 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		}
 
-		if (languageSelector && this.languageOverrideValues.has(languageSelector)) {
+		// The user might have added, removed, or modified a language filter,
+		// so we reset the default value source to the non-language-specific default value source for now.
+		this.defaultValueSource = this.setting.nonLanguageSpecificDefaultValueSource;
+
+		if (inspected.policyValue) {
+			this.hasPolicyValue = true;
+			isConfigured = false; // The user did not manually configure the setting themselves.
+			displayValue = inspected.policyValue;
+			this.scopeValue = inspected.policyValue;
+			this.defaultValue = inspected.defaultValue;
+		} else if (languageSelector && this.languageOverrideValues.has(languageSelector)) {
 			const overrideValues = this.languageOverrideValues.get(languageSelector)!;
 			// In the worst case, go back to using the previous display value.
 			// Also, sometimes the override is in the form of a default value override, so consider that second.
 			displayValue = (isConfigured ? overrideValues[targetSelector] : overrideValues.defaultValue) ?? displayValue;
-			this.value = displayValue;
 			this.scopeValue = isConfigured && overrideValues[targetSelector];
 			this.defaultValue = overrideValues.defaultValue ?? inspected.defaultValue;
+
+			const registryValues = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationDefaultsOverrides();
+			const overrideValueSource = registryValues.get(`[${languageSelector}]`)?.valuesSources?.get(this.setting.key);
+			if (overrideValueSource) {
+				this.defaultValueSource = overrideValueSource;
+			}
 		} else {
-			this.value = displayValue;
 			this.scopeValue = isConfigured && inspected[targetSelector];
 			this.defaultValue = inspected.defaultValue;
 		}
 
+		this.value = displayValue;
 		this.isConfigured = isConfigured;
-		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted) {
+		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted || this.hasPolicyValue) {
 			// Don't create an empty Set for all 1000 settings, only if needed
 			this.tags = new Set<string>();
 			if (isConfigured) {
@@ -241,6 +273,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 			if (this.setting.restricted) {
 				this.tags.add(REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG);
+			}
+
+			if (this.hasPolicyValue) {
+				this.tags.add(POLICY_SETTING_TAG);
 			}
 		}
 
@@ -892,6 +928,11 @@ export function parseQuery(query: string): IParsedQuery {
 
 	query = query.replace(`@${MODIFIED_SETTING_TAG}`, () => {
 		tags.push(MODIFIED_SETTING_TAG);
+		return '';
+	});
+
+	query = query.replace(`@${POLICY_SETTING_TAG}`, () => {
+		tags.push(POLICY_SETTING_TAG);
 		return '';
 	});
 

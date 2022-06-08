@@ -628,12 +628,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		await Promise.all(promises);
 	}
 
-	private async _updateExtensionsOnExtHost(extensionHostManager: IExtensionHostManager, _toAdd: IExtensionDescription[], _toRemove: ExtensionIdentifier[], removedRunningLocation: Map<string, ExtensionRunningLocation | null>): Promise<void> {
-		const toAdd = filterByExtensionHostManager(_toAdd, this._runningLocation, extensionHostManager);
-		const toRemove = _filterByExtensionHostManager(_toRemove, extId => extId, removedRunningLocation, extensionHostManager);
-		if (toRemove.length > 0 || toAdd.length > 0) {
-			await extensionHostManager.deltaExtensions(toAdd, toRemove);
-		}
+	private async _updateExtensionsOnExtHost(extensionHostManager: IExtensionHostManager, toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[], removedRunningLocation: Map<string, ExtensionRunningLocation | null>): Promise<void> {
+		const myToAdd = filterByExtensionHostManager(toAdd, this._runningLocation, extensionHostManager);
+		const myToRemove = _filterByExtensionHostManager(toRemove, extId => extId, removedRunningLocation, extensionHostManager);
+		await extensionHostManager.deltaExtensions({ toRemove, toAdd, myToRemove, myToAdd: myToAdd.map(extension => extension.identifier) });
 	}
 
 	public canAddExtension(extension: IExtensionDescription): boolean {
@@ -1211,6 +1209,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
 			type ExtensionsMessageClassification = {
+				owner: 'alexdima';
+				comment: 'A validation message for an extension';
 				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				extensionPointId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -1285,6 +1285,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
 		type ExtensionActivationErrorClassification = {
+			owner: 'alexdima';
+			comment: 'An extension failed to activate';
 			extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			error: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
 		};

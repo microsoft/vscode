@@ -288,6 +288,7 @@ export class SearchService extends Disposable implements ISearchService {
 				const cacheStats: ICachedSearchStats = fileSearchStats.detailStats as ICachedSearchStats;
 
 				type CachedSearchCompleteClassifcation = {
+					owner: 'roblourens';
 					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
@@ -330,6 +331,7 @@ export class SearchService extends Disposable implements ISearchService {
 				const searchEngineStats: ISearchEngineStats = fileSearchStats.detailStats as ISearchEngineStats;
 
 				type SearchCompleteClassification = {
+					owner: 'roblourens';
 					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
@@ -387,6 +389,7 @@ export class SearchService extends Disposable implements ISearchService {
 			}
 
 			type TextSearchCompleteClassification = {
+				owner: 'roblourens';
 				reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 				endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };

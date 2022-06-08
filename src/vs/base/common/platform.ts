@@ -43,7 +43,6 @@ export interface INodeProcess {
 	versions?: {
 		electron?: string;
 	};
-	sandboxed?: boolean;
 	type?: string;
 	cwd: () => string;
 }
@@ -65,7 +64,6 @@ if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== '
 
 const isElectronProcess = typeof nodeProcess?.versions?.electron === 'string';
 const isElectronRenderer = isElectronProcess && nodeProcess?.type === 'renderer';
-export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
 
 interface INavigator {
 	userAgent: string;
@@ -82,7 +80,19 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
-	_locale = navigator.language;
+
+	// Gather loader configuration since that contains the locale
+	let loaderConfiguration: any = null;
+	if (typeof globals.require !== 'undefined' && typeof globals.require.getConfig === 'function') {
+		// Get the configuration from the Monaco AMD Loader
+		loaderConfiguration = globals.require.getConfig();
+	} else if (typeof globals.requirejs !== 'undefined') {
+		// Get the configuration from requirejs
+		loaderConfiguration = globals.requirejs.s.contexts._.config;
+	}
+	const configuredLocale = loaderConfiguration?.['vs/nls']?.['availableLanguages']?.['*'] as string | undefined;
+	_locale = configuredLocale || navigator.language;
+
 	_language = _locale;
 }
 
@@ -197,6 +207,8 @@ export const locale = _locale;
  */
 export const translationsConfigFile = _translationsConfigFile;
 
+export const setTimeout0IsFaster = (typeof globals.postMessage === 'function' && !globals.importScripts);
+
 /**
  * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
  *
@@ -204,7 +216,7 @@ export const translationsConfigFile = _translationsConfigFile;
  * that browsers set when the nesting level is > 5.
  */
 export const setTimeout0 = (() => {
-	if (typeof globals.postMessage === 'function' && !globals.importScripts) {
+	if (setTimeout0IsFaster) {
 		interface IQueueElement {
 			id: number;
 			callback: () => void;

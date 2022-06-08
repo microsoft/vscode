@@ -10,7 +10,7 @@ import {
 	detectNpmScriptsForFolder,
 	findScriptAtPosition,
 	runScript,
-	FolderTaskItem
+	IFolderTaskItem
 } from './tasks';
 
 const localize = nls.loadMessageBundle();
@@ -37,17 +37,17 @@ export async function selectAndRunScriptFromFolder(context: vscode.ExtensionCont
 	}
 	const selectedFolder = selectedFolders[0];
 
-	let taskList: FolderTaskItem[] = await detectNpmScriptsForFolder(context, selectedFolder);
+	let taskList: IFolderTaskItem[] = await detectNpmScriptsForFolder(context, selectedFolder);
 
 	if (taskList && taskList.length > 0) {
-		const quickPick = vscode.window.createQuickPick<FolderTaskItem>();
+		const quickPick = vscode.window.createQuickPick<IFolderTaskItem>();
 		quickPick.title = 'Run NPM script in Folder';
 		quickPick.placeholder = 'Select an npm script';
 		quickPick.items = taskList;
 
 		const toDispose: vscode.Disposable[] = [];
 
-		let pickPromise = new Promise<FolderTaskItem | undefined>((c) => {
+		let pickPromise = new Promise<IFolderTaskItem | undefined>((c) => {
 			toDispose.push(quickPick.onDidAccept(() => {
 				toDispose.forEach(d => d.dispose());
 				c(quickPick.selectedItems[0]);

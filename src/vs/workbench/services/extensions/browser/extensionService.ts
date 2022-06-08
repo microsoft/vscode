@@ -16,7 +16,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IWebWorkerExtensionHostDataProvider, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
+import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier, IExtensionDescription, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
@@ -108,12 +108,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private _createLocalExtensionHostDataProvider(desiredRunningLocation: ExtensionRunningLocation): IWebWorkerExtensionHostDataProvider {
 		return {
-			getInitData: async () => {
+			getInitData: async (): Promise<IWebWorkerExtensionHostInitData> => {
 				const allExtensions = await this.getExtensions();
 				const localWebWorkerExtensions = this._filterByRunningLocation(allExtensions, desiredRunningLocation);
 				return {
 					autoStart: true,
-					extensions: localWebWorkerExtensions
+					allExtensions: allExtensions,
+					myExtensions: localWebWorkerExtensions.map(extension => extension.identifier)
 				};
 			}
 		};
@@ -232,8 +233,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				extensionHostLogsPath: remoteEnv.extensionHostLogsPath,
 				globalStorageHome: remoteEnv.globalStorageHome,
 				workspaceStorageHome: remoteEnv.workspaceStorageHome,
-				extensions: remoteExtensions,
-				allExtensions: this._registry.getAllExtensionDescriptions()
+				allExtensions: this._registry.getAllExtensionDescriptions(),
+				myExtensions: remoteExtensions.map(extension => extension.identifier),
 			};
 		}
 

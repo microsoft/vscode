@@ -66,8 +66,10 @@ const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', 
 type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description?: string };
 
 type SyncConflictsClassification = {
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	owner: 'sandy081';
+	comment: 'Response information when conflict happens during settings sync';
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'settings sync resource. eg., settings, keybindings...' };
+	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'action taken while resolving conflicts. Eg: acceptLocal, acceptRemote' };
 };
 
 const turnOnSyncCommand = { id: 'workbench.userDataSync.actions.turnOn', title: localize('turn on sync with category', "{0}: Turn On...", SYNC_TITLE) };

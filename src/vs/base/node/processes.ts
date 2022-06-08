@@ -87,35 +87,6 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 	return Promise.resolve({ success: true });
 }
 
-/**
- * Remove dangerous environment variables that have caused crashes
- * in forked processes (i.e. in ELECTRON_RUN_AS_NODE processes)
- *
- * @param env The env object to change
- */
-export function removeDangerousEnvVariables(env: NodeJS.ProcessEnv | undefined): void {
-	if (!env) {
-		return;
-	}
-
-	// Unset `DEBUG`, as an invalid value might lead to process crashes
-	// See https://github.com/microsoft/vscode/issues/130072
-	delete env['DEBUG'];
-
-	if (Platform.isMacintosh) {
-		// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
-		// See https://github.com/microsoft/vscode/issues/104525
-		// See https://github.com/microsoft/vscode/issues/105848
-		delete env['DYLD_LIBRARY_PATH'];
-	}
-
-	if (Platform.isLinux) {
-		// Unset `LD_PRELOAD`, as it might lead to process crashes
-		// See https://github.com/microsoft/vscode/issues/134177
-		delete env['LD_PRELOAD'];
-	}
-}
-
 export function getWindowsShell(env = process.env as Platform.IProcessEnvironment): string {
 	return env['comspec'] || 'cmd.exe';
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createStyleSheet, isInShadowDOM, ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -28,13 +28,9 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -91,6 +87,11 @@ type InlayHintDecorationRenderInfo = {
 	classNameRef: ClassNameReference;
 };
 
+const enum RenderMode {
+	Normal,
+	Invisible
+}
+
 // --- controller
 
 export class InlayHintsController implements IEditorContribution {
@@ -98,7 +99,6 @@ export class InlayHintsController implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
 	private static readonly _MAX_DECORATORS = 1500;
-	private static readonly _renderModeCssVariable: any = '--inlay-hints-render-mode';
 
 	static get(editor: ICodeEditor): InlayHintsController | undefined {
 		return editor.getContribution<InlayHintsController>(InlayHintsController.ID) ?? undefined;
@@ -109,8 +109,8 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _debounceInfo: IFeatureDebounceInformation;
 	private readonly _decorationsMetadata = new Map<string, InlayHintDecorationRenderInfo>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
-	private readonly _styleElement: HTMLStyleElement;
 
+	private _activeRenderMode = RenderMode.Normal;
 	private _activeInlayHintPart?: ActiveInlayHintInfo;
 
 	constructor(
@@ -122,7 +122,6 @@ export class InlayHintsController implements IEditorContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		this._styleElement = createStyleSheet(isInShadowDOM(this._editor.getContainerDomNode()) ? this._editor.getContainerDomNode() : undefined);
 		this._debounceInfo = _featureDebounce.for(_languageFeaturesService.inlayHintsProvider, 'InlayHint', { min: 25 });
 		this._disposables.add(_languageFeaturesService.inlayHintsProvider.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
@@ -140,7 +139,6 @@ export class InlayHintsController implements IEditorContribution {
 		this._sessionDisposables.dispose();
 		this._removeAllDecorations();
 		this._disposables.dispose();
-		this._styleElement.remove();
 	}
 
 	private _update(): void {
@@ -148,7 +146,7 @@ export class InlayHintsController implements IEditorContribution {
 		this._removeAllDecorations();
 
 		const options = this._editor.getOption(EditorOption.inlayHints);
-		if (!options.enabled) {
+		if (options.enabled === 'off') {
 			return;
 		}
 
@@ -232,34 +230,40 @@ export class InlayHintsController implements IEditorContribution {
 			scheduler.schedule(delay);
 		}));
 
-		if (!options.toggle) {
-			this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, 'inherit');
-
+		if (options.enabled === 'on') {
+			// different "on" modes: always
+			this._activeRenderMode = RenderMode.Normal;
 		} else {
-			type Modes = 'inherit' | 'none';
-			let defaultMode: Modes;
-			let altMode: Modes;
-			if (options.toggle === 'hide') {
-				defaultMode = 'inherit';
-				altMode = 'none';
+			// different "on" modes: offUnlessPressed, or onUnlessPressed
+			let defaultMode: RenderMode;
+			let altMode: RenderMode;
+			if (options.enabled === 'onUnlessPressed') {
+				defaultMode = RenderMode.Normal;
+				altMode = RenderMode.Invisible;
 			} else {
-				defaultMode = 'none';
-				altMode = 'inherit';
+				defaultMode = RenderMode.Invisible;
+				altMode = RenderMode.Normal;
 			}
-			this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, defaultMode);
-			let renderMode = defaultMode;
+			this._activeRenderMode = defaultMode;
+
 			this._sessionDisposables.add(ModifierKeyEmitter.getInstance().event(e => {
+				if (!this._editor.hasModel()) {
+					return;
+				}
 				const newRenderMode = e.altKey && e.ctrlKey ? altMode : defaultMode;
-				if (newRenderMode !== renderMode) {
-					this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, newRenderMode);
-					renderMode = newRenderMode;
+				if (newRenderMode !== this._activeRenderMode) {
+					this._activeRenderMode = newRenderMode;
+					const model = this._editor.getModel();
+					const copies = this._copyInlayHintsWithCurrentAnchor(model);
+					this._updateHintsDecorators([model.getFullModelRange()], copies);
+					scheduler.schedule(0);
 				}
 			}));
 		}
 
 		// mouse gestures
+		this._sessionDisposables.add(this._installDblClickGesture(() => scheduler.schedule(0)));
 		this._sessionDisposables.add(this._installLinkGesture());
-		this._sessionDisposables.add(this._installDblClickGesture());
 		this._sessionDisposables.add(this._installContextMenu());
 	}
 
@@ -329,7 +333,7 @@ export class InlayHintsController implements IEditorContribution {
 		return Array.from(lineHints);
 	}
 
-	private _installDblClickGesture(): IDisposable {
+	private _installDblClickGesture(updateInlayHints: Function): IDisposable {
 		return this._editor.onMouseUp(async e => {
 			if (e.event.detail !== 2) {
 				return;
@@ -343,6 +347,7 @@ export class InlayHintsController implements IEditorContribution {
 			if (isNonEmptyArray(part.item.hint.textEdits)) {
 				const edits = part.item.hint.textEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
 				this._editor.executeEdits('inlayHint.default', edits);
+				updateInlayHints();
 			}
 		});
 	}
@@ -383,6 +388,13 @@ export class InlayHintsController implements IEditorContribution {
 	}
 
 	private _cacheHintsForFastRestore(model: ITextModel): void {
+		const hints = this._copyInlayHintsWithCurrentAnchor(model);
+		this._inlayHintsCache.set(model, hints);
+	}
+
+	// return inlay hints but with an anchor that reflects "updates"
+	// that happened after receiving them, e.g adding new lines before a hint
+	private _copyInlayHintsWithCurrentAnchor(model: ITextModel): InlayHintItem[] {
 		const items = new Map<InlayHintItem, InlayHintItem>();
 		for (const [id, obj] of this._decorationsMetadata) {
 			if (items.has(obj.item)) {
@@ -390,16 +402,15 @@ export class InlayHintsController implements IEditorContribution {
 				// but they will all uses the same range
 				continue;
 			}
-			let value = obj.item;
 			const range = model.getDecorationRange(id);
 			if (range) {
 				// update range with whatever the editor has tweaked it to
 				const anchor = new InlayHintAnchor(range, obj.item.anchor.direction);
-				value = obj.item.with({ anchor });
+				const copy = obj.item.with({ anchor });
+				items.set(obj.item, copy);
 			}
-			items.set(obj.item, value);
 		}
-		this._inlayHintsCache.set(model, Array.from(items.values()));
+		return Array.from(items.values());
 	}
 
 	private _getHintsRanges(): Range[] {
@@ -441,7 +452,7 @@ export class InlayHintsController implements IEditorContribution {
 						showIfCollapsed: item.anchor.range.isEmpty(), // "original" range is empty
 						collapseOnReplaceEdit: !item.anchor.range.isEmpty(),
 						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-						[item.anchor.direction]: opts
+						[item.anchor.direction]: this._activeRenderMode === RenderMode.Normal ? opts : undefined
 					}
 				}
 			});
@@ -457,7 +468,7 @@ export class InlayHintsController implements IEditorContribution {
 
 
 		//
-		const { fontSize, fontFamily, displayStyle } = this._getLayoutInfo();
+		const { fontSize, fontFamily, padding } = this._getLayoutInfo();
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
@@ -482,6 +493,7 @@ export class InlayHintsController implements IEditorContribution {
 				const cssProperties: CssProperties = {
 					fontSize: `${fontSize}px`,
 					fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
+					verticalAlign: 'middle',
 				};
 
 				if (isNonEmptyArray(item.hint.textEdits)) {
@@ -499,9 +511,7 @@ export class InlayHintsController implements IEditorContribution {
 					}
 				}
 
-				if (displayStyle === 'standard') {
-					cssProperties.verticalAlign = 'middle';
-
+				if (padding) {
 					if (isFirst && isLast) {
 						// only element
 						cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px`;
@@ -552,17 +562,14 @@ export class InlayHintsController implements IEditorContribution {
 				}
 			}
 		}
-		const newDecorationIds = this._editor.deltaDecorations(decorationIdsToReplace, newDecorationsData.map(d => d.decoration));
-		for (let i = 0; i < newDecorationIds.length; i++) {
-			const data = newDecorationsData[i];
-			this._decorationsMetadata.set(newDecorationIds[i], data);
-		}
 
-		const allClassNames: string[] = [];
-		for (let data of this._decorationsMetadata.values()) {
-			allClassNames.push(`.${data.classNameRef.className}`);
-		}
-		this._styleElement.textContent = `${allClassNames.join(', ')} { display: var(${InlayHintsController._renderModeCssVariable}) !important; }`;
+		this._editor.changeDecorations(accessor => {
+			const newDecorationIds = accessor.deltaDecorations(decorationIdsToReplace, newDecorationsData.map(d => d.decoration));
+			for (let i = 0; i < newDecorationIds.length; i++) {
+				const data = newDecorationsData[i];
+				this._decorationsMetadata.set(newDecorationIds[i], data);
+			}
+		});
 	}
 
 	private _fillInColors(props: CssProperties, hint: languages.InlayHint): void {
@@ -586,7 +593,7 @@ export class InlayHintsController implements IEditorContribution {
 			fontSize = editorFontSize;
 		}
 		const fontFamily = options.fontFamily || this._editor.getOption(EditorOption.fontFamily);
-		return { fontSize, fontFamily, displayStyle: options.displayStyle };
+		return { fontSize, fontFamily, padding: options.padding };
 	}
 
 	private _removeAllDecorations(): void {
@@ -641,37 +648,4 @@ CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, .
 	} finally {
 		ref.dispose();
 	}
-});
-
-
-registerAction2(class ToggleInlayHints extends Action2 {
-
-	private static _key = 'editor.inlayHints.enabled';
-
-	constructor() {
-		super({
-			id: 'inlayhint.toggle',
-			title: {
-				value: localize('toggle', "Toggle Inlay Hints"),
-				mnemonicTitle: localize('toggleMnem', "Show &&Inlay Hints"),
-				original: 'Toggle Inlay Hints',
-			},
-			category: localize('view', 'View'),
-			toggled: ContextKeyExpr.equals(`config.${ToggleInlayHints._key}`, true),
-			f1: true,
-			menu: [{
-				id: MenuId.MenubarViewMenu,
-				group: '5_editor',
-				order: 3.5,
-			}]
-		});
-	}
-
-	run(accessor: ServicesAccessor, ...args: any[]): void {
-		let config = accessor.get(IConfigurationService);
-		const value = Boolean(config.getValue<boolean>(ToggleInlayHints._key));
-		config.updateValue(ToggleInlayHints._key, !value);
-
-	}
-
 });

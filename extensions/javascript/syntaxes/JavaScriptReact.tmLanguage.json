@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/56b7270f094b036256774702e3b7f96490981190",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/0dfae8cc4807fecfbf8f1add095d9817df824c95",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js.jsx",
 	"patterns": [
@@ -2272,7 +2272,43 @@
 					"match": "\\bfrom\\b"
 				},
 				{
+					"include": "#import-export-assert-clause"
+				},
+				{
 					"include": "#import-export-clause"
+				}
+			]
+		},
+		"import-export-assert-clause": {
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(assert)\\s*(\\{)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.assert.js.jsx"
+				},
+				"2": {
+					"name": "punctuation.definition.block.js.jsx"
+				}
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.block.js.jsx"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#string"
+				},
+				{
+					"name": "meta.object-literal.key.js.jsx",
+					"match": "(?:[_$[:alpha:]][_$[:alnum:]]*)\\s*(?=(\\/\\*([^\\*]|(\\*[^\\/]))*\\*\\/\\s*)*:)"
+				},
+				{
+					"name": "punctuation.separator.key-value.js.jsx",
+					"match": ":"
 				}
 			]
 		},
@@ -3914,7 +3950,7 @@
 				},
 				{
 					"name": "storage.modifier.js.jsx",
-					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(extends)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(extends|in|out)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"include": "#type"
@@ -3993,10 +4029,10 @@
 					"include": "#type-object"
 				},
 				{
-					"include": "#type-conditional"
+					"include": "#type-operators"
 				},
 				{
-					"include": "#type-operators"
+					"include": "#type-conditional"
 				},
 				{
 					"include": "#type-fn-type-parameters"
@@ -4345,6 +4381,9 @@
 					"include": "#typeof-operator"
 				},
 				{
+					"include": "#type-infer"
+				},
+				{
 					"begin": "([&|])(?=\\s*\\{)",
 					"beginCaptures": {
 						"0": {
@@ -4376,12 +4415,27 @@
 					"match": "(\\?|\\:)"
 				},
 				{
-					"name": "keyword.operator.expression.infer.js.jsx",
-					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))infer(?=\\s+[_$[:alpha:]])"
-				},
-				{
 					"name": "keyword.operator.expression.import.js.jsx",
 					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))import(?=\\s*\\()"
+				}
+			]
+		},
+		"type-infer": {
+			"patterns": [
+				{
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(infer)\\s+([_$[:alpha:]][_$[:alnum:]]*)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))(?:\\s+(extends)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))?",
+					"name": "meta.type.infer.js.jsx",
+					"captures": {
+						"1": {
+							"name": "keyword.operator.expression.infer.js.jsx"
+						},
+						"2": {
+							"name": "entity.name.type.js.jsx"
+						},
+						"3": {
+							"name": "keyword.operator.expression.extends.js.jsx"
+						}
+					}
 				}
 			]
 		},
@@ -5046,7 +5100,7 @@
 		},
 		"directives": {
 			"name": "comment.line.triple-slash.directive.js.jsx",
-			"begin": "^(///)\\s*(?=<(reference|amd-dependency|amd-module)(\\s+(path|types|no-default-lib|lib|name)\\s*=\\s*((\\'([^\\'\\\\]|\\\\.)*\\')|(\\\"([^\\\"\\\\]|\\\\.)*\\\")|(\\`([^\\`\\\\]|\\\\.)*\\`)))+\\s*/>\\s*$)",
+			"begin": "^(///)\\s*(?=<(reference|amd-dependency|amd-module)(\\s+(path|types|no-default-lib|lib|name|resolution-mode)\\s*=\\s*((\\'([^\\'\\\\]|\\\\.)*\\')|(\\\"([^\\\"\\\\]|\\\\.)*\\\")|(\\`([^\\`\\\\]|\\\\.)*\\`)))+\\s*/>\\s*$)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.comment.js.jsx"
@@ -5074,7 +5128,7 @@
 					"patterns": [
 						{
 							"name": "entity.other.attribute-name.directive.js.jsx",
-							"match": "path|types|no-default-lib|lib|name"
+							"match": "path|types|no-default-lib|lib|name|resolution-mode"
 						},
 						{
 							"name": "keyword.operator.assignment.js.jsx",

@@ -968,6 +968,7 @@ function registerCloseEditorCommands() {
 			]);
 
 			type WorkbenchEditorReopenClassification = {
+				owner: 'rebornix';
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };

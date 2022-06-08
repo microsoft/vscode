@@ -14,7 +14,7 @@ import { ConfigurationScope, IConfigurationRegistry, Extensions as Configuration
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct, firstOrDefault } from 'vs/base/common/arrays';
-import { basename, isEqual, isEqualAuthority, removeTrailingPathSeparator } from 'vs/base/common/resources';
+import { basename, isEqual, isEqualAuthority, joinPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -58,7 +58,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			saveLabel: mnemonicButtonLabel(localize('save', "Save")),
 			title: localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, this.getNewWorkspaceName()),
+			defaultUri: joinPath(await this.fileDialogService.defaultWorkspacePath(), this.getNewWorkspaceName()),
 			availableFileSystems
 		});
 
@@ -76,23 +76,20 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	}
 
 	private getNewWorkspaceName(): string {
-		switch (this.contextService.getWorkbenchState()) {
-			case WorkbenchState.FOLDER: {
-				const folder = firstOrDefault(this.contextService.getWorkspace().folders);
-				if (folder) {
-					return `${basename(folder.uri)}.${WORKSPACE_EXTENSION}`;
-				}
-				break;
-			}
-			case WorkbenchState.WORKSPACE: {
-				const configPathURI = this.getCurrentWorkspaceIdentifier()?.configPath;
-				if (configPathURI && isSavedWorkspace(configPathURI, this.environmentService)) {
-					return basename(configPathURI);
-				}
-				break;
-			}
+
+		// First try with existing workspace name
+		const configPathURI = this.getCurrentWorkspaceIdentifier()?.configPath;
+		if (configPathURI && isSavedWorkspace(configPathURI, this.environmentService)) {
+			return basename(configPathURI);
 		}
 
+		// Then fallback to first folder if any
+		const folder = firstOrDefault(this.contextService.getWorkspace().folders);
+		if (folder) {
+			return `${basename(folder.uri)}.${WORKSPACE_EXTENSION}`;
+		}
+
+		// Finally pick a good default
 		return `workspace.${WORKSPACE_EXTENSION}`;
 	}
 

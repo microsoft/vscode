@@ -23,8 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewElement, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { WebviewElement, WebviewInitInfo, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -44,10 +43,7 @@ export class ElectronWebviewElement extends WebviewElement {
 	protected override get platform() { return 'electron'; }
 
 	constructor(
-		id: string,
-		options: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
+		initInfo: WebviewInitInfo,
 		webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITunnelService tunnelService: ITunnelService,
@@ -64,7 +60,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
-		super(id, options, contentOptions, extension, webviewThemeDataProvider,
+		super(initInfo, webviewThemeDataProvider,
 			configurationService, contextMenuService, menuService, notificationService, environmentService,
 			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService, accessibilityService);
 
@@ -80,7 +76,7 @@ export class ElectronWebviewElement extends WebviewElement {
 			this._webviewKeyboardHandler.didBlur();
 		}));
 
-		if (options.enableFindWidget) {
+		if (initInfo.options.enableFindWidget) {
 			this._register(this.onDidHtmlChange((newContent) => {
 				if (this._findStarted && this._cachedHtmlContent !== newContent) {
 					this.stopFind(false);

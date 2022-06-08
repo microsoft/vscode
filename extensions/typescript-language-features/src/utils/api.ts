@@ -39,6 +39,7 @@ export default class API {
 	public static readonly v430 = API.fromSimpleString('4.3.0');
 	public static readonly v440 = API.fromSimpleString('4.4.0');
 	public static readonly v460 = API.fromSimpleString('4.6.0');
+	public static readonly v470 = API.fromSimpleString('4.7.0');
 
 	public static fromVersionString(versionString: string): API {
 		let version = semver.valid(versionString);

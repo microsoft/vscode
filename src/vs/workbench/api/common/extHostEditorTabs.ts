@@ -9,7 +9,7 @@ import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TerminalEditorTabInput, TextDiffTabInput, TextTabInput, ViewColumn, WebviewEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
+import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TerminalEditorTabInput, TextDiffTabInput, TextTabInput, WebviewEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { diffSets } from 'vs/base/common/collections';
@@ -48,7 +48,7 @@ class ExtHostEditorTab {
 				get label() {
 					return that._dto.label;
 				},
-				get kind() {
+				get input() {
 					return that._input;
 				},
 				get isDirty() {
@@ -256,14 +256,14 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 						return this._closeTabs(tabsOrTabGroups as vscode.Tab[], preserveFocus);
 					}
 				},
-				move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preservceFocus?: boolean) => {
-					const extHostTab = this._findExtHostTabFromApi(tab);
-					if (!extHostTab) {
-						throw new Error('Invalid tab');
-					}
-					this._proxy.$moveTab(extHostTab.tabId, index, typeConverters.ViewColumn.from(viewColumn), preservceFocus);
-					return;
-				}
+				// move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preservceFocus?: boolean) => {
+				// 	const extHostTab = this._findExtHostTabFromApi(tab);
+				// 	if (!extHostTab) {
+				// 		throw new Error('Invalid tab');
+				// 	}
+				// 	this._proxy.$moveTab(extHostTab.tabId, index, typeConverters.ViewColumn.from(viewColumn), preservceFocus);
+				// 	return;
+				// }
 			};
 			this._apiObject = Object.freeze(obj);
 		}

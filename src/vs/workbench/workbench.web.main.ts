@@ -87,6 +87,8 @@ import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IDiagnosticsService, NullDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { WebLanguagePacksService } from 'vs/platform/languagePacks/browser/languagePacks';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
@@ -103,6 +105,7 @@ registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(ITimerService, TimerService);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, true);
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, true);
+registerSingleton(ILanguagePackService, WebLanguagePacksService, true);
 
 //#endregion
 
@@ -112,8 +115,14 @@ registerSingleton(IDiagnosticsService, NullDiagnosticsService, true);
 // Output
 import 'vs/workbench/contrib/output/common/outputChannelModelService';
 
+// Logs
+import 'vs/workbench/contrib/logs/browser/logs.contribution';
+
 // Explorer
 import 'vs/workbench/contrib/files/browser/files.web.contribution';
+
+// Localization
+import 'vs/workbench/contrib/localization/browser/localization.contribution';
 
 // Performance
 import 'vs/workbench/contrib/performance/browser/performance.web.contribution';
@@ -166,7 +175,7 @@ import 'vs/workbench/contrib/offline/browser/offline.contribution';
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-import { create, commands, env, window } from 'vs/workbench/browser/web.factory';
+import { create, commands, env, window, logger } from 'vs/workbench/browser/web.factory';
 import { IWorkbench, ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IPosition, IProductQualityChangeHandler, IRange, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
@@ -246,6 +255,9 @@ export {
 	ICommand,
 	commands,
 	Menu,
+
+	// Logger
+	logger,
 
 	// Window
 	window,
