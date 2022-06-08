@@ -1267,7 +1267,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SignatureHelpTriggerKind: extHostTypes.SignatureHelpTriggerKind,
 			SignatureInformation: extHostTypes.SignatureInformation,
 			SnippetString: extHostTypes.SnippetString,
-			SnippetTextEdit: extHostTypes.SnippetTextEdit,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StandardTokenType: extHostTypes.StandardTokenType,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,

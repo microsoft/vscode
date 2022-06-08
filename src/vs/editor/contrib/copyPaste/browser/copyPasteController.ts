@@ -21,6 +21,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -34,7 +35,7 @@ const defaultPasteEditProvider = new class implements DocumentPasteEditProvider 
 		if (textDataTransfer) {
 			const text = await textDataTransfer.asString();
 			return {
-				insertSnippet: text
+				insertText: text
 			};
 		}
 
@@ -177,7 +178,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					}
 
 					if (edit) {
-						performSnippetEdit(editor, edit.insertSnippet, selections);
+						performSnippetEdit(editor, typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet, selections);
 
 						if (edit.additionalEdit) {
 							await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor });

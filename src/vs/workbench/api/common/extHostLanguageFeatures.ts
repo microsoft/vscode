@@ -34,7 +34,6 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCancellationError, NotImplementedError } from 'vs/base/common/errors';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 // --- adapter
 
@@ -524,7 +523,7 @@ class DocumentPasteEditProvider {
 		}
 
 		return {
-			insertSnippet: typeof edit.insertText === 'string' ? edit.insertText : edit.insertText.value,
+			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit) : undefined,
 		};
 	}
@@ -1798,7 +1797,7 @@ class DocumentOnDropEditAdapter {
 		private readonly _handle: number,
 	) { }
 
-	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentOnDropEditDto | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const pos = typeConvert.Position.to(position);
 		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, async (index) => {
@@ -1809,7 +1808,10 @@ class DocumentOnDropEditAdapter {
 		if (!edit) {
 			return undefined;
 		}
-		return typeConvert.SnippetTextEdit.from(edit);
+		return {
+			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
+			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit) : undefined,
+		};
 	}
 }
 
@@ -2453,7 +2455,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentOnDropEditDto | undefined> {
 		return this._withAdapter(handle, DocumentOnDropEditAdapter, adapter =>
 			Promise.resolve(adapter.provideDocumentOnDropEdits(requestId, URI.revive(resource), position, dataTransferDto, token)), undefined, undefined);
 	}

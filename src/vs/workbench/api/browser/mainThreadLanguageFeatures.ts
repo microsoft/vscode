@@ -400,7 +400,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 
 				return {
-					insertSnippet: result.insertSnippet,
+					insertText: result.insertText,
 					additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit) : undefined,
 				};
 			}
@@ -935,11 +935,18 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 	) { }
 
-	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<languages.SnippetTextEdit | null | undefined> {
+	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<languages.DocumentOnDropEdit | null | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
 		try {
 			const dataTransferDto = await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
-			return await this._proxy.$provideDocumentOnDropEdits(this.handle, request.id, model.uri, position, dataTransferDto, token);
+			const edit = await this._proxy.$provideDocumentOnDropEdits(this.handle, request.id, model.uri, position, dataTransferDto, token);
+			if (!edit) {
+				return undefined;
+			}
+			return {
+				insertText: edit.insertText,
+				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit),
+			};
 		} finally {
 			request.dispose();
 		}

@@ -725,7 +725,7 @@ export interface CodeActionProvider {
  * @internal
  */
 export interface DocumentPasteEdit {
-	insertSnippet: string;
+	insertText: string | { snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
 
@@ -1133,11 +1133,6 @@ export interface DocumentSymbolProvider {
 }
 
 export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence };
-
-export interface SnippetTextEdit {
-	range: IRange;
-	snippet: string;
-}
 
 /**
  * Interface used to format a model
@@ -1811,10 +1806,17 @@ export enum ExternalUriOpenerPriority {
 	Preferred = 3,
 }
 
+/**
+ * @internal
+ */
+export interface DocumentOnDropEdit {
+	insertText: string | { snippet: string };
+	additionalEdit?: WorkspaceEdit;
+}
 
 /**
  * @internal
  */
 export interface DocumentOnDropEditProvider {
-	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): ProviderResult<SnippetTextEdit>;
+	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
 }
