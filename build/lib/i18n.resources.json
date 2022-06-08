@@ -431,6 +431,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/sessionSync",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/views",
 			"project": "vscode-workbench"
 		},
