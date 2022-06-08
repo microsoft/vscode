@@ -285,7 +285,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'deep', 'conway.js');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;

@@ -705,7 +705,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	layout(height?: number, width?: number): void {
-		let scrollDimensions: INewScrollDimensions = {
+		const scrollDimensions: INewScrollDimensions = {
 			height: typeof height === 'number' ? height : getContentHeight(this.domNode)
 		};
 
@@ -1364,7 +1364,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const size = item.size;
 
 		if (!this.setRowHeight && item.row) {
-			let newSize = item.row.domNode.offsetHeight;
+			const newSize = item.row.domNode.offsetHeight;
 			item.size = newSize;
 			item.lastDynamicHeightWidth = this.renderWidth;
 			return newSize - size;

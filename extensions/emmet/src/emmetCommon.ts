@@ -161,8 +161,8 @@ const languageMappingForCompletionProviders: Map<string, string> = new Map<strin
 const completionProvidersMapping: Map<string, vscode.Disposable> = new Map<string, vscode.Disposable>();
 
 function registerCompletionProviders(context: vscode.ExtensionContext) {
-	let completionProvider = new DefaultCompletionItemProvider();
-	let includedLanguages = getMappingForIncludedLanguages();
+	const completionProvider = new DefaultCompletionItemProvider();
+	const includedLanguages = getMappingForIncludedLanguages();
 
 	Object.keys(includedLanguages).forEach(language => {
 		if (languageMappingForCompletionProviders.has(language) && languageMappingForCompletionProviders.get(language) === includedLanguages[language]) {

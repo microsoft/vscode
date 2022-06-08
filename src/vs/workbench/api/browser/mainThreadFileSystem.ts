@@ -37,7 +37,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 		const infoProxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemInfo);
 
-		for (let entry of _fileService.listCapabilities()) {
+		for (const entry of _fileService.listCapabilities()) {
 			infoProxy.$acceptProviderInfos(URI.from({ scheme: entry.scheme, path: '/dummy' }), entry.capabilities);
 		}
 		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(e => infoProxy.$acceptProviderInfos(URI.from({ scheme: e.scheme, path: '/dummy' }), e.provider?.capabilities ?? null)));

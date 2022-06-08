@@ -350,7 +350,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	}
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		let content = await super.resolveContent(uri);
+		const content = await super.resolveContent(uri);
 		if (content) {
 			const syncData = this.parseSyncData(content);
 			if (syncData) {

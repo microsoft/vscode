@@ -154,7 +154,7 @@ export function isEmptyObject(obj: unknown): obj is object {
 		return false;
 	}
 
-	for (let key in obj) {
+	for (const key in obj) {
 		if (hasOwnProperty.call(obj, key)) {
 			return false;
 		}
@@ -238,7 +238,7 @@ export function createProxyObject<T extends object>(methodNames: string[], invok
 		};
 	};
 
-	let result = {} as T;
+	const result = {} as T;
 	for (const methodName of methodNames) {
 		(<any>result)[methodName] = createProxyMethod(methodName);
 	}

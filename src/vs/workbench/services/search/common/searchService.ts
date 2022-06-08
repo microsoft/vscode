@@ -422,7 +422,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 		if (query.type === QueryType.Text) {
 			const canonicalToOriginalResources = new ResourceMap<URI>();
-			for (let editorInput of this.editorService.editors) {
+			for (const editorInput of this.editorService.editors) {
 				const canonical = EditorResourceAccessor.getCanonicalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
 				const original = EditorResourceAccessor.getOriginalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
 

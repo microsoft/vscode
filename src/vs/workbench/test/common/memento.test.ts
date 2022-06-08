@@ -9,7 +9,7 @@ import { Memento } from 'vs/workbench/common/memento';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Memento', () => {
-	let context: StorageScope | undefined = undefined;
+	const context: StorageScope | undefined = undefined;
 	let storage: IStorageService;
 
 	setup(() => {
@@ -19,7 +19,7 @@ suite('Memento', () => {
 	});
 
 	test('Loading and Saving Memento with Scopes', () => {
-		let myMemento = new Memento('memento.test', storage);
+		const myMemento = new Memento('memento.test', storage);
 
 		// Global
 		let memento = myMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
@@ -74,7 +74,7 @@ suite('Memento', () => {
 	});
 
 	test('Save and Load', () => {
-		let myMemento = new Memento('memento.test', storage);
+		const myMemento = new Memento('memento.test', storage);
 
 		// Global
 		let memento = myMemento.getMemento(context!, StorageTarget.MACHINE);
@@ -138,8 +138,8 @@ suite('Memento', () => {
 	});
 
 	test('Save and Load - 2 Components with same id', () => {
-		let myMemento = new Memento('memento.test', storage);
-		let myMemento2 = new Memento('memento.test', storage);
+		const myMemento = new Memento('memento.test', storage);
+		const myMemento2 = new Memento('memento.test', storage);
 
 		// Global
 		let memento = myMemento.getMemento(context!, StorageTarget.MACHINE);

@@ -205,7 +205,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async getAccounts(authenticationProviderId: string, scopes: string[]): Promise<UserDataSyncAccount[]> {
-		let accounts: Map<string, UserDataSyncAccount> = new Map<string, UserDataSyncAccount>();
+		const accounts: Map<string, UserDataSyncAccount> = new Map<string, UserDataSyncAccount>();
 		let currentAccount: UserDataSyncAccount | null = null;
 
 		const sessions = await this.authenticationService.getSessions(authenticationProviderId, scopes) || [];

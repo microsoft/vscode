@@ -138,7 +138,7 @@ flakySuite('StateMainService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		let service = new FileStorage(URI.file(storageFile), logService, fileService);
+		const service = new FileStorage(URI.file(storageFile), logService, fileService);
 
 		service.setItem('some.key1', 'some.value1');
 		service.setItem('some.key2', 'some.value2');

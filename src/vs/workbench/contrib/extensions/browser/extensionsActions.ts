@@ -148,7 +148,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			});
 		}
 
-		let message = `${operationMessage}${additionalMessage ? ` ${additionalMessage}` : ''}`;
+		const message = `${operationMessage}${additionalMessage ? ` ${additionalMessage}` : ''}`;
 		this.notificationService.prompt(Severity.Error, message, promptChoices);
 	}
 }
@@ -994,7 +994,7 @@ export class DropDownMenuActionViewItem extends ActionViewItem {
 	public showMenu(menuActionGroups: IAction[][], disposeActionsOnHide: boolean): void {
 		if (this.element) {
 			const actions = this.getActions(menuActionGroups);
-			let elementPosition = DOM.getDomNodePagePosition(this.element);
+			const elementPosition = DOM.getDomNodePagePosition(this.element);
 			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,

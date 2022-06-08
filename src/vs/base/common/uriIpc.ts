@@ -90,7 +90,7 @@ function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: n
 		}
 
 		// walk object (or array)
-		for (let key in obj) {
+		for (const key in obj) {
 			if (Object.hasOwnProperty.call(obj, key)) {
 				const r = _transformOutgoingURIs(obj[key], transformer, depth + 1);
 				if (r !== null) {
@@ -126,7 +126,7 @@ function _transformIncomingURIs(obj: any, transformer: IURITransformer, revive: 
 		}
 
 		// walk object (or array)
-		for (let key in obj) {
+		for (const key in obj) {
 			if (Object.hasOwnProperty.call(obj, key)) {
 				const r = _transformIncomingURIs(obj[key], transformer, revive, depth + 1);
 				if (r !== null) {

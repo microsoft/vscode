@@ -1343,7 +1343,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		let currentText: string = await this._clipboardService.readText();
+		const currentText: string = await this._clipboardService.readText();
 		if (!await this._shouldPasteText(currentText)) {
 			return;
 		}
@@ -1357,7 +1357,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		let currentText: string = await this._clipboardService.readText('selection');
+		const currentText: string = await this._clipboardService.readText('selection');
 		if (!await this._shouldPasteText(currentText)) {
 			return;
 		}
@@ -2109,7 +2109,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
 		if (isWindows) {
 			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
-				let line = this.xterm.raw.buffer.active.getLine(i);
+				const line = this.xterm.raw.buffer.active.getLine(i);
 				(line as any)._line.isWrapped = false;
 			}
 		}
@@ -2560,7 +2560,7 @@ export class TerminalLabelComputer extends Disposable {
 		}
 
 		//Remove special characters that could mess with rendering
-		let label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null }).replace(/[\n\r\t]/g, '').trim();
+		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null }).replace(/[\n\r\t]/g, '').trim();
 		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
 	}
 

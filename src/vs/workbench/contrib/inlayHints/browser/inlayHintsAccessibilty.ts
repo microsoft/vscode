@@ -80,7 +80,7 @@ export class InlayHintsAccessibility implements IEditorContribution {
 		const cts = new CancellationTokenSource();
 		this._sessionDispoosables.add(cts);
 
-		for (let hint of hints) {
+		for (const hint of hints) {
 			await hint.resolve(cts.token);
 		}
 
@@ -116,7 +116,7 @@ export class InlayHintsAccessibility implements IEditorContribution {
 			if (typeof label === 'string') {
 				em.innerText = label;
 			} else {
-				for (let part of label) {
+				for (const part of label) {
 					if (part.command) {
 						const link = this._instaService.createInstance(Link, em,
 							{ href: asCommandLink(part.command), label: part.label, title: part.command.title },

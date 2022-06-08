@@ -219,7 +219,7 @@ export function autorunWithStore(
 	fn: (reader: IReader, store: DisposableStore) => void,
 	name: string
 ): IDisposable {
-	let store = new DisposableStore();
+	const store = new DisposableStore();
 	const disposable = autorun(
 		reader => {
 			store.clear();

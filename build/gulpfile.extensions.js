@@ -91,7 +91,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const baseUrl = getBaseUrl(out);
 
 	let headerId, headerOut;
-	let index = relativeDirname.indexOf('/');
+	const index = relativeDirname.indexOf('/');
 	if (index < 0) {
 		headerId = 'vscode.' + relativeDirname;
 		headerOut = 'out';

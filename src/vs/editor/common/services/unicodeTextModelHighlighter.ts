@@ -194,7 +194,7 @@ class CodePointHighlighter {
 		let hasBasicASCIICharacters = false;
 		let hasNonConfusableNonBasicAsciiCharacter = false;
 		if (wordContext) {
-			for (let char of wordContext) {
+			for (const char of wordContext) {
 				const codePoint = char.codePointAt(0)!;
 				const isBasicASCII = strings.isBasicASCII(char);
 				hasBasicASCIICharacters = hasBasicASCIICharacters || isBasicASCII;

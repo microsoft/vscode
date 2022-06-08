@@ -1375,7 +1375,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
 		const activeNodes = new EventCollection(onDidChangeActiveNodes.event);
 		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, _options));
-		for (let r of this.renderers) {
+		for (const r of this.renderers) {
 			this.disposables.add(r);
 		}
 

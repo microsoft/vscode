@@ -21,7 +21,7 @@ export default class ServiceWrapper implements vscode.Disposable {
 
 	begin() {
 
-		let configuration = this.createExtensionConfiguration();
+		const configuration = this.createExtensionConfiguration();
 		const documentTracker = new DocumentTracker();
 
 		this.services.push(

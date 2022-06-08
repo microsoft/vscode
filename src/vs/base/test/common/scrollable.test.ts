@@ -33,8 +33,8 @@ suite('SmoothScrollingOperation', () => {
 	const LINE_HEIGHT = 20;
 
 	function extractLines(scrollable: TestSmoothScrollingOperation, now: number): [number, number] {
-		let scrollTop = scrollable.testTick(now).scrollTop;
-		let scrollBottom = scrollTop + VIEWPORT_HEIGHT;
+		const scrollTop = scrollable.testTick(now).scrollTop;
+		const scrollBottom = scrollTop + VIEWPORT_HEIGHT;
 
 		const startLineNumber = Math.floor(scrollTop / LINE_HEIGHT);
 		const endLineNumber = Math.ceil(scrollBottom / LINE_HEIGHT);

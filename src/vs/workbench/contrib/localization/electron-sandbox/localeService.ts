@@ -43,7 +43,7 @@ export class NativeLocaleService implements ILocaleService {
 			// and only if the language pack is not installed
 			if (!installedLanguages.some(installedLanguage => installedLanguage.id === languagePackItem.id)) {
 				// Show the view so the user can see the language pack to be installed
-				let viewlet = await this.paneCompositePartService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar);
+				const viewlet = await this.paneCompositePartService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar);
 				(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`@id:${languagePackItem.extensionId}`);
 
 				// Only actually install a language pack from Microsoft

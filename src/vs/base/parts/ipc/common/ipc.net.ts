@@ -212,7 +212,7 @@ export class ChunkStream {
 			return result;
 		}
 
-		let result = VSBuffer.alloc(byteCount);
+		const result = VSBuffer.alloc(byteCount);
 		let resultOffset = 0;
 		let chunkIndex = 0;
 		while (byteCount > 0) {

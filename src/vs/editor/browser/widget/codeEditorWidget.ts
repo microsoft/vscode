@@ -533,9 +533,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private _removeDecorationTypes(): void {
 		this._decorationTypeKeysToIds = {};
 		if (this._decorationTypeSubtypes) {
-			for (let decorationType in this._decorationTypeSubtypes) {
+			for (const decorationType in this._decorationTypeSubtypes) {
 				const subTypes = this._decorationTypeSubtypes[decorationType];
-				for (let subType in subTypes) {
+				for (const subType in subTypes) {
 					this._removeDecorationType(decorationType + '-' + subType);
 				}
 			}
@@ -1308,7 +1308,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const newModelDecorations: IModelDeltaDecoration[] = [];
 
-		for (let decorationOption of decorationOptions) {
+		for (const decorationOption of decorationOptions) {
 			let typeKey = decorationTypeKey;
 			if (decorationOption.renderOptions) {
 				// identify custom reder options by a hash code over all keys and values
@@ -1331,7 +1331,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
-		for (let subType in oldDecorationsSubTypes) {
+		for (const subType in oldDecorationsSubTypes) {
 			if (!newDecorationsSubTypes[subType]) {
 				this._removeDecorationType(decorationTypeKey + '-' + subType);
 			}
@@ -1346,7 +1346,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
-		for (let subType in oldDecorationsSubTypes) {
+		for (const subType in oldDecorationsSubTypes) {
 			this._removeDecorationType(decorationTypeKey + '-' + subType);
 		}
 		this._decorationTypeSubtypes[decorationTypeKey] = {};
@@ -1833,7 +1833,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private showDropIndicatorAt(position: Position): void {
-		let newDecorations: IModelDeltaDecoration[] = [{
+		const newDecorations: IModelDeltaDecoration[] = [{
 			range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 			options: CodeEditorWidget.dropIntoEditorDecorationOptions
 		}];

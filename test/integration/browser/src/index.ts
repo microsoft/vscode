@@ -149,7 +149,7 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 
 	const stdio: cp.StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
 
-	let serverProcess = cp.spawn(
+	const serverProcess = cp.spawn(
 		serverLocation,
 		serverArgs,
 		{ env, stdio }

@@ -74,7 +74,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		});
 
 		let resource = URI.parse(`${COMMENT_SCHEME}://${this._commentThread.extensionId}/commentinput-${modeId}.md?${params}`); // TODO. Remove params once extensions adopt authority.
-		let commentController = this.commentService.getCommentController(owner);
+		const commentController = this.commentService.getCommentController(owner);
 		if (commentController) {
 			resource = resource.with({ authority: commentController.id });
 		}
@@ -123,7 +123,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	public getPendingComment(): string | null {
-		let model = this.commentEditor.getModel();
+		const model = this.commentEditor.getModel();
 
 		if (model && model.getValueLength() > 0) { // checking length is cheap
 			return model.getValue();
@@ -205,9 +205,9 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}));
 
 		this._commentThreadDisposables.push(commentEditor.getModel()!.onDidChangeContent(() => {
-			let modelContent = commentEditor.getValue();
+			const modelContent = commentEditor.getValue();
 			if (this._commentThread.input && this._commentThread.input.uri === commentEditor.getModel()!.uri && this._commentThread.input.value !== modelContent) {
-				let newInput: languages.CommentInput = this._commentThread.input;
+				const newInput: languages.CommentInput = this._commentThread.input;
 				newInput.value = modelContent;
 				this._commentThread.input = newInput;
 			}
@@ -215,7 +215,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}));
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeInput(input => {
-			let thread = this._commentThread;
+			const thread = this._commentThread;
 
 			if (thread.input && thread.input.uri !== commentEditor.getModel()!.uri) {
 				return;

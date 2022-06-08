@@ -17,10 +17,10 @@ suite('MainThreadDocumentContentProviders', function () {
 
 	test('events are processed properly', function () {
 
-		let uri = URI.parse('test:uri');
-		let model = createTextModel('1', undefined, undefined, uri);
+		const uri = URI.parse('test:uri');
+		const model = createTextModel('1', undefined, undefined, uri);
 
-		let providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null!, null!,
+		const providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null!, null!,
 			new class extends mock<IModelService>() {
 				override getModel(_uri: URI) {
 					assert.strictEqual(uri.toString(), _uri.toString());

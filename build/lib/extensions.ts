@@ -430,7 +430,7 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 			if (!fs.existsSync(packageJSONPath)) {
 				continue;
 			}
-			let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+			const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
 			if (!isWebExtension(packageJSON)) {
 				continue;
 			}
@@ -461,7 +461,7 @@ export function translatePackageJSON(packageJSON: string, packageNLSPath: string
 	const CharCode_PC = '%'.charCodeAt(0);
 	const packageNls: NLSFormat = JSON.parse(fs.readFileSync(packageNLSPath).toString());
 	const translate = (obj: any) => {
-		for (let key in obj) {
+		for (const key in obj) {
 			const val = obj[key];
 			if (Array.isArray(val)) {
 				val.forEach(translate);

@@ -189,7 +189,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	}
 
 	private _onModelModeChanged(event: { model: ITextModel; oldLanguageId: string }): void {
-		let { model } = event;
+		const { model } = event;
 		if (!this._modelTrackers.has(model.uri)) {
 			return;
 		}

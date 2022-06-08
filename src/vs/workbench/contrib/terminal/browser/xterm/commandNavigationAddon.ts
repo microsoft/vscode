@@ -178,7 +178,7 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 		});
 		this._navigationDecoration = decoration;
 		if (decoration) {
-			let isRendered = false;
+			const isRendered = false;
 			decoration.onRender(element => {
 				if (!isRendered) {
 					// TODO: Remove when https://github.com/xtermjs/xterm.js/issues/3686 is fixed

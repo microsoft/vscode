@@ -711,9 +711,9 @@ suite('ExtHostSearch', () => {
 
 		function assertResults(actual: IFileMatch[], expected: vscode.TextSearchResult[]) {
 			const actualTextSearchResults: vscode.TextSearchResult[] = [];
-			for (let fileMatch of actual) {
+			for (const fileMatch of actual) {
 				// Make relative
-				for (let lineResult of fileMatch.results!) {
+				for (const lineResult of fileMatch.results!) {
 					if (resultIsMatch(lineResult)) {
 						actualTextSearchResults.push({
 							preview: {

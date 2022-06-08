@@ -24,7 +24,7 @@ import { assertNoRpc } from '../utils';
 	});
 
 	suite('Tasks', () => {
-		let disposables: Disposable[] = [];
+		const disposables: Disposable[] = [];
 
 		teardown(() => {
 			assertNoRpc();

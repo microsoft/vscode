@@ -277,7 +277,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 
 		let newDecorations: IModelDeltaDecoration[] = [], newDecorationsLen = 0;
 		for (const bracketData of this._lastBracketsData) {
-			let brackets = bracketData.brackets;
+			const brackets = bracketData.brackets;
 			if (brackets) {
 				newDecorations[newDecorationsLen++] = { range: brackets[0], options: bracketData.options };
 				newDecorations[newDecorationsLen++] = { range: brackets[1], options: bracketData.options };
@@ -313,7 +313,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 
 		let positions: Position[] = [], positionsLen = 0;
 		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
+			const selection = selections[i];
 
 			if (selection.isEmpty()) {
 				// will bracket match a cursor only if the selection is collapsed
@@ -329,7 +329,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		let newData: BracketsData[] = [], newDataLen = 0;
 		let previousIndex = 0, previousLen = previousData.length;
 		for (let i = 0, len = positions.length; i < len; i++) {
-			let position = positions[i];
+			const position = positions[i];
 
 			while (previousIndex < previousLen && previousData[previousIndex].position.isBefore(position)) {
 				previousIndex++;

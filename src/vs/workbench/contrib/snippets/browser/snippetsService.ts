@@ -318,8 +318,8 @@ class SnippetsService implements ISnippetsService {
 
 	private _initWorkspaceSnippets(): void {
 		// workspace stuff
-		let disposables = new DisposableStore();
-		let updateWorkspaceSnippets = () => {
+		const disposables = new DisposableStore();
+		const updateWorkspaceSnippets = () => {
 			disposables.clear();
 			this._pendingWork.push(this._initWorkspaceFolderSnippets(this._contextService.getWorkspace(), disposables));
 		};
@@ -406,11 +406,11 @@ export function getNonWhitespacePrefix(model: ISimpleModel, position: Position):
 	 */
 	const MAX_PREFIX_LENGTH = 100;
 
-	let line = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+	const line = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 
-	let minChIndex = Math.max(0, line.length - MAX_PREFIX_LENGTH);
+	const minChIndex = Math.max(0, line.length - MAX_PREFIX_LENGTH);
 	for (let chIndex = line.length - 1; chIndex >= minChIndex; chIndex--) {
-		let ch = line.charAt(chIndex);
+		const ch = line.charAt(chIndex);
 
 		if (/\s/.test(ch)) {
 			return line.substr(chIndex + 1);

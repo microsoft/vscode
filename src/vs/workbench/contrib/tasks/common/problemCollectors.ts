@@ -62,7 +62,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		this.matchers = Object.create(null);
 		this.bufferLength = 1;
 		problemMatchers.map(elem => createLineMatcher(elem, fileService)).forEach((matcher) => {
-			let length = matcher.matchLength;
+			const length = matcher.matchLength;
 			if (length > this.bufferLength) {
 				this.bufferLength = length;
 			}
@@ -79,8 +79,8 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		this._maxMarkerSeverity = undefined;
 		this.openModels = Object.create(null);
 		this.applyToByOwner = new Map<string, ApplyToKind>();
-		for (let problemMatcher of problemMatchers) {
-			let current = this.applyToByOwner.get(problemMatcher.owner);
+		for (const problemMatcher of problemMatchers) {
+			const current = this.applyToByOwner.get(problemMatcher.owner);
 			if (current === undefined) {
 				this.applyToByOwner.set(problemMatcher.owner, problemMatcher.applyTo);
 			} else {
@@ -144,7 +144,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		if (this.buffer.length < this.bufferLength) {
 			this.buffer.push(line);
 		} else {
-			let end = this.buffer.length - 1;
+			const end = this.buffer.length - 1;
 			for (let i = 0; i < end; i++) {
 				this.buffer[i] = this.buffer[i + 1];
 			}
@@ -180,14 +180,14 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	private tryMatchers(): IProblemMatch | null {
 		this.activeMatcher = null;
-		let length = this.buffer.length;
+		const length = this.buffer.length;
 		for (let startIndex = 0; startIndex < length; startIndex++) {
-			let candidates = this.matchers[length - startIndex];
+			const candidates = this.matchers[length - startIndex];
 			if (!candidates) {
 				continue;
 			}
 			for (const matcher of candidates) {
-				let result = matcher.handle(this.buffer, startIndex);
+				const result = matcher.handle(this.buffer, startIndex);
 				if (result.match) {
 					this.captureMatch(result.match);
 					if (result.continue) {
@@ -214,7 +214,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	}
 
 	protected recordResourcesToClean(owner: string): void {
-		let resourceSetToClean = this.getResourceSetToClean(owner);
+		const resourceSetToClean = this.getResourceSetToClean(owner);
 		this.markerService.read({ owner: owner }).forEach(marker => resourceSetToClean.set(marker.resource.toString(), marker.resource));
 	}
 
@@ -223,7 +223,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	}
 
 	protected removeResourceToClean(owner: string, resource: string): void {
-		let resourceSet = this.resourcesToClean.get(owner);
+		const resourceSet = this.resourcesToClean.get(owner);
 		if (resourceSet) {
 			resourceSet.delete(resource);
 		}
@@ -246,7 +246,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	}
 
 	protected cleanMarkers(owner: string): void {
-		let toClean = this.resourcesToClean.get(owner);
+		const toClean = this.resourcesToClean.get(owner);
 		if (toClean) {
 			this._cleanMarkers(owner, toClean);
 			this.resourcesToClean.delete(owner);
@@ -254,8 +254,8 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	}
 
 	private _cleanMarkers(owner: string, toClean: Map<string, URI>): void {
-		let uris: URI[] = [];
-		let applyTo = this.applyToByOwner.get(owner);
+		const uris: URI[] = [];
+		const applyTo = this.applyToByOwner.get(owner);
 		toClean.forEach((uri, uriAsString) => {
 			if (
 				applyTo === ApplyToKind.allDocuments ||
@@ -279,7 +279,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 			markersPerResource = new Map<string, IMarkerData>();
 			markersPerOwner.set(resourceAsString, markersPerResource);
 		}
-		let key = IMarkerData.makeKeyOptionalMessage(marker, false);
+		const key = IMarkerData.makeKeyOptionalMessage(marker, false);
 		let existingMarker;
 		if (!markersPerResource.has(key)) {
 			markersPerResource.set(key, marker);
@@ -292,7 +292,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	protected reportMarkers(): void {
 		this.markers.forEach((markersPerOwner, owner) => {
-			let deliveredMarkersPerOwner = this.getDeliveredMarkersPerOwner(owner);
+			const deliveredMarkersPerOwner = this.getDeliveredMarkersPerOwner(owner);
 			markersPerOwner.forEach((markers, resource) => {
 				this.deliverMarkersPerOwnerAndResourceResolved(owner, resource, markers, deliveredMarkersPerOwner);
 			});
@@ -300,12 +300,12 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	}
 
 	protected deliverMarkersPerOwnerAndResource(owner: string, resource: string): void {
-		let markersPerOwner = this.markers.get(owner);
+		const markersPerOwner = this.markers.get(owner);
 		if (!markersPerOwner) {
 			return;
 		}
-		let deliveredMarkersPerOwner = this.getDeliveredMarkersPerOwner(owner);
-		let markersPerResource = markersPerOwner.get(resource);
+		const deliveredMarkersPerOwner = this.getDeliveredMarkersPerOwner(owner);
+		const markersPerResource = markersPerOwner.get(resource);
 		if (!markersPerResource) {
 			return;
 		}
@@ -314,7 +314,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	private deliverMarkersPerOwnerAndResourceResolved(owner: string, resource: string, markers: Map<string, IMarkerData>, reported: Map<string, number>): void {
 		if (markers.size !== reported.get(resource)) {
-			let toSet: IMarkerData[] = [];
+			const toSet: IMarkerData[] = [];
 			markers.forEach(value => toSet.push(value));
 			this.markerService.changeOne(owner, URI.parse(resource), toSet);
 			reported.set(resource, markers.size);
@@ -355,7 +355,7 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 
 	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, _strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean, fileService?: IFileService) {
 		super(problemMatchers, markerService, modelService, fileService);
-		let ownerSet: { [key: string]: boolean } = Object.create(null);
+		const ownerSet: { [key: string]: boolean } = Object.create(null);
 		problemMatchers.forEach(description => ownerSet[description.owner] = true);
 		this.owners = Object.keys(ownerSet);
 		this.owners.forEach((owner) => {
@@ -364,16 +364,16 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 	}
 
 	protected async processLineInternal(line: string): Promise<void> {
-		let markerMatch = this.tryFindMarker(line);
+		const markerMatch = this.tryFindMarker(line);
 		if (!markerMatch) {
 			return;
 		}
 
-		let owner = markerMatch.description.owner;
-		let resource = await markerMatch.resource;
-		let resourceAsString = resource.toString();
+		const owner = markerMatch.description.owner;
+		const resource = await markerMatch.resource;
+		const resourceAsString = resource.toString();
 		this.removeResourceToClean(owner, resourceAsString);
-		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
+		const shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
 		if (shouldApplyMatch) {
 			this.recordMarker(markerMatch.marker, owner, resourceAsString);
 			if (this.currentOwner !== owner || this.currentResource !== resourceAsString) {
@@ -447,7 +447,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	}
 
 	public aboutToStart(): void {
-		for (let background of this.backgroundPatterns) {
+		for (const background of this.backgroundPatterns) {
 			if (background.matcher.watching && background.matcher.watching.activeOnStart) {
 				this._activeBackgroundMatchers.add(background.key);
 				this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
@@ -461,15 +461,15 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			return;
 		}
 		this.lines.push(line);
-		let markerMatch = this.tryFindMarker(line);
+		const markerMatch = this.tryFindMarker(line);
 		if (!markerMatch) {
 			return;
 		}
-		let resource = await markerMatch.resource;
-		let owner = markerMatch.description.owner;
-		let resourceAsString = resource.toString();
+		const resource = await markerMatch.resource;
+		const owner = markerMatch.description.owner;
+		const resourceAsString = resource.toString();
 		this.removeResourceToClean(owner, resourceAsString);
-		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
+		const shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
 		if (shouldApplyMatch) {
 			this.recordMarker(markerMatch.marker, owner, resourceAsString);
 			if (this.currentOwner !== owner || this.currentResource !== resourceAsString) {
@@ -487,7 +487,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	private async tryBegin(line: string): Promise<boolean> {
 		let result = false;
 		for (const background of this.backgroundPatterns) {
-			let matches = background.begin.regexp.exec(line);
+			const matches = background.begin.regexp.exec(line);
 			if (matches) {
 				if (this._activeBackgroundMatchers.has(background.key)) {
 					continue;
@@ -499,10 +499,10 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
 				this.cleanMarkerCaches();
 				this.resetCurrentResource();
-				let owner = background.matcher.owner;
-				let file = matches[background.begin.file!];
+				const owner = background.matcher.owner;
+				const file = matches[background.begin.file!];
 				if (file) {
-					let resource = getResource(file, background.matcher);
+					const resource = getResource(file, background.matcher);
 					this.recordResourceToClean(owner, await resource);
 				} else {
 					this.recordResourcesToClean(owner);
@@ -515,7 +515,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	private tryFinish(line: string): boolean {
 		let result = false;
 		for (const background of this.backgroundPatterns) {
-			let matches = background.end.regexp.exec(line);
+			const matches = background.end.regexp.exec(line);
 			if (matches) {
 				if (this._activeBackgroundMatchers.has(background.key)) {
 					this._activeBackgroundMatchers.delete(background.key);
@@ -523,7 +523,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 					this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
 					result = true;
 					this.lines.push(line);
-					let owner = background.matcher.owner;
+					const owner = background.matcher.owner;
 					this.cleanMarkers(owner);
 					this.cleanMarkerCaches();
 				}

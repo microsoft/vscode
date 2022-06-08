@@ -88,7 +88,7 @@ function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e:
 		return handler(new StandardKeyboardEvent(e));
 	};
 }
-export let addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export const addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	let wrapHandler = handler;
 
 	if (type === 'click' || type === 'mousedown') {
@@ -100,14 +100,14 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
-export let addStandardDisposableGenericMouseDownListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+export const addStandardDisposableGenericMouseDownListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	const wrapHandler = _wrapAsStandardMouseEvent(handler);
 
 	return addDisposableGenericMouseDownListener(node, wrapHandler, useCapture);
 };
 
-export let addStandardDisposableGenericMouseUpListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+export const addStandardDisposableGenericMouseUpListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	const wrapHandler = _wrapAsStandardMouseEvent(handler);
 
 	return addDisposableGenericMouseUpListener(node, wrapHandler, useCapture);
 };
@@ -258,7 +258,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	 */
 	let inAnimationFrameRunner = false;
 
-	let animationFrameRunner = () => {
+	const animationFrameRunner = () => {
 		animFrameRequested = false;
 
 		CURRENT_QUEUE = NEXT_QUEUE;
@@ -267,14 +267,14 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner = true;
 		while (CURRENT_QUEUE.length > 0) {
 			CURRENT_QUEUE.sort(AnimationFrameQueueItem.sort);
-			let top = CURRENT_QUEUE.shift()!;
+			const top = CURRENT_QUEUE.shift()!;
 			top.execute();
 		}
 		inAnimationFrameRunner = false;
 	};
 
 	scheduleAtNextAnimationFrame = (runner: () => void, priority: number = 0) => {
-		let item = new AnimationFrameQueueItem(runner, priority);
+		const item = new AnimationFrameQueueItem(runner, priority);
 		NEXT_QUEUE.push(item);
 
 		if (!animFrameRequested) {
@@ -287,7 +287,7 @@ class AnimationFrameQueueItem implements IDisposable {
 
 	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, priority?: number) => {
 		if (inAnimationFrameRunner) {
-			let item = new AnimationFrameQueueItem(runner, priority);
+			const item = new AnimationFrameQueueItem(runner, priority);
 			CURRENT_QUEUE!.push(item);
 			return item;
 		} else {
@@ -323,9 +323,9 @@ class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 
 		let lastEvent: R | null = null;
 		let lastHandlerTime = 0;
-		let timeout = this._register(new TimeoutTimer());
+		const timeout = this._register(new TimeoutTimer());
 
-		let invokeHandler = () => {
+		const invokeHandler = () => {
 			lastHandlerTime = (new Date()).getTime();
 			handler(<R>lastEvent);
 			lastEvent = null;
@@ -334,7 +334,7 @@ class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 		this._register(addDisposableListener(node, type, (e) => {
 
 			lastEvent = eventMerger(lastEvent, e);
-			let elapsedTime = (new Date()).getTime() - lastHandlerTime;
+			const elapsedTime = (new Date()).getTime() - lastHandlerTime;
 
 			if (elapsedTime >= minimumTimeMs) {
 				timeout.cancel();
@@ -392,7 +392,7 @@ class SizeUtils {
 	}
 
 	private static getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
-		let computedStyle: CSSStyleDeclaration = getComputedStyle(element);
+		const computedStyle: CSSStyleDeclaration = getComputedStyle(element);
 		let value = '0';
 		if (computedStyle) {
 			if (computedStyle.getPropertyValue) {
@@ -568,7 +568,7 @@ export function position(element: HTMLElement, top: number, right?: number, bott
  * Returns the position of a dom node relative to the entire page.
  */
 export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
-	let bb = domNode.getBoundingClientRect();
+	const bb = domNode.getBoundingClientRect();
 	return {
 		left: bb.left + StandardWindow.scrollX,
 		top: bb.top + StandardWindow.scrollY,
@@ -623,33 +623,33 @@ export const StandardWindow: IStandardWindow = new class implements IStandardWin
 // Adapted from WinJS
 // Gets the width of the element, including margins.
 export function getTotalWidth(element: HTMLElement): number {
-	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
+	const margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
 	return element.offsetWidth + margin;
 }
 
 export function getContentWidth(element: HTMLElement): number {
-	let border = SizeUtils.getBorderLeftWidth(element) + SizeUtils.getBorderRightWidth(element);
-	let padding = SizeUtils.getPaddingLeft(element) + SizeUtils.getPaddingRight(element);
+	const border = SizeUtils.getBorderLeftWidth(element) + SizeUtils.getBorderRightWidth(element);
+	const padding = SizeUtils.getPaddingLeft(element) + SizeUtils.getPaddingRight(element);
 	return element.offsetWidth - border - padding;
 }
 
 export function getTotalScrollWidth(element: HTMLElement): number {
-	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
+	const margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
 	return element.scrollWidth + margin;
 }
 
 // Adapted from WinJS
 // Gets the height of the content of the specified element. The content height does not include borders or padding.
 export function getContentHeight(element: HTMLElement): number {
-	let border = SizeUtils.getBorderTopWidth(element) + SizeUtils.getBorderBottomWidth(element);
-	let padding = SizeUtils.getPaddingTop(element) + SizeUtils.getPaddingBottom(element);
+	const border = SizeUtils.getBorderTopWidth(element) + SizeUtils.getBorderBottomWidth(element);
+	const padding = SizeUtils.getPaddingTop(element) + SizeUtils.getPaddingBottom(element);
 	return element.offsetHeight - border - padding;
 }
 
 // Adapted from WinJS
 // Gets the height of the element, including its margins.
 export function getTotalHeight(element: HTMLElement): number {
-	let margin = SizeUtils.getMarginTop(element) + SizeUtils.getMarginBottom(element);
+	const margin = SizeUtils.getMarginTop(element) + SizeUtils.getMarginBottom(element);
 	return element.offsetHeight + margin;
 }
 
@@ -659,16 +659,16 @@ function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
 		return 0;
 	}
 
-	let elementPosition = getTopLeftOffset(element);
-	let parentPosition = getTopLeftOffset(parent);
+	const elementPosition = getTopLeftOffset(element);
+	const parentPosition = getTopLeftOffset(parent);
 	return elementPosition.left - parentPosition.left;
 }
 
 export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[]): number {
-	let childWidths = children.map((child) => {
+	const childWidths = children.map((child) => {
 		return Math.max(getTotalScrollWidth(child), getTotalWidth(child)) + getRelativeLeft(child, parent) || 0;
 	});
-	let maxWidth = Math.max(...childWidths);
+	const maxWidth = Math.max(...childWidths);
 	return maxWidth;
 }
 
@@ -787,7 +787,7 @@ export function getActiveElement(): Element | null {
 }
 
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
-	let style = document.createElement('style');
+	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
 	container.appendChild(style);
@@ -795,7 +795,7 @@ export function createStyleSheet(container: HTMLElement = document.getElementsBy
 }
 
 export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
-	let meta = document.createElement('meta');
+	const meta = document.createElement('meta');
 	container.appendChild(meta);
 	return meta;
 }
@@ -833,10 +833,10 @@ export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLSt
 		return;
 	}
 
-	let rules = getDynamicStyleSheetRules(style);
-	let toDelete: number[] = [];
+	const rules = getDynamicStyleSheetRules(style);
+	const toDelete: number[] = [];
 	for (let i = 0; i < rules.length; i++) {
-		let rule = rules[i];
+		const rule = rules[i];
 		if (rule.selectorText.indexOf(ruleName) !== -1) {
 			toDelete.push(i);
 		}
@@ -946,7 +946,7 @@ export interface IFocusTracker extends Disposable {
 }
 
 export function saveParentsScrollTop(node: Element): number[] {
-	let r: number[] = [];
+	const r: number[] = [];
 	for (let i = 0; node && node.nodeType === node.ELEMENT_NODE; i++) {
 		r[i] = node.scrollTop;
 		node = <Element>node.parentNode;
@@ -1006,7 +1006,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 		};
 
 		this._refreshStateHandler = () => {
-			let currentNodeHasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
+			const currentNodeHasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
 			if (currentNodeHasFocus !== hasFocus) {
 				if (hasFocus) {
 					onBlur();
@@ -1066,7 +1066,7 @@ export enum Namespace {
 }
 
 function _$<T extends Element>(namespace: Namespace, description: string, attrs?: { [key: string]: any }, ...children: Array<Node | string>): T {
-	let match = SELECTOR_REGEX.exec(description);
+	const match = SELECTOR_REGEX.exec(description);
 
 	if (!match) {
 		throw new Error('Bad use of emmet');
@@ -1074,7 +1074,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 
 	attrs = { ...(attrs || {}) };
 
-	let tagName = match[1] || 'div';
+	const tagName = match[1] || 'div';
 	let result: T;
 
 	if (namespace !== Namespace.HTML) {
@@ -1141,14 +1141,14 @@ export function join(nodes: Node[], separator: Node | string): Node[] {
 }
 
 export function show(...elements: HTMLElement[]): void {
-	for (let element of elements) {
+	for (const element of elements) {
 		element.style.display = '';
 		element.removeAttribute('aria-hidden');
 	}
 }
 
 export function hide(...elements: HTMLElement[]): void {
-	for (let element of elements) {
+	for (const element of elements) {
 		element.style.display = 'none';
 		element.setAttribute('aria-hidden', 'true');
 	}
@@ -1176,7 +1176,7 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	// typically never want that, rather put focus to the closest element
 	// in the hierarchy of the parent DOM nodes.
 	if (document.activeElement === node) {
-		let parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
+		const parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
 		if (parentFocusable) {
 			parentFocusable.focus();
 		}

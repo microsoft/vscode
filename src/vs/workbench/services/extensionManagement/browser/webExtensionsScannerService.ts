@@ -483,7 +483,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async scanInstalledExtensions(scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
-		let installedExtensions = await this.readInstalledExtensions();
+		const installedExtensions = await this.readInstalledExtensions();
 		installedExtensions.sort((a, b) => a.identifier.id < b.identifier.id ? -1 : a.identifier.id > b.identifier.id ? 1 : semver.rcompare(a.version, b.version));
 		const result = new Map<string, IScannedExtension>();
 		for (const webExtension of installedExtensions) {

@@ -139,7 +139,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			let protocol: PersistentProtocol | null = null;
 
-			let timer = setTimeout(() => {
+			const timer = setTimeout(() => {
 				onTerminate('VSCODE_EXTHOST_IPC_SOCKET timeout');
 			}, 60000);
 

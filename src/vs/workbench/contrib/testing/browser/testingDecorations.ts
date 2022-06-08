@@ -437,7 +437,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	}
 
 	let computedState = TestResultState.Unset;
-	let hoverMessageParts: string[] = [];
+	const hoverMessageParts: string[] = [];
 	let testIdWithMessages: string | undefined;
 	for (let i = 0; i < tests.length; i++) {
 		const test = tests[i];
@@ -459,7 +459,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 
 	let hoverMessage: IMarkdownString | undefined;
 
-	let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+	const glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
 
 	return {
 		range: firstLineRange(range),

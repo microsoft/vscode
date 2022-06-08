@@ -963,7 +963,7 @@ export function findNodeAtLocation(root: Node, path: JSONPath): Node | undefined
 		return undefined;
 	}
 	let node = root;
-	for (let segment of path) {
+	for (const segment of path) {
 		if (typeof segment === 'string') {
 			if (node.type !== 'object' || !Array.isArray(node.children)) {
 				return undefined;
@@ -1019,7 +1019,7 @@ export function getNodeValue(node: Node): any {
 			return node.children!.map(getNodeValue);
 		case 'object': {
 			const obj = Object.create(null);
-			for (let prop of node.children!) {
+			for (const prop of node.children!) {
 				const valueNode = prop.children![1];
 				if (valueNode) {
 					obj[prop.children![0].value] = getNodeValue(valueNode);
