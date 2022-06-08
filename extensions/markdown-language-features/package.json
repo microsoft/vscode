@@ -447,6 +447,15 @@
             "experimental"
           ]
         },
+		"markdown.experimental.validate.ignoreHeadings": {
+			"type": "boolean",
+			"scope": "resource",
+			"markdownDescription": "%configuration.markdown.experimental.validate.ignoreHeadings.description%",
+			"default": false,
+			"tags": [
+			  "experimental"
+			]
+		},
         "markdown.experimental.validate.headerLinks.enabled": {
           "type": "string",
           "scope": "resource",
