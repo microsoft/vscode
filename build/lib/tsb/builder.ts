@@ -14,6 +14,7 @@ import * as Vinyl from 'vinyl';
 
 export interface IConfiguration {
 	verbose: boolean;
+	transpileOnly?: boolean;
 	_emitWithoutBasePath?: boolean;
 }
 
@@ -55,8 +56,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 		emitSourceMapsInStream = true;
 
 	// always emit declaraction files
-	host.getCompilationSettings().declaration = true;
-
+	host.getCompilationSettings().declaration = !config.transpileOnly;
 
 	function file(file: Vinyl): void {
 		// support gulp-sourcemaps
@@ -196,8 +196,11 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 			if (lastBuildVersion[fileName] !== host.getScriptVersion(fileName)) {
 
 				toBeEmitted.push(fileName);
-				toBeCheckedSyntactically.push(fileName);
-				toBeCheckedSemantically.push(fileName);
+
+				if (!config.transpileOnly) {
+					toBeCheckedSyntactically.push(fileName);
+					toBeCheckedSemantically.push(fileName);
+				}
 			}
 		}
 
@@ -233,7 +236,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						newLastBuildVersion.set(fileName, host.getScriptVersion(fileName));
 
 						// remeber the signature
-						if (value.signature && lastDtsHash[fileName] !== value.signature) {
+						if (!config.transpileOnly && value.signature && lastDtsHash[fileName] !== value.signature) {
 							lastDtsHash[fileName] = value.signature;
 							filesWithChangedSignature.push(fileName);
 						}

@@ -30,7 +30,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
     }
     let host = new LanguageServiceHost(cmd, projectFile, _log), service = ts.createLanguageService(host, ts.createDocumentRegistry()), lastBuildVersion = Object.create(null), lastDtsHash = Object.create(null), userWantsDeclarations = cmd.options.declaration, oldErrors = Object.create(null), headUsed = process.memoryUsage().heapUsed, emitSourceMapsInStream = true;
     // always emit declaraction files
-    host.getCompilationSettings().declaration = true;
+    host.getCompilationSettings().declaration = !config.transpileOnly;
     function file(file) {
         // support gulp-sourcemaps
         if (file.sourceMap) {
@@ -149,8 +149,10 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
         for (let fileName of host.getScriptFileNames()) {
             if (lastBuildVersion[fileName] !== host.getScriptVersion(fileName)) {
                 toBeEmitted.push(fileName);
-                toBeCheckedSyntactically.push(fileName);
-                toBeCheckedSemantically.push(fileName);
+                if (!config.transpileOnly) {
+                    toBeCheckedSyntactically.push(fileName);
+                    toBeCheckedSemantically.push(fileName);
+                }
             }
         }
         return new Promise(resolve => {
@@ -177,7 +179,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                         // remember when this was build
                         newLastBuildVersion.set(fileName, host.getScriptVersion(fileName));
                         // remeber the signature
-                        if (value.signature && lastDtsHash[fileName] !== value.signature) {
+                        if (!config.transpileOnly && value.signature && lastDtsHash[fileName] !== value.signature) {
                             lastDtsHash[fileName] = value.signature;
                             filesWithChangedSignature.push(fileName);
                         }
