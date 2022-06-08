@@ -28,16 +28,20 @@ export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
 		async provideDocumentOnDropEdits(document: vscode.TextDocument, position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
 			const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.drop.enabled', true);
 			if (!enabled) {
-				return;
+				return undefined;
 			}
 
 			const replacementRange = new vscode.Range(position, position);
-			return tryInsertUriList(document, replacementRange, dataTransfer, token);
+			const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
+			if (snippet) {
+				return new vscode.SnippetTextEdit(replacementRange, snippet);
+			}
+			return undefined;
 		}
 	});
 }
 
-export async function tryInsertUriList(document: vscode.TextDocument, replacementRange: vscode.Range, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
+export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetString | undefined> {
 	const urlList = await dataTransfer.get('text/uri-list')?.asString();
 	if (!urlList || token.isCancellationRequested) {
 		return undefined;
@@ -72,5 +76,5 @@ export async function tryInsertUriList(document: vscode.TextDocument, replacemen
 		}
 	});
 
-	return new vscode.SnippetTextEdit(replacementRange, snippet);
+	return snippet;
 }
