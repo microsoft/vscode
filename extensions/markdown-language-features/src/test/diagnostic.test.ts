@@ -284,4 +284,22 @@ suite('markdown: Diagnostics', () => {
 		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
+
+	test('ignoreHeadings should ignore invalid links in headings', async () => {
+		const doc = new InMemoryDocument(workspacePath('link-in-heading.md'), joinLines(
+			'H1 [bad-link-in-heading]',
+			'===',
+			'H2 [bad-link-in-heading]',
+			'---',
+			'# H1 [bad-link-in-heading]',
+			'## H2 [bad-link-in-heading]',
+			'### H3 [bad-link-in-heading]',
+			'#### H4 [bad-link-in-heading]',
+			'##### H5 [bad-link-in-heading]',
+			'###### H6 [bad-link-in-heading]',
+		));
+
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assert.deepStrictEqual(diagnostics, []);
+	});
 });
