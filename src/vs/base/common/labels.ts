@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { hasDriveLetter, isRootOrDriveLetter, toSlashes } from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
+import { hasDriveLetter, toSlashes } from 'vs/base/common/extpath';
 import { posix, sep, win32 } from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { basename, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
+import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
@@ -137,27 +136,6 @@ function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePath
 	}
 
 	return relativePathLabel;
-}
-
-export function getBaseLabel(resource: URI | string): string;
-export function getBaseLabel(resource: URI | string | undefined): string | undefined;
-export function getBaseLabel(resource: URI | string | undefined): string | undefined {
-	if (!resource) {
-		return undefined;
-	}
-
-	if (typeof resource === 'string') {
-		resource = URI.file(resource);
-	}
-
-	const base = basename(resource) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
-
-	// convert c: => C:
-	if (isWindows && isRootOrDriveLetter(base)) {
-		return normalizeDriveLetter(base);
-	}
-
-	return base;
 }
 
 export function normalizeDriveLetter(path: string, isWindowsOS: boolean = isWindows): string {

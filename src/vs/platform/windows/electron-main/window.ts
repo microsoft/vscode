@@ -174,7 +174,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.windowState = state;
 			this.logService.trace('window#ctor: using window state', state);
 
-			// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
+			// In case we are maximized or fullscreen, only show later
+			// after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
@@ -187,7 +188,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				backgroundColor: this.themeMainService.getBackgroundColor(),
 				minWidth: WindowMinimumSize.WIDTH,
 				minHeight: WindowMinimumSize.HEIGHT,
-				show: !isFullscreenOrMaximized,
+				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
@@ -301,23 +302,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			if (isFullscreenOrMaximized) {
 				mark('code/willMaximizeCodeWindow');
+
+				// this call may or may not show the window, depends
+				// on the platform: currently on Windows and Linux will
+				// show the window as active. To be on the safe side,
+				// we show the window at the end of this block.
 				this._win.maximize();
 
 				if (this.windowState.mode === WindowMode.Fullscreen) {
 					this.setFullScreen(true);
 				}
 
-				if (
-					!this._win.isVisible() ||
-					// TODO@electron: Required condition ever since https://github.com/electron/electron/pull/33536
-					// landed in Electron 17.4.2: calling `window.maximize()` on macOS will wrongly result in
-					// `window.isVisible()` to return `true` even though a different window might still be on top.
-					// As such, we also need to ask for `window.isFocused()` which on macOS will ask whether the
-					// window is a "key" window.
-					(isMacintosh && !this._win.isFocused())
-				) {
-					this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
-				}
+				// to reduce flicker from the default window size
+				// to maximize or fullscreen, we only show after
+				this._win.show();
 				mark('code/didMaximizeCodeWindow');
 			}
 

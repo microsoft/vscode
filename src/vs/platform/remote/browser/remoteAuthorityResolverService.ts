@@ -9,7 +9,7 @@ import { RemoteAuthorities } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
+import { getRemoteServerRootPath, parseAuthorityWithOptionalPort } from 'vs/platform/remote/common/remoteHosts';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
@@ -62,12 +62,9 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 
 	private _doResolveAuthority(authority: string): ResolverResult {
 		const connectionToken = this._connectionTokens.get(authority) || this._connectionToken;
-		if (authority.indexOf(':') >= 0) {
-			const pieces = authority.split(':');
-			return { authority: { authority, host: pieces[0], port: parseInt(pieces[1], 10), connectionToken } };
-		}
-		const port = (/^https:/.test(window.location.href) ? 443 : 80);
-		return { authority: { authority, host: authority, port: port, connectionToken } };
+		const defaultPort = (/^https:/.test(window.location.href) ? 443 : 80);
+		const { host, port } = parseAuthorityWithOptionalPort(authority, defaultPort);
+		return { authority: { authority, host: host, port: port, connectionToken } };
 	}
 
 	_clearResolvedAuthority(authority: string): void {

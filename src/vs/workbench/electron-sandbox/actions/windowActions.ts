@@ -266,7 +266,7 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 		super({
 			id: 'workbench.action.quickSwitchWindow',
 			title: { value: localize('quickSwitchWindow', "Quick Switch Window..."), original: 'Quick Switch Window...' },
-			f1: true
+			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
 	}
 

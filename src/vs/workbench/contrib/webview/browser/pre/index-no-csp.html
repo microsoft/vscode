@@ -469,9 +469,14 @@
 			}
 
 			if (body) {
-				body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-reduce-motion', 'vscode-using-screen-reader');
+				body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-high-contrast-light', 'vscode-reduce-motion', 'vscode-using-screen-reader');
+
 				if (initData.activeTheme) {
 					body.classList.add(initData.activeTheme);
+					if (initData.activeTheme === 'vscode-high-contrast-light') {
+						// backwards compatibility
+						body.classList.add('vscode-high-contrast');
+					}
 				}
 
 				if (initData.reduceMotion) {

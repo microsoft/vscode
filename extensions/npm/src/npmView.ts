@@ -14,10 +14,10 @@ import {
 import * as nls from 'vscode-nls';
 import { readScripts } from './readScripts';
 import {
-	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, NpmTaskDefinition,
+	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, INpmTaskDefinition,
 	NpmTaskProvider,
 	startDebugging,
-	TaskWithLocation
+	ITaskWithLocation
 } from './tasks';
 
 const localize = nls.loadMessageBundle();
@@ -78,7 +78,7 @@ class NpmScript extends TreeItem {
 	package: PackageJSON;
 	taskLocation?: Location;
 
-	constructor(_context: ExtensionContext, packageJson: PackageJSON, task: TaskWithLocation) {
+	constructor(_context: ExtensionContext, packageJson: PackageJSON, task: ITaskWithLocation) {
 		const name = packageJson.path.length > 0
 			? task.task.name.substring(0, task.task.name.length - packageJson.path.length - 2)
 			: task.task.name;
@@ -284,7 +284,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		});
 	}
 
-	private buildTaskTree(tasks: TaskWithLocation[]): TaskTree {
+	private buildTaskTree(tasks: ITaskWithLocation[]): TaskTree {
 		let folders: Map<String, Folder> = new Map();
 		let packages: Map<String, PackageJSON> = new Map();
 
@@ -301,7 +301,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			}
 			const regularExpressions = (location && excludeConfig.has(location.uri.toString())) ? excludeConfig.get(location.uri.toString()) : undefined;
 
-			if (regularExpressions && regularExpressions.some((regularExpression) => (<NpmTaskDefinition>each.task.definition).script.match(regularExpression))) {
+			if (regularExpressions && regularExpressions.some((regularExpression) => (<INpmTaskDefinition>each.task.definition).script.match(regularExpression))) {
 				return;
 			}
 
@@ -311,7 +311,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 					folder = new Folder(each.task.scope);
 					folders.set(each.task.scope.name, folder);
 				}
-				let definition: NpmTaskDefinition = <NpmTaskDefinition>each.task.definition;
+				let definition: INpmTaskDefinition = <INpmTaskDefinition>each.task.definition;
 				let relativePath = definition.path ? definition.path : '';
 				let fullPath = path.join(each.task.scope.name, relativePath);
 				packageJson = packages.get(fullPath);

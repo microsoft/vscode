@@ -60,7 +60,7 @@ export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise
 	if (dataTransfer.has(resourcesKey)) {
 		try {
 			const asString = await dataTransfer.get(resourcesKey)?.asString();
-			const rawResourcesData = JSON.stringify(asString?.split('\\n').filter(value => !value.startsWith('#')));
+			const rawResourcesData = JSON.stringify(asString?.split('\n').filter(value => !value.startsWith('#')));
 			editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
 		} catch (error) {
 			// Invalid transfer

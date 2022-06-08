@@ -12,7 +12,7 @@ import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskServic
 import { CustomTask, ContributedTask, ConfiguringTask } from 'vs/workbench/contrib/tasks/common/tasks';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TaskQuickPick, TaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
+import { TaskQuickPick, ITaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isString } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -56,8 +56,8 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 				taskPicks.push(entry);
 			}
 
-			const task: Task | ConfiguringTask | string = (<TaskTwoLevelQuickPickEntry>entry).task!;
-			const quickAccessEntry: IPickerQuickAccessItem = <TaskTwoLevelQuickPickEntry>entry;
+			const task: Task | ConfiguringTask | string = (<ITaskTwoLevelQuickPickEntry>entry).task!;
+			const quickAccessEntry: IPickerQuickAccessItem = <ITaskTwoLevelQuickPickEntry>entry;
 			quickAccessEntry.highlights = { label: highlights };
 			quickAccessEntry.trigger = (index) => {
 				if ((index === 1) && (quickAccessEntry.buttons?.length === 2)) {
