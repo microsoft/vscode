@@ -227,12 +227,18 @@ class NoLinkRanges {
 		/**
 		 * Inline code spans where links should not be detected
 		 */
-		public readonly inline: readonly vscode.Range[]
+		public readonly inline: readonly vscode.Range[],
+
+		/**
+		 * Headings where links should not be detected
+		 */
+		public readonly headings?: ReadonlyArray<[number, number]>
 	) { }
 
 	contains(range: vscode.Range): boolean {
 		return this.multiline.some(interval => range.start.line >= interval[0] && range.start.line < interval[1]) ||
-			this.inline.some(position => position.intersection(range));
+			this.inline.some(position => position.intersection(range)) ||
+			!!this.headings && this.headings.some(interval => range.start.line >= interval[0] && range.start.line < interval[1]);
 	}
 }
 
