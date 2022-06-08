@@ -235,3 +235,7 @@ body.web {
 .monaco-workbench .monaco-list:focus {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
 }
+
+.monaco-workbench a.monaco-link:hover {
+	text-decoration: underline; /* render underline on hover for accessibility requirements */
+}
