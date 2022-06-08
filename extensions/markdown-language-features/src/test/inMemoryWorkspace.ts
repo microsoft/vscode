@@ -5,15 +5,16 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { ResourceMap } from '../util/resourceMap';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 
 
 export class InMemoryWorkspaceMarkdownDocuments implements MdWorkspaceContents {
-	private readonly _documents = new Map<string, SkinnyTextDocument>();
+	private readonly _documents = new ResourceMap<SkinnyTextDocument>(uri => uri.fsPath);
 
 	constructor(documents: SkinnyTextDocument[]) {
 		for (const doc of documents) {
-			this._documents.set(this.getKey(doc.uri), doc);
+			this._documents.set(doc.uri, doc);
 		}
 	}
 
@@ -22,11 +23,11 @@ export class InMemoryWorkspaceMarkdownDocuments implements MdWorkspaceContents {
 	}
 
 	public async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
-		return this._documents.get(this.getKey(resource));
+		return this._documents.get(resource);
 	}
 
 	public async pathExists(resource: vscode.Uri): Promise<boolean> {
-		return this._documents.has(this.getKey(resource));
+		return this._documents.has(resource);
 	}
 
 	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<SkinnyTextDocument>();
@@ -39,23 +40,19 @@ export class InMemoryWorkspaceMarkdownDocuments implements MdWorkspaceContents {
 	public onDidDeleteMarkdownDocument = this._onDidDeleteMarkdownDocumentEmitter.event;
 
 	public updateDocument(document: SkinnyTextDocument) {
-		this._documents.set(this.getKey(document.uri), document);
+		this._documents.set(document.uri, document);
 		this._onDidChangeMarkdownDocumentEmitter.fire(document);
 	}
 
 	public createDocument(document: SkinnyTextDocument) {
-		assert.ok(!this._documents.has(this.getKey(document.uri)));
+		assert.ok(!this._documents.has(document.uri));
 
-		this._documents.set(this.getKey(document.uri), document);
+		this._documents.set(document.uri, document);
 		this._onDidCreateMarkdownDocumentEmitter.fire(document);
 	}
 
 	public deleteDocument(resource: vscode.Uri) {
-		this._documents.delete(this.getKey(resource));
+		this._documents.delete(resource);
 		this._onDidDeleteMarkdownDocumentEmitter.fire(resource);
-	}
-
-	private getKey(resource: vscode.Uri): string {
-		return resource.fsPath;
 	}
 }

@@ -335,14 +335,15 @@ stages:
           BUILDSECMON_OPT_IN: true
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
-              - job: macOSTest
-                timeoutInMinutes: 90
-                variables:
-                  VSCODE_ARCH: x64
-                steps:
-                  - template: darwin/product-build-darwin-test.yml
-                    parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
+                  - job: macOSTest
+                    timeoutInMinutes: 90
+                    variables:
+                      VSCODE_ARCH: x64
+                    steps:
+                      - template: darwin/product-build-darwin-test.yml
+                        parameters:
+                          VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
               - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
                   - job: macOS

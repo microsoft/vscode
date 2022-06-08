@@ -67,7 +67,7 @@ suite('ProblemPatternParser', () => {
 
 	suite('single-pattern definitions', () => {
 		test('parses a pattern defined by only a regexp', () => {
-			let problemPattern: matchers.Config.ProblemPattern = {
+			let problemPattern: matchers.Config.IProblemPattern = {
 				regexp: 'test'
 			};
 			let parsed = parser.parse(problemPattern);
@@ -82,7 +82,7 @@ suite('ProblemPatternParser', () => {
 			});
 		});
 		test('does not sets defaults for line and character if kind is File', () => {
-			let problemPattern: matchers.Config.ProblemPattern = {
+			let problemPattern: matchers.Config.IProblemPattern = {
 				regexp: 'test',
 				kind: 'file'
 			};

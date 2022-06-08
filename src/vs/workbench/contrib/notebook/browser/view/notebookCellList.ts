@@ -628,6 +628,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const modelIndex = this._viewModel.getCellIndex(cell);
+		if (modelIndex === -1) {
+			return -1;
+		}
+
 		if (!this.hiddenRangesPrefixSum) {
 			return modelIndex;
 		}
@@ -974,7 +978,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			// update element above viewport
 			const oldHeight = this.elementHeight(element);
 			const delta = oldHeight - size;
-			// const date = new Date();
 			if (this._webviewElement) {
 				Event.once(this.view.onWillScroll)(() => {
 					const webviewTop = parseInt(this._webviewElement!.domNode.style.top, 10);

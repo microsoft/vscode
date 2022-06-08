@@ -5,33 +5,32 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { compareFileExtensions, compareFileNames, comparePaths } from 'vs/base/common/comparers';
+import { memoize } from 'vs/base/common/decorators';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap, TernarySearchTree } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
 import { lcut } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
+import { FindMatch, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/model';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange, ITextSearchContext, ITextSearchResult, SearchSortOrder, SearchCompletionExitCode } from 'vs/workbench/services/search/common/search';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/workbench/services/search/common/searchHelpers';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
 import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
-import { Schemas } from 'vs/base/common/network';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
+import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class Match {
 
@@ -217,8 +216,15 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return new Map(this._context);
 	}
 
-	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions | undefined, private _maxResults: number | undefined, private _parent: FolderMatch, private rawMatch: IFileMatch,
-		@IModelService private readonly modelService: IModelService, @IReplaceService private readonly replaceService: IReplaceService
+	constructor(
+		private _query: IPatternInfo,
+		private _previewOptions: ITextSearchPreviewOptions | undefined,
+		private _maxResults: number | undefined,
+		private _parent: FolderMatch,
+		private rawMatch: IFileMatch,
+		@IModelService private readonly modelService: IModelService,
+		@IReplaceService private readonly replaceService: IReplaceService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
@@ -407,7 +413,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	name(): string {
-		return getBaseLabel(this.resource);
+		return this.labelService.getUriBasenameLabel(this.resource);
 	}
 
 	addContext(results: ITextSearchResult[] | undefined) {
@@ -472,9 +478,16 @@ export class FolderMatch extends Disposable {
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _replacingAll: boolean = false;
 
-	constructor(protected _resource: URI | null, private _id: string, private _index: number, private _query: ITextQuery, private _parent: SearchResult, private _searchModel: SearchModel,
+	constructor(
+		protected _resource: URI | null,
+		private _id: string,
+		private _index: number,
+		private _query: ITextQuery,
+		private _parent: SearchResult,
+		private _searchModel: SearchModel,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 		this._fileMatches = new ResourceMap<FileMatch>();
@@ -506,7 +519,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	name(): string {
-		return getBaseLabel(withNullAsUndefined(this.resource)) || '';
+		return this.resource ? this.labelService.getUriBasenameLabel(this.resource) : '';
 	}
 
 	parent(): SearchResult {
@@ -651,9 +664,10 @@ export class FolderMatch extends Disposable {
 export class FolderMatchWithResource extends FolderMatch {
 	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult, _searchModel: SearchModel,
 		@IReplaceService replaceService: IReplaceService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILabelService labelService: ILabelService
 	) {
-		super(_resource, _id, _index, _query, _parent, _searchModel, replaceService, instantiationService);
+		super(_resource, _id, _index, _query, _parent, _searchModel, replaceService, instantiationService, labelService);
 	}
 
 	override get resource(): URI {
