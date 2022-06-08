@@ -307,7 +307,7 @@ class Mode extends Disposable {
 				const tokensArr: number[] = [];
 				let prevColor: ColorId = -1;
 				for (let i = 0; i < line.length; i++) {
-					const colorId = line.charAt(i) === '.' ? 7 : 9;
+					const colorId: ColorId = line.charAt(i) === '.' ? 7 : 9;
 					if (prevColor !== colorId) {
 						tokensArr.push(i);
 						tokensArr.push((
