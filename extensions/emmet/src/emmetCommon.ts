@@ -158,7 +158,6 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
  * Holds any registered completion providers by their language strings
  */
 const languageMappingForCompletionProviders: Map<string, string> = new Map<string, string>();
-const completionProvidersMapping: Map<string, vscode.Disposable> = new Map<string, vscode.Disposable>();
 const completionProviderDisposables: vscode.Disposable[] = [];
 
 function refreshCompletionProviders(_: vscode.ExtensionContext) {
@@ -200,46 +199,34 @@ function refreshCompletionProviders(_: vscode.ExtensionContext) {
 			return;
 		}
 
-		if (languageMappingForCompletionProviders.has(language)) {
-			const mapping = completionProvidersMapping.get(language);
-			if (mapping) {
-				mapping.dispose();
-			}
-			languageMappingForCompletionProviders.delete(language);
-			completionProvidersMapping.delete(language);
+		if (useInlineCompletionProvider) {
+			const inlineCompletionsProvider = vscode.languages.registerInlineCompletionItemProviderNew({ language, scheme: '*' }, inlineCompletionProvider);
+			completionProviderDisposables.push(inlineCompletionsProvider);
 		}
 
-		let provider;
-		if (useInlineCompletionProvider) {
-			provider = vscode.languages.registerInlineCompletionItemProviderNew({ language, scheme: '*' }, inlineCompletionProvider);
-		} else {
-			provider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
-		}
-		completionProviderDisposables.push(provider);
+		const explicitProvider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider);
+		completionProviderDisposables.push(explicitProvider);
 
 		languageMappingForCompletionProviders.set(language, includedLanguages[language]);
-		completionProvidersMapping.set(language, provider);
 	});
 
 	Object.keys(LANGUAGE_MODES).forEach(language => {
 		if (!languageMappingForCompletionProviders.has(language)) {
-			let provider;
 			if (useInlineCompletionProvider) {
-				provider = vscode.languages.registerInlineCompletionItemProviderNew({ language, scheme: '*' }, inlineCompletionProvider);
-			} else {
-				provider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider, ...LANGUAGE_MODES[language]);
+				const inlineCompletionsProvider = vscode.languages.registerInlineCompletionItemProviderNew({ language, scheme: '*' }, inlineCompletionProvider);
+				completionProviderDisposables.push(inlineCompletionsProvider);
 			}
-			completionProviderDisposables.push(provider);
+
+			const explicitProvider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider);
+			completionProviderDisposables.push(explicitProvider);
 
 			languageMappingForCompletionProviders.set(language, language);
-			completionProvidersMapping.set(language, provider);
 		}
 	});
 }
 
 function clearCompletionProviderInfo() {
 	languageMappingForCompletionProviders.clear();
-	completionProvidersMapping.clear();
 	let disposable: vscode.Disposable | undefined;
 	while (disposable = completionProviderDisposables.pop()) {
 		disposable.dispose();
