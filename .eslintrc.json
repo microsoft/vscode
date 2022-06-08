@@ -14,6 +14,7 @@
 		"constructor-super": "warn",
 		"curly": "warn",
 		"eqeqeq": "warn",
+		"prefer-const": "warn",
 		"no-buffer-constructor": "warn",
 		"no-caller": "warn",
 		"no-case-declarations": "warn",
