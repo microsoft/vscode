@@ -290,8 +290,8 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		}
 	}
 
-	public async getAllLinks(document: SkinnyTextDocument, token: vscode.CancellationToken): Promise<MdLink[]> {
-		const noLinkRanges = await NoLinkRanges.compute(document, this.engine);
+	public async getAllLinks(document: SkinnyTextDocument, token: vscode.CancellationToken, ignoreHeadings?: boolean): Promise<MdLink[]> {
+		const noLinkRanges = await NoLinkRanges.compute(document, this.engine, ignoreHeadings);
 		if (token.isCancellationRequested) {
 			return [];
 		}
