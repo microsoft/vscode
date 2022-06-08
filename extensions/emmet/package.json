@@ -16,9 +16,6 @@
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
   },
-  "enabledApiProposals": [
-    "inlineCompletionsNew"
-  ],
   "activationEvents": [
     "onCommand:emmet.expandAbbreviation",
     "onCommand:editor.emmet.action.wrapWithAbbreviation",
