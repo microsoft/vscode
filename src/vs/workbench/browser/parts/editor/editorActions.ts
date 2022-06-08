@@ -1288,10 +1288,10 @@ export class NavigateForwardAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const historyService = accessor.get(IHistoryService);
 
-		historyService.goForward(GoFilter.NONE);
+		await historyService.goForward(GoFilter.NONE);
 	}
 }
 
@@ -1320,10 +1320,10 @@ export class NavigateBackwardsAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const historyService = accessor.get(IHistoryService);
 
-		historyService.goBack(GoFilter.NONE);
+		await historyService.goBack(GoFilter.NONE);
 	}
 }
 
