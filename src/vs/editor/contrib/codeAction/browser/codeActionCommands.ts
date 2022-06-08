@@ -39,6 +39,26 @@ function contextKeyForSupportedActions(kind: CodeActionKind) {
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
 }
 
+function RefactorTrigger(editor: ICodeEditor, userArgs: any, preview: boolean) {
+	const args = CodeActionCommandArgs.fromUser(userArgs, {
+		kind: CodeActionKind.Refactor,
+		apply: CodeActionAutoApply.Never
+	});
+	return triggerCodeActionsForEditorSelection(editor,
+		typeof userArgs?.kind === 'string'
+			? args.preferred
+				? nls.localize('editor.action.refactor.noneMessage.preferred.kind', "No preferred refactorings for '{0}' available", userArgs.kind)
+				: nls.localize('editor.action.refactor.noneMessage.kind', "No refactorings for '{0}' available", userArgs.kind)
+			: args.preferred
+				? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
+				: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
+		{
+			include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
+			onlyIncludePreferredActions: args.preferred
+		},
+		args.apply, preview);
+}
+
 const argsSchema: IJSONSchema = {
 	type: 'object',
 	defaultSnippets: [{ body: { kind: '' } }],
@@ -95,9 +115,9 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		this._ui = new Lazy(() =>
 			this._register(new CodeActionUi(editor, QuickFixAction.Id, AutoFixAction.Id, {
-				applyCodeAction: async (action, retrigger, showPreview) => {
+				applyCodeAction: async (action, retrigger, preview) => {
 					try {
-						await this._applyCodeAction(action, showPreview);
+						await this._applyCodeAction(action, preview);
 					} finally {
 						if (retrigger) {
 							this._trigger({ type: CodeActionTriggerType.Auto, filter: {} });
@@ -135,8 +155,8 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		return this._model.trigger(trigger);
 	}
 
-	private _applyCodeAction(action: CodeActionItem, showPreview: boolean): Promise<void> {
-		return this._instantiationService.invokeFunction(applyCodeAction, action, { showPreviewPane: showPreview, editor: this._editor });
+	private _applyCodeAction(action: CodeActionItem, preview: boolean): Promise<void> {
+		return this._instantiationService.invokeFunction(applyCodeAction, action, { showPreviewPane: preview, editor: this._editor });
 	}
 }
 
@@ -310,23 +330,7 @@ export class RefactorAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		const args = CodeActionCommandArgs.fromUser(userArgs, {
-			kind: CodeActionKind.Refactor,
-			apply: CodeActionAutoApply.Never
-		});
-		return triggerCodeActionsForEditorSelection(editor,
-			typeof userArgs?.kind === 'string'
-				? args.preferred
-					? nls.localize('editor.action.refactor.noneMessage.preferred.kind', "No preferred refactorings for '{0}' available", userArgs.kind)
-					: nls.localize('editor.action.refactor.noneMessage.kind', "No refactorings for '{0}' available", userArgs.kind)
-				: args.preferred
-					? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
-					: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
-			{
-				include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
-				onlyIncludePreferredActions: args.preferred
-			},
-			args.apply);
+		return RefactorTrigger(editor, userArgs, false);
 	}
 }
 
@@ -335,7 +339,7 @@ export class RefactorPreview extends EditorAction {
 	constructor() {
 		super({
 			id: refactorPreviewCommandId,
-			label: nls.localize('refactor.preview.label', "Refactor Preview..."),
+			label: nls.localize('refactor.preview.label', "Refactor with Preview..."),
 			alias: 'Refactor Preview...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			description: {
@@ -346,23 +350,7 @@ export class RefactorPreview extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		const args = CodeActionCommandArgs.fromUser(userArgs, {
-			kind: CodeActionKind.Refactor,
-			apply: CodeActionAutoApply.Never
-		});
-		return triggerCodeActionsForEditorSelection(editor,
-			typeof userArgs?.kind === 'string'
-				? args.preferred
-					? nls.localize('editor.action.refactor.noneMessage.preferred.kind', "No preferred refactorings for '{0}' available", userArgs.kind)
-					: nls.localize('editor.action.refactor.noneMessage.kind', "No refactorings for '{0}' available", userArgs.kind)
-				: args.preferred
-					? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
-					: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
-			{
-				include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
-				onlyIncludePreferredActions: args.preferred,
-			},
-			args.apply, true);
+		return RefactorTrigger(editor, userArgs, true);
 	}
 }
 

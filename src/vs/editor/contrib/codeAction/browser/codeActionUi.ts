@@ -40,12 +40,9 @@ export class CodeActionUi extends Disposable {
 		this._codeActionWidget = new Lazy(() => {
 			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
 				onSelectCodeAction: async (action, trigger) => {
-					if (trigger.preview) {
-						this.delegate.applyCodeAction(action, /* retrigger */ true, true);
-					} else {
-						this.delegate.applyCodeAction(action, /* retrigger */ true, false);
+					if (trigger.preview !== undefined) {
+						this.delegate.applyCodeAction(action, /* retrigger */ true, trigger.preview);
 					}
-
 				}
 			}));
 		});
