@@ -116,6 +116,7 @@ stages:
         steps:
           - template: linux/product-build-linux-client.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: true
               VSCODE_RUN_INTEGRATION_TESTS: false
@@ -130,6 +131,7 @@ stages:
         steps:
           - template: linux/product-build-linux-client.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: true
@@ -144,6 +146,7 @@ stages:
         steps:
           - template: linux/product-build-linux-client.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: false
