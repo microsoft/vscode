@@ -23,6 +23,7 @@ async function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: 
 	return (
 		await computer.getDiagnostics(doc, {
 			enabled: true,
+			ignoreHeadings: false,
 			validateFilePaths: DiagnosticLevel.warning,
 			validateOwnHeaders: DiagnosticLevel.warning,
 			validateReferences: DiagnosticLevel.warning,
@@ -51,6 +52,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 		if (!this.enabled) {
 			return {
 				enabled: false,
+				ignoreHeadings: false,
 				validateFilePaths: DiagnosticLevel.ignore,
 				validateOwnHeaders: DiagnosticLevel.ignore,
 				validateReferences: DiagnosticLevel.ignore,
@@ -59,6 +61,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 		}
 		return {
 			enabled: true,
+			ignoreHeadings: false,
 			validateFilePaths: DiagnosticLevel.warning,
 			validateOwnHeaders: DiagnosticLevel.warning,
 			validateReferences: DiagnosticLevel.warning,
