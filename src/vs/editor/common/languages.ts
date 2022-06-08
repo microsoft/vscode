@@ -724,10 +724,21 @@ export interface CodeActionProvider {
 /**
  * @internal
  */
-export interface DocumentPasteEditProvider {
-	prepareDocumentPaste?(model: model.ITextModel, selection: Selection, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
+export interface DocumentPasteEdit {
+	insertSnippet: string;
+	additionalEdit?: WorkspaceEdit;
+}
 
-	provideDocumentPasteEdits(model: model.ITextModel, selection: Selection, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<WorkspaceEdit | SnippetTextEdit | undefined>;
+/**
+ * @internal
+ */
+export interface DocumentPasteEditProvider {
+
+	readonly pasteMimeTypes: readonly string[];
+
+	prepareDocumentPaste?(model: model.ITextModel, selections: readonly Selection[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
+
+	provideDocumentPasteEdits(model: model.ITextModel, selections: readonly Selection[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
 }
 
 /**

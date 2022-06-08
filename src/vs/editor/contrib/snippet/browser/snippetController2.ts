@@ -9,6 +9,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider, SnippetTextEdit } from 'vs/editor/common/languages';
@@ -335,13 +336,20 @@ registerEditorCommand(new CommandCtor({
 
 // ---
 
-export function performSnippetEdit(editor: ICodeEditor, edit: SnippetTextEdit) {
+export function performSnippetEdit(editor: ICodeEditor, snippet: string, selections: ISelection[]): boolean;
+export function performSnippetEdit(editor: ICodeEditor, edit: SnippetTextEdit): boolean;
+export function performSnippetEdit(editor: ICodeEditor, editOrSnippet: string | SnippetTextEdit, selections?: ISelection[]): boolean {
 	const controller = SnippetController2.get(editor);
 	if (!controller) {
 		return false;
 	}
 	editor.focus();
-	editor.setSelection(edit.range);
-	controller.insert(edit.snippet);
+	if (typeof editOrSnippet === 'string') {
+		editor.setSelections(selections ?? []);
+		controller.insert(editOrSnippet);
+	} else {
+		editor.setSelection(editOrSnippet.range);
+		controller.insert(editOrSnippet.snippet);
+	}
 	return controller.isInSnippet();
 }

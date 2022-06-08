@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -15,7 +16,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { DocumentPasteEditProvider, SnippetTextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
+import { DocumentPasteEdit, DocumentPasteEditProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
@@ -26,15 +27,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 const vscodeClipboardMime = 'application/vnd.code.copyId';
 
 const defaultPasteEditProvider = new class implements DocumentPasteEditProvider {
-	async provideDocumentPasteEdits(model: ITextModel, selection: Selection, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<WorkspaceEdit | undefined> {
+	pasteMimeTypes = [Mimes.text, 'text'];
+
+	async provideDocumentPasteEdits(model: ITextModel, selections: Selection[], dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
 		const textDataTransfer = dataTransfer.get(Mimes.text) ?? dataTransfer.get('text');
 		if (textDataTransfer) {
 			const text = await textDataTransfer.asString();
 			return {
-				edits: [{
-					resource: model.uri,
-					edit: { range: selection, text },
-				}]
+				insertSnippet: text
 			};
 		}
 
@@ -76,8 +76,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			}
 
 			const model = editor.getModel();
-			const selection = this._editor.getSelection();
-			if (!model || !selection) {
+			const selections = this._editor.getSelections();
+			if (!model || !selections?.length) {
 				return;
 			}
 
@@ -98,7 +98,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 			const promise = createCancelablePromise(async token => {
 				const results = await Promise.all(providers.map(provider => {
-					return provider.prepareDocumentPaste!(model, selection, dataTransfer, token);
+					return provider.prepareDocumentPaste!(model, selections, dataTransfer, token);
 				}));
 
 				for (const result of results) {
@@ -115,8 +115,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}));
 
 		this._register(addDisposableListener(container, 'paste', async (e: ClipboardEvent) => {
-			const selection = this._editor.getSelection();
-			if (!e.clipboardData || !selection || !editor.hasModel()) {
+			const selections = this._editor.getSelections();
+			if (!e.clipboardData || !selections?.length || !editor.hasModel()) {
 				return;
 			}
 
@@ -125,21 +125,20 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				return;
 			}
 
-			const originalDocVersion = model.getVersionId();
+			const handle = e.clipboardData?.getData(vscodeClipboardMime);
+			if (typeof handle !== 'string') {
+				return;
+			}
 
 			const providers = this._languageFeaturesService.documentPasteEditProvider.ordered(model);
 			if (!providers.length) {
 				return;
 			}
 
-			const handle = e.clipboardData?.getData(vscodeClipboardMime);
-			if (typeof handle !== 'string') {
-				return;
-			}
-
 			e.preventDefault();
 			e.stopImmediatePropagation();
 
+			const originalDocVersion = model.getVersionId();
 			const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection);
 
 			try {
@@ -163,16 +162,25 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				dataTransfer.delete(vscodeClipboardMime);
 
 				for (const provider of [...providers, defaultPasteEditProvider]) {
-					const edit = await provider.provideDocumentPasteEdits(model, selection, dataTransfer, tokenSource.token);
+					if (!provider.pasteMimeTypes.some(type => {
+						if (type.toLowerCase() === DataTransfers.FILES.toLowerCase()) {
+							return [...dataTransfer.values()].some(item => item.asFile());
+						}
+						return dataTransfer.has(type);
+					})) {
+						continue;
+					}
+
+					const edit = await provider.provideDocumentPasteEdits(model, selections, dataTransfer, tokenSource.token);
 					if (originalDocVersion !== model.getVersionId()) {
 						return;
 					}
 
 					if (edit) {
-						if ((edit as WorkspaceEdit).edits) {
-							await this._bulkEditService.apply(ResourceEdit.convert(edit as WorkspaceEdit), { editor });
-						} else {
-							performSnippetEdit(editor, edit as SnippetTextEdit);
+						performSnippetEdit(editor, edit.insertSnippet, selections);
+
+						if (edit.additionalEdit) {
+							await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor });
 						}
 						return;
 					}

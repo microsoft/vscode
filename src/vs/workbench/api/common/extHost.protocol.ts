@@ -372,7 +372,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void;
-	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], supportsCopy: boolean): void;
+	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], supportsCopy: boolean, pasteMimeTypes: readonly string[]): void;
 	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
@@ -1713,6 +1713,11 @@ export interface IInlineValueContextDto {
 
 export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
 
+export interface IPasteEditDto {
+	insertSnippet: string;
+	additionalEdit?: IWorkspaceEditDto;
+}
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<languages.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
@@ -1731,8 +1736,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: languages.CodeActionContext, token: CancellationToken): Promise<ICodeActionListDto | undefined>;
 	$resolveCodeAction(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<IWorkspaceEditDto | undefined>;
 	$releaseCodeActions(handle: number, cacheId: number): void;
-	$prepareDocumentPaste(handle: number, uri: UriComponents, range: IRange, dataTransfer: DataTransferDTO, token: CancellationToken): Promise<DataTransferDTO | undefined>;
-	$providePasteEdits(handle: number, uri: UriComponents, range: IRange, dataTransfer: DataTransferDTO, token: CancellationToken): Promise<IWorkspaceEditDto | Dto<languages.SnippetTextEdit> | undefined>;
+	$prepareDocumentPaste(handle: number, uri: UriComponents, ranges: IRange[], dataTransfer: DataTransferDTO, token: CancellationToken): Promise<DataTransferDTO | undefined>;
+	$providePasteEdits(handle: number, uri: UriComponents, ranges: IRange[], dataTransfer: DataTransferDTO, token: CancellationToken): Promise<IPasteEditDto | undefined>;
 	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
