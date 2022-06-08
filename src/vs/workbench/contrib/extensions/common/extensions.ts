@@ -9,7 +9,7 @@ import { IPager } from 'vs/base/common/paging';
 import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
@@ -136,7 +136,7 @@ export interface IExtensionsConfiguration {
 	closeExtensionDetailsOnViewChange: boolean;
 }
 
-export interface IExtensionContainer {
+export interface IExtensionContainer extends IDisposable {
 	extension: IExtension | null;
 	updateWhenCounterExtensionChanges?: boolean;
 	update(): void;

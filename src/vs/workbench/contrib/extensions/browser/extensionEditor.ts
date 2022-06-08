@@ -16,13 +16,13 @@ import { append, $, finalHandler, join, addDisposableListener, EventType, setPar
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, ExtensionWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
+import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, ExtensionWidget, ExtensionStatusWidget, ExtensionRecommendationWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import {
@@ -66,8 +66,7 @@ import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { errorIcon, infoIcon, preReleaseIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { errorIcon, infoIcon, preReleaseIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -147,8 +146,6 @@ interface IExtensionEditorTemplate {
 	description: HTMLElement;
 	actionsAndStatusContainer: HTMLElement;
 	extensionActionBar: ActionBar;
-	status: HTMLElement;
-	recommendation: HTMLElement;
 	navbar: NavBar;
 	content: HTMLElement;
 	header: HTMLElement;
@@ -251,7 +248,6 @@ export class ExtensionEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
-		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWebviewService private readonly webviewService: IWebviewService,
@@ -310,7 +306,7 @@ export class ExtensionEditor extends EditorPane {
 		rating.setAttribute('role', 'link'); // #132645
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, rating, false);
 
-		const widgets = [
+		const widgets: ExtensionWidget[] = [
 			remoteBadge,
 			versionWidget,
 			preReleaseWidget,
@@ -375,13 +371,29 @@ export class ExtensionEditor extends EditorPane {
 			extensionActionBar.setFocusable(true);
 		}));
 
-		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
-		for (const disposable of [...actions, ...widgets, extensionContainers]) {
+		const otherExtensionContainers: IExtensionContainer[] = [];
+		const extensionStatusAction = this.instantiationService.createInstance(ExtensionStatusAction);
+		const extensionStatusWidget = this._register(this.instantiationService.createInstance(ExtensionStatusWidget, append(actionsAndStatusContainer, $('.status')), extensionStatusAction));
+
+		otherExtensionContainers.push(extensionStatusAction, new class extends ExtensionWidget {
+			render() {
+				actionsAndStatusContainer.classList.toggle('list-layout', this.extension?.state === ExtensionState.Installed);
+			}
+		}());
+
+		const recommendationWidget = this.instantiationService.createInstance(ExtensionRecommendationWidget, append(details, $('.recommendation')));
+		widgets.push(recommendationWidget);
+
+		this._register(Event.any(extensionStatusWidget.onDidRender, recommendationWidget.onDidRender)(() => {
+			if (this.dimension) {
+				this.layout(this.dimension);
+			}
+		}));
+
+		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, ...otherExtensionContainers]);
+		for (const disposable of [...actions, ...widgets, ...otherExtensionContainers, extensionContainers]) {
 			this._register(disposable);
 		}
-
-		const status = append(actionsAndStatusContainer, $('.status'));
-		const recommendation = append(details, $('.recommendation'));
 
 		this._register(Event.chain(extensionActionBar.onDidRun)
 			.map(({ error }) => error)
@@ -411,8 +423,6 @@ export class ExtensionEditor extends EditorPane {
 			rating,
 			actionsAndStatusContainer,
 			extensionActionBar,
-			status,
-			recommendation,
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
 			},
@@ -544,9 +554,6 @@ export class ExtensionEditor extends EditorPane {
 			}));
 		}
 
-		this.setStatus(extension, template);
-		this.setRecommendationText(extension, template);
-
 		const manifest = await this.extensionManifest.get().promise;
 		if (token.isCancellationRequested) {
 			return;
@@ -618,72 +625,6 @@ export class ExtensionEditor extends EditorPane {
 			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
 		}
 		template.navbar.onChange(e => this.onNavbarChange(extension, e, template), this, this.transientDisposables);
-	}
-
-	private setStatus(extension: IExtension, template: IExtensionEditorTemplate): void {
-		const disposables = this.transientDisposables.add(new DisposableStore());
-		const extensionStatus = disposables.add(this.instantiationService.createInstance(ExtensionStatusAction));
-		extensionStatus.extension = extension;
-		const updateStatus = (layout: boolean) => {
-			disposables.clear();
-			reset(template.status);
-			const status = extensionStatus.status;
-			if (status) {
-				if (status.icon) {
-					const statusIconActionBar = disposables.add(new ActionBar(template.status, { animated: false }));
-					statusIconActionBar.push(extensionStatus, { icon: true, label: false });
-				}
-				disposables.add(this.renderMarkdownText(status.message.value, append(template.status, $('.status-text'))));
-			}
-			if (layout && this.dimension) {
-				this.layout(this.dimension);
-			}
-		};
-		updateStatus(false);
-		this.transientDisposables.add(extensionStatus.onDidChangeStatus(() => updateStatus(true)));
-
-		const updateActionLayout = () => template.actionsAndStatusContainer.classList.toggle('list-layout', extension.state === ExtensionState.Installed);
-		updateActionLayout();
-		this.transientDisposables.add(this.extensionsWorkbenchService.onChange(() => updateActionLayout()));
-	}
-
-	private setRecommendationText(extension: IExtension, template: IExtensionEditorTemplate): void {
-		const updateRecommendationText = (layout: boolean) => {
-			reset(template.recommendation);
-			const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
-			if (extRecommendations[extension.identifier.id.toLowerCase()]) {
-				const reasonText = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
-				if (reasonText) {
-					append(template.recommendation, $(`div${ThemeIcon.asCSSSelector(starEmptyIcon)}`));
-					append(template.recommendation, $(`div.recommendation-text`, undefined, reasonText));
-				}
-			} else if (this.extensionIgnoredRecommendationsService.globalIgnoredRecommendations.indexOf(extension.identifier.id.toLowerCase()) !== -1) {
-				append(template.recommendation, $(`div.recommendation-text`, undefined, localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.")));
-			}
-			if (layout && this.dimension) {
-				this.layout(this.dimension);
-			}
-		};
-		if (extension.deprecationInfo || extension.state === ExtensionState.Installed) {
-			reset(template.recommendation);
-			return;
-		}
-		updateRecommendationText(false);
-		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationText(true)));
-	}
-
-	private renderMarkdownText(markdownText: string, parent: HTMLElement): IDisposable {
-		const disposables = new DisposableStore();
-		const rendered = disposables.add(renderMarkdown(new MarkdownString(markdownText, { isTrusted: true, supportThemeIcons: true }), {
-			actionHandler: {
-				callback: (content) => {
-					this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-				},
-				disposables: disposables
-			}
-		}));
-		append(parent, rendered.element);
-		return disposables;
 	}
 
 	override clearInput(): void {
