@@ -36,6 +36,7 @@ export enum DiagnosticLevel {
 
 export interface DiagnosticOptions {
 	readonly enabled: boolean;
+	readonly ignoreHeadings: boolean;
 	readonly validateReferences: DiagnosticLevel;
 	readonly validateOwnHeaders: DiagnosticLevel;
 	readonly validateFilePaths: DiagnosticLevel;
@@ -61,6 +62,7 @@ class VSCodeDiagnosticConfiguration extends Disposable implements DiagnosticConf
 		this._register(vscode.workspace.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration('markdown.experimental.validate.enabled')
+				|| e.affectsConfiguration('markdown.experimental.validate.ignoreHeadings')
 				|| e.affectsConfiguration('markdown.experimental.validate.referenceLinks.enabled')
 				|| e.affectsConfiguration('markdown.experimental.validate.headerLinks.enabled')
 				|| e.affectsConfiguration('markdown.experimental.validate.fileLinks.enabled')
@@ -75,6 +77,7 @@ class VSCodeDiagnosticConfiguration extends Disposable implements DiagnosticConf
 		const config = vscode.workspace.getConfiguration('markdown', resource);
 		return {
 			enabled: config.get<boolean>('experimental.validate.enabled', false),
+			ignoreHeadings: config.get<boolean>('experimental.validate.ignoreHeadings', false),
 			validateReferences: config.get<DiagnosticLevel>('experimental.validate.referenceLinks.enabled', DiagnosticLevel.ignore),
 			validateOwnHeaders: config.get<DiagnosticLevel>('experimental.validate.headerLinks.enabled', DiagnosticLevel.ignore),
 			validateFilePaths: config.get<DiagnosticLevel>('experimental.validate.fileLinks.enabled', DiagnosticLevel.ignore),
