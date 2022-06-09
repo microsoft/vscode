@@ -333,6 +333,13 @@ class ResultEdits {
 					false,
 					1000
 				).then(e => {
+
+					if (resultTextModel.isDisposed()) {
+						// this can happen because on "discard" the model is first reset to
+						// its old contents and then disposed
+						return;
+					}
+
 					const diffs =
 						e?.changes.map((c) =>
 							LineDiff.fromLineChange(c, baseTextModel, resultTextModel)
