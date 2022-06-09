@@ -37,13 +37,22 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 						'Content-Length': Buffer.byteLength(payload.data)
 					}
 				};
-				const req = https.request(payload.urlString, options, res => {
-					res.on('data', function (responseData) {
-						oncomplete(res.statusCode ?? 200, res.headers as Record<string, any>, responseData.toString());
+				try {
+					const req = https.request(payload.urlString, options, res => {
+						res.on('data', function (responseData) {
+							oncomplete(res.statusCode ?? 200, res.headers as Record<string, any>, responseData.toString());
+						});
+						// On response with error send status of 0 and a blank response to oncomplete so we can retry events
+						res.on('error', function (err) {
+							oncomplete(0, {});
+						});
 					});
-				});
-				req.write(payload.data);
-				req.end();
+					req.write(payload.data);
+					req.end();
+				} catch {
+					// If it errors out, send status of 0 and a blank response to oncomplete so we can retry events
+					oncomplete(0, {});
+				}
 			}
 		};
 		// Configure the channel to use a XHR Request override since it's not available in node
