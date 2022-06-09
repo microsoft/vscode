@@ -17,7 +17,7 @@
 
 .fullscreen .menubar:not(.compact) {
 	margin: 0px;
-	padding: 0px 5px;
+	padding: 4px 5px;
 }
 
 .menubar > .menubar-menu-button {

@@ -17,7 +17,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { getTitleBarStyle } from 'vs/platform/window/common/window';
+import { getTitleBarStyle, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
@@ -196,7 +196,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		super.updateStyles();
 
 		// WCO styles only supported on Windows currently
-		if (isWindows) {
+		if (useWindowControlsOverlay(this.configurationService, this.environmentService)) {
 			if (!this.cachedWindowControlStyles ||
 				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
 				this.cachedWindowControlStyles.fgColor !== this.element.style.color) {

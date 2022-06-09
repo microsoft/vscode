@@ -10,11 +10,11 @@ import * as UUID from 'vs/base/common/uuid';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import { ValidationStatus } from 'vs/base/common/parsers';
-import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind, NamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import { ProblemMatcher, FileLocationKind, IProblemPattern, ApplyToKind, INamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { WorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
-import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask, TaskConfigSource, ParseContext, ProblemMatcherConverter, Globals, TaskParseResult, UUIDMap, TaskParser } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
+import { parse, IParseResult, IProblemReporter, IExternalTaskRunnerConfiguration, ICustomTask, TaskConfigSource, IParseContext, ProblemMatcherConverter, IGlobals, ITaskParseResult, UUIDMap, TaskParser } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContext } from 'vs/platform/contextkey/common/contextkey';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -92,7 +92,7 @@ class ConfiguationBuilder {
 
 class PresentationBuilder {
 
-	public result: Tasks.PresentationOptions;
+	public result: Tasks.IPresentationOptions;
 
 	constructor(public parent: CommandConfigurationBuilder) {
 		this.result = { echo: false, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false, close: false };
@@ -133,7 +133,7 @@ class PresentationBuilder {
 }
 
 class CommandConfigurationBuilder {
-	public result: Tasks.CommandConfiguration;
+	public result: Tasks.ICommandConfiguration;
 
 	private presentationBuilder: PresentationBuilder;
 
@@ -303,7 +303,7 @@ class ProblemMatcherBuilder {
 }
 
 class PatternBuilder {
-	public result: ProblemPattern;
+	public result: IProblemPattern;
 
 	constructor(public parent: ProblemMatcherBuilder, regExp: RegExp) {
 		this.result = {
@@ -376,7 +376,7 @@ class TasksMockContextKeyService extends MockContextKeyService {
 	}
 }
 
-function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
+function testDefaultProblemMatcher(external: IExternalTaskRunnerConfiguration, resolved: number) {
 	let reporter = new ProblemReporter();
 	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
 	assert.ok(!reporter.receivedMessage);
@@ -386,7 +386,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 	assert.strictEqual(task.configurationProperties.problemMatchers!.length, resolved);
 }
 
-function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
+function testConfiguration(external: IExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
 	builder.done();
 	let reporter = new ProblemReporter();
 	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
@@ -437,7 +437,7 @@ class TaskGroupMap {
 	}
 }
 
-function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void {
+function assertConfiguration(result: IParseResult, expected: Tasks.Task[]): void {
 	assert.ok(result.validationStatus.isOK());
 	let actual = result.custom;
 	assert.strictEqual(typeof actual, typeof expected);
@@ -508,7 +508,7 @@ function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 	}
 }
 
-function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected: Tasks.CommandConfiguration) {
+function assertCommandConfiguration(actual: Tasks.ICommandConfiguration, expected: Tasks.ICommandConfiguration) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (actual && expected) {
 		assertPresentation(actual.presentation!, expected.presentation!);
@@ -536,7 +536,7 @@ function assertGroup(actual: Tasks.TaskGroup, expected: Tasks.TaskGroup) {
 	}
 }
 
-function assertPresentation(actual: Tasks.PresentationOptions, expected: Tasks.PresentationOptions) {
+function assertPresentation(actual: Tasks.IPresentationOptions, expected: Tasks.IPresentationOptions) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (actual && expected) {
 		assert.strictEqual(actual.echo, expected.echo);
@@ -566,21 +566,21 @@ function assertProblemMatcher(actual: string | ProblemMatcher, expected: string 
 	}
 }
 
-function assertProblemPatterns(actual: ProblemPattern | ProblemPattern[], expected: ProblemPattern | ProblemPattern[]) {
+function assertProblemPatterns(actual: IProblemPattern | IProblemPattern[], expected: IProblemPattern | IProblemPattern[]) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (Array.isArray(actual)) {
-		let actuals = <ProblemPattern[]>actual;
-		let expecteds = <ProblemPattern[]>expected;
+		let actuals = <IProblemPattern[]>actual;
+		let expecteds = <IProblemPattern[]>expected;
 		assert.strictEqual(actuals.length, expecteds.length);
 		for (let i = 0; i < actuals.length; i++) {
 			assertProblemPattern(actuals[i], expecteds[i]);
 		}
 	} else {
-		assertProblemPattern(<ProblemPattern>actual, <ProblemPattern>expected);
+		assertProblemPattern(<IProblemPattern>actual, <IProblemPattern>expected);
 	}
 }
 
-function assertProblemPattern(actual: ProblemPattern, expected: ProblemPattern) {
+function assertProblemPattern(actual: IProblemPattern, expected: IProblemPattern) {
 	assert.strictEqual(actual.regexp.toString(), expected.regexp.toString());
 	assert.strictEqual(actual.file, expected.file);
 	assert.strictEqual(actual.message, expected.message);
@@ -793,7 +793,7 @@ suite('Tasks version 0.1.0', () => {
 			task(name, name).
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true);
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			windows: {
@@ -811,7 +811,7 @@ suite('Tasks version 0.1.0', () => {
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
 			runtime(Tasks.RuntimeType.Shell);
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			isShellCommand: true,
@@ -829,7 +829,7 @@ suite('Tasks version 0.1.0', () => {
 			task(name, name).
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true);
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			osx: {
@@ -846,7 +846,7 @@ suite('Tasks version 0.1.0', () => {
 			task(name, name).
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true);
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			linux: {
@@ -863,7 +863,7 @@ suite('Tasks version 0.1.0', () => {
 			group(Tasks.TaskGroup.Build).
 			command().suppressTaskName(true).
 			presentation().reveal(Platform.isWindows ? Tasks.RevealKind.Always : Tasks.RevealKind.Never);
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			showOutput: 'never',
@@ -882,7 +882,7 @@ suite('Tasks version 0.1.0', () => {
 			command().suppressTaskName(true).
 			presentation().
 			echo(Platform.isWindows ? false : true);
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			echoCommand: true,
@@ -894,7 +894,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global problemMatcher one', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			problemMatcher: '$msCompile'
@@ -903,7 +903,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global problemMatcher two', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			problemMatcher: ['$eslint-compact', '$msCompile']
@@ -912,7 +912,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: task definition', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -927,14 +927,14 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: build task', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
 					isBuildCommand: true
-				} as CustomTask
+				} as ICustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -943,7 +943,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: default build task', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -958,14 +958,14 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: test task', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
 					isTestCommand: true
-				} as CustomTask
+				} as ICustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -974,7 +974,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: default test task', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -989,7 +989,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: task with values', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -999,7 +999,7 @@ suite('Tasks version 0.1.0', () => {
 					echoCommand: true,
 					args: ['--p'],
 					isWatching: true
-				} as CustomTask
+				} as ICustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -1015,7 +1015,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: task inherits global values', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			showOutput: 'never',
@@ -1036,7 +1036,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem matcher default', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1058,7 +1058,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem matcher .* regular expression', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1080,7 +1080,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem matcher owner, applyTo, severity and fileLocation', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1112,7 +1112,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem matcher fileLocation and filePrefix', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1138,7 +1138,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem pattern location', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1166,7 +1166,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: problem pattern line & column', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1199,7 +1199,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: prompt on close default', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1216,14 +1216,14 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: prompt on close watching', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
 					isWatching: true
-				} as CustomTask
+				} as ICustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -1234,7 +1234,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: prompt on close set', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1252,7 +1252,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: task selector set', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			taskSelector: '/t:',
@@ -1271,7 +1271,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: suppress task name set', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			suppressTaskName: false,
@@ -1279,7 +1279,7 @@ suite('Tasks version 0.1.0', () => {
 				{
 					taskName: 'taskName',
 					suppressTaskName: true
-				} as CustomTask
+				} as ICustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -1289,7 +1289,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: suppress task name inherit', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			suppressTaskName: true,
@@ -1306,7 +1306,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: two tasks', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
@@ -1327,7 +1327,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: with command', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1342,7 +1342,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: two tasks with command', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1362,7 +1362,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: with command and args', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1376,7 +1376,7 @@ suite('Tasks version 0.1.0', () => {
 							env: 'env'
 						}
 					}
-				} as CustomTask
+				} as ICustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -1387,7 +1387,7 @@ suite('Tasks version 0.1.0', () => {
 
 	test('tasks: with command os specific', () => {
 		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1406,7 +1406,7 @@ suite('Tasks version 0.1.0', () => {
 
 	test('tasks: with Windows specific args', () => {
 		let args: string[] = Platform.isWindows ? ['arg1', 'arg2'] : ['arg1'];
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1426,7 +1426,7 @@ suite('Tasks version 0.1.0', () => {
 
 	test('tasks: with Linux specific args', () => {
 		let args: string[] = Platform.isLinux ? ['arg1', 'arg2'] : ['arg1'];
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			tasks: [
 				{
@@ -1445,14 +1445,14 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global command and task command properties', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskNameOne',
 					isShellCommand: true,
-				} as CustomTask
+				} as ICustomTask
 			]
 		};
 		let builder = new ConfiguationBuilder();
@@ -1461,7 +1461,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global and tasks args', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			args: ['global'],
@@ -1478,7 +1478,7 @@ suite('Tasks version 0.1.0', () => {
 	});
 
 	test('tasks: global and tasks args with task selector', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
 			args: ['global'],
@@ -1498,7 +1498,7 @@ suite('Tasks version 0.1.0', () => {
 
 suite('Tasks version 2.0.0', () => {
 	test.skip('Build workspace task', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			tasks: [
 				{
@@ -1518,7 +1518,7 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test('Global group none', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			command: 'dir',
 			type: 'shell',
@@ -1532,7 +1532,7 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test.skip('Global group build', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			command: 'dir',
 			type: 'shell',
@@ -1547,7 +1547,7 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test.skip('Global group default build', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			command: 'dir',
 			type: 'shell',
@@ -1564,7 +1564,7 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test('Local group none', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			tasks: [
 				{
@@ -1583,7 +1583,7 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test.skip('Local group build', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			tasks: [
 				{
@@ -1603,7 +1603,7 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test.skip('Local group default build', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			tasks: [
 				{
@@ -1625,7 +1625,7 @@ suite('Tasks version 2.0.0', () => {
 		testConfiguration(external, builder);
 	});
 	test('Arg overwrite', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
 			tasks: [
 				{
@@ -1678,7 +1678,7 @@ suite('Tasks version 2.0.0', () => {
 
 suite('Bugs / regression tests', () => {
 	(Platform.isLinux ? test.skip : test)('Bug 19548', () => {
-		let external: ExternalTaskRunnerConfiguration = {
+		let external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			windows: {
 				command: 'powershell',
@@ -1700,7 +1700,7 @@ suite('Bugs / regression tests', () => {
 						isBuildCommand: false,
 						showOutput: 'always',
 						echoCommand: true
-					} as CustomTask
+					} as ICustomTask
 				]
 			},
 			osx: {
@@ -1718,7 +1718,7 @@ suite('Bugs / regression tests', () => {
 						],
 						isBuildCommand: false,
 						showOutput: 'always'
-					} as CustomTask
+					} as ICustomTask
 				]
 			}
 		};
@@ -1770,26 +1770,26 @@ suite('Bugs / regression tests', () => {
 class TestNamedProblemMatcher implements Partial<ProblemMatcher> {
 }
 
-class TestParseContext implements Partial<ParseContext> {
+class TestParseContext implements Partial<IParseContext> {
 }
 
 class TestTaskDefinitionRegistry implements Partial<ITaskDefinitionRegistry> {
-	private _task: Tasks.TaskDefinition | undefined;
-	public get(key: string): Tasks.TaskDefinition {
+	private _task: Tasks.ITaskDefinition | undefined;
+	public get(key: string): Tasks.ITaskDefinition {
 		return this._task!;
 	}
-	public set(task: Tasks.TaskDefinition) {
+	public set(task: Tasks.ITaskDefinition) {
 		this._task = task;
 	}
 }
 
 suite('Task configuration conversions', () => {
-	const globals = {} as Globals;
+	const globals = {} as IGlobals;
 	const taskConfigSource = {} as TaskConfigSource;
 	const TaskDefinitionRegistry = new TestTaskDefinitionRegistry();
 	let instantiationService: TestInstantiationService;
-	let parseContext: ParseContext;
-	let namedProblemMatcher: NamedProblemMatcher;
+	let parseContext: IParseContext;
+	let namedProblemMatcher: INamedProblemMatcher;
 	let problemReporter: ProblemReporter;
 	setup(() => {
 		instantiationService = new TestInstantiationService();
@@ -1824,18 +1824,18 @@ suite('Task configuration conversions', () => {
 		suite('CustomTask', () => {
 			suite('incomplete config reports an appropriate error for missing', () => {
 				test('name', () => {
-					const result = TaskParser.from([{} as CustomTask], globals, parseContext, taskConfigSource);
+					const result = TaskParser.from([{} as ICustomTask], globals, parseContext, taskConfigSource);
 					assertTaskParseResult(result, undefined, problemReporter, 'Error: a task must provide a label property');
 				});
 				test('command', () => {
-					const result = TaskParser.from([{ taskName: 'task' } as CustomTask], globals, parseContext, taskConfigSource);
+					const result = TaskParser.from([{ taskName: 'task' } as ICustomTask], globals, parseContext, taskConfigSource);
 					assertTaskParseResult(result, undefined, problemReporter, "Error: the task 'task' doesn't define a command");
 				});
 			});
 			test('returns expected result', () => {
 				const expected = [
-					{ taskName: 'task', command: 'echo test' } as CustomTask,
-					{ taskName: 'task 2', command: 'echo test' } as CustomTask
+					{ taskName: 'task', command: 'echo test' } as ICustomTask,
+					{ taskName: 'task 2', command: 'echo test' } as ICustomTask
 				];
 				const result = TaskParser.from(expected, globals, parseContext, taskConfigSource);
 				assertTaskParseResult(result, { custom: expected }, problemReporter, undefined);
@@ -1844,7 +1844,7 @@ suite('Task configuration conversions', () => {
 		suite('ConfiguredTask', () => {
 			test('returns expected result', () => {
 				const expected = [{ taskName: 'task', command: 'echo test', type: 'any', label: 'task' }, { taskName: 'task 2', command: 'echo test', type: 'any', label: 'task 2' }];
-				TaskDefinitionRegistry.set({ extensionId: 'registered', taskType: 'any', properties: {} } as Tasks.TaskDefinition);
+				TaskDefinitionRegistry.set({ extensionId: 'registered', taskType: 'any', properties: {} } as Tasks.ITaskDefinition);
 				const result = TaskParser.from(expected, globals, parseContext, taskConfigSource, TaskDefinitionRegistry);
 				assertTaskParseResult(result, { configured: expected }, problemReporter, undefined);
 			});
@@ -1852,7 +1852,7 @@ suite('Task configuration conversions', () => {
 	});
 });
 
-function assertTaskParseResult(actual: TaskParseResult, expected: ITestTaskParseResult | undefined, problemReporter: ProblemReporter, expectedMessage?: string): void {
+function assertTaskParseResult(actual: ITaskParseResult, expected: ITestTaskParseResult | undefined, problemReporter: ProblemReporter, expectedMessage?: string): void {
 	if (expectedMessage === undefined) {
 		assert.strictEqual(problemReporter.lastMessage, undefined);
 	} else {
@@ -1880,10 +1880,10 @@ function assertTaskParseResult(actual: TaskParseResult, expected: ITestTaskParse
 }
 
 interface ITestTaskParseResult {
-	custom?: Partial<CustomTask>[];
-	configured?: Partial<TestConfiguringTask>[];
+	custom?: Partial<ICustomTask>[];
+	configured?: Partial<ITestConfiguringTask>[];
 }
 
-interface TestConfiguringTask extends Partial<Tasks.ConfiguringTask> {
+interface ITestConfiguringTask extends Partial<Tasks.ConfiguringTask> {
 	label: string;
 }

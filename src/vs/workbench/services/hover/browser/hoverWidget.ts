@@ -507,7 +507,7 @@ export class HoverWidget extends Widget {
 }
 
 class CompositeMouseTracker extends Widget {
-	private _isMouseIn: boolean = false;
+	private _isMouseIn: boolean = true;
 	private _mouseTimeout: number | undefined;
 
 	private readonly _onMouseOut = this._register(new Emitter<void>());

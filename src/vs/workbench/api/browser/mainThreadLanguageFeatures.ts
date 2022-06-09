@@ -30,7 +30,7 @@ import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy'
 import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceEditDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape, reviveWorkspaceEditDto } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape, reviveWorkspaceEditDto } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -368,20 +368,21 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	// --- copy paste action provider
 
-	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], supportsCopy: boolean): void {
+	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], supportsCopy: boolean, pasteMimeTypes: readonly string[]): void {
 		const provider: languages.DocumentPasteEditProvider = {
+			pasteMimeTypes: pasteMimeTypes,
+
 			prepareDocumentPaste: supportsCopy
-				? async (model: ITextModel, selection: Selection, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<VSDataTransfer | undefined> => {
+				? async (model: ITextModel, selections: Selection[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<VSDataTransfer | undefined> => {
 					const dataTransferDto = await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
 					if (token.isCancellationRequested) {
 						return undefined;
 					}
 
-					const result = await this._proxy.$prepareDocumentPaste(handle, model.uri, selection, dataTransferDto, token);
+					const result = await this._proxy.$prepareDocumentPaste(handle, model.uri, selections, dataTransferDto, token);
 					if (!result) {
 						return undefined;
 					}
-
 
 					const dataTransferOut = new VSDataTransfer();
 					result.items.forEach(([type, item]) => {
@@ -391,16 +392,17 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 				: undefined,
 
-			provideDocumentPasteEdits: async (model: ITextModel, selection: Selection, dataTransfer: VSDataTransfer, token: CancellationToken) => {
+			provideDocumentPasteEdits: async (model: ITextModel, selections: Selection[], dataTransfer: VSDataTransfer, token: CancellationToken) => {
 				const d = await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
-				const result = await this._proxy.$providePasteEdits(handle, model.uri, selection, d, token);
+				const result = await this._proxy.$providePasteEdits(handle, model.uri, selections, d, token);
 				if (!result) {
-					return;
-				} else if ((result as IWorkspaceEditDto).edits) {
-					return reviveWorkspaceEditDto(result as IWorkspaceEditDto);
-				} else {
-					return result as languages.SnippetTextEdit;
+					return undefined;
 				}
+
+				return {
+					insertText: result.insertText,
+					additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit) : undefined,
+				};
 			}
 		};
 
@@ -933,11 +935,18 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 	) { }
 
-	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<languages.SnippetTextEdit | null | undefined> {
+	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<languages.DocumentOnDropEdit | null | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
 		try {
 			const dataTransferDto = await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
-			return await this._proxy.$provideDocumentOnDropEdits(this.handle, request.id, model.uri, position, dataTransferDto, token);
+			const edit = await this._proxy.$provideDocumentOnDropEdits(this.handle, request.id, model.uri, position, dataTransferDto, token);
+			if (!edit) {
+				return undefined;
+			}
+			return {
+				insertText: edit.insertText,
+				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit),
+			};
 		} finally {
 			request.dispose();
 		}

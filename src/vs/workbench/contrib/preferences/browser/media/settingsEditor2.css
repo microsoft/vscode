@@ -109,13 +109,21 @@
 	/* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
 }
 
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item.focused {
+	outline-offset: -1.5px;
+}
+
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: none;
 	font-size: 13px;
-	padding-bottom: 7px;
+	padding-bottom: 6.5px;
 	padding-top: 7px;
 	padding-left: 8px;
 	padding-right: 8px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label .dropdown-icon {
+	padding-top: 2px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):not(:focus) {

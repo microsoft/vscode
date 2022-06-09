@@ -69,6 +69,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Codicon } from 'vs/base/common/codicons';
 import { assertType } from 'vs/base/common/types';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -281,7 +282,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		}
 
 		if (this.extension.deprecationInfo) {
-			let detail = localize('deprecated message', "This extension is deprecated as it is no longer being maintained");
+			let detail = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
 			let action: () => Promise<any> = async () => undefined;
 			const buttons = [
 				localize('install anyway', "Install Anyway"),
@@ -843,7 +844,7 @@ export class MigrateDeprecatedExtensionAction extends ExtensionAction {
 		private readonly small: boolean,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensions.uninstall', localize('migrateExtension', "Migrate"), MigrateDeprecatedExtensionAction.DisabledClass, false);
+		super('extensionsAction.migrateDeprecatedExtension', localize('migrateExtension', "Migrate"), MigrateDeprecatedExtensionAction.DisabledClass, false);
 		this.update();
 	}
 
@@ -887,8 +888,9 @@ export class SponsorExtensionAction extends ExtensionAction {
 
 	constructor(
 		@IOpenerService private openerService: IOpenerService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
-		super('extensions.sponsor', localize('sponsor', "Sponsor"), SponsorExtensionAction.DisabledClass, false);
+		super('extensionsAction.sponsorExtension', localize('sponsor', "Sponsor"), SponsorExtensionAction.DisabledClass, false);
 		this.update();
 	}
 
@@ -905,6 +907,15 @@ export class SponsorExtensionAction extends ExtensionAction {
 
 	override async run(): Promise<any> {
 		if (this.extension?.publisherSponsorLink) {
+			type SponsorExtensionClassification = {
+				owner: 'sandy081';
+				comment: 'Reporting when sponosor extension action is executed';
+				'extensionId': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the extension to be sponsored' };
+			};
+			type SponsorExtensionEvent = {
+				'extensionId': string;
+			};
+			this.telemetryService.publicLog2<SponsorExtensionEvent, SponsorExtensionClassification>('extensionsAction.sponsorExtension', { extensionId: this.extension.identifier.id });
 			return this.openerService.open(this.extension.publisherSponsorLink);
 		}
 	}
@@ -2300,7 +2311,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 				const link = `[${localize('settings', "settings")}](${URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' ')]))}`)})`;
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "This extension is deprecated as this functionality is now built-in to VS Code. Configure these {0} to use this functionality.", link)) }, true);
 			} else {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained")) }, true);
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained.")) }, true);
 			}
 			return;
 		}
@@ -2933,6 +2944,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const errorColor = theme.getColor(editorErrorForeground);
 	if (errorColor) {
 		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
+		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 	}
@@ -2940,6 +2952,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const warningColor = theme.getColor(editorWarningForeground);
 	if (warningColor) {
 		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
+		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 	}
@@ -2947,6 +2960,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const infoColor = theme.getColor(editorInfoForeground);
 	if (infoColor) {
 		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
+		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 	}

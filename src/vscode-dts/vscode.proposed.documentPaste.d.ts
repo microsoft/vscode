@@ -19,11 +19,11 @@ declare module 'vscode' {
 		 * a {@link DataTransfer} and is passed back to the provider in {@link provideDocumentPasteEdits}.
 		 *
 		 * @param document Document where the copy took place.
-		 * @param range Range being copied in the `document`.
+		 * @param ranges Ranges being copied in the `document`.
 		 * @param dataTransfer The data transfer associated with the copy. You can store additional values on this for later use in  {@link provideDocumentPasteEdits}.
 		 * @param token A cancellation token.
 		 */
-		prepareDocumentPaste?(document: TextDocument, range: Range, dataTransfer: DataTransfer, token: CancellationToken): void | Thenable<void>;
+		prepareDocumentPaste?(document: TextDocument, ranges: readonly Range[], dataTransfer: DataTransfer, token: CancellationToken): void | Thenable<void>;
 
 		/**
 		 * Invoked before the user pastes into a document.
@@ -31,16 +31,40 @@ declare module 'vscode' {
 		 * In this method, extensions can return a workspace edit that replaces the standard pasting behavior.
 		 *
 		 * @param document Document being pasted into
-		 * @param range Currently selected range in the document.
+		 * @param ranges Currently selected ranges in the document.
 		 * @param dataTransfer The data transfer associated with the paste.
 		 * @param token A cancellation token.
 		 *
 		 * @return Optional workspace edit that applies the paste. Return undefined to use standard pasting.
 		 */
-		provideDocumentPasteEdits(document: TextDocument, range: Range, dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<WorkspaceEdit | SnippetTextEdit>;
+		provideDocumentPasteEdits(document: TextDocument, ranges: readonly Range[], dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<DocumentPasteEdit>;
+	}
+
+	/**
+	 * An operation applied on paste
+	 */
+	interface DocumentPasteEdit {
+		/**
+		 * The text or snippet to insert at the pasted locations.
+		 */
+		readonly insertText: string | SnippetString;
+
+		/**
+		 * An optional additional edit to apply on paste.
+		 */
+		readonly additionalEdit?: WorkspaceEdit;
+	}
+
+	interface DocumentPasteProviderMetadata {
+		/**
+		 * Mime types that `provideDocumentPasteEdits` should be invoked for.
+		 *
+		 * Use the special `files` mimetype to indicate the provider should be invoked if any files are present in the `DataTransfer`.
+		 */
+		readonly pasteMimeTypes: readonly string[];
 	}
 
 	namespace languages {
-		export function registerDocumentPasteEditProvider(selector: DocumentSelector, provider: DocumentPasteEditProvider): Disposable;
+		export function registerDocumentPasteEditProvider(selector: DocumentSelector, provider: DocumentPasteEditProvider, metadata: DocumentPasteProviderMetadata): Disposable;
 	}
 }

@@ -14,6 +14,9 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
+import { normalizeWatcherPattern } from 'vs/platform/files/common/watcher';
+import { GLOBSTAR } from 'vs/base/common/glob';
+import { rtrim } from 'vs/base/common/strings';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -163,9 +166,26 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		return this._fileService.activateProvider(scheme);
 	}
 
-	$watch(extensionId: string, session: number, resource: UriComponents, opts: IWatchOptions): void {
+	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions): Promise<void> {
 		const uri = URI.revive(resource);
-		const isInsideWorkspace = this._contextService.isInsideWorkspace(uri);
+		const workspaceFolder = this._contextService.getWorkspaceFolder(uri);
+
+		const opts = { ...unvalidatedOpts };
+
+		// Convert a recursive watcher to a flat watcher if the path
+		// turns out to not be a folder. Recursive watching is only
+		// possible on folders, so we help all file watchers by checking
+		// early.
+		if (opts.recursive) {
+			try {
+				const stat = await this._fileService.stat(uri);
+				if (!stat.isDirectory) {
+					opts.recursive = false;
+				}
+			} catch (error) {
+				this._logService.error(`MainThreadFileSystem#$watch(): failed to stat a resource for file watching (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session}): ${error}`);
+			}
+		}
 
 		// Refuse to watch anything that is already watched via
 		// our workspace watchers in case the request is a
@@ -173,7 +193,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		// Still allow for non-recursive watch requests as a way
 		// to bypass configured exlcude rules though
 		// (see https://github.com/microsoft/vscode/issues/146066)
-		if (isInsideWorkspace && opts.recursive) {
+		if (workspaceFolder && opts.recursive) {
 			this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
 			return;
 		}
@@ -200,7 +220,12 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		// excluded via `files.watcherExclude`. As such, we configure
 		// to include each configured exclude pattern so that only those
 		// events are reported that are otherwise excluded.
-		else if (isInsideWorkspace) {
+		// However, we cannot just use the pattern as is, because a pattern
+		// such as `bar` for a exclude, will work to exclude any of
+		// `<workspace path>/bar` but will not work as include for files within
+		// `bar` unless a suffix of `/**` if added.
+		// (https://github.com/microsoft/vscode/issues/148245)
+		else if (workspaceFolder) {
 			const config = this._configurationService.getValue<IFilesConfiguration>();
 			if (config.files?.watcherExclude) {
 				for (const key in config.files.watcherExclude) {
@@ -209,7 +234,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 							opts.includes = [];
 						}
 
-						opts.includes.push(key);
+						const includePattern = `${rtrim(key, '/')}/${GLOBSTAR}`;
+						opts.includes.push(normalizeWatcherPattern(workspaceFolder.uri.fsPath, includePattern));
 					}
 				}
 			}

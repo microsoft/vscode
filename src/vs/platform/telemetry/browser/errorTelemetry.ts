@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { globals } from 'vs/base/common/platform';
 import BaseErrorTelemetry, { ErrorEvent } from 'vs/platform/telemetry/common/errorTelemetry';
@@ -37,6 +38,11 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 		};
 
 		if (err) {
+			// If it's the no telemetry error it doesn't get logged
+			if (err instanceof ErrorNoTelemetry) {
+				return;
+			}
+
 			let { name, message, stack } = err;
 			data.uncaught_error_name = name;
 			if (message) {

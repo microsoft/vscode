@@ -610,6 +610,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	// List of ignoreFile resources. Used to detect changes to the ignoreFiles.
 	private ignoreFileResourcesPerRoot = new Map<string, ResourceSet>();
 	// Ignore tree per root. Similar to `hiddenExpressionPerRoot`
+	// Note: URI in the ternary search tree is the URI of the folder containing the ignore file
+	// It is not the ignore file itself. This is because of the way the IgnoreFile works and nested paths
 	private ignoreTreesPerRoot = new Map<string, TernarySearchTree<URI, IgnoreFile>>();
 
 	constructor(
@@ -634,8 +636,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 						await this.processIgnoreFile(root, ignoreResource, true);
 					}
 					if (e.contains(ignoreResource, FileChangeType.DELETED)) {
-						this.ignoreTreesPerRoot.get(root)?.delete(ignoreResource);
+						this.ignoreTreesPerRoot.get(root)?.delete(dirname(ignoreResource));
 						ignoreFileResourceSet.delete(ignoreResource);
+						this._onDidChange.fire();
 					}
 				});
 			}
@@ -728,23 +731,29 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		if (!ignoreTree) {
 			return;
 		}
-		// If it's an update we remove the stale ignore file as we will be adding a new one
-		if (update) {
-			ignoreTree.delete(dirUri);
-		}
+
 		// Don't process a directory if we already have it in the tree
-		if (ignoreTree.has(dirUri)) {
+		if (!update && ignoreTree.has(dirUri)) {
 			return;
 		}
 		// Maybe we need a cancellation token here in case it's super long?
 		const content = await this.fileService.readFile(ignoreFileResource);
-		const ignoreParent = ignoreTree.findSubstr(dirUri);
-		const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path, ignoreParent);
-		ignoreTree.set(dirUri, ignoreFile);
-		// If we haven't seen this resource before then we need to add it to the list of resources we're tracking
-		if (!this.ignoreFileResourcesPerRoot.get(root)?.has(ignoreFileResource)) {
-			this.ignoreFileResourcesPerRoot.get(root)?.add(ignoreFileResource);
+
+		// If it's just an update we update the contents keeping all references the same
+		if (update) {
+			const ignoreFile = ignoreTree.get(dirUri);
+			ignoreFile?.updateContents(content.value.toString());
+		} else {
+			// Otherwise we create a new ignorefile and add it to the tree
+			const ignoreParent = ignoreTree.findSubstr(dirUri);
+			const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path, ignoreParent);
+			ignoreTree.set(dirUri, ignoreFile);
+			// If we haven't seen this resource before then we need to add it to the list of resources we're tracking
+			if (!this.ignoreFileResourcesPerRoot.get(root)?.has(ignoreFileResource)) {
+				this.ignoreFileResourcesPerRoot.get(root)?.add(ignoreFileResource);
+			}
 		}
+
 		// Notify the explorer of the change so we may ignore these files
 		this._onDidChange.fire();
 	}

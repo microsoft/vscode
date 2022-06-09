@@ -47,14 +47,14 @@ const taskDefinitionSchema: IJSONSchema = {
 };
 
 namespace Configuration {
-	export interface TaskDefinition {
+	export interface ITaskDefinition {
 		type?: string;
 		required?: string[];
 		properties?: IJSONSchemaMap;
 		when?: string;
 	}
 
-	export function from(value: TaskDefinition, extensionId: ExtensionIdentifier, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition | undefined {
+	export function from(value: ITaskDefinition, extensionId: ExtensionIdentifier, messageCollector: ExtensionMessageCollector): Tasks.ITaskDefinition | undefined {
 		if (!value) {
 			return undefined;
 		}
@@ -81,7 +81,7 @@ namespace Configuration {
 }
 
 
-const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.TaskDefinition[]>({
+const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.ITaskDefinition[]>({
 	extensionPoint: 'taskDefinitions',
 	jsonSchema: {
 		description: nls.localize('TaskDefinitionExtPoint', 'Contributes task kinds'),
@@ -93,15 +93,15 @@ const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Config
 export interface ITaskDefinitionRegistry {
 	onReady(): Promise<void>;
 
-	get(key: string): Tasks.TaskDefinition;
-	all(): Tasks.TaskDefinition[];
+	get(key: string): Tasks.ITaskDefinition;
+	all(): Tasks.ITaskDefinition[];
 	getJsonSchema(): IJSONSchema;
 	onDefinitionsChanged: Event<void>;
 }
 
 export class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
-	private taskTypes: IStringDictionary<Tasks.TaskDefinition>;
+	private taskTypes: IStringDictionary<Tasks.ITaskDefinition>;
 	private readyPromise: Promise<void>;
 	private _schema: IJSONSchema | undefined;
 	private _onDefinitionsChanged: Emitter<void> = new Emitter();
@@ -111,6 +111,7 @@ export class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 		this.taskTypes = Object.create(null);
 		this.readyPromise = new Promise<void>((resolve, reject) => {
 			taskDefinitionsExtPoint.setHandler((extensions, delta) => {
+				this._schema = undefined;
 				try {
 					for (let extension of delta.removed) {
 						let taskTypes = extension.value;
@@ -143,11 +144,11 @@ export class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 		return this.readyPromise;
 	}
 
-	public get(key: string): Tasks.TaskDefinition {
+	public get(key: string): Tasks.ITaskDefinition {
 		return this.taskTypes[key];
 	}
 
-	public all(): Tasks.TaskDefinition[] {
+	public all(): Tasks.ITaskDefinition[] {
 		return Object.keys(this.taskTypes).map(key => this.taskTypes[key]);
 	}
 

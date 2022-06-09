@@ -372,7 +372,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void;
-	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], supportsCopy: boolean): void;
+	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], supportsCopy: boolean, pasteMimeTypes: readonly string[]): void;
 	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
@@ -1111,14 +1111,14 @@ export interface MainThreadSearchShape extends IDisposable {
 }
 
 export interface MainThreadTaskShape extends IDisposable {
-	$createTaskId(task: tasks.TaskDTO): Promise<string>;
+	$createTaskId(task: tasks.ITaskDTO): Promise<string>;
 	$registerTaskProvider(handle: number, type: string): Promise<void>;
 	$unregisterTaskProvider(handle: number): Promise<void>;
-	$fetchTasks(filter?: tasks.TaskFilterDTO): Promise<tasks.TaskDTO[]>;
-	$getTaskExecution(value: tasks.TaskHandleDTO | tasks.TaskDTO): Promise<tasks.TaskExecutionDTO>;
-	$executeTask(task: tasks.TaskHandleDTO | tasks.TaskDTO): Promise<tasks.TaskExecutionDTO>;
+	$fetchTasks(filter?: tasks.ITaskFilterDTO): Promise<tasks.ITaskDTO[]>;
+	$getTaskExecution(value: tasks.ITaskHandleDTO | tasks.ITaskDTO): Promise<tasks.ITaskExecutionDTO>;
+	$executeTask(task: tasks.ITaskHandleDTO | tasks.ITaskDTO): Promise<tasks.ITaskExecutionDTO>;
 	$terminateTask(id: string): Promise<void>;
-	$registerTaskSystem(scheme: string, info: tasks.TaskSystemInfoDTO): void;
+	$registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): void;
 	$customExecutionComplete(id: string, result?: number): Promise<void>;
 	$registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void>;
 }
@@ -1713,6 +1713,16 @@ export interface IInlineValueContextDto {
 
 export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
 
+export interface IPasteEditDto {
+	insertText: string | { snippet: string };
+	additionalEdit?: IWorkspaceEditDto;
+}
+
+export interface IDocumentOnDropEditDto {
+	insertText: string | { snippet: string };
+	additionalEdit?: IWorkspaceEditDto;
+}
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<languages.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
@@ -1731,8 +1741,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: languages.CodeActionContext, token: CancellationToken): Promise<ICodeActionListDto | undefined>;
 	$resolveCodeAction(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<IWorkspaceEditDto | undefined>;
 	$releaseCodeActions(handle: number, cacheId: number): void;
-	$prepareDocumentPaste(handle: number, uri: UriComponents, range: IRange, dataTransfer: DataTransferDTO, token: CancellationToken): Promise<DataTransferDTO | undefined>;
-	$providePasteEdits(handle: number, uri: UriComponents, range: IRange, dataTransfer: DataTransferDTO, token: CancellationToken): Promise<IWorkspaceEditDto | Dto<languages.SnippetTextEdit> | undefined>;
+	$prepareDocumentPaste(handle: number, uri: UriComponents, ranges: IRange[], dataTransfer: DataTransferDTO, token: CancellationToken): Promise<DataTransferDTO | undefined>;
+	$providePasteEdits(handle: number, uri: UriComponents, ranges: IRange[], dataTransfer: DataTransferDTO, token: CancellationToken): Promise<IPasteEditDto | undefined>;
 	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
@@ -1771,7 +1781,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
-	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined>;
+	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentOnDropEditDto | undefined>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -1841,12 +1851,12 @@ export interface ExtHostSCMShape {
 }
 
 export interface ExtHostTaskShape {
-	$provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.TaskSetDTO>;
-	$resolveTask(handle: number, taskDTO: tasks.TaskDTO): Promise<tasks.TaskDTO | undefined>;
-	$onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.TaskDefinitionDTO): void;
-	$onDidStartTaskProcess(value: tasks.TaskProcessStartedDTO): void;
-	$onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): void;
-	$OnDidEndTask(execution: tasks.TaskExecutionDTO): void;
+	$provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.ITaskSetDTO>;
+	$resolveTask(handle: number, taskDTO: tasks.ITaskDTO): Promise<tasks.ITaskDTO | undefined>;
+	$onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO): void;
+	$onDidStartTaskProcess(value: tasks.ITaskProcessStartedDTO): void;
+	$onDidEndTaskProcess(value: tasks.ITaskProcessEndedDTO): void;
+	$OnDidEndTask(execution: tasks.ITaskExecutionDTO): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }; variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
 	$jsonTasksSupported(): Promise<boolean>;
 	$findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;

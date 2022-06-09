@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKindNew, InlineCompletionTriggerKind, WorkspaceEdit } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKindNew, InlineCompletionTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import * as languages from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -34,7 +34,6 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCancellationError, NotImplementedError } from 'vs/base/common/errors';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 // --- adapter
 
@@ -494,40 +493,39 @@ class DocumentPasteEditProvider {
 		private readonly _handle: number,
 	) { }
 
-	async prepareDocumentPaste(resource: URI, range: IRange, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.DataTransferDTO | undefined> {
+	async prepareDocumentPaste(resource: URI, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.DataTransferDTO | undefined> {
 		if (!this._provider.prepareDocumentPaste) {
 			return undefined;
 		}
 
 		const doc = this._documents.getDocument(resource);
-		const vscodeRange = typeConvert.Range.to(range);
+		const vscodeRanges = ranges.map(range => typeConvert.Range.to(range));
 
 		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, () => {
 			throw new NotImplementedError();
 		});
-		await this._provider.prepareDocumentPaste(doc, vscodeRange, dataTransfer, token);
+		await this._provider.prepareDocumentPaste(doc, vscodeRanges, dataTransfer, token);
 
 		return typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
 	}
 
-	async providePasteEdits(requestId: number, resource: URI, range: IRange, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<undefined | extHostProtocol.IWorkspaceEditDto | Dto<languages.SnippetTextEdit>> {
+	async providePasteEdits(requestId: number, resource: URI, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<undefined | extHostProtocol.IPasteEditDto> {
 		const doc = this._documents.getDocument(resource);
-		const vscodeRange = typeConvert.Range.to(range);
+		const vscodeRanges = ranges.map(range => typeConvert.Range.to(range));
 
 		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, async (index) => {
 			return (await this._proxy.$resolveDocumentOnDropFileData(this._handle, requestId, index)).buffer;
 		});
 
-		const edit = await this._provider.provideDocumentPasteEdits(doc, vscodeRange, dataTransfer, token);
+		const edit = await this._provider.provideDocumentPasteEdits(doc, vscodeRanges, dataTransfer, token);
 		if (!edit) {
 			return;
 		}
 
-		if (edit instanceof WorkspaceEdit) {
-			return typeConvert.WorkspaceEdit.from(edit);
-		} else {
-			return typeConvert.SnippetTextEdit.from(edit as vscode.SnippetTextEdit);
-		}
+		return {
+			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
+			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit) : undefined,
+		};
 	}
 }
 
@@ -1799,7 +1797,7 @@ class DocumentOnDropEditAdapter {
 		private readonly _handle: number,
 	) { }
 
-	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentOnDropEditDto | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const pos = typeConvert.Position.to(position);
 		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, async (index) => {
@@ -1810,7 +1808,10 @@ class DocumentOnDropEditAdapter {
 		if (!edit) {
 			return undefined;
 		}
-		return typeConvert.SnippetTextEdit.from(edit);
+		return {
+			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
+			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit) : undefined,
+		};
 	}
 }
 
@@ -2454,26 +2455,26 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentOnDropEditDto | undefined> {
 		return this._withAdapter(handle, DocumentOnDropEditAdapter, adapter =>
 			Promise.resolve(adapter.provideDocumentOnDropEdits(requestId, URI.revive(resource), position, dataTransferDto, token)), undefined, undefined);
 	}
 
 	// --- copy/paste actions
 
-	registerDocumentPasteEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentPasteEditProvider): vscode.Disposable {
+	registerDocumentPasteEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentPasteEditProvider, metadata: vscode.DocumentPasteProviderMetadata): vscode.Disposable {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(new DocumentPasteEditProvider(this._proxy, this._documents, provider, handle), extension));
-		this._proxy.$registerPasteEditProvider(handle, this._transformDocumentSelector(selector), !!provider.prepareDocumentPaste);
+		this._proxy.$registerPasteEditProvider(handle, this._transformDocumentSelector(selector), !!provider.prepareDocumentPaste, metadata.pasteMimeTypes);
 		return this._createDisposable(handle);
 	}
 
-	$prepareDocumentPaste(handle: number, resource: UriComponents, range: IRange, dataTransfer: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.DataTransferDTO | undefined> {
-		return this._withAdapter(handle, DocumentPasteEditProvider, adapter => adapter.prepareDocumentPaste(URI.revive(resource), range, dataTransfer, token), undefined, token);
+	$prepareDocumentPaste(handle: number, resource: UriComponents, ranges: IRange[], dataTransfer: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.DataTransferDTO | undefined> {
+		return this._withAdapter(handle, DocumentPasteEditProvider, adapter => adapter.prepareDocumentPaste(URI.revive(resource), ranges, dataTransfer, token), undefined, token);
 	}
 
-	$providePasteEdits(handle: number, resource: UriComponents, range: IRange, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | Dto<languages.SnippetTextEdit> | undefined> {
-		return this._withAdapter(handle, DocumentPasteEditProvider, adapter => adapter.providePasteEdits(0, URI.revive(resource), range, dataTransferDto, token), undefined, token);
+	$providePasteEdits(handle: number, resource: UriComponents, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IPasteEditDto | undefined> {
+		return this._withAdapter(handle, DocumentPasteEditProvider, adapter => adapter.providePasteEdits(0, URI.revive(resource), ranges, dataTransferDto, token), undefined, token);
 	}
 
 	// --- configuration

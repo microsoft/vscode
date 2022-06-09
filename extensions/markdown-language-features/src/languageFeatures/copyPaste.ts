@@ -4,23 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { tryInsertUriList } from './dropIntoEditor';
+import { tryGetUriListSnippet } from './dropIntoEditor';
 
 export function registerPasteProvider(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentPasteEditProvider(selector, new class implements vscode.DocumentPasteEditProvider {
 
 		async provideDocumentPasteEdits(
 			document: vscode.TextDocument,
-			range: vscode.Range,
+			_ranges: readonly vscode.Range[],
 			dataTransfer: vscode.DataTransfer,
 			token: vscode.CancellationToken,
-		): Promise<vscode.SnippetTextEdit | undefined> {
+		): Promise<vscode.DocumentPasteEdit | undefined> {
 			const enabled = vscode.workspace.getConfiguration('markdown', document).get('experimental.editor.pasteLinks.enabled', false);
 			if (!enabled) {
 				return;
 			}
 
-			return tryInsertUriList(document, range, dataTransfer, token);
+			const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
+			if (snippet) {
+				return { insertText: snippet };
+			}
+			return undefined;
 		}
+	}, {
+		pasteMimeTypes: ['text/uri-list']
 	});
 }

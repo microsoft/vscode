@@ -1241,6 +1241,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.setEditorHidden(!visible, true);
 				}
 				this._onDidChangePartVisibility.fire();
+				this._onDidLayout.fire(this._dimension);
 			}));
 		}
 

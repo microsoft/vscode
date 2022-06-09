@@ -51,7 +51,7 @@ export interface IViewPaneOptions extends IPaneOptions {
 }
 
 type WelcomeActionClassification = {
-	owner: 'sandy081';
+	owner: 'joaomoreno';
 	viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	uri: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };

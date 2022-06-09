@@ -7,8 +7,8 @@ import * as nls from 'vs/nls';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ITaskSystem } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { ExecutionEngine } from 'vs/workbench/contrib/tasks/common/tasks';
-import { AbstractTaskService, WorkspaceFolderConfigurationResult } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
-import { TaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
+import { AbstractTaskService, IWorkspaceFolderConfigurationResult } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
+import { ITaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TaskService extends AbstractTaskService {
@@ -32,11 +32,11 @@ export class TaskService extends AbstractTaskService {
 		return this._taskSystem!;
 	}
 
-	protected computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<WorkspaceFolderConfigurationResult> {
+	protected computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<IWorkspaceFolderConfigurationResult> {
 		throw new Error(TaskService.ProcessTaskSystemSupportMessage);
 	}
 
-	protected versionAndEngineCompatible(filter?: TaskFilter): boolean {
+	protected versionAndEngineCompatible(filter?: ITaskFilter): boolean {
 		return this.executionEngine === ExecutionEngine.Terminal;
 	}
 }

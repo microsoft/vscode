@@ -12,33 +12,35 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
 import * as nls from 'vscode-nls';
+import { Utils } from 'vscode-uri';
 import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
 
 const localize = nls.loadMessageBundle();
+const excludeRegex = new RegExp('^(node_modules|.vscode-test)$', 'i');
 
-export interface NpmTaskDefinition extends TaskDefinition {
+export interface INpmTaskDefinition extends TaskDefinition {
 	script: string;
 	path?: string;
 }
 
-export interface FolderTaskItem extends QuickPickItem {
+export interface IFolderTaskItem extends QuickPickItem {
 	label: string;
 	task: Task;
 }
 
 type AutoDetect = 'on' | 'off';
 
-let cachedTasks: TaskWithLocation[] | undefined = undefined;
+let cachedTasks: ITaskWithLocation[] | undefined = undefined;
 
 const INSTALL_SCRIPT = 'install';
 
-export interface TaskLocation {
+export interface ITaskLocation {
 	document: Uri;
 	line: Position;
 }
 
-export interface TaskWithLocation {
+export interface ITaskWithLocation {
 	task: Task;
 	location?: Location;
 }
@@ -48,7 +50,7 @@ export class NpmTaskProvider implements TaskProvider {
 	constructor(private context: ExtensionContext) {
 	}
 
-	get tasksWithLocation(): Promise<TaskWithLocation[]> {
+	get tasksWithLocation(): Promise<ITaskWithLocation[]> {
 		return provideNpmScripts(this.context, false);
 	}
 
@@ -60,7 +62,7 @@ export class NpmTaskProvider implements TaskProvider {
 	public async resolveTask(_task: Task): Promise<Task | undefined> {
 		const npmTask = (<any>_task.definition).script;
 		if (npmTask) {
-			const kind: NpmTaskDefinition = (<any>_task.definition);
+			const kind: INpmTaskDefinition = (<any>_task.definition);
 			let packageJsonUri: Uri;
 			if (_task.scope === undefined || _task.scope === TaskScope.Global || _task.scope === TaskScope.Workspace) {
 				// scope is required to be a WorkspaceFolder for resolveTask
@@ -156,7 +158,7 @@ export async function hasNpmScripts(): Promise<boolean> {
 	}
 	try {
 		for (const folder of folders) {
-			if (isAutoDetectionEnabled(folder)) {
+			if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
 				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
 				if (paths.length > 0) {
@@ -170,10 +172,10 @@ export async function hasNpmScripts(): Promise<boolean> {
 	}
 }
 
-async function detectNpmScripts(context: ExtensionContext, showWarning: boolean): Promise<TaskWithLocation[]> {
+async function detectNpmScripts(context: ExtensionContext, showWarning: boolean): Promise<ITaskWithLocation[]> {
 
-	let emptyTasks: TaskWithLocation[] = [];
-	let allTasks: TaskWithLocation[] = [];
+	let emptyTasks: ITaskWithLocation[] = [];
+	let allTasks: ITaskWithLocation[] = [];
 	let visitedPackageJsonFiles: Set<string> = new Set();
 
 	let folders = workspace.workspaceFolders;
@@ -182,7 +184,7 @@ async function detectNpmScripts(context: ExtensionContext, showWarning: boolean)
 	}
 	try {
 		for (const folder of folders) {
-			if (isAutoDetectionEnabled(folder)) {
+			if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
 				let paths = await workspace.findFiles(relativePattern, '**/{node_modules,.vscode-test}/**');
 				for (const path of paths) {
@@ -201,11 +203,14 @@ async function detectNpmScripts(context: ExtensionContext, showWarning: boolean)
 }
 
 
-export async function detectNpmScriptsForFolder(context: ExtensionContext, folder: Uri): Promise<FolderTaskItem[]> {
+export async function detectNpmScriptsForFolder(context: ExtensionContext, folder: Uri): Promise<IFolderTaskItem[]> {
 
-	let folderTasks: FolderTaskItem[] = [];
+	let folderTasks: IFolderTaskItem[] = [];
 
 	try {
+		if (excludeRegex.test(Utils.basename(folder))) {
+			return folderTasks;
+		}
 		let relativePattern = new RelativePattern(folder.fsPath, '**/package.json');
 		let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
 
@@ -223,7 +228,7 @@ export async function detectNpmScriptsForFolder(context: ExtensionContext, folde
 	}
 }
 
-export async function provideNpmScripts(context: ExtensionContext, showWarning: boolean): Promise<TaskWithLocation[]> {
+export async function provideNpmScripts(context: ExtensionContext, showWarning: boolean): Promise<ITaskWithLocation[]> {
 	if (!cachedTasks) {
 		cachedTasks = await detectNpmScripts(context, showWarning);
 	}
@@ -261,8 +266,8 @@ function isDebugScript(script: string): boolean {
 	return match !== null;
 }
 
-async function provideNpmScriptsForFolder(context: ExtensionContext, packageJsonUri: Uri, showWarning: boolean): Promise<TaskWithLocation[]> {
-	let emptyTasks: TaskWithLocation[] = [];
+async function provideNpmScriptsForFolder(context: ExtensionContext, packageJsonUri: Uri, showWarning: boolean): Promise<ITaskWithLocation[]> {
+	let emptyTasks: ITaskWithLocation[] = [];
 
 	let folder = workspace.getWorkspaceFolder(packageJsonUri);
 	if (!folder) {
@@ -273,7 +278,7 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 		return emptyTasks;
 	}
 
-	const result: TaskWithLocation[] = [];
+	const result: ITaskWithLocation[] = [];
 
 	const packageManager = await getPackageManager(context, folder.uri, showWarning);
 
@@ -294,8 +299,8 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export async function createTask(packageManager: string, script: NpmTaskDefinition | string, cmd: string[], folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, matcher?: any): Promise<Task> {
-	let kind: NpmTaskDefinition;
+export async function createTask(packageManager: string, script: INpmTaskDefinition | string, cmd: string[], folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, matcher?: any): Promise<Task> {
+	let kind: INpmTaskDefinition;
 	if (typeof script === 'string') {
 		kind = { type: 'npm', script: script };
 	} else {

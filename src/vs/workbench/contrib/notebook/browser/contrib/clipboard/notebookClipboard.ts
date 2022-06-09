@@ -285,15 +285,15 @@ export class NotebookClipboardContribution extends Disposable {
 		}
 
 		if (PasteAction) {
-			PasteAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
+			this._register(PasteAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
 				return this.runPasteAction(accessor);
-			});
+			}));
 		}
 
 		if (CutAction) {
-			CutAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
+			this._register(CutAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
 				return this.runCutAction(accessor);
-			});
+			}));
 		}
 	}
 

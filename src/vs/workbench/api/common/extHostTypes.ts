@@ -647,17 +647,6 @@ export class NotebookEdit implements vscode.NotebookEdit {
 	}
 }
 
-export class SnippetTextEdit implements vscode.SnippetTextEdit {
-
-	range: vscode.Range;
-	snippet: vscode.SnippetString;
-
-	constructor(range: Range, snippet: SnippetString) {
-		this.range = range;
-		this.snippet = snippet;
-	}
-}
-
 export interface IFileOperationOptions {
 	overwrite?: boolean;
 	ignoreIfExists?: boolean;
@@ -807,6 +796,8 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 					if (NotebookEdit.isNotebookCellEdit(edit)) {
 						if (edit.newCellMetadata) {
 							this.replaceNotebookCellMetadata(uri, edit.range.start, edit.newCellMetadata);
+						} else if (edit.newNotebookMetadata) {
+							this.replaceNotebookMetadata(uri, edit.newNotebookMetadata);
 						} else {
 							this.replaceNotebookCells(uri, edit.range, edit.newCells);
 						}
@@ -2436,8 +2427,16 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
+export enum DataTransferItemKind {
+	String = 1,
+	File = 2,
+}
+
 @es5ClassCompat
 export class DataTransferItem {
+
+	get kind(): DataTransferItemKind { return DataTransferItemKind.String; }
+
 	async asString(): Promise<string> {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
 	}
