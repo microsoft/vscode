@@ -148,7 +148,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				if (handle && this._currentClipboardItem?.handle === handle) {
 					const toMergeDataTransfer = await this._currentClipboardItem.dataTransferPromise;
 					toMergeDataTransfer.forEach((value, key) => {
-						dataTransfer.append(key, value);
+						dataTransfer.replace(key, value);
 					});
 				}
 
