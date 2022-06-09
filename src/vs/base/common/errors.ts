@@ -95,6 +95,7 @@ export interface SerializedError {
 	readonly name: string;
 	readonly message: string;
 	readonly stack: string;
+	readonly noTelemetry: boolean;
 }
 
 export function transformErrorForSerialization(error: Error): SerializedError;
@@ -107,7 +108,8 @@ export function transformErrorForSerialization(error: any): any {
 			$isError: true,
 			name,
 			message,
-			stack
+			stack,
+			noTelemetry: error instanceof ErrorNoTelemetry
 		};
 	}
 
