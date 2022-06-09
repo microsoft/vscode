@@ -183,7 +183,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	private async _getExactMatch(sanitizedLink: string): Promise<IResourceMatch | undefined> {
-		// Make the an absolute link relative to the cwd if it isn't absolute
+		// Make the link relative to the cwd if it isn't absolute
 		const pathModule = osPathModule(this._os);
 		const isAbsolute = pathModule.isAbsolute(sanitizedLink);
 		let absolutePath: string | undefined = isAbsolute ? sanitizedLink : undefined;
