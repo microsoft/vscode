@@ -3129,9 +3129,7 @@ export class CommandCenter {
 				if (result) {
 					const resultFn = choices.get(result);
 
-					if (resultFn) {
-						resultFn();
-					}
+					resultFn?.();
 				}
 			});
 		};

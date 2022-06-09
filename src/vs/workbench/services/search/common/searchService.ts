@@ -134,9 +134,7 @@ export class SearchService extends Disposable implements ISearchService {
 					return;
 				}
 
-				if (onProgress) {
-					onProgress(item);
-				}
+				onProgress?.(item);
 			};
 
 			const exists = await Promise.all(query.folderQueries.map(query => this.fileService.exists(query.folder)));

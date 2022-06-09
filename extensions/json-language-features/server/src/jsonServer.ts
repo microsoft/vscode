@@ -251,9 +251,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration((change) => {
 		let settings = <Settings>change.settings;
-		if (runtime.configureHttpRequests) {
-			runtime.configureHttpRequests(settings?.http?.proxy, !!settings.http?.proxyStrictSSL);
-		}
+		runtime.configureHttpRequests?.(settings?.http?.proxy, !!settings.http?.proxyStrictSSL);
 		jsonConfigurationSettings = settings.json?.schemas;
 		validateEnabled = !!settings.json?.validate?.enable;
 		updateConfiguration();

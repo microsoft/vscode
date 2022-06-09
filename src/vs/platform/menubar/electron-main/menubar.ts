@@ -816,9 +816,7 @@ export class Menubar {
 		const originalClick = options.click;
 		options.click = (item, window, event) => {
 			this.reportMenuActionTelemetry(commandId);
-			if (originalClick) {
-				originalClick(item, window, event);
-			}
+			originalClick?.(item, window, event);
 		};
 
 		return options;

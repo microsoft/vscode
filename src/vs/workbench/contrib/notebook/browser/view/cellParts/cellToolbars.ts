@@ -164,9 +164,7 @@ export class CellTitleToolbarPart extends CellPart {
 
 			if (deferredUpdate && !visible) {
 				this._register(disposableTimeout(() => {
-					if (deferredUpdate) {
-						deferredUpdate();
-					}
+					deferredUpdate?.();
 				}));
 
 				deferredUpdate = undefined;

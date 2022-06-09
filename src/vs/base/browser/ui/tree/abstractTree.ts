@@ -70,9 +70,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		if (this.dnd.onDragStart) {
-			this.dnd.onDragStart(asTreeDragAndDropData(data), originalEvent);
-		}
+		this.dnd.onDragStart?.(asTreeDragAndDropData(data), originalEvent);
 	}
 
 	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
@@ -137,9 +135,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 	}
 
 	onDragEnd(originalEvent: DragEvent): void {
-		if (this.dnd.onDragEnd) {
-			this.dnd.onDragEnd(originalEvent);
-		}
+		this.dnd.onDragEnd?.(originalEvent);
 	}
 }
 
@@ -220,9 +216,7 @@ export class ComposedTreeDelegate<T, N extends { element: T }> implements IListV
 	}
 
 	setDynamicHeight(element: N, height: number): void {
-		if (this.delegate.setDynamicHeight) {
-			this.delegate.setDynamicHeight(element.element, height);
-		}
+		this.delegate.setDynamicHeight?.(element.element, height);
 	}
 }
 
@@ -350,9 +344,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 		Event.map(onDidChangeCollapseState, e => e.node)(this.onDidChangeNodeTwistieState, this, this.disposables);
 
-		if (renderer.onDidChangeTwistieState) {
-			renderer.onDidChangeTwistieState(this.onDidChangeTwistieState, this, this.disposables);
-		}
+		renderer.onDidChangeTwistieState?.(this.onDidChangeTwistieState, this, this.disposables);
 	}
 
 	updateOptions(options: ITreeRendererOptions = {}): void {
@@ -414,9 +406,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
 		templateData.indentGuidesDisposable.dispose();
 
-		if (this.renderer.disposeElement) {
-			this.renderer.disposeElement(node, index, templateData.templateData, height);
-		}
+		this.renderer.disposeElement?.(node, index, templateData.templateData, height);
 
 		if (typeof height === 'number') {
 			this.renderedNodes.delete(node);
