@@ -156,14 +156,14 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	}
 
 	private _applyCodeAction(action: CodeActionItem, preview: boolean): Promise<void> {
-		return this._instantiationService.invokeFunction(applyCodeAction, action, { showPreviewPane: preview, editor: this._editor });
+		return this._instantiationService.invokeFunction(applyCodeAction, action, { preview, editor: this._editor });
 	}
 }
 
 export async function applyCodeAction(
 	accessor: ServicesAccessor,
 	item: CodeActionItem,
-	options?: { showPreviewPane?: boolean; editor?: ICodeEditor }
+	options?: { preview?: boolean; editor?: ICodeEditor }
 ): Promise<void> {
 	const bulkEditService = accessor.get(IBulkEditService);
 	const commandService = accessor.get(ICommandService);
@@ -198,7 +198,7 @@ export async function applyCodeAction(
 			quotableLabel: item.action.title,
 			code: 'undoredo.codeAction',
 			respectAutoSaveConfig: true,
-			showPreview: options?.showPreviewPane,
+			showPreview: options?.preview,
 		});
 	}
 
