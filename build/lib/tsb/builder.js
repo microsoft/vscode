@@ -9,7 +9,6 @@ const fs_1 = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const utils = require("./utils");
-const log = require("fancy-log");
 const colors = require("ansi-colors");
 const ts = require("typescript");
 const Vinyl = require("vinyl");
@@ -23,11 +22,7 @@ function normalize(path) {
     return path.replace(/\\/g, '/');
 }
 function createTypeScriptBuilder(config, projectFile, cmd) {
-    function _log(topic, message) {
-        if (config.verbose) {
-            log(colors.cyan(topic), message);
-        }
-    }
+    const _log = config.logFn;
     let host = new LanguageServiceHost(cmd, projectFile, _log), service = ts.createLanguageService(host, ts.createDocumentRegistry()), lastBuildVersion = Object.create(null), lastDtsHash = Object.create(null), userWantsDeclarations = cmd.options.declaration, oldErrors = Object.create(null), headUsed = process.memoryUsage().heapUsed, emitSourceMapsInStream = true;
     // always emit declaraction files
     host.getCompilationSettings().declaration = true;
@@ -283,12 +278,10 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
             });
             oldErrors = newErrors;
             // print stats
-            if (config.verbose) {
-                const headNow = process.memoryUsage().heapUsed;
-                const MB = 1024 * 1024;
-                log('[tsb]', 'time:', colors.yellow((Date.now() - t1) + 'ms'), 'mem:', colors.cyan(Math.ceil(headNow / MB) + 'MB'), colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB)));
-                headUsed = headNow;
-            }
+            const headNow = process.memoryUsage().heapUsed;
+            const MB = 1024 * 1024;
+            _log('[tsb]', `time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`);
+            headUsed = headNow;
         });
     }
     return {

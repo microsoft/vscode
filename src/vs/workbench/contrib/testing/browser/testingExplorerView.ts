@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { AbstractTreeViewState, IAbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
@@ -32,7 +33,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
@@ -44,7 +44,6 @@ import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -58,7 +57,6 @@ import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -68,6 +66,7 @@ import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
+import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TestingExplorerView extends ViewPane {
@@ -474,8 +473,6 @@ export class TestingExplorerViewModel extends Disposable {
 		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
 		this._viewSorting.set(this.storageService.get('testing.viewSorting', StorageScope.WORKSPACE, TestExplorerViewSorting.ByLocation) as TestExplorerViewSorting);
 
-		const labels = this._register(instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: onDidChangeVisibility }));
-
 		this.reevaluateWelcomeState();
 		this.filter = this.instantiationService.createInstance(TestsFilter, testService.collection);
 		this.tree = instantiationService.createInstance(
@@ -484,7 +481,7 @@ export class TestingExplorerViewModel extends Disposable {
 			listContainer,
 			new ListDelegate(),
 			[
-				instantiationService.createInstance(TestItemRenderer, labels, this.actionRunner),
+				instantiationService.createInstance(TestItemRenderer, this.actionRunner),
 				instantiationService.createInstance(ErrorRenderer),
 			],
 			{
@@ -1095,7 +1092,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 }
 
 interface IActionableElementTemplateData {
-	label: IResourceLabel;
+	label: HTMLElement;
 	icon: HTMLElement;
 	wrapper: HTMLElement;
 	actionBar: ActionBar;
@@ -1106,7 +1103,6 @@ interface IActionableElementTemplateData {
 abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends Disposable
 	implements ITreeRenderer<T, FuzzyScore, IActionableElementTemplateData> {
 	constructor(
-		protected readonly labels: ResourceLabels,
 		private readonly actionRunner: TestExplorerActionRunner,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITestService protected readonly testService: ITestService,
@@ -1129,8 +1125,7 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 		const wrapper = dom.append(container, dom.$('.test-item'));
 
 		const icon = dom.append(wrapper, dom.$('.computed-state'));
-		const name = dom.append(wrapper, dom.$('.name'));
-		const label = this.labels.create(name, { supportHighlights: true });
+		const label = dom.append(wrapper, dom.$('.label'));
 
 		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(icons.testingHiddenIcon)));
 		const actionBar = new ActionBar(wrapper, {
@@ -1141,7 +1136,7 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 					: undefined
 		});
 
-		return { wrapper, label, actionBar, icon, elementDisposable: [], templateDisposable: [label, actionBar] };
+		return { wrapper, label, actionBar, icon, elementDisposable: [], templateDisposable: [actionBar] };
 	}
 
 	/**
@@ -1192,10 +1187,6 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 	public override renderElement(node: ITreeNode<TestItemTreeElement, FuzzyScore>, depth: number, data: IActionableElementTemplateData): void {
 		super.renderElement(node, depth, data);
 
-		const label: IResourceLabelProps = { name: node.element.label };
-		const options: IResourceLabelOptions = {};
-		data.label.setResource(label, options);
-
 		const testHidden = this.testService.excluded.contains(node.element.test);
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
@@ -1205,18 +1196,20 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 				: node.element.state);
 
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
-		label.resource = node.element.test.item.uri;
-		options.title = getLabelForTestTreeElement(node.element);
-		options.fileKind = FileKind.FILE;
-		label.description = node.element.description || undefined;
 
+		data.label.title = getLabelForTestTreeElement(node.element);
+		dom.reset(data.label, ...renderLabelWithIcons(node.element.label));
+
+		let description = node.element.description;
 		if (node.element.duration !== undefined) {
-			label.description = label.description
-				? `${label.description}: ${formatDuration(node.element.duration)}`
+			description = description
+				? `${description}: ${formatDuration(node.element.duration)}`
 				: formatDuration(node.element.duration);
 		}
 
-		data.label.setResource(label, options);
+		if (description) {
+			dom.append(data.label, dom.$('span.test-label-description', {}, description));
+		}
 	}
 }
 
