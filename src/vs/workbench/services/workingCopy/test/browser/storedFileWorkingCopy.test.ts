@@ -423,7 +423,7 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(backupContents, 'hello backup');
 	});
 
-	test('save (no errors)', async () => {
+	test('save (no errors) - simple', async () => {
 		let savedCounter = 0;
 		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
 		workingCopy.onDidSave(e => {
@@ -453,21 +453,49 @@ suite('StoredFileWorkingCopy', function () {
 		assert.ok(lastSaveEvent!.stat);
 		assert.ok(isStoredFileWorkingCopySaveEvent(lastSaveEvent!));
 		assert.strictEqual(workingCopy.model?.pushedStackElement, true);
+	});
+
+	test('save (no errors) - save reason', async () => {
+		let savedCounter = 0;
+		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
+		workingCopy.onDidSave(e => {
+			savedCounter++;
+			lastSaveEvent = e;
+		});
+
+		let saveErrorCounter = 0;
+		workingCopy.onDidSaveError(() => {
+			saveErrorCounter++;
+		});
 
 		// save reason
+		await workingCopy.resolve();
 		workingCopy.model?.updateContents('hello save');
 
 		const source = SaveSourceRegistry.registerSource('testSource', 'Hello Save');
 		await workingCopy.save({ reason: SaveReason.AUTO, source });
 
-		assert.strictEqual(savedCounter, 2);
+		assert.strictEqual(savedCounter, 1);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual((lastSaveEvent as IStoredFileWorkingCopySaveEvent).reason, SaveReason.AUTO);
-		assert.strictEqual((lastSaveEvent as IStoredFileWorkingCopySaveEvent).source, source);
+		assert.strictEqual((lastSaveEvent! as IStoredFileWorkingCopySaveEvent).reason, SaveReason.AUTO);
+		assert.strictEqual((lastSaveEvent! as IStoredFileWorkingCopySaveEvent).source, source);
+	});
+
+	test('save (no errors) - multiple', async () => {
+		let savedCounter = 0;
+		workingCopy.onDidSave(e => {
+			savedCounter++;
+		});
+
+		let saveErrorCounter = 0;
+		workingCopy.onDidSaveError(() => {
+			saveErrorCounter++;
+		});
 
 		// multiple saves in parallel are fine and result
 		// in a single save when content does not change
+		await workingCopy.resolve();
 		workingCopy.model?.updateContents('hello save');
 		await Promises.settled([
 			workingCopy.save({ reason: SaveReason.AUTO }),
@@ -475,34 +503,87 @@ suite('StoredFileWorkingCopy', function () {
 			workingCopy.save({ reason: SaveReason.WINDOW_CHANGE })
 		]);
 
-		assert.strictEqual(savedCounter, 3);
+		assert.strictEqual(savedCounter, 1);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
+	});
+
+	test('save (no errors) - multiple, cancellation', async () => {
+		let savedCounter = 0;
+		workingCopy.onDidSave(e => {
+			savedCounter++;
+		});
+
+		let saveErrorCounter = 0;
+		workingCopy.onDidSaveError(() => {
+			saveErrorCounter++;
+		});
 
 		// multiple saves in parallel are fine and result
 		// in just one save operation (the second one
 		// cancels the first)
+		await workingCopy.resolve();
 		workingCopy.model?.updateContents('hello save');
 		const firstSave = workingCopy.save();
 		workingCopy.model?.updateContents('hello save more');
 		const secondSave = workingCopy.save();
 
 		await Promises.settled([firstSave, secondSave]);
-		assert.strictEqual(savedCounter, 4);
+		assert.strictEqual(savedCounter, 1);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
+	});
+
+	test('save (no errors) - not forced but not dirty', async () => {
+		let savedCounter = 0;
+		workingCopy.onDidSave(e => {
+			savedCounter++;
+		});
+
+		let saveErrorCounter = 0;
+		workingCopy.onDidSaveError(() => {
+			saveErrorCounter++;
+		});
 
 		// no save when not forced and not dirty
+		await workingCopy.resolve();
 		await workingCopy.save();
-		assert.strictEqual(savedCounter, 4);
+		assert.strictEqual(savedCounter, 0);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
+	});
+
+	test('save (no errors) - forced but not dirty', async () => {
+		let savedCounter = 0;
+		workingCopy.onDidSave(e => {
+			savedCounter++;
+		});
+
+		let saveErrorCounter = 0;
+		workingCopy.onDidSaveError(() => {
+			saveErrorCounter++;
+		});
 
 		// save when forced even when not dirty
+		await workingCopy.resolve();
 		await workingCopy.save({ force: true });
-		assert.strictEqual(savedCounter, 5);
+		assert.strictEqual(savedCounter, 1);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
+	});
+
+	test('save (no errors) - save clears orphaned', async () => {
+		let savedCounter = 0;
+		workingCopy.onDidSave(e => {
+			savedCounter++;
+		});
+
+		let saveErrorCounter = 0;
+		workingCopy.onDidSaveError(() => {
+			saveErrorCounter++;
+		});
+
+		await workingCopy.resolve();
 
 		// save clears orphaned
 		const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
@@ -514,7 +595,7 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), true);
 
 		await workingCopy.save({ force: true });
-		assert.strictEqual(savedCounter, 6);
+		assert.strictEqual(savedCounter, 1);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), false);

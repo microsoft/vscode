@@ -42,7 +42,7 @@ function createCompile(src, build, emitError) {
     if (!build) {
         overrideOptions.inlineSourceMap = true;
     }
-    const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
+    const compilation = tsb.create(projectPath, overrideOptions, { verbose: false }, err => reporter(err));
     function pipeline(token) {
         const bom = require('gulp-bom');
         const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));

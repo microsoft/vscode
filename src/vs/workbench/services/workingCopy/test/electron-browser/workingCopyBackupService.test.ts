@@ -540,9 +540,11 @@ flakySuite('WorkingCopyBackupService', () => {
 			const backupId2 = toTypedWorkingCopyId(fooFile, 'type1');
 			const backupId3 = toTypedWorkingCopyId(fooFile, 'type2');
 
-			await service.backup(backupId1);
-			await service.backup(backupId2);
-			await service.backup(backupId3);
+			await Promise.all([
+				service.backup(backupId1),
+				service.backup(backupId2),
+				service.backup(backupId3)
+			]);
 
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 3);
 
@@ -609,9 +611,11 @@ flakySuite('WorkingCopyBackupService', () => {
 			const backupId2 = toTypedWorkingCopyId(fooFile, 'type1');
 			const backupId3 = toTypedWorkingCopyId(fooFile, 'type2');
 
-			await service.backup(backupId1);
-			await service.backup(backupId2);
-			await service.backup(backupId3);
+			await Promise.all([
+				service.backup(backupId1),
+				service.backup(backupId2),
+				service.backup(backupId3)
+			]);
 
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 3);
 
@@ -716,9 +720,11 @@ flakySuite('WorkingCopyBackupService', () => {
 
 	suite('getBackups', () => {
 		test('text file', async () => {
-			await service.backup(toUntypedWorkingCopyId(fooFile), bufferToReadable(VSBuffer.fromString('test')));
-			await service.backup(toTypedWorkingCopyId(fooFile, 'type1'), bufferToReadable(VSBuffer.fromString('test')));
-			await service.backup(toTypedWorkingCopyId(fooFile, 'type2'), bufferToReadable(VSBuffer.fromString('test')));
+			await Promise.all([
+				service.backup(toUntypedWorkingCopyId(fooFile), bufferToReadable(VSBuffer.fromString('test'))),
+				service.backup(toTypedWorkingCopyId(fooFile, 'type1'), bufferToReadable(VSBuffer.fromString('test'))),
+				service.backup(toTypedWorkingCopyId(fooFile, 'type2'), bufferToReadable(VSBuffer.fromString('test')))
+			]);
 
 			let backups = await service.getBackups();
 			assert.strictEqual(backups.length, 3);
@@ -742,9 +748,11 @@ flakySuite('WorkingCopyBackupService', () => {
 		});
 
 		test('untitled file', async () => {
-			await service.backup(toUntypedWorkingCopyId(untitledFile), bufferToReadable(VSBuffer.fromString('test')));
-			await service.backup(toTypedWorkingCopyId(untitledFile, 'type1'), bufferToReadable(VSBuffer.fromString('test')));
-			await service.backup(toTypedWorkingCopyId(untitledFile, 'type2'), bufferToReadable(VSBuffer.fromString('test')));
+			await Promise.all([
+				service.backup(toUntypedWorkingCopyId(untitledFile), bufferToReadable(VSBuffer.fromString('test'))),
+				service.backup(toTypedWorkingCopyId(untitledFile, 'type1'), bufferToReadable(VSBuffer.fromString('test'))),
+				service.backup(toTypedWorkingCopyId(untitledFile, 'type2'), bufferToReadable(VSBuffer.fromString('test')))
+			]);
 
 			const backups = await service.getBackups();
 			assert.strictEqual(backups.length, 3);

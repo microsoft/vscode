@@ -50,7 +50,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean) {
 		overrideOptions.inlineSourceMap = true;
 	}
 
-	const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
+	const compilation = tsb.create(projectPath, overrideOptions, { verbose: false }, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
 		const bom = require('gulp-bom') as typeof import('gulp-bom');

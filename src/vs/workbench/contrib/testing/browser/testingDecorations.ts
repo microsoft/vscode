@@ -49,6 +49,7 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
 
@@ -818,7 +819,7 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		const testSubmenus = this.tests.map(({ test, resultItem }) => {
 			const actions = this.getTestContextMenuActions(test, resultItem);
 			disposable.add(actions);
-			return new SubmenuAction(test.item.extId, test.item.label, actions.object);
+			return new SubmenuAction(test.item.extId, stripIcons(test.item.label), actions.object);
 		});
 
 		return { object: Separator.join(allActions, testSubmenus), dispose: () => disposable.dispose() };
