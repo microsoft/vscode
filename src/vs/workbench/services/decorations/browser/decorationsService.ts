@@ -398,7 +398,8 @@ export class DecorationsService implements IDecorationsService {
 
 	private _keepItem(map: DecorationEntry, provider: IDecorationsProvider, uri: URI, data: IDecorationData | undefined): IDecorationData | null {
 		const deco = data ? data : null;
-		const old = map.set(provider, deco);
+		const old = map.get(provider);
+		map.set(provider, deco);
 		if (deco || old) {
 			// only fire event when something changed
 			this._onDidChangeDecorationsDelayed.fire(uri);

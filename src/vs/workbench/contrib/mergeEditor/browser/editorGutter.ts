@@ -11,7 +11,7 @@ import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
 
 export class EditorGutter<
 	T extends IGutterItemInfo = IGutterItemInfo
-	> extends Disposable {
+> extends Disposable {
 	private readonly scrollTop = observableFromEvent(
 		this._editor.onDidScrollChange,
 		(e) => this._editor.getScrollTop()

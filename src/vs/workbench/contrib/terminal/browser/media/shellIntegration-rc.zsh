@@ -71,6 +71,14 @@ __vsc_command_complete() {
 	__vsc_update_cwd
 }
 
+if [[ -o NOUNSET ]]; then
+	if [ -z "${RPROMPT-}" ]; then
+		RPROMPT=""
+	fi
+	if [ -z "${PREFIX-}" ]; then
+		PREFIX=""
+	fi
+fi
 __vsc_update_prompt() {
 	__vsc_prior_prompt="$PS1"
 	__vsc_in_command_execution=""
