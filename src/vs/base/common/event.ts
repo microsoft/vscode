@@ -690,9 +690,7 @@ export class Emitter<T> {
 				}
 
 				const result = listener.subscription.set(() => {
-					if (removeMonitor) {
-						removeMonitor();
-					}
+					removeMonitor?.();
 					if (!this._disposed) {
 						removeListener();
 						if (this._options && this._options.onLastListenerRemove) {

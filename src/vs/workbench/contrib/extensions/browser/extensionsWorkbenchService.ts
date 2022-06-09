@@ -1519,9 +1519,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				this.progressService.withProgress({ location: ProgressLocation.Extensions }, () => new Promise(resolve => this._activityCallBack = resolve));
 			}
 		} else {
-			if (this._activityCallBack) {
-				this._activityCallBack();
-			}
+			this._activityCallBack?.();
 			this._activityCallBack = null;
 		}
 	}

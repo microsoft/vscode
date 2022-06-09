@@ -406,9 +406,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 			this._logger.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveCancel`);
 		}
 		const callId = String(req);
-		if (this._cancelInvokedHandlers[callId]) {
-			this._cancelInvokedHandlers[callId]();
-		}
+		this._cancelInvokedHandlers[callId]?.();
 	}
 
 	private _receiveReply(msgLength: number, req: number, value: any): void {
