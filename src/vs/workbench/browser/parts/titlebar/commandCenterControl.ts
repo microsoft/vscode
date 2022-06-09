@@ -99,6 +99,9 @@ export class CommandCenterControl {
 							// label: just workspace name and optional decorations
 							const { prefix, suffix } = windowTitle.getTitleDecorations();
 							let label = windowTitle.workspaceName;
+							if (!label) {
+								label = localize('label.dfl', "Search");
+							}
 							if (prefix) {
 								label = localize('label1', "{0} {1}", prefix, label);
 							}

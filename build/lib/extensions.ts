@@ -500,7 +500,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 		function addConfig(configOrFn: webpack.Configuration | Function) {
 			let config;
 			if (typeof configOrFn === 'function') {
-				config = configOrFn({}, {});
+				config = (configOrFn as Function)({}, {});
 				webpackConfigs.push(config);
 			} else {
 				config = configOrFn;

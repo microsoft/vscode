@@ -38,6 +38,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -383,12 +384,11 @@ abstract class CodeEditorView extends Disposable {
 
 	public readonly view: IView = {
 		element: this.htmlElements.root,
-		minimumWidth: 10,
-		maximumWidth: Number.MAX_SAFE_INTEGER,
-		minimumHeight: 10,
-		maximumHeight: Number.MAX_SAFE_INTEGER,
+		minimumWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
+		maximumWidth: DEFAULT_EDITOR_MAX_DIMENSIONS.width,
+		minimumHeight: DEFAULT_EDITOR_MIN_DIMENSIONS.height,
+		maximumHeight: DEFAULT_EDITOR_MAX_DIMENSIONS.height,
 		onDidChange: this._onDidViewChange.event,
-
 		layout: (width: number, height: number, top: number, left: number) => {
 			setStyle(this.htmlElements.root, { width, height, top, left });
 			this.editor.layout({
