@@ -292,9 +292,9 @@ export class Gesture extends Disposable {
 			const now = Date.now();
 
 			// velocity: old speed + accel_over_time
-			let deltaT = now - t1,
-				delta_pos_x = 0, delta_pos_y = 0,
-				stopped = true;
+			const deltaT = now - t1;
+			let delta_pos_x = 0, delta_pos_y = 0;
+			let stopped = true;
 
 			vX += Gesture.SCROLL_FRICTION * deltaT;
 			vY += Gesture.SCROLL_FRICTION * deltaT;

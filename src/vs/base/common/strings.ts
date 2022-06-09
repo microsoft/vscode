@@ -404,8 +404,8 @@ export function startsWithIgnoreCase(str: string, candidate: string): boolean {
  */
 export function commonPrefixLength(a: string, b: string): number {
 
-	let i: number,
-		len = Math.min(a.length, b.length);
+	const len = Math.min(a.length, b.length);
+	let i: number;
 
 	for (i = 0; i < len; i++) {
 		if (a.charCodeAt(i) !== b.charCodeAt(i)) {
@@ -421,8 +421,8 @@ export function commonPrefixLength(a: string, b: string): number {
  */
 export function commonSuffixLength(a: string, b: string): number {
 
-	let i: number,
-		len = Math.min(a.length, b.length);
+	const len = Math.min(a.length, b.length);
+	let i: number;
 
 	const aLastIndex = a.length - 1;
 	const bLastIndex = b.length - 1;

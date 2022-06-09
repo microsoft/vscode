@@ -675,7 +675,8 @@ class Queue<T> {
 	}
 
 	public toArray(): T[] {
-		let result: T[] = [], resultLen = 0;
+		const result: T[] = [];
+		let resultLen = 0;
 		let it = this._first;
 		while (it) {
 			result[resultLen++] = it.data;

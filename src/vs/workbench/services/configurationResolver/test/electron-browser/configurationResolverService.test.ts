@@ -245,8 +245,7 @@ suite('Configuration Resolver Service', () => {
 	});
 
 	test('substitute many configuration variables', async () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
+		const configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -262,8 +261,7 @@ suite('Configuration Resolver Service', () => {
 	});
 
 	test('substitute one env variable and a configuration variable', async () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
+		const configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -283,8 +281,7 @@ suite('Configuration Resolver Service', () => {
 	});
 
 	test('substitute many env variable and a configuration variable', async () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
+		const configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -304,8 +301,7 @@ suite('Configuration Resolver Service', () => {
 	});
 
 	test('mixed types of configuration variables', async () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
+		const configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo',
 				lineNumbers: 123,
@@ -334,8 +330,7 @@ suite('Configuration Resolver Service', () => {
 	});
 
 	test('uses original variable as fallback', async () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
+		const configurationService = new TestConfigurationService({
 			editor: {}
 		});
 
@@ -345,8 +340,7 @@ suite('Configuration Resolver Service', () => {
 	});
 
 	test('configuration variables with invalid accessor', () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
+		const configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			}

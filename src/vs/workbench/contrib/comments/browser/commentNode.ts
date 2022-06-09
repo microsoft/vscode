@@ -274,7 +274,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private createReactionPicker(reactionGroup: languages.CommentReaction[]): ToggleReactionsAction {
-		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
 		const toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionViewItem) {
 				toggleReactionActionViewItem.show();
@@ -299,7 +298,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		toggleReactionAction.menuActions = reactionMenuActions;
 
-		toggleReactionActionViewItem = new DropdownMenuActionViewItem(
+		const toggleReactionActionViewItem: DropdownMenuActionViewItem = new DropdownMenuActionViewItem(
 			toggleReactionAction,
 			(<ToggleReactionsAction>toggleReactionAction).menuActions,
 			this.contextMenuService,

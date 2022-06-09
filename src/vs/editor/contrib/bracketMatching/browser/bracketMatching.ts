@@ -275,7 +275,8 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		}
 		this._recomputeBrackets();
 
-		let newDecorations: IModelDeltaDecoration[] = [], newDecorationsLen = 0;
+		const newDecorations: IModelDeltaDecoration[] = [];
+		let newDecorationsLen = 0;
 		for (const bracketData of this._lastBracketsData) {
 			const brackets = bracketData.brackets;
 			if (brackets) {
@@ -311,7 +312,8 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			previousData = this._lastBracketsData;
 		}
 
-		let positions: Position[] = [], positionsLen = 0;
+		const positions: Position[] = [];
+		let positionsLen = 0;
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
@@ -326,8 +328,10 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			positions.sort(Position.compare);
 		}
 
-		let newData: BracketsData[] = [], newDataLen = 0;
-		let previousIndex = 0, previousLen = previousData.length;
+		const newData: BracketsData[] = [];
+		let newDataLen = 0;
+		let previousIndex = 0;
+		const previousLen = previousData.length;
 		for (let i = 0, len = positions.length; i < len; i++) {
 			const position = positions[i];
 

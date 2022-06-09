@@ -497,7 +497,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			_registerLetterIfMissing(CharCode.Z, ScanCode.KeyZ, 'z', 'Z');
 		}
 
-		let mappings: IScanCodeMapping[] = [], mappingsLen = 0;
+		const mappings: IScanCodeMapping[] = [];
+		let mappingsLen = 0;
 		for (const strScanCode in rawMappings) {
 			if (rawMappings.hasOwnProperty(strScanCode)) {
 				const scanCode = ScanCodeUtils.toEnum(strScanCode);

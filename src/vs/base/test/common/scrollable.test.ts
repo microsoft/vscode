@@ -45,7 +45,8 @@ suite('SmoothScrollingOperation', () => {
 	function simulateSmoothScroll(from: number, to: number): [number, number][] {
 		const scrollable = new TestSmoothScrollingOperation(from, to, VIEWPORT_HEIGHT, 0, ANIMATION_DURATION);
 
-		let result: [number, number][] = [], resultLen = 0;
+		const result: [number, number][] = [];
+		let resultLen = 0;
 		result[resultLen++] = extractLines(scrollable, 0);
 		result[resultLen++] = extractLines(scrollable, 25);
 		result[resultLen++] = extractLines(scrollable, 50);

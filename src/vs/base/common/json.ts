@@ -200,12 +200,12 @@ export interface JSONVisitor {
  */
 export function createScanner(text: string, ignoreTrivia: boolean = false): JSONScanner {
 
-	let pos = 0,
-		len = text.length,
-		value: string = '',
-		tokenOffset = 0,
-		token: SyntaxKind = SyntaxKind.Unknown,
-		scanError: ScanError = ScanError.None;
+	let pos = 0;
+	const len = text.length;
+	let value: string = '';
+	let tokenOffset = 0;
+	let token: SyntaxKind = SyntaxKind.Unknown;
+	let scanError: ScanError = ScanError.None;
 
 	function scanHexDigits(count: number): number {
 		let digits = 0;
@@ -1315,11 +1315,11 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
  */
 export function stripComments(text: string, replaceCh?: string): string {
 
-	let _scanner = createScanner(text),
-		parts: string[] = [],
-		kind: SyntaxKind,
-		offset = 0,
-		pos: number;
+	const _scanner = createScanner(text);
+	const parts: string[] = [];
+	let kind: SyntaxKind;
+	let offset = 0;
+	let pos: number;
 
 	do {
 		pos = _scanner.getPosition();

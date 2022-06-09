@@ -84,12 +84,12 @@ export function normalizeVersion(version: IParsedVersion | null): INormalizedVer
 		return null;
 	}
 
-	let majorBase = version.majorBase,
-		majorMustEqual = version.majorMustEqual,
-		minorBase = version.minorBase,
-		minorMustEqual = version.minorMustEqual,
-		patchBase = version.patchBase,
-		patchMustEqual = version.patchMustEqual;
+	const majorBase = version.majorBase;
+	const majorMustEqual = version.majorMustEqual;
+	const minorBase = version.minorBase;
+	let minorMustEqual = version.minorMustEqual;
+	const patchBase = version.patchBase;
+	let patchMustEqual = version.patchMustEqual;
 
 	if (version.hasCaret) {
 		if (majorBase === 0) {

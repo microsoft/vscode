@@ -99,7 +99,8 @@ class Snapper {
 	private _themedTokenize(grammar: IGrammar, lines: string[]): IThemedToken[] {
 		const colorMap = TokenizationRegistry.getColorMap();
 		let state: StackElement | null = null;
-		let result: IThemedToken[] = [], resultLen = 0;
+		const result: IThemedToken[] = [];
+		let resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {
 			const line = lines[i];
 

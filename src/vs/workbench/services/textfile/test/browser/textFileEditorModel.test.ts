@@ -821,7 +821,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	async function testSaveFromSaveParticipant(model: TextFileEditorModel, async: boolean): Promise<void> {
-		let savePromise: Promise<boolean>;
+
 		let breakLoop = false;
 
 		const participant = accessor.textFileService.files.addSaveParticipant({
@@ -845,7 +845,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.resolve();
 		model.updateTextEditorModel(createTextBufferFactory('foo'));
 
-		savePromise = model.save();
+		const savePromise = model.save();
 		await savePromise;
 
 		participant.dispose();

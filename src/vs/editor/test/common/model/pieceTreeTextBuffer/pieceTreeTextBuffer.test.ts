@@ -30,8 +30,8 @@ function randomStr(len: number) {
 		len = 10;
 	}
 	return (function () {
-		let j, ref, results;
-		results = [];
+		let j, ref;
+		const results = [];
 		for (
 			j = 1, ref = len;
 			1 <= ref ? j < ref : j > ref;

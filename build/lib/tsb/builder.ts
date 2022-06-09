@@ -45,14 +45,14 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 		}
 	}
 
-	let host = new LanguageServiceHost(cmd, projectFile, _log),
-		service = ts.createLanguageService(host, ts.createDocumentRegistry()),
-		lastBuildVersion: { [path: string]: string } = Object.create(null),
-		lastDtsHash: { [path: string]: string } = Object.create(null),
-		userWantsDeclarations = cmd.options.declaration,
-		oldErrors: { [path: string]: ts.Diagnostic[] } = Object.create(null),
-		headUsed = process.memoryUsage().heapUsed,
-		emitSourceMapsInStream = true;
+	const host = new LanguageServiceHost(cmd, projectFile, _log);
+	const service = ts.createLanguageService(host, ts.createDocumentRegistry());
+	const lastBuildVersion: { [path: string]: string } = Object.create(null);
+	const lastDtsHash: { [path: string]: string } = Object.create(null);
+	const userWantsDeclarations = cmd.options.declaration;
+	let oldErrors: { [path: string]: ts.Diagnostic[] } = Object.create(null);
+	let headUsed = process.memoryUsage().heapUsed;
+	let emitSourceMapsInStream = true;
 
 	// always emit declaraction files
 	host.getCompilationSettings().declaration = true;

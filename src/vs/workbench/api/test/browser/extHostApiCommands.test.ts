@@ -24,7 +24,6 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import type * as vscode from 'vscode';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import 'vs/workbench/contrib/search/browser/search.contribution';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
@@ -94,7 +93,6 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		setUnexpectedErrorHandler(() => { });
 
 		// Use IInstantiationService to get typechecking when instantiating
-		let insta: IInstantiationService;
 		rpcProtocol = new TestRPCProtocol();
 		const services = new ServiceCollection();
 		services.set(ILanguageFeaturesService, new SyncDescriptor(LanguageFeaturesService));
@@ -137,7 +135,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		services.set(ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService));
 		services.set(IOutlineModelService, new SyncDescriptor(OutlineModelService));
 
-		insta = new InstantiationService(services);
+		const insta = new InstantiationService(services);
 
 		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
