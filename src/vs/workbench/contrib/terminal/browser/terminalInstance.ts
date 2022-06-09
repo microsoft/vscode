@@ -1150,6 +1150,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	resetFocusContextKey(): void {
+		this._terminalFocusContextKey.reset();
+	}
+
 	private _initDragAndDrop(container: HTMLElement) {
 		this._dndObserver?.dispose();
 		const dndController = this._instantiationService.createInstance(TerminalInstanceDragAndDropController, container);
