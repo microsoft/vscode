@@ -273,13 +273,19 @@ flakySuite('BackupMainService', () => {
 			assertEqualFolderInfos(service.getFolderBackupPaths(), []);
 		});
 
-		test('getFolderBackupPaths() should return [] when workspaces.json is not properly formed JSON', async () => {
+		test('getFolderBackupPaths() should return [] when workspaces.json is not properly formed JSON (1)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '');
 			await service.initialize();
 			assertEqualFolderInfos(service.getFolderBackupPaths(), []);
+		});
+
+		test('getFolderBackupPaths() should return [] when workspaces.json is not properly formed JSON (2)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{]');
 			await service.initialize();
 			assertEqualFolderInfos(service.getFolderBackupPaths(), []);
+		});
+
+		test('getFolderBackupPaths() should return [] when workspaces.json is not properly formed JSON (3)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, 'foo');
 			await service.initialize();
 			assertEqualFolderInfos(service.getFolderBackupPaths(), []);
@@ -291,22 +297,37 @@ flakySuite('BackupMainService', () => {
 			assertEqualFolderInfos(service.getFolderBackupPaths(), []);
 		});
 
-		test('getFolderBackupPaths() should return [] when folderWorkspaceInfos in workspaces.json is not a string array', async () => {
+		test('getFolderBackupPaths() should return [] when folderWorkspaceInfos in workspaces.json is not a string array (1)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaceInfos":{}}');
 			await service.initialize();
 			assertEqualFolderInfos(service.getFolderBackupPaths(), []);
+		});
+
+		test('getFolderBackupPaths() should return [] when folderWorkspaceInfos in workspaces.json is not a string array (2)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaceInfos":{"foo": ["bar"]}}');
 			await service.initialize();
 			assertEqualFolderInfos(service.getFolderBackupPaths(), []);
+		});
+
+		test('getFolderBackupPaths() should return [] when folderWorkspaceInfos in workspaces.json is not a string array (3)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaceInfos":{"foo": []}}');
 			await service.initialize();
 			assertEqualFolderInfos(service.getFolderBackupPaths(), []);
+		});
+
+		test('getFolderBackupPaths() should return [] when folderWorkspaceInfos in workspaces.json is not a string array (4)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaceInfos":{"foo": "bar"}}');
 			await service.initialize();
 			assertEqualFolderInfos(service.getFolderBackupPaths(), []);
+		});
+
+		test('getFolderBackupPaths() should return [] when folderWorkspaceInfos in workspaces.json is not a string array (5)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaceInfos":"foo"}');
 			await service.initialize();
 			assertEqualFolderInfos(service.getFolderBackupPaths(), []);
+		});
+
+		test('getFolderBackupPaths() should return [] when folderWorkspaceInfos in workspaces.json is not a string array (6)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaceInfos":1}');
 			await service.initialize();
 			assertEqualFolderInfos(service.getFolderBackupPaths(), []);
@@ -333,13 +354,19 @@ flakySuite('BackupMainService', () => {
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
 		});
 
-		test('getWorkspaceBackups() should return [] when workspaces.json is not properly formed JSON', async () => {
+		test('getWorkspaceBackups() should return [] when workspaces.json is not properly formed JSON (1)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when workspaces.json is not properly formed JSON (2)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{]');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when workspaces.json is not properly formed JSON (3)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, 'foo');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
@@ -351,43 +378,73 @@ flakySuite('BackupMainService', () => {
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
 		});
 
-		test('getWorkspaceBackups() should return [] when rootWorkspaces in workspaces.json is not a object array', async () => {
+		test('getWorkspaceBackups() should return [] when rootWorkspaces in workspaces.json is not a object array (1)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":{}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when rootWorkspaces in workspaces.json is not a object array (2)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":{"foo": ["bar"]}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when rootWorkspaces in workspaces.json is not a object array (3)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":{"foo": []}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when rootWorkspaces in workspaces.json is not a object array (4)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":{"foo": "bar"}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when rootWorkspaces in workspaces.json is not a object array (5)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":"foo"}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when rootWorkspaces in workspaces.json is not a object array (6)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":1}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
 		});
 
-		test('getWorkspaceBackups() should return [] when rootURIWorkspaces in workspaces.json is not a object array', async () => {
+		test('getWorkspaceBackups() should return [] when rootURIWorkspaces in workspaces.json is not a object array (1)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":{}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when rootURIWorkspaces in workspaces.json is not a object array (2)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":{"foo": ["bar"]}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when rootURIWorkspaces in workspaces.json is not a object array (3)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":{"foo": []}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when rootURIWorkspaces in workspaces.json is not a object array (4)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":{"foo": "bar"}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when rootURIWorkspaces in workspaces.json is not a object array (5)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":"foo"}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		});
+
+		test('getWorkspaceBackups() should return [] when rootURIWorkspaces in workspaces.json is not a object array (6)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":1}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
@@ -407,13 +464,19 @@ flakySuite('BackupMainService', () => {
 			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
 		});
 
-		test('getEmptyWorkspaceBackupPaths() should return [] when workspaces.json is not properly formed JSON', async () => {
+		test('getEmptyWorkspaceBackupPaths() should return [] when workspaces.json is not properly formed JSON (1)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '');
 			await service.initialize();
 			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
+		});
+
+		test('getEmptyWorkspaceBackupPaths() should return [] when workspaces.json is not properly formed JSON (2)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, '{]');
 			await service.initialize();
 			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
+		});
+
+		test('getEmptyWorkspaceBackupPaths() should return [] when workspaces.json is not properly formed JSON (3)', async () => {
 			fs.writeFileSync(backupWorkspacesPath, 'foo');
 			await service.initialize();
 			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
@@ -425,22 +488,37 @@ flakySuite('BackupMainService', () => {
 			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
 		});
 
-		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array', async function () {
+		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array (1)', async function () {
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
+		});
+
+		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array (2)', async function () {
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{"foo": ["bar"]}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
+		});
+
+		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array (3)', async function () {
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{"foo": []}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
+		});
+
+		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array (4)', async function () {
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{"foo": "bar"}}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
+		});
+
+		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array (5)', async function () {
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":"foo"}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
+		});
+
+		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array (6)', async function () {
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":1}');
 			await service.initialize();
 			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
