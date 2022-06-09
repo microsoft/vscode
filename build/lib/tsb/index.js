@@ -89,7 +89,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
                 contents: Buffer.from(out.outputText),
             });
             this.push(outFile);
-            logFn('Transpile', file.path);
+            logFn('Transpiled', file.path);
         });
     }
     const result = (token) => {
