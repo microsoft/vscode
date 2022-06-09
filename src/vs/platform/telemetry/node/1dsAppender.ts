@@ -76,7 +76,7 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 }
 
 
-export class OneDsAppender implements ITelemetryAppender {
+export class OneDataSystemAppender implements ITelemetryAppender {
 
 	private _aiCore: AppInsightsCore | undefined;
 	private _iKey: string | undefined;
