@@ -5,7 +5,7 @@
 
 import { language } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 import { ILanguagePackItem, ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
@@ -15,6 +15,8 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
+import { Action } from 'vs/base/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class NativeLocaleService implements ILocaleService {
 	_serviceBrand: undefined;
@@ -26,11 +28,27 @@ export class NativeLocaleService implements ILocaleService {
 		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
 		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@ICommandService private readonly commandService: ICommandService
 	) { }
 
-	private async writeLocaleValue(locale: string | undefined): Promise<void> {
+	private async writeLocaleValue(locale: string | undefined): Promise<boolean> {
+		try {
+			await this.jsonEditingService.read(this.environmentService.argvResource);
+		} catch (error) {
+			this.notificationService.notify({
+				severity: Severity.Error,
+				message: localize('argvInvalid', 'Your argv.json file is not valid. Please open it and fix any parse errors so that your display language can be set properly.'),
+				actions: {
+					primary: [
+						new Action('openArgv', localize('openArgv', "Open argv.json"), undefined, true, () => this.commandService.executeCommand('workbench.action.configureRuntimeArguments')),
+					]
+				}
+			});
+			return false;
+		}
 		await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true);
+		return true;
 	}
 
 	async setLocale(languagePackItem: ILanguagePackItem): Promise<boolean> {
@@ -66,8 +84,7 @@ export class NativeLocaleService implements ILocaleService {
 				);
 			}
 
-			await this.writeLocaleValue(locale);
-			return true;
+			return await this.writeLocaleValue(locale);
 		} catch (err) {
 			this.notificationService.error(err);
 			return false;
@@ -79,8 +96,7 @@ export class NativeLocaleService implements ILocaleService {
 			return false;
 		}
 		try {
-			await this.writeLocaleValue(undefined);
-			return true;
+			return await this.writeLocaleValue(undefined);
 		} catch (err) {
 			this.notificationService.error(err);
 			return false;
