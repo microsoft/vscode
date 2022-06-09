@@ -146,16 +146,10 @@ export class OneDsAppender implements ITelemetryAppender {
 		if (this._aiCore) {
 			return new Promise(resolve => {
 				this._withAIClient((aiClient) => {
-					// Attempts to suppress https://github.com/microsoft/vscode/issues/140624
-					try {
-						aiClient.flush(true,
-							() => {
-								// all data flushed
-								this._aiCore?.unload(true, () => this._aiCore = undefined);
-								resolve(undefined);
-							}
-						);
-					} catch { }
+					aiClient.unload(true, () => {
+						this._aiCore = undefined;
+						resolve(undefined);
+					});
 				});
 			});
 		}
