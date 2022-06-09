@@ -12,6 +12,7 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { ModifiedBaseRange, LineEdit, LineDiff, ModifiedBaseRangeState, LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
 import { leftJoin, ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class MergeEditorModelFactory {
 	constructor(
@@ -89,7 +90,7 @@ export class MergeEditorModelFactory {
 const InternalSymbol: unique symbol = null!;
 
 export class MergeEditorModel extends EditorModel {
-	private resultEdits: ResultEdits;
+	private readonly resultEdits: ResultEdits;
 
 	constructor(
 		_symbol: typeof InternalSymbol,
@@ -108,10 +109,8 @@ export class MergeEditorModel extends EditorModel {
 	) {
 		super();
 
-		this.resultEdits = new ResultEdits(resultDiffs, this.base, this.result, this.editorWorkerService);
-		this.resultEdits.onDidChange(() => {
-			this.recomputeState();
-		});
+		this.resultEdits = this._store.add(new ResultEdits(resultDiffs, this.base, this.result, this.editorWorkerService));
+		this.resultEdits.onDidChange(() => this.recomputeState(), undefined, this._store);
 		this.recomputeState();
 
 		this.resetUnknown();
@@ -312,6 +311,8 @@ export class MergeEditorModel extends EditorModel {
 }
 
 class ResultEdits {
+
+	private readonly disposables = new DisposableStore();
 	private readonly barrier = new ReentrancyBarrier();
 	private readonly onDidChangeEmitter = new Emitter();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
@@ -325,7 +326,7 @@ class ResultEdits {
 		diffs.sort(compareBy((d) => d.originalRange.startLineNumber, numberComparator));
 		this._diffs.set(diffs, undefined);
 
-		resultTextModel.onDidChangeContent(e => {
+		this.disposables.add(resultTextModel.onDidChangeContent(e => {
 			this.barrier.runExclusively(() => {
 				this._editorWorkerService.computeDiff(
 					baseTextModel.uri,
@@ -349,7 +350,12 @@ class ResultEdits {
 					this.onDidChangeEmitter.fire(undefined);
 				});
 			});
-		});
+		}));
+	}
+
+	dispose() {
+		this.onDidChangeEmitter.dispose();
+		this.disposables.dispose();
 	}
 
 	private readonly _diffs = new ObservableValue<LineDiff[]>([], 'diffs');
