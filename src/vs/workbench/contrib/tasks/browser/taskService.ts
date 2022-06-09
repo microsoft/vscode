@@ -14,12 +14,12 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 export class TaskService extends AbstractTaskService {
 	private static readonly ProcessTaskSystemSupportMessage = nls.localize('taskService.processTaskSystem', 'Process task system is not support in the web.');
 
-	protected getTaskSystem(): ITaskSystem {
+	protected _getTaskSystem(): ITaskSystem {
 		if (this._taskSystem) {
 			return this._taskSystem;
 		}
 		if (this.executionEngine === ExecutionEngine.Terminal) {
-			this._taskSystem = this.createTerminalTaskSystem();
+			this._taskSystem = this._createTerminalTaskSystem();
 		} else {
 			throw new Error(TaskService.ProcessTaskSystemSupportMessage);
 		}
@@ -32,11 +32,11 @@ export class TaskService extends AbstractTaskService {
 		return this._taskSystem!;
 	}
 
-	protected computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<IWorkspaceFolderConfigurationResult> {
+	protected _computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<IWorkspaceFolderConfigurationResult> {
 		throw new Error(TaskService.ProcessTaskSystemSupportMessage);
 	}
 
-	protected versionAndEngineCompatible(filter?: ITaskFilter): boolean {
+	protected _versionAndEngineCompatible(filter?: ITaskFilter): boolean {
 		return this.executionEngine === ExecutionEngine.Terminal;
 	}
 }

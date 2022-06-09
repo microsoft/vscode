@@ -119,11 +119,11 @@ export class TaskService extends AbstractTaskService {
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}
 
-	protected getTaskSystem(): ITaskSystem {
+	protected _getTaskSystem(): ITaskSystem {
 		if (this._taskSystem) {
 			return this._taskSystem;
 		}
-		this._taskSystem = this.createTerminalTaskSystem();
+		this._taskSystem = this._createTerminalTaskSystem();
 		this._taskSystemListener = this._taskSystem!.onDidStateChange((event) => {
 			if (this._taskSystem) {
 				this._taskRunningState.set(this._taskSystem.isActiveSync());
@@ -133,8 +133,8 @@ export class TaskService extends AbstractTaskService {
 		return this._taskSystem;
 	}
 
-	protected computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<IWorkspaceFolderConfigurationResult> {
-		let { config, hasParseErrors } = this.getConfiguration(workspaceFolder);
+	protected _computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<IWorkspaceFolderConfigurationResult> {
+		let { config, hasParseErrors } = this._getConfiguration(workspaceFolder);
 		if (hasParseErrors) {
 			return Promise.resolve({ workspaceFolder: workspaceFolder, hasErrors: true, config: undefined });
 		}
@@ -145,7 +145,7 @@ export class TaskService extends AbstractTaskService {
 		}
 	}
 
-	protected versionAndEngineCompatible(filter?: ITaskFilter): boolean {
+	protected _versionAndEngineCompatible(filter?: ITaskFilter): boolean {
 		let range = filter && filter.version ? filter.version : undefined;
 		let engine = this.executionEngine;
 
@@ -169,7 +169,7 @@ export class TaskService extends AbstractTaskService {
 		if (this._taskSystem.canAutoTerminate()) {
 			terminatePromise = Promise.resolve({ confirmed: true });
 		} else {
-			terminatePromise = this.dialogService.confirm({
+			terminatePromise = this._dialogService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
 				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
 				type: 'question'
@@ -191,10 +191,10 @@ export class TaskService extends AbstractTaskService {
 					}
 					if (success) {
 						this._taskSystem = undefined;
-						this.disposeTaskSystemListeners();
+						this._disposeTaskSystemListeners();
 						return false; // no veto
 					} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-						return this.dialogService.confirm({
+						return this._dialogService.confirm({
 							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
 							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
 							type: 'info'
