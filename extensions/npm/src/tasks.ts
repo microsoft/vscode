@@ -12,10 +12,12 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
 import * as nls from 'vscode-nls';
+import { Utils } from 'vscode-uri';
 import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
 
 const localize = nls.loadMessageBundle();
+const excludeRegex = new RegExp('^(node_modules|.vscode-test)$', 'i');
 
 export interface INpmTaskDefinition extends TaskDefinition {
 	script: string;
@@ -156,7 +158,7 @@ export async function hasNpmScripts(): Promise<boolean> {
 	}
 	try {
 		for (const folder of folders) {
-			if (isAutoDetectionEnabled(folder)) {
+			if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
 				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
 				if (paths.length > 0) {
@@ -182,7 +184,7 @@ async function detectNpmScripts(context: ExtensionContext, showWarning: boolean)
 	}
 	try {
 		for (const folder of folders) {
-			if (isAutoDetectionEnabled(folder)) {
+			if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
 				let paths = await workspace.findFiles(relativePattern, '**/{node_modules,.vscode-test}/**');
 				for (const path of paths) {
@@ -206,6 +208,9 @@ export async function detectNpmScriptsForFolder(context: ExtensionContext, folde
 	let folderTasks: IFolderTaskItem[] = [];
 
 	try {
+		if (excludeRegex.test(Utils.basename(folder))) {
+			return folderTasks;
+		}
 		let relativePattern = new RelativePattern(folder.fsPath, '**/package.json');
 		let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
 

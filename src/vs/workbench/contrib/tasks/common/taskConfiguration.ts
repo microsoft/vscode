@@ -1480,7 +1480,7 @@ namespace ConfiguringTask {
 					for (let required of typeDeclaration.required) {
 						let value = result.configures[required];
 						if (value) {
-							label = label + ' ' + value;
+							label = label + ': ' + value;
 							break;
 						}
 					}
