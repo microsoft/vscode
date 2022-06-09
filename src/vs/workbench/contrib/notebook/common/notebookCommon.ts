@@ -924,12 +924,6 @@ export const enum CellStatusbarAlignment {
 	Right = 2
 }
 
-export interface INotebookDecorationRenderOptions {
-	backgroundColor?: string | ThemeColor;
-	borderColor?: string | ThemeColor;
-	top?: editorCommon.IContentDecorationRenderOptions;
-}
-
 export class NotebookWorkingCopyTypeIdentifier {
 
 	private static _prefix = 'notebook/';
