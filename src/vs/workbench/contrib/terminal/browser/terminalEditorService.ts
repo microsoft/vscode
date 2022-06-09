@@ -104,8 +104,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._register(this._editorService.onDidActiveEditorChange(() => {
 			const instance = this._editorService.activeEditor instanceof TerminalEditorInput ? this._editorService.activeEditor : undefined;
 			if (!instance) {
-				for (const i of this.instances) {
-					i.resetFocusContextKey();
+				for (const instance of this.instances) {
+					instance.resetFocusContextKey();
 				}
 			}
 		}));
