@@ -227,7 +227,9 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 		// Return early if already cached
 		let input = this.editorInputCache.get(resource);
 		if (input) {
-			cachedFn?.(input);
+			if (cachedFn) {
+				cachedFn(input);
+			}
 
 			return input;
 		}

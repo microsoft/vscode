@@ -220,7 +220,9 @@ export class ContextView extends Disposable {
 		this.doLayout();
 
 		// Focus
-		this.delegate.focus?.();
+		if (this.delegate.focus) {
+			this.delegate.focus();
+		}
 	}
 
 	getViewElement(): HTMLElement {

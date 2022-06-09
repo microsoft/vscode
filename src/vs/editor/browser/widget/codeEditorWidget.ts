@@ -2136,7 +2136,9 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	}
 
 	public refreshState(): void {
-		this._domFocusTracker.refreshState?.();
+		if (this._domFocusTracker.refreshState) {
+			this._domFocusTracker.refreshState();
+		}
 	}
 }
 

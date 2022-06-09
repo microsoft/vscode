@@ -94,7 +94,9 @@ class SearchOperation {
 			this.matches.set(match.resource.toString(), match);
 		}
 
-		this.progress?.(match);
+		if (this.progress) {
+			this.progress(match);
+		}
 	}
 }
 

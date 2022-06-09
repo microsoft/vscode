@@ -33,47 +33,69 @@ export class ViewUserInputEvents {
 	}
 
 	public emitKeyDown(e: IKeyboardEvent): void {
-		this.onKeyDown?.(e);
+		if (this.onKeyDown) {
+			this.onKeyDown(e);
+		}
 	}
 
 	public emitKeyUp(e: IKeyboardEvent): void {
-		this.onKeyUp?.(e);
+		if (this.onKeyUp) {
+			this.onKeyUp(e);
+		}
 	}
 
 	public emitContextMenu(e: IEditorMouseEvent): void {
-		this.onContextMenu?.(this._convertViewToModelMouseEvent(e));
+		if (this.onContextMenu) {
+			this.onContextMenu(this._convertViewToModelMouseEvent(e));
+		}
 	}
 
 	public emitMouseMove(e: IEditorMouseEvent): void {
-		this.onMouseMove?.(this._convertViewToModelMouseEvent(e));
+		if (this.onMouseMove) {
+			this.onMouseMove(this._convertViewToModelMouseEvent(e));
+		}
 	}
 
 	public emitMouseLeave(e: IPartialEditorMouseEvent): void {
-		this.onMouseLeave?.(this._convertViewToModelMouseEvent(e));
+		if (this.onMouseLeave) {
+			this.onMouseLeave(this._convertViewToModelMouseEvent(e));
+		}
 	}
 
 	public emitMouseDown(e: IEditorMouseEvent): void {
-		this.onMouseDown?.(this._convertViewToModelMouseEvent(e));
+		if (this.onMouseDown) {
+			this.onMouseDown(this._convertViewToModelMouseEvent(e));
+		}
 	}
 
 	public emitMouseUp(e: IEditorMouseEvent): void {
-		this.onMouseUp?.(this._convertViewToModelMouseEvent(e));
+		if (this.onMouseUp) {
+			this.onMouseUp(this._convertViewToModelMouseEvent(e));
+		}
 	}
 
 	public emitMouseDrag(e: IEditorMouseEvent): void {
-		this.onMouseDrag?.(this._convertViewToModelMouseEvent(e));
+		if (this.onMouseDrag) {
+			this.onMouseDrag(this._convertViewToModelMouseEvent(e));
+		}
 	}
 
 	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
-		this.onMouseDrop?.(this._convertViewToModelMouseEvent(e));
+		if (this.onMouseDrop) {
+			this.onMouseDrop(this._convertViewToModelMouseEvent(e));
+		}
 	}
 
 	public emitMouseDropCanceled(): void {
-		this.onMouseDropCanceled?.();
+		if (this.onMouseDropCanceled) {
+			this.onMouseDropCanceled();
+		}
 	}
 
 	public emitMouseWheel(e: IMouseWheelEvent): void {
-		this.onMouseWheel?.(e);
+		if (this.onMouseWheel) {
+			this.onMouseWheel(e);
+		}
 	}
 
 	private _convertViewToModelMouseEvent(e: IEditorMouseEvent): IEditorMouseEvent;

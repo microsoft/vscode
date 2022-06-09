@@ -440,10 +440,14 @@ class SQLiteStorageDatabaseLogger {
 	}
 
 	trace(msg: string): void {
-		this.logTrace?.(msg);
+		if (this.logTrace) {
+			this.logTrace(msg);
+		}
 	}
 
 	error(error: string | Error): void {
-		this.logError?.(error);
+		if (this.logError) {
+			this.logError(error);
+		}
 	}
 }

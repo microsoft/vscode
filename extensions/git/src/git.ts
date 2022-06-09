@@ -556,7 +556,9 @@ export class Git {
 	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
 		const child = this.spawn(args, options);
 
-		options.onSpawn?.(child);
+		if (options.onSpawn) {
+			options.onSpawn(child);
+		}
 
 		if (options.input) {
 			child.stdin!.end(options.input, 'utf8');

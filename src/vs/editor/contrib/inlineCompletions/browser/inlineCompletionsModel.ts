@@ -243,7 +243,9 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				lastCompletionItem = currentCompletion.sourceInlineCompletion;
 
 				const provider = currentCompletion.sourceProvider;
-				provider.handleItemDidShow?.(currentCompletion.sourceInlineCompletions, lastCompletionItem);
+				if (provider.handleItemDidShow) {
+					provider.handleItemDidShow(currentCompletion.sourceInlineCompletions, lastCompletionItem);
+				}
 			}
 		}));
 

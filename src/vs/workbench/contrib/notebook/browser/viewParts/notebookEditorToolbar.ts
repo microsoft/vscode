@@ -405,7 +405,9 @@ export class NotebookEditorToolbar extends Disposable {
 
 			if (deferredUpdate && !visible) {
 				setTimeout(() => {
-					deferredUpdate?.();
+					if (deferredUpdate) {
+						deferredUpdate();
+					}
 				}, 0);
 				deferredUpdate = undefined;
 			}

@@ -857,7 +857,9 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	set boundarySashes(boundarySashes: IRelativeBoundarySashes) {
 		this._boundarySashes = boundarySashes;
 
-		this.view.setBoundarySashes?.(toAbsoluteBoundarySashes(boundarySashes, this.orientation));
+		if (this.view.setBoundarySashes) {
+			this.view.setBoundarySashes(toAbsoluteBoundarySashes(boundarySashes, this.orientation));
+		}
 	}
 
 	layout(size: number, offset: number, ctx: ILayoutContext | undefined): void {
@@ -895,7 +897,9 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	setVisible(visible: boolean): void {
-		this.view.setVisible?.(visible);
+		if (this.view.setVisible) {
+			this.view.setVisible(visible);
+		}
 	}
 
 	dispose(): void {

@@ -609,7 +609,9 @@ export class CompositeDragAndDropObserver extends Disposable {
 					return;
 				}
 
-				callbacks.onDragLeave?.({ eventData: e, dragAndDropData: data! });
+				if (callbacks.onDragLeave) {
+					callbacks.onDragLeave({ eventData: e, dragAndDropData: data! });
+				}
 			},
 			onDrop: e => {
 				if (callbacks.onDrop) {

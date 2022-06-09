@@ -140,7 +140,9 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 				insertedElements.add(id);
 				this.nodesByIdentity.set(id, node);
 
-				outerOnDidCreateNode?.(node);
+				if (outerOnDidCreateNode) {
+					outerOnDidCreateNode(node);
+				}
 			};
 
 			onDidDeleteNode = (node: ITreeNode<T, TFilterData>) => {

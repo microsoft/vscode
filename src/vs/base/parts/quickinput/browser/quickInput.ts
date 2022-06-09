@@ -1406,7 +1406,9 @@ export class QuickInputController extends Disposable {
 		return new Promise<R>((doResolve, reject) => {
 			let resolve = (result: R) => {
 				resolve = doResolve;
-				options.onKeyMods?.(input.keyMods);
+				if (options.onKeyMods) {
+					options.onKeyMods(input.keyMods);
+				}
 				doResolve(result);
 			};
 			if (token.isCancellationRequested) {

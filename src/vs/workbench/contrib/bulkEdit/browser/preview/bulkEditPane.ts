@@ -272,7 +272,9 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _done(accept: boolean): void {
-		this._currentResolve?.(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
+		if (this._currentResolve) {
+			this._currentResolve(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
+		}
 		this._currentInput = undefined;
 		this._setState(State.Message);
 		this._sessionDisposables.clear();

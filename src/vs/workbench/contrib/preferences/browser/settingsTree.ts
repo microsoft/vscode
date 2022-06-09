@@ -1166,7 +1166,9 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		common.toDispose.add(
 			listWidget.onDidChangeList(e => {
 				const newList = this.computeNewList(template, e);
-				template.onChange?.(newList);
+				if (template.onChange) {
+					template.onChange(newList);
+				}
 			})
 		);
 
@@ -1347,7 +1349,9 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 				template.objectDropdownWidget!.setValue(newItems);
 			}
 
-			template.onChange?.(newValue);
+			if (template.onChange) {
+				template.onChange(newValue);
+			}
 		}
 	}
 
@@ -1535,7 +1539,9 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 		}));
 		common.toDispose.add(
 			inputBox.onDidChange(e => {
-				template.onChange?.(e);
+				if (template.onChange) {
+					template.onChange(e);
+				}
 			}));
 		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
@@ -1646,7 +1652,9 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 
 		common.toDispose.add(
 			selectBox.onDidSelect(e => {
-				template.onChange?.(e.index);
+				if (template.onChange) {
+					template.onChange(e.index);
+				}
 			}));
 
 		const enumDescriptionElement = common.containerElement.insertBefore($('.setting-item-enumDescription'), common.descriptionElement.nextSibling);
@@ -1750,7 +1758,9 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 		}));
 		common.toDispose.add(
 			inputBox.onDidChange(e => {
-				template.onChange?.(e);
+				if (template.onChange) {
+					template.onChange(e);
+				}
 			}));
 		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);

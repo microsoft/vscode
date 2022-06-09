@@ -1032,7 +1032,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.currentDragData = new ElementsDragAndDropData(elements);
 		StaticDND.CurrentDragAndDropData = new ExternalElementsDragAndDropData(elements);
 
-		this.dnd.onDragStart?.(this.currentDragData, event);
+		if (this.dnd.onDragStart) {
+			this.dnd.onDragStart(this.currentDragData, event);
+		}
 	}
 
 	private onDragOver(event: IListDragEvent<T>): boolean {
@@ -1167,7 +1169,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.currentDragData = undefined;
 		StaticDND.CurrentDragAndDropData = undefined;
 
-		this.dnd.onDragEnd?.(event);
+		if (this.dnd.onDragEnd) {
+			this.dnd.onDragEnd(event);
+		}
 	}
 
 	private clearDragOverFeedback(): void {
@@ -1375,12 +1379,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		if (renderer) {
 			renderer.renderElement(item.element, index, row.templateData, undefined);
 
-			renderer.disposeElement?.(item.element, index, row.templateData, undefined);
+			if (renderer.disposeElement) {
+				renderer.disposeElement(item.element, index, row.templateData, undefined);
+			}
 		}
 
 		item.size = row.domNode.offsetHeight;
 
-		this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
+		if (this.virtualDelegate.setDynamicHeight) {
+			this.virtualDelegate.setDynamicHeight(item.element, item.size);
+		}
 
 		item.lastDynamicHeightWidth = this.renderWidth;
 		this.rowsContainer.removeChild(row.domNode);
@@ -1421,7 +1429,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				if (item.row) {
 					const renderer = this.renderers.get(item.row.templateId);
 					if (renderer) {
-						renderer.disposeElement?.(item.element, -1, item.row.templateData, undefined);
+						if (renderer.disposeElement) {
+							renderer.disposeElement(item.element, -1, item.row.templateData, undefined);
+						}
 						renderer.disposeTemplate(item.row.templateData);
 					}
 				}

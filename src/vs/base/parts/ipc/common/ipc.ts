@@ -707,7 +707,9 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		const handler = this.handlers.get(response.id);
 
-		handler?.(response);
+		if (handler) {
+			handler(response);
+		}
 	}
 
 	@memoize

@@ -26,7 +26,9 @@ export class Server<TContext extends string> extends IPCServer<TContext> {
 		super({
 			send: r => {
 				try {
-					process.send?.((<Buffer>r.buffer).toString('base64'));
+					if (process.send) {
+						process.send((<Buffer>r.buffer).toString('base64'));
+					}
 				} catch (e) { /* not much to do */ }
 			},
 			onMessage: Event.fromNodeEventEmitter(process, 'message', msg => VSBuffer.wrap(Buffer.from(msg, 'base64')))

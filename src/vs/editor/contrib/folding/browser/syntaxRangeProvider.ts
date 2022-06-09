@@ -121,7 +121,9 @@ export class RangesCollector {
 			}
 			return new FoldingRegions(startIndexes, endIndexes, this._types);
 		} else {
-			this._notifyTooManyRegions?.(this._foldingRangesLimit);
+			if (this._notifyTooManyRegions) {
+				this._notifyTooManyRegions(this._foldingRangesLimit);
+			}
 			let entries = 0;
 			let maxLevel = this._nestingLevelCounts.length;
 			for (let i = 0; i < this._nestingLevelCounts.length; i++) {

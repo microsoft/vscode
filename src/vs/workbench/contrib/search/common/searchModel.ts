@@ -1077,7 +1077,9 @@ export class SearchModel extends Disposable {
 			progressEmitter.fire();
 			this.onSearchProgress(p);
 
-			onProgress?.(p);
+			if (onProgress) {
+				onProgress(p);
+			}
 		});
 
 		const dispose = () => tokenSource.dispose();

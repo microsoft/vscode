@@ -39,7 +39,9 @@ export class BannerController extends Disposable {
 			...item,
 			onClose: () => {
 				this.hide();
-				item.onClose?.();
+				if (item.onClose) {
+					item.onClose();
+				}
 			}
 		});
 		this._editor.setBanner(this.banner.element, BANNER_ELEMENT_HEIGHT);

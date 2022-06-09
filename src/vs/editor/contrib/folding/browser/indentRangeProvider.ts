@@ -74,7 +74,9 @@ export class RangesCollector {
 			}
 			return new FoldingRegions(startIndexes, endIndexes);
 		} else {
-			this._notifyTooManyRegions?.(this._foldingRangesLimit);
+			if (this._notifyTooManyRegions) {
+				this._notifyTooManyRegions(this._foldingRangesLimit);
+			}
 			let entries = 0;
 			let maxIndent = this._indentOccurrences.length;
 			for (let i = 0; i < this._indentOccurrences.length; i++) {

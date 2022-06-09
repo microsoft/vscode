@@ -57,7 +57,9 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 	private set _callCount(value: number) {
 		this._callCountValue = value;
 		if (this._callCountValue === 0) {
-			this._completeIdle?.();
+			if (this._completeIdle) {
+				this._completeIdle();
+			}
 			this._idle = undefined;
 		}
 	}

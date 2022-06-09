@@ -15,7 +15,9 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide
 	const onClickChannel = `vscode:onContextMenu${contextMenuId}`;
 	const onClickChannelHandler = (event: unknown, itemId: number, context: IContextMenuEvent) => {
 		const item = processedItems[itemId];
-		item.click?.(context);
+		if (item.click) {
+			item.click(context);
+		}
 	};
 
 	ipcRenderer.once(onClickChannel, onClickChannelHandler);
@@ -26,7 +28,9 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide
 
 		ipcRenderer.removeListener(onClickChannel, onClickChannelHandler);
 
-		onHide?.();
+		if (onHide) {
+			onHide();
+		}
 	});
 
 	ipcRenderer.send(CONTEXT_MENU_CHANNEL, contextMenuId, items.map(item => createItem(item, processedItems)), onClickChannel, options);

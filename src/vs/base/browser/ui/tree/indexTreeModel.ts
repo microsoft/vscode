@@ -554,7 +554,9 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			node.renderNodeCount = renderNodeCount;
 		}
 
-		onDidCreateNode?.(node);
+		if (onDidCreateNode) {
+			onDidCreateNode(node);
+		}
 
 		return node;
 	}
