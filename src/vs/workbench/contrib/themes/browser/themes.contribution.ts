@@ -591,21 +591,7 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor) {
 		const themeService = accessor.get(IWorkbenchThemeService);
 
-		const installMessage = localize('installColorThemes', "Install Additional Color Themes...");
-		const browseMessage = '$(plus) ' + localize('browseColorThemes', "Browse Additional Color Themes...");
-		const placeholderMessage = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
-		const marketplaceTag = 'category:themes';
-		const setTheme = (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => themeService.setColorTheme(theme as IWorkbenchColorTheme, settingsTarget);
-		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceColorThemes(publisher, name, version);
-
-		const instantiationService = accessor.get(IInstantiationService);
-		const picker = instantiationService.createInstance(InstalledThemesPicker, installMessage, browseMessage, placeholderMessage, marketplaceTag, setTheme, getMarketplaceColorThemes);
-
-		const themes = themeService.getPreferredColorThemes();
-		const currentTheme = themeService.getColorTheme();
-
-		const picks: QuickPickInput<ThemeItem>[] = toEntries(themes);
-		await picker.openQuickPick(picks, currentTheme);
+		await themeService.togglePreferredTheme();
 	}
 });
 

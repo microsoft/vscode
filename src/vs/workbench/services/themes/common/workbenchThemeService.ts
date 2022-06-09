@@ -40,8 +40,6 @@ export enum ThemeSettings {
 	DETECT_HC = 'window.autoDetectHighContrast'
 }
 
-export const PREFERRED_THEME_SETTINGS = [ThemeSettings.PREFERRED_DARK_THEME, ThemeSettings.PREFERRED_LIGHT_THEME, ThemeSettings.PREFERRED_HC_DARK_THEME, ThemeSettings.PREFERRED_HC_LIGHT_THEME];
-
 export interface IWorkbenchTheme {
 	readonly id: string;
 	readonly label: string;
@@ -76,9 +74,9 @@ export interface IWorkbenchThemeService extends IThemeService {
 	setColorTheme(themeId: string | undefined | IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null>;
 	getColorTheme(): IWorkbenchColorTheme;
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
-	getPreferredColorThemes(): IWorkbenchColorTheme[];
 	getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]>;
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
+	togglePreferredTheme(): Promise<IWorkbenchColorTheme | null>;
 
 	setFileIconTheme(iconThemeId: string | undefined | IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;
