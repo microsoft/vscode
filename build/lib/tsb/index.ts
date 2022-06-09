@@ -11,6 +11,8 @@ import { Readable, Writable, Duplex } from 'stream';
 import { dirname } from 'path';
 import { strings } from './utils';
 import { readFileSync, statSync } from 'fs';
+import * as log from 'fancy-log';
+import colors = require('ansi-colors');
 
 export interface IncrementalCompiler {
 	(token?: any): Readable & Writable;
@@ -33,7 +35,7 @@ const _defaultOnError = (err: string) => console.log(JSON.stringify(err, null, 4
 export function create(
 	projectPath: string,
 	existingOptions: Partial<ts.CompilerOptions>,
-	verbose: boolean = false,
+	config: { verbose?: boolean; transplileOnly?: boolean },
 	onError: (message: string) => void = _defaultOnError
 ): IncrementalCompiler {
 
@@ -64,9 +66,16 @@ export function create(
 		return createNullCompiler();
 	}
 
-	const _builder = builder.createTypeScriptBuilder({ verbose }, projectPath, cmdLine);
+	function logFn(topic: string, message: string): void {
+		if (config.verbose) {
+			log(colors.cyan(topic), message);
+		}
+	}
 
-	function createStream(token?: builder.CancellationToken): Readable & Writable {
+	// FULL COMPILE stream doing transpile, syntax and semantic diagnostics
+	function createCompileStream(token?: builder.CancellationToken): Readable & Writable {
+
+		const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
 
 		return through(function (this: through.ThroughStream, file: Vinyl) {
 			// give the file to the compiler
@@ -86,7 +95,48 @@ export function create(
 		});
 	}
 
-	const result = (token: builder.CancellationToken) => createStream(token);
+	// TRANSPILE ONLY stream doing just TS to JS conversion
+	function createTranspileStream(): Readable & Writable {
+
+		return through(function (this: through.ThroughStream, file: Vinyl) {
+			// give the file to the compiler
+			if (file.isStream()) {
+				this.emit('error', 'no support for streams');
+				return;
+			}
+
+			if (!file.contents) {
+				return;
+			}
+
+			const out = ts.transpileModule(String(file.contents), {
+				compilerOptions: { ...cmdLine.options, declaration: false, sourceMap: false }
+			});
+
+			if (out.diagnostics) {
+				out.diagnostics.forEach(printDiagnostic);
+			}
+
+			const outFile = new Vinyl({
+				path: file.path.replace(/\.ts$/, '.js'),
+				cwd: file.cwd,
+				base: file.base,
+				contents: Buffer.from(out.outputText),
+			});
+
+			this.push(outFile);
+
+			logFn('Transpiled', file.path);
+		});
+	}
+
+
+	const result = (token: builder.CancellationToken) => {
+		return config.transplileOnly
+			? createTranspileStream()
+			: createCompileStream(token);
+	};
+
 	result.src = (opts?: { cwd?: string; base?: string }) => {
 		let _pos = 0;
 		let _fileNames = cmdLine.fileNames.slice(0);

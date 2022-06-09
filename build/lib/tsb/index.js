@@ -13,6 +13,8 @@ const stream_1 = require("stream");
 const path_1 = require("path");
 const utils_1 = require("./utils");
 const fs_1 = require("fs");
+const log = require("fancy-log");
+const colors = require("ansi-colors");
 class EmptyDuplex extends stream_1.Duplex {
     _write(_chunk, _encoding, callback) { callback(); }
     _read() { this.push(null); }
@@ -23,7 +25,7 @@ function createNullCompiler() {
     return result;
 }
 const _defaultOnError = (err) => console.log(JSON.stringify(err, null, 4));
-function create(projectPath, existingOptions, verbose = false, onError = _defaultOnError) {
+function create(projectPath, existingOptions, config, onError = _defaultOnError) {
     function printDiagnostic(diag) {
         if (!diag.file || !diag.start) {
             onError(ts.flattenDiagnosticMessageText(diag.messageText, '\n'));
@@ -43,8 +45,14 @@ function create(projectPath, existingOptions, verbose = false, onError = _defaul
         cmdLine.errors.forEach(printDiagnostic);
         return createNullCompiler();
     }
-    const _builder = builder.createTypeScriptBuilder({ verbose }, projectPath, cmdLine);
-    function createStream(token) {
+    function logFn(topic, message) {
+        if (config.verbose) {
+            log(colors.cyan(topic), message);
+        }
+    }
+    // FULL COMPILE stream doing transpile, syntax and semantic diagnostics
+    function createCompileStream(token) {
+        const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
         return through(function (file) {
             // give the file to the compiler
             if (file.isStream()) {
@@ -57,7 +65,38 @@ function create(projectPath, existingOptions, verbose = false, onError = _defaul
             _builder.build(file => this.queue(file), printDiagnostic, token).catch(e => console.error(e)).then(() => this.queue(null));
         });
     }
-    const result = (token) => createStream(token);
+    // TRANSPILE ONLY stream doing just TS to JS conversion
+    function createTranspileStream() {
+        return through(function (file) {
+            // give the file to the compiler
+            if (file.isStream()) {
+                this.emit('error', 'no support for streams');
+                return;
+            }
+            if (!file.contents) {
+                return;
+            }
+            const out = ts.transpileModule(String(file.contents), {
+                compilerOptions: { ...cmdLine.options, declaration: false, sourceMap: false }
+            });
+            if (out.diagnostics) {
+                out.diagnostics.forEach(printDiagnostic);
+            }
+            const outFile = new Vinyl({
+                path: file.path.replace(/\.ts$/, '.js'),
+                cwd: file.cwd,
+                base: file.base,
+                contents: Buffer.from(out.outputText),
+            });
+            this.push(outFile);
+            logFn('Transpiled', file.path);
+        });
+    }
+    const result = (token) => {
+        return config.transplileOnly
+            ? createTranspileStream()
+            : createCompileStream(token);
+    };
     result.src = (opts) => {
         let _pos = 0;
         let _fileNames = cmdLine.fileNames.slice(0);
