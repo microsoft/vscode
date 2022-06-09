@@ -1637,7 +1637,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return result;
 	}
 
-	static WellKnowCommands: IStringDictionary<boolean> = {
+	static WellKnownCommands: IStringDictionary<boolean> = {
 		'ant': true,
 		'cmake': true,
 		'eslint': true,
@@ -1664,7 +1664,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (index !== -1) {
 			result = result.substring(index + 1);
 		}
-		if (TerminalTaskSystem.WellKnowCommands[result]) {
+		if (TerminalTaskSystem.WellKnownCommands[result]) {
 			return result;
 		}
 		return 'other';
