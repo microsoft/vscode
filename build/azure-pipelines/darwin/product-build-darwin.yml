@@ -157,19 +157,20 @@ steps:
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
 
-  # Setting hardened entitlements is a requirement for:
-  # * Apple notarization
-  # * Running tests on Big Sur (because Big Sur has additional security precautions)
-  - script: |
-      set -e
-      security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-      security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
-      security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-      echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
-      security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
-      security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-      VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
-    displayName: Set Hardened Entitlements
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    # Setting hardened entitlements is a requirement for:
+    # * Apple notarization
+    # * Running tests on Big Sur (because Big Sur has additional security precautions)
+    - script: |
+        set -e
+        security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+        security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
+        security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+        echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
+        security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
+        VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
+      displayName: Set Hardened Entitlements
 
   - script: |
       set -e
