@@ -67,8 +67,8 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 
 	appInsightsCore.addTelemetryInitializer((envelope) => {
 		if (envelope.tags) {
-			// Sets it to be internal only
-			envelope.tags['utc.flags'] = 880971612160;
+			// Sets it to be internal only based on Windows UTC flagging
+			envelope.tags['utc.flags'] = 0x0000811ECD;
 		}
 	});
 
@@ -132,7 +132,7 @@ export class OneDsAppender implements ITelemetryAppender {
 		data = mixin(data, this._defaultData);
 		data = validateTelemetryData(data);
 
-		// Attemps to suppress https://github.com/microsoft/vscode/issues/140624
+		// Attempts to suppress https://github.com/microsoft/vscode/issues/140624
 		try {
 			this._withAIClient((aiClient) => aiClient.track({
 				name: this._eventPrefix + '/' + eventName,
