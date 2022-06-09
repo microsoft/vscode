@@ -7,14 +7,12 @@ import { statSync, readFileSync } from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as utils from './utils';
-import * as log from 'fancy-log';
 import * as colors from 'ansi-colors';
 import * as ts from 'typescript';
 import * as Vinyl from 'vinyl';
 
 export interface IConfiguration {
-	verbose: boolean;
-	transpileOnly?: boolean;
+	logFn: (topic: string, message: string) => void;
 	_emitWithoutBasePath?: boolean;
 }
 
@@ -40,11 +38,7 @@ function normalize(path: string): string {
 
 export function createTypeScriptBuilder(config: IConfiguration, projectFile: string, cmd: ts.ParsedCommandLine): ITypeScriptBuilder {
 
-	function _log(topic: string, message: string): void {
-		if (config.verbose) {
-			log(colors.cyan(topic), message);
-		}
-	}
+	const _log = config.logFn;
 
 	let host = new LanguageServiceHost(cmd, projectFile, _log),
 		service = ts.createLanguageService(host, ts.createDocumentRegistry()),
@@ -56,7 +50,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 		emitSourceMapsInStream = true;
 
 	// always emit declaraction files
-	host.getCompilationSettings().declaration = !config.transpileOnly;
+	host.getCompilationSettings().declaration = true;
 
 	function file(file: Vinyl): void {
 		// support gulp-sourcemaps
@@ -196,11 +190,8 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 			if (lastBuildVersion[fileName] !== host.getScriptVersion(fileName)) {
 
 				toBeEmitted.push(fileName);
-
-				if (!config.transpileOnly) {
-					toBeCheckedSyntactically.push(fileName);
-					toBeCheckedSemantically.push(fileName);
-				}
+				toBeCheckedSyntactically.push(fileName);
+				toBeCheckedSemantically.push(fileName);
 			}
 		}
 
@@ -236,7 +227,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						newLastBuildVersion.set(fileName, host.getScriptVersion(fileName));
 
 						// remeber the signature
-						if (!config.transpileOnly && value.signature && lastDtsHash[fileName] !== value.signature) {
+						if (value.signature && lastDtsHash[fileName] !== value.signature) {
 							lastDtsHash[fileName] = value.signature;
 							filesWithChangedSignature.push(fileName);
 						}
@@ -358,15 +349,13 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 			oldErrors = newErrors;
 
 			// print stats
-			if (config.verbose) {
-				const headNow = process.memoryUsage().heapUsed;
-				const MB = 1024 * 1024;
-				log('[tsb]',
-					'time:', colors.yellow((Date.now() - t1) + 'ms'),
-					'mem:', colors.cyan(Math.ceil(headNow / MB) + 'MB'), colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB))
-				);
-				headUsed = headNow;
-			}
+			const headNow = process.memoryUsage().heapUsed;
+			const MB = 1024 * 1024;
+			_log(
+				'[tsb]',
+				`time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`
+			);
+			headUsed = headNow;
 		});
 	}
 
