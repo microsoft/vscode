@@ -212,13 +212,6 @@ export class TerminalService implements ITerminalService {
 
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
-		this._viewsService.onDidChangeViewVisibility(() => {
-			for (const instance of this.instances) {
-				if (instance.target !== TerminalLocation.Editor) {
-					instance.resetFocusContextKey();
-				}
-			}
-		});
 	}
 
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
