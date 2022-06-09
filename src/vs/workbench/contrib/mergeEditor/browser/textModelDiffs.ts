@@ -227,7 +227,3 @@ export class EditorWorkerServiceDiffComputer implements IDiffComputer {
 		return diffs.changes.map((c) => LineDiff.fromLineChange(c, textModel1, textModel2));
 	}
 }
-
-function wait(ms: number): Promise<void> {
-	return new Promise(r => setTimeout(r, ms));
-}

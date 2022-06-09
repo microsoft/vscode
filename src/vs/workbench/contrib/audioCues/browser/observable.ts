@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
