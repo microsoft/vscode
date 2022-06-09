@@ -140,13 +140,16 @@ flakySuite('BackupMainService', () => {
 		return pfs.Promises.rm(testDir);
 	});
 
-	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {
+	test('service validates backup workspaces on startup and cleans up (folder workspaces) (1)', async function () {
 
 		// 1) backup workspace path does not exist
 		service.registerFolderBackupSync(toFolderBackupInfo(fooFile));
 		service.registerFolderBackupSync(toFolderBackupInfo(barFile));
 		await service.initialize();
 		assertEqualFolderInfos(service.getFolderBackupPaths(), []);
+	});
+
+	test('service validates backup workspaces on startup and cleans up (folder workspaces) (2)', async function () {
 
 		// 2) backup workspace path exists with empty contents within
 		fs.mkdirSync(service.toBackupPath(fooFile));
@@ -157,6 +160,9 @@ flakySuite('BackupMainService', () => {
 		assertEqualFolderInfos(service.getFolderBackupPaths(), []);
 		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
 		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+	});
+
+	test('service validates backup workspaces on startup and cleans up (folder workspaces) (3)', async function () {
 
 		// 3) backup workspace path exists with empty folders within
 		fs.mkdirSync(service.toBackupPath(fooFile));
@@ -169,6 +175,9 @@ flakySuite('BackupMainService', () => {
 		assertEqualFolderInfos(service.getFolderBackupPaths(), []);
 		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
 		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+	});
+
+	test('service validates backup workspaces on startup and cleans up (folder workspaces) (4)', async function () {
 
 		// 4) backup workspace path points to a workspace that no longer exists
 		// so it should convert the backup worspace to an empty workspace backup
@@ -185,13 +194,16 @@ flakySuite('BackupMainService', () => {
 		assert.strictEqual(service.getEmptyWindowBackupPaths().length, 1);
 	});
 
-	test('service validates backup workspaces on startup and cleans up (root workspaces)', async function () {
+	test('service validates backup workspaces on startup and cleans up (root workspaces) (1)', async function () {
 
 		// 1) backup workspace path does not exist
 		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
 		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath));
 		await service.initialize();
 		assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+	});
+
+	test('service validates backup workspaces on startup and cleans up (root workspaces) (2)', async function () {
 
 		// 2) backup workspace path exists with empty contents within
 		fs.mkdirSync(service.toBackupPath(fooFile));
@@ -202,6 +214,9 @@ flakySuite('BackupMainService', () => {
 		assert.deepStrictEqual(service.getWorkspaceBackups(), []);
 		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
 		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+	});
+
+	test('service validates backup workspaces on startup and cleans up (root workspaces) (3)', async function () {
 
 		// 3) backup workspace path exists with empty folders within
 		fs.mkdirSync(service.toBackupPath(fooFile));
@@ -214,6 +229,9 @@ flakySuite('BackupMainService', () => {
 		assert.deepStrictEqual(service.getWorkspaceBackups(), []);
 		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
 		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+	});
+
+	test('service validates backup workspaces on startup and cleans up (root workspaces) (4)', async function () {
 
 		// 4) backup workspace path points to a workspace that no longer exists
 		// so it should convert the backup worspace to an empty workspace backup
