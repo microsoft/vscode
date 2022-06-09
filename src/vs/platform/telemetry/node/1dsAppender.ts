@@ -17,7 +17,7 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 	// Configure the app insights core to send to collector++ and disable logging of debug info
 	const coreConfig: IExtendedConfiguration = {
 		instrumentationKey,
-		endpointUrl: 'https://mobile.events.data.microsoft.com/collect/v1',
+		endpointUrl: 'https://mobile.events.data.microsoft.com/OneCollector/1.0',
 		loggingLevelTelemetry: 0,
 		loggingLevelConsole: 0,
 		channels: [[
