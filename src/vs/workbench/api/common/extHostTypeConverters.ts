@@ -1675,16 +1675,6 @@ export namespace NotebookExclusiveDocumentPattern {
 	}
 }
 
-export namespace NotebookDecorationRenderOptions {
-	export function from(options: vscode.NotebookDecorationRenderOptions): notebooks.INotebookDecorationRenderOptions {
-		return {
-			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
-			borderColor: <string | types.ThemeColor>options.borderColor,
-			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
-		};
-	}
-}
-
 export namespace NotebookStatusBarItem {
 	export function from(item: vscode.NotebookCellStatusBarItem, commandsConverter: Command.ICommandsConverter, disposables: DisposableStore): notebooks.INotebookCellStatusBarItem {
 		const command = typeof item.command === 'string' ? { title: '', command: item.command } : item.command;
