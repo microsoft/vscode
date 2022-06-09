@@ -26,40 +26,40 @@ const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@ITaskService private readonly taskService: ITaskService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@ILogService private readonly logService: ILogService) {
+		@ITaskService private readonly _taskService: ITaskService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@ILogService private readonly _logService: ILogService) {
 		super();
-		this.tryRunTasks();
+		this._tryRunTasks();
 	}
 
-	private async tryRunTasks() {
-		this.logService.trace('RunAutomaticTasks: Trying to run tasks.');
+	private async _tryRunTasks() {
+		this._logService.trace('RunAutomaticTasks: Trying to run tasks.');
 		// Wait until we have task system info (the extension host and workspace folders are available).
-		if (!this.taskService.hasTaskSystemInfo) {
-			this.logService.trace('RunAutomaticTasks: Awaiting task system info.');
-			await Event.toPromise(Event.once(this.taskService.onDidChangeTaskSystemInfo));
+		if (!this._taskService.hasTaskSystemInfo) {
+			this._logService.trace('RunAutomaticTasks: Awaiting task system info.');
+			await Event.toPromise(Event.once(this._taskService.onDidChangeTaskSystemInfo));
 		}
 
-		this.logService.trace('RunAutomaticTasks: Checking if automatic tasks should run.');
-		const isFolderAutomaticAllowed = this.storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
-		await this.workspaceTrustManagementService.workspaceTrustInitialized;
-		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
+		this._logService.trace('RunAutomaticTasks: Checking if automatic tasks should run.');
+		const isFolderAutomaticAllowed = this._storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
+		await this._workspaceTrustManagementService.workspaceTrustInitialized;
+		const isWorkspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
 		// Only run if allowed. Prompting for permission occurs when a user first tries to run a task.
 		if (isFolderAutomaticAllowed && isWorkspaceTrusted) {
-			this.taskService.getWorkspaceTasks(TaskRunSource.FolderOpen).then(workspaceTaskResult => {
-				let { tasks } = RunAutomaticTasks.findAutoTasks(this.taskService, workspaceTaskResult);
-				this.logService.trace(`RunAutomaticTasks: Found ${tasks.length} automatic tasks tasks`);
+			this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen).then(workspaceTaskResult => {
+				let { tasks } = RunAutomaticTasks._findAutoTasks(this._taskService, workspaceTaskResult);
+				this._logService.trace(`RunAutomaticTasks: Found ${tasks.length} automatic tasks tasks`);
 
 				if (tasks.length > 0) {
-					RunAutomaticTasks.runTasks(this.taskService, tasks);
+					RunAutomaticTasks._runTasks(this._taskService, tasks);
 				}
 			});
 		}
 	}
 
-	private static runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
+	private static _runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
 		tasks.forEach(task => {
 			if (task instanceof Promise) {
 				task.then(promiseResult => {
@@ -73,7 +73,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		});
 	}
 
-	private static getTaskSource(source: TaskSource): URI | undefined {
+	private static _getTaskSource(source: TaskSource): URI | undefined {
 		const taskKind = TaskSourceKind.toConfigurationTarget(source.kind);
 		switch (taskKind) {
 			case ConfigurationTarget.WORKSPACE_FOLDER: {
@@ -86,7 +86,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		return undefined;
 	}
 
-	private static findAutoTasks(taskService: ITaskService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>): { tasks: Array<Task | Promise<Task | undefined>>; taskNames: Array<string>; locations: Map<string, URI> } {
+	private static _findAutoTasks(taskService: ITaskService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>): { tasks: Array<Task | Promise<Task | undefined>>; taskNames: Array<string>; locations: Map<string, URI> } {
 		const tasks = new Array<Task | Promise<Task | undefined>>();
 		const taskNames = new Array<string>();
 		const locations = new Map<string, URI>();
@@ -98,7 +98,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 						if (task.runOptions.runOn === RunOnOptions.folderOpen) {
 							tasks.push(task);
 							taskNames.push(task._label);
-							const location = RunAutomaticTasks.getTaskSource(task._source);
+							const location = RunAutomaticTasks._getTaskSource(task._source);
 							if (location) {
 								locations.set(location.fsPath, location);
 							}
@@ -116,7 +116,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 							} else {
 								taskNames.push(configedTask.value.configures.task);
 							}
-							const location = RunAutomaticTasks.getTaskSource(configedTask.value._source);
+							const location = RunAutomaticTasks._getTaskSource(configedTask.value._source);
 							if (location) {
 								locations.set(location.fsPath, location);
 							}
@@ -140,18 +140,18 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			return;
 		}
 
-		let { tasks, taskNames, locations } = RunAutomaticTasks.findAutoTasks(taskService, workspaceTaskResult);
+		let { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
 		if (taskNames.length > 0) {
 			// We have automatic tasks, prompt to allow.
-			this.showPrompt(notificationService, storageService, taskService, openerService, taskNames, locations).then(allow => {
+			this._showPrompt(notificationService, storageService, taskService, openerService, taskNames, locations).then(allow => {
 				if (allow) {
-					RunAutomaticTasks.runTasks(taskService, tasks);
+					RunAutomaticTasks._runTasks(taskService, tasks);
 				}
 			});
 		}
 	}
 
-	private static showPrompt(notificationService: INotificationService, storageService: IStorageService, taskService: ITaskService,
+	private static _showPrompt(notificationService: INotificationService, storageService: IStorageService, taskService: ITaskService,
 		openerService: IOpenerService, taskNames: Array<string>, locations: Map<string, URI>): Promise<boolean> {
 		return new Promise<boolean>(resolve => {
 			notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic',
