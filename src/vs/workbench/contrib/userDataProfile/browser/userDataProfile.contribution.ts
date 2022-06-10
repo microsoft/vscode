@@ -10,6 +10,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } f
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import '../common/profileActions';
 // import '../common/userDataProfileActions';
 
 class UserDataProfileStatusBarEntryContribution implements IWorkbenchContribution {
