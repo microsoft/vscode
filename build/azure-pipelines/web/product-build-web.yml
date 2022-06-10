@@ -163,6 +163,7 @@ steps:
 
       cd $ROOT && tar --owner=0 --group=0 -czf $WEB_TARBALL_PATH $WEB_BUILD_NAME
     displayName: Prepare for publish
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-web.tar.gz
     artifact: vscode_web_linux_standalone_archive-unsigned
