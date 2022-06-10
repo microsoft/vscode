@@ -26,7 +26,7 @@ suite('MainThreadDiagnostics', function () {
 
 	test('clear markers on dispose', function () {
 
-		let diag = new MainThreadDiagnostics(
+		const diag = new MainThreadDiagnostics(
 			new class implements IExtHostContext {
 				remoteAuthority = '';
 				extensionHostKind = ExtensionHostKind.LocalProcess;
@@ -68,7 +68,7 @@ suite('MainThreadDiagnostics', function () {
 
 			const changedData: [UriComponents, IMarkerData[]][][] = [];
 
-			let diag = new MainThreadDiagnostics(
+			const diag = new MainThreadDiagnostics(
 				new class implements IExtHostContext {
 					remoteAuthority = '';
 					extensionHostKind = ExtensionHostKind.LocalProcess;
@@ -132,7 +132,7 @@ suite('MainThreadDiagnostics', function () {
 
 			const changedData: [UriComponents, IMarkerData[]][][] = [];
 
-			let diag = new MainThreadDiagnostics(
+			const diag = new MainThreadDiagnostics(
 				new class implements IExtHostContext {
 					remoteAuthority = '';
 					extensionHostKind = ExtensionHostKind.LocalProcess;

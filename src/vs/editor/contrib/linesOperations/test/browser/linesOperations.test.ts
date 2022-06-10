@@ -35,8 +35,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'beta',
 					'alpha'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let sortLinesAscendingAction = new SortLinesAscendingAction();
+					const model = editor.getModel()!;
+					const sortLinesAscendingAction = new SortLinesAscendingAction();
 
 					editor.setSelection(new Selection(1, 1, 3, 5));
 					executeAction(sortLinesAscendingAction, editor);
@@ -60,8 +60,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'beta',
 					'alpha'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let sortLinesAscendingAction = new SortLinesAscendingAction();
+					const model = editor.getModel()!;
+					const sortLinesAscendingAction = new SortLinesAscendingAction();
 
 					editor.setSelections([new Selection(1, 1, 3, 5), new Selection(5, 1, 7, 5)]);
 					executeAction(sortLinesAscendingAction, editor);
@@ -74,7 +74,7 @@ suite('Editor Contrib - Line Operations', () => {
 						'beta',
 						'omicron'
 					]);
-					let expectedSelections = [
+					const expectedSelections = [
 						new Selection(1, 1, 3, 7),
 						new Selection(5, 1, 7, 7)
 					];
@@ -93,8 +93,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'beta',
 					'omicron'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let sortLinesDescendingAction = new SortLinesDescendingAction();
+					const model = editor.getModel()!;
+					const sortLinesDescendingAction = new SortLinesDescendingAction();
 
 					editor.setSelection(new Selection(1, 1, 3, 7));
 					executeAction(sortLinesDescendingAction, editor);
@@ -118,8 +118,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'beta',
 					'omicron'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let sortLinesDescendingAction = new SortLinesDescendingAction();
+					const model = editor.getModel()!;
+					const sortLinesDescendingAction = new SortLinesDescendingAction();
 
 					editor.setSelections([new Selection(1, 1, 3, 7), new Selection(5, 1, 7, 7)]);
 					executeAction(sortLinesDescendingAction, editor);
@@ -132,7 +132,7 @@ suite('Editor Contrib - Line Operations', () => {
 						'beta',
 						'alpha'
 					]);
-					let expectedSelections = [
+					const expectedSelections = [
 						new Selection(1, 1, 3, 5),
 						new Selection(5, 1, 7, 5)
 					];
@@ -154,8 +154,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'alpha',
 					'omicron',
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
 
 					editor.setSelection(new Selection(1, 3, 6, 4));
 					executeAction(deleteDuplicateLinesAction, editor);
@@ -180,8 +180,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'alpha',
 					'beta'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
 
 					editor.setSelections([new Selection(1, 2, 4, 3), new Selection(6, 2, 8, 3)]);
 					executeAction(deleteDuplicateLinesAction, editor);
@@ -193,7 +193,7 @@ suite('Editor Contrib - Line Operations', () => {
 						'alpha',
 						'beta'
 					]);
-					let expectedSelections = [
+					const expectedSelections = [
 						new Selection(1, 1, 3, 7),
 						new Selection(5, 1, 6, 4)
 					];
@@ -213,8 +213,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'two',
 					'three'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteAllLeftAction = new DeleteAllLeftAction();
+					const model = editor.getModel()!;
+					const deleteAllLeftAction = new DeleteAllLeftAction();
 
 					editor.setSelection(new Selection(1, 2, 1, 2));
 					executeAction(deleteAllLeftAction, editor);
@@ -234,8 +234,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'two',
 					'three'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteAllLeftAction = new DeleteAllLeftAction();
+					const model = editor.getModel()!;
+					const deleteAllLeftAction = new DeleteAllLeftAction();
 
 					editor.setSelection(new Selection(2, 1, 2, 1));
 					executeAction(deleteAllLeftAction, editor);
@@ -262,8 +262,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'nonononono',
 					'bitconneeeect'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteAllLeftAction = new DeleteAllLeftAction();
+					const model = editor.getModel()!;
+					const deleteAllLeftAction = new DeleteAllLeftAction();
 
 					const beforeSecondWasoSelection = new Selection(3, 5, 3, 5);
 					const endOfBCCSelection = new Selection(2, 4, 2, 4);
@@ -333,8 +333,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'world',
 					'hello world',
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteAllLeftAction = new DeleteAllLeftAction();
+					const model = editor.getModel()!;
+					const deleteAllLeftAction = new DeleteAllLeftAction();
 
 					editor.setSelections([new Selection(1, 2, 1, 2), new Selection(1, 4, 1, 4)]);
 					executeAction(deleteAllLeftAction, editor);
@@ -365,8 +365,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'two',
 					'three'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteAllLeftAction = new DeleteAllLeftAction();
+					const model = editor.getModel()!;
+					const deleteAllLeftAction = new DeleteAllLeftAction();
 
 					editor.setSelection(new Selection(1, 1, 1, 1));
 
@@ -401,8 +401,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'',
 					'hello world'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let joinLinesAction = new JoinLinesAction();
+					const model = editor.getModel()!;
+					const joinLinesAction = new JoinLinesAction();
 
 					editor.setSelection(new Selection(1, 2, 1, 2));
 					executeAction(joinLinesAction, editor);
@@ -437,8 +437,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'hello',
 					'world'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let joinLinesAction = new JoinLinesAction();
+					const model = editor.getModel()!;
+					const joinLinesAction = new JoinLinesAction();
 
 					editor.setSelection(new Selection(2, 1, 2, 1));
 					executeAction(joinLinesAction, editor);
@@ -463,8 +463,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'',
 					'hello world'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let joinLinesAction = new JoinLinesAction();
+					const model = editor.getModel()!;
+					const joinLinesAction = new JoinLinesAction();
 
 					editor.setSelections([
 						/** primary cursor */
@@ -495,8 +495,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'hello',
 					'world'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let joinLinesAction = new JoinLinesAction();
+					const model = editor.getModel()!;
+					const joinLinesAction = new JoinLinesAction();
 
 					editor.setSelection(new Selection(1, 6, 1, 6));
 
@@ -523,8 +523,8 @@ suite('Editor Contrib - Line Operations', () => {
 				'',
 				'   ',
 			], {}, (editor) => {
-				let model = editor.getModel()!;
-				let transposeAction = new TransposeAction();
+				const model = editor.getModel()!;
+				const transposeAction = new TransposeAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 1));
 				executeAction(transposeAction, editor);
@@ -565,8 +565,8 @@ suite('Editor Contrib - Line Operations', () => {
 				'',
 				'hello world'
 			], {}, (editor) => {
-				let model = editor.getModel()!;
-				let transposeAction = new TransposeAction();
+				const model = editor.getModel()!;
+				const transposeAction = new TransposeAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 1));
 				executeAction(transposeAction, editor);
@@ -615,11 +615,11 @@ suite('Editor Contrib - Line Operations', () => {
 				'parseHTML4String',
 				'_accessor: ServicesAccessor'
 			], {}, (editor) => {
-				let model = editor.getModel()!;
-				let uppercaseAction = new UpperCaseAction();
-				let lowercaseAction = new LowerCaseAction();
-				let titlecaseAction = new TitleCaseAction();
-				let snakecaseAction = new SnakeCaseAction();
+				const model = editor.getModel()!;
+				const uppercaseAction = new UpperCaseAction();
+				const lowercaseAction = new LowerCaseAction();
+				const titlecaseAction = new TitleCaseAction();
+				const snakecaseAction = new SnakeCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
 				executeAction(uppercaseAction, editor);
@@ -751,8 +751,8 @@ suite('Editor Contrib - Line Operations', () => {
 				'foO$baR!BaZ',
 				'\'physician\'s assistant\''
 			], {}, (editor) => {
-				let model = editor.getModel()!;
-				let titlecaseAction = new TitleCaseAction();
+				const model = editor.getModel()!;
+				const titlecaseAction = new TitleCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
 				executeAction(titlecaseAction, editor);
@@ -789,9 +789,9 @@ suite('Editor Contrib - Line Operations', () => {
 				'',
 				'   '
 			], {}, (editor) => {
-				let model = editor.getModel()!;
-				let uppercaseAction = new UpperCaseAction();
-				let lowercaseAction = new LowerCaseAction();
+				const model = editor.getModel()!;
+				const uppercaseAction = new UpperCaseAction();
+				const lowercaseAction = new LowerCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 1));
 				executeAction(uppercaseAction, editor);
@@ -1002,7 +1002,7 @@ suite('Editor Contrib - Line Operations', () => {
 			];
 			withTestCodeEditor(TEXT, {}, (editor, viewModel) => {
 				editor.setPosition(new Position(lineNumber, column));
-				let insertLineBeforeAction = new InsertLineBeforeAction();
+				const insertLineBeforeAction = new InsertLineBeforeAction();
 
 				executeAction(insertLineBeforeAction, editor);
 				callback(editor.getModel()!, viewModel);
@@ -1043,7 +1043,7 @@ suite('Editor Contrib - Line Operations', () => {
 			];
 			withTestCodeEditor(TEXT, {}, (editor, viewModel) => {
 				editor.setPosition(new Position(lineNumber, column));
-				let insertLineAfterAction = new InsertLineAfterAction();
+				const insertLineAfterAction = new InsertLineAfterAction();
 
 				executeAction(insertLineAfterAction, editor);
 				callback(editor.getModel()!, viewModel);
@@ -1077,7 +1077,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 	test('Bug 18276:[editor] Indentation broken when selection is empty', () => {
 
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'function baz() {'
 			].join('\n'),
@@ -1088,7 +1088,7 @@ suite('Editor Contrib - Line Operations', () => {
 		);
 
 		withTestCodeEditor(model, {}, (editor) => {
-			let indentLinesAction = new IndentLinesAction();
+			const indentLinesAction = new IndentLinesAction();
 			editor.setPosition(new Position(1, 2));
 
 			executeAction(indentLinesAction, editor);

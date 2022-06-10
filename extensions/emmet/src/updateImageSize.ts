@@ -193,7 +193,7 @@ function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height
 	const quote = getAttributeQuote(editor, srcAttr);
 	const endOfAttributes = node.attributes[node.attributes.length - 1].end;
 
-	let edits: TextEdit[] = [];
+	const edits: TextEdit[] = [];
 	let textToAdd = '';
 
 	if (!widthAttr) {
@@ -226,7 +226,7 @@ function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, hei
 	const separator = srcProp.separator || ': ';
 	const before = getPropertyDelimitor(editor, srcProp);
 
-	let edits: TextEdit[] = [];
+	const edits: TextEdit[] = [];
 	if (!srcProp.terminatorToken) {
 		edits.push(new TextEdit(offsetRangeToVsRange(document, srcProp.end, srcProp.end), ';'));
 	}

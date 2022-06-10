@@ -101,12 +101,12 @@ export abstract class EmmetEditorAction extends EditorAction {
 			return null;
 		}
 
-		let checkParentMode = (): string => {
-			let languageGrammar = grammars.getGrammar(syntax);
+		const checkParentMode = (): string => {
+			const languageGrammar = grammars.getGrammar(syntax);
 			if (!languageGrammar) {
 				return syntax;
 			}
-			let languages = languageGrammar.split('.');
+			const languages = languageGrammar.split('.');
 			if (languages.length < 2) {
 				return syntax;
 			}

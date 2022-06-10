@@ -45,12 +45,14 @@ interface IMarkerCodeColumnTemplateData {
 }
 
 interface IMarkerFileColumnTemplateData {
+	readonly columnElement: HTMLElement;
 	readonly fileLabel: HighlightedLabel;
 	readonly positionLabel: HighlightedLabel;
 }
 
 
 interface IMarkerHighlightedLabelColumnTemplateData {
+	readonly columnElement: HTMLElement;
 	readonly highlightedLabel: HighlightedLabel;
 }
 
@@ -86,6 +88,7 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 			}
 		};
 
+		templateData.icon.title = MarkerSeverity.toString(element.marker.severity);
 		templateData.icon.className = `marker-icon codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
 
 		templateData.actionBar.clear();
@@ -137,9 +140,11 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 			DOM.show(templateData.codeLabel.element);
 
 			if (typeof element.marker.code === 'string') {
+				templateData.codeColumn.title = `${element.marker.source} (${element.marker.code})`;
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
 				templateData.codeLabel.set(element.marker.code, element.codeMatches);
 			} else {
+				templateData.codeColumn.title = `${element.marker.source} (${element.marker.code.value})`;
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
 
 				const codeLinkLabel = new HighlightedLabel($('.code-link-label'));
@@ -152,6 +157,7 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 				};
 			}
 		} else {
+			templateData.codeColumn.title = '';
 			templateData.sourceLabel.set('-');
 			DOM.hide(templateData.codeLabel.element);
 		}
@@ -167,13 +173,14 @@ class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMa
 	readonly templateId: string = MarkerMessageColumnRenderer.TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): IMarkerHighlightedLabelColumnTemplateData {
-		const fileColumn = DOM.append(container, $('.message'));
-		const highlightedLabel = new HighlightedLabel(fileColumn);
+		const columnElement = DOM.append(container, $('.message'));
+		const highlightedLabel = new HighlightedLabel(columnElement);
 
-		return { highlightedLabel };
+		return { columnElement, highlightedLabel };
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+		templateData.columnElement.title = element.marker.message;
 		templateData.highlightedLabel.set(element.marker.message, element.messageMatches);
 	}
 
@@ -191,18 +198,21 @@ class MarkerFileColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 	) { }
 
 	renderTemplate(container: HTMLElement): IMarkerFileColumnTemplateData {
-		const fileColumn = DOM.append(container, $('.file'));
-		const fileLabel = new HighlightedLabel(fileColumn);
+		const columnElement = DOM.append(container, $('.file'));
+		const fileLabel = new HighlightedLabel(columnElement);
 		fileLabel.element.classList.add('file-label');
-		const positionLabel = new HighlightedLabel(fileColumn);
+		const positionLabel = new HighlightedLabel(columnElement);
 		positionLabel.element.classList.add('file-position');
 
-		return { fileLabel, positionLabel };
+		return { columnElement, fileLabel, positionLabel };
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerFileColumnTemplateData, height: number | undefined): void {
+		const positionLabel = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.marker.startLineNumber, element.marker.startColumn);
+
+		templateData.columnElement.title = `${this.labelService.getUriLabel(element.marker.resource, { relative: false })} ${positionLabel}`;
 		templateData.fileLabel.set(this.labelService.getUriLabel(element.marker.resource, { relative: true }), element.fileMatches);
-		templateData.positionLabel.set(Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.marker.startLineNumber, element.marker.startColumn), undefined);
+		templateData.positionLabel.set(positionLabel, undefined);
 	}
 
 	disposeTemplate(templateData: IMarkerFileColumnTemplateData): void { }
@@ -215,12 +225,13 @@ class MarkerOwnerColumnRenderer implements ITableRenderer<MarkerTableItem, IMark
 	readonly templateId: string = MarkerOwnerColumnRenderer.TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): IMarkerHighlightedLabelColumnTemplateData {
-		const fileColumn = DOM.append(container, $('.owner'));
-		const highlightedLabel = new HighlightedLabel(fileColumn);
-		return { highlightedLabel };
+		const columnElement = DOM.append(container, $('.owner'));
+		const highlightedLabel = new HighlightedLabel(columnElement);
+		return { columnElement, highlightedLabel };
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+		templateData.columnElement.title = element.marker.owner;
 		templateData.highlightedLabel.set(element.marker.owner, element.ownerMatches);
 	}
 
@@ -530,7 +541,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 	}
 
 	private hasSelectedMarkerFor(resource: ResourceMarkers): boolean {
-		let selectedElement = this.getSelection();
+		const selectedElement = this.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
 				if (resource.has((<Marker>selectedElement[0]).marker.resource)) {

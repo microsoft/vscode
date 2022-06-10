@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 suite('Map', () => {
 
 	test('LinkedMap - Simple', () => {
-		let map = new LinkedMap<string, string>();
+		const map = new LinkedMap<string, string>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
 		assert.deepStrictEqual([...map.keys()], ['ak', 'bk']);
@@ -24,7 +24,7 @@ suite('Map', () => {
 	});
 
 	test('LinkedMap - Touch Old one', () => {
-		let map = new LinkedMap<string, string>();
+		const map = new LinkedMap<string, string>();
 		map.set('ak', 'av');
 		map.set('ak', 'av', Touch.AsOld);
 		assert.deepStrictEqual([...map.keys()], ['ak']);
@@ -32,7 +32,7 @@ suite('Map', () => {
 	});
 
 	test('LinkedMap - Touch New one', () => {
-		let map = new LinkedMap<string, string>();
+		const map = new LinkedMap<string, string>();
 		map.set('ak', 'av');
 		map.set('ak', 'av', Touch.AsNew);
 		assert.deepStrictEqual([...map.keys()], ['ak']);
@@ -40,7 +40,7 @@ suite('Map', () => {
 	});
 
 	test('LinkedMap - Touch Old two', () => {
-		let map = new LinkedMap<string, string>();
+		const map = new LinkedMap<string, string>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
 		map.set('bk', 'bv', Touch.AsOld);
@@ -49,7 +49,7 @@ suite('Map', () => {
 	});
 
 	test('LinkedMap - Touch New two', () => {
-		let map = new LinkedMap<string, string>();
+		const map = new LinkedMap<string, string>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
 		map.set('ak', 'av', Touch.AsNew);
@@ -58,7 +58,7 @@ suite('Map', () => {
 	});
 
 	test('LinkedMap - Touch Old from middle', () => {
-		let map = new LinkedMap<string, string>();
+		const map = new LinkedMap<string, string>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
 		map.set('ck', 'cv');
@@ -68,7 +68,7 @@ suite('Map', () => {
 	});
 
 	test('LinkedMap - Touch New from middle', () => {
-		let map = new LinkedMap<string, string>();
+		const map = new LinkedMap<string, string>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
 		map.set('ck', 'cv');
@@ -199,7 +199,7 @@ suite('Map', () => {
 		cache.set(7, 7);
 		assert.strictEqual(cache.size, 5);
 		assert.deepStrictEqual([...cache.keys()], [3, 4, 5, 6, 7]);
-		let values: number[] = [];
+		const values: number[] = [];
 		[3, 4, 5, 6, 7].forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [3, 4, 5, 6, 7]);
 	});
@@ -214,7 +214,7 @@ suite('Map', () => {
 		assert.deepStrictEqual([...cache.keys()], [1, 2, 4, 5, 3]);
 		cache.peek(4);
 		assert.deepStrictEqual([...cache.keys()], [1, 2, 4, 5, 3]);
-		let values: number[] = [];
+		const values: number[] = [];
 		[1, 2, 3, 4, 5].forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [1, 2, 3, 4, 5]);
 	});
@@ -235,7 +235,7 @@ suite('Map', () => {
 			cache.set(i, i);
 		}
 		assert.deepStrictEqual(cache.size, 15);
-		let values: number[] = [];
+		const values: number[] = [];
 		for (let i = 6; i <= 20; i++) {
 			values.push(cache.get(i)!);
 			assert.strictEqual(cache.get(i), i);
@@ -253,7 +253,7 @@ suite('Map', () => {
 		cache.set(11, 11);
 		assert.strictEqual(cache.size, 5);
 		assert.deepStrictEqual([...cache.keys()], [7, 8, 9, 10, 11]);
-		let values: number[] = [];
+		const values: number[] = [];
 		[...cache.keys()].forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [7, 8, 9, 10, 11]);
 		assert.deepStrictEqual([...cache.values()], values);
@@ -486,7 +486,7 @@ suite('Map', () => {
 		assert.ok(trie._isBalanced(), 'TST is not balanced');
 
 		let i = 0;
-		for (let [key, value] of trie) {
+		for (const [key, value] of trie) {
 			const expected = elements[i++];
 			assert.ok(expected);
 			assert.strictEqual(key, expected[0]);
@@ -513,7 +513,7 @@ suite('Map', () => {
 
 		// iterator
 		let iterCount = 0;
-		for (let [key, value] of trie) {
+		for (const [key, value] of trie) {
 			assert.strictEqual(value, map.get(key));
 			iterCount++;
 		}
@@ -557,7 +557,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree - findLongestMatch', function () {
 
-		let trie = TernarySearchTree.forStrings<number>();
+		const trie = TernarySearchTree.forStrings<number>();
 		trie.set('foo', 1);
 		trie.set('foobar', 2);
 		trie.set('foobaz', 3);
@@ -573,7 +573,7 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree - basics', function () {
-		let trie = new TernarySearchTree<string, number>(new StringIterator());
+		const trie = new TernarySearchTree<string, number>(new StringIterator());
 
 		trie.set('foo', 1);
 		trie.set('bar', 2);
@@ -641,7 +641,7 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree (PathSegments) - basics', function () {
-		let trie = new TernarySearchTree<string, number>(new PathIterator());
+		const trie = new TernarySearchTree<string, number>(new PathIterator());
 
 		trie.set('/user/foo/bar', 1);
 		trie.set('/user/foo', 2);
@@ -666,7 +666,7 @@ suite('Map', () => {
 	test('TernarySearchTree - (AVL) set', function () {
 		{
 			// rotate left
-			let trie = new TernarySearchTree<string, number>(new PathIterator());
+			const trie = new TernarySearchTree<string, number>(new PathIterator());
 			trie.set('/fileA', 1);
 			trie.set('/fileB', 2);
 			trie.set('/fileC', 3);
@@ -675,7 +675,7 @@ suite('Map', () => {
 
 		{
 			// rotate left (inside middle)
-			let trie = new TernarySearchTree<string, number>(new PathIterator());
+			const trie = new TernarySearchTree<string, number>(new PathIterator());
 			trie.set('/foo/fileA', 1);
 			trie.set('/foo/fileB', 2);
 			trie.set('/foo/fileC', 3);
@@ -684,7 +684,7 @@ suite('Map', () => {
 
 		{
 			// rotate right
-			let trie = new TernarySearchTree<string, number>(new PathIterator());
+			const trie = new TernarySearchTree<string, number>(new PathIterator());
 			trie.set('/fileC', 3);
 			trie.set('/fileB', 2);
 			trie.set('/fileA', 1);
@@ -693,7 +693,7 @@ suite('Map', () => {
 
 		{
 			// rotate right (inside middle)
-			let trie = new TernarySearchTree<string, number>(new PathIterator());
+			const trie = new TernarySearchTree<string, number>(new PathIterator());
 			trie.set('/mid/fileC', 3);
 			trie.set('/mid/fileB', 2);
 			trie.set('/mid/fileA', 1);
@@ -702,7 +702,7 @@ suite('Map', () => {
 
 		{
 			// rotate right, left
-			let trie = new TernarySearchTree<string, number>(new PathIterator());
+			const trie = new TernarySearchTree<string, number>(new PathIterator());
 			trie.set('/fileD', 7);
 			trie.set('/fileB', 2);
 			trie.set('/fileG', 42);
@@ -714,7 +714,7 @@ suite('Map', () => {
 
 		{
 			// rotate left, right
-			let trie = new TernarySearchTree<string, number>(new PathIterator());
+			const trie = new TernarySearchTree<string, number>(new PathIterator());
 			trie.set('/fileJ', 42);
 			trie.set('/fileZ', 73);
 			trie.set('/fileE', 15);
@@ -727,7 +727,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree - (BST) delete', function () {
 
-		let trie = new TernarySearchTree<string, number>(new StringIterator());
+		const trie = new TernarySearchTree<string, number>(new StringIterator());
 
 		// delete root
 		trie.set('d', 1);
@@ -757,7 +757,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree - (AVL) delete', function () {
 
-		let trie = new TernarySearchTree<string, number>(new StringIterator());
+		const trie = new TernarySearchTree<string, number>(new StringIterator());
 
 		trie.clear();
 		trie.set('d', 1);
@@ -811,7 +811,7 @@ suite('Map', () => {
 
 		const tst = TernarySearchTree.forUris<boolean>();
 
-		for (let item of keys) {
+		for (const item of keys) {
 			tst.set(item, true);
 		}
 
@@ -824,7 +824,7 @@ suite('Map', () => {
 
 		const keys = ['C', 'A', 'D', 'B',];
 		const tst = TernarySearchTree.forStrings<boolean>();
-		for (let item of keys) {
+		for (const item of keys) {
 			tst.set(item, true);
 		}
 		assertTstDfs(tst, ['A', true], ['B', true], ['C', true], ['D', true]);
@@ -850,12 +850,12 @@ suite('Map', () => {
 			}
 			const tst = TernarySearchTree.forUris<boolean>();
 
-			for (let item of keys) {
+			for (const item of keys) {
 				tst.set(item, true);
 				assert.ok(tst._isBalanced());
 			}
 
-			for (let item of keys) {
+			for (const item of keys) {
 				tst.delete(item);
 				assert.ok(tst._isBalanced());
 			}
@@ -953,7 +953,7 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree (URI) - basics', function () {
-		let trie = new TernarySearchTree<URI, number>(new UriIterator(() => false, () => false));
+		const trie = new TernarySearchTree<URI, number>(new UriIterator(() => false, () => false));
 
 		trie.set(URI.file('/user/foo/bar'), 1);
 		trie.set(URI.file('/user/foo'), 2);
@@ -972,7 +972,7 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree (URI) - query parameters', function () {
-		let trie = new TernarySearchTree<URI, number>(new UriIterator(() => false, () => true));
+		const trie = new TernarySearchTree<URI, number>(new UriIterator(() => false, () => true));
 		const root = URI.parse('memfs:/?param=1');
 		trie.set(root, 1);
 
@@ -1066,7 +1066,7 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree (ConfigKeySegments) - basics', function () {
-		let trie = new TernarySearchTree<string, number>(new ConfigKeysIterator());
+		const trie = new TernarySearchTree<string, number>(new ConfigKeysIterator());
 
 		trie.set('config.foo.bar', 1);
 		trie.set('config.foo', 2);
@@ -1107,7 +1107,7 @@ suite('Map', () => {
 		map.set('boo', 4);
 
 		let item: IteratorResult<[string, number]>;
-		let iter = map.findSuperstr('config');
+		const iter = map.findSuperstr('config');
 
 		item = iter!.next();
 		assert.strictEqual(item.value[1], 2);
@@ -1171,7 +1171,7 @@ suite('Map', () => {
 		Object.freeze(keys);
 		tst.fill(true, keys);
 
-		for (let key of keys) {
+		for (const key of keys) {
 			assert.ok(tst.get(key), key);
 		}
 	});
@@ -1188,7 +1188,7 @@ suite('Map', () => {
 
 		assert.strictEqual(map.size, 0);
 
-		let res = map.set(resource1, 1);
+		const res = map.set(resource1, 1);
 		assert.ok(res === map);
 		map.set(resource2, '2');
 		map.set(resource3, true);
@@ -1343,7 +1343,7 @@ suite.skip('TST, perf', function () {
 		const uris: URI[] = [];
 		function randomWord(): string {
 			let result = '';
-			let length = 4 + Math.floor(Math.random() * 4);
+			const length = 4 + Math.floor(Math.random() * 4);
 			for (let i = 0; i < length; i++) {
 				result += (Math.random() * 26 + 65).toString(36);
 			}
@@ -1360,7 +1360,7 @@ suite.skip('TST, perf', function () {
 
 			let len = 4 + Math.floor(Math.random() * 4);
 
-			let segments: string[] = [];
+			const segments: string[] = [];
 			for (; len >= 0; len--) {
 				segments.push(words[Math.floor(Math.random() * words.length)]);
 			}
@@ -1384,7 +1384,7 @@ suite.skip('TST, perf', function () {
 
 	setup(() => {
 		tree = TernarySearchTree.forUris();
-		for (let uri of sampleUris) {
+		for (const uri of sampleUris) {
 			tree.set(uri, true);
 		}
 	});
@@ -1406,15 +1406,15 @@ suite.skip('TST, perf', function () {
 	});
 
 	perfTest('TST, insert', function () {
-		let insertTree = TernarySearchTree.forUris();
-		for (let uri of sampleUris) {
+		const insertTree = TernarySearchTree.forUris();
+		for (const uri of sampleUris) {
 			insertTree.set(uri, true);
 		}
 	});
 
 	perfTest('TST, lookup', function () {
 		let match = 0;
-		for (let candidate of candidates) {
+		for (const candidate of candidates) {
 			if (tree.has(candidate)) {
 				match += 1;
 			}
@@ -1424,7 +1424,7 @@ suite.skip('TST, perf', function () {
 
 	perfTest('TST, substr', function () {
 		let match = 0;
-		for (let candidate of candidates) {
+		for (const candidate of candidates) {
 			if (tree.findSubstr(candidate)) {
 				match += 1;
 			}
@@ -1433,7 +1433,7 @@ suite.skip('TST, perf', function () {
 	});
 
 	perfTest('TST, superstr', function () {
-		for (let candidate of candidates) {
+		for (const candidate of candidates) {
 			tree.findSuperstr(candidate);
 		}
 	});

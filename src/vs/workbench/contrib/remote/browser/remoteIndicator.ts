@@ -403,9 +403,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 			let lastCategoryName: string | undefined = undefined;
 
-			for (let actionGroup of actionGroups) {
+			for (const actionGroup of actionGroups) {
 				let hasGroupCategory = false;
-				for (let action of actionGroup[1]) {
+				for (const action of actionGroup[1]) {
 					if (action instanceof MenuItemAction) {
 						if (!hasGroupCategory) {
 							const category = getCategoryLabel(action);
@@ -415,7 +415,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 							}
 							hasGroupCategory = true;
 						}
-						let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
+						const label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
 						items.push({
 							type: 'item',
 							id: action.item.id,
@@ -429,7 +429,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				type: 'separator'
 			});
 
-			let entriesBeforeConfig = items.length;
+			const entriesBeforeConfig = items.length;
 
 			if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
 				if (this.remoteAuthority) {

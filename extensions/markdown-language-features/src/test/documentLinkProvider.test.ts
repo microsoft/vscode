@@ -101,6 +101,21 @@ suite('markdown.DocumentLinkProvider', () => {
 		}
 	});
 
+	test('Should ignore texts in brackets inside link title (#150921)', async () => {
+		{
+			const links = await getLinksForFile('[some [inner bracket pairs] in title](<link>)');
+			assertLinksEqual(links, [
+				new vscode.Range(0, 39, 0, 43),
+			]);
+		}
+		{
+			const links = await getLinksForFile('[some [inner bracket pairs] in title](link)');
+			assertLinksEqual(links, [
+				new vscode.Range(0, 38, 0, 42)
+			]);
+		}
+	});
+
 	test('Should handle two links without space', async () => {
 		const links = await getLinksForFile('a ([test](test)[test2](test2)) c');
 		assertLinksEqual(links, [

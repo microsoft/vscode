@@ -646,12 +646,12 @@ export abstract class CommonTask {
 		if (Types.isString(key)) {
 			return key === this._label || key === this.configurationProperties.identifier || (compareId && key === this._id);
 		}
-		let identifier = this.getDefinition(true);
+		const identifier = this.getDefinition(true);
 		return identifier !== undefined && identifier._key === key._key;
 	}
 
 	public getQualifiedLabel(): string {
-		let workspaceFolder = this.getWorkspaceFolder();
+		const workspaceFolder = this.getWorkspaceFolder();
 		if (workspaceFolder) {
 			return `${this._label} (${workspaceFolder.name})`;
 		} else {
@@ -660,7 +660,7 @@ export abstract class CommonTask {
 	}
 
 	public getTaskExecution(): ITaskExecution {
-		let result: ITaskExecution = {
+		const result: ITaskExecution = {
 			id: this._id,
 			task: <any>this
 		};
@@ -747,7 +747,7 @@ export class CustomTask extends CommonTask {
 					throw new Error('Unexpected task runtime');
 			}
 
-			let result: KeyedTaskIdentifier = {
+			const result: KeyedTaskIdentifier = {
 				type,
 				_key: this._id,
 				id: this._id
@@ -761,7 +761,7 @@ export class CustomTask extends CommonTask {
 	}
 
 	public override getMapKey(): string {
-		let workspaceFolder = this._source.config.workspaceFolder;
+		const workspaceFolder = this._source.config.workspaceFolder;
 		return workspaceFolder ? `${workspaceFolder.uri.toString()}|${this._id}|${this.instance}` : `${this._id}|${this.instance}`;
 	}
 
@@ -779,7 +779,7 @@ export class CustomTask extends CommonTask {
 			folder: string;
 			id: string;
 		}
-		let workspaceFolder = this.getFolderId();
+		const workspaceFolder = this.getFolderId();
 		if (!workspaceFolder) {
 			return undefined;
 		}
@@ -787,7 +787,7 @@ export class CustomTask extends CommonTask {
 		if (this._source.kind !== TaskSourceKind.Workspace) {
 			id += this._source.kind;
 		}
-		let key: ICustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder, id };
+		const key: ICustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder, id };
 		return JSON.stringify(key);
 	}
 
@@ -858,7 +858,7 @@ export class ConfiguringTask extends CommonTask {
 			folder: string;
 			id: string;
 		}
-		let workspaceFolder = this.getFolderId();
+		const workspaceFolder = this.getFolderId();
 		if (!workspaceFolder) {
 			return undefined;
 		}
@@ -866,7 +866,7 @@ export class ConfiguringTask extends CommonTask {
 		if (this._source.kind !== TaskSourceKind.Workspace) {
 			id += this._source.kind;
 		}
-		let key: ICustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder, id };
+		const key: ICustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder, id };
 		return JSON.stringify(key);
 	}
 }
@@ -912,7 +912,7 @@ export class ContributedTask extends CommonTask {
 	}
 
 	public override getMapKey(): string {
-		let workspaceFolder = this._source.workspaceFolder;
+		const workspaceFolder = this._source.workspaceFolder;
 		return workspaceFolder
 			? `${this._source.scope.toString()}|${workspaceFolder.uri.toString()}|${this._id}|${this.instance}`
 			: `${this._source.scope.toString()}|${this._id}|${this.instance}`;
@@ -933,7 +933,7 @@ export class ContributedTask extends CommonTask {
 			id: string;
 		}
 
-		let key: IContributedKey = { type: 'contributed', scope: this._source.scope, id: this._id };
+		const key: IContributedKey = { type: 'contributed', scope: this._source.scope, id: this._id };
 		key.folder = this.getFolderId();
 		return JSON.stringify(key);
 	}
@@ -1037,8 +1037,8 @@ export class TaskSorter {
 	}
 
 	public compare(a: Task | ConfiguringTask, b: Task | ConfiguringTask): number {
-		let aw = a.getWorkspaceFolder();
-		let bw = b.getWorkspaceFolder();
+		const aw = a.getWorkspaceFolder();
+		const bw = b.getWorkspaceFolder();
 		if (aw && bw) {
 			let ai = this._order.get(aw.uri.toString());
 			ai = ai === undefined ? 0 : ai + 1;
@@ -1105,7 +1105,7 @@ export namespace TaskEvent {
 	export function create(kind: TaskEventKind.Changed): ITaskEvent;
 	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>): ITaskEvent {
 		if (task) {
-			let result: ITaskEvent = {
+			const result: ITaskEvent = {
 				kind: kind,
 				taskId: task._id,
 				taskName: task.configurationProperties.name,
@@ -1148,7 +1148,7 @@ export namespace KeyedTaskIdentifier {
 	}
 	export function create(value: ITaskIdentifier): KeyedTaskIdentifier {
 		const resultKey = sortedStringify(value);
-		let result = { _key: resultKey, type: value.taskType };
+		const result = { _key: resultKey, type: value.taskType };
 		Object.assign(result, value);
 		return result;
 	}
@@ -1156,26 +1156,26 @@ export namespace KeyedTaskIdentifier {
 
 export namespace TaskDefinition {
 	export function createTaskIdentifier(external: ITaskIdentifier, reporter: { error(message: string): void }): KeyedTaskIdentifier | undefined {
-		let definition = TaskDefinitionRegistry.get(external.type);
+		const definition = TaskDefinitionRegistry.get(external.type);
 		if (definition === undefined) {
 			// We have no task definition so we can't sanitize the literal. Take it as is
-			let copy = Objects.deepClone(external);
+			const copy = Objects.deepClone(external);
 			delete copy._key;
 			return KeyedTaskIdentifier.create(copy);
 		}
 
-		let literal: { type: string;[name: string]: any } = Object.create(null);
+		const literal: { type: string;[name: string]: any } = Object.create(null);
 		literal.type = definition.taskType;
-		let required: Set<string> = new Set();
+		const required: Set<string> = new Set();
 		definition.required.forEach(element => required.add(element));
 
-		let properties = definition.properties;
-		for (let property of Object.keys(properties)) {
-			let value = external[property];
+		const properties = definition.properties;
+		for (const property of Object.keys(properties)) {
+			const value = external[property];
 			if (value !== undefined && value !== null) {
 				literal[property] = value;
 			} else if (required.has(property)) {
-				let schema = properties[property];
+				const schema = properties[property];
 				if (schema.default !== undefined) {
 					literal[property] = Objects.deepClone(schema.default);
 				} else {

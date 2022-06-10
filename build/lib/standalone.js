@@ -10,7 +10,7 @@ const path = require("path");
 const tss = require("./treeshaking");
 const REPO_ROOT = path.join(__dirname, '../../');
 const SRC_DIR = path.join(REPO_ROOT, 'src');
-let dirCache = {};
+const dirCache = {};
 function writeFile(filePath, contents) {
     function ensureDirs(dirPath) {
         if (dirCache[dirPath]) {
@@ -53,13 +53,13 @@ function extractEditor(options) {
             options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
         });
     }
-    let result = tss.shake(options);
-    for (let fileName in result) {
+    const result = tss.shake(options);
+    for (const fileName in result) {
         if (result.hasOwnProperty(fileName)) {
             writeFile(path.join(options.destRoot, fileName), result[fileName]);
         }
     }
-    let copied = {};
+    const copied = {};
     const copyFile = (fileName) => {
         if (copied[fileName]) {
             return;
@@ -72,7 +72,7 @@ function extractEditor(options) {
     const writeOutputFile = (fileName, contents) => {
         writeFile(path.join(options.destRoot, fileName), contents);
     };
-    for (let fileName in result) {
+    for (const fileName in result) {
         if (result.hasOwnProperty(fileName)) {
             const fileContents = result[fileName];
             const info = ts.preProcessFile(fileContents);
@@ -119,7 +119,7 @@ function createESMSourcesAndResources2(options) {
     const OUT_FOLDER = path.join(REPO_ROOT, options.outFolder);
     const OUT_RESOURCES_FOLDER = path.join(REPO_ROOT, options.outResourcesFolder);
     const getDestAbsoluteFilePath = (file) => {
-        let dest = options.renames[file.replace(/\\/g, '/')] || file;
+        const dest = options.renames[file.replace(/\\/g, '/')] || file;
         if (dest === 'tsconfig.json') {
             return path.join(OUT_FOLDER, `tsconfig.json`);
         }
@@ -193,7 +193,7 @@ function createESMSourcesAndResources2(options) {
         if (dir.charAt(dir.length - 1) !== '/' || dir.charAt(dir.length - 1) !== '\\') {
             dir += '/';
         }
-        let result = [];
+        const result = [];
         _walkDirRecursive(dir, result, dir.length);
         return result;
     }
@@ -215,7 +215,7 @@ function createESMSourcesAndResources2(options) {
         }
         writeFile(absoluteFilePath, contents);
         function toggleComments(fileContents) {
-            let lines = fileContents.split(/\r\n|\r|\n/);
+            const lines = fileContents.split(/\r\n|\r|\n/);
             let mode = 0;
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
@@ -278,14 +278,14 @@ function transportCSS(module, enqueue, write) {
             let DATA = ';base64,' + fileContents.toString('base64');
             if (!forceBase64 && /\.svg$/.test(url)) {
                 // .svg => url encode as explained at https://codepen.io/tigt/post/optimizing-svgs-in-data-uris
-                let newText = fileContents.toString()
+                const newText = fileContents.toString()
                     .replace(/"/g, '\'')
                     .replace(/</g, '%3C')
                     .replace(/>/g, '%3E')
                     .replace(/&/g, '%26')
                     .replace(/#/g, '%23')
                     .replace(/\s+/g, ' ');
-                let encodedData = ',' + newText;
+                const encodedData = ',' + newText;
                 if (encodedData.length < DATA.length) {
                     DATA = encodedData;
                 }

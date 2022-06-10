@@ -16,7 +16,7 @@ function checkPackageJSON(actualPath) {
 	const actual = require(path.join(__dirname, '..', actualPath));
 	const rootPackageJSON = require('../package.json');
 	const checkIncluded = (set1, set2) => {
-		for (let depName in set1) {
+		for (const depName in set1) {
 			const depVersion = set1[depName];
 			const rootDepVersion = set2[depName];
 			if (!rootDepVersion) {

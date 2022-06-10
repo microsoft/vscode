@@ -180,7 +180,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!uri) {
 			return;
 		}
-		let task = await createTask(await getPackageManager(this.context, selection.folder.workspaceFolder.uri, true), 'install', ['install'], selection.folder.workspaceFolder, uri, undefined, []);
+		const task = await createTask(await getPackageManager(this.context, selection.folder.workspaceFolder.uri, true), 'install', ['install'], selection.folder.workspaceFolder, uri, undefined, []);
 		tasks.executeTask(task);
 	}
 
@@ -194,8 +194,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!uri) {
 			return;
 		}
-		let document: TextDocument = await workspace.openTextDocument(uri);
-		let position = this.findScriptPosition(document, selection instanceof NpmScript ? selection : undefined) || new Position(0, 0);
+		const document: TextDocument = await workspace.openTextDocument(uri);
+		const position = this.findScriptPosition(document, selection instanceof NpmScript ? selection : undefined) || new Position(0, 0);
 		await window.showTextDocument(document, { preserveFocus: true, selection: new Selection(position, position) });
 	}
 
@@ -260,7 +260,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private isInstallTask(task: Task): boolean {
-		let fullName = getTaskName('install', task.definition.path);
+		const fullName = getTaskName('install', task.definition.path);
 		return fullName === task.name;
 	}
 
@@ -285,8 +285,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private buildTaskTree(tasks: ITaskWithLocation[]): TaskTree {
-		let folders: Map<String, Folder> = new Map();
-		let packages: Map<String, PackageJSON> = new Map();
+		const folders: Map<String, Folder> = new Map();
+		const packages: Map<String, PackageJSON> = new Map();
 
 		let folder = null;
 		let packageJson = null;
@@ -311,16 +311,16 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 					folder = new Folder(each.task.scope);
 					folders.set(each.task.scope.name, folder);
 				}
-				let definition: INpmTaskDefinition = <INpmTaskDefinition>each.task.definition;
-				let relativePath = definition.path ? definition.path : '';
-				let fullPath = path.join(each.task.scope.name, relativePath);
+				const definition: INpmTaskDefinition = <INpmTaskDefinition>each.task.definition;
+				const relativePath = definition.path ? definition.path : '';
+				const fullPath = path.join(each.task.scope.name, relativePath);
 				packageJson = packages.get(fullPath);
 				if (!packageJson) {
 					packageJson = new PackageJSON(folder, relativePath);
 					folder.addPackage(packageJson);
 					packages.set(fullPath, packageJson);
 				}
-				let script = new NpmScript(this.extensionContext, packageJson, each);
+				const script = new NpmScript(this.extensionContext, packageJson, each);
 				packageJson.addScript(script);
 			}
 		});

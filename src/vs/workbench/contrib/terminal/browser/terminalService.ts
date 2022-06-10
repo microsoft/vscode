@@ -223,7 +223,7 @@ export class TerminalService implements ITerminalService {
 		if (typeof result === 'string') {
 			return;
 		}
-		let keyMods: IKeyMods | undefined = result.keyMods;
+		const keyMods: IKeyMods | undefined = result.keyMods;
 		if (type === 'createInstance') {
 			const activeInstance = this.getDefaultInstanceHost().activeInstance;
 			let instance;
@@ -997,7 +997,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _resolveCwd(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {
-		let cwd = shellLaunchConfig.cwd;
+		const cwd = shellLaunchConfig.cwd;
 		if (!cwd) {
 			if (options?.cwd) {
 				shellLaunchConfig.cwd = options.cwd;

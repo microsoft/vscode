@@ -26,7 +26,7 @@ suite('ViewModelDecorations', () => {
 			assert.strictEqual(viewModel.getLineContent(5), 'wrapped');
 
 			model.changeDecorations((accessor) => {
-				let createOpts = (id: string) => {
+				const createOpts = (id: string) => {
 					return {
 						description: 'test',
 						className: id,
@@ -74,7 +74,7 @@ suite('ViewModelDecorations', () => {
 				accessor.addDecoration(new Range(1, 40, 1, 51), createOpts('dec15'));
 			});
 
-			let actualDecorations = viewModel.getDecorationsInViewport(
+			const actualDecorations = viewModel.getDecorationsInViewport(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
 			).map((dec) => {
 				return dec.options.className;
@@ -193,18 +193,18 @@ suite('ViewModelDecorations', () => {
 				);
 			});
 
-			let decorations = viewModel.getDecorationsInViewport(
+			const decorations = viewModel.getDecorationsInViewport(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
 			).filter(x => Boolean(x.options.beforeContentClassName));
 			assert.deepStrictEqual(decorations, []);
 
-			let inlineDecorations1 = viewModel.getViewLineRenderingData(
+			const inlineDecorations1 = viewModel.getViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				2
 			).inlineDecorations;
 			assert.deepStrictEqual(inlineDecorations1, []);
 
-			let inlineDecorations2 = viewModel.getViewLineRenderingData(
+			const inlineDecorations2 = viewModel.getViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				3
 			).inlineDecorations;
@@ -229,7 +229,7 @@ suite('ViewModelDecorations', () => {
 				);
 			});
 
-			let inlineDecorations = viewModel.getViewLineRenderingData(
+			const inlineDecorations = viewModel.getViewLineRenderingData(
 				new Range(1, 1, 1, 1),
 				1
 			).inlineDecorations;

@@ -1242,7 +1242,7 @@ export class ExtensionEditor extends EditorPane {
 		const contrib = manifest.contributes?.viewsContainers || {};
 
 		const viewContainers = Object.keys(contrib).reduce((result, location) => {
-			let viewContainersForLocation: IViewContainer[] = contrib[location];
+			const viewContainersForLocation: IViewContainer[] = contrib[location];
 			result.push(...viewContainersForLocation.map(viewContainer => ({ ...viewContainer, location })));
 			return result;
 		}, [] as Array<{ id: string; title: string; location: string }>);
@@ -1267,7 +1267,7 @@ export class ExtensionEditor extends EditorPane {
 		const contrib = manifest.contributes?.views || {};
 
 		const views = Object.keys(contrib).reduce((result, location) => {
-			let viewsForLocation: IView[] = contrib[location];
+			const viewsForLocation: IView[] = contrib[location];
 			result.push(...viewsForLocation.map(view => ({ ...view, location })));
 			return result;
 		}, [] as Array<{ id: string; name: string; location: string }>);
@@ -1440,9 +1440,9 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		function colorPreview(colorReference: string): Node[] {
-			let result: Node[] = [];
+			const result: Node[] = [];
 			if (colorReference && colorReference[0] === '#') {
-				let color = Color.fromHex(colorReference);
+				const color = Color.fromHex(colorReference);
 				if (color) {
 					result.push($('span', { class: 'colorBox', style: 'background-color: ' + Color.Format.CSS.format(color) }, ''));
 				}

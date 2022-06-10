@@ -663,7 +663,7 @@ suite('SnippetsSync', () => {
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await testObject.sync(await testClient.manifest());
 
-		let conflicts = testObject.conflicts;
+		const conflicts = testObject.conflicts;
 		await testObject.accept(conflicts[0].previewResource, htmlSnippet2);
 		await testObject.apply(false);
 

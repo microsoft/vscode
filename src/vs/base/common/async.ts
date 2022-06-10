@@ -354,9 +354,7 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
-			if (this.doReject) {
-				this.doReject(new CancellationError());
-			}
+			this.doReject?.(new CancellationError());
 			this.completionPromise = null;
 		}
 	}
@@ -885,9 +883,7 @@ export class RunOnceScheduler {
 	}
 
 	protected doRun(): void {
-		if (this.runner) {
-			this.runner();
-		}
+		this.runner?.();
 	}
 }
 
@@ -960,9 +956,7 @@ export class ProcessTimeRunOnceScheduler {
 		// time elapsed
 		clearInterval(this.intervalToken);
 		this.intervalToken = -1;
-		if (this.runner) {
-			this.runner();
-		}
+		this.runner?.();
 	}
 }
 
@@ -985,9 +979,7 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 		const units = this.units;
 		this.units = [];
 
-		if (this.runner) {
-			this.runner(units);
-		}
+		this.runner?.(units);
 	}
 
 	override dispose(): void {

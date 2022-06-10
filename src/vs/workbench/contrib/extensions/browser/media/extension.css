@@ -215,6 +215,10 @@
 	min-width: 0;
 }
 
+.monaco-list-row.disabled .extension-list-item .details .description {
+	color: var(--vscode-disabledForeground);
+}
+
 .extension-list-item .monaco-action-bar .action-label.icon {
 	padding: 1px 2px;
 }

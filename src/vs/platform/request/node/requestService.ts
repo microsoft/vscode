@@ -114,7 +114,6 @@ export class RequestService extends Disposable implements IRequestService {
 	private _request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 
 		return Promises.withAsyncBody<IRequestContext>(async (c, e) => {
-			let req: http.ClientRequest;
 
 			const endpoint = parseUrl(options.url!);
 			const rawRequest = options.getRawRequest
@@ -136,7 +135,7 @@ export class RequestService extends Disposable implements IRequestService {
 				opts.auth = options.user + ':' + options.password;
 			}
 
-			req = rawRequest(opts, (res: http.IncomingMessage) => {
+			const req = rawRequest(opts, (res: http.IncomingMessage) => {
 				const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
 				if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
 					this._request({

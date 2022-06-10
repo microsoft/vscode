@@ -108,7 +108,7 @@ class Lock {
 		this._isLocked = true;
 		let customerHoldsLock = true;
 
-		let logLongRunningCustomerTimeout = setTimeout(() => {
+		const logLongRunningCustomerTimeout = setTimeout(() => {
 			if (customerHoldsLock) {
 				console.warn(`The customer named ${customer.name} has been holding on to the lock for 30s. This might be a problem.`);
 			}
@@ -221,8 +221,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
 
 		this._register(this._extensionEnablementService.onEnablementChanged((extensions) => {
-			let toAdd: IExtension[] = [];
-			let toRemove: IExtension[] = [];
+			const toAdd: IExtension[] = [];
+			const toRemove: IExtension[] = [];
 			for (const extension of extensions) {
 				if (this._safeInvokeIsEnabled(extension)) {
 					// an extension has been enabled
@@ -538,7 +538,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[] | IExtension[]): Promise<void> {
-		let toAdd: IExtensionDescription[] = [];
+		const toAdd: IExtensionDescription[] = [];
 		for (let i = 0, len = _toAdd.length; i < len; i++) {
 			const extension = _toAdd[i];
 
@@ -813,7 +813,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	//#region Stopping / Starting / Restarting
 
 	public stopExtensionHosts(): void {
-		let previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
+		const previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		this._extensionHostActiveExtensions.forEach((value) => {
 			previouslyActivatedExtensionIds.push(value);
 		});
@@ -1056,7 +1056,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
-		let result: { [id: string]: IExtensionsStatus } = Object.create(null);
+		const result: { [id: string]: IExtensionsStatus } = Object.create(null);
 		if (this._registry) {
 			const extensions = this._registry.getAllExtensionDescriptions();
 			for (const extension of extensions) {
@@ -1099,7 +1099,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	// --- impl
 
 	protected _checkEnableProposedApi(extensions: IExtensionDescription[]): void {
-		for (let extension of extensions) {
+		for (const extension of extensions) {
 			this._proposedApiController.updateEnabledApiProposals(extension);
 		}
 	}
@@ -1157,9 +1157,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
 		const affectedExtensionPoints: { [extPointName: string]: boolean } = Object.create(null);
-		for (let extensionDescription of affectedExtensions) {
+		for (const extensionDescription of affectedExtensions) {
 			if (extensionDescription.contributes) {
-				for (let extPointName in extensionDescription.contributes) {
+				for (const extPointName in extensionDescription.contributes) {
 					if (hasOwnProperty.call(extensionDescription.contributes, extPointName)) {
 						affectedExtensionPoints[extPointName] = true;
 					}

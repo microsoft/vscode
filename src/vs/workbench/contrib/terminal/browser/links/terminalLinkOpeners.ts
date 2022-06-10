@@ -125,6 +125,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
+		private readonly _initialCwd: Promise<string>,
 		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
 		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
 		private readonly _os: OperatingSystem,
@@ -182,10 +183,20 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	private async _getExactMatch(sanitizedLink: string): Promise<IResourceMatch | undefined> {
+		// Make the link relative to the cwd if it isn't absolute
+		const pathModule = osPathModule(this._os);
+		const isAbsolute = pathModule.isAbsolute(sanitizedLink);
+		let absolutePath: string | undefined = isAbsolute ? sanitizedLink : undefined;
+		const initialCwd = await this._initialCwd;
+		if (!isAbsolute && initialCwd.length > 0) {
+			absolutePath = pathModule.join(initialCwd, sanitizedLink);
+		}
+
+		// Try open as an absolute link
 		let resourceMatch: IResourceMatch | undefined;
-		if (osPathModule(this._os).isAbsolute(sanitizedLink)) {
+		if (absolutePath) {
+			const slashNormalizedPath = this._os === OperatingSystem.Windows ? absolutePath.replace(/\\/g, '/') : absolutePath;
 			const scheme = this._workbenchEnvironmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
-			const slashNormalizedPath = this._os === OperatingSystem.Windows ? sanitizedLink.replace(/\\/g, '/') : sanitizedLink;
 			const uri = URI.from({ scheme, path: slashNormalizedPath });
 			try {
 				const fileStat = await this._fileService.stat(uri);
@@ -194,6 +205,8 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 				// File or dir doesn't exist, continue on
 			}
 		}
+
+		// Search the workspace if an exact match based on the absolute path was not found
 		if (!resourceMatch) {
 			const results = await this._searchService.fileSearch(
 				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {

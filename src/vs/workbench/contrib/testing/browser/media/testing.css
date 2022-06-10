@@ -15,6 +15,12 @@
 	position: relative;
 }
 
+.test-explorer .test-item .label,
+.test-output-peek-tree .test-peek-item .name {
+	display: flex;
+	align-items: center;
+}
+
 .test-explorer .test-item,
 .test-output-peek-tree .test-peek-item {
 	display: flex;
@@ -209,4 +215,11 @@
 
 .test-message-inline-content-clickable {
 	cursor: pointer;
+}
+
+.test-label-description {
+	opacity: .7;
+	margin-left: 0.5em;
+	font-size: .9em;
+	white-space: pre;
 }
