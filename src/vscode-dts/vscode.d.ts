@@ -15683,7 +15683,7 @@ declare module 'vscode' {
 		/**
 		 * Get a new iterator with `[test item, test item]` pairs from the collection.
 		 *
-		 * Node that the two elements are the same here to be compatible with `new Map().entries()`
+		 * Note that the two elements are the same here to be compatible with `new Map().entries()`
 		 */
 		entries(): IterableIterator<[TestItem, TestItem]>;
 
