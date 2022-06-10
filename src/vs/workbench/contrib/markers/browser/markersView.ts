@@ -90,7 +90,7 @@ export interface IProblemsWidget {
 	reset(resourceMarkers: ResourceMarkers[]): void;
 	revealMarkers(activeResource: ResourceMarkers | null, focus: boolean, lastSelectedRelativeTop: number): void;
 	setAriaLabel(label: string): void;
-	setMarkerSelection(marker?: Marker): void;
+	setMarkerSelection(selection?: Marker[], focus?: Marker[]): void;
 	toggleVisibility(hide: boolean): void;
 	update(resourceMarkers: ResourceMarkers[]): void;
 	updateMarker(marker: Marker): void;
@@ -451,7 +451,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 				accessibilityProvider: this.widgetAccessibilityProvider,
 				horizontalScrolling: false,
 				identityProvider: this.widgetIdentityProvider,
-				multipleSelectionSupport: false,
+				multipleSelectionSupport: true,
 				selectionNavigation: true
 			},
 		);
@@ -599,16 +599,31 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		}
 
 		// Save selection
-		const selection = this.widget?.getSelection();
+		const selection = new Set<Marker>();
+		for (const marker of this.widget.getSelection()) {
+			if (marker instanceof ResourceMarkers) {
+				marker.markers.forEach(m => selection.add(m));
+			} else if (marker instanceof Marker || marker instanceof MarkerTableItem) {
+				selection.add(marker);
+			}
+		}
+
+		// Save focus
+		const focus = new Set<Marker>();
+		for (const marker of this.widget.getFocus()) {
+			if (marker instanceof Marker || marker instanceof MarkerTableItem) {
+				focus.add(marker);
+			}
+		}
 
 		// Create new widget
 		this.createWidget(this.widgetContainer);
 		this.refreshPanel();
 
 		// Restore selection
-		if (selection && selection.length > 0 && (selection[0] instanceof Marker || selection[0] instanceof MarkerTableItem)) {
+		if (selection.size > 0) {
+			this.widget.setMarkerSelection(Array.from(selection), Array.from(focus));
 			this.widget.domFocus();
-			this.widget.setMarkerSelection(selection[0]);
 		}
 	}
 
@@ -982,14 +997,15 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 		this.ariaLabel = label;
 	}
 
-	setMarkerSelection(marker: Marker): void {
+	setMarkerSelection(selection?: Marker[], focus?: Marker[]): void {
 		if (this.isVisible()) {
-			if (marker) {
-				const markerNode = this.findMarkerNode(marker);
+			if (selection && selection.length > 0) {
+				this.setSelection(selection.map(m => this.findMarkerNode(m)));
 
-				if (markerNode) {
-					this.setFocus([markerNode]);
-					this.setSelection([markerNode]);
+				if (focus && focus.length > 0) {
+					this.setFocus(focus.map(f => this.findMarkerNode(f)));
+				} else {
+					this.setFocus([this.findMarkerNode(selection[0])]);
 				}
 			} else if (this.getSelection().length === 0) {
 				const firstVisibleElement = this.firstVisibleElement;
@@ -1026,7 +1042,7 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 			}
 		}
 
-		return undefined;
+		return null;
 	}
 
 	private hasSelectedMarkerFor(resource: ResourceMarkers): boolean {
