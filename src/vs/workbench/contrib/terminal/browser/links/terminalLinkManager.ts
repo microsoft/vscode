@@ -165,7 +165,7 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private async _getLinksForLine(y: number): Promise<IDetectedLinks | undefined> {
-		let unfilteredWordLinks = await this._getLinksForType(y, 'word');
+		const unfilteredWordLinks = await this._getLinksForType(y, 'word');
 		const webLinks = await this._getLinksForType(y, 'url');
 		const fileLinks = await this._getLinksForType(y, 'localFile');
 		const words = new Set();

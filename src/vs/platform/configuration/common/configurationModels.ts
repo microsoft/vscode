@@ -133,11 +133,11 @@ export class ConfigurationModel implements IConfigurationModel {
 			return this;
 		}
 
-		let contents: any = {};
+		const contents: any = {};
 		for (const key of arrays.distinct([...Object.keys(this.contents), ...Object.keys(overrideContents)])) {
 
 			let contentsForKey = this.contents[key];
-			let overrideContentsForKey = overrideContents[key];
+			const overrideContentsForKey = overrideContents[key];
 
 			// If there are override contents for the key, clone and merge otherwise use base contents
 			if (overrideContentsForKey) {
@@ -231,7 +231,7 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	private removeKey(key: string): boolean {
-		let index = this.keys.indexOf(key);
+		const index = this.keys.indexOf(key);
 		if (index !== -1) {
 			this.keys.splice(index, 1);
 			return true;
@@ -290,8 +290,8 @@ export class ConfigurationModelParser {
 		let raw: any = {};
 		let currentProperty: string | null = null;
 		let currentParent: any = [];
-		let previousParents: any[] = [];
-		let parseErrors: json.ParseError[] = [];
+		const previousParents: any[] = [];
+		const parseErrors: json.ParseError[] = [];
 
 		function onValue(value: any) {
 			if (Array.isArray(currentParent)) {
@@ -301,9 +301,9 @@ export class ConfigurationModelParser {
 			}
 		}
 
-		let visitor: json.JSONVisitor = {
+		const visitor: json.JSONVisitor = {
 			onObjectBegin: () => {
-				let object = {};
+				const object = {};
 				onValue(object);
 				previousParents.push(currentParent);
 				currentParent = object;
@@ -316,7 +316,7 @@ export class ConfigurationModelParser {
 				currentParent = previousParents.pop();
 			},
 			onArrayBegin: () => {
-				let array: any[] = [];
+				const array: any[] = [];
 				onValue(array);
 				previousParents.push(currentParent);
 				currentParent = array;
@@ -359,7 +359,7 @@ export class ConfigurationModelParser {
 		}
 		const raw: any = {};
 		const restricted: string[] = [];
-		for (let key in properties) {
+		for (const key in properties) {
 			if (OVERRIDE_PROPERTY_REGEX.test(key) && filterOverriddenProperties) {
 				const result = this.filter(properties[key], configurationProperties, false, options);
 				raw[key] = result.raw;
@@ -629,7 +629,7 @@ export class Configuration {
 
 	compareAndUpdateRemoteUserConfiguration(user: ConfigurationModel): IConfigurationChange {
 		const { added, updated, removed, overrides } = compare(this.remoteUserConfiguration, user);
-		let keys = [...added, ...updated, ...removed];
+		const keys = [...added, ...updated, ...removed];
 		if (keys.length) {
 			this.updateRemoteUserConfiguration(user);
 		}
@@ -638,7 +638,7 @@ export class Configuration {
 
 	compareAndUpdateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): IConfigurationChange {
 		const { added, updated, removed, overrides } = compare(this.workspaceConfiguration, workspaceConfiguration);
-		let keys = [...added, ...updated, ...removed];
+		const keys = [...added, ...updated, ...removed];
 		if (keys.length) {
 			this.updateWorkspaceConfiguration(workspaceConfiguration);
 		}
@@ -648,7 +648,7 @@ export class Configuration {
 	compareAndUpdateFolderConfiguration(resource: URI, folderConfiguration: ConfigurationModel): IConfigurationChange {
 		const currentFolderConfiguration = this.folderConfigurations.get(resource);
 		const { added, updated, removed, overrides } = compare(currentFolderConfiguration, folderConfiguration);
-		let keys = [...added, ...updated, ...removed];
+		const keys = [...added, ...updated, ...removed];
 		if (keys.length || !currentFolderConfiguration) {
 			this.updateFolderConfiguration(resource, folderConfiguration);
 		}

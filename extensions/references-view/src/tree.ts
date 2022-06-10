@@ -206,7 +206,7 @@ class TreeDndDelegate implements vscode.TreeDragAndDropController<undefined> {
 	handleDrag(source: undefined[], data: vscode.DataTransfer) {
 		if (this._delegate) {
 			const urls: string[] = [];
-			for (let item of source) {
+			for (const item of source) {
 				const uri = this._delegate.getDragUri(item);
 				if (uri) {
 					urls.push(uri.toString());

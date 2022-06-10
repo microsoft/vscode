@@ -49,7 +49,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		// Only run if allowed. Prompting for permission occurs when a user first tries to run a task.
 		if (isFolderAutomaticAllowed && isWorkspaceTrusted) {
 			this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen).then(workspaceTaskResult => {
-				let { tasks } = RunAutomaticTasks._findAutoTasks(this._taskService, workspaceTaskResult);
+				const { tasks } = RunAutomaticTasks._findAutoTasks(this._taskService, workspaceTaskResult);
 				this._logService.trace(`RunAutomaticTasks: Found ${tasks.length} automatic tasks tasks`);
 
 				if (tasks.length > 0) {
@@ -140,7 +140,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			return;
 		}
 
-		let { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
+		const { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
 		if (taskNames.length > 0) {
 			// We have automatic tasks, prompt to allow.
 			this._showPrompt(notificationService, storageService, taskService, openerService, taskNames, locations).then(allow => {

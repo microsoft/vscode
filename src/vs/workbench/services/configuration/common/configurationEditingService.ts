@@ -231,7 +231,7 @@ export class ConfigurationEditingService {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
 		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-		let currentText = model.getValueInRange(range);
+		const currentText = model.getValueInRange(range);
 		if (edit.content !== currentText) {
 			const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
 			model.pushEditOperations([new Selection(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column)], [editOperation], () => []);
@@ -593,7 +593,7 @@ export class ConfigurationEditingService {
 			}
 		}
 
-		let key = config.key;
+		const key = config.key;
 		let jsonPath = overrides.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
 		if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
 			return { key, jsonPath, value: config.value, resource: withNullAsUndefined(this.getConfigurationFileResource(target, '', null)), target };

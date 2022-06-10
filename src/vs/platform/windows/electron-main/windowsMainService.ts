@@ -239,7 +239,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
-		let cli = this.environmentMainService.args;
+		const cli = this.environmentMainService.args;
 		const remoteAuthority = options?.remoteAuthority || undefined;
 		const forceEmpty = true;
 		const forceReuseWindow = options?.forceReuseWindow;
@@ -916,7 +916,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private resolveOpenable(openable: IWindowOpenable, options: IPathResolveOptions = Object.create(null)): IPathToOpen | undefined {
 
 		// handle file:// openables with some extra validation
-		let uri = this.resourceFromOpenable(openable);
+		const uri = this.resourceFromOpenable(openable);
 		if (uri.scheme === Schemas.file) {
 			if (isFileToOpen(openable)) {
 				options = { ...options, forceOpenWorkspaceAsFile: true };

@@ -97,7 +97,7 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	private _handleFolderTaskResult(result: Map<string, IWorkspaceFolderTaskResult>): (Task | ConfiguringTask)[] {
-		let tasks: (Task | ConfiguringTask)[] = [];
+		const tasks: (Task | ConfiguringTask)[] = [];
 		Array.from(result).forEach(([key, folderTasks]) => {
 			if (folderTasks.set) {
 				tasks.push(...folderTasks.set.tasks);
@@ -152,7 +152,7 @@ export class TaskQuickPick extends Disposable {
 		this._topLevelEntries = [];
 		// Dedupe will update recent tasks if they've changed in tasks.json.
 		const dedupeAndPrune = this._dedupeConfiguredAndRecent(recentTasks, configuredTasks);
-		let dedupedConfiguredTasks: (Task | ConfiguringTask)[] = dedupeAndPrune.configuredTasks;
+		const dedupedConfiguredTasks: (Task | ConfiguringTask)[] = dedupeAndPrune.configuredTasks;
 		recentTasks = dedupeAndPrune.recentTasks;
 		if (recentTasks.length > 0) {
 			const removeRecentButton: IQuickInputButton = {
@@ -201,7 +201,7 @@ export class TaskQuickPick extends Disposable {
 		picker.show();
 
 		picker.onDidTriggerItemButton(async (context) => {
-			let task = context.item.task;
+			const task = context.item.task;
 			if (context.button.iconClass === ThemeIcon.asClassName(removeTaskIcon)) {
 				const key = (task && !Types.isString(task)) ? task.getRecentlyUsedKey() : undefined;
 				if (key) {

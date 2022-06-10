@@ -541,7 +541,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 	}
 
 	private hasSelectedMarkerFor(resource: ResourceMarkers): boolean {
-		let selectedElement = this.getSelection();
+		const selectedElement = this.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
 				if (resource.has((<Marker>selectedElement[0]).marker.resource)) {

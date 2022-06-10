@@ -359,7 +359,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		let origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
 		origContent = `// this is a comment\n${origContent}`;
 
-		let newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, false, workspaceConfigPath, extUriBiasedIgnorePathCase);
+		const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, false, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		assert.strictEqual(0, newContent.indexOf('// this is a comment'));
 		service.deleteUntitledWorkspaceSync(workspace);
 	});
@@ -385,7 +385,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		const workspace = await createUntitledWorkspace([folder1Location, folder2Location, folder3Location]);
 		const workspaceConfigPath = URI.file(path.join(workspaceLocation, `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`));
-		let origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
+		const origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
 		const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, true, workspaceConfigPath, extUriBiasedIgnorePathCase);
 		const ws = (JSON.parse(newContent) as IStoredWorkspace);
 		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1Location);

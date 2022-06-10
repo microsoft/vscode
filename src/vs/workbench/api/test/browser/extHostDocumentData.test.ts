@@ -19,14 +19,14 @@ suite('ExtHostDocumentData', () => {
 	let data: ExtHostDocumentData;
 
 	function assertPositionAt(offset: number, line: number, character: number) {
-		let position = data.document.positionAt(offset);
+		const position = data.document.positionAt(offset);
 		assert.strictEqual(position.line, line);
 		assert.strictEqual(position.character, character);
 	}
 
 	function assertOffsetAt(line: number, character: number, offset: number) {
-		let pos = new Position(line, character);
-		let actual = data.document.offsetAt(pos);
+		const pos = new Position(line, character);
+		const actual = data.document.offsetAt(pos);
 		assert.strictEqual(actual, offset);
 	}
 
@@ -50,7 +50,7 @@ suite('ExtHostDocumentData', () => {
 
 	test('save, when disposed', function () {
 		let saved: URI;
-		let data = new ExtHostDocumentData(new class extends mock<MainThreadDocumentsShape>() {
+		const data = new ExtHostDocumentData(new class extends mock<MainThreadDocumentsShape>() {
 			override $trySaveDocument(uri: URI) {
 				assert.ok(!saved);
 				saved = uri;
@@ -344,7 +344,7 @@ suite('ExtHostDocumentData', () => {
 			line
 		], '\n', 1, 'text', false);
 
-		let range = data.document.getWordRangeAtPosition(new Position(0, 27), regex)!;
+		const range = data.document.getWordRangeAtPosition(new Position(0, 27), regex)!;
 		assert.strictEqual(range.start.line, 0);
 		assert.strictEqual(range.end.line, 0);
 		assert.strictEqual(range.start.character, 4);
@@ -379,7 +379,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 	}
 
 	function assertDocumentLineMapping(doc: ExtHostDocumentData, direction: AssertDocumentLineMappingDirection): void {
-		let allText = doc.getText();
+		const allText = doc.getText();
 
 		let line = 0, character = 0, previousIsCarriageReturn = false;
 		for (let offset = 0; offset <= allText.length; offset++) {
@@ -387,12 +387,12 @@ suite('ExtHostDocumentData updates line mapping', () => {
 			const position: Position = new Position(line, character + (previousIsCarriageReturn ? -1 : 0));
 
 			if (direction === AssertDocumentLineMappingDirection.OffsetToPosition) {
-				let actualPosition = doc.document.positionAt(offset);
+				const actualPosition = doc.document.positionAt(offset);
 				assert.strictEqual(positionToStr(actualPosition), positionToStr(position), 'positionAt mismatch for offset ' + offset);
 			} else {
 				// The position coordinate system cannot express the position between \r and \n
-				let expectedOffset: number = offset + (previousIsCarriageReturn ? -1 : 0);
-				let actualOffset = doc.document.offsetAt(position);
+				const expectedOffset: number = offset + (previousIsCarriageReturn ? -1 : 0);
+				const actualOffset = doc.document.offsetAt(position);
 				assert.strictEqual(actualOffset, expectedOffset, 'offsetAt mismatch for position ' + positionToStr(position));
 			}
 
@@ -423,7 +423,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 	}
 
 	function testLineMappingDirectionAfterEvents(lines: string[], eol: string, direction: AssertDocumentLineMappingDirection, e: IModelChangedEvent): void {
-		let myDocument = new ExtHostDocumentData(undefined!, URI.file(''), lines.slice(0), eol, 1, 'text', false);
+		const myDocument = new ExtHostDocumentData(undefined!, URI.file(''), lines.slice(0), eol, 1, 'text', false);
 		assertDocumentLineMapping(myDocument, direction);
 
 		myDocument.onEvents(e);

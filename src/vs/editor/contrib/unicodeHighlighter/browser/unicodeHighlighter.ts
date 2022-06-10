@@ -163,7 +163,7 @@ export class UnicodeHighlighter extends Disposable implements IEditorContributio
 			allowedCodePoints: Object.keys(options.allowedCharacters).map(c => c.codePointAt(0)!),
 			allowedLocales: Object.keys(options.allowedLocales).map(locale => {
 				if (locale === '_os') {
-					let osLocale = new Intl.NumberFormat().resolvedOptions().locale;
+					const osLocale = new Intl.NumberFormat().resolvedOptions().locale;
 					return osLocale;
 				} else if (locale === '_vscode') {
 					return platform.language;
@@ -563,7 +563,7 @@ export class DisableHighlightingInCommentsAction extends EditorAction implements
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		let configurationService = accessor?.get(IConfigurationService);
+		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -587,7 +587,7 @@ export class DisableHighlightingInStringsAction extends EditorAction implements 
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		let configurationService = accessor?.get(IConfigurationService);
+		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -611,7 +611,7 @@ export class DisableHighlightingOfAmbiguousCharactersAction extends EditorAction
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		let configurationService = accessor?.get(IConfigurationService);
+		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -635,7 +635,7 @@ export class DisableHighlightingOfInvisibleCharactersAction extends EditorAction
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		let configurationService = accessor?.get(IConfigurationService);
+		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -659,7 +659,7 @@ export class DisableHighlightingOfNonBasicAsciiCharactersAction extends EditorAc
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		let configurationService = accessor?.get(IConfigurationService);
+		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}

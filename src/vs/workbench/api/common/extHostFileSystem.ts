@@ -171,7 +171,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		const subscription = provider.onDidChangeFile(event => {
 			const mapped: IFileChangeDto[] = [];
 			for (const e of event) {
-				let { uri: resource, type } = e;
+				const { uri: resource, type } = e;
 				if (resource.scheme !== scheme) {
 					// dropping events for wrong scheme
 					continue;

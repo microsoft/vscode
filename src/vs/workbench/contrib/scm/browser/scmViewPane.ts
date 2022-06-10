@@ -543,8 +543,8 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		}
 
 		// FilePath match
-		let labelMatches: IMatch[] = [];
-		let descriptionMatches: IMatch[] = [];
+		const labelMatches: IMatch[] = [];
+		const descriptionMatches: IMatch[] = [];
 
 		for (const match of matches) {
 			if (match.start > pathLength) {

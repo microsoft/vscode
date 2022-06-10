@@ -5,7 +5,6 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -317,12 +316,11 @@ export class MainThreadDocumentsAndEditors {
 
 	private _onDelta(delta: DocumentAndEditorStateDelta): void {
 
-		let removedDocuments: URI[];
 		const removedEditors: string[] = [];
 		const addedEditors: MainThreadTextEditor[] = [];
 
 		// removed models
-		removedDocuments = delta.removedDocuments.map(m => m.uri);
+		const removedDocuments = delta.removedDocuments.map(m => m.uri);
 
 		// added editors
 		for (const apiEditor of delta.addedEditors) {

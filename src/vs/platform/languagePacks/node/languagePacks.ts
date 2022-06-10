@@ -143,7 +143,7 @@ class LanguagePacksCache extends Disposable {
 					};
 					languagePacks[localizationContribution.languageId] = languagePack;
 				}
-				let extensionInLanguagePack = languagePack.extensions.filter(e => areSameExtensions(e.extensionIdentifier, extensionIdentifier))[0];
+				const extensionInLanguagePack = languagePack.extensions.filter(e => areSameExtensions(e.extensionIdentifier, extensionIdentifier))[0];
 				if (extensionInLanguagePack) {
 					extensionInLanguagePack.version = extension.manifest.version;
 				} else {

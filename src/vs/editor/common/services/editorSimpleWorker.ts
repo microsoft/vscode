@@ -539,13 +539,13 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
 		const seen = new Set<string>();
 
-		outer: for (let url of modelUrls) {
+		outer: for (const url of modelUrls) {
 			const model = this._getModel(url);
 			if (!model) {
 				continue;
 			}
 
-			for (let word of model.words(wordDefRegExp)) {
+			for (const word of model.words(wordDefRegExp)) {
 				if (word === leadingWord || !isNaN(Number(word))) {
 					continue;
 				}

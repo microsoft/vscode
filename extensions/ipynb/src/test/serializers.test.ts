@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { jupyterCellOutputToCellOutput, jupyterNotebookModelToNotebookData } from '../deserializers';
 
 function deepStripProperties(obj: any, props: string[]) {
-	for (let prop in obj) {
+	for (const prop in obj) {
 		if (obj[prop]) {
 			delete obj[prop];
 		} else if (typeof obj[prop] === 'object') {

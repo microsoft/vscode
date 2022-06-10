@@ -406,7 +406,7 @@ export class Git {
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
-		let baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
+		const baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
@@ -447,7 +447,7 @@ export class Git {
 		};
 
 		try {
-			let command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
+			const command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
 			if (options.recursive) {
 				command.push('--recursive');
 			}
@@ -481,7 +481,7 @@ export class Git {
 			const pathUri = Uri.file(repositoryPath);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
 				// eslint-disable-next-line code-no-look-behind-regex
-				let match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
+				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;
 
@@ -792,7 +792,7 @@ export function parseGitmodules(raw: string): Submodule[] {
 const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
 
 export function parseGitCommits(data: string): Commit[] {
-	let commits: Commit[] = [];
+	const commits: Commit[] = [];
 
 	let ref;
 	let authorName;
@@ -1561,7 +1561,7 @@ export class Repository {
 	}
 
 	async deleteTag(name: string): Promise<void> {
-		let args = ['tag', '-d', name];
+		const args = ['tag', '-d', name];
 		await this.exec(args);
 	}
 

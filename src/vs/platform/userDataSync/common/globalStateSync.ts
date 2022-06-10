@@ -206,8 +206,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [IGlobalStateResourcePreview, IGlobalStateResourceMergeResult][], force: boolean): Promise<void> {
-		let { localUserData } = resourcePreviews[0][0];
-		let { local, remote, localChange, remoteChange } = resourcePreviews[0][1];
+		const { localUserData } = resourcePreviews[0][0];
+		const { local, remote, localChange, remoteChange } = resourcePreviews[0][1];
 
 		if (localChange === Change.None && remoteChange === Change.None) {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing ui state.`);

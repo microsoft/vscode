@@ -40,14 +40,14 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 	const _log = config.logFn;
 
-	let host = new LanguageServiceHost(cmd, projectFile, _log),
-		service = ts.createLanguageService(host, ts.createDocumentRegistry()),
-		lastBuildVersion: { [path: string]: string } = Object.create(null),
-		lastDtsHash: { [path: string]: string } = Object.create(null),
-		userWantsDeclarations = cmd.options.declaration,
-		oldErrors: { [path: string]: ts.Diagnostic[] } = Object.create(null),
-		headUsed = process.memoryUsage().heapUsed,
-		emitSourceMapsInStream = true;
+	const host = new LanguageServiceHost(cmd, projectFile, _log);
+	const service = ts.createLanguageService(host, ts.createDocumentRegistry());
+	const lastBuildVersion: { [path: string]: string } = Object.create(null);
+	const lastDtsHash: { [path: string]: string } = Object.create(null);
+	const userWantsDeclarations = cmd.options.declaration;
+	let oldErrors: { [path: string]: ts.Diagnostic[] } = Object.create(null);
+	let headUsed = process.memoryUsage().heapUsed;
+	let emitSourceMapsInStream = true;
 
 	// always emit declaraction files
 	host.getCompilationSettings().declaration = true;
@@ -111,8 +111,8 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 					if (/\.d\.ts$/.test(fileName)) {
 						// if it's already a d.ts file just emit it signature
-						let snapshot = host.getScriptSnapshot(fileName);
-						let signature = crypto.createHash('md5')
+						const snapshot = host.getScriptSnapshot(fileName);
+						const signature = crypto.createHash('md5')
 							.update(snapshot.getText(0, snapshot.getLength()))
 							.digest('base64');
 
@@ -123,11 +123,11 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						});
 					}
 
-					let output = service.getEmitOutput(fileName);
-					let files: Vinyl[] = [];
+					const output = service.getEmitOutput(fileName);
+					const files: Vinyl[] = [];
 					let signature: string | undefined;
 
-					for (let file of output.outputFiles) {
+					for (const file of output.outputFiles) {
 						if (!emitSourceMapsInStream && /\.js\.map$/.test(file.name)) {
 							continue;
 						}
@@ -143,22 +143,22 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 							}
 						}
 
-						let vinyl = new Vinyl({
+						const vinyl = new Vinyl({
 							path: file.name,
 							contents: Buffer.from(file.text),
 							base: !config._emitWithoutBasePath && baseFor(host.getScriptSnapshot(fileName)) || undefined
 						});
 
 						if (!emitSourceMapsInStream && /\.js$/.test(file.name)) {
-							let sourcemapFile = output.outputFiles.filter(f => /\.js\.map$/.test(f.name))[0];
+							const sourcemapFile = output.outputFiles.filter(f => /\.js\.map$/.test(f.name))[0];
 
 							if (sourcemapFile) {
-								let extname = path.extname(vinyl.relative);
-								let basename = path.basename(vinyl.relative, extname);
-								let dirname = path.dirname(vinyl.relative);
-								let tsname = (dirname === '.' ? '' : dirname + '/') + basename + '.ts';
+								const extname = path.extname(vinyl.relative);
+								const basename = path.basename(vinyl.relative, extname);
+								const dirname = path.dirname(vinyl.relative);
+								const tsname = (dirname === '.' ? '' : dirname + '/') + basename + '.ts';
 
-								let sourceMap = JSON.parse(sourcemapFile.text);
+								const sourceMap = JSON.parse(sourcemapFile.text);
 								sourceMap.sources[0] = tsname.replace(/\\/g, '/');
 								(<any>vinyl).sourceMap = sourceMap;
 							}
@@ -176,17 +176,17 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 			});
 		}
 
-		let newErrors: { [path: string]: ts.Diagnostic[] } = Object.create(null);
-		let t1 = Date.now();
+		const newErrors: { [path: string]: ts.Diagnostic[] } = Object.create(null);
+		const t1 = Date.now();
 
-		let toBeEmitted: string[] = [];
-		let toBeCheckedSyntactically: string[] = [];
-		let toBeCheckedSemantically: string[] = [];
-		let filesWithChangedSignature: string[] = [];
-		let dependentFiles: string[] = [];
-		let newLastBuildVersion = new Map<string, string>();
+		const toBeEmitted: string[] = [];
+		const toBeCheckedSyntactically: string[] = [];
+		const toBeCheckedSemantically: string[] = [];
+		const filesWithChangedSignature: string[] = [];
+		const dependentFiles: string[] = [];
+		const newLastBuildVersion = new Map<string, string>();
 
-		for (let fileName of host.getScriptFileNames()) {
+		for (const fileName of host.getScriptFileNames()) {
 			if (lastBuildVersion[fileName] !== host.getScriptVersion(fileName)) {
 
 				toBeEmitted.push(fileName);
@@ -197,8 +197,8 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 		return new Promise<void>(resolve => {
 
-			let semanticCheckInfo = new Map<string, number>();
-			let seenAsDependentFile = new Set<string>();
+			const semanticCheckInfo = new Map<string, number>();
+			const seenAsDependentFile = new Set<string>();
 
 			function workOnNext() {
 
@@ -215,10 +215,10 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 				// (1st) emit code
 				else if (toBeEmitted.length) {
-					let fileName = toBeEmitted.pop()!;
+					const fileName = toBeEmitted.pop()!;
 					promise = emitSoon(fileName).then(value => {
 
-						for (let file of value.files) {
+						for (const file of value.files) {
 							_log('[emit code]', file.path);
 							out(file);
 						}
@@ -240,7 +240,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 				// (2nd) check syntax
 				else if (toBeCheckedSyntactically.length) {
-					let fileName = toBeCheckedSyntactically.pop()!;
+					const fileName = toBeCheckedSyntactically.pop()!;
 					_log('[check syntax]', fileName);
 					promise = checkSyntaxSoon(fileName).then(diagnostics => {
 						delete oldErrors[fileName];
@@ -280,7 +280,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 				// (4th) check dependents
 				else if (filesWithChangedSignature.length) {
 					while (filesWithChangedSignature.length) {
-						let fileName = filesWithChangedSignature.pop()!;
+						const fileName = filesWithChangedSignature.pop()!;
 
 						if (!isExternalModule(service.getProgram()!.getSourceFile(fileName)!)) {
 							_log('[check semantics*]', fileName + ' is an internal module and it has changed shape -> check whatever hasn\'t been checked yet');
@@ -302,7 +302,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 					}
 					if (fileName) {
 						seenAsDependentFile.add(fileName);
-						let value = semanticCheckInfo.get(fileName);
+						const value = semanticCheckInfo.get(fileName);
 						if (value === 0) {
 							// already validated successfully -> look at dependents next
 							host.collectDependents(fileName, dependentFiles);
@@ -499,7 +499,7 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		}
 		if (!old || old.getVersion() !== snapshot.getVersion()) {
 			this._dependenciesRecomputeList.push(filename);
-			let node = this._dependencies.lookup(filename);
+			const node = this._dependencies.lookup(filename);
 			if (node) {
 				node.outgoing = Object.create(null);
 			}
@@ -597,7 +597,7 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 			}
 
 			if (!found) {
-				for (let key in this._fileNameToDeclaredModule) {
+				for (const key in this._fileNameToDeclaredModule) {
 					if (this._fileNameToDeclaredModule[key] && ~this._fileNameToDeclaredModule[key].indexOf(ref.fileName)) {
 						this._dependencies.inertEdge(filename, key);
 					}

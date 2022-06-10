@@ -97,7 +97,7 @@ export class Position {
 		if (other instanceof Position) {
 			return true;
 		}
-		let { line, character } = <Position>other;
+		const { line, character } = <Position>other;
 		if (typeof line === 'number' && typeof character === 'number') {
 			return true;
 		}
@@ -811,7 +811,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	get(uri: URI): TextEdit[] {
 		const res: TextEdit[] = [];
-		for (let candidate of this._edits) {
+		for (const candidate of this._edits) {
 			if (candidate._type === FileEditType.Text && candidate.uri.toString() === uri.toString()) {
 				res.push(candidate.edit);
 			}
@@ -821,7 +821,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	entries(): [URI, TextEdit[]][] {
 		const textEdits = new ResourceMap<[URI, TextEdit[]]>();
-		for (let candidate of this._edits) {
+		for (const candidate of this._edits) {
 			if (candidate._type === FileEditType.Text) {
 				let textEdit = textEdits.get(candidate.uri);
 				if (!textEdit) {
@@ -2019,7 +2019,7 @@ export class ProcessExecution implements vscode.ProcessExecution {
 			props.push(this._process);
 		}
 		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
+			for (const arg of this._args) {
 				props.push(arg);
 			}
 		}
@@ -2105,7 +2105,7 @@ export class ShellExecution implements vscode.ShellExecution {
 			props.push(typeof this._command === 'string' ? this._command : this._command.value);
 		}
 		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
+			for (const arg of this._args) {
 				props.push(typeof arg === 'string' ? arg : arg.value);
 			}
 		}
@@ -2995,7 +2995,7 @@ export class SemanticTokensBuilder {
 	}
 
 	private static _sortAndDeltaEncode(data: number[]): Uint32Array {
-		let pos: number[] = [];
+		const pos: number[] = [];
 		const tokenCount = (data.length / 5) | 0;
 		for (let i = 0; i < tokenCount; i++) {
 			pos[i] = i;

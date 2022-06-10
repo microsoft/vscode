@@ -159,7 +159,7 @@ class MarketplaceThemesPicker {
 			quickpick.canSelectMany = false;
 			quickpick.onDidChangeValue(() => this.trigger(quickpick.value));
 			quickpick.onDidAccept(async _ => {
-				let themeItem = quickpick.selectedItems[0];
+				const themeItem = quickpick.selectedItems[0];
 				if (themeItem?.galleryExtension) {
 					result = 'selected';
 					quickpick.hide();
@@ -520,7 +520,7 @@ function toEntry(theme: IWorkbenchTheme): ThemeItem {
 
 function toEntries(themes: Array<IWorkbenchTheme>, label?: string): QuickPickInput<ThemeItem>[] {
 	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
-	let entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
+	const entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
 	if (entries.length > 0 && label) {
 		entries.unshift({ type: 'separator', label });
 	}

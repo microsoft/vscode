@@ -58,7 +58,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 			if (!this.editor) {
 				return;
 			}
-			let newDecoration: CommentThreadRangeDecoration[] = [];
+			const newDecoration: CommentThreadRangeDecoration[] = [];
 			if (thread) {
 				const range = thread.range;
 				if (!((range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn))) {

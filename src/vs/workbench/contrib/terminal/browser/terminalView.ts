@@ -524,7 +524,7 @@ function getSingleTabLabel(instance: ITerminalInstance | undefined, separator: s
 	if (!instance || !instance.title) {
 		return '';
 	}
-	let iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
+	const iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
 	const label = `$(${icon?.id || iconClass}) ${getSingleTabTitle(instance, separator)}`;
 
 	const primaryStatus = instance.statusList.primary;

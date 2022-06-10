@@ -181,7 +181,7 @@ class SimpleWorkerProtocol {
 			return;
 		}
 
-		let reply = this._pendingReplies[replyMessage.seq];
+		const reply = this._pendingReplies[replyMessage.seq];
 		delete this._pendingReplies[replyMessage.seq];
 
 		if (replyMessage.err) {
@@ -200,8 +200,8 @@ class SimpleWorkerProtocol {
 	}
 
 	private _handleRequestMessage(requestMessage: RequestMessage): void {
-		let req = requestMessage.req;
-		let result = this._handler.handleMessage(requestMessage.method, requestMessage.args);
+		const req = requestMessage.req;
+		const result = this._handler.handleMessage(requestMessage.method, requestMessage.args);
 		result.then((r) => {
 			this._send(new ReplyMessage(this._workerId, req, r, undefined));
 		}, (e) => {
@@ -239,7 +239,7 @@ class SimpleWorkerProtocol {
 	}
 
 	private _send(msg: Message): void {
-		let transfer: ArrayBuffer[] = [];
+		const transfer: ArrayBuffer[] = [];
 		if (msg.type === MessageType.Request) {
 			for (let i = 0; i < msg.args.length; i++) {
 				if (msg.args[i] instanceof ArrayBuffer) {
@@ -406,7 +406,7 @@ function createProxyObject<T extends object>(
 		};
 	};
 
-	let result = {} as T;
+	const result = {} as T;
 	for (const methodName of methodNames) {
 		if (propertyIsDynamicEvent(methodName)) {
 			(<any>result)[methodName] = createProxyDynamicEvent(methodName);

@@ -364,7 +364,7 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 
 // Tasks Output channel. Register it before using it in Task Service.
-let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 outputChannelRegistry.registerChannel({ id: AbstractTaskService.OutputChannelId, label: AbstractTaskService.OutputChannelLabel, log: false });
 
 
@@ -381,7 +381,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 });
 
 // tasks.json validation
-let schema: IJSONSchema = {
+const schema: IJSONSchema = {
 	id: tasksSchemaId,
 	description: 'Task definition file',
 	type: 'object',
@@ -411,7 +411,7 @@ schema.definitions = {
 };
 schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])];
 
-let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
+const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(tasksSchemaId, schema);
 
 ProblemMatcherRegistry.onMatcherChanged(() => {

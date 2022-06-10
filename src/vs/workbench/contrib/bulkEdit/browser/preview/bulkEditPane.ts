@@ -302,7 +302,7 @@ export class BulkEditPane extends ViewPane {
 		if (input) {
 
 			// (1) capture view state
-			let oldViewState = this._tree.getViewState();
+			const oldViewState = this._tree.getViewState();
 			this._treeViewStates.set(this._treeDataSource.groupByFile, oldViewState);
 
 			// (2) toggle and update
@@ -320,7 +320,7 @@ export class BulkEditPane extends ViewPane {
 			-readonly [P in keyof T]: T[P]
 		};
 
-		let options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
+		const options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
 		let fileElement: FileElement;
 		if (e.element instanceof TextEditElement) {
 			fileElement = e.element.parent;

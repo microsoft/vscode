@@ -279,7 +279,7 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
  * replace function is allowed to be async and return a Promise.
  */
 export function replaceAsync(str: string, search: RegExp, replacer: (match: string, ...args: any[]) => Promise<string>): Promise<string> {
-	let parts: (string | Promise<string>)[] = [];
+	const parts: (string | Promise<string>)[] = [];
 
 	let last = 0;
 	for (const match of str.matchAll(search)) {
@@ -309,8 +309,8 @@ export function compare(a: string, b: string): number {
 
 export function compareSubstring(a: string, b: string, aStart: number = 0, aEnd: number = a.length, bStart: number = 0, bEnd: number = b.length): number {
 	for (; aStart < aEnd && bStart < bEnd; aStart++, bStart++) {
-		let codeA = a.charCodeAt(aStart);
-		let codeB = b.charCodeAt(bStart);
+		const codeA = a.charCodeAt(aStart);
+		const codeB = b.charCodeAt(bStart);
 		if (codeA < codeB) {
 			return -1;
 		} else if (codeA > codeB) {
@@ -404,8 +404,8 @@ export function startsWithIgnoreCase(str: string, candidate: string): boolean {
  */
 export function commonPrefixLength(a: string, b: string): number {
 
-	let i: number,
-		len = Math.min(a.length, b.length);
+	const len = Math.min(a.length, b.length);
+	let i: number;
 
 	for (i = 0; i < len; i++) {
 		if (a.charCodeAt(i) !== b.charCodeAt(i)) {
@@ -421,8 +421,8 @@ export function commonPrefixLength(a: string, b: string): number {
  */
 export function commonSuffixLength(a: string, b: string): number {
 
-	let i: number,
-		len = Math.min(a.length, b.length);
+	const len = Math.min(a.length, b.length);
+	let i: number;
 
 	const aLastIndex = a.length - 1;
 	const bLastIndex = b.length - 1;

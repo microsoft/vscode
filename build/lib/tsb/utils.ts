@@ -28,7 +28,7 @@ export module collections {
     }
 
     export function forEach<T>(collection: { [keys: string]: T }, callback: (entry: { key: string; value: T }) => void): void {
-        for (let key in collection) {
+        for (const key in collection) {
             if (hasOwnProperty.call(collection, key)) {
                 callback({
                     key: key,

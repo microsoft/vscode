@@ -330,7 +330,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}
 
 		const firstRowIndentation = firstRow.length;
-		let isFirst = true;
+		const isFirst = true;
 		for (const resolvedKeybinding of resolvedKeybindings) {
 			if (isFirst) {
 				output.push(`${firstRow}${this._printResolvedKeybinding(resolvedKeybinding).padStart(padLength, ' ')}`);

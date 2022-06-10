@@ -252,7 +252,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
 		const _massageWhenUserArr = (elements: WhenUser[] | WhenUser) => {
 			if (Array.isArray(elements)) {
-				for (let element of elements) {
+				for (const element of elements) {
 					_massageWhenUser(element);
 				}
 			} else {
@@ -261,7 +261,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		};
 
 		const _massageLocWhenUser = (target: LocWhenUser) => {
-			for (let loc in target) {
+			for (const loc in target) {
 				_massageWhenUserArr(target[loc]);
 			}
 		};

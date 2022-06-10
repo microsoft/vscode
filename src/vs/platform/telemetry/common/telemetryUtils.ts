@@ -211,7 +211,7 @@ function flatten(obj: any, result: { [key: string]: any }, order: number = 0, pr
 		return;
 	}
 
-	for (let item of Object.getOwnPropertyNames(obj)) {
+	for (const item of Object.getOwnPropertyNames(obj)) {
 		const value = obj[item];
 		const index = prefix ? prefix + item : item;
 

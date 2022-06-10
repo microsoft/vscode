@@ -99,7 +99,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     };
     result.src = (opts) => {
         let _pos = 0;
-        let _fileNames = cmdLine.fileNames.slice(0);
+        const _fileNames = cmdLine.fileNames.slice(0);
         return new class extends stream_1.Readable {
             constructor() {
                 super({ objectMode: true });

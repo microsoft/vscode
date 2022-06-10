@@ -55,12 +55,12 @@ suite('Snippets', function () {
 
 	test('SnippetFile#select - any scope', function () {
 
-		let file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
+		const file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
 			new Snippet([], 'AnySnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
 			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
 		]);
 
-		let bucket: Snippet[] = [];
+		const bucket: Snippet[] = [];
 		file.select('foo', bucket);
 		assert.strictEqual(bucket.length, 2);
 
@@ -69,7 +69,7 @@ suite('Snippets', function () {
 	test('Snippet#needsClipboard', function () {
 
 		function assertNeedsClipboard(body: string, expected: boolean): void {
-			let snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
+			const snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
 			assert.strictEqual(snippet.needsClipboard, expected);
 
 			assert.strictEqual(SnippetParser.guessNeedsClipboard(body), expected);
@@ -86,7 +86,7 @@ suite('Snippets', function () {
 	test('Snippet#isTrivial', function () {
 
 		function assertIsTrivial(body: string, expected: boolean): void {
-			let snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
+			const snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
 			assert.strictEqual(snippet.isTrivial, expected);
 		}
 

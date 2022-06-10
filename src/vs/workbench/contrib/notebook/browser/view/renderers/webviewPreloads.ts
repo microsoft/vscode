@@ -75,7 +75,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	let currentOptions = ctx.options;
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
-	let lineLimit = ctx.lineLimit;
+	const lineLimit = ctx.lineLimit;
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -754,8 +754,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	let _highlighter: IHighlighter | null = null;
-	let matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
-	let currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
+	const matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
+	const currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
 
 	class JSHighlighter implements IHighlighter {
 		private _findMatchIndex = -1;
@@ -875,11 +875,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }) => {
 		let find = true;
-		let matches: IFindMatch[] = [];
+		const matches: IFindMatch[] = [];
 
-		let range = document.createRange();
+		const range = document.createRange();
 		range.selectNodeContents(document.getElementById('findStart')!);
-		let sel = window.getSelection();
+		const sel = window.getSelection();
 		sel?.removeAllRanges();
 		sel?.addRange(range);
 

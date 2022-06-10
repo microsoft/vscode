@@ -232,9 +232,9 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	private async getTunnels(): Promise<readonly RemoteTunnel[]> {
 		const tunnels: RemoteTunnel[] = [];
 		const tunnelArray = Array.from(this._tunnels.values());
-		for (let portMap of tunnelArray) {
+		for (const portMap of tunnelArray) {
 			const portArray = Array.from(portMap.values());
-			for (let x of portArray) {
+			for (const x of portArray) {
 				const tunnelValue = await x.value;
 				if (tunnelValue) {
 					tunnels.push(tunnelValue);
@@ -362,7 +362,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	}
 
 	protected getTunnelFromMap(remoteHost: string, remotePort: number): { refcount: number; readonly value: Promise<RemoteTunnel | undefined> } | undefined {
-		let hosts = [remoteHost];
+		const hosts = [remoteHost];
 		// Order matters. We want the original host to be first.
 		if (isLocalhost(remoteHost)) {
 			hosts.push(...LOCALHOST_ADDRESSES);

@@ -107,7 +107,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 * Applies the diff to the collection.
 	 */
 	public override apply(diff: TestsDiff) {
-		let prevBusy = this.busyControllerCount;
+		const prevBusy = this.busyControllerCount;
 		super.apply(diff);
 
 		if (prevBusy !== this.busyControllerCount) {

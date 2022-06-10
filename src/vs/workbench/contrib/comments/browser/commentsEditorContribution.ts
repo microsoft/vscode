@@ -186,7 +186,7 @@ class CommentingRangeDecorator {
 	}
 
 	private _doUpdate(editor: ICodeEditor, commentInfos: ICommentInfo[], emphasisLine: number = -1, selectionRange: Range | undefined = this._lastSelection) {
-		let model = editor.getModel();
+		const model = editor.getModel();
 		if (!model) {
 			return;
 		}
@@ -194,7 +194,7 @@ class CommentingRangeDecorator {
 		// If there's still a selection, use that.
 		emphasisLine = this._lastSelectionCursor ?? emphasisLine;
 
-		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
+		const commentingRangeDecorations: CommentingRangeDecoration[] = [];
 		for (const info of commentInfos) {
 			info.commentingRanges.ranges.forEach(range => {
 				const rangeObject = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
@@ -506,11 +506,11 @@ export class CommentController implements IEditorContribution {
 			return 0;
 		});
 
-		let idx = findFirstInSorted(sortedWidgets, widget => {
-			let lineValueOne = reverse ? after.lineNumber : widget.commentThread.range.startLineNumber;
-			let lineValueTwo = reverse ? widget.commentThread.range.startLineNumber : after.lineNumber;
-			let columnValueOne = reverse ? after.column : widget.commentThread.range.startColumn;
-			let columnValueTwo = reverse ? widget.commentThread.range.startColumn : after.column;
+		const idx = findFirstInSorted(sortedWidgets, widget => {
+			const lineValueOne = reverse ? after.lineNumber : widget.commentThread.range.startLineNumber;
+			const lineValueTwo = reverse ? widget.commentThread.range.startLineNumber : after.lineNumber;
+			const columnValueOne = reverse ? after.column : widget.commentThread.range.startColumn;
+			const columnValueTwo = reverse ? widget.commentThread.range.startColumn : after.column;
 			if (lineValueOne > lineValueTwo) {
 				return true;
 			}
@@ -583,20 +583,20 @@ export class CommentController implements IEditorContribution {
 				await this._computePromise;
 			}
 
-			let commentInfo = this._commentInfos.filter(info => info.owner === e.owner);
+			const commentInfo = this._commentInfos.filter(info => info.owner === e.owner);
 			if (!commentInfo || !commentInfo.length) {
 				return;
 			}
 
-			let added = e.added.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
-			let removed = e.removed.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
-			let changed = e.changed.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
+			const added = e.added.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
+			const removed = e.removed.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
+			const changed = e.changed.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
 
 			removed.forEach(thread => {
-				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId && zoneWidget.commentThread.threadId !== '');
+				const matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId && zoneWidget.commentThread.threadId !== '');
 				if (matchedZones.length) {
-					let matchedZone = matchedZones[0];
-					let index = this._commentWidgets.indexOf(matchedZone);
+					const matchedZone = matchedZones[0];
+					const index = this._commentWidgets.indexOf(matchedZone);
 					this._commentWidgets.splice(index, 1);
 					matchedZone.dispose();
 				}
@@ -610,20 +610,20 @@ export class CommentController implements IEditorContribution {
 			});
 
 			changed.forEach(thread => {
-				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
+				const matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
 				if (matchedZones.length) {
-					let matchedZone = matchedZones[0];
+					const matchedZone = matchedZones[0];
 					matchedZone.update(thread);
 					this.openCommentsView(thread);
 				}
 			});
 			added.forEach(thread => {
-				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
+				const matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
 				if (matchedZones.length) {
 					return;
 				}
 
-				let matchedNewCommentThreadZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && (zoneWidget.commentThread as any).commentThreadHandle === -1 && Range.equalsRange(zoneWidget.commentThread.range, thread.range));
+				const matchedNewCommentThreadZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && (zoneWidget.commentThread as any).commentThreadHandle === -1 && Range.equalsRange(zoneWidget.commentThread.range, thread.range));
 
 				if (matchedNewCommentThreadZones.length) {
 					matchedNewCommentThreadZones[0].update(thread);
@@ -837,7 +837,7 @@ export class CommentController implements IEditorContribution {
 		this.removeCommentWidgetsAndStoreCache();
 
 		this._commentInfos.forEach(info => {
-			let providerCacheStore = this._pendingCommentCache[info.owner];
+			const providerCacheStore = this._pendingCommentCache[info.owner];
 			info.threads = info.threads.filter(thread => !thread.isDisposed);
 			info.threads.forEach(thread => {
 				let pendingComment: string | null = null;
@@ -869,8 +869,8 @@ export class CommentController implements IEditorContribution {
 	private removeCommentWidgetsAndStoreCache() {
 		if (this._commentWidgets) {
 			this._commentWidgets.forEach(zone => {
-				let pendingComment = zone.getPendingComment();
-				let providerCacheStore = this._pendingCommentCache[zone.owner];
+				const pendingComment = zone.getPendingComment();
+				const providerCacheStore = this._pendingCommentCache[zone.owner];
 
 				let lastCommentBody;
 				if (zone.commentThread.comments && zone.commentThread.comments.length) {
@@ -921,7 +921,7 @@ export class NextCommentThreadAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = CommentController.get(editor);
+		const controller = CommentController.get(editor);
 		if (controller) {
 			controller.nextCommentThread();
 		}
@@ -944,7 +944,7 @@ export class PreviousCommentThreadAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = CommentController.get(editor);
+		const controller = CommentController.get(editor);
 		if (controller) {
 			controller.previousCommentThread();
 		}

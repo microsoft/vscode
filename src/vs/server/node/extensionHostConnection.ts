@@ -349,7 +349,7 @@ function setCaseInsensitive(env: { [key: string]: unknown }, key: string, value:
 
 function removeNulls(env: { [key: string]: unknown | null }): void {
 	// Don't delete while iterating the object itself
-	for (let key of Object.keys(env)) {
+	for (const key of Object.keys(env)) {
 		if (env[key] === null) {
 			delete env[key];
 		}

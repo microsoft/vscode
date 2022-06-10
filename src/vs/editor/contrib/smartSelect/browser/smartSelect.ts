@@ -38,7 +38,7 @@ class SelectionRanges {
 	) { }
 
 	mov(fwd: boolean): SelectionRanges {
-		let index = this.index + (fwd ? 1 : -1);
+		const index = this.index + (fwd ? 1 : -1);
 		if (index < 0 || index >= this.ranges.length) {
 			return this;
 		}
@@ -140,7 +140,7 @@ abstract class AbstractSmartSelect extends EditorAction {
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		let controller = SmartSelectController.get(editor);
+		const controller = SmartSelectController.get(editor);
 		if (controller) {
 			await controller.run(this._forward);
 		}
@@ -220,8 +220,8 @@ export async function provideSelectionRanges(registry: LanguageFeatureRegistry<l
 		providers.unshift(new BracketSelectionRangeProvider());
 	}
 
-	let work: Promise<any>[] = [];
-	let allRawRanges: Range[][] = [];
+	const work: Promise<any>[] = [];
+	const allRawRanges: Range[][] = [];
 
 	for (const provider of providers) {
 
@@ -266,7 +266,7 @@ export async function provideSelectionRanges(registry: LanguageFeatureRegistry<l
 
 		// remove ranges that don't contain the former range or that are equal to the
 		// former range
-		let oneRanges: Range[] = [];
+		const oneRanges: Range[] = [];
 		let last: Range | undefined;
 		for (const range of oneRawRanges) {
 			if (!last || (Range.containsRange(range, last) && !Range.equalsRange(range, last))) {
@@ -281,7 +281,7 @@ export async function provideSelectionRanges(registry: LanguageFeatureRegistry<l
 
 		// add ranges that expand trivia at line starts and ends whenever a range
 		// wraps onto the a new line
-		let oneRangesWithTrivia: Range[] = [oneRanges[0]];
+		const oneRangesWithTrivia: Range[] = [oneRanges[0]];
 		for (let i = 1; i < oneRanges.length; i++) {
 			const prev = oneRanges[i - 1];
 			const cur = oneRanges[i];
