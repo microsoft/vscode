@@ -36,26 +36,37 @@ steps:
     displayName: Merge distro
 
   - script: |
-      mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js x64 $ENABLE_TERRAPIN > .build/yarnlockhash
-    displayName: Prepare yarn cache flags
-
-  - task: Cache@2
-    inputs:
-      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
-
-  - script: |
-      set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
-    displayName: Extract node_modules cache
-
-  - script: |
       set -e
       node build/azure-pipelines/mixin
     displayName: Mix in quality
+
+  - task: Cache@2
+    inputs:
+      key: "buildNodeModules | $(Agent.OS) | $(VSCODE_ARCH) | build/yarn.lock"
+      path: build/node_modules
+      cacheHitVar: BUILD_NODE_MODULES_RESTORED
+    displayName: Restore build node_modules cache
+
+  - script: |
+      set -e
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
+    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'), ne(variables.BUILD_NODE_MODULES_RESTORED, 'true'))
+    displayName: Switch to Terrapin packages
+
+  - script: |
+      set -e
+      for i in {1..3}; do # try 3 times, for Terrapin
+        yarn --cwd build --frozen-lockfile --check-files && break
+        if [ $i -eq 3 ]; then
+          echo "Yarn failed too many times" >&2
+          exit 1
+        fi
+        echo "Yarn failed $i, trying again..."
+      done
+    displayName: Install build dependencies
+    condition: and(succeeded(), ne(variables.BUILD_NODE_MODULES_RESTORED, 'true'))
 
   - download: current
     artifact: unsigned_vscode_client_darwin_x64_archive
