@@ -9,27 +9,28 @@ import { distinct, deepClone } from 'vs/base/common/objects';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
-import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
-import { Selection } from 'vs/editor/common/core/selection';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { isEqual } from 'vs/base/common/resources';
+
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 
 export interface IEditorConfiguration {
@@ -38,8 +39,7 @@ export interface IEditorConfiguration {
 }
 
 /**
- * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
- * be subclassed and not instantiated.
+ * The base class of editors that leverage the text editor for the editing experience.
  */
 export abstract class BaseTextEditor<T extends IEditorViewState> extends AbstractEditorWithViewState<T> implements IEditorPaneWithSelection {
 
@@ -78,6 +78,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 		// ARIA: if a group is added or removed, update the editor's ARIA
 		// label so that it appears in the label for when there are > 1 groups
+
 		this._register(Event.any(this.editorGroupService.onDidAddGroup, this.editorGroupService.onDidRemoveGroup)(() => {
 			const ariaLabel = this.computeAriaLabel();
 
@@ -123,9 +124,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
 			readOnly: this.input?.hasCapability(EditorInputCapabilities.Readonly),
-			// render problems even in readonly editors
-			// https://github.com/microsoft/vscode/issues/89057
-			renderValidationDecorations: 'on'
+			renderValidationDecorations: 'on' // render problems even in readonly editors (https://github.com/microsoft/vscode/issues/89057)
 		};
 	}
 
@@ -171,16 +170,14 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	}
 
 	/**
-	 * This method creates and returns the text editor control to be used. Subclasses can override to
-	 * provide their own editor control that should be used (e.g. a DiffEditor).
+	 * This method creates and returns the text editor control to be used.
+	 * Subclasses must override to provide their own editor control that
+	 * should be used (e.g. a text diff editor).
 	 *
-	 * The passed in configuration object should be passed to the editor control when creating it.
+	 * The passed in configuration object should be passed to the editor
+	 * control when creating it.
 	 */
-	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
-
-		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
-		return this.instantiationService.createInstance(CodeEditorWidget, parent, { enableDropIntoEditor: true, ...configuration }, {});
-	}
+	protected abstract createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor;
 
 	override async setInput(input: EditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
@@ -319,6 +316,16 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 		this.lastAppliedEditorOptions = undefined;
 
 		super.dispose();
+	}
+}
+
+/**
+ * A text editor using the code editor widget.
+ */
+export abstract class AbstractTextEditor<T extends IEditorViewState> extends BaseTextEditor<T> {
+
+	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
+		return this.instantiationService.createInstance(CodeEditorWidget, parent, { enableDropIntoEditor: true, ...configuration }, {});
 	}
 }
 

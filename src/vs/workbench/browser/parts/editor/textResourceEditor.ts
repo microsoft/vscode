@@ -12,7 +12,7 @@ import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions
 import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -33,7 +33,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
  * the TextEditor widget to show the contents.
  */
-export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewState> {
+export class AbstractTextResourceEditor extends AbstractTextEditor<ICodeEditorViewState> {
 
 	constructor(
 		id: string,

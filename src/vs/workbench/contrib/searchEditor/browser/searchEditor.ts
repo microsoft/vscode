@@ -37,7 +37,7 @@ import { inputBorder, registerColor, searchEditorFindMatch, searchEditorFindMatc
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorInputCapabilities, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
@@ -68,7 +68,7 @@ const FILE_LINE_REGEX = /^(\S.*):$/;
 
 type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
 
-export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
+export class SearchEditor extends AbstractTextEditor<SearchEditorViewState> {
 	static readonly ID: string = SearchEditorID;
 
 	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
