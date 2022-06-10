@@ -561,11 +561,12 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 	}
 }
 
-/** Implementation os vscode.TestItemCollection */
+/** Implementation of vscode.TestItemCollection */
 export interface ITestItemChildren<T extends ITestItemLike> extends Iterable<T> {
 	readonly size: number;
 	replace(items: readonly T[]): void;
 	forEach(callback: (item: T, collection: this) => unknown, thisArg?: unknown): void;
+	entries(): IterableIterator<[T, T]>;
 	add(item: T): void;
 	delete(itemId: string): void;
 	get(itemId: string): T | undefined;
@@ -604,6 +605,13 @@ export const createTestItemChildren = <T extends ITestItemLike>(api: ITestItemAp
 		forEach(callback: (item: T, collection: ITestItemChildren<T>) => unknown, thisArg?: unknown) {
 			for (const item of mapped.values()) {
 				callback.call(thisArg, item, this);
+			}
+		},
+
+		/** @inheritdoc */
+		*entries(): IterableIterator<[T, T]> {
+			for (const value of mapped.values()) {
+				return [value, value];
 			}
 		},
 

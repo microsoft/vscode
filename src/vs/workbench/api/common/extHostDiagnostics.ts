@@ -182,8 +182,15 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void {
 		this._checkDisposed();
+		for (const [uri, values] of this.entries()) {
+			callback.call(thisArg, uri, values, this);
+		}
+	}
+
+	*entries(): IterableIterator<[uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]]> {
+		this._checkDisposed();
 		for (const uri of this.#data.keys()) {
-			callback.apply(thisArg, [uri, this.get(uri), this]);
+			yield [uri, this.get(uri)];
 		}
 	}
 

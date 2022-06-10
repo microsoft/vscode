@@ -6033,6 +6033,11 @@ declare module 'vscode' {
 		forEach(callback: (uri: Uri, diagnostics: readonly Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void;
 
 		/**
+		 * Get a new iterator with the `[resource uri, diagnostics]` pairs for each element in the collection.
+		 */
+		entries(): IterableIterator<[uri: Uri, diagnostics: readonly Diagnostic[]]>;
+
+		/**
 		 * Get the diagnostics for a given resource. *Note* that you cannot
 		 * modify the diagnostics-array returned from this call.
 		 *
@@ -10115,6 +10120,11 @@ declare module 'vscode' {
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
 		forEach(callbackfn: (value: DataTransferItem, key: string) => void, thisArg?: any): void;
+
+		/**
+		 * Get a new iterator with the `[mime, item]` pairs for each element in this data transfer.
+		 */
+		entries(): IterableIterator<[mimeType: string, item: DataTransferItem]>;
 	}
 
 	/**
@@ -10838,6 +10848,11 @@ declare module 'vscode' {
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
 		forEach(callback: (variable: string, mutator: EnvironmentVariableMutator, collection: EnvironmentVariableCollection) => any, thisArg?: any): void;
+
+		/**
+		 * Get a new iterator with the `[variable, mutator]` pairs for each element in this collection.
+		 */
+		entries(): IterableIterator<[variable: string, mutator: EnvironmentVariableMutator]>;
 
 		/**
 		 * Deletes this collection's mutator for a variable.
@@ -15664,6 +15679,13 @@ declare module 'vscode' {
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
 		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: any): void;
+
+		/**
+		 * Get a new iterator with `[test item, test item]` pairs from the collection.
+		 *
+		 * Node that the two elements are the same here to be compatible with `new Map().entries()`
+		 */
+		entries(): IterableIterator<[TestItem, TestItem]>;
 
 		/**
 		 * Adds the test item to the children. If an item with the same ID already

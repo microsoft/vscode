@@ -1770,6 +1770,7 @@ export namespace TestItem {
 				add: () => { },
 				delete: () => { },
 				forEach: () => { },
+				*entries() { },
 				get: () => undefined,
 				replace: () => { },
 				size: 0,

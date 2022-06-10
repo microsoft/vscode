@@ -2449,7 +2449,7 @@ export class DataTransferItem {
 }
 
 @es5ClassCompat
-export class DataTransfer {
+export class DataTransfer implements vscode.DataTransfer {
 	#items = new Map<string, DataTransferItem[]>();
 
 	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
@@ -2476,6 +2476,14 @@ export class DataTransfer {
 	forEach(callbackfn: (value: DataTransferItem, key: string) => void, thisArg?: unknown): void {
 		for (const [mime, items] of this.#items) {
 			items.forEach(item => callbackfn(item, mime), thisArg);
+		}
+	}
+
+	*entries(): IterableIterator<[mimeType: string, item: vscode.DataTransferItem]> {
+		for (const [mime, items] of this.#items) {
+			for (const item of items) {
+				yield [mime, item];
+			}
 		}
 	}
 }
