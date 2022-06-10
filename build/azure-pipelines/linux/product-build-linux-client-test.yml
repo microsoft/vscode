@@ -149,39 +149,53 @@ steps:
       continueOnError: true
       condition: succeededOrFailed()
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - task: PublishPipelineArtifact@0
       inputs:
-        artifactName: crash-dump-linux-$(VSCODE_ARCH)
         targetPath: .build/crashes
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: crash-dump-linux-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: crash-dump-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: crash-dump-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
       displayName: "Publish Crash Reports"
       continueOnError: true
       condition: failed()
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     # In order to properly symbolify above crash reports
     # (if any), we need the compiled native modules too
     - task: PublishPipelineArtifact@0
       inputs:
-        artifactName: node-modules-linux-$(VSCODE_ARCH)
         targetPath: node_modules
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: node-modules-linux-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: node-modules-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
       displayName: "Publish Node Modules"
       continueOnError: true
       condition: failed()
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - task: PublishPipelineArtifact@0
       inputs:
-        artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
         targetPath: .build/logs
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: logs-linux-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: logs-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
       displayName: "Publish Log Files"
       continueOnError: true
       condition: succeededOrFailed()
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - task: PublishTestResults@2
-      displayName: Publish Tests Results
-      inputs:
-        testResultsFiles: "*-results.xml"
-        searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
-      condition: succeededOrFailed()
+  - task: PublishTestResults@2
+    displayName: Publish Tests Results
+    inputs:
+      testResultsFiles: "*-results.xml"
+      searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
+    condition: succeededOrFailed()
