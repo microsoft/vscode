@@ -141,23 +141,16 @@ steps:
       continueOnError: true
       condition: succeededOrFailed()
 
-  - ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-    - powershell: |
-        echo "##vso[task.setvariable variable=ARTIFACT_SUFFIX]-integration"
-      name: SetLogArtifactSuffix
-      displayName: Set log artifact suffix
-
-  - ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - powershell: |
-        echo "##vso[task.setvariable variable=ARTIFACT_SUFFIX]-smoke"
-      name: SetLogArtifactSuffix
-      displayName: Set log artifact suffix
-
   - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - task: PublishPipelineArtifact@0
       inputs:
-        artifactName: crash-dump-windows-$(VSCODE_ARCH)$(SetLogArtifactSuffix.ARTIFACT_SUFFIX)-$(System.JobAttempt)
         targetPath: .build\crashes
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: crash-dump-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: crash-dump-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
       displayName: "Publish Crash Reports"
       continueOnError: true
       condition: failed()
@@ -167,8 +160,13 @@ steps:
     # (if any), we need the compiled native modules too
     - task: PublishPipelineArtifact@0
       inputs:
-        artifactName: node-modules-windows-$(VSCODE_ARCH)$(SetLogArtifactSuffix.ARTIFACT_SUFFIX)-$(System.JobAttempt)
         targetPath: node_modules
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: node-modules-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: node-modules-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
       displayName: "Publish Node Modules"
       continueOnError: true
       condition: failed()
@@ -176,8 +174,13 @@ steps:
   - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - task: PublishPipelineArtifact@0
       inputs:
-        artifactName: logs-windows-$(VSCODE_ARCH)$(SetLogArtifactSuffix.ARTIFACT_SUFFIX)-$(System.JobAttempt)
         targetPath: .build\logs
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: logs-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: logs-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
       displayName: "Publish Log Files"
       continueOnError: true
       condition: succeededOrFailed()
