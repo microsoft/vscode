@@ -27,6 +27,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService, matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -135,6 +136,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -1466,6 +1468,7 @@ var requirejs = (function() {
 			return;
 		}
 
+		this.logService.trace('[BackLayerWebView] sendMessageToWebview', JSON.stringify(message));
 		this.webview?.postMessage(message);
 	}
 

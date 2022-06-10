@@ -19,6 +19,7 @@ import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } f
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
@@ -114,7 +115,8 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@INotebookEditorService notebookEditorService: INotebookEditorService
+		@INotebookEditorService notebookEditorService: INotebookEditorService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookKernels);
 
@@ -169,6 +171,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	}
 
 	async $postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean> {
+		this.logService.trace('[MainThreadKernel] $postMessage', handle, editorId, JSON.stringify(message));
 		const tuple = this._kernels.get(handle);
 		if (!tuple) {
 			throw new Error('kernel already disposed');

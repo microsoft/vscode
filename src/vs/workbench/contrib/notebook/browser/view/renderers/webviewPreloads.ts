@@ -1128,6 +1128,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'customKernelMessage':
+				console.log('customKernelMessage', event.data);
 				onDidReceiveKernelMessage.fire(event.data.message);
 				break;
 			case 'customRendererMessage':

@@ -239,6 +239,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			onDidReceiveMessage: onDidReceiveMessage.event,
 			postMessage(message, editor) {
 				checkProposedApiEnabled(extension, 'notebookMessaging');
+				that._logService.trace(`NotebookController[${handle}]#postMessage`, JSON.stringify(message));
 				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
 			},
 			asWebviewUri(uri: URI) {
