@@ -49,7 +49,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		const mappedLanguages = getMappingForIncludedLanguages();
 		const isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
-		let emmetMode = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), mappedLanguages, excludedLanguages);
+		const emmetMode = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), mappedLanguages, excludedLanguages);
 
 		if (!emmetMode
 			|| emmetConfig['showExpandedAbbreviation'] === 'never'
@@ -135,7 +135,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		const offset = document.offsetAt(position);
 		if (isStyleSheet(document.languageId) && context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
 			validateLocation = true;
-			let usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
+			const usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
 			rootNode = usePartialParsing && document.lineCount > 1000 ? parsePartialStylesheet(document, position) : <Stylesheet>getRootNode(document, true);
 			if (!rootNode) {
 				return;
@@ -152,8 +152,8 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			if (!rootNode) {
 				return;
 			}
-			let flatNode = getFlatNode(rootNode, offset, true);
-			let embeddedCssNode = getEmbeddedCssNodeIfAny(document, flatNode, position);
+			const flatNode = getFlatNode(rootNode, offset, true);
+			const embeddedCssNode = getEmbeddedCssNodeIfAny(document, flatNode, position);
 			currentNode = getFlatNode(embeddedCssNode, offset, true);
 		}
 
@@ -167,7 +167,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		// Check for document symbols in js/ts/jsx/tsx and avoid triggering emmet for abbreviations of the form symbolName.sometext
 		// Presence of > or * or + in the abbreviation denotes valid abbreviation that should trigger emmet
 		if (!isStyleSheet(syntax) && (document.languageId === 'javascript' || document.languageId === 'javascriptreact' || document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
-			let abbreviation: string = extractAbbreviationResults.abbreviation;
+			const abbreviation: string = extractAbbreviationResults.abbreviation;
 			// For the second condition, we don't want abbreviations that have [] characters but not ='s in them to expand
 			// In turn, users must explicitly expand abbreviations of the form Component[attr1 attr2], but it means we don't try to expand a[i].
 			if (abbreviation.startsWith('this.') || /\[[^\]=]*\]/.test(abbreviation)) {
@@ -194,14 +194,14 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				}
 			}
 
-			let newItems: vscode.CompletionItem[] = [];
+			const newItems: vscode.CompletionItem[] = [];
 			if (result && result.items) {
 				result.items.forEach((item: any) => {
-					let newItem = new vscode.CompletionItem(item.label);
+					const newItem = new vscode.CompletionItem(item.label);
 					newItem.documentation = item.documentation;
 					newItem.detail = item.detail;
 					newItem.insertText = new vscode.SnippetString(item.textEdit.newText);
-					let oldrange = item.textEdit.range;
+					const oldrange = item.textEdit.range;
 					newItem.range = new vscode.Range(oldrange.start.line, oldrange.start.character, oldrange.end.line, oldrange.end.character);
 
 					newItem.filterText = item.filterText;

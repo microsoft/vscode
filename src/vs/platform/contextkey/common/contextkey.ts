@@ -129,12 +129,12 @@ export abstract class ContextKeyExpr {
 	}
 
 	private static _deserializeOrExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
-		let pieces = serialized.split('||');
+		const pieces = serialized.split('||');
 		return ContextKeyOrExpr.create(pieces.map(p => this._deserializeAndExpression(p, strict)), null, true);
 	}
 
 	private static _deserializeAndExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
-		let pieces = serialized.split('&&');
+		const pieces = serialized.split('&&');
 		return ContextKeyAndExpr.create(pieces.map(p => this._deserializeOne(p, strict)), null);
 	}
 
@@ -142,22 +142,22 @@ export abstract class ContextKeyExpr {
 		serializedOne = serializedOne.trim();
 
 		if (serializedOne.indexOf('!=') >= 0) {
-			let pieces = serializedOne.split('!=');
+			const pieces = serializedOne.split('!=');
 			return ContextKeyNotEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
 		}
 
 		if (serializedOne.indexOf('==') >= 0) {
-			let pieces = serializedOne.split('==');
+			const pieces = serializedOne.split('==');
 			return ContextKeyEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
 		}
 
 		if (serializedOne.indexOf('=~') >= 0) {
-			let pieces = serializedOne.split('=~');
+			const pieces = serializedOne.split('=~');
 			return ContextKeyRegexExpr.create(pieces[0].trim(), this._deserializeRegexValue(pieces[1], strict));
 		}
 
 		if (serializedOne.indexOf(' in ') >= 0) {
-			let pieces = serializedOne.split(' in ');
+			const pieces = serializedOne.split(' in ');
 			return ContextKeyInExpr.create(pieces[0].trim(), pieces[1].trim());
 		}
 
@@ -199,7 +199,7 @@ export abstract class ContextKeyExpr {
 			return false;
 		}
 
-		let m = /^'([^']*)'$/.exec(serializedValue);
+		const m = /^'([^']*)'$/.exec(serializedValue);
 		if (m) {
 			return m[1].trim();
 		}
@@ -218,8 +218,8 @@ export abstract class ContextKeyExpr {
 			return null;
 		}
 
-		let start = serializedValue.indexOf('/');
-		let end = serializedValue.lastIndexOf('/');
+		const start = serializedValue.indexOf('/');
+		const end = serializedValue.lastIndexOf('/');
 		if (start === end || start < 0 /* || to < 0 */) {
 			if (strict) {
 				throw new Error(`bad regexp-value '${serializedValue}', missing /-enclosure`);
@@ -229,8 +229,8 @@ export abstract class ContextKeyExpr {
 			return null;
 		}
 
-		let value = serializedValue.slice(start + 1, end);
-		let caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
+		const value = serializedValue.slice(start + 1, end);
+		const caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
 		try {
 			return new RegExp(value, caseIgnoreFlag);
 		} catch (e) {
@@ -1037,7 +1037,7 @@ export class ContextKeyRegexExpr implements IContextKeyExpression {
 	}
 
 	public evaluate(context: IContext): boolean {
-		let value = context.getValue<any>(this.key);
+		const value = context.getValue<any>(this.key);
 		return this.regexp ? this.regexp.test(value) : false;
 	}
 
@@ -1308,7 +1308,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 
 	public keys(): string[] {
 		const result: string[] = [];
-		for (let expr of this.expr) {
+		for (const expr of this.expr) {
 			result.push(...expr.keys());
 		}
 		return result;
@@ -1321,7 +1321,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 	public negate(): ContextKeyExpression {
 		if (!this.negated) {
 			const result: ContextKeyExpression[] = [];
-			for (let expr of this.expr) {
+			for (const expr of this.expr) {
 				result.push(expr.negate());
 			}
 			this.negated = ContextKeyOrExpr.create(result, this, true)!;
@@ -1478,7 +1478,7 @@ class ContextKeyOrExpr implements IContextKeyExpression {
 
 	public keys(): string[] {
 		const result: string[] = [];
-		for (let expr of this.expr) {
+		for (const expr of this.expr) {
 			result.push(...expr.keys());
 		}
 		return result;
@@ -1490,8 +1490,8 @@ class ContextKeyOrExpr implements IContextKeyExpression {
 
 	public negate(): ContextKeyExpression {
 		if (!this.negated) {
-			let result: ContextKeyExpression[] = [];
-			for (let expr of this.expr) {
+			const result: ContextKeyExpression[] = [];
+			for (const expr of this.expr) {
 				result.push(expr.negate());
 			}
 

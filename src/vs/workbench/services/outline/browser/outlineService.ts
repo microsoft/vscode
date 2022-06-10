@@ -21,7 +21,7 @@ class OutlineService implements IOutlineService {
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	canCreateOutline(pane: IEditorPane): boolean {
-		for (let factory of this._factories) {
+		for (const factory of this._factories) {
 			if (factory.matches(pane)) {
 				return true;
 			}
@@ -30,7 +30,7 @@ class OutlineService implements IOutlineService {
 	}
 
 	async createOutline(pane: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<any> | undefined> {
-		for (let factory of this._factories) {
+		for (const factory of this._factories) {
 			if (factory.matches(pane)) {
 				return await factory.createOutline(pane, target, token);
 			}

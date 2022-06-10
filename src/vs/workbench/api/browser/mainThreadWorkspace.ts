@@ -66,7 +66,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	dispose(): void {
 		this._toDispose.dispose();
 
-		for (let requestId in this._activeCancelTokens) {
+		for (const requestId in this._activeCancelTokens) {
 			const tokenSource = this._activeCancelTokens[requestId];
 			tokenSource.cancel();
 		}

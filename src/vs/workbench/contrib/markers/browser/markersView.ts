@@ -607,6 +607,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 
 		// Restore selection
 		if (selection && selection.length > 0 && (selection[0] instanceof Marker || selection[0] instanceof MarkerTableItem)) {
+			this.widget.domFocus();
 			this.widget.setMarkerSelection(selection[0]);
 		}
 	}
@@ -1029,7 +1030,7 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 	}
 
 	private hasSelectedMarkerFor(resource: ResourceMarkers): boolean {
-		let selectedElement = this.getSelection();
+		const selectedElement = this.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
 				if (resource.has((<Marker>selectedElement[0]).marker.resource)) {

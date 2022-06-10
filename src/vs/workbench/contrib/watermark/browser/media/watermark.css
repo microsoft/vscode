@@ -23,6 +23,8 @@
 	text-align: center;
 	white-space: nowrap;
 	overflow: hidden;
+	/* Watermark should show even over opaque backgrounds */
+	z-index: 1000;
 }
 
 .monaco-workbench .part.editor > .content.empty > .watermark > .watermark-box {

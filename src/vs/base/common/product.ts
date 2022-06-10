@@ -71,9 +71,11 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly itemUrl: string;
+		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
 		readonly controlUrl: string;
 		readonly recommendationsUrl: string;
+		readonly nlsBaseUrl: string;
 	};
 
 	readonly extensionTips?: { [id: string]: string };
@@ -98,6 +100,7 @@ export interface IProductConfiguration {
 	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {
 		readonly asimovKey: string;
+		readonly ariaKey: string;
 	};
 
 	readonly sendASmile?: {

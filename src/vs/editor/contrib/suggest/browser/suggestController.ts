@@ -47,7 +47,7 @@ import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
 
 // sticky suggest widget which doesn't disappear on focus out and such
-let _sticky = false;
+const _sticky = false;
 // _sticky = Boolean("true"); // done "weirdly" so that a lint warning prevents you from pushing this
 
 class LineSuffix {
@@ -253,8 +253,8 @@ export class SuggestController implements IEditorContribution {
 		}));
 
 		// Manage the acceptSuggestionsOnEnter context key
-		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
-		let updateFromConfig = () => {
+		const acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
+		const updateFromConfig = () => {
 			const acceptSuggestionOnEnter = this.editor.getOption(EditorOption.acceptSuggestionOnEnter);
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
@@ -329,7 +329,7 @@ export class SuggestController implements IEditorContribution {
 					docListener.dispose();
 					return;
 				}
-				for (let change of e.changes) {
+				for (const change of e.changes) {
 					const thisPosition = Range.getEndPosition(change.range);
 					if (!position || Position.isBefore(thisPosition, position)) {
 						position = thisPosition;
@@ -337,10 +337,10 @@ export class SuggestController implements IEditorContribution {
 				}
 			});
 
-			let oldFlags = flags;
+			const oldFlags = flags;
 			flags |= InsertFlags.NoAfterUndoStop;
 			let didType = false;
-			let typeListener = this.editor.onWillType(() => {
+			const typeListener = this.editor.onWillType(() => {
 				typeListener.dispose();
 				didType = true;
 				if (!(oldFlags & InsertFlags.NoAfterUndoStop)) {
@@ -489,7 +489,7 @@ export class SuggestController implements IEditorContribution {
 
 	private _alertCompletionItem(item: CompletionItem): void {
 		if (isNonEmptyArray(item.completion.additionalTextEdits)) {
-			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
+			const msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
 			alert(msg);
 		}
 	}
@@ -539,7 +539,7 @@ export class SuggestController implements IEditorContribution {
 
 		Event.once(this.model.onDidTrigger)(_ => {
 			// wait for trigger because only then the cancel-event is trustworthy
-			let listener: IDisposable[] = [];
+			const listener: IDisposable[] = [];
 
 			Event.any<any>(this.model.onDidTrigger, this.model.onDidCancel)(() => {
 				// retrigger or cancel -> try to type default text

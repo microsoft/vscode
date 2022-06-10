@@ -19,6 +19,7 @@ import * as platform from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import type { EventEmitter } from 'events';
 import * as electron from 'electron';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 declare namespace UtilityProcessProposedApi {
 	interface UtilityProcessOptions {
@@ -48,7 +49,8 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
+		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
 	) {
 		this._extHosts = new Map<string, ExtensionHostProcess | UtilityExtensionHostProcess>();
 
@@ -105,7 +107,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 			if (!canUseUtilityProcess) {
 				throw new Error(`Cannot use UtilityProcess!`);
 			}
-			extHost = new UtilityExtensionHostProcess(id, this._logService);
+			extHost = new UtilityExtensionHostProcess(id, this._logService, this._windowsMainService);
 		} else {
 			extHost = new ExtensionHostProcess(id, this._logService);
 		}
@@ -300,12 +302,19 @@ class UtilityExtensionHostProcess extends Disposable {
 	constructor(
 		public readonly id: string,
 		@ILogService private readonly _logService: ILogService,
+		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
 	) {
 		super();
 	}
 
 	start(opts: IExtensionHostProcessOptions): void {
-		const responseWindow = electron.BrowserWindow.fromId(opts.responseWindowId);
+		const codeWindow = this._windowsMainService.getWindowById(opts.responseWindowId);
+		if (!codeWindow) {
+			this._logService.info(`Refusing to create new Extension Host UtilityProcess because requesting window cannot be found...`);
+			return;
+		}
+
+		const responseWindow = codeWindow.win;
 		if (!responseWindow || responseWindow.isDestroyed() || responseWindow.webContents.isDestroyed()) {
 			this._logService.info(`Refusing to create new Extension Host UtilityProcess because requesting window cannot be found...`);
 			return;

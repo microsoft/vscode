@@ -37,7 +37,7 @@ export class TerminalMainContribution implements IWorkbenchContribution {
 				singlePerResource: true
 			},
 			({ resource, options }) => {
-				let instance = terminalService.getInstanceFromResource(resource);
+				const instance = terminalService.getInstanceFromResource(resource);
 				if (instance) {
 					const sourceGroup = terminalGroupService.getGroupForInstance(instance);
 					if (sourceGroup) {

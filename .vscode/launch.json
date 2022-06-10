@@ -16,11 +16,7 @@
 			"request": "attach",
 			"restart": true,
 			"name": "Attach to Extension Host",
-			// set to a large number: if there is an issue we're debugging that keeps
-			// the extension host from coming up, or the renderer is paused/crashes
-			// before it happens, developers will get an annoying alert, e.g. #126826.
-			// This can be set to 0 in 1.59.
-			"timeout": 999999999,
+			"timeout": 0,
 			"port": 5870,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js",
@@ -244,6 +240,7 @@
 			"runtimeArgs": [
 				"--inspect=5875",
 				"--no-cached-data",
+				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
 				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
 			],

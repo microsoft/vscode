@@ -21,13 +21,14 @@ perf.mark('code/server/codeLoaded');
 
 const errorReporter: ErrorReporter = {
 	onMultipleValues: (id: string, usedValue: string) => {
-		console.error(`Option ${id} can only be defined once. Using value ${usedValue}.`);
+		console.error(`Option '${id}' can only be defined once. Using value ${usedValue}.`);
 	},
-
+	onEmptyValue: (id) => {
+		console.error(`Ignoring option '${id}': Value must not be empty.`);
+	},
 	onUnknownOption: (id: string) => {
-		console.error(`Ignoring option ${id}: not supported for server.`);
+		console.error(`Ignoring option '${id}': not supported for server.`);
 	},
-
 	onDeprecatedOption: (deprecatedOption: string, message) => {
 		console.warn(`Option '${deprecatedOption}' is deprecated: ${message}`);
 	}

@@ -24,7 +24,7 @@ export interface IComputedStyles {
 
 export function computeStyles(theme: IColorTheme, styleMap: IColorMapping): IComputedStyles {
 	const styles = Object.create(null) as IComputedStyles;
-	for (let key in styleMap) {
+	for (const key in styleMap) {
 		const value = styleMap[key];
 		if (value) {
 			styles[key] = resolveColorValue(value, theme);

@@ -121,7 +121,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _keybindingLabelFor(actionId: string): string {
-		let kb = this._keybindingService.lookupKeybinding(actionId);
+		const kb = this._keybindingService.lookupKeybinding(actionId);
 		if (!kb) {
 			return '';
 		}
@@ -187,7 +187,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _applyTheme(theme: IColorTheme) {
-		let inputStyles = {
+		const inputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
 			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground)

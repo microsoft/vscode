@@ -70,7 +70,7 @@ export class Askpass implements IIPCHandler {
 			};
 		}
 
-		let env: { [key: string]: string } = {
+		const env: { [key: string]: string } = {
 			...this.ipc.getEnv(),
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
 			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',

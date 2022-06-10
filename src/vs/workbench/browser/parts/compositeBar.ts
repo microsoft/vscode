@@ -507,7 +507,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Ensure we are not showing more composites than we have height for
 		let maxVisible = compositesToShow.length;
-		let totalComposites = compositesToShow.length;
+		const totalComposites = compositesToShow.length;
 		let size = 0;
 		const limit = this.options.orientation === ActionsOrientation.VERTICAL ? this.dimension.height : this.dimension.width;
 

@@ -122,10 +122,10 @@ export class WorkbenchLanguageService extends LanguageService {
 		this._extensionService = extensionService;
 
 		languagesExtPoint.setHandler((extensions: readonly IExtensionPointUser<IRawLanguageExtensionPoint[]>[]) => {
-			let allValidLanguages: ILanguageExtensionPoint[] = [];
+			const allValidLanguages: ILanguageExtensionPoint[] = [];
 
 			for (let i = 0, len = extensions.length; i < len; i++) {
-				let extension = extensions[i];
+				const extension = extensions[i];
 
 				if (!Array.isArray(extension.value)) {
 					extension.collector.error(localize('invalid', "Invalid `contributes.{0}`. Expected an array.", languagesExtPoint.name));
@@ -133,7 +133,7 @@ export class WorkbenchLanguageService extends LanguageService {
 				}
 
 				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
-					let ext = extension.value[j];
+					const ext = extension.value[j];
 					if (isValidLanguageExtensionPoint(ext, extension.description, extension.collector)) {
 						let configuration: URI | undefined = undefined;
 						if (ext.configuration) {

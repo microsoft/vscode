@@ -507,7 +507,7 @@ abstract class AbstractInstallExtensionTask extends AbstractExtensionTask<ILocal
 	}
 
 	private async extract({ zipPath, key, metadata }: InstallableExtension, token: CancellationToken): Promise<ILocalExtension> {
-		let local = await this.extensionsScanner.extractUserExtension(key, zipPath, metadata, token);
+		const local = await this.extensionsScanner.extractUserExtension(key, zipPath, metadata, token);
 		this.logService.info('Extracting completed.', key.id);
 		return local;
 	}

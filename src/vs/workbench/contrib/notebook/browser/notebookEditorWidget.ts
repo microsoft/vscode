@@ -86,7 +86,6 @@ import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 const $ = DOM.$;
 
@@ -361,7 +360,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
-		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded ?? false;
@@ -1168,14 +1166,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._backgroundMarkdownRendering();
 	}
 
-	private _isScheduled = false;
+	private _backgroundMarkdownRenderRunning = false;
 	private _backgroundMarkdownRendering() {
-		if (this._isScheduled) {
+		if (this._backgroundMarkdownRenderRunning) {
 			return;
 		}
 
+		this._backgroundMarkdownRenderRunning = true;
 		runWhenIdle((deadline) => {
-			this._isScheduled = false;
 			this._backgroundMarkdownRenderingWithDeadline(deadline);
 		});
 	}
@@ -1184,6 +1182,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const endTime = Date.now() + deadline.timeRemaining();
 
 		const execute = () => {
+			this._backgroundMarkdownRenderRunning = false;
 			if (this._isDisposed) {
 				return;
 			}
@@ -1197,6 +1196,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
+			this._backgroundMarkdownRenderRunning = true;
 			this.createMarkupPreview(firstMarkupCell);
 
 			if (Date.now() < endTime) {
@@ -1459,11 +1459,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 			hasPendingChangeContentHeight = true;
 
-			DOM.scheduleAtNextAnimationFrame(() => {
+			this._localStore.add(DOM.scheduleAtNextAnimationFrame(() => {
 				hasPendingChangeContentHeight = false;
 				this._updateScrollHeight();
 				this._onDidChangeContentHeight.fire(this._list.getScrollHeight());
-			}, 100);
+			}, 100));
 		}));
 
 		this._localStore.add(this._list.onDidRemoveOutputs(outputs => {
@@ -1514,6 +1514,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 				dispose(deletedCells);
 			});
+
+			if (e.splices.some(s => s[2].some(cell => cell.cellKind === CellKind.Markup))) {
+				this._backgroundMarkdownRendering();
+			}
 		}));
 
 		if (this._dimension) {
@@ -1842,12 +1846,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.left = `${this._shadowElementViewInfo.left - (elementContainerRect?.left || 0)}px`;
 		this._overlayContainer.style.width = `${dimension ? dimension.width : this._shadowElementViewInfo.width}px`;
 		this._overlayContainer.style.height = `${dimension ? dimension.height : this._shadowElementViewInfo.height}px`;
-
-		const rootContainer = this.workbenchLayoutService.getContainer(Parts.EDITOR_PART);
-		if (rootContainer) {
-			const clip = DOM.computeClippingRect(this._overlayContainer, rootContainer);
-			this._overlayContainer.style.clip = `rect(${clip.top}px, ${clip.right}px, ${clip.bottom}px, ${clip.left}px)`;
-		}
 	}
 
 	//#endregion
@@ -2242,9 +2240,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._pendingLayouts?.get(cell)!.dispose();
 		}
 
-		let deferred = new DeferredPromise<void>();
+		const deferred = new DeferredPromise<void>();
 		const doLayout = () => {
 			if (this._isDisposed) {
+				return;
+			}
+
+			if (!this.viewModel?.hasCell(cell)) {
+				// Cell removed in the meantime?
 				return;
 			}
 
@@ -2431,7 +2434,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		const outputs = viewCell.outputsViewModels;
-		for (let output of outputs) {
+		for (const output of outputs) {
 			const [mimeTypes, pick] = output.resolveMimeTypes(this.textModel!, undefined);
 			if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
 				continue;

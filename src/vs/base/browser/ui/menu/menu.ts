@@ -159,7 +159,7 @@ export class Menu extends ActionBar {
 		}
 
 		this._register(addDisposableListener(this.domNode, EventType.MOUSE_OUT, e => {
-			let relatedTarget = e.relatedTarget as HTMLElement;
+			const relatedTarget = e.relatedTarget as HTMLElement;
 			if (!isAncestor(relatedTarget, this.domNode)) {
 				this.focusedItem = undefined;
 				this.updateFocus();
@@ -210,7 +210,7 @@ export class Menu extends ActionBar {
 		}));
 
 
-		let parentData: ISubMenuData = {
+		const parentData: ISubMenuData = {
 			parent: this
 		};
 
@@ -341,7 +341,7 @@ export class Menu extends ActionBar {
 
 	private setFocusedItem(element: HTMLElement): void {
 		for (let i = 0; i < this.actionsList.children.length; i++) {
-			let elem = this.actionsList.children[i];
+			const elem = this.actionsList.children[i];
 			if (element === elem) {
 				this.focusedItem = i;
 				break;
@@ -446,9 +446,9 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 
 		// Set mnemonic
 		if (this.options.label && options.enableMnemonics) {
-			let label = this.getAction().label;
+			const label = this.getAction().label;
 			if (label) {
-				let matches = MENU_MNEMONIC_REGEX.exec(label);
+				const matches = MENU_MNEMONIC_REGEX.exec(label);
 				if (matches) {
 					this.mnemonic = (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase();
 				}
@@ -765,7 +765,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 
 		this._register(addDisposableListener(this.element, EventType.KEY_UP, e => {
-			let event = new StandardKeyboardEvent(e);
+			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
 				EventHelper.stop(e, true);
 
@@ -774,7 +774,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
-			let event = new StandardKeyboardEvent(e);
+			const event = new StandardKeyboardEvent(e);
 
 			if (getActiveElement() === this.item) {
 				if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
@@ -914,7 +914,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.submenuContainer.style.top = `${top - viewBox.top}px`;
 
 			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
-				let event = new StandardKeyboardEvent(e);
+				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
 
@@ -925,7 +925,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			}));
 
 			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_DOWN, e => {
-				let event = new StandardKeyboardEvent(e);
+				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
 				}

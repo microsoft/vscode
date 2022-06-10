@@ -26,7 +26,7 @@ import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
 import { OutputChannelLogger } from './log';
 import { createIPCServer, IIPCServer } from './ipc/ipcServer';
-import { GitEditor } from './gitEditor/gitEditor';
+import { GitEditor } from './gitEditor';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -103,7 +103,7 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 			lines.pop();
 		}
 
-		outputChannelLogger.logGitCommand(lines.join('\n'));
+		outputChannelLogger.log(lines.join('\n'));
 	};
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));

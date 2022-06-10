@@ -286,7 +286,7 @@ export async function main(argv: string[]): Promise<any> {
 									return;
 								}
 								let suffix = '';
-								let result = await session.stop();
+								const result = await session.stop();
 								if (!process.env['VSCODE_DEV']) {
 									// when running from a not-development-build we remove
 									// absolute filenames because we don't want to reveal anything

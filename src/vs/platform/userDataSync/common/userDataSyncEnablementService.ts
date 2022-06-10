@@ -13,7 +13,8 @@ import { ALL_SYNC_RESOURCES, getEnablementKey, IUserDataSyncEnablementService, I
 
 type SyncEnablementClassification = {
 	owner: 'sandy081';
-	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	comment: 'Reporting when Settings Sync is turned on or off';
+	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if settings sync is enabled or not' };
 };
 
 const enablementKey = 'sync.enable';

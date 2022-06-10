@@ -38,8 +38,9 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 
 type FileExtensionSuggestionClassification = {
 	owner: 'sandy081';
-	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	fileExtension: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	comment: 'Response information when a file based reccommendation is suggested';
+	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'User reaction after showing the recommendation prompt. Eg., install, cancel, show, neverShowAgain' };
+	fileExtension: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Extension of the file for which an extension is being recommended.' };
 };
 
 const promptedRecommendationsStorageKey = 'fileBasedRecommendations/promptedRecommendations';
@@ -209,7 +210,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				}
 				return false;
 			});
-		let languageName: string | null = importantRecommendations.length ? this.languageService.getLanguageName(language) : null;
+		const languageName: string | null = importantRecommendations.length ? this.languageService.getLanguageName(language) : null;
 
 		const fileBasedRecommendations: string[] = [...importantRecommendations];
 		for (let [pattern, extensionIds] of this.fileBasedRecommendationsByPattern) {

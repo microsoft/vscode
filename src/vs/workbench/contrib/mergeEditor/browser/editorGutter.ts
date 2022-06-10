@@ -11,7 +11,7 @@ import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
 
 export class EditorGutter<
 	T extends IGutterItemInfo = IGutterItemInfo
-	> extends Disposable {
+> extends Disposable {
 	private readonly scrollTop = observableFromEvent(
 		this._editor.onDidScrollChange,
 		(e) => this._editor.getScrollTop()
@@ -94,9 +94,11 @@ export class EditorGutter<
 					scrollTop +
 					lineHeight;
 
-				const bottom =
-					this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive) -
-					scrollTop;
+				const bottom = (
+					gutterItem.range.endLineNumberExclusive <= this._editor.getModel()!.getLineCount()
+						? this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive)
+						: this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive - 1) + lineHeight
+				) - scrollTop;
 
 				const height = bottom - top;
 

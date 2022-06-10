@@ -60,7 +60,7 @@ suite('ExtHostCommands', function () {
 		assert.strictEqual(unregisterCounter, 1);
 	});
 
-	test('execute with retry', async function () {
+	test('execute triggers activate', async function () {
 
 		let count = 0;
 
@@ -68,16 +68,13 @@ suite('ExtHostCommands', function () {
 			override $registerCommand(id: string): void {
 				//
 			}
-			override async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
-				count++;
-				assert.strictEqual(retry, count === 1);
-				if (count === 1) {
-					assert.strictEqual(retry, true);
-					throw new Error('$executeCommand:retry');
-				} else {
-					assert.strictEqual(retry, false);
-					return <any>17;
-				}
+
+			override async $activateByCommandEvent(id: string): Promise<void> {
+				count += 1;
+			}
+
+			override async $executeCommand<T>(id: string, args: any[]): Promise<T | undefined> {
+				return undefined;
 			}
 		};
 
@@ -86,8 +83,7 @@ suite('ExtHostCommands', function () {
 			new NullLogService()
 		);
 
-		const result = await commands.executeCommand('fooo', [this, true]);
-		assert.strictEqual(result, 17);
-		assert.strictEqual(count, 2);
+		await commands.executeCommand('fooo', [this, true]);
+		assert.strictEqual(count, 1);
 	});
 });

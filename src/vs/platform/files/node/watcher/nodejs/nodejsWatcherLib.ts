@@ -123,7 +123,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 		const cts = new CancellationTokenSource(this.cts.token);
 
-		let disposables = new DisposableStore();
+		const disposables = new DisposableStore();
 
 		try {
 			const pathBasename = basename(path);

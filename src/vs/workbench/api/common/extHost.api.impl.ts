@@ -457,9 +457,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeActionProvider(extension, checkSelector(selector), provider, metadata);
 			},
-			registerDocumentPasteEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentPasteEditProvider): vscode.Disposable {
+			registerDocumentPasteEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentPasteEditProvider, metadata: vscode.DocumentPasteProviderMetadata): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'documentPaste');
-				return extHostLanguageFeatures.registerDocumentPasteEditProvider(extension, checkSelector(selector), provider);
+				return extHostLanguageFeatures.registerDocumentPasteEditProvider(extension, checkSelector(selector), provider, metadata);
 			},
 			registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeLensProvider(extension, checkSelector(selector), provider);
@@ -934,6 +934,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) => {
 				checkProposedApiEnabled(extension, 'notebookContentProvider');
+
+				extHostApiDeprecation.report('workspace.registerNotebookContentProvider', extension,
+					`The notebookContentProvider API is not on track for finalization and will be removed.`);
+
 				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options, isProposedApiEnabled(extension, 'notebookLiveShare') ? registration : undefined);
 			},
 			onDidChangeConfiguration: (listener: (_: any) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
@@ -1263,7 +1267,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SignatureHelpTriggerKind: extHostTypes.SignatureHelpTriggerKind,
 			SignatureInformation: extHostTypes.SignatureInformation,
 			SnippetString: extHostTypes.SnippetString,
-			SnippetTextEdit: extHostTypes.SnippetTextEdit,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StandardTokenType: extHostTypes.StandardTokenType,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
@@ -1326,6 +1329,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
 			DataTransfer: extHostTypes.DataTransfer,
 			DataTransferItem: extHostTypes.DataTransferItem,
+			DataTransferItemKind: extHostTypes.DataTransferItemKind,
 			CoveredCount: extHostTypes.CoveredCount,
 			FileCoverage: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,

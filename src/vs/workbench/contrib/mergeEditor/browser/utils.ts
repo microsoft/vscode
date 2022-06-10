@@ -14,6 +14,20 @@ import { IDisposable } from 'xterm';
 export class ReentrancyBarrier {
 	private isActive = false;
 
+	public makeExclusive<TFunction extends Function>(fn: TFunction): TFunction {
+		return ((...args: any[]) => {
+			if (this.isActive) {
+				return;
+			}
+			this.isActive = true;
+			try {
+				return fn(...args);
+			} finally {
+				this.isActive = false;
+			}
+		}) as any;
+	}
+
 	public runExclusively(fn: () => void): void {
 		if (this.isActive) {
 			return;
@@ -40,7 +54,7 @@ export class ReentrancyBarrier {
 }
 
 export function n<TTag extends string>(tag: TTag): never;
-export function n<TTag extends string, T extends any[]>(
+export function n<TTag extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
 	children: T
 ): (ArrayToObj<T> & Record<'root', TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
@@ -48,7 +62,7 @@ export function n<TTag extends string, TId extends string>(
 	tag: TTag,
 	attributes: { $: TId }
 ): Record<TId, TagToElement<TTag>>;
-export function n<TTag extends string, TId extends string, T extends any[]>(
+export function n<TTag extends string, TId extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
 	attributes: { $: TId },
 	children: T
@@ -77,14 +91,14 @@ export function n(tag: string, ...args: [] | [attributes: { $: string } | Record
 		for (const c of children) {
 			if (c instanceof HTMLElement) {
 				el.appendChild(c);
+			} else if (typeof c === 'string') {
+				el.append(c);
 			} else {
 				Object.assign(result, c);
 				el.appendChild(c.root);
 			}
 		}
 	}
-
-	result['root'] = el;
 
 	for (const [key, value] of Object.entries(attributes)) {
 		if (key === '$') {
@@ -93,6 +107,8 @@ export function n(tag: string, ...args: [] | [attributes: { $: string } | Record
 		}
 		el.setAttribute(key, value);
 	}
+
+	result['root'] = el;
 
 	return result;
 }

@@ -48,10 +48,10 @@ class BulkEdit {
 
 	ariaMessage(): string {
 
-		let otherResources = new ResourceMap<boolean>();
-		let textEditResources = new ResourceMap<boolean>();
+		const otherResources = new ResourceMap<boolean>();
+		const textEditResources = new ResourceMap<boolean>();
 		let textEditCount = 0;
-		for (let edit of this._edits) {
+		for (const edit of this._edits) {
 			if (edit instanceof ResourceTextEdit) {
 				textEditCount += 1;
 				textEditResources.set(edit.resource, true);
@@ -95,7 +95,7 @@ class BulkEdit {
 
 		const resources: (readonly URI[])[] = [];
 		let index = 0;
-		for (let range of ranges) {
+		for (const range of ranges) {
 			if (this._token.isCancellationRequested) {
 				break;
 			}
@@ -177,7 +177,7 @@ export class BulkEditService implements IBulkEditService {
 		let codeEditor = options?.editor;
 		// try to find code editor
 		if (!codeEditor) {
-			let candidate = this._editorService.activeTextEditorControl;
+			const candidate = this._editorService.activeTextEditorControl;
 			if (isCodeEditor(candidate)) {
 				codeEditor = candidate;
 			}
@@ -194,7 +194,7 @@ export class BulkEditService implements IBulkEditService {
 		let undoRedoGroup: UndoRedoGroup | undefined;
 		let undoRedoGroupRemove = () => { };
 		if (typeof options?.undoRedoGroupId === 'number') {
-			for (let candidate of this._activeUndoRedoGroups) {
+			for (const candidate of this._activeUndoRedoGroups) {
 				if (candidate.id === options.undoRedoGroupId) {
 					undoRedoGroup = candidate;
 					break;

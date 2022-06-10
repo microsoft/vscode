@@ -938,6 +938,11 @@ declare namespace monaco.editor {
 	export function setModelMarkers(model: ITextModel, owner: string, markers: IMarkerData[]): void;
 
 	/**
+	 * Remove all markers of an owner.
+	 */
+	export function removeAllMarkers(owner: string): void;
+
+	/**
 	 * Get markers for owner and/or resource
 	 *
 	 * @returns list of markers
@@ -6757,11 +6762,6 @@ declare namespace monaco.languages {
 		text: string;
 		eol?: editor.EndOfLineSequence;
 	};
-
-	export interface SnippetTextEdit {
-		range: IRange;
-		snippet: string;
-	}
 
 	/**
 	 * Interface used to format a model

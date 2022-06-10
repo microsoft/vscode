@@ -139,7 +139,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			let protocol: PersistentProtocol | null = null;
 
-			let timer = setTimeout(() => {
+			const timer = setTimeout(() => {
 				onTerminate('VSCODE_EXTHOST_IPC_SOCKET timeout');
 			}, 60000);
 
@@ -197,9 +197,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			// Now that we have managed to install a message listener, ask the other side to send us the socket
 			const req: IExtHostReadyMessage = { type: 'VSCODE_EXTHOST_IPC_READY' };
-			if (process.send) {
-				process.send(req);
-			}
+			process.send?.(req);
 		});
 
 	} else {
@@ -210,7 +208,9 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
-				resolve(new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer')));
+				const protocol = new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer'));
+				protocol.sendResume();
+				resolve(protocol);
 			});
 			socket.once('error', reject);
 

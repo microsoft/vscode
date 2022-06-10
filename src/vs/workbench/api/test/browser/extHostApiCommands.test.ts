@@ -24,7 +24,6 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import type * as vscode from 'vscode';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import 'vs/workbench/contrib/search/browser/search.contribution';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
@@ -94,7 +93,6 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		setUnexpectedErrorHandler(() => { });
 
 		// Use IInstantiationService to get typechecking when instantiating
-		let insta: IInstantiationService;
 		rpcProtocol = new TestRPCProtocol();
 		const services = new ServiceCollection();
 		services.set(ILanguageFeaturesService, new SyncDescriptor(LanguageFeaturesService));
@@ -137,7 +135,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		services.set(ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService));
 		services.set(IOutlineModelService, new SyncDescriptor(OutlineModelService));
 
-		insta = new InstantiationService(services);
+		const insta = new InstantiationService(services);
 
 		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
@@ -183,7 +181,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	// --- workspace symbols
 
 	test('WorkspaceSymbols, invalid arguments', function () {
-		let promises = [
+		const promises = [
 			assertRejects(() => commands.executeCommand('vscode.executeWorkspaceSymbolProvider')),
 			assertRejects(() => commands.executeCommand('vscode.executeWorkspaceSymbolProvider', null)),
 			assertRejects(() => commands.executeCommand('vscode.executeWorkspaceSymbolProvider', undefined)),
@@ -215,7 +213,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
 
 				assert.strictEqual(value.length, 2); // de-duped
-				for (let info of value) {
+				for (const info of value) {
 					assert.strictEqual(info instanceof types.SymbolInformation, true);
 					assert.strictEqual(info.name, 'testing');
 					assert.strictEqual(info.kind, types.SymbolKind.Array);
@@ -251,7 +249,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let edits = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeFormatDocumentProvider', model.uri);
+		const edits = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeFormatDocumentProvider', model.uri);
 		assert.strictEqual(edits.length, 1);
 	});
 
@@ -310,7 +308,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	// --- definition
 
 	test('Definition, invalid arguments', function () {
-		let promises = [
+		const promises = [
 			assertRejects(() => commands.executeCommand('vscode.executeDefinitionProvider')),
 			assertRejects(() => commands.executeCommand('vscode.executeDefinitionProvider', null)),
 			assertRejects(() => commands.executeCommand('vscode.executeDefinitionProvider', undefined)),
@@ -346,7 +344,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Location[]>('vscode.executeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
 				assert.strictEqual(values.length, 4);
-				for (let v of values) {
+				for (const v of values) {
 					assert.ok(v.uri instanceof URI);
 					assert.ok(v.range instanceof types.Range);
 				}
@@ -403,7 +401,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
 				assert.strictEqual(values.length, 2);
-				for (let v of values) {
+				for (const v of values) {
 					if (isLocation(v)) {
 						assert.ok(v.uri instanceof URI);
 						assert.ok(v.range instanceof types.Range);
@@ -446,7 +444,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Location[]>('vscode.executeDeclarationProvider', model.uri, new types.Position(0, 0)).then(values => {
 				assert.strictEqual(values.length, 4);
-				for (let v of values) {
+				for (const v of values) {
 					assert.ok(v.uri instanceof URI);
 					assert.ok(v.range instanceof types.Range);
 				}
@@ -467,7 +465,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeDeclarationProvider', model.uri, new types.Position(0, 0)).then(values => {
 				assert.strictEqual(values.length, 2);
-				for (let v of values) {
+				for (const v of values) {
 					if (isLocation(v)) {
 						assert.ok(v.uri instanceof URI);
 						assert.ok(v.range instanceof types.Range);
@@ -542,7 +540,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeTypeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
 				assert.strictEqual(values.length, 2);
-				for (let v of values) {
+				for (const v of values) {
 					if (isLocation(v)) {
 						assert.ok(v.uri instanceof URI);
 						assert.ok(v.range instanceof types.Range);
@@ -617,7 +615,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeImplementationProvider', model.uri, new types.Position(0, 0)).then(values => {
 				assert.strictEqual(values.length, 2);
-				for (let v of values) {
+				for (const v of values) {
 					if (isLocation(v)) {
 						assert.ok(v.uri instanceof URI);
 						assert.ok(v.range instanceof types.Range);
@@ -646,7 +644,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		return commands.executeCommand<vscode.Location[]>('vscode.executeReferenceProvider', model.uri, new types.Position(0, 0)).then(values => {
 			assert.strictEqual(values.length, 1);
-			let [first] = values;
+			const [first] = values;
 			assert.strictEqual(first.uri.toString(), 'some:uri/path');
 			assert.strictEqual(first.range.start.line, 0);
 			assert.strictEqual(first.range.start.character, 1);
@@ -670,7 +668,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.strictEqual(values.length, 2);
-				let [first, second] = values;
+				const [first, second] = values;
 				assert.strictEqual(first instanceof types.SymbolInformation, true);
 				assert.strictEqual(second instanceof types.SymbolInformation, true);
 				assert.strictEqual(first.name, 'testing2');
@@ -689,7 +687,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 		disposables.push(extHost.registerDocumentSymbolProvider(nullExtensionDescription, defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols(): any {
-				let root = new types.DocumentSymbol('DocumentSymbol', 'DocumentSymbol#detail', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0));
+				const root = new types.DocumentSymbol('DocumentSymbol', 'DocumentSymbol#detail', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0));
 				root.children = [new types.DocumentSymbol('DocumentSymbol#child', 'DocumentSymbol#detail#child', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0))];
 				return [root];
 			}
@@ -698,7 +696,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.strictEqual(values.length, 2);
-				let [first, second] = values;
+				const [first, second] = values;
 				assert.strictEqual(first instanceof types.SymbolInformation, true);
 				assert.strictEqual(first instanceof types.DocumentSymbol, false);
 				assert.strictEqual(second instanceof types.SymbolInformation, true);
@@ -714,14 +712,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('Suggest, back and forth', function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
-				let a = new types.CompletionItem('item1');
-				let b = new types.CompletionItem('item2');
+				const a = new types.CompletionItem('item1');
+				const b = new types.CompletionItem('item2');
 				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); // overwite after
-				let c = new types.CompletionItem('item3');
+				const c = new types.CompletionItem('item3');
 				c.textEdit = types.TextEdit.replace(new types.Range(0, 1, 0, 6), 'foobar'); // overwite before & after
 
 				// snippet string!
-				let d = new types.CompletionItem('item4');
+				const d = new types.CompletionItem('item4');
 				d.range = new types.Range(0, 1, 0, 4);// overwite before
 				d.insertText = new types.SnippetString('foo$0bar');
 				return [a, b, c, d];
@@ -732,10 +730,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
 
 				assert.ok(list instanceof types.CompletionList);
-				let values = list.items;
+				const values = list.items;
 				assert.ok(Array.isArray(values));
 				assert.strictEqual(values.length, 4);
-				let [first, second, third, fourth] = values;
+				const [first, second, third, fourth] = values;
 				assert.strictEqual(first.label, 'item1');
 				assert.strictEqual(first.textEdit, undefined);// no text edit, default ranges
 				assert.ok(!types.Range.isRange(first.range));
@@ -772,8 +770,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('Suggest, return CompletionList !array', function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
-				let a = new types.CompletionItem('item1');
-				let b = new types.CompletionItem('item2');
+				const a = new types.CompletionItem('item1');
+				const b = new types.CompletionItem('item2');
 				return new types.CompletionList(<any>[a, b], true);
 			}
 		}, []));
@@ -792,10 +790,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
-				let a = new types.CompletionItem('item1');
-				let b = new types.CompletionItem('item2');
-				let c = new types.CompletionItem('item3');
-				let d = new types.CompletionItem('item4');
+				const a = new types.CompletionItem('item1');
+				const b = new types.CompletionItem('item2');
+				const c = new types.CompletionItem('item3');
+				const d = new types.CompletionItem('item4');
 				return new types.CompletionList([a, b, c, d], false);
 			},
 			resolveCompletionItem(item) {
@@ -806,7 +804,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		await rpcProtocol.sync();
 
-		let list = await commands.executeCommand<vscode.CompletionList>(
+		const list = await commands.executeCommand<vscode.CompletionList>(
 			'vscode.executeCompletionItemProvider',
 			model.uri,
 			new types.Position(0, 4),
@@ -822,19 +820,19 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('"vscode.executeCompletionItemProvider" doesnot return a preselect field #53749', async function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
-				let a = new types.CompletionItem('item1');
+				const a = new types.CompletionItem('item1');
 				a.preselect = true;
-				let b = new types.CompletionItem('item2');
-				let c = new types.CompletionItem('item3');
+				const b = new types.CompletionItem('item2');
+				const c = new types.CompletionItem('item3');
 				c.preselect = true;
-				let d = new types.CompletionItem('item4');
+				const d = new types.CompletionItem('item4');
 				return new types.CompletionList([a, b, c, d], false);
 			}
 		}, []));
 
 		await rpcProtocol.sync();
 
-		let list = await commands.executeCommand<vscode.CompletionList>(
+		const list = await commands.executeCommand<vscode.CompletionList>(
 			'vscode.executeCompletionItemProvider',
 			model.uri,
 			new types.Position(0, 4),
@@ -844,7 +842,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.ok(list instanceof types.CompletionList);
 		assert.strictEqual(list.items.length, 4);
 
-		let [a, b, c, d] = list.items;
+		const [a, b, c, d] = list.items;
 		assert.strictEqual(a.preselect, true);
 		assert.strictEqual(b.preselect, undefined);
 		assert.strictEqual(c.preselect, true);
@@ -854,16 +852,16 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('executeCompletionItemProvider doesn\'t capture commitCharacters #58228', async function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
-				let a = new types.CompletionItem('item1');
+				const a = new types.CompletionItem('item1');
 				a.commitCharacters = ['a', 'b'];
-				let b = new types.CompletionItem('item2');
+				const b = new types.CompletionItem('item2');
 				return new types.CompletionList([a, b], false);
 			}
 		}, []));
 
 		await rpcProtocol.sync();
 
-		let list = await commands.executeCommand<vscode.CompletionList>(
+		const list = await commands.executeCommand<vscode.CompletionList>(
 			'vscode.executeCompletionItemProvider',
 			model.uri,
 			new types.Position(0, 4),
@@ -873,7 +871,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.ok(list instanceof types.CompletionList);
 		assert.strictEqual(list.items.length, 2);
 
-		let [a, b] = list.items;
+		const [a, b] = list.items;
 		assert.deepStrictEqual(a.commitCharacters, ['a', 'b']);
 		assert.strictEqual(b.commitCharacters, undefined);
 	});
@@ -890,7 +888,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		await rpcProtocol.sync();
 
-		let list = await commands.executeCommand<vscode.CompletionList>(
+		const list = await commands.executeCommand<vscode.CompletionList>(
 			'vscode.executeCompletionItemProvider',
 			model.uri,
 			new types.Position(0, 4),
@@ -946,7 +944,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Command[]>('vscode.executeCodeActionProvider', model.uri, new types.Range(0, 0, 1, 1)).then(value => {
 				assert.strictEqual(value.length, 1);
-				let [first] = value;
+				const [first] = value;
 				assert.strictEqual(first.title, 'Title');
 				assert.strictEqual(first.command, 'testing');
 				assert.deepStrictEqual(first.arguments, [1, 2, true]);
@@ -1145,7 +1143,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri).then(value => {
 				assert.strictEqual(value.length, 1);
-				let [first] = value;
+				const [first] = value;
 
 				assert.strictEqual(first.target + '', 'foo:bar');
 				assert.strictEqual(first.range.start.line, 0);
@@ -1197,7 +1195,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.ColorInformation[]>('vscode.executeDocumentColorProvider', model.uri).then(value => {
 				assert.strictEqual(value.length, 1);
-				let [first] = value;
+				const [first] = value;
 
 				assert.strictEqual(first.color.red, 0.1);
 				assert.strictEqual(first.color.green, 0.2);
@@ -1213,7 +1211,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			const range = new types.Range(0, 0, 0, 20);
 			return commands.executeCommand<vscode.ColorPresentation[]>('vscode.executeColorPresentationProvider', color, { uri: model.uri, range }).then(value => {
 				assert.strictEqual(value.length, 1);
-				let [first] = value;
+				const [first] = value;
 
 				assert.strictEqual(first.label, '#ABC');
 				assert.strictEqual(first.textEdit!.newText, '#ABC');
@@ -1350,7 +1348,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		const value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
 		assert.strictEqual(value.length, 1);
 		assert.ok(value[0].parent);
 	});
@@ -1466,7 +1464,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		const value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
 		assert.strictEqual(value.length, 1);
 		assert.strictEqual(value[0].range.start.line, 0);
 		assert.strictEqual(value[0].range.start.character, 10);
@@ -1487,7 +1485,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await commands.executeCommand<vscode.SelectionRange[]>(
+		const value = await commands.executeCommand<vscode.SelectionRange[]>(
 			'vscode.executeSelectionRangeProvider',
 			model.uri,
 			[new types.Position(0, 0), new types.Position(0, 10)]

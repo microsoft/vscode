@@ -471,7 +471,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// first ask the window itself if it vetos the unload
 		const windowUnloadReason = this._quitRequested ? UnloadReason.QUIT : reason;
-		let veto = await this.onBeforeUnloadWindowInRenderer(window, windowUnloadReason);
+		const veto = await this.onBeforeUnloadWindowInRenderer(window, windowUnloadReason);
 		if (veto) {
 			this.logService.trace(`Lifecycle#unload() - veto in renderer (window ID ${window.id})`);
 

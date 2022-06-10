@@ -206,6 +206,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _userHome?: string;
 	private _hasScrollBar?: boolean;
 	private _target?: TerminalLocation | undefined;
+	private _disableShellIntegrationReporting: boolean | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -220,7 +221,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._target = value;
 	}
-
+	get disableShellIntegrationReporting(): boolean {
+		if (this._disableShellIntegrationReporting === undefined) {
+			this._disableShellIntegrationReporting = this.shellLaunchConfig.isFeatureTerminal || this.shellLaunchConfig.hideFromUser || this.shellLaunchConfig.executable === undefined;
+		}
+		return this._disableShellIntegrationReporting;
+	}
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI { return this._resource; }
 	get cols(): number {
@@ -379,7 +385,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
-		this._icon = _shellLaunchConfig.attachPersistentProcess?.icon || _shellLaunchConfig.icon;
 
 		// the resource is already set when it's been moved from another window
 		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
@@ -425,10 +430,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
 		// disabled in remote because this needs to be sync and the OS may differ on the remote
 		// which would result in the wrong profile being selected and the wrong icon being
-		// permanently attached to the terminal.
+		// permanently attached to the terminal. This also doesn't work when the default profile
+		// setting is set to null, that's handled after the process is created.
 		if (!this.shellLaunchConfig.executable && !workbenchEnvironmentService.remoteAuthority) {
 			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig, OS);
 		}
+		this._icon = _shellLaunchConfig.attachPersistentProcess?.icon || _shellLaunchConfig.icon;
 
 		// When a custom pty is used set the name immediately so it gets passed over to the exthost
 		// and is available when Pseudoterminal.open fires.
@@ -459,13 +466,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.shellLaunchConfig.args = defaultProfile.args;
 				this.shellLaunchConfig.icon = defaultProfile.icon;
 				this.shellLaunchConfig.color = defaultProfile.color;
-				this.shellLaunchConfig.env = defaultProfile.env;
 			}
 
 			await this._createProcess();
 
 			// Re-establish the title after reconnect
 			if (this.shellLaunchConfig.attachPersistentProcess) {
+				this._cwd = this.shellLaunchConfig.attachPersistentProcess.cwd;
 				this.refreshTabLabels(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
 				this.setShellType(this.shellType);
 			}
@@ -657,8 +664,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
 		}
 
-		const disableShellIntegrationTelemetry = this.shellLaunchConfig.isFeatureTerminal || this.shellLaunchConfig.hideFromUser || this.shellLaunchConfig.executable === undefined;
-		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, disableShellIntegrationTelemetry);
+		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, this.disableShellIntegrationReporting);
 		this.xterm = xterm;
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
@@ -1144,6 +1150,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	resetFocusContextKey(): void {
+		this._terminalFocusContextKey.reset();
+	}
+
 	private _initDragAndDrop(container: HTMLElement) {
 		this._dndObserver?.dispose();
 		const dndController = this._instantiationService.createInstance(TerminalInstanceDragAndDropController, container);
@@ -1337,7 +1347,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		let currentText: string = await this._clipboardService.readText();
+		const currentText: string = await this._clipboardService.readText();
 		if (!await this._shouldPasteText(currentText)) {
 			return;
 		}
@@ -1351,7 +1361,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		let currentText: string = await this._clipboardService.readText('selection');
+		const currentText: string = await this._clipboardService.readText('selection');
 		if (!await this._shouldPasteText(currentText)) {
 			return;
 		}
@@ -1544,8 +1554,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.xterm?.raw.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
 		}
 
-		const hadIcon = !!this.shellLaunchConfig.icon;
-
+		const originalIcon = this.shellLaunchConfig.icon;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
 				this._onProcessExit(error, error.code === ShellIntegrationExitCode);
@@ -1554,7 +1563,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.xterm?.shellIntegration) {
 			this.capabilities.add(this.xterm?.shellIntegration.capabilities);
 		}
-		if (!hadIcon && this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
+		if (originalIcon !== this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
+			this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;
 			this._onIconChanged.fire(this);
 		}
 	}
@@ -2103,7 +2113,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
 		if (isWindows) {
 			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
-				let line = this.xterm.raw.buffer.active.getLine(i);
+				const line = this.xterm.raw.buffer.active.getLine(i);
 				(line as any)._line.isWrapped = false;
 			}
 		}
@@ -2554,7 +2564,7 @@ export class TerminalLabelComputer extends Disposable {
 		}
 
 		//Remove special characters that could mess with rendering
-		let label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null }).replace(/[\n\r\t]/g, '').trim();
+		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null }).replace(/[\n\r\t]/g, '').trim();
 		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
 	}
 

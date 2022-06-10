@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'path';
 import { TabInputText, Uri, window, workspace } from 'vscode';
-import { IIPCHandler, IIPCServer } from '../ipc/ipcServer';
-import { EmptyDisposable, IDisposable } from '../util';
+import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
+import { EmptyDisposable, IDisposable } from './util';
 
 interface GitEditorRequest {
 	commitMessagePath?: string;
@@ -40,22 +40,23 @@ export class GitEditor implements IIPCHandler {
 
 	getEnv(): { [key: string]: string } {
 		if (!this.ipc) {
-			const fileType = process.platform === 'win32' ? 'bat' : 'sh';
-			const gitEditor = path.join(__dirname, `scripts/git-editor-empty.${fileType}`);
-
 			return {
-				GIT_EDITOR: `'${gitEditor}'`
+				GIT_EDITOR: `"${path.join(__dirname, 'git-editor-empty.sh')}"`
 			};
 		}
 
-		const fileType = process.platform === 'win32' ? 'bat' : 'sh';
-		const gitEditor = path.join(__dirname, `scripts/git-editor.${fileType}`);
-
-		return {
-			GIT_EDITOR: `'${gitEditor}'`,
+		const env: { [key: string]: string } = {
 			VSCODE_GIT_EDITOR_NODE: process.execPath,
-			VSCODE_GIT_EDITOR_MAIN: path.join(__dirname, 'main.js')
+			VSCODE_GIT_EDITOR_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
+			VSCODE_GIT_EDITOR_MAIN: path.join(__dirname, 'git-editor-main.js')
 		};
+
+		const config = workspace.getConfiguration('git');
+		if (config.get<boolean>('useEditorAsCommitInput')) {
+			env.GIT_EDITOR = `"${path.join(__dirname, 'git-editor.sh')}"`;
+		}
+
+		return env;
 	}
 
 	dispose(): void {

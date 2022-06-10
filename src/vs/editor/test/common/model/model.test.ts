@@ -327,7 +327,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('issue #46342: Maintain edit operation order in applyEdits', () => {
-		let res = thisModel.applyEdits([
+		const res = thisModel.applyEdits([
 			{ range: new Range(2, 1, 2, 1), text: 'a' },
 			{ range: new Range(1, 1, 1, 1), text: 'b' },
 		], true);
@@ -366,7 +366,7 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	test('Bug 13333:Model should line break on lonely CR too', () => {
-		let model = createTextModel('Hello\rWorld!\r\nAnother line');
+		const model = createTextModel('Hello\rWorld!\r\nAnother line');
 		assert.strictEqual(model.getLineCount(), 3);
 		assert.strictEqual(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();

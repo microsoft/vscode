@@ -10,25 +10,25 @@ import { ColorMap, ExternalThemeTrieElement, ParsedTokenThemeRule, ThemeTrieElem
 suite('Token theme matching', () => {
 
 	test('gives higher priority to deeper matches', () => {
-		let theme = TokenTheme.createFromRawTokenTheme([
+		const theme = TokenTheme.createFromRawTokenTheme([
 			{ token: '', foreground: '100000', background: '200000' },
 			{ token: 'punctuation.definition.string.begin.html', foreground: '300000' },
 			{ token: 'punctuation.definition.string', foreground: '400000' },
 		], []);
 
-		let colorMap = new ColorMap();
+		const colorMap = new ColorMap();
 		colorMap.getId('100000');
 		const _B = colorMap.getId('200000');
 		colorMap.getId('400000');
 		const _D = colorMap.getId('300000');
 
-		let actual = theme._match('punctuation.definition.string.begin.html');
+		const actual = theme._match('punctuation.definition.string.begin.html');
 
 		assert.deepStrictEqual(actual, new ThemeTrieElementRule(FontStyle.None, _D, _B));
 	});
 
 	test('can match', () => {
-		let theme = TokenTheme.createFromRawTokenTheme([
+		const theme = TokenTheme.createFromRawTokenTheme([
 			{ token: '', foreground: 'F8F8F2', background: '272822' },
 			{ token: 'source', background: '100000' },
 			{ token: 'something', background: '100000' },
@@ -44,7 +44,7 @@ suite('Token theme matching', () => {
 			{ token: 'storage.object.bar', fontStyle: '', foreground: '600000' },
 		], []);
 
-		let colorMap = new ColorMap();
+		const colorMap = new ColorMap();
 		const _A = colorMap.getId('F8F8F2');
 		const _B = colorMap.getId('272822');
 		const _C = colorMap.getId('200000');
@@ -55,7 +55,7 @@ suite('Token theme matching', () => {
 		const _H = colorMap.getId('600000');
 
 		function assertMatch(scopeName: string, expected: ThemeTrieElementRule): void {
-			let actual = theme._match(scopeName);
+			const actual = theme._match(scopeName);
 			assert.deepStrictEqual(actual, expected, 'when matching <<' + scopeName + '>>');
 		}
 
@@ -129,7 +129,7 @@ suite('Token theme parsing', () => {
 
 	test('can parse', () => {
 
-		let actual = parseTokenTheme([
+		const actual = parseTokenTheme([
 			{ token: '', foreground: 'F8F8F2', background: '272822' },
 			{ token: 'source', background: '100000' },
 			{ token: 'something', background: '100000' },
@@ -143,7 +143,7 @@ suite('Token theme parsing', () => {
 			{ token: 'constant.numeric.dec', fontStyle: '', foreground: '0000ff' },
 		]);
 
-		let expected = [
+		const expected = [
 			new ParsedTokenThemeRule('', 0, FontStyle.NotSet, 'F8F8F2', '272822'),
 			new ParsedTokenThemeRule('source', 1, FontStyle.NotSet, null, '100000'),
 			new ParsedTokenThemeRule('something', 2, FontStyle.NotSet, null, '100000'),
@@ -164,15 +164,15 @@ suite('Token theme parsing', () => {
 suite('Token theme resolving', () => {
 
 	test('strcmp works', () => {
-		let actual = ['bar', 'z', 'zu', 'a', 'ab', ''].sort(strcmp);
+		const actual = ['bar', 'z', 'zu', 'a', 'ab', ''].sort(strcmp);
 
-		let expected = ['', 'a', 'ab', 'bar', 'z', 'zu'];
+		const expected = ['', 'a', 'ab', 'bar', 'z', 'zu'];
 		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('always has defaults', () => {
-		let actual = TokenTheme.createFromParsedTokenTheme([], []);
-		let colorMap = new ColorMap();
+		const actual = TokenTheme.createFromParsedTokenTheme([], []);
+		const colorMap = new ColorMap();
 		const _A = colorMap.getId('000000');
 		const _B = colorMap.getId('ffffff');
 		assert.deepStrictEqual(actual.getColorMap(), colorMap.getColorMap());
@@ -180,10 +180,10 @@ suite('Token theme resolving', () => {
 	});
 
 	test('respects incoming defaults 1', () => {
-		let actual = TokenTheme.createFromParsedTokenTheme([
+		const actual = TokenTheme.createFromParsedTokenTheme([
 			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, null, null)
 		], []);
-		let colorMap = new ColorMap();
+		const colorMap = new ColorMap();
 		const _A = colorMap.getId('000000');
 		const _B = colorMap.getId('ffffff');
 		assert.deepStrictEqual(actual.getColorMap(), colorMap.getColorMap());
@@ -191,10 +191,10 @@ suite('Token theme resolving', () => {
 	});
 
 	test('respects incoming defaults 2', () => {
-		let actual = TokenTheme.createFromParsedTokenTheme([
+		const actual = TokenTheme.createFromParsedTokenTheme([
 			new ParsedTokenThemeRule('', -1, FontStyle.None, null, null)
 		], []);
-		let colorMap = new ColorMap();
+		const colorMap = new ColorMap();
 		const _A = colorMap.getId('000000');
 		const _B = colorMap.getId('ffffff');
 		assert.deepStrictEqual(actual.getColorMap(), colorMap.getColorMap());
@@ -202,10 +202,10 @@ suite('Token theme resolving', () => {
 	});
 
 	test('respects incoming defaults 3', () => {
-		let actual = TokenTheme.createFromParsedTokenTheme([
+		const actual = TokenTheme.createFromParsedTokenTheme([
 			new ParsedTokenThemeRule('', -1, FontStyle.Bold, null, null)
 		], []);
-		let colorMap = new ColorMap();
+		const colorMap = new ColorMap();
 		const _A = colorMap.getId('000000');
 		const _B = colorMap.getId('ffffff');
 		assert.deepStrictEqual(actual.getColorMap(), colorMap.getColorMap());
@@ -213,10 +213,10 @@ suite('Token theme resolving', () => {
 	});
 
 	test('respects incoming defaults 4', () => {
-		let actual = TokenTheme.createFromParsedTokenTheme([
+		const actual = TokenTheme.createFromParsedTokenTheme([
 			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, 'ff0000', null)
 		], []);
-		let colorMap = new ColorMap();
+		const colorMap = new ColorMap();
 		const _A = colorMap.getId('ff0000');
 		const _B = colorMap.getId('ffffff');
 		assert.deepStrictEqual(actual.getColorMap(), colorMap.getColorMap());
@@ -224,10 +224,10 @@ suite('Token theme resolving', () => {
 	});
 
 	test('respects incoming defaults 5', () => {
-		let actual = TokenTheme.createFromParsedTokenTheme([
+		const actual = TokenTheme.createFromParsedTokenTheme([
 			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, null, 'ff0000')
 		], []);
-		let colorMap = new ColorMap();
+		const colorMap = new ColorMap();
 		const _A = colorMap.getId('000000');
 		const _B = colorMap.getId('ff0000');
 		assert.deepStrictEqual(actual.getColorMap(), colorMap.getColorMap());
@@ -235,12 +235,12 @@ suite('Token theme resolving', () => {
 	});
 
 	test('can merge incoming defaults', () => {
-		let actual = TokenTheme.createFromParsedTokenTheme([
+		const actual = TokenTheme.createFromParsedTokenTheme([
 			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, null, 'ff0000'),
 			new ParsedTokenThemeRule('', -1, FontStyle.NotSet, '00ff00', null),
 			new ParsedTokenThemeRule('', -1, FontStyle.Bold, null, null),
 		], []);
-		let colorMap = new ColorMap();
+		const colorMap = new ColorMap();
 		const _A = colorMap.getId('00ff00');
 		const _B = colorMap.getId('ff0000');
 		assert.deepStrictEqual(actual.getColorMap(), colorMap.getColorMap());
@@ -336,12 +336,12 @@ suite('Token theme resolving', () => {
 	});
 
 	test('custom colors are first in color map', () => {
-		let actual = TokenTheme.createFromParsedTokenTheme([
+		const actual = TokenTheme.createFromParsedTokenTheme([
 			new ParsedTokenThemeRule('var', -1, FontStyle.NotSet, 'F8F8F2', null)
 		], [
 			'000000', 'FFFFFF', '0F0F0F'
 		]);
-		let colorMap = new ColorMap();
+		const colorMap = new ColorMap();
 		colorMap.getId('000000');
 		colorMap.getId('FFFFFF');
 		colorMap.getId('0F0F0F');
