@@ -227,9 +227,6 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return;
 		}
-		if (this.extension.isBuiltin) {
-			return;
-		}
 		if (!this.extension.hasPreReleaseVersion) {
 			return;
 		}
