@@ -75,12 +75,12 @@ class StandaloneTheme implements IStandaloneTheme {
 	private getColors(): Map<string, Color> {
 		if (!this.colors) {
 			const colors = new Map<string, Color>();
-			for (let id in this.themeData.colors) {
+			for (const id in this.themeData.colors) {
 				colors.set(id, Color.fromHex(this.themeData.colors[id]));
 			}
 			if (this.themeData.inherit) {
 				const baseData = getBuiltinRules(this.themeData.base);
-				for (let id in baseData.colors) {
+				for (const id in baseData.colors) {
 					if (!colors.has(id)) {
 						colors.set(id, Color.fromHex(baseData.colors[id]));
 					}

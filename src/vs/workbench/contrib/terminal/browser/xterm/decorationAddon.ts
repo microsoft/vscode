@@ -117,12 +117,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this.clearDecorations();
 	}
 
+	private _clearPlaceholder(): void {
+		this._placeholderDecoration?.dispose();
+		this._placeholderDecoration = undefined;
+	}
+
 	public clearDecorations(): void {
-		if (this._placeholderDecoration) {
-			this._placeholderDecoration.marker.dispose();
-			this._placeholderDecoration.dispose();
-			this._placeholderDecoration = undefined;
-		}
+		this._placeholderDecoration?.marker.dispose();
+		this._clearPlaceholder();
 		for (const value of this._decorations.values()) {
 			value.decoration.dispose();
 			dispose(value.disposables);
@@ -183,10 +185,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 		}));
 		// Current command invalidated
-		this._commandDetectionListeners.push(capability.onCurrentCommandInvalidated(() => {
-			this._placeholderDecoration?.dispose();
-			this._placeholderDecoration = undefined;
-		}));
+		this._commandDetectionListeners.push(capability.onCurrentCommandInvalidated(() => this._clearPlaceholder()));
 	}
 
 	activate(terminal: Terminal): void {
@@ -202,7 +201,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
 
-		this._placeholderDecoration?.dispose();
+		this._clearPlaceholder();
 		let color = command.exitCode === undefined ? defaultColor : command.exitCode ? errorColor : successColor;
 		if (color && typeof color !== 'string') {
 			color = color.toString();
@@ -223,7 +222,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 			if (beforeCommandExecution && !this._placeholderDecoration) {
 				this._placeholderDecoration = decoration;
-				this._placeholderDecoration.onDispose(() => this._placeholderDecoration = undefined);
 			} else if (!this._decorations.get(decoration.marker.id)) {
 				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
 				this._decorations.set(decoration.marker.id,

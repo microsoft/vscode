@@ -76,7 +76,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
 		const files: IRecentFile[] = [];
 
-		for (let recent of recentToAdd) {
+		for (const recent of recentToAdd) {
 
 			// Workspace
 			if (isRecentWorkspace(recent)) {
@@ -179,7 +179,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		// Add currently files to open to the beginning if any
 		const currentFiles = include?.config?.filesToOpenOrCreate;
 		if (currentFiles) {
-			for (let currentFile of currentFiles) {
+			for (const currentFile of currentFiles) {
 				const fileUri = currentFile.fileUri;
 				if (fileUri && this.indexOfFile(files, fileUri) === -1) {
 					files.push({ fileUri });
@@ -195,9 +195,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private async addEntriesFromStorage(workspaces: Array<IRecentFolder | IRecentWorkspace>, files: IRecentFile[]): Promise<void> {
 
 		// Get from storage
-		let recents = await this.getRecentlyOpenedFromStorage();
-		for (let recent of recents.workspaces) {
-			let index = isRecentFolder(recent) ? this.indexOfFolder(workspaces, recent.folderUri) : this.indexOfWorkspace(workspaces, recent.workspace);
+		const recents = await this.getRecentlyOpenedFromStorage();
+		for (const recent of recents.workspaces) {
+			const index = isRecentFolder(recent) ? this.indexOfFolder(workspaces, recent.folderUri) : this.indexOfWorkspace(workspaces, recent.workspace);
 			if (index >= 0) {
 				workspaces[index].label = workspaces[index].label || recent.label;
 			} else {
@@ -205,8 +205,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			}
 		}
 
-		for (let recent of recents.files) {
-			let index = this.indexOfFile(files, recent.fileUri);
+		for (const recent of recents.files) {
+			const index = this.indexOfFile(files, recent.fileUri);
 			if (index >= 0) {
 				files[index].label = files[index].label || recent.label;
 			} else {
@@ -325,8 +325,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
 			// by the user! See https://github.com/microsoft/vscode/issues/15052
-			let toRemove: URI[] = [];
-			for (let item of app.getJumpListSettings().removedItems) {
+			const toRemove: URI[] = [];
+			for (const item of app.getJumpListSettings().removedItems) {
 				const args = item.args;
 				if (args) {
 					const match = /^--(folder|file)-uri\s+"([^"]+)"$/.exec(args);

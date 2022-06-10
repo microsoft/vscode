@@ -30,6 +30,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -42,7 +43,7 @@ import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { autorun, derivedObservable, IObservable, ITransaction, keepAlive, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { autorun, autorunWithStore, derivedObservable, IObservable, ITransaction, keepAlive, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
 import { LineRange, ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
@@ -61,8 +62,8 @@ export class MergeEditor extends EditorPane {
 
 	private _grid!: Grid<IView>;
 
-	private readonly input1View = this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: true });
-	private readonly input2View = this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: true });
+	private readonly input1View = this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable });
+	private readonly input2View = this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable });
 	private readonly inputResultView = this.instantiation.createInstance(ResultCodeEditorView, { readonly: false });
 
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
@@ -70,6 +71,10 @@ export class MergeEditor extends EditorPane {
 
 	private _model: MergeEditorModel | undefined;
 	public get model(): MergeEditorModel | undefined { return this._model; }
+
+	private get inputsWritable(): boolean {
+		return !!this._configurationService.getValue<boolean>('mergeEditor.writableInputs');
+	}
 
 	constructor(
 		@IInstantiationService private readonly instantiation: IInstantiationService,
@@ -80,6 +85,7 @@ export class MergeEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(MergeEditor.ID, telemetryService, themeService, storageService);
 
@@ -94,7 +100,7 @@ export class MergeEditor extends EditorPane {
 				return undefined;
 			}
 			const resultDiffs = model.resultDiffs.read(reader);
-			const modifiedBaseRanges = ModifiedBaseRange.fromDiffs(model.base, model.input1, model.input1LinesDiffs, model.result, resultDiffs);
+			const modifiedBaseRanges = ModifiedBaseRange.fromDiffs(model.base, model.input1, model.input1LinesDiffs.read(reader), model.result, resultDiffs);
 			return modifiedBaseRanges;
 		});
 		const input2ResultMapping = derivedObservable('input2ResultMapping', reader => {
@@ -103,7 +109,7 @@ export class MergeEditor extends EditorPane {
 				return undefined;
 			}
 			const resultDiffs = model.resultDiffs.read(reader);
-			const modifiedBaseRanges = ModifiedBaseRange.fromDiffs(model.base, model.input2, model.input2LinesDiffs, model.result, resultDiffs);
+			const modifiedBaseRanges = ModifiedBaseRange.fromDiffs(model.base, model.input2, model.input2LinesDiffs.read(reader), model.result, resultDiffs);
 			return modifiedBaseRanges;
 		});
 
@@ -228,42 +234,44 @@ export class MergeEditor extends EditorPane {
 
 		// TODO: Update editor options!
 
-		const input1ViewZoneIds: string[] = [];
-		const input2ViewZoneIds: string[] = [];
-		for (const m of model.modifiedBaseRanges) {
-			const max = Math.max(m.input1Range.lineCount, m.input2Range.lineCount, 1);
+		this._sessionDisposables.add(autorunWithStore((reader, store) => {
+			const input1ViewZoneIds: string[] = [];
+			const input2ViewZoneIds: string[] = [];
+			for (const m of model.modifiedBaseRanges.read(reader)) {
+				const max = Math.max(m.input1Range.lineCount, m.input2Range.lineCount, 1);
 
-			this.input1View.editor.changeViewZones(a => {
-				input1ViewZoneIds.push(a.addZone({
-					afterLineNumber: m.input1Range.endLineNumberExclusive - 1,
-					heightInLines: max - m.input1Range.lineCount,
-					domNode: $('div.diagonal-fill'),
-				}));
-			});
-
-			this.input2View.editor.changeViewZones(a => {
-				input2ViewZoneIds.push(a.addZone({
-					afterLineNumber: m.input2Range.endLineNumberExclusive - 1,
-					heightInLines: max - m.input2Range.lineCount,
-					domNode: $('div.diagonal-fill'),
-				}));
-			});
-		}
-
-		this._sessionDisposables.add({
-			dispose: () => {
 				this.input1View.editor.changeViewZones(a => {
-					for (const zone of input1ViewZoneIds) {
-						a.removeZone(zone);
-					}
+					input1ViewZoneIds.push(a.addZone({
+						afterLineNumber: m.input1Range.endLineNumberExclusive - 1,
+						heightInLines: max - m.input1Range.lineCount,
+						domNode: $('div.diagonal-fill'),
+					}));
 				});
+
 				this.input2View.editor.changeViewZones(a => {
-					for (const zone of input2ViewZoneIds) {
-						a.removeZone(zone);
-					}
+					input2ViewZoneIds.push(a.addZone({
+						afterLineNumber: m.input2Range.endLineNumberExclusive - 1,
+						heightInLines: max - m.input2Range.lineCount,
+						domNode: $('div.diagonal-fill'),
+					}));
 				});
 			}
-		});
+
+			store.add({
+				dispose: () => {
+					this.input1View.editor.changeViewZones(a => {
+						for (const zone of input1ViewZoneIds) {
+							a.removeZone(zone);
+						}
+					});
+					this.input2View.editor.changeViewZones(a => {
+						for (const zone of input2ViewZoneIds) {
+							a.removeZone(zone);
+						}
+					});
+				}
+			});
+		}, 'update alignment view zones'));
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -448,7 +456,7 @@ class InputCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const result = new Array<IModelDeltaDecoration>();
-		for (const m of model.modifiedBaseRanges) {
+		for (const m of model.modifiedBaseRanges.read(reader)) {
 			const range = m.getInputRange(this.inputNumber);
 			if (!range.isEmpty) {
 				result.push({
@@ -478,13 +486,14 @@ class InputCodeEditorView extends CodeEditorView {
 				getIntersectingGutterItems: (range, reader) => {
 					const model = this.model.read(reader);
 					if (!model) { return []; }
-					return model.modifiedBaseRanges
+					return model.modifiedBaseRanges.read(reader)
 						.filter((r) => r.getInputDiffs(this.inputNumber).length > 0)
 						.map<ModifiedBaseRangeGutterItemInfo>((baseRange, idx) => ({
 							id: idx.toString(),
 							additionalHeightInPx: 0,
 							offsetInPx: 0,
 							range: baseRange.getInputRange(this.inputNumber),
+							enabled: model.isUpToDate,
 							toggleState: derivedObservable('toggle', (reader) =>
 								model
 									.getState(baseRange)
@@ -510,13 +519,18 @@ class InputCodeEditorView extends CodeEditorView {
 }
 
 interface ModifiedBaseRangeGutterItemInfo extends IGutterItemInfo {
+	enabled: IObservable<boolean>;
 	toggleState: IObservable<boolean | undefined>;
-	setState(value: boolean, tx: ITransaction | undefined): void;
+	setState(value: boolean, tx: ITransaction): void;
 }
 
 class MergeConflictGutterItemView extends Disposable implements IGutterItemView<ModifiedBaseRangeGutterItemInfo> {
-	constructor(private item: ModifiedBaseRangeGutterItemInfo, private readonly target: HTMLElement) {
+	private readonly item = new ObservableValue<ModifiedBaseRangeGutterItemInfo | undefined>(undefined, 'item');
+
+	constructor(item: ModifiedBaseRangeGutterItemInfo, private readonly target: HTMLElement) {
 		super();
+
+		this.item.set(item, undefined);
 
 		target.classList.add('merge-accept-gutter-marker');
 
@@ -526,7 +540,8 @@ class MergeConflictGutterItemView extends Disposable implements IGutterItemView<
 
 		this._register(
 			autorun((reader) => {
-				const value = this.item.toggleState.read(reader);
+				const item = this.item.read(reader)!;
+				const value = item.toggleState.read(reader);
 				checkBox.setIcon(
 					value === true
 						? Codicon.check
@@ -535,11 +550,19 @@ class MergeConflictGutterItemView extends Disposable implements IGutterItemView<
 							: Codicon.circleFilled
 				);
 				checkBox.checked = value === true;
+
+				if (!item.enabled.read(reader)) {
+					checkBox.disable();
+				} else {
+					checkBox.enable();
+				}
 			}, 'Update Toggle State')
 		);
 
 		this._register(checkBox.onChange(() => {
-			this.item.setState(checkBox.checked, undefined);
+			transaction(tx => {
+				this.item.get()!.setState(checkBox.checked, tx);
+			});
 		}));
 
 		target.appendChild(n('div.background', [noBreakWhitespace]).root);
@@ -555,7 +578,7 @@ class MergeConflictGutterItemView extends Disposable implements IGutterItemView<
 	}
 
 	update(baseRange: ModifiedBaseRangeGutterItemInfo): void {
-		this.item = baseRange;
+		this.item.set(baseRange, undefined);
 	}
 }
 

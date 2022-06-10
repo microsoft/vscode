@@ -15,9 +15,9 @@ suite('vscode API - commands', () => {
 
 	test('getCommands', function (done) {
 
-		let p1 = commands.getCommands().then(commands => {
+		const p1 = commands.getCommands().then(commands => {
 			let hasOneWithUnderscore = false;
-			for (let command of commands) {
+			for (const command of commands) {
 				if (command[0] === '_') {
 					hasOneWithUnderscore = true;
 					break;
@@ -26,9 +26,9 @@ suite('vscode API - commands', () => {
 			assert.ok(hasOneWithUnderscore);
 		}, done);
 
-		let p2 = commands.getCommands(true).then(commands => {
+		const p2 = commands.getCommands(true).then(commands => {
 			let hasOneWithUnderscore = false;
-			for (let command of commands) {
+			for (const command of commands) {
 				if (command[0] === '_') {
 					hasOneWithUnderscore = true;
 					break;
@@ -45,7 +45,7 @@ suite('vscode API - commands', () => {
 	test('command with args', async function () {
 
 		let args: IArguments;
-		let registration = commands.registerCommand('t1', function () {
+		const registration = commands.registerCommand('t1', function () {
 			args = arguments;
 		});
 
@@ -59,7 +59,7 @@ suite('vscode API - commands', () => {
 	test('editorCommand with extra args', function () {
 
 		let args: IArguments;
-		let registration = commands.registerTextEditorCommand('t1', function () {
+		const registration = commands.registerTextEditorCommand('t1', function () {
 			args = arguments;
 		});
 
@@ -79,36 +79,36 @@ suite('vscode API - commands', () => {
 
 	test('api-command: vscode.diff', function () {
 
-		let registration = workspace.registerTextDocumentContentProvider('sc', {
+		const registration = workspace.registerTextDocumentContentProvider('sc', {
 			provideTextDocumentContent(uri) {
 				return `content of URI <b>${uri.toString()}</b>#${Math.random()}`;
 			}
 		});
 
 
-		let a = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'DIFF').then(value => {
+		const a = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'DIFF').then(value => {
 			assert.ok(value === undefined);
 			registration.dispose();
 		});
 
-		let b = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b')).then(value => {
+		const b = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b')).then(value => {
 			assert.ok(value === undefined);
 			registration.dispose();
 		});
 
-		let c = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'Title', { selection: new Range(new Position(1, 1), new Position(1, 2)) }).then(value => {
+		const c = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'Title', { selection: new Range(new Position(1, 1), new Position(1, 2)) }).then(value => {
 			assert.ok(value === undefined);
 			registration.dispose();
 		});
 
-		let d = commands.executeCommand('vscode.diff').then(() => assert.ok(false), () => assert.ok(true));
-		let e = commands.executeCommand('vscode.diff', 1, 2, 3).then(() => assert.ok(false), () => assert.ok(true));
+		const d = commands.executeCommand('vscode.diff').then(() => assert.ok(false), () => assert.ok(true));
+		const e = commands.executeCommand('vscode.diff', 1, 2, 3).then(() => assert.ok(false), () => assert.ok(true));
 
 		return Promise.all([a, b, c, d, e]);
 	});
 
 	test('api-command: vscode.open', async function () {
-		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/far.js');
+		const uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/far.js');
 
 		await commands.executeCommand('vscode.open', uri);
 		assert.strictEqual(window.activeTextEditor?.viewColumn, ViewColumn.One);
@@ -151,7 +151,7 @@ suite('vscode API - commands', () => {
 	});
 
 	test('api-command: vscode.open with untitled supports associated resource (#138925)', async function () {
-		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/untitled-file.txt').with({ scheme: 'untitled' });
+		const uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/untitled-file.txt').with({ scheme: 'untitled' });
 		await commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
 
 		// untitled with associated resource are dirty from the beginning

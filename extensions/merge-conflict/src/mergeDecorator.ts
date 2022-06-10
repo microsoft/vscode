@@ -137,7 +137,7 @@ export default class MergeDecorator implements vscode.Disposable {
 
 	private generateBlockRenderOptions(backgroundColor: string, overviewRulerColor: string, config: interfaces.IExtensionConfiguration): vscode.DecorationRenderOptions {
 
-		let renderOptions: vscode.DecorationRenderOptions = {};
+		const renderOptions: vscode.DecorationRenderOptions = {};
 
 		if (config.enableDecorations) {
 			renderOptions.backgroundColor = new vscode.ThemeColor(backgroundColor);
@@ -176,7 +176,7 @@ export default class MergeDecorator implements vscode.Disposable {
 		try {
 			this.updating.set(editor, true);
 
-			let conflicts = await this.tracker.getConflicts(editor.document);
+			const conflicts = await this.tracker.getConflicts(editor.document);
 			if (vscode.window.visibleTextEditors.indexOf(editor) === -1) {
 				return;
 			}
@@ -188,9 +188,9 @@ export default class MergeDecorator implements vscode.Disposable {
 
 			// Store decorations keyed by the type of decoration, set decoration wants a "style"
 			// to go with it, which will match this key (see constructor);
-			let matchDecorations: { [key: string]: vscode.Range[] } = {};
+			const matchDecorations: { [key: string]: vscode.Range[] } = {};
 
-			let pushDecoration = (key: string, d: vscode.Range) => {
+			const pushDecoration = (key: string, d: vscode.Range) => {
 				matchDecorations[key] = matchDecorations[key] || [];
 				matchDecorations[key].push(d);
 			};
@@ -224,7 +224,7 @@ export default class MergeDecorator implements vscode.Disposable {
 			// For each match we've generated, apply the generated decoration with the matching decoration type to the
 			// editor instance. Keys in both matches and decorations should match.
 			Object.keys(matchDecorations).forEach(decorationKey => {
-				let decorationType = this.decorations[decorationKey];
+				const decorationType = this.decorations[decorationKey];
 
 				if (decorationType) {
 					editor.setDecorations(decorationType, matchDecorations[decorationKey]);
@@ -242,7 +242,7 @@ export default class MergeDecorator implements vscode.Disposable {
 
 			// Race condition, while editing the settings, it's possible to
 			// generate regions before the configuration has been refreshed
-			let decorationType = this.decorations[decorationKey];
+			const decorationType = this.decorations[decorationKey];
 
 			if (decorationType) {
 				editor.setDecorations(decorationType, []);

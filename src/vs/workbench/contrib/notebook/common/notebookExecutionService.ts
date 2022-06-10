@@ -15,6 +15,7 @@ export enum CellExecutionUpdateType {
 
 export interface ICellExecuteOutputEdit {
 	editType: CellExecutionUpdateType.Output;
+	cellHandle: number;
 	append?: boolean;
 	outputs: IOutputDto[];
 }

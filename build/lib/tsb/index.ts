@@ -139,7 +139,7 @@ export function create(
 
 	result.src = (opts?: { cwd?: string; base?: string }) => {
 		let _pos = 0;
-		let _fileNames = cmdLine.fileNames.slice(0);
+		const _fileNames = cmdLine.fileNames.slice(0);
 		return new class extends Readable {
 			constructor() {
 				super({ objectMode: true });

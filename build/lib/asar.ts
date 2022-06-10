@@ -98,7 +98,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 		}
 	}, function () {
 
-		let finish = () => {
+		const finish = () => {
 			{
 				const headerPickle = pickle.createEmpty();
 				headerPickle.writeString(JSON.stringify(filesystem.header));

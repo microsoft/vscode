@@ -55,7 +55,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 
 		const results: boolean[] = [];
 		try {
-			for (let listener of [...this._callbacks]) { // copy to prevent concurrent modifications
+			for (const listener of [...this._callbacks]) { // copy to prevent concurrent modifications
 				if (didTimeout) {
 					// timeout - no more listeners
 					break;

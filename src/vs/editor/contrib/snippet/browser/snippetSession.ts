@@ -99,7 +99,7 @@ export class OneSnippet {
 
 		// Transform placeholder text if necessary
 		if (this._placeholderGroupsIdx >= 0) {
-			let operations: ISingleEditOperation[] = [];
+			const operations: ISingleEditOperation[] = [];
 
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
 				// Check if the placeholder has a transformation
@@ -389,7 +389,7 @@ export class SnippetSession {
 				} else {
 					// check if text start is after a linebreak
 					snippetTextString = snippetTextString ?? snippet.toString();
-					let prevChar = snippetTextString.charCodeAt(offset - 1);
+					const prevChar = snippetTextString.charCodeAt(offset - 1);
 					if (prevChar === CharCode.LineFeed || prevChar === CharCode.CarriageReturn) {
 						lines[0] = model.normalizeIndentation(lineLeadingWhitespace + lines[0]);
 					}
@@ -450,12 +450,12 @@ export class SnippetSession {
 		// know what text the overwrite[Before|After] extensions
 		// of the primary curser have selected because only when
 		// secondary selections extend to the same text we can grow them
-		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), overwriteBefore, 0));
-		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), 0, overwriteAfter));
+		const firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), overwriteBefore, 0));
+		const firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), 0, overwriteAfter));
 
 		// remember the first non-whitespace column to decide if
 		// `keepWhitespace` should be overruled for secondary selections
-		let firstLineFirstNonWhitespace = model.getLineFirstNonWhitespaceColumn(editor.getSelection().positionLineNumber);
+		const firstLineFirstNonWhitespace = model.getLineFirstNonWhitespaceColumn(editor.getSelection().positionLineNumber);
 
 		// sort selections by their start position but remeber
 		// the original index. that allows you to create correct
@@ -661,7 +661,7 @@ export class SnippetSession {
 			return false;
 		}
 
-		let allPossibleSelections = new Map<number, Range[]>();
+		const allPossibleSelections = new Map<number, Range[]>();
 		for (const snippet of this._snippets) {
 
 			const possibleSelections = snippet.computePossibleSelections();
@@ -699,7 +699,7 @@ export class SnippetSession {
 		// selection
 		selections.sort(Range.compareRangesUsingStarts);
 
-		for (let [index, ranges] of allPossibleSelections) {
+		for (const [index, ranges] of allPossibleSelections) {
 			if (ranges.length !== selections.length) {
 				allPossibleSelections.delete(index);
 				continue;

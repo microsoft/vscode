@@ -293,7 +293,7 @@ export class TestingExplorerView extends ViewPane {
 			profileActions.shift();
 		}
 
-		let postActions: IAction[] = [];
+		const postActions: IAction[] = [];
 		if (profileActions.length > 1) {
 			postActions.push(new Action(
 				'selectDefaultTestConfigurations',

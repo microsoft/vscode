@@ -149,13 +149,13 @@ suite('StorageMainService', function () {
 		const workspace = { id: generateUuid() };
 		const storageMainService = createStorageService(lifecycleMainService);
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
 		let didCloseWorkspaceStorage = false;
 		workspaceStorage.onDidCloseStorage(() => {
 			didCloseWorkspaceStorage = true;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
+		const globalStorage = storageMainService.globalStorage;
 		let didCloseGlobalStorage = false;
 		globalStorage.onDidCloseStorage(() => {
 			didCloseGlobalStorage = true;
@@ -171,7 +171,7 @@ suite('StorageMainService', function () {
 		strictEqual(didCloseGlobalStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
 
-		let storage2 = storageMainService.workspaceStorage(workspace);
+		const storage2 = storageMainService.workspaceStorage(workspace);
 		notStrictEqual(workspaceStorage, storage2);
 
 		return storage2.close();
@@ -181,13 +181,13 @@ suite('StorageMainService', function () {
 		const storageMainService = createStorageService();
 		const workspace = { id: generateUuid() };
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
 		let didCloseWorkspaceStorage = false;
 		workspaceStorage.onDidCloseStorage(() => {
 			didCloseWorkspaceStorage = true;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
+		const globalStorage = storageMainService.globalStorage;
 		let didCloseGlobalStorage = false;
 		globalStorage.onDidCloseStorage(() => {
 			didCloseGlobalStorage = true;
@@ -204,13 +204,13 @@ suite('StorageMainService', function () {
 		const storageMainService = createStorageService();
 		const workspace = { id: generateUuid() };
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
 		let didCloseWorkspaceStorage = false;
 		workspaceStorage.onDidCloseStorage(() => {
 			didCloseWorkspaceStorage = true;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
+		const globalStorage = storageMainService.globalStorage;
 		let didCloseGlobalStorage = false;
 		globalStorage.onDidCloseStorage(() => {
 			didCloseGlobalStorage = true;

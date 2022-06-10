@@ -112,9 +112,9 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 			return undefined;
 		}
 		try {
-			let data = JSON.parse(input);
+			const data = JSON.parse(input);
 			const theme = new ProductIconThemeData('', '', '');
-			for (let key in data) {
+			for (const key in data) {
 				switch (key) {
 					case 'id':
 					case 'label':
@@ -159,7 +159,7 @@ interface ProductIconThemeDocument {
 function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderService, location: URI, warnings: string[]): Promise<ProductIconThemeDocument> {
 	return fileService.readExtensionResource(location).then((content) => {
 		const parseErrors: Json.ParseError[] = [];
-		let contentValue = Json.parse(content, parseErrors);
+		const contentValue = Json.parse(content, parseErrors);
 		if (parseErrors.length > 0) {
 			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing product icons file: {0}", parseErrors.map(e => getParseErrorMessage(e.error)).join(', '))));
 		} else if (Json.getNodeType(contentValue) !== 'object') {

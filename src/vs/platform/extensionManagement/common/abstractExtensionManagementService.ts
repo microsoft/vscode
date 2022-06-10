@@ -139,7 +139,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions & ServerInstallVSIXOptions): Promise<ILocalExtension> {
 		// only cache gallery extensions tasks
 		if (!URI.isUri(extension)) {
-			let installExtensionTask = this.installingExtensions.get(ExtensionKey.create(extension).toString());
+			const installExtensionTask = this.installingExtensions.get(ExtensionKey.create(extension).toString());
 			if (installExtensionTask) {
 				this.logService.info('Extensions is already requested to install', extension.identifier.id);
 				const { local, metadata } = await installExtensionTask.waitUntilTaskIsFinished();

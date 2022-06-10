@@ -490,7 +490,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (!this.hasWorkspace) {
 			return Promise.resolve(false);
 		}
-		let disabledExtensions = this._getWorkspaceDisabledExtensions();
+		const disabledExtensions = this._getWorkspaceDisabledExtensions();
 		if (disabledExtensions.every(e => !areSameExtensions(e, identifier))) {
 			disabledExtensions.push(identifier);
 			this._setDisabledExtensions(disabledExtensions);
@@ -503,7 +503,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (!this.hasWorkspace) {
 			return false;
 		}
-		let disabledExtensions = this._getWorkspaceDisabledExtensions();
+		const disabledExtensions = this._getWorkspaceDisabledExtensions();
 		for (let index = 0; index < disabledExtensions.length; index++) {
 			const disabledExtension = disabledExtensions[index];
 			if (areSameExtensions(disabledExtension, identifier)) {
@@ -519,7 +519,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (!this.hasWorkspace) {
 			return false;
 		}
-		let enabledExtensions = this._getWorkspaceEnabledExtensions();
+		const enabledExtensions = this._getWorkspaceEnabledExtensions();
 		if (enabledExtensions.every(e => !areSameExtensions(e, identifier))) {
 			enabledExtensions.push(identifier);
 			this._setEnabledExtensions(enabledExtensions);
@@ -532,7 +532,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (!this.hasWorkspace) {
 			return false;
 		}
-		let enabledExtensions = this._getWorkspaceEnabledExtensions();
+		const enabledExtensions = this._getWorkspaceEnabledExtensions();
 		for (let index = 0; index < enabledExtensions.length; index++) {
 			const disabledExtension = enabledExtensions[index];
 			if (areSameExtensions(disabledExtension, identifier)) {

@@ -164,15 +164,15 @@ class MessageWidget {
 
 			for (const related of relatedInformation) {
 
-				let container = document.createElement('div');
+				const container = document.createElement('div');
 
-				let relatedResource = document.createElement('a');
+				const relatedResource = document.createElement('a');
 				relatedResource.classList.add('filename');
 				relatedResource.innerText = `${this._labelService.getUriBasenameLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
 				relatedResource.title = this._labelService.getUriLabel(related.resource);
 				this._relatedDiagnostics.set(relatedResource, related);
 
-				let relatedMessage = document.createElement('span');
+				const relatedMessage = document.createElement('span');
 				relatedMessage.innerText = related.message;
 
 				container.appendChild(relatedResource);
@@ -347,9 +347,9 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._applyTheme(this._themeService.getColorTheme());
 
 		// show
-		let range = Range.lift(marker);
+		const range = Range.lift(marker);
 		const editorPosition = this.editor.getPosition();
-		let position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
+		const position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
 		super.show(position, this.computeRequiredHeight());
 
 		const model = this.editor.getModel();
@@ -397,9 +397,9 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 // theming
 
-let errorDefault = oneOf(editorErrorForeground, editorErrorBorder);
-let warningDefault = oneOf(editorWarningForeground, editorWarningBorder);
-let infoDefault = oneOf(editorInfoForeground, editorInfoBorder);
+const errorDefault = oneOf(editorErrorForeground, editorErrorBorder);
+const warningDefault = oneOf(editorWarningForeground, editorWarningBorder);
+const infoDefault = oneOf(editorInfoForeground, editorInfoBorder);
 
 export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: errorDefault, light: errorDefault, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
 export const editorMarkerNavigationErrorHeader = registerColor('editorMarkerNavigationError.headerBackground', { dark: transparent(editorMarkerNavigationError, .1), light: transparent(editorMarkerNavigationError, .1), hcDark: null, hcLight: null }, nls.localize('editorMarkerNavigationErrorHeaderBackground', 'Editor marker navigation widget error heading background.'));

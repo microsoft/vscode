@@ -126,9 +126,9 @@ namespace IRelaxedOpenArgs {
 			return new MergeEditorInputData(URI.revive(obj), undefined, undefined);
 		}
 
-		let uri = toUri((<IRelaxedInputData>obj).uri);
-		let detail = (<IRelaxedInputData>obj).detail;
-		let description = (<IRelaxedInputData>obj).description;
+		const uri = toUri((<IRelaxedInputData>obj).uri);
+		const detail = (<IRelaxedInputData>obj).detail;
+		const description = (<IRelaxedInputData>obj).description;
 		return new MergeEditorInputData(uri, detail, description);
 	}
 

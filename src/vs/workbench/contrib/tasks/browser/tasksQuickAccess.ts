@@ -24,11 +24,11 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
-		@ITaskService private taskService: ITaskService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@INotificationService private notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService
+		@ITaskService private _taskService: ITaskService,
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@IQuickInputService private _quickInputService: IQuickInputService,
+		@INotificationService private _notificationService: INotificationService,
+		@IDialogService private _dialogService: IDialogService
 	) {
 		super(TasksQuickAccessProvider.PREFIX, {
 			noResultsPick: {
@@ -42,7 +42,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			return [];
 		}
 
-		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService, this.notificationService, this.dialogService);
+		const taskQuickPick = new TaskQuickPick(this._taskService, this._configurationService, this._quickInputService, this._notificationService, this._dialogService);
 		const topLevelPicks = await taskQuickPick.getTopLevelEntries();
 		const taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
@@ -63,14 +63,14 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 				if ((index === 1) && (quickAccessEntry.buttons?.length === 2)) {
 					const key = (task && !isString(task)) ? task.getRecentlyUsedKey() : undefined;
 					if (key) {
-						this.taskService.removeRecentlyUsedTask(key);
+						this._taskService.removeRecentlyUsedTask(key);
 					}
 					return TriggerAction.REFRESH_PICKER;
 				} else {
 					if (ContributedTask.is(task)) {
-						this.taskService.customize(task, undefined, true);
+						this._taskService.customize(task, undefined, true);
 					} else if (CustomTask.is(task)) {
-						this.taskService.openConfig(task);
+						this._taskService.openConfig(task);
 					}
 					return TriggerAction.CLOSE_PICKER;
 				}
@@ -80,10 +80,10 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 					// switch to quick pick and show second level
 					const showResult = await taskQuickPick.show(localize('TaskService.pickRunTask', 'Select the task to run'), undefined, task);
 					if (showResult) {
-						this.taskService.run(showResult, { attachProblemMatcher: true });
+						this._taskService.run(showResult, { attachProblemMatcher: true });
 					}
 				} else {
-					this.taskService.run(await this.toTask(task), { attachProblemMatcher: true });
+					this._taskService.run(await this._toTask(task), { attachProblemMatcher: true });
 				}
 			};
 
@@ -92,11 +92,11 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		return taskPicks;
 	}
 
-	private async toTask(task: Task | ConfiguringTask): Promise<Task | undefined> {
+	private async _toTask(task: Task | ConfiguringTask): Promise<Task | undefined> {
 		if (!ConfiguringTask.is(task)) {
 			return task;
 		}
 
-		return this.taskService.tryResolveTask(task);
+		return this._taskService.tryResolveTask(task);
 	}
 }

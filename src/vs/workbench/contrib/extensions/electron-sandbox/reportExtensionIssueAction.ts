@@ -63,9 +63,9 @@ export class ReportExtensionIssueAction extends Action {
 			baseUrl = this.productService.reportIssueUrl!;
 		}
 
-		let reason = 'Bug';
-		let title = 'Extension issue';
-		let message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
+		const reason = 'Bug';
+		const title = 'Extension issue';
+		const message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
 		this.clipboardService.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 
 		const os = await this.nativeHostService.getOSProperties();

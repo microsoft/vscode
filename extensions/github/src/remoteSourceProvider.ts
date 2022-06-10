@@ -107,7 +107,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		let page = 1;
 
 		while (true) {
-			let res = await octokit.repos.listBranches({ ...repository, per_page: 100, page });
+			const res = await octokit.repos.listBranches({ ...repository, per_page: 100, page });
 
 			if (res.data.length === 0) {
 				break;

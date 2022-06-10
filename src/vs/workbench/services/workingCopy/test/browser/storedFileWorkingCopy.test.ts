@@ -93,7 +93,7 @@ suite('StoredFileWorkingCopy', function () {
 	const factory = new TestStoredFileWorkingCopyModelFactory();
 
 	let disposables: DisposableStore;
-	let resource = URI.file('test/resource');
+	const resource = URI.file('test/resource');
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>;

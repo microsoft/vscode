@@ -24,7 +24,7 @@ suite('Viewlets', () => {
 	}
 
 	test('ViewletDescriptor API', function () {
-		let d = PaneCompositeDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
+		const d = PaneCompositeDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
 		assert.strictEqual(d.id, 'id');
 		assert.strictEqual(d.name, 'name');
 		assert.strictEqual(d.cssClass, 'class');
@@ -46,8 +46,8 @@ suite('Viewlets', () => {
 		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposite));
 		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites));
 
-		let oldCount = Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites().length;
-		let d = PaneCompositeDescriptor.create(TestViewlet, 'reg-test-id', 'name');
+		const oldCount = Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites().length;
+		const d = PaneCompositeDescriptor.create(TestViewlet, 'reg-test-id', 'name');
 		Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).registerPaneComposite(d);
 
 		assert(d === Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposite('reg-test-id'));

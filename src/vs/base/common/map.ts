@@ -371,13 +371,13 @@ export class TernarySearchTree<K, V> {
 		if (keys) {
 			const arr = keys.slice(0);
 			shuffle(arr);
-			for (let k of arr) {
+			for (const k of arr) {
 				this.set(k, (<V>values));
 			}
 		} else {
 			const arr = (<[K, V][]>values).slice(0);
 			shuffle(arr);
-			for (let entry of arr) {
+			for (const entry of arr) {
 				this.set(entry[0], entry[1]);
 			}
 		}
@@ -819,31 +819,31 @@ export class ResourceMap<T> implements Map<URI, T> {
 		if (typeof thisArg !== 'undefined') {
 			clb = clb.bind(thisArg);
 		}
-		for (let [_, entry] of this.map) {
+		for (const [_, entry] of this.map) {
 			clb(entry.value, entry.uri, <any>this);
 		}
 	}
 
 	*values(): IterableIterator<T> {
-		for (let entry of this.map.values()) {
+		for (const entry of this.map.values()) {
 			yield entry.value;
 		}
 	}
 
 	*keys(): IterableIterator<URI> {
-		for (let entry of this.map.values()) {
+		for (const entry of this.map.values()) {
 			yield entry.uri;
 		}
 	}
 
 	*entries(): IterableIterator<[URI, T]> {
-		for (let entry of this.map.values()) {
+		for (const entry of this.map.values()) {
 			yield [entry.uri, entry.value];
 		}
 	}
 
 	*[Symbol.iterator](): IterableIterator<[URI, T]> {
-		for (let [, entry] of this.map) {
+		for (const [, entry] of this.map) {
 			yield [entry.uri, entry.value];
 		}
 	}

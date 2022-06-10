@@ -95,7 +95,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 	protected provideTasksInternal(validTypes: { [key: string]: boolean }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.ITaskDTO[]; extension: IExtensionDescription } {
 		const taskDTOs: tasks.ITaskDTO[] = [];
 		if (value) {
-			for (let task of value) {
+			for (const task of value) {
 				this.checkDeprecation(task, handler);
 
 				if (!task.definition || !validTypes[task.definition.type]) {
@@ -160,7 +160,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 			}
 		} : await this.getAFolder(workspaceFolders);
 
-		for (let variable of toResolve.variables) {
+		for (const variable of toResolve.variables) {
 			result.variables[variable] = await resolver.resolveAsync(ws, variable);
 		}
 		if (toResolve.process !== undefined) {

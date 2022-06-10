@@ -69,7 +69,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	function getSchemaRequestService(handledSchemas: string[] = ['https', 'http', 'file']) {
 		const builtInHandlers: { [protocol: string]: RequestService | undefined } = {};
-		for (let protocol of handledSchemas) {
+		for (const protocol of handledSchemas) {
 			if (protocol === 'file') {
 				builtInHandlers[protocol] = runtime.file;
 			} else if (protocol === 'http' || protocol === 'https') {
@@ -250,10 +250,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration((change) => {
-		let settings = <Settings>change.settings;
-		if (runtime.configureHttpRequests) {
-			runtime.configureHttpRequests(settings?.http?.proxy, !!settings.http?.proxyStrictSSL);
-		}
+		const settings = <Settings>change.settings;
+		runtime.configureHttpRequests?.(settings?.http?.proxy, !!settings.http?.proxyStrictSSL);
 		jsonConfigurationSettings = settings.json?.schemas;
 		validateEnabled = !!settings.json?.validate?.enable;
 		updateConfiguration();
