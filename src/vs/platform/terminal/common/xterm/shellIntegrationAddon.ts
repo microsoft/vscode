@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IShellIntegration } from 'vs/platform/terminal/common/terminal';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
@@ -126,6 +126,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	readonly capabilities = new TerminalCapabilityStore();
 	private _hasUpdatedTelemetry: boolean = false;
 	private _activationTimeout: any;
+	private _commonProtocolDisposables: IDisposable[] = [];
 
 	constructor(
 		private readonly _disableTelemetry: boolean | undefined,
@@ -133,14 +134,67 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-		this._register(toDisposable(() => this._clearActivationTimeout()));
+		this._register(toDisposable(() => {
+			this._clearActivationTimeout();
+			this._disposeCommonProtocol();
+		}));
+	}
+
+	private _disposeCommonProtocol(): void {
+		dispose(this._commonProtocolDisposables);
+		this._commonProtocolDisposables.length = 0;
 	}
 
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
+		this._commonProtocolDisposables.push(
+			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data)),
+			xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._handleITermSequence(data)),
+			xterm.parser.registerOscHandler(7, data => {
+				console.log('OSC 7', data);
+				return false;
+			}),
+			xterm.parser.registerOscHandler(9, data => {
+				console.log('OSC 9', data);
+				return false;
+			})
+		);
 		this._ensureCapabilitiesOrAddFailureTelemetry();
+	}
+
+	private _handleFinalTermSequence(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		// TODO: Disable final term sequences if VS Code sequences are encountered
+		// TODO: How to handle extraction of command with right prompt and continuations?
+		// Pass the sequence along to the capability
+		const [command, ...args] = data.split(';');
+		switch (command) {
+			case 'A':
+				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
+				return true;
+			case 'B':
+				this._createOrGetCommandDetection(this._terminal).handleCommandStart();
+				return true;
+			case 'C':
+				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
+				return true;
+			case 'D': {
+				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
+				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _handleITermSequence(data: string): boolean {
+		this._logService.debug('Shell integration: OSC 1337', data);
+		return false;
 	}
 
 	private _handleVSCodeSequence(data: string): boolean {

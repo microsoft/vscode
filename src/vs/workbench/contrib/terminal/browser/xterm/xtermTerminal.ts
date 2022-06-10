@@ -155,10 +155,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
 				this._updateUnicodeVersion();
 			}
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) ||
-				e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled)) {
-				this._updateShellIntegrationAddons();
-			}
 		}));
 
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
@@ -178,10 +174,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.loadAddon(this._commandNavigationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-		this._updateShellIntegrationAddons();
-	}
-
-	private _createDecorationAddon(): void {
+		// TODO: Verify the always on decoration addon doesn't cause problems, we want shell
+		// integration decorations on even if the setting to inject is disabled.
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
 		this.raw.loadAddon(this._decorationAddon);
@@ -609,24 +603,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 		if (this.raw.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
 			this.raw.unicode.activeVersion = this._configHelper.config.unicodeVersion;
-		}
-	}
-
-	private _updateShellIntegrationAddons(): void {
-		const shellIntegrationEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
-		const decorationsEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
-		if (shellIntegrationEnabled) {
-			if (decorationsEnabled && !this._decorationAddon) {
-				this._createDecorationAddon();
-			} else if (this._decorationAddon && !decorationsEnabled) {
-				this._decorationAddon.dispose();
-				this._decorationAddon = undefined;
-			}
-			return;
-		}
-		if (this._decorationAddon) {
-			this._decorationAddon.dispose();
-			this._decorationAddon = undefined;
 		}
 	}
 }
