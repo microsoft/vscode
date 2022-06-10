@@ -26,6 +26,7 @@ export const themeScopeRegex = /\[(.+?)\]/g;
 
 export enum ThemeSettings {
 	COLOR_THEME = 'workbench.colorTheme',
+	TRANSPARENCY = 'workbench.transparency',
 	FILE_ICON_THEME = 'workbench.iconTheme',
 	PRODUCT_ICON_THEME = 'workbench.productIconTheme',
 	COLOR_CUSTOMIZATIONS = 'workbench.colorCustomizations',

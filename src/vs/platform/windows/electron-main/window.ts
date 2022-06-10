@@ -180,16 +180,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
+			const workbenchTransparency = this.configurationService.getValue('workbench.transparency');
+
 			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 				width: this.windowState.width,
 				height: this.windowState.height,
 				x: this.windowState.x,
 				y: this.windowState.y,
-				backgroundColor: this.themeMainService.getBackgroundColor(),
+				backgroundColor: workbenchTransparency ? '#00000000' : this.themeMainService.getBackgroundColor(),
 				minWidth: WindowMinimumSize.WIDTH,
 				minHeight: WindowMinimumSize.HEIGHT,
 				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				title: this.productService.nameLong,
+				frame: workbenchTransparency ? false : undefined,
+				transparent: workbenchTransparency ? true : undefined,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
