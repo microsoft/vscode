@@ -204,7 +204,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (injection) {
 				if (injection.envMixin) {
 					for (const [key, value] of Object.entries(injection.envMixin)) {
-						this._ptyOptions.env ||= {};
+						this._ptyOptions.env = this._ptyOptions.env || {};
 						this._ptyOptions.env[key] = value;
 					}
 				}
