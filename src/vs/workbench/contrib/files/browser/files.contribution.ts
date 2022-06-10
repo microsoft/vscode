@@ -148,6 +148,8 @@ configurationRegistry.registerConfiguration({
 				'anyOf': [
 					{
 						'type': 'boolean',
+						'enum': [true, false],
+						'enumDescriptions': [nls.localize('trueDescription', "Enable the pattern."), nls.localize('falseDescription', "Disable the pattern.")],
 						'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
 					},
 					{
