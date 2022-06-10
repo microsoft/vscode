@@ -109,28 +109,12 @@ export function intersectDiffWithRange(textDocument: TextDocument, diff: LineCha
 	if (diff.modifiedEndLineNumber === 0) {
 		return diff;
 	} else {
-		const modifiedStartLineNumber = intersection.start.line + 1;
-		const modifiedEndLineNumber = intersection.end.line + 1;
-
-		// heuristic: same number of lines on both sides, let's assume line by line
-		if (diff.originalEndLineNumber - diff.originalStartLineNumber === diff.modifiedEndLineNumber - diff.modifiedStartLineNumber) {
-			const delta = modifiedStartLineNumber - diff.modifiedStartLineNumber;
-			const length = modifiedEndLineNumber - modifiedStartLineNumber;
-
-			return {
-				originalStartLineNumber: diff.originalStartLineNumber + delta,
-				originalEndLineNumber: diff.originalStartLineNumber + delta + length,
-				modifiedStartLineNumber,
-				modifiedEndLineNumber
-			};
-		} else {
-			return {
-				originalStartLineNumber: diff.originalStartLineNumber,
-				originalEndLineNumber: diff.originalEndLineNumber,
-				modifiedStartLineNumber,
-				modifiedEndLineNumber
-			};
-		}
+		return {
+			originalStartLineNumber: diff.originalStartLineNumber,
+			originalEndLineNumber: diff.originalEndLineNumber,
+			modifiedStartLineNumber: intersection.start.line + 1,
+			modifiedEndLineNumber: intersection.end.line + 1
+		};
 	}
 }
 
