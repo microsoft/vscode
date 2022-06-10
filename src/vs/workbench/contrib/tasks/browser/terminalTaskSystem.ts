@@ -1112,7 +1112,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (needsFolderQualification && workspaceFolder) {
 					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${commandLine} <\x1b[0m\n`;
 				} else {
-					shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine} <\x1b[0m\n`;
+					shellLaunchConfig.initialText = `\x1b[0m\n\n\r\x1b[7m * \x1b[0;44;37m Executing task: ${commandLine} \x1b[0m\n`;
 				}
 			}
 		} else {

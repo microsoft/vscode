@@ -10,7 +10,8 @@ import { localize } from 'vs/nls';
  */
 export function formatMessageForTerminal(message: string, excludeLeadingNewLine: boolean = false): string {
 	// Wrap in bold and ensure it's on a new line
-	return `${excludeLeadingNewLine ? '' : '\r\n'}\x1b[1m${message}\x1b[0m\n\r`;
+	// return `${excludeLeadingNewLine ? '' : '\r\n'}\x1b[1m${message}\x1b[0m\n\r`;
+	return `${excludeLeadingNewLine ? '' : '\r\n'}\x1b[0m\n\n\r\x1b[7m * \x1b[0;104;97m ${message} \x1b[0m\n\r`;
 }
 
 /**

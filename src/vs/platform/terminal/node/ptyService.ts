@@ -131,7 +131,9 @@ export class PtyService extends Disposable implements IPtyService {
 			const restoreMessage = localize({
 				key: 'terminal-session-restore',
 				comment: ['date the snapshot was taken', 'time the snapshot was taken']
-			}, "Session contents restored from {0} at {1}", new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocate), new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocate));
+			}, "History restored");
+			// from {0} at {1}
+			//, new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocate), new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocate));
 			const newId = await this.createProcess(
 				{
 					...terminal.shellLaunchConfig,
@@ -139,7 +141,7 @@ export class PtyService extends Disposable implements IPtyService {
 					color: terminal.processDetails.color,
 					icon: terminal.processDetails.icon,
 					name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
-					initialText: terminal.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;252;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
+					initialText: terminal.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[7m * \x1b[0m ' + restoreMessage + ' \x1b[0m\n\r'
 				},
 				terminal.processDetails.cwd,
 				terminal.replayEvent.events[0].cols,
