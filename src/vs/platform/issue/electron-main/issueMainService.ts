@@ -335,7 +335,6 @@ export class IssueMainService implements ICommonIssueService {
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				enableWebSQL: false,
 				spellcheck: false,
-				nativeWindowOpen: true,
 				zoomFactor: zoomLevelToZoomFactor(options.zoomLevel),
 				sandbox: true,
 				contextIsolation: true

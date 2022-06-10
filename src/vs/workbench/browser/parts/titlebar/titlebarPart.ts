@@ -37,7 +37,7 @@ import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/comman
 
 export class TitlebarPart extends Part implements ITitleService {
 
-	private static readonly configCommandCenter = 'window.experimental.commandCenter';
+	private static readonly configCommandCenter = 'window.commandCenter';
 
 	declare readonly _serviceBrand: undefined;
 

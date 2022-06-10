@@ -196,7 +196,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 					enableWebSQL: false,
 					spellcheck: false,
-					nativeWindowOpen: true,
 					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
 					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 					// Refs https://github.com/microsoft/vscode/issues/140098
