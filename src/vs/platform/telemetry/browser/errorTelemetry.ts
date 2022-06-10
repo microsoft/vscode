@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { globals } from 'vs/base/common/platform';
 import BaseErrorTelemetry, { ErrorEvent } from 'vs/platform/telemetry/common/errorTelemetry';
@@ -10,7 +11,7 @@ import BaseErrorTelemetry, { ErrorEvent } from 'vs/platform/telemetry/common/err
 export default class ErrorTelemetry extends BaseErrorTelemetry {
 	protected override installErrorListeners(): void {
 		let oldOnError: Function;
-		let that = this;
+		const that = this;
 		if (typeof globals.onerror === 'function') {
 			oldOnError = globals.onerror;
 		}
@@ -28,7 +29,7 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 	}
 
 	private _onUncaughtError(msg: string, file: string, line: number, column?: number, err?: any): void {
-		let data: ErrorEvent = {
+		const data: ErrorEvent = {
 			callstack: msg,
 			msg,
 			file,
@@ -37,7 +38,12 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 		};
 
 		if (err) {
-			let { name, message, stack } = err;
+			// If it's the no telemetry error it doesn't get logged
+			if (err instanceof ErrorNoTelemetry) {
+				return;
+			}
+
+			const { name, message, stack } = err;
 			data.uncaught_error_name = name;
 			if (message) {
 				data.uncaught_error_msg = message;

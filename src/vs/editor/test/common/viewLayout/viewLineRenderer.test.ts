@@ -30,7 +30,7 @@ function inflateRenderLineOutput(renderLineOutput: RenderLineOutput2) {
 		html = html.replace(/^<span>/, '');
 	}
 	html = html.replace(/<\/span>$/, '');
-	let spans: string[] = [];
+	const spans: string[] = [];
 	let lastIndex = 0;
 	do {
 		const newIndex = html.indexOf('<span', lastIndex + 1);

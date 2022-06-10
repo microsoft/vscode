@@ -371,7 +371,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 			// Installing
 			installEvent.fire({ identifier, source: gallery });
-			let local = testObject.local;
+			const local = testObject.local;
 			assert.strictEqual(1, local.length);
 			const actual = local[0];
 			assert.strictEqual(`${gallery.publisher}.${gallery.name}`, actual.identifier.id);

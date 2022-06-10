@@ -771,7 +771,7 @@ class StandaloneBulkEditService implements IBulkEditService {
 
 		const textEdits = new Map<ITextModel, ISingleEditOperation[]>();
 
-		for (let edit of edits) {
+		for (const edit of edits) {
 			if (!(edit instanceof ResourceTextEdit)) {
 				throw new Error('bad edit - only text edits are supported');
 			}

@@ -321,7 +321,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		let activityBarOrder = CUSTOM_VIEWS_START_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Sidebar).length;
 		let panelOrder = 5 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Panel).length + 1;
-		for (let { value, collector, description } of extensionPoints) {
+		for (const { value, collector, description } of extensionPoints) {
 			forEach(value, entry => {
 				if (!this.isValidViewsContainer(entry.value, collector)) {
 					return;
@@ -359,7 +359,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			return false;
 		}
 
-		for (let descriptor of viewsContainersDescriptors) {
+		for (const descriptor of viewsContainersDescriptors) {
 			if (typeof descriptor.id !== 'string' && isFalsyOrWhitespace(descriptor.id)) {
 				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string` with non-empty value. Only alphanumeric characters, '_', and '-' are allowed.", 'id'));
 				return false;
@@ -571,7 +571,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			return false;
 		}
 
-		for (let descriptor of viewDescriptors) {
+		for (const descriptor of viewDescriptors) {
 			if (typeof descriptor.id !== 'string') {
 				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'id'));
 				return false;

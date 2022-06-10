@@ -58,16 +58,16 @@ export namespace Translations {
 		if (a === b) {
 			return true;
 		}
-		let aKeys = Object.keys(a);
-		let bKeys: Set<string> = new Set<string>();
-		for (let key of Object.keys(b)) {
+		const aKeys = Object.keys(a);
+		const bKeys: Set<string> = new Set<string>();
+		for (const key of Object.keys(b)) {
 			bKeys.add(key);
 		}
 		if (aKeys.length !== bKeys.size) {
 			return false;
 		}
 
-		for (let key of aKeys) {
+		for (const key of aKeys) {
 			if (a[key] !== b[key]) {
 				return false;
 			}
@@ -589,8 +589,8 @@ class ExtensionsScanner extends Disposable {
 			try {
 				const translationResource = URI.file(translationPath);
 				const content = (await this.fileService.readFile(translationResource)).value.toString();
-				let errors: ParseError[] = [];
-				let translationBundle: TranslationBundle = parse(content, errors);
+				const errors: ParseError[] = [];
+				const translationBundle: TranslationBundle = parse(content, errors);
 				if (errors.length > 0) {
 					reportErrors(translationResource, errors);
 					return { values: undefined, default: defaultPackageNLS };
@@ -598,7 +598,7 @@ class ExtensionsScanner extends Disposable {
 					reportInvalidFormat(translationResource);
 					return { values: undefined, default: defaultPackageNLS };
 				} else {
-					let values = translationBundle.contents ? translationBundle.contents.package : undefined;
+					const values = translationBundle.contents ? translationBundle.contents.package : undefined;
 					return { values: values, default: defaultPackageNLS };
 				}
 			} catch (error) {
@@ -620,8 +620,8 @@ class ExtensionsScanner extends Disposable {
 			}
 			try {
 				const messageBundleContent = (await this.fileService.readFile(messageBundle.localized)).value.toString();
-				let errors: ParseError[] = [];
-				let messages: MessageBag = parse(messageBundleContent, errors);
+				const errors: ParseError[] = [];
+				const messages: MessageBag = parse(messageBundleContent, errors);
 				if (errors.length > 0) {
 					reportErrors(messageBundle.localized, errors);
 					return { values: undefined, default: messageBundle.original };
@@ -660,12 +660,12 @@ class ExtensionsScanner extends Disposable {
 	private findMessageBundles(extensionLocation: URI, nlsConfiguration: NlsConfiguration): Promise<{ localized: URI; original: URI | null }> {
 		return new Promise<{ localized: URI; original: URI | null }>((c, e) => {
 			const loop = (locale: string): void => {
-				let toCheck = joinPath(extensionLocation, `package.nls.${locale}.json`);
+				const toCheck = joinPath(extensionLocation, `package.nls.${locale}.json`);
 				this.fileService.exists(toCheck).then(exists => {
 					if (exists) {
 						c({ localized: toCheck, original: joinPath(extensionLocation, 'package.nls.json') });
 					}
-					let index = locale.lastIndexOf('-');
+					const index = locale.lastIndexOf('-');
 					if (index === -1) {
 						c({ localized: joinPath(extensionLocation, 'package.nls.json'), original: null });
 					} else {
@@ -711,7 +711,7 @@ class ExtensionsScanner extends Disposable {
 					}
 				}
 			} else if (isObject(value)) {
-				for (let k in value) {
+				for (const k in value) {
 					if (value.hasOwnProperty(k)) {
 						k === 'commands' ? processEntry(value, k, true) : processEntry(value, k, command);
 					}
@@ -723,7 +723,7 @@ class ExtensionsScanner extends Disposable {
 			}
 		};
 
-		for (let key in literal) {
+		for (const key in literal) {
 			if (literal.hasOwnProperty(key)) {
 				processEntry(literal, key);
 			}

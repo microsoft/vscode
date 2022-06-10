@@ -81,7 +81,7 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
             out.push(file.contents);
         }
     }, function () {
-        let finish = () => {
+        const finish = () => {
             {
                 const headerPickle = pickle.createEmpty();
                 headerPickle.writeString(JSON.stringify(filesystem.header));

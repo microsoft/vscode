@@ -25,6 +25,8 @@ import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
 import { OutputChannelLogger } from './log';
+import { createIPCServer, IIPCServer } from './ipc/ipcServer';
+import { GitEditor } from './gitEditor';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -60,10 +62,21 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		return !skip;
 	});
 
-	const askpass = await Askpass.create(outputChannelLogger, context.storagePath);
+	let ipc: IIPCServer | undefined = undefined;
+
+	try {
+		ipc = await createIPCServer(context.storagePath);
+	} catch (err) {
+		outputChannelLogger.logError(`Failed to create git IPC: ${err}`);
+	}
+
+	const askpass = new Askpass(ipc);
 	disposables.push(askpass);
 
-	const environment = askpass.getEnv();
+	const gitEditor = new GitEditor(ipc);
+	disposables.push(gitEditor);
+
+	const environment = { ...askpass.getEnv(), ...gitEditor.getEnv() };
 	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, environment);
 	disposables.push(terminalEnvironmentManager);
 

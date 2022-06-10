@@ -74,7 +74,7 @@ export class Scanner {
 			return { type: TokenType.EOF, pos: this.pos, len: 0 };
 		}
 
-		let pos = this.pos;
+		const pos = this.pos;
 		let len = 0;
 		let ch = this.value.charCodeAt(pos);
 		let type: TokenType;
@@ -266,7 +266,7 @@ export class Placeholder extends TransformableMarker {
 	}
 
 	clone(): Placeholder {
-		let ret = new Placeholder(this.index);
+		const ret = new Placeholder(this.index);
 		if (this.transform) {
 			ret.transform = this.transform.clone();
 		}
@@ -302,7 +302,7 @@ export class Choice extends Marker {
 	}
 
 	clone(): Choice {
-		let ret = new Choice();
+		const ret = new Choice();
 		this.options.forEach(ret.appendChild, ret);
 		return ret;
 	}
@@ -350,7 +350,7 @@ export class Transform extends Marker {
 	}
 
 	clone(): Transform {
-		let ret = new Transform();
+		const ret = new Transform();
 		ret.regexp = new RegExp(this.regexp.source, '' + (this.regexp.ignoreCase ? 'i' : '') + (this.regexp.global ? 'g' : ''));
 		ret._children = this.children.map(child => child.clone());
 		return ret;
@@ -432,7 +432,7 @@ export class FormatString extends Marker {
 	}
 
 	clone(): FormatString {
-		let ret = new FormatString(this.index, this.shorthandName, this.ifValue, this.elseValue);
+		const ret = new FormatString(this.index, this.shorthandName, this.ifValue, this.elseValue);
 		return ret;
 	}
 }
@@ -500,7 +500,7 @@ export class TextmateSnippet extends Marker {
 	get placeholderInfo() {
 		if (!this._placeholders) {
 			// fill in placeholders
-			let all: Placeholder[] = [];
+			const all: Placeholder[] = [];
 			let last: Placeholder | undefined;
 			this.walk(function (candidate) {
 				if (candidate instanceof Placeholder) {
@@ -547,7 +547,7 @@ export class TextmateSnippet extends Marker {
 	}
 
 	enclosingPlaceholders(placeholder: Placeholder): Placeholder[] {
-		let ret: Placeholder[] = [];
+		const ret: Placeholder[] = [];
 		let { parent } = placeholder;
 		while (parent) {
 			if (parent instanceof Placeholder) {
@@ -585,7 +585,7 @@ export class TextmateSnippet extends Marker {
 	}
 
 	clone(): TextmateSnippet {
-		let ret = new TextmateSnippet();
+		const ret = new TextmateSnippet();
 		this._children = this.children.map(child => child.clone());
 		return ret;
 	}
@@ -669,7 +669,7 @@ export class SnippetParser {
 	private _accept(type: TokenType | undefined, value: true): string;
 	private _accept(type: TokenType, value?: boolean): boolean | string {
 		if (type === undefined || this._token.type === type) {
-			let ret = !value ? true : this._scanner.tokenText(this._token);
+			const ret = !value ? true : this._scanner.tokenText(this._token);
 			this._token = this._scanner.next();
 			return ret;
 		}
@@ -917,7 +917,7 @@ export class SnippetParser {
 	private _parseTransform(parent: TransformableMarker): boolean {
 		// ...<regex>/<format>/<options>}
 
-		let transform = new Transform();
+		const transform = new Transform();
 		let regexValue = '';
 		let regexOptions = '';
 
@@ -995,7 +995,7 @@ export class SnippetParser {
 			complex = true;
 		}
 
-		let index = this._accept(TokenType.Int, true);
+		const index = this._accept(TokenType.Int, true);
 
 		if (!index) {
 			this._backTo(token);
@@ -1018,7 +1018,7 @@ export class SnippetParser {
 
 		if (this._accept(TokenType.Forwardslash)) {
 			// ${1:/upcase}
-			let shorthand = this._accept(TokenType.VariableName, true);
+			const shorthand = this._accept(TokenType.VariableName, true);
 			if (!shorthand || !this._accept(TokenType.CurlyClose)) {
 				this._backTo(token);
 				return false;
@@ -1029,7 +1029,7 @@ export class SnippetParser {
 
 		} else if (this._accept(TokenType.Plus)) {
 			// ${1:+<if>}
-			let ifValue = this._until(TokenType.CurlyClose);
+			const ifValue = this._until(TokenType.CurlyClose);
 			if (ifValue) {
 				parent.appendChild(new FormatString(Number(index), undefined, ifValue, undefined));
 				return true;
@@ -1037,7 +1037,7 @@ export class SnippetParser {
 
 		} else if (this._accept(TokenType.Dash)) {
 			// ${2:-<else>}
-			let elseValue = this._until(TokenType.CurlyClose);
+			const elseValue = this._until(TokenType.CurlyClose);
 			if (elseValue) {
 				parent.appendChild(new FormatString(Number(index), undefined, undefined, elseValue));
 				return true;
@@ -1045,9 +1045,9 @@ export class SnippetParser {
 
 		} else if (this._accept(TokenType.QuestionMark)) {
 			// ${2:?<if>:<else>}
-			let ifValue = this._until(TokenType.Colon);
+			const ifValue = this._until(TokenType.Colon);
 			if (ifValue) {
-				let elseValue = this._until(TokenType.CurlyClose);
+				const elseValue = this._until(TokenType.CurlyClose);
 				if (elseValue) {
 					parent.appendChild(new FormatString(Number(index), undefined, ifValue, elseValue));
 					return true;
@@ -1056,7 +1056,7 @@ export class SnippetParser {
 
 		} else {
 			// ${1:<else>}
-			let elseValue = this._until(TokenType.CurlyClose);
+			const elseValue = this._until(TokenType.CurlyClose);
 			if (elseValue) {
 				parent.appendChild(new FormatString(Number(index), undefined, undefined, elseValue));
 				return true;

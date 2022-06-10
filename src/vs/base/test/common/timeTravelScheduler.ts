@@ -193,7 +193,7 @@ export class AsyncSchedulerProcessor extends Disposable {
 
 			if (this.history.length >= this.maxTaskCount && this.scheduler.hasScheduledTasks) {
 				const lastTasks = this._history.slice(Math.max(0, this.history.length - 10)).map(h => `${h.source.toString()}: ${h.source.stackTrace}`);
-				let e = new Error(`Queue did not get empty after processing ${this.history.length} items. These are the last ${lastTasks.length} scheduled tasks:\n${lastTasks.join('\n\n\n')}`);
+				const e = new Error(`Queue did not get empty after processing ${this.history.length} items. These are the last ${lastTasks.length} scheduled tasks:\n${lastTasks.join('\n\n\n')}`);
 				this.lastError = e;
 				throw e;
 			}
@@ -371,7 +371,7 @@ function createDateClass(scheduler: Scheduler): DateConstructor {
 		return new (OriginalDate as any)(...args);
 	}
 
-	for (let prop in OriginalDate) {
+	for (const prop in OriginalDate) {
 		if (OriginalDate.hasOwnProperty(prop)) {
 			(SchedulerDate as any)[prop] = (OriginalDate as any)[prop];
 		}

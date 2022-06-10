@@ -174,11 +174,11 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
 }
 
 export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI, extUri: IExtUri): WorkspaceFolder[] {
-	let result: WorkspaceFolder[] = [];
-	let seen: Set<string> = new Set();
+	const result: WorkspaceFolder[] = [];
+	const seen: Set<string> = new Set();
 
 	const relativeTo = extUri.dirname(workspaceConfigFile);
-	for (let configuredFolder of configuredFolders) {
+	for (const configuredFolder of configuredFolders) {
 		let uri: URI | undefined = undefined;
 		if (isRawFileWorkspaceFolder(configuredFolder)) {
 			if (configuredFolder.path) {
@@ -198,7 +198,7 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 		if (uri) {
 
 			// remove duplicates
-			let comparisonKey = extUri.getComparisonKey(uri);
+			const comparisonKey = extUri.getComparisonKey(uri);
 			if (!seen.has(comparisonKey)) {
 				seen.add(comparisonKey);
 
@@ -216,7 +216,7 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
  * Throws an exception if file is not a valid workspace file
  */
 export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string, configPathURI: URI, isFromUntitledWorkspace: boolean, targetConfigPathURI: URI, extUri: IExtUri) {
-	let storedWorkspace = doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
+	const storedWorkspace = doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
 
 	const sourceConfigFolder = extUri.dirname(configPathURI);
 	const targetConfigFolder = extUri.dirname(targetConfigPathURI);
@@ -252,7 +252,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 
 	// Parse workspace file
-	let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
+	const storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
 
 	// Filter out folders which do not have a path or uri set
 	if (storedWorkspace && Array.isArray(storedWorkspace.folders)) {

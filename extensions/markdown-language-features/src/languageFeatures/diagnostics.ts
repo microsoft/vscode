@@ -16,6 +16,7 @@ import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinkProvider';
 import { tryFindMdDocumentForLink } from './references';
 import { CommandManager } from '../commandManager';
+import { ResourceMap } from '../util/resourceMap';
 
 const localize = nls.loadMessageBundle();
 
@@ -85,30 +86,28 @@ class VSCodeDiagnosticConfiguration extends Disposable implements DiagnosticConf
 
 class InflightDiagnosticRequests {
 
-	private readonly inFlightRequests = new Map<string, { readonly cts: vscode.CancellationTokenSource }>();
+	private readonly inFlightRequests = new ResourceMap<{ readonly cts: vscode.CancellationTokenSource }>();
 
 	public trigger(resource: vscode.Uri, compute: (token: vscode.CancellationToken) => Promise<void>) {
 		this.cancel(resource);
 
-		const key = this.getResourceKey(resource);
 		const cts = new vscode.CancellationTokenSource();
 		const entry = { cts };
-		this.inFlightRequests.set(key, entry);
+		this.inFlightRequests.set(resource, entry);
 
 		compute(cts.token).finally(() => {
-			if (this.inFlightRequests.get(key) === entry) {
-				this.inFlightRequests.delete(key);
+			if (this.inFlightRequests.get(resource) === entry) {
+				this.inFlightRequests.delete(resource);
 			}
 			cts.dispose();
 		});
 	}
 
 	public cancel(resource: vscode.Uri) {
-		const key = this.getResourceKey(resource);
-		const existing = this.inFlightRequests.get(key);
+		const existing = this.inFlightRequests.get(resource);
 		if (existing) {
 			existing.cts.cancel();
-			this.inFlightRequests.delete(key);
+			this.inFlightRequests.delete(resource);
 		}
 	}
 
@@ -121,10 +120,6 @@ class InflightDiagnosticRequests {
 			cts.dispose();
 		}
 		this.inFlightRequests.clear();
-	}
-
-	private getResourceKey(resource: vscode.Uri): string {
-		return resource.toString();
 	}
 }
 
@@ -314,16 +309,16 @@ export class DiagnosticManager extends Disposable {
 		const allOpenedTabResources = this.getAllTabResources();
 		await Promise.all(
 			vscode.workspace.textDocuments
-				.filter(doc => allOpenedTabResources.has(doc.uri.toString()) && isMarkdownFile(doc))
+				.filter(doc => allOpenedTabResources.has(doc.uri) && isMarkdownFile(doc))
 				.map(doc => this.triggerDiagnostics(doc)));
 	}
 
-	private getAllTabResources() {
-		const openedTabDocs = new Map<string, vscode.Uri>();
+	private getAllTabResources(): ResourceMap<void> {
+		const openedTabDocs = new ResourceMap<void>();
 		for (const group of vscode.window.tabGroups.all) {
 			for (const tab of group.tabs) {
 				if (tab.input instanceof vscode.TabInputText) {
-					openedTabDocs.set(tab.input.uri.toString(), tab.input.uri);
+					openedTabDocs.set(tab.input.uri);
 				}
 			}
 		}
@@ -354,7 +349,7 @@ interface FileLinksData {
  */
 class FileLinkMap {
 
-	private readonly _filesToLinksMap = new Map<string, FileLinksData>();
+	private readonly _filesToLinksMap = new ResourceMap<FileLinksData>();
 
 	constructor(links: Iterable<MdLink>) {
 		for (const link of links) {
@@ -362,13 +357,12 @@ class FileLinkMap {
 				continue;
 			}
 
-			const fileKey = link.href.path.toString();
-			const existingFileEntry = this._filesToLinksMap.get(fileKey);
+			const existingFileEntry = this._filesToLinksMap.get(link.href.path);
 			const linkData = { source: link.source, fragment: link.href.fragment };
 			if (existingFileEntry) {
 				existingFileEntry.links.push(linkData);
 			} else {
-				this._filesToLinksMap.set(fileKey, { path: link.href.path, links: [linkData] });
+				this._filesToLinksMap.set(link.href.path, { path: link.href.path, links: [linkData] });
 			}
 		}
 	}

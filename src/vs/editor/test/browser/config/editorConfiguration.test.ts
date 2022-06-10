@@ -75,33 +75,33 @@ suite('Common Editor Config', () => {
 	}
 
 	test('wordWrap default', () => {
-		let config = new TestWrappingConfiguration({});
+		const config = new TestWrappingConfiguration({});
 		assertWrapping(config, false, -1);
 	});
 
 	test('wordWrap compat false', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: <any>false
 		});
 		assertWrapping(config, false, -1);
 	});
 
 	test('wordWrap compat true', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: <any>true
 		});
 		assertWrapping(config, true, 80);
 	});
 
 	test('wordWrap on', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'on'
 		});
 		assertWrapping(config, true, 80);
 	});
 
 	test('wordWrap on without minimap', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'on',
 			minimap: {
 				enabled: false
@@ -111,7 +111,7 @@ suite('Common Editor Config', () => {
 	});
 
 	test('wordWrap on does not use wordWrapColumn', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'on',
 			wordWrapColumn: 10
 		});
@@ -119,14 +119,14 @@ suite('Common Editor Config', () => {
 	});
 
 	test('wordWrap off', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'off'
 		});
 		assertWrapping(config, false, -1);
 	});
 
 	test('wordWrap off does not use wordWrapColumn', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'off',
 			wordWrapColumn: 10
 		});
@@ -134,14 +134,14 @@ suite('Common Editor Config', () => {
 	});
 
 	test('wordWrap wordWrapColumn uses default wordWrapColumn', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'wordWrapColumn'
 		});
 		assertWrapping(config, false, 80);
 	});
 
 	test('wordWrap wordWrapColumn uses wordWrapColumn', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 100
 		});
@@ -149,7 +149,7 @@ suite('Common Editor Config', () => {
 	});
 
 	test('wordWrap wordWrapColumn validates wordWrapColumn', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: -1
 		});
@@ -157,14 +157,14 @@ suite('Common Editor Config', () => {
 	});
 
 	test('wordWrap bounded uses default wordWrapColumn', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'bounded'
 		});
 		assertWrapping(config, true, 80);
 	});
 
 	test('wordWrap bounded uses wordWrapColumn', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'bounded',
 			wordWrapColumn: 40
 		});
@@ -172,7 +172,7 @@ suite('Common Editor Config', () => {
 	});
 
 	test('wordWrap bounded validates wordWrapColumn', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'bounded',
 			wordWrapColumn: -1
 		});
@@ -180,12 +180,12 @@ suite('Common Editor Config', () => {
 	});
 
 	test('issue #53152: Cannot assign to read only property \'enabled\' of object', () => {
-		let hoverOptions: IEditorHoverOptions = {};
+		const hoverOptions: IEditorHoverOptions = {};
 		Object.defineProperty(hoverOptions, 'enabled', {
 			writable: false,
 			value: true
 		});
-		let config = new TestConfiguration({ hover: hoverOptions });
+		const config = new TestConfiguration({ hover: hoverOptions });
 
 		assert.strictEqual(config.options.get(EditorOption.hover).enabled, true);
 		config.updateOptions({ hover: { enabled: false } });

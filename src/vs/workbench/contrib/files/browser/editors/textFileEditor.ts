@@ -228,7 +228,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>('workbench.editor.defaultBinaryEditor');
 		const group = this.group ?? this.editorGroupService.activeGroup;
 
-		let editorOptions = {
+		const editorOptions = {
 			...options,
 			// Make sure to not steal away the currently active group
 			// because we are triggering another openEditor() call

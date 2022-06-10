@@ -22,7 +22,7 @@ export function generateIndent(spacesCnt: number, tabSize: number, insertSpaces:
 
 	let result = '';
 	if (!insertSpaces) {
-		let tabsCnt = Math.floor(spacesCnt / tabSize);
+		const tabsCnt = Math.floor(spacesCnt / tabSize);
 		spacesCnt = spacesCnt % tabSize;
 		for (let i = 0; i < tabsCnt; i++) {
 			result += '\t';

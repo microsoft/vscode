@@ -168,7 +168,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	display(lineHeight: number) {
-		let headHeight = Math.ceil(lineHeight * 1.2);
+		const headHeight = Math.ceil(lineHeight * 1.2);
 		this._header.updateHeight(headHeight);
 
 		this._body.display();

@@ -230,7 +230,7 @@ export class ExtensionsListView extends ViewPane {
 
 		const parsedQuery = Query.parse(query);
 
-		let options: IQueryOptions = {
+		const options: IQueryOptions = {
 			sortOrder: SortOrder.Default
 		};
 
@@ -379,7 +379,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterLocal(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): { extensions: IExtension[]; canIncludeInstalledExtensions: boolean } {
-		let value = query.value;
+		const value = query.value;
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
 
@@ -428,7 +428,7 @@ export class ExtensionsListView extends ViewPane {
 
 		value = value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
-		let result = local
+		const result = local
 			.filter(e => e.isBuiltin && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 		const isThemeExtension = (e: IExtension): boolean => {
@@ -561,7 +561,7 @@ export class ExtensionsListView extends ViewPane {
 	private filterWorkspaceUnsupportedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
 		// shows local extensions which are restricted or disabled in the current workspace because of the extension's capability
 
-		let queryString = query.value; // @sortby is already filtered out
+		const queryString = query.value; // @sortby is already filtered out
 
 		const match = queryString.match(/^\s*@workspaceUnsupported(?::(untrusted|virtual)(Partial)?)?(?:\s+([^\s]*))?/i);
 		if (!match) {
@@ -1234,8 +1234,8 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 	}
 
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		let shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
-		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
+		const shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
+		const model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
 		this.setExpanded(model.length > 0);
 		return model;
 	}

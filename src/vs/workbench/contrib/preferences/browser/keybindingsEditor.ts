@@ -539,6 +539,12 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		});
 	}
 
+	public clearKeyboardShortcutSearchHistory(): void {
+		this.searchWidget.inputBox.clearHistory();
+		this.getMemento(StorageScope.GLOBAL, StorageTarget.USER)['searchHistory'] = this.searchWidget.inputBox.getHistory();
+		this.saveState();
+	}
+
 	private renderKeybindingsEntries(reset: boolean, preserveFocus?: boolean): void {
 		if (this.keybindingsEditorModel) {
 			const filter = this.searchWidget.getValue();

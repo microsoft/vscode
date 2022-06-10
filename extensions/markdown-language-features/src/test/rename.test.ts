@@ -614,4 +614,79 @@ suite('markdown: rename', () => {
 			]
 		});
 	});
+
+	test('Rename on definition path should update all references to path', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[ref text][ref]`,
+			`[direct](/file)`,
+			`[ref]: /file`, // rename here
+		));
+
+		const workspace = new InMemoryWorkspaceMarkdownDocuments([doc]);
+
+		const preparedInfo = await prepareRename(doc, new vscode.Position(2, 10), workspace);
+		assert.strictEqual(preparedInfo!.placeholder, '/file');
+		assertRangeEqual(preparedInfo!.range, new vscode.Range(2, 7, 2, 12));
+
+		const edit = await getRenameEdits(doc, new vscode.Position(2, 10), "/newFile", workspace);
+		assertEditsEqual(edit!, {
+			uri, edits: [
+				new vscode.TextEdit(new vscode.Range(1, 9, 1, 14), '/newFile'),
+				new vscode.TextEdit(new vscode.Range(2, 7, 2, 12), '/newFile'),
+			]
+		});
+	});
+
+	test('Rename on definition path where file exists should also update file', async () => {
+		const uri1 = workspacePath('doc.md');
+		const doc1 = new InMemoryDocument(uri1, joinLines(
+			`[ref text][ref]`,
+			`[direct](/doc2)`,
+			`[ref]: /doc2`, // rename here
+		));
+
+		const uri2 = workspacePath('doc2.md');
+		const doc2 = new InMemoryDocument(uri2, joinLines());
+
+		const workspace = new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]);
+
+		const preparedInfo = await prepareRename(doc1, new vscode.Position(2, 10), workspace);
+		assert.strictEqual(preparedInfo!.placeholder, '/doc2');
+		assertRangeEqual(preparedInfo!.range, new vscode.Range(2, 7, 2, 12));
+
+		const edit = await getRenameEdits(doc1, new vscode.Position(2, 10), "/new-doc", workspace);
+		assertEditsEqual(edit!, {
+			uri: uri1, edits: [
+				new vscode.TextEdit(new vscode.Range(1, 9, 1, 14), '/new-doc'),
+				new vscode.TextEdit(new vscode.Range(2, 7, 2, 12), '/new-doc'),
+			]
+		}, {
+			originalUri: uri2,
+			newUri: workspacePath('new-doc.md')
+		});
+	});
+
+	test('Rename on definition path header should update all references to header', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[ref text][ref]`,
+			`[direct](/file#header)`,
+			`[ref]: /file#header`, // rename here
+		));
+
+		const workspace = new InMemoryWorkspaceMarkdownDocuments([doc]);
+
+		const preparedInfo = await prepareRename(doc, new vscode.Position(2, 16), workspace);
+		assert.strictEqual(preparedInfo!.placeholder, 'header');
+		assertRangeEqual(preparedInfo!.range, new vscode.Range(2, 13, 2, 19));
+
+		const edit = await getRenameEdits(doc, new vscode.Position(2, 16), "New Header", workspace);
+		assertEditsEqual(edit!, {
+			uri, edits: [
+				new vscode.TextEdit(new vscode.Range(1, 15, 1, 21), 'new-header'),
+				new vscode.TextEdit(new vscode.Range(2, 13, 2, 19), 'new-header'),
+			]
+		});
+	});
 });

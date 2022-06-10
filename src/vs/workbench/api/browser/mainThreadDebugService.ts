@@ -125,7 +125,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $registerBreakpoints(DTOs: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void> {
 
-		for (let dto of DTOs) {
+		for (const dto of DTOs) {
 			if (dto.type === 'sourceMulti') {
 				const rawbps = dto.lines.map(l =>
 					<IBreakpointData>{

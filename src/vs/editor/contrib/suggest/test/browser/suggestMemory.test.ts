@@ -46,10 +46,10 @@ suite('SuggestMemories', function () {
 			}
 		};
 
-		let item1 = createSuggestItem('fazz', 0);
-		let item2 = createSuggestItem('bazz', 0);
-		let item3 = createSuggestItem('bazz', 0);
-		let item4 = createSuggestItem('bazz', 0);
+		const item1 = createSuggestItem('fazz', 0);
+		const item2 = createSuggestItem('bazz', 0);
+		const item3 = createSuggestItem('bazz', 0);
+		const item4 = createSuggestItem('bazz', 0);
 		item1.completion.preselect = false;
 		item2.completion.preselect = true;
 		item3.completion.preselect = true;
@@ -58,14 +58,14 @@ suite('SuggestMemories', function () {
 	});
 
 	test('[No|Prefix|LRU]Memory honor selection boost', function () {
-		let item1 = createSuggestItem('fazz', 0);
-		let item2 = createSuggestItem('bazz', 0);
-		let item3 = createSuggestItem('bazz', 0);
-		let item4 = createSuggestItem('bazz', 0);
+		const item1 = createSuggestItem('fazz', 0);
+		const item2 = createSuggestItem('bazz', 0);
+		const item3 = createSuggestItem('bazz', 0);
+		const item4 = createSuggestItem('bazz', 0);
 		item1.completion.preselect = false;
 		item2.completion.preselect = true;
 		item3.completion.preselect = true;
-		let items = [item1, item2, item3, item4];
+		const items = [item1, item2, item3, item4];
 
 
 		assert.strictEqual(new NoMemory().select(buffer, pos, items), 1);
@@ -110,11 +110,11 @@ suite('SuggestMemories', function () {
 
 	test('`"editor.suggestSelection": "recentlyUsed"` should be a little more sticky #78571', function () {
 
-		let item1 = createSuggestItem('gamma', 0);
-		let item2 = createSuggestItem('game', 0);
+		const item1 = createSuggestItem('gamma', 0);
+		const item2 = createSuggestItem('game', 0);
 		items = [item1, item2];
 
-		let mem = new LRUMemory();
+		const mem = new LRUMemory();
 		buffer.setValue('    foo.');
 		mem.memorize(buffer, { lineNumber: 1, column: 1 }, item2);
 

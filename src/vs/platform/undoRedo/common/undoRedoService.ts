@@ -90,7 +90,7 @@ class RemovedResources {
 			dest.push(element.resourceLabel);
 		}
 
-		let messages: string[] = [];
+		const messages: string[] = [];
 		if (externalRemoval.length > 0) {
 			messages.push(
 				nls.localize(
@@ -226,7 +226,7 @@ class ResourceEditStack {
 	}
 
 	public toString(): string {
-		let result: string[] = [];
+		const result: string[] = [];
 		result.push(`* ${this.strResource}:`);
 		for (let i = 0; i < this._past.length; i++) {
 			result.push(`   * [UNDO] ${this._past[i]}`);
@@ -495,7 +495,7 @@ export class UndoRedoService implements IUndoRedoService {
 	private _print(label: string): void {
 		console.log(`------------------------------------`);
 		console.log(`AFTER ${label}: `);
-		let str: string[] = [];
+		const str: string[] = [];
 		for (const element of this._editStacks) {
 			str.push(element[1].toString());
 		}

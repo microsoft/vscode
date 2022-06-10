@@ -22,7 +22,7 @@ enum OpenMarkdownLinks {
 }
 
 export function resolveDocumentLink(href: string, markdownFile: vscode.Uri): vscode.Uri {
-	let [hrefPath, fragment] = href.split('#').map(c => decodeURIComponent(c));
+	const [hrefPath, fragment] = href.split('#').map(c => decodeURIComponent(c));
 
 	if (hrefPath[0] === '/') {
 		// Absolute path. Try to resolve relative to the workspace

@@ -130,13 +130,12 @@ class MessageWidget implements IContentWidget {
 	private readonly _domNode: HTMLDivElement;
 
 	static fadeOut(messageWidget: MessageWidget): IDisposable {
-		let handle: any;
 		const dispose = () => {
 			messageWidget.dispose();
 			clearTimeout(handle);
 			messageWidget.getDomNode().removeEventListener('animationend', dispose);
 		};
-		handle = setTimeout(dispose, 110);
+		const handle = setTimeout(dispose, 110);
 		messageWidget.getDomNode().addEventListener('animationend', dispose);
 		messageWidget.getDomNode().classList.add('fadeOut');
 		return { dispose };

@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.68.0",
+  "version": "1.69.0",
   "distro": "2966cd72fc1a3a5fb89bf2d85a1a66e56206961a",
   "author": {
     "name": "Microsoft Corporation"
@@ -200,7 +200,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^9.2.7",
     "tsec": "0.1.4",
-    "typescript": "^4.8.0-dev.20220518",
+    "typescript": "^4.8.0-dev.20220608",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

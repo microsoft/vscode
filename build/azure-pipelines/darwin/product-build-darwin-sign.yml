@@ -1,4 +1,7 @@
 steps:
+  - checkout: self
+    fetchDepth: 1
+
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
@@ -8,39 +11,21 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+      SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
-  - script: |
-      set -e
-      cat << EOF > ~/.netrc
-      machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
-      EOF
-
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
-    displayName: Prepare tooling
-
-  - script: |
-      set -e
-      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-      git checkout FETCH_HEAD
-    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-    displayName: Checkout override commit
-
-  - script: |
-      set -e
-      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-    displayName: Merge distro
+  - task: Cache@2
+    inputs:
+      key: "buildNodeModules | $(Agent.OS) | $(VSCODE_ARCH) | build/yarn.lock"
+      path: build/node_modules
+      cacheHitVar: BUILD_NODE_MODULES_RESTORED
+    displayName: Restore build node_modules cache
 
   - script: |
       set -e
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
     retryCountOnTaskFailure: 3
-    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'), ne(variables.BUILD_NODE_MODULES_RESTORED, 'true'))
     displayName: Switch to Terrapin packages
 
   - script: |
@@ -54,6 +39,7 @@ steps:
         echo "Yarn failed $i, trying again..."
       done
     displayName: Install build dependencies
+    condition: and(succeeded(), ne(variables.BUILD_NODE_MODULES_RESTORED, 'true'))
 
   - download: current
     artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive

@@ -392,11 +392,11 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 				// We have received a new connection.
 				// This indicates that the server owner has connectivity.
 				// Therefore we will shorten the reconnection grace period for disconnected connections!
-				for (let key in this._managementConnections) {
+				for (const key in this._managementConnections) {
 					const managementConnection = this._managementConnections[key];
 					managementConnection.shortenReconnectionGraceTimeIfNecessary();
 				}
-				for (let key in this._extHostConnections) {
+				for (const key in this._extHostConnections) {
 					const extHostConnection = this._extHostConnections[key];
 					extHostConnection.shortenReconnectionGraceTimeIfNecessary();
 				}

@@ -251,12 +251,12 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	protected _applyStyles(): void {
 		if (this.container && this.options.frameColor) {
-			let frameColor = this.options.frameColor.toString();
+			const frameColor = this.options.frameColor.toString();
 			this.container.style.borderTopColor = frameColor;
 			this.container.style.borderBottomColor = frameColor;
 		}
 		if (this._arrow && this.options.arrowColor) {
-			let arrowColor = this.options.arrowColor.toString();
+			const arrowColor = this.options.arrowColor.toString();
 			this._arrow.color = arrowColor;
 		}
 	}
@@ -281,7 +281,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this.domNode.style.height = `${height}px`;
 
 		if (this.container) {
-			let containerHeight = height - this._decoratingElementsHeight();
+			const containerHeight = height - this._decoratingElementsHeight();
 			this.container.style.height = `${containerHeight}px`;
 			const layoutInfo = this.editor.getLayoutInfo();
 			this._doLayout(containerHeight, this._getWidth(layoutInfo));
@@ -329,16 +329,16 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	}
 
 	private _decoratingElementsHeight(): number {
-		let lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		let result = 0;
 
 		if (this.options.showArrow) {
-			let arrowHeight = Math.round(lineHeight / 3);
+			const arrowHeight = Math.round(lineHeight / 3);
 			result += 2 * arrowHeight;
 		}
 
 		if (this.options.showFrame) {
-			let frameThickness = Math.round(lineHeight / 9);
+			const frameThickness = Math.round(lineHeight / 9);
 			result += 2 * frameThickness;
 		}
 
@@ -405,7 +405,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this.container.style.borderBottomWidth = width + 'px';
 		}
 
-		let containerHeight = heightInLines * lineHeight - this._decoratingElementsHeight();
+		const containerHeight = heightInLines * lineHeight - this._decoratingElementsHeight();
 
 		if (this.container) {
 			this.container.style.top = arrowHeight + 'px';
@@ -502,9 +502,9 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		this._disposables.add(this._resizeSash.onDidChange((evt: ISashEvent) => {
 			if (data) {
-				let lineDelta = (evt.currentY - data.startY) / this.editor.getOption(EditorOption.lineHeight);
-				let roundedLineDelta = lineDelta < 0 ? Math.ceil(lineDelta) : Math.floor(lineDelta);
-				let newHeightInLines = data.heightInLines + roundedLineDelta;
+				const lineDelta = (evt.currentY - data.startY) / this.editor.getOption(EditorOption.lineHeight);
+				const roundedLineDelta = lineDelta < 0 ? Math.ceil(lineDelta) : Math.floor(lineDelta);
+				const newHeightInLines = data.heightInLines + roundedLineDelta;
 
 				if (newHeightInLines > 5 && newHeightInLines < 35) {
 					this._relayout(newHeightInLines);

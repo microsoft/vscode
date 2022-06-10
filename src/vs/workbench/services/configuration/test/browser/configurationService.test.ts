@@ -66,7 +66,9 @@ const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 suite('WorkspaceContextService - Folder', () => {
 
-	let folderName = 'Folder A', folder: URI, testObject: WorkspaceService;
+	const folderName = 'Folder A';
+	let folder: URI;
+	let testObject: WorkspaceService;
 	const disposables = new DisposableStore();
 
 	setup(async () => {

@@ -25,6 +25,11 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ClearDisplayLanguageAction, ConfigureDisplayLanguageAction } from 'vs/workbench/contrib/localization/browser/localizationsActions';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
+import { NativeLocaleService } from 'vs/workbench/contrib/localization/electron-sandbox/localeService';
+
+registerSingleton(ILocaleService, NativeLocaleService, true);
 
 // Register action to configure locale and related settings
 registerAction2(ConfigureDisplayLanguageAction);

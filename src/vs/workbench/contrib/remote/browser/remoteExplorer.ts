@@ -131,10 +131,9 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private get entry(): IStatusbarEntry {
-		let text: string;
 		let tooltip: string;
 		const count = this.remoteExplorerService.tunnelModel.forwarded.size + this.remoteExplorerService.tunnelModel.detected.size;
-		text = `${count}`;
+		const text = `${count}`;
 		if (count === 0) {
 			tooltip = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Forwarded");
 		} else {

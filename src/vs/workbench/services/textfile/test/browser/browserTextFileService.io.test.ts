@@ -53,7 +53,7 @@ if (isWeb) {
 				service = instantiationService.createChild(collection).createInstance(TestBrowserTextFileServiceWithEncodingOverrides);
 
 				await fileProvider.mkdir(URI.file(testDir));
-				for (let fileName in files) {
+				for (const fileName in files) {
 					await fileProvider.writeFile(
 						URI.file(join(testDir, fileName)),
 						files[fileName],

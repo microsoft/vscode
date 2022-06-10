@@ -99,8 +99,8 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 	}
 
 	existing.sort((a, b) => {
-		let a_ext = extname(a.filepath.path);
-		let b_ext = extname(b.filepath.path);
+		const a_ext = extname(a.filepath.path);
+		const b_ext = extname(b.filepath.path);
 		if (a_ext === b_ext) {
 			return a.label.localeCompare(b.label);
 		} else if (a_ext === '.code-snippets') {

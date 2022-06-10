@@ -96,7 +96,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		const toDispose = new DisposableStore();
 
 		// Handle neverShowAgain option accordingly
-		let handle: INotificationHandle;
+
 		if (notification.neverShowAgain) {
 			const scope = notification.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
 			const id = notification.neverShowAgain.id;
@@ -134,7 +134,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		}
 
 		// Show notification
-		handle = this.model.addNotification(notification);
+		const handle = this.model.addNotification(notification);
 
 		// Cleanup when notification gets disposed
 		Event.once(handle.onDidClose)(() => toDispose.dispose());
@@ -171,7 +171,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		}
 
 		let choiceClicked = false;
-		let handle: INotificationHandle;
+
 
 		// Convert choices into primary/secondary actions
 		const primaryActions: IAction[] = [];
@@ -199,7 +199,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 		// Show notification with actions
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		handle = this.notify({ severity, message, actions, sticky: options?.sticky, silent: options?.silent });
+		const handle = this.notify({ severity, message, actions, sticky: options?.sticky, silent: options?.silent });
 
 		Event.once(handle.onDidClose)(() => {
 

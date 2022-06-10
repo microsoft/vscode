@@ -125,13 +125,15 @@ export class SettingsTreeIndicatorsLabel {
 		const defaultValueSource = element.defaultValueSource;
 		if (defaultValueSource) {
 			this.defaultOverrideIndicatorElement.style.display = 'inline';
+			let sourceToDisplay = '';
 			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
-				const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
-				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", extensionSource);
-				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(replace) {0}", extensionSource);
+				sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
 			} else if (typeof defaultValueSource === 'string') {
-				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", defaultValueSource);
-				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(replace) {0}", defaultValueSource);
+				sourceToDisplay = defaultValueSource;
+			}
+			if (sourceToDisplay) {
+				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay);
+				this.defaultOverrideIndicatorLabel.text = `$(replace) ${sourceToDisplay}`;
 			}
 		}
 		this.render();

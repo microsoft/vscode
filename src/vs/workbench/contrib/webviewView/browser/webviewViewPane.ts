@@ -204,7 +204,7 @@ export class WebviewViewPane extends ViewPane {
 		this.withProgress(async () => {
 			await this.extensionService.activateByEvent(`onView:${this.id}`);
 
-			let self = this;
+			const self = this;
 			const webviewView: WebviewView = {
 				webview,
 				onDidChangeVisibility: this.onDidChangeBodyVisibility,

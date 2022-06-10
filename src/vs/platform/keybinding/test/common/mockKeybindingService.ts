@@ -43,7 +43,7 @@ export class MockContextKeyService implements IContextKeyService {
 		//
 	}
 	public createKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T | undefined): IContextKey<T> {
-		let ret = new MockKeybindingContextKey(defaultValue);
+		const ret = new MockKeybindingContextKey(defaultValue);
 		this._keys.set(key, ret);
 		return ret;
 	}
@@ -109,7 +109,7 @@ export class MockKeybindingService implements IKeybindingService {
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		let keybinding = new SimpleKeybinding(
+		const keybinding = new SimpleKeybinding(
 			keyboardEvent.ctrlKey,
 			keyboardEvent.shiftKey,
 			keyboardEvent.altKey,

@@ -602,7 +602,7 @@ export class CellOutputContainer extends CellPart {
 				});
 
 				// exclusive
-				let reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
+				const reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
 
 				const newlyInsertedEntries = newlyInserted.map(insert => {
 					return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this, this.templateData.outputContainer, insert));
@@ -622,7 +622,7 @@ export class CellOutputContainer extends CellPart {
 				entry.element.dispose();
 			});
 
-			let reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
+			const reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
 
 			const newlyInsertedEntries = newlyInserted.map(insert => {
 				return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this, this.templateData.outputContainer, insert));
