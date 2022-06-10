@@ -466,7 +466,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.shellLaunchConfig.args = defaultProfile.args;
 				this.shellLaunchConfig.icon = defaultProfile.icon;
 				this.shellLaunchConfig.color = defaultProfile.color;
-				this.shellLaunchConfig.env = defaultProfile.env;
 			}
 
 			await this._createProcess();
