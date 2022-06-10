@@ -1,0 +1,47 @@
+<html>
+
+<head>
+  <!-- We can change how our page looks with CSS in the <style> tag. -->
+  <style>
+    #nameInput,
+    #output {
+      font-family: sans-serif;
+      font-size: 40px;
+      margin: 10px;
+    }
+  </style>
+</head>
+
+<!-- We can add the elements of our page in the <body> tag. -->
+
+<body>
+  <input id="nameInput" type="text" placeholder="What is your name?" autocomplete="off"></input>
+  <br>
+  <div id="output"></div>
+</body>
+
+<!-- Our JavaScript code will go in a <script> tag. -->
+<script>
+  // Grab our input and output elements.
+  let nameInput = document.getElementById("nameInput");
+  let output = document.getElementById("output");
+
+  // Write our greeting and focus on the input field.
+  sayHello();
+  nameInput.focus()
+
+  // Every time our input changes, it will call 'sayHello' again.
+  nameInput.oninput = sayHello;
+
+  function sayHello() {
+    let name = nameInput.value;
+    if (name !== "") {
+      // Add an extra space if we have a name.
+      name = " " + name;
+    }
+
+    output.textContent = `Hello${name}, nice to meet you!`;
+  }
+</script>
+
+</html>
