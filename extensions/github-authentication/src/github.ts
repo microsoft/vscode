@@ -36,6 +36,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	private _keychain: Keychain = new Keychain(this.context, `${this.type}.auth`, this._logger);
 	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
+	private _accountsSeen = new Set<string>();
 	private _disposable: vscode.Disposable;
 
 	constructor(private readonly context: vscode.ExtensionContext, private readonly type: AuthProviderType) {
@@ -44,10 +45,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 		if (this.type === AuthProviderType.github) {
 			this._githubServer = new GitHubServer(
-				// We only can use the Device Code flow when we are running with a remote extension host.
-				context.extension.extensionKind === vscode.ExtensionKind.Workspace
-				// This should only matter when we are running in code-oss. See the other change in this commit.
-				|| vscode.env.uiKind === vscode.UIKind.Desktop,
+				// We only can use the Device Code flow when we have a full node environment because of CORS.
+				context.extension.extensionKind === vscode.ExtensionKind.Workspace || vscode.env.uiKind === vscode.UIKind.Desktop,
 				this._logger,
 				this._telemetryReporter);
 		} else {
@@ -55,7 +54,11 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		}
 
 		// Contains the current state of the sessions we have available.
-		this._sessionsPromise = this.readSessions();
+		this._sessionsPromise = this.readSessions().then((sessions) => {
+			// fire telemetry after a second to allow the workbench to focus on loading
+			setTimeout(() => sessions.forEach(s => this.afterSessionLoad(s)), 1000);
+			return sessions;
+		});
 
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
@@ -86,8 +89,12 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return finalSessions;
 	}
 
-	private async afterTokenLoad(token: string): Promise<void> {
-		this._githubServer.sendAdditionalTelemetryInfo(token);
+	private async afterSessionLoad(session: vscode.AuthenticationSession): Promise<void> {
+		// We only want to fire a telemetry if we haven't seen this account yet in this session.
+		if (!this._accountsSeen.has(session.account.id)) {
+			this._accountsSeen.add(session.account.id);
+			this._githubServer.sendAdditionalTelemetryInfo(session.accessToken);
+		}
 	}
 
 	private async checkForUpdates() {
@@ -146,8 +153,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const scopesSeen = new Set<string>();
 		const sessionPromises = sessionData.map(async (session: SessionData) => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
-			const sortedScopes = session.scopes.sort();
-			const scopesStr = sortedScopes.join(' ');
+			const scopesStr = [...session.scopes].sort().join(' ');
 			if (scopesSeen.has(scopesStr)) {
 				return undefined;
 			}
@@ -164,8 +170,6 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				}
 			}
 
-			setTimeout(() => this.afterTokenLoad(session.accessToken), 1000);
-
 			this._logger.trace(`Read the following session from the keychain with the following scopes: ${scopesStr}`);
 			scopesSeen.add(scopesStr);
 			return {
@@ -176,7 +180,9 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 						: userInfo?.accountName ?? '<unknown>',
 					id: session.account?.id ?? userInfo?.id ?? '<unknown>'
 				},
-				scopes: sortedScopes,
+				// we set this to session.scopes to maintain the original order of the scopes requested
+				// by the extension that called getSession()
+				scopes: session.scopes,
 				accessToken: session.accessToken
 			};
 		});
@@ -203,23 +209,26 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
 		try {
-			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
-			const sortedScopes = scopes.sort();
+			// For GitHub scope list, order doesn't matter so we use a sorted scope to determine
+			// if we've got a session already.
+			const sortedScopes = [...scopes].sort();
 
 			/* __GDPR__
 				"login" : {
-					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+					"owner": "TylerLeonhardt",
+					"comment": "Used to determine how much usage the GitHub Auth Provider gets.",
+					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." }
 				}
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('login', {
-				scopes: JSON.stringify(sortedScopes),
+				scopes: JSON.stringify(scopes),
 			});
 
 
 			const scopeString = sortedScopes.join(' ');
 			const token = await this._githubServer.login(scopeString);
-			this.afterTokenLoad(token);
-			const session = await this.tokenToSession(token, sortedScopes);
+			const session = await this.tokenToSession(token, scopes);
+			this.afterSessionLoad(session);
 
 			const sessions = await this._sessionsPromise;
 			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));
@@ -239,14 +248,14 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			// If login was cancelled, do not notify user.
 			if (e === 'Cancelled' || e.message === 'Cancelled') {
 				/* __GDPR__
-					"loginCancelled" : { }
+					"loginCancelled" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users cancel the login flow." }
 				*/
 				this._telemetryReporter?.sendTelemetryEvent('loginCancelled');
 				throw e;
 			}
 
 			/* __GDPR__
-				"loginFailed" : { }
+				"loginFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users run into an error login flow." }
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('loginFailed');
 
@@ -269,7 +278,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	public async removeSession(id: string) {
 		try {
 			/* __GDPR__
-				"logout" : { }
+				"logout" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users log out of an account." }
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('logout');
 
@@ -289,7 +298,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			}
 		} catch (e) {
 			/* __GDPR__
-				"logoutFailed" : { }
+				"logoutFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often logging out of an account fails." }
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('logoutFailed');
 

@@ -47,8 +47,7 @@
 
 .search-view .search-widget .monaco-inputbox > .ibwrapper > .mirror,
 .search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
-	padding: 3px;
-	padding-left: 4px;
+	padding: 3px 0px 3px 4px;
 }
 
 /* NOTE: height is also used in searchWidget.ts as a constant*/

@@ -26,15 +26,18 @@ import { assertNoRpc, poll } from '../utils';
 		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
 		// Disable env var relaunch for tests to prevent terminals relaunching themselves
 		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
+		await config.update('shellIntegration.enabled', false);
 	});
 
 	suite('Terminal', () => {
-		let disposables: Disposable[] = [];
+		const disposables: Disposable[] = [];
 
-		teardown(() => {
+		teardown(async () => {
 			assertNoRpc();
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
+			const config = workspace.getConfiguration('terminal.integrated');
+			await config.update('shellIntegration.enabled', undefined);
 		});
 
 		test('sendText immediately after createTerminal should not throw', async () => {
@@ -129,7 +132,7 @@ import { assertNoRpc, poll } from '../utils';
 				}));
 			});
 			equal(result, terminal);
-			let pid = await result.processId;
+			const pid = await result.processId;
 			equal(true, pid && pid > 0);
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {

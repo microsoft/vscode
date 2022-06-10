@@ -18,6 +18,7 @@ import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -29,6 +30,7 @@ export class SnippetCompletion implements CompletionItem {
 	sortText: string;
 	kind: CompletionItemKind;
 	insertTextRules: CompletionItemInsertTextRule;
+	extensionId?: ExtensionIdentifier;
 
 	constructor(
 		readonly snippet: Snippet,
@@ -37,6 +39,7 @@ export class SnippetCompletion implements CompletionItem {
 		this.label = { label: snippet.prefix, description: snippet.name };
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.codeSnippet;
+		this.extensionId = snippet.extensionId;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.kind = CompletionItemKind.Snippet;
@@ -145,7 +148,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		if (!triggerCharacterLow) {
 			const endsInWhitespace = /\s/.test(lineContentLow[position.column - 2]);
 			if (endsInWhitespace || !lineContentLow /*empty line*/) {
-				for (let snippet of snippets) {
+				for (const snippet of snippets) {
 					const insert = Range.fromPositions(position);
 					const replace = lineContentLow.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
 					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
@@ -157,7 +160,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// dismbiguate suggestions with same labels
 		suggestions.sort(SnippetCompletion.compareByLabel);
 		for (let i = 0; i < suggestions.length; i++) {
-			let item = suggestions[i];
+			const item = suggestions[i];
 			let to = i + 1;
 			for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
 				suggestions[to].label.label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.label, suggestions[to].snippet.name);
@@ -182,7 +185,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
-		model.tokenizeIfCheap(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
 		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
 		if (!this._languageService.getLanguageName(languageId)) {
 			languageId = model.getLanguageId();

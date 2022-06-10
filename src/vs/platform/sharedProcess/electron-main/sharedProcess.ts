@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Event as ElectronEvent, ipcMain, IpcMainEvent, MessagePortMain } from 'electron';
+import { BrowserWindow, Event as ElectronEvent, IpcMainEvent, MessagePortMain } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -21,6 +22,7 @@ import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/com
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { WindowError } from 'vs/platform/window/electron-main/window';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IPolicyService } from 'vs/platform/policy/common/policy';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -38,6 +40,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
+		@IPolicyService private readonly policyService: IPolicyService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
 	) {
@@ -49,10 +52,10 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	private registerListeners(): void {
 
 		// Shared process connections from workbench windows
-		ipcMain.on('vscode:createSharedProcessMessageChannel', (e, nonce: string) => this.onWindowConnection(e, nonce));
+		validatedIpcMain.on('vscode:createSharedProcessMessageChannel', (e, nonce: string) => this.onWindowConnection(e, nonce));
 
 		// Shared process worker relay
-		ipcMain.on('vscode:relaySharedProcessWorkerMessageChannel', (e, configuration: ISharedProcessWorkerConfiguration) => this.onWorkerConnection(e, configuration));
+		validatedIpcMain.on('vscode:relaySharedProcessWorkerMessageChannel', (e, configuration: ISharedProcessWorkerConfiguration) => this.onWorkerConnection(e, configuration));
 
 		// Lifecycle
 		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
@@ -173,7 +176,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		if (!this._whenReady) {
 			// Overall signal that the shared process window was loaded and
 			// all services within have been created.
-			this._whenReady = new Promise<void>(resolve => ipcMain.once('vscode:shared-process->electron-main=init-done', () => {
+			this._whenReady = new Promise<void>(resolve => validatedIpcMain.once('vscode:shared-process->electron-main=init-done', () => {
 				this.logService.trace('SharedProcess: Overall ready');
 
 				resolve();
@@ -198,7 +201,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				this.registerWindowListeners();
 
 				// Wait for window indicating that IPC connections are accepted
-				await new Promise<void>(resolve => ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => {
+				await new Promise<void>(resolve => validatedIpcMain.once('vscode:shared-process->electron-main=ipc-ready', () => {
 					this.logService.trace('SharedProcess: IPC ready');
 
 					resolve();
@@ -225,7 +228,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				contextIsolation: false,
 				enableWebSQL: false,
 				spellcheck: false,
-				nativeWindowOpen: true,
 				images: false,
 				webgl: false
 			}
@@ -241,7 +243,8 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			userEnv: this.userEnv,
 			args: this.environmentMainService.args,
 			logLevel: this.logService.getLevel(),
-			product
+			product,
+			policiesData: this.policyService.serialize()
 		});
 
 		// Load with config

@@ -707,9 +707,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		const handler = this.handlers.get(response.id);
 
-		if (handler) {
-			handler(response);
-		}
+		handler?.(response);
 	}
 
 	@memoize
@@ -816,7 +814,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 				if (isFunction(routerOrClientFilter)) {
 					// when no router is provided, we go random client picking
-					let connection = getRandomElement(that.connections.filter(routerOrClientFilter));
+					const connection = getRandomElement(that.connections.filter(routerOrClientFilter));
 
 					connectionPromise = connection
 						// if we found a client, let's call on it
@@ -1181,7 +1179,7 @@ function prettyWithoutArrays(data: any): any {
 		return data;
 	}
 	if (data && typeof data === 'object' && typeof data.toString === 'function') {
-		let result = data.toString();
+		const result = data.toString();
 		if (result !== '[object Object]') {
 			return result;
 		}

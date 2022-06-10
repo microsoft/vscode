@@ -42,8 +42,8 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 		};
 
 		const applyAlternatives = (request: string) => {
-			for (let alternativeModuleName of that._alternatives) {
-				let alternative = alternativeModuleName(request);
+			for (const alternativeModuleName of that._alternatives) {
+				const alternative = alternativeModuleName(request);
 				if (alternative) {
 					request = alternative;
 					break;
@@ -72,7 +72,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		}
 
 		// Module loading tricks
-		const interceptor = this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, this._registry);
+		const interceptor = this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, { mine: this._myRegistry, all: this._globalRegistry });
 		await interceptor.install();
 		performance.mark('code/extHost/didInitAPI');
 

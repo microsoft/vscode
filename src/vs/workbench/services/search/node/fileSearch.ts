@@ -184,7 +184,7 @@ export class FileWalker {
 	private cmdTraversal(folderQuery: IFolderQuery, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, cb: (err?: Error) => void): void {
 		const rootFolder = folderQuery.folder.fsPath;
 		const isMac = platform.isMacintosh;
-		let cmd: childProcess.ChildProcess;
+
 		const killCmd = () => cmd && cmd.kill();
 		killCmds.add(killCmd);
 
@@ -196,10 +196,9 @@ export class FileWalker {
 		let leftover = '';
 		const tree = this.initDirectoryTree();
 
-		let noSiblingsClauses: boolean;
 		const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression);
-		cmd = ripgrep.cmd;
-		noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
+		const cmd = ripgrep.cmd;
+		const noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
 
 		const escapedArgs = ripgrep.rgArgs.args
 			.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
@@ -429,8 +428,8 @@ export class FileWalker {
 
 				// Check exclude pattern
 				// If the user searches for the exact file name, we adjust the glob matching
-				// to ignore filtering by siblings because the user seems to know what she
-				// is searching for and we want to include the result in that case anyway
+				// to ignore filtering by siblings because the user seems to know what they
+				// are searching for and we want to include the result in that case anyway
 				if (excludePattern.test(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
 					continue;
 				}
@@ -479,8 +478,8 @@ export class FileWalker {
 
 			// Check exclude pattern
 			// If the user searches for the exact file name, we adjust the glob matching
-			// to ignore filtering by siblings because the user seems to know what she
-			// is searching for and we want to include the result in that case anyway
+			// to ignore filtering by siblings because the user seems to know what they
+			// are searching for and we want to include the result in that case anyway
 			const currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
 			if (this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {
 				return clb(null);

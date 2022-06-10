@@ -51,7 +51,7 @@ import * as utils from '../utils';
 		utils.disposeAll(disposables);
 		disposables.length = 0;
 
-		for (let doc of vscode.workspace.notebookDocuments) {
+		for (const doc of vscode.workspace.notebookDocuments) {
 			assert.strictEqual(doc.isDirty, false, doc.uri.toString());
 		}
 	});
@@ -75,11 +75,11 @@ import * as utils from '../utils';
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 
 		const editor = await vscode.window.showNotebookDocument(uri);
-		assert.strictEqual(uri.toString(), editor.document.uri.toString());
+		assert.strictEqual(uri.toString(), editor.notebook.uri.toString());
 
-		assert.strictEqual(notebookDocumentsFromOnDidOpen.has(editor.document), true);
+		assert.strictEqual(notebookDocumentsFromOnDidOpen.has(editor.notebook), true);
 
-		const includes = vscode.workspace.notebookDocuments.includes(editor.document);
+		const includes = vscode.workspace.notebookDocuments.includes(editor.notebook);
 		assert.strictEqual(true, includes);
 
 		sub.dispose();
@@ -104,7 +104,7 @@ import * as utils from '../utils';
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const editor = await vscode.window.showNotebookDocument(resource);
 		assert.ok(await openedEditor);
-		assert.strictEqual(editor.document.uri.toString(), resource.toString());
+		assert.strictEqual(editor.notebook.uri.toString(), resource.toString());
 	});
 
 	test('Active/Visible Editor', async function () {

@@ -32,7 +32,8 @@ import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/m
 import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { ResourcesDropHandler, fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
+import { ResourcesDropHandler, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
@@ -59,6 +60,7 @@ const $ = dom.$;
 export class OpenEditorsView extends ViewPane {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
+	private static readonly DEFAULT_MIN_VISIBLE_OPEN_EDITORS = 0;
 	static readonly ID = 'workbench.explorer.openEditorsView';
 	static readonly NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
@@ -451,7 +453,7 @@ export class OpenEditorsView extends ViewPane {
 			}
 		}
 
-		let dirty = this.workingCopyService.dirtyCount;
+		const dirty = this.workingCopyService.dirtyCount;
 		if (dirty === 0) {
 			this.dirtyCountElement.classList.add('hidden');
 		} else {
@@ -466,12 +468,17 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	private getMaxExpandedBodySize(): number {
+		let minVisibleOpenEditors = this.configurationService.getValue<number>('explorer.openEditors.minVisible');
+		// If it's not a number setting it to 0 will result in dynamic resizing.
+		if (typeof minVisibleOpenEditors !== 'number') {
+			minVisibleOpenEditors = OpenEditorsView.DEFAULT_MIN_VISIBLE_OPEN_EDITORS;
+		}
 		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
 		if (containerModel.visibleViewDescriptors.length <= 1) {
 			return Number.POSITIVE_INFINITY;
 		}
 
-		return this.elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
+		return (Math.max(this.elementCount, minVisibleOpenEditors)) * OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 
 	private getMinExpandedBodySize(): number {
@@ -493,8 +500,8 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	override getOptimalWidth(): number {
-		let parentNode = this.list.getHTMLElement();
-		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+		const parentNode = this.list.getHTMLElement();
+		const childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
 		return dom.getLargestChildWidth(parentNode, childNodes);
 	}

@@ -105,6 +105,15 @@ export class ExtHostNotebookEditor {
 				get document() {
 					return that.notebookData.apiNotebook;
 				},
+				get notebook() {
+					return that.notebookData.apiNotebook;
+				},
+				get selection() {
+					return that._selections[0];
+				},
+				set selection(selection: vscode.NotebookRange) {
+					this.selections = [selection];
+				},
 				get selections() {
 					return that._selections;
 				},

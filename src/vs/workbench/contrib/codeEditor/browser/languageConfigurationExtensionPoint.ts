@@ -821,5 +821,5 @@ const schema: IJSONSchema = {
 
 	}
 };
-let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
+const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);

@@ -17,7 +17,7 @@ import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/commo
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -56,7 +56,7 @@ export function getOccurrencesAtPosition(registry: LanguageFeatureRegistry<Docum
 
 interface IOccurenceAtPositionRequest {
 	readonly result: Promise<DocumentHighlight[]>;
-	isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean;
+	isValid(model: ITextModel, selection: Selection, decorations: IEditorDecorationsCollection): boolean;
 	cancel(): void;
 }
 
@@ -88,7 +88,7 @@ abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest
 		return null;
 	}
 
-	public isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean {
+	public isValid(model: ITextModel, selection: Selection, decorations: IEditorDecorationsCollection): boolean {
 
 		const lineNumber = selection.startLineNumber;
 		const startColumn = selection.startColumn;
@@ -99,8 +99,8 @@ abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest
 
 		// Even if we are on a different word, if that word is in the decorations ranges, the request is still valid
 		// (Same symbol)
-		for (let i = 0, len = decorationIds.length; !requestIsValid && i < len; i++) {
-			let range = model.getDecorationRange(decorationIds[i]);
+		for (let i = 0, len = decorations.length; !requestIsValid && i < len; i++) {
+			const range = decorations.getRange(i);
 			if (range && range.startLineNumber === lineNumber) {
 				if (range.startColumn <= startColumn && range.endColumn >= endColumn) {
 					requestIsValid = true;
@@ -160,12 +160,12 @@ class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 		});
 	}
 
-	public override isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean {
+	public override isValid(model: ITextModel, selection: Selection, decorations: IEditorDecorationsCollection): boolean {
 		const currentSelectionIsEmpty = selection.isEmpty();
 		if (this._selectionIsEmpty !== currentSelectionIsEmpty) {
 			return false;
 		}
-		return super.isValid(model, selection, decorationIds);
+		return super.isValid(model, selection, decorations);
 	}
 }
 
@@ -187,7 +187,7 @@ class WordHighlighter {
 	private readonly providers: LanguageFeatureRegistry<DocumentHighlightProvider>;
 	private occurrencesHighlight: boolean;
 	private readonly model: ITextModel;
-	private _decorationIds: string[];
+	private readonly decorations: IEditorDecorationsCollection;
 	private readonly toUnhook = new DisposableStore();
 
 	private workerRequestTokenId: number = 0;
@@ -227,14 +227,14 @@ class WordHighlighter {
 			this._stopAll();
 		}));
 		this.toUnhook.add(editor.onDidChangeConfiguration((e) => {
-			let newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
+			const newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
 			if (this.occurrencesHighlight !== newValue) {
 				this.occurrencesHighlight = newValue;
 				this._stopAll();
 			}
 		}));
 
-		this._decorationIds = [];
+		this.decorations = this.editor.createDecorationsCollection();
 		this.workerRequestTokenId = 0;
 		this.workerRequest = null;
 		this.workerRequestCompleted = false;
@@ -244,7 +244,7 @@ class WordHighlighter {
 	}
 
 	public hasDecorations(): boolean {
-		return (this._decorationIds.length > 0);
+		return (this.decorations.length > 0);
 	}
 
 	public restore(): void {
@@ -255,18 +255,17 @@ class WordHighlighter {
 	}
 
 	private _getSortedHighlights(): Range[] {
-		return arrays.coalesce(
-			this._decorationIds
-				.map((id) => this.model.getDecorationRange(id))
+		return (
+			this.decorations.getRanges()
 				.sort(Range.compareRangesUsingStarts)
 		);
 	}
 
 	public moveNext() {
-		let highlights = this._getSortedHighlights();
-		let index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
-		let newIndex = ((index + 1) % highlights.length);
-		let dest = highlights[newIndex];
+		const highlights = this._getSortedHighlights();
+		const index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
+		const newIndex = ((index + 1) % highlights.length);
+		const dest = highlights[newIndex];
 		try {
 			this._ignorePositionChangeEvent = true;
 			this.editor.setPosition(dest.getStartPosition());
@@ -282,10 +281,10 @@ class WordHighlighter {
 	}
 
 	public moveBack() {
-		let highlights = this._getSortedHighlights();
-		let index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
-		let newIndex = ((index - 1 + highlights.length) % highlights.length);
-		let dest = highlights[newIndex];
+		const highlights = this._getSortedHighlights();
+		const index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
+		const newIndex = ((index - 1 + highlights.length) % highlights.length);
+		const dest = highlights[newIndex];
 		try {
 			this._ignorePositionChangeEvent = true;
 			this.editor.setPosition(dest.getStartPosition());
@@ -301,9 +300,9 @@ class WordHighlighter {
 	}
 
 	private _removeDecorations(): void {
-		if (this._decorationIds.length > 0) {
+		if (this.decorations.length > 0) {
 			// remove decorations
-			this._decorationIds = this.editor.deltaDecorations(this._decorationIds, []);
+			this.decorations.clear();
 			this._hasWordHighlights.set(false);
 		}
 	}
@@ -349,9 +348,9 @@ class WordHighlighter {
 	}
 
 	private _getWord(): IWordAtPosition | null {
-		let editorSelection = this.editor.getSelection();
-		let lineNumber = editorSelection.startLineNumber;
-		let startColumn = editorSelection.startColumn;
+		const editorSelection = this.editor.getSelection();
+		const lineNumber = editorSelection.startLineNumber;
+		const startColumn = editorSelection.startColumn;
 
 		return this.model.getWordAtPosition({
 			lineNumber: lineNumber,
@@ -360,7 +359,7 @@ class WordHighlighter {
 	}
 
 	private _run(): void {
-		let editorSelection = this.editor.getSelection();
+		const editorSelection = this.editor.getSelection();
 
 		// ignore multiline selection
 		if (editorSelection.startLineNumber !== editorSelection.endLineNumber) {
@@ -368,8 +367,8 @@ class WordHighlighter {
 			return;
 		}
 
-		let startColumn = editorSelection.startColumn;
-		let endColumn = editorSelection.endColumn;
+		const startColumn = editorSelection.startColumn;
+		const endColumn = editorSelection.endColumn;
 
 		const word = this._getWord();
 
@@ -384,7 +383,7 @@ class WordHighlighter {
 		// - 250ms later after the last cursor move event, render the occurrences
 		// - no flickering!
 
-		const workerRequestIsValid = (this.workerRequest && this.workerRequest.isValid(this.model, editorSelection, this._decorationIds));
+		const workerRequestIsValid = (this.workerRequest && this.workerRequest.isValid(this.model, editorSelection, this.decorations));
 
 		// There are 4 cases:
 		// a) old workerRequest is valid & completed, renderDecorationsTimer fired
@@ -410,7 +409,7 @@ class WordHighlighter {
 			// Stop all previous actions and start fresh
 			this._stopAll();
 
-			let myRequestId = ++this.workerRequestTokenId;
+			const myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
 
 			this.workerRequest = computeOccurencesAtPosition(this.providers, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators));
@@ -426,8 +425,8 @@ class WordHighlighter {
 	}
 
 	private _beginRenderDecorations(): void {
-		let currentTime = (new Date()).getTime();
-		let minimumRenderTime = this.lastCursorPositionChangeTime + 250;
+		const currentTime = (new Date()).getTime();
+		const minimumRenderTime = this.lastCursorPositionChangeTime + 250;
 
 		if (currentTime >= minimumRenderTime) {
 			// Synchronous
@@ -443,7 +442,7 @@ class WordHighlighter {
 
 	private renderDecorations(): void {
 		this.renderDecorationsTimer = -1;
-		let decorations: IModelDeltaDecoration[] = [];
+		const decorations: IModelDeltaDecoration[] = [];
 		for (const info of this.workerRequestValue) {
 			if (info.range) {
 				decorations.push({
@@ -453,7 +452,7 @@ class WordHighlighter {
 			}
 		}
 
-		this._decorationIds = this.editor.deltaDecorations(this._decorationIds, decorations);
+		this.decorations.set(decorations);
 		this._hasWordHighlights.set(this.hasDecorations());
 	}
 

@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { assertThrowsAsync } from 'vs/base/test/common/utils';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -40,6 +41,16 @@ suite('NotebookExecutionService', () => {
 			override onDidAddNotebookDocument = Event.None;
 			override onWillRemoveNotebookDocument = Event.None;
 			override getNotebookTextModels() { return []; }
+		});
+
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu() {
+				return new class extends mock<IMenu>() {
+					override onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose() { }
+				};
+			}
 		});
 
 		kernelService = instantiationService.createInstance(NotebookKernelService);
@@ -184,8 +195,10 @@ class TestNotebookKernel implements INotebookKernel {
 	cancelNotebookCellExecution(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-
 	constructor(opts?: { languages: string[] }) {
 		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];
 	}
+	kind?: string | undefined;
+	implementsInterrupt?: boolean | undefined;
+	implementsExecutionOrder?: boolean | undefined;
 }

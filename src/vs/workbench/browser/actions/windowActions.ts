@@ -145,6 +145,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			matchOnDescription: true,
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
+			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {
 
 				// Remove
@@ -269,7 +270,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 			id: 'workbench.action.quickOpenRecent',
 			title: { value: localize('quickOpenRecent', "Quick Open Recent..."), original: 'Quick Open Recent...' },
 			category: fileCategory,
-			f1: true
+			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
 	}
 

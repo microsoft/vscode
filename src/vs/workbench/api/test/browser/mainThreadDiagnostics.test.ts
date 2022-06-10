@@ -26,10 +26,11 @@ suite('MainThreadDiagnostics', function () {
 
 	test('clear markers on dispose', function () {
 
-		let diag = new MainThreadDiagnostics(
+		const diag = new MainThreadDiagnostics(
 			new class implements IExtHostContext {
 				remoteAuthority = '';
 				extensionHostKind = ExtensionHostKind.LocalProcess;
+				dispose() { }
 				assertRegistered() { }
 				set(v: any): any { return null; }
 				getProxy(): any {
@@ -67,10 +68,11 @@ suite('MainThreadDiagnostics', function () {
 
 			const changedData: [UriComponents, IMarkerData[]][][] = [];
 
-			let diag = new MainThreadDiagnostics(
+			const diag = new MainThreadDiagnostics(
 				new class implements IExtHostContext {
 					remoteAuthority = '';
 					extensionHostKind = ExtensionHostKind.LocalProcess;
+					dispose() { }
 					assertRegistered() { }
 					set(v: any): any { return null; }
 					getProxy(): any {
@@ -130,10 +132,11 @@ suite('MainThreadDiagnostics', function () {
 
 			const changedData: [UriComponents, IMarkerData[]][][] = [];
 
-			let diag = new MainThreadDiagnostics(
+			const diag = new MainThreadDiagnostics(
 				new class implements IExtHostContext {
 					remoteAuthority = '';
 					extensionHostKind = ExtensionHostKind.LocalProcess;
+					dispose() { }
 					assertRegistered() { }
 					set(v: any): any { return null; }
 					getProxy(): any {

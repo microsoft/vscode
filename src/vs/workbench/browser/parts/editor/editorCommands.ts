@@ -844,7 +844,8 @@ function registerCloseEditorCommands() {
 		handler: (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			return Promise.all(getEditorsContext(accessor, resourceOrContext, context).groups.map(async group => {
 				if (group) {
-					return group.closeAllEditors({ excludeSticky: true });
+					await group.closeAllEditors({ excludeSticky: true });
+					return;
 				}
 			}));
 		}
@@ -967,6 +968,7 @@ function registerCloseEditorCommands() {
 			]);
 
 			type WorkbenchEditorReopenClassification = {
+				owner: 'rebornix';
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };

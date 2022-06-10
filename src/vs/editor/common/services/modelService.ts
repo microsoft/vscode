@@ -679,7 +679,7 @@ class SemanticColoringFeature extends Disposable {
 			delete this._watchers[model.uri.toString()];
 		};
 		const handleSettingOrThemeChange = () => {
-			for (let model of modelService.getModels()) {
+			for (const model of modelService.getModels()) {
 				const curr = this._watchers[model.uri.toString()];
 				if (isSemanticColoringEnabled(model, themeService, configurationService)) {
 					if (!curr) {
@@ -709,6 +709,14 @@ class SemanticColoringFeature extends Disposable {
 			}
 		}));
 		this._register(themeService.onDidColorThemeChange(handleSettingOrThemeChange));
+	}
+
+	override dispose(): void {
+		// Dispose all watchers
+		for (const watcher of Object.values(this._watchers)) {
+			watcher.dispose();
+		}
+		super.dispose();
 	}
 }
 
@@ -850,7 +858,7 @@ export class ModelSemanticColoring extends Disposable {
 			// there is no provider
 			if (this._currentDocumentResponse) {
 				// there are semantic tokens set
-				this._model.setSemanticTokens(null, false);
+				this._model.tokenization.setSemanticTokens(null, false);
 			}
 			return;
 		}
@@ -900,6 +908,8 @@ export class ModelSemanticColoring extends Disposable {
 	}
 
 	private static _copy(src: Uint32Array, srcOffset: number, dest: Uint32Array, destOffset: number, length: number): void {
+		// protect against overflows
+		length = Math.min(length, dest.length - destOffset, src.length - srcOffset);
 		for (let i = 0; i < length; i++) {
 			dest[destOffset + i] = src[srcOffset + i];
 		}
@@ -925,11 +935,11 @@ export class ModelSemanticColoring extends Disposable {
 			return;
 		}
 		if (!provider || !styling) {
-			this._model.setSemanticTokens(null, false);
+			this._model.tokenization.setSemanticTokens(null, false);
 			return;
 		}
 		if (!tokens) {
-			this._model.setSemanticTokens(null, true);
+			this._model.tokenization.setSemanticTokens(null, true);
 			rescheduleIfNeeded();
 			return;
 		}
@@ -937,7 +947,7 @@ export class ModelSemanticColoring extends Disposable {
 		if (isSemanticTokensEdits(tokens)) {
 			if (!currentResponse) {
 				// not possible!
-				this._model.setSemanticTokens(null, true);
+				this._model.tokenization.setSemanticTokens(null, true);
 				return;
 			}
 			if (tokens.edits.length === 0) {
@@ -959,6 +969,13 @@ export class ModelSemanticColoring extends Disposable {
 				let destLastStart = destData.length;
 				for (let i = tokens.edits.length - 1; i >= 0; i--) {
 					const edit = tokens.edits[i];
+
+					if (edit.start > srcData.length) {
+						styling.warnInvalidEditStart(currentResponse.resultId, tokens.resultId, i, edit.start, srcData.length);
+						// The edits are invalid and there's no way to recover
+						this._model.tokenization.setSemanticTokens(null, true);
+						return;
+					}
 
 					const copyCount = srcLastStart - (edit.start + edit.deleteCount);
 					if (copyCount > 0) {
@@ -1006,9 +1023,9 @@ export class ModelSemanticColoring extends Disposable {
 				}
 			}
 
-			this._model.setSemanticTokens(result, true);
+			this._model.tokenization.setSemanticTokens(result, true);
 		} else {
-			this._model.setSemanticTokens(null, true);
+			this._model.tokenization.setSemanticTokens(null, true);
 		}
 
 		rescheduleIfNeeded();

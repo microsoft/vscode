@@ -17,7 +17,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { EditorResolution } from 'vs/platform/editor/common/editor';
@@ -29,7 +28,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -46,6 +44,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { isArray, isObject } from 'vs/base/common/types';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -68,7 +67,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private readonly modelService: IModelService,
@@ -76,7 +74,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@ICommandService private readonly commandService: ICommandService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		super();
@@ -304,11 +301,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	async openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void> {
-		type OpenKeybindingsClassification = {
-			textual: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-		};
-		this.telemetryService.publicLog2<{ textual: boolean }, OpenKeybindingsClassification>('openKeybindings', { textual });
-
 		options = { pinned: true, revealIfOpened: true, ...options };
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
@@ -542,7 +534,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			codeEditor.revealPositionNearTop(position);
 			codeEditor.focus();
 			if (edit) {
-				await this.commandService.executeCommand('editor.action.triggerSuggest');
+				SuggestController.get(codeEditor)?.triggerSuggest();
 			}
 		}
 	}

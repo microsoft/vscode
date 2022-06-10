@@ -18,8 +18,8 @@ class WorkerRequireInterceptor extends RequireInterceptor {
 	_installInterceptor() { }
 
 	getModule(request: string, parent: URI): undefined | any {
-		for (let alternativeModuleName of this._alternatives) {
-			let alternative = alternativeModuleName(request);
+		for (const alternativeModuleName of this._alternatives) {
+			const alternative = alternativeModuleName(request);
 			if (alternative) {
 				request = alternative;
 				break;
@@ -44,7 +44,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
-		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, this._registry);
+		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, { mine: this._myRegistry, all: this._globalRegistry });
 		await this._fakeModules.install();
 		performance.mark('code/extHost/didInitAPI');
 

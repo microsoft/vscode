@@ -37,7 +37,7 @@ import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/ed
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -66,8 +66,10 @@ const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', 
 type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description?: string };
 
 type SyncConflictsClassification = {
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	owner: 'sandy081';
+	comment: 'Response information when conflict happens during settings sync';
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'settings sync resource. eg., settings, keybindings...' };
+	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'action taken while resolving conflicts. Eg: acceptLocal, acceptRemote' };
 };
 
 const turnOnSyncCommand = { id: 'workbench.userDataSync.actions.turnOn', title: localize('turn on sync with category', "{0}: Turn On...", SYNC_TITLE) };

@@ -12,7 +12,8 @@ import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
-import { createQueuedSender, removeDangerousEnvVariables } from 'vs/base/node/processes';
+import { createQueuedSender } from 'vs/base/node/processes';
+import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { ChannelClient as IPCClient, ChannelServer as IPCServer, IChannel, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
 
 /**
@@ -25,9 +26,7 @@ export class Server<TContext extends string> extends IPCServer<TContext> {
 		super({
 			send: r => {
 				try {
-					if (process.send) {
-						process.send((<Buffer>r.buffer).toString('base64'));
-					}
+					process.send?.((<Buffer>r.buffer).toString('base64'));
 				} catch (e) { /* not much to do */ }
 			},
 			onMessage: Event.fromNodeEventEmitter(process, 'message', msg => VSBuffer.wrap(Buffer.from(msg, 'base64')))

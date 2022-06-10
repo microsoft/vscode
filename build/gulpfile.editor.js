@@ -17,14 +17,14 @@ const compilation = require('./lib/compilation');
 const monacoapi = require('./lib/monaco-api');
 const fs = require('fs');
 
-let root = path.dirname(__dirname);
-let sha1 = util.getVersion(root);
-let semver = require('./monaco/package.json').version;
-let headerVersion = semver + '(' + sha1 + ')';
+const root = path.dirname(__dirname);
+const sha1 = util.getVersion(root);
+const semver = require('./monaco/package.json').version;
+const headerVersion = semver + '(' + sha1 + ')';
 
 // Build
 
-let editorEntryPoints = [
+const editorEntryPoints = [
 	{
 		name: 'vs/editor/editor.main',
 		include: [],
@@ -40,11 +40,11 @@ let editorEntryPoints = [
 	}
 ];
 
-let editorResources = [
+const editorResources = [
 	'out-editor-build/vs/base/browser/ui/codicons/**/*.ttf'
 ];
 
-let BUNDLED_FILE_HEADER = [
+const BUNDLED_FILE_HEADER = [
 	'/*!-----------------------------------------------------------',
 	' * Copyright (c) Microsoft Corporation. All rights reserved.',
 	' * Version: ' + headerVersion,
@@ -224,7 +224,7 @@ const appendJSToESMImportsTask = task.define('append-js-to-esm-imports', () => {
 				result.push(line);
 				continue;
 			}
-			let modifiedLine = (
+			const modifiedLine = (
 				line
 					.replace(/^import(.*)\'([^']+)\'/, `import$1'$2.js'`)
 					.replace(/^export \* from \'([^']+)\'/, `export * from '$1.js'`)
@@ -239,10 +239,10 @@ const appendJSToESMImportsTask = task.define('append-js-to-esm-imports', () => {
  * @param {string} contents
  */
 function toExternalDTS(contents) {
-	let lines = contents.split(/\r\n|\r|\n/);
+	const lines = contents.split(/\r\n|\r|\n/);
 	let killNextCloseCurlyBrace = false;
 	for (let i = 0; i < lines.length; i++) {
-		let line = lines[i];
+		const line = lines[i];
 
 		if (killNextCloseCurlyBrace) {
 			if ('}' === line) {
@@ -316,7 +316,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 		// package.json
 		gulp.src('build/monaco/package.json')
 			.pipe(es.through(function (data) {
-				let json = JSON.parse(data.contents.toString());
+				const json = JSON.parse(data.contents.toString());
 				json.private = false;
 				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
 				this.emit('data', data);
@@ -360,10 +360,10 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 				return;
 			}
 
-			let relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
+			const relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
 
 			let strContents = data.contents.toString();
-			let newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
+			const newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
 			strContents = strContents.replace(/\/\/# sourceMappingURL=[^ ]+$/, newStr);
 
 			data.contents = Buffer.from(strContents);
@@ -483,13 +483,13 @@ function createTscCompileTask(watch) {
 				cwd: path.join(__dirname, '..'),
 				// stdio: [null, 'pipe', 'inherit']
 			});
-			let errors = [];
-			let reporter = createReporter('monaco');
+			const errors = [];
+			const reporter = createReporter('monaco');
 
 			/** @type {NodeJS.ReadWriteStream | undefined} */
 			let report;
 			// eslint-disable-next-line no-control-regex
-			let magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g; // https://stackoverflow.com/questions/25245716/remove-all-ansi-colors-styles-from-strings
+			const magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g; // https://stackoverflow.com/questions/25245716/remove-all-ansi-colors-styles-from-strings
 
 			child.stdout.on('data', data => {
 				let str = String(data);
@@ -502,12 +502,12 @@ function createTscCompileTask(watch) {
 					report.end();
 
 				} else if (str) {
-					let match = /(.*\(\d+,\d+\): )(.*: )(.*)/.exec(str);
+					const match = /(.*\(\d+,\d+\): )(.*: )(.*)/.exec(str);
 					if (match) {
 						// trying to massage the message so that it matches the gulp-tsb error messages
 						// e.g. src/vs/base/common/strings.ts(663,5): error TS2322: Type '1234' is not assignable to type 'string'.
-						let fullpath = path.join(root, match[1]);
-						let message = match[3];
+						const fullpath = path.join(root, match[1]);
+						const message = match[3];
 						reporter(fullpath + message);
 					} else {
 						reporter(str);

@@ -230,14 +230,25 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get crashReporterId(): string | undefined { return this.args['crash-reporter-id']; }
 	get crashReporterDirectory(): string | undefined { return this.args['crash-reporter-directory']; }
 
-	get driverHandle(): string | undefined { return this.args['driver']; }
-
 	@memoize
 	get telemetryLogResource(): URI { return URI.file(join(this.logsPath, 'telemetry.log')); }
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
 
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
+
+	@memoize
+	get policyFile(): URI | undefined {
+		if (this.args['__enable-file-policy']) {
+			const vscodePortable = env['VSCODE_PORTABLE'];
+			if (vscodePortable) {
+				return URI.file(join(vscodePortable, 'policy.json'));
+			}
+
+			return joinPath(this.userHome, this.productService.dataFolderName, 'policy.json');
+		}
+		return undefined;
+	}
 
 	get args(): NativeParsedArgs { return this._args; }
 

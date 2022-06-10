@@ -34,7 +34,7 @@ export function testCommand(
 	const viewModel = editor.getViewModel()!;
 
 	if (forceTokenization) {
-		model.forceTokenization(model.getLineCount());
+		model.tokenization.forceTokenization(model.getLineCount());
 	}
 
 	viewModel.setSelections('tests', [selection]);
@@ -54,8 +54,8 @@ export function testCommand(
  * Extract edit operations if command `command` were to execute on model `model`
  */
 export function getEditOperation(model: ITextModel, command: ICommand): ISingleEditOperation[] {
-	let operations: ISingleEditOperation[] = [];
-	let editOperationBuilder: IEditOperationBuilder = {
+	const operations: ISingleEditOperation[] = [];
+	const editOperationBuilder: IEditOperationBuilder = {
 		addEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,

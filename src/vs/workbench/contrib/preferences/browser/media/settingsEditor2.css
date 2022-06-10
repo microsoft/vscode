@@ -39,7 +39,7 @@
 
 .settings-editor > .settings-header > .search-container > .settings-count-widget {
 	position: absolute;
-	right: 35px;
+	right: 46px;
 	top: 0px;
 	margin: 4px 0px;
 }
@@ -55,7 +55,7 @@
 	top: 0;
 	right: 0;
 	height: 100%;
-	width: 30px;
+	width: 43px;
 }
 
 .settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label {
@@ -109,13 +109,21 @@
 	/* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
 }
 
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item.focused {
+	outline-offset: -1.5px;
+}
+
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: none;
 	font-size: 13px;
-	padding-bottom: 7px;
+	padding-bottom: 6.5px;
 	padding-top: 7px;
 	padding-left: 8px;
 	padding-right: 8px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label .dropdown-icon {
+	padding-top: 2px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):not(:focus) {
@@ -399,18 +407,28 @@
 	-webkit-user-select: text;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description {
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description,
+.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description {
 	display: flex;
 	font-weight: 600;
 	margin: 6px 0 12px 0;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span {
+.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description[hidden] {
+	display: none;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span,
+.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description > span {
 	padding-right: 5px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span.codicon.codicon-workspace-untrusted {
 	color: var(--workspace-trust-state-untrusted-color) !important;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description > span.codicon.codicon-lock {
+	color: var(--organization-policy-icon-color) !important;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message {
@@ -452,15 +470,16 @@
 	margin: 0px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:focus {
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
 	text-decoration: underline;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:hover
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:hover,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:hover {
+	cursor: pointer;
 	text-decoration: underline;
 }
 

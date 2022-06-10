@@ -55,7 +55,7 @@ export function request(options: IRequestOptions, token: CancellationToken): Pro
 
 function setRequestHeaders(xhr: XMLHttpRequest, options: IRequestOptions): void {
 	if (options.headers) {
-		outer: for (let k in options.headers) {
+		outer: for (const k in options.headers) {
 			switch (k) {
 				case 'User-Agent':
 				case 'Accept-Encoding':

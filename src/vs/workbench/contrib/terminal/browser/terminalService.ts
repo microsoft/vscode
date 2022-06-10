@@ -52,6 +52,7 @@ export class TerminalService implements ITerminalService {
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
 	private _terminalEditorActive: IContextKey<boolean>;
+	private readonly _terminalShellTypeContextKey: IContextKey<string>;
 
 	private _escapeSequenceLoggingEnabled: boolean = false;
 
@@ -187,9 +188,15 @@ export class TerminalService implements ITerminalService {
 			if (!instance && !this._isShuttingDown) {
 				this._terminalGroupService.hidePanel();
 			}
+			if (instance?.shellType) {
+				this._terminalShellTypeContextKey.set(instance.shellType.toString());
+			} else if (!instance) {
+				this._terminalShellTypeContextKey.reset();
+			}
 		});
 
 		this._handleInstanceContextKeys();
+		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
 		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 		this._terminalHasBeenCreated = TerminalContextKeys.terminalHasBeenCreated.bindTo(this._contextKeyService);
@@ -216,7 +223,7 @@ export class TerminalService implements ITerminalService {
 		if (typeof result === 'string') {
 			return;
 		}
-		let keyMods: IKeyMods | undefined = result.keyMods;
+		const keyMods: IKeyMods | undefined = result.keyMods;
 		if (type === 'createInstance') {
 			const activeInstance = this.getDefaultInstanceHost().activeInstance;
 			let instance;
@@ -922,11 +929,11 @@ export class TerminalService implements ITerminalService {
 		// Await the initialization of available profiles as long as this is not a pty terminal or a
 		// local terminal in a remote workspace as profile won't be used in those cases and these
 		// terminals need to be launched before remote connections are established.
-		if (!this._terminalProfileService.availableProfiles) {
+		if (this._terminalProfileService.availableProfiles.length === 0) {
 			const isPtyTerminal = options?.config && 'customPtyImplementation' in options.config;
 			const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
 			if (!isPtyTerminal && !isLocalInRemoteTerminal) {
-				await this._terminalProfileService.refreshAvailableProfiles();
+				await this._terminalProfileService.profilesReady;
 			}
 		}
 
@@ -990,7 +997,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _resolveCwd(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {
-		let cwd = shellLaunchConfig.cwd;
+		const cwd = shellLaunchConfig.cwd;
 		if (!cwd) {
 			if (options?.cwd) {
 				shellLaunchConfig.cwd = options.cwd;

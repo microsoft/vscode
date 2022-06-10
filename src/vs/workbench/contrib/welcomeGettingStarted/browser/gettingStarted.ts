@@ -74,8 +74,8 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
 
-export const allWalkthroughsHiddenContext = new RawContextKey('allWalkthroughsHidden', false);
-export const inWelcomeContext = new RawContextKey('inWelcome', false);
+export const allWalkthroughsHiddenContext = new RawContextKey<boolean>('allWalkthroughsHidden', false);
+export const inWelcomeContext = new RawContextKey<boolean>('inWelcome', false);
 export const embedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined);
 
 export interface IWelcomePageStartEntry {
@@ -99,12 +99,16 @@ const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => 
 }));
 
 type GettingStartedActionClassification = {
-	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'Help understand what actions are most commonly taken on the getting started page' };
-	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'As above' };
+	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The command being executed on the getting started page.' };
+	walkthroughId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The walkthrough which the command is in' };
+	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The arguments being passed to the command' };
+	owner: 'lramos15';
+	comment: 'Help understand what actions are most commonly taken on the getting started page';
 };
 
 type GettingStartedActionEvent = {
 	command: string;
+	walkthroughId: string | undefined;
 	argument: string | undefined;
 };
 
@@ -343,7 +347,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private async runDispatchCommand(command: string, argument: string) {
 		this.commandService.executeCommand('workbench.action.keepEditor');
-		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument });
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument, walkthroughId: this.currentWalkthrough?.id });
 		switch (command) {
 			case 'scrollPrev': {
 				this.scrollPrev();
@@ -511,7 +515,7 @@ export class GettingStartedPage extends EditorPane {
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
 					if (href.startsWith('http')) {
-						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 						this.openerService.open(href);
 					}
 				}
@@ -525,7 +529,7 @@ export class GettingStartedPage extends EditorPane {
 			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, {}, undefined));
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ id: this.webviewID, options: {}, contentOptions: {}, extension: undefined }));
 			webview.mountTo(this.stepMediaComponent);
 
 			webview.html = await this.detailsRenderer.renderSVG(media.path);
@@ -546,7 +550,7 @@ export class GettingStartedPage extends EditorPane {
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
 					if (href.startsWith('http')) {
-						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 						this.openerService.open(href);
 					}
 				}
@@ -566,7 +570,7 @@ export class GettingStartedPage extends EditorPane {
 
 			const media = stepToExpand.media;
 
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root], allowScripts: true }, undefined));
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ id: this.webviewID, options: {}, contentOptions: { localResourceRoots: [media.root], allowScripts: true }, extension: undefined }));
 			webview.mountTo(this.stepMediaComponent);
 
 			const rawHTML = await this.detailsRenderer.renderMarkdown(media.path, media.base);
@@ -723,10 +727,10 @@ export class GettingStartedPage extends EditorPane {
 		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"));
 		const onShowOnStartupChanged = () => {
 			if (showOnStartupCheckbox.checked) {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined });
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
 				this.configurationService.updateValue(configurationKey, 'welcomePage');
 			} else {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined });
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
 				this.configurationService.updateValue(configurationKey, 'none');
 			}
 		};
@@ -852,7 +856,7 @@ export class GettingStartedPage extends EditorPane {
 			link.title = fullPath;
 			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
 			link.addEventListener('click', e => {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined });
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
 				this.hostService.openWindow([windowOpenable], {
 					forceNewWindow: e.ctrlKey || e.metaKey,
 					remoteAuthority: recent.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
@@ -1092,7 +1096,7 @@ export class GettingStartedPage extends EditorPane {
 		const toSide = href.startsWith('command:toSide:');
 		const command = href.replace(/command:(toSide:)?/, 'command:');
 
-		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 
 		const fullSize = this.groupsService.contentDimension;
 

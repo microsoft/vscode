@@ -33,7 +33,7 @@ export function createSuggestItem(label: string, overwriteBefore: number, kind =
 }
 suite('CompletionModel', function () {
 
-	let defaultOptions = <InternalSuggestOptions>{
+	const defaultOptions = <InternalSuggestOptions>{
 		insertMode: 'insert',
 		snippetsPreventQuickSuggestions: true,
 		filterGraceful: true,
@@ -104,7 +104,7 @@ suite('CompletionModel', function () {
 
 		assert.strictEqual(model.incomplete.size, 0);
 
-		let incompleteModel = new CompletionModel([
+		const incompleteModel = new CompletionModel([
 			createSuggestItem('foo', 3, undefined, true),
 			createSuggestItem('foo', 2),
 		], 1, {

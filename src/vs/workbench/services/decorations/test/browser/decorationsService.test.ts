@@ -32,7 +32,7 @@ suite('DecorationsService', function () {
 
 	test('Async provider, async/evented result', function () {
 
-		let uri = URI.parse('foo:bar');
+		const uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
 		service.registerDecorationsProvider(new class implements IDecorationsProvider {
@@ -67,7 +67,7 @@ suite('DecorationsService', function () {
 
 	test('Sync provider, sync result', function () {
 
-		let uri = URI.parse('foo:bar');
+		const uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
 		service.registerDecorationsProvider(new class implements IDecorationsProvider {
@@ -86,10 +86,10 @@ suite('DecorationsService', function () {
 	});
 
 	test('Clear decorations on provider dispose', async function () {
-		let uri = URI.parse('foo:bar');
+		const uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
-		let reg = service.registerDecorationsProvider(new class implements IDecorationsProvider {
+		const reg = service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
 			readonly onDidChange: Event<readonly URI[]> = Event.None;
 			provideDecorations(uri: URI) {
@@ -104,7 +104,7 @@ suite('DecorationsService', function () {
 
 		// un-register -> ensure good event
 		let didSeeEvent = false;
-		let p = new Promise<void>(resolve => {
+		const p = new Promise<void>(resolve => {
 			service.onDidChangeDecorations(e => {
 				assert.strictEqual(e.affectsResource(uri), true);
 				assert.deepStrictEqual(service.getDecoration(uri, false), undefined);
@@ -130,7 +130,7 @@ suite('DecorationsService', function () {
 			}
 		});
 
-		let childUri = URI.parse('file:///some/path/some/file.txt');
+		const childUri = URI.parse('file:///some/path/some/file.txt');
 
 		let deco = service.getDecoration(childUri, false)!;
 		assert.strictEqual(deco.tooltip, '.txt');
@@ -160,10 +160,10 @@ suite('DecorationsService', function () {
 	test('Decorations not showing up for second root folder #48502', async function () {
 
 		let cancelCount = 0;
-		let winjsCancelCount = 0;
+		const winjsCancelCount = 0;
 		let callCount = 0;
 
-		let provider = new class implements IDecorationsProvider {
+		const provider = new class implements IDecorationsProvider {
 
 			_onDidChange = new Emitter<URI[]>();
 			onDidChange: Event<readonly URI[]> = this._onDidChange.event;
@@ -185,7 +185,7 @@ suite('DecorationsService', function () {
 			}
 		};
 
-		let reg = service.registerDecorationsProvider(provider);
+		const reg = service.registerDecorationsProvider(provider);
 
 		const uri = URI.parse('foo://bar');
 		service.getDecoration(uri, false);
@@ -202,7 +202,7 @@ suite('DecorationsService', function () {
 
 	test('Decorations not bubbling... #48745', function () {
 
-		let reg = service.registerDecorationsProvider({
+		const reg = service.registerDecorationsProvider({
 			label: 'Test',
 			onDidChange: Event.None,
 			provideDecorations(uri: URI) {
@@ -214,13 +214,13 @@ suite('DecorationsService', function () {
 			}
 		});
 
-		let data1 = service.getDecoration(URI.parse('a:b/'), true);
+		const data1 = service.getDecoration(URI.parse('a:b/'), true);
 		assert.ok(!data1);
 
-		let data2 = service.getDecoration(URI.parse('a:b/c.hello'), false)!;
+		const data2 = service.getDecoration(URI.parse('a:b/c.hello'), false)!;
 		assert.ok(data2.tooltip);
 
-		let data3 = service.getDecoration(URI.parse('a:b/'), true);
+		const data3 = service.getDecoration(URI.parse('a:b/'), true);
 		assert.ok(data3);
 
 
@@ -229,9 +229,9 @@ suite('DecorationsService', function () {
 
 	test('Folder decorations don\'t go away when file with problems is deleted #61919 (part1)', function () {
 
-		let emitter = new Emitter<URI[]>();
+		const emitter = new Emitter<URI[]>();
 		let gone = false;
-		let reg = service.registerDecorationsProvider({
+		const reg = service.registerDecorationsProvider({
 			label: 'Test',
 			onDidChange: emitter.event,
 			provideDecorations(uri: URI) {
@@ -242,8 +242,8 @@ suite('DecorationsService', function () {
 			}
 		});
 
-		let uri = URI.parse('foo:/folder/file.ts');
-		let uri2 = URI.parse('foo:/folder/');
+		const uri = URI.parse('foo:/folder/file.ts');
+		const uri2 = URI.parse('foo:/folder/');
 		let data = service.getDecoration(uri, true)!;
 		assert.strictEqual(data.tooltip, 'FOO');
 
@@ -264,9 +264,9 @@ suite('DecorationsService', function () {
 
 	test('Folder decorations don\'t go away when file with problems is deleted #61919 (part2)', function () {
 
-		let emitter = new Emitter<URI[]>();
+		const emitter = new Emitter<URI[]>();
 		let gone = false;
-		let reg = service.registerDecorationsProvider({
+		const reg = service.registerDecorationsProvider({
 			label: 'Test',
 			onDidChange: emitter.event,
 			provideDecorations(uri: URI) {
@@ -277,8 +277,8 @@ suite('DecorationsService', function () {
 			}
 		});
 
-		let uri = URI.parse('foo:/folder/file.ts');
-		let uri2 = URI.parse('foo:/folder/');
+		const uri = URI.parse('foo:/folder/file.ts');
+		const uri2 = URI.parse('foo:/folder/');
 		let data = service.getDecoration(uri, true)!;
 		assert.strictEqual(data.tooltip, 'FOO');
 
@@ -286,7 +286,7 @@ suite('DecorationsService', function () {
 		assert.ok(data.tooltip); // emphazied items...
 
 		return new Promise<void>((resolve, reject) => {
-			let l = service.onDidChangeDecorations(e => {
+			const l = service.onDidChangeDecorations(e => {
 				l.dispose();
 				try {
 					assert.ok(e.affectsResource(uri));

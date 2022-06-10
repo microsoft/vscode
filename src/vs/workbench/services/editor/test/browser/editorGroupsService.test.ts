@@ -201,9 +201,9 @@ suite('EditorGroupsService', () => {
 
 		const rootGroup = part.activeGroup;
 
-		let input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
-		let input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
-		let input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+		const input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
 
 		await rootGroup.openEditor(input1, { pinned: true });
 		await part.sideGroup.openEditor(input2, { pinned: true });
@@ -215,7 +215,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('save & restore state', async function () {
-		let [part, instantiationService] = await createPart();
+		const [part, instantiationService] = await createPart();
 
 		const rootGroup = part.groups[0];
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
@@ -232,7 +232,7 @@ suite('EditorGroupsService', () => {
 		part.saveState();
 		part.dispose();
 
-		let [restoredPart] = await createPart(instantiationService);
+		const [restoredPart] = await createPart(instantiationService);
 
 		assert.strictEqual(restoredPart.groups.length, 3);
 		assert.ok(restoredPart.getGroup(rootGroup.id));
@@ -894,6 +894,7 @@ suite('EditorGroupsService', () => {
 
 	test('closeAllEditors - dirty editor handling', async () => {
 		const [part, instantiationService] = await createPart();
+		let closeResult = true;
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
@@ -909,14 +910,16 @@ suite('EditorGroupsService', () => {
 		await group.openEditor(input2);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
-		await group.closeAllEditors();
+		closeResult = await group.closeAllEditors();
 
+		assert.strictEqual(closeResult, false);
 		assert.ok(!input1.gotDisposed);
 		assert.ok(!input2.gotDisposed);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
-		await group.closeAllEditors();
+		closeResult = await group.closeAllEditors();
 
+		assert.strictEqual(closeResult, true);
 		assert.ok(input1.gotDisposed);
 		assert.ok(input2.gotDisposed);
 	});

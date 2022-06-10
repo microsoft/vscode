@@ -60,10 +60,6 @@ import { isOfflineError } from 'vs/base/parts/request/common/request';
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.git-base', 'vscode.search-result'];
 
-type WorkspaceRecommendationsClassification = {
-	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'isMeasurement': true };
-};
-
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
 	private readonly _onFocus: Emitter<IExtension> = this._register(new Emitter<IExtension>());
@@ -234,7 +230,7 @@ export class ExtensionsListView extends ViewPane {
 
 		const parsedQuery = Query.parse(query);
 
-		let options: IQueryOptions = {
+		const options: IQueryOptions = {
 			sortOrder: SortOrder.Default
 		};
 
@@ -383,7 +379,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterLocal(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): { extensions: IExtension[]; canIncludeInstalledExtensions: boolean } {
-		let value = query.value;
+		const value = query.value;
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
 
@@ -432,7 +428,7 @@ export class ExtensionsListView extends ViewPane {
 
 		value = value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
-		let result = local
+		const result = local
 			.filter(e => e.isBuiltin && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 		const isThemeExtension = (e: IExtension): boolean => {
@@ -565,7 +561,7 @@ export class ExtensionsListView extends ViewPane {
 	private filterWorkspaceUnsupportedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
 		// shows local extensions which are restricted or disabled in the current workspace because of the extension's capability
 
-		let queryString = query.value; // @sortby is already filtered out
+		const queryString = query.value; // @sortby is already filtered out
 
 		const match = queryString.match(/^\s*@workspaceUnsupported(?::(untrusted|virtual)(Partial)?)?(?:\s+([^\s]*))?/i);
 		if (!match) {
@@ -831,7 +827,6 @@ export class ExtensionsListView extends ViewPane {
 	private async getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const recommendations = await this.getWorkspaceRecommendations();
 		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-workspace' }, token));
-		this.telemetryService.publicLog2<{ count: number }, WorkspaceRecommendationsClassification>('extensionWorkspaceRecommendations:open', { count: installableRecommendations.length });
 		const result: IExtension[] = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
 		return new PagedModel(result);
 	}
@@ -972,11 +967,9 @@ export class ExtensionsListView extends ViewPane {
 		const message = err && err.message || '';
 
 		if (/ECONNREFUSED/.test(message)) {
-			const error = createErrorWithActions(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
-				actions: [
-					new Action('open user settings', localize('open user settings', "Open User Settings"), undefined, true, () => this.preferencesService.openUserSettings())
-				]
-			});
+			const error = createErrorWithActions(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), [
+				new Action('open user settings', localize('open user settings', "Open User Settings"), undefined, true, () => this.preferencesService.openUserSettings())
+			]);
 
 			this.notificationService.error(error);
 			return;
@@ -1241,8 +1234,8 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 	}
 
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		let shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
-		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
+		const shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
+		const model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
 		this.setExpanded(model.length > 0);
 		return model;
 	}

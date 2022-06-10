@@ -96,9 +96,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 							return arg;
 						}
 
-						let commentUniqueId = arg.commentUniqueId;
+						const commentUniqueId = arg.commentUniqueId;
 
-						let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+						const comment = commentThread.getCommentByUniqueId(commentUniqueId);
 
 						if (!comment) {
 							return arg;
@@ -119,10 +119,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 							return arg;
 						}
 
-						let body = arg.text;
-						let commentUniqueId = arg.commentUniqueId;
+						const body = arg.text;
+						const commentUniqueId = arg.commentUniqueId;
 
-						let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+						const comment = commentThread.getCommentByUniqueId(commentUniqueId);
 
 						if (!comment) {
 							return arg;
@@ -224,6 +224,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		collapsibleState: vscode.CommentThreadCollapsibleState;
 		canReply: boolean;
 		state: vscode.CommentThreadState;
+		isTemplate: boolean;
 	}>;
 
 	class ExtHostCommentThread implements vscode.CommentThread {
@@ -362,7 +363,8 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			private _uri: vscode.Uri,
 			private _range: vscode.Range,
 			private _comments: vscode.Comment[],
-			public readonly extensionDescription: IExtensionDescription
+			public readonly extensionDescription: IExtensionDescription,
+			private _isTemplate: boolean
 		) {
 			this._acceptInputDisposables.value = new DisposableStore();
 
@@ -376,7 +378,8 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				this._id,
 				this._uri,
 				extHostTypeConverter.Range.from(this._range),
-				extensionDescription.identifier
+				extensionDescription.identifier,
+				this._isTemplate
 			);
 
 			this._localDisposables = [];
@@ -421,12 +424,19 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			};
 		}
 
+		private updateIsTemplate() {
+			if (this._isTemplate) {
+				this._isTemplate = false;
+				this.modifications.isTemplate = false;
+			}
+		}
 
 		@debounce(100)
 		eventuallyUpdateCommentThread(): void {
 			if (this._isDiposed) {
 				return;
 			}
+			this.updateIsTemplate();
 
 			if (!this._acceptInputDisposables.value) {
 				this._acceptInputDisposables.value = new DisposableStore();
@@ -462,6 +472,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			if (modified('state')) {
 				formattedModifications.state = convertToState(this._state);
 			}
+			if (modified('isTemplate')) {
+				formattedModifications.isTemplate = this._isTemplate;
+			}
 			this.modifications = {};
 
 			proxy.$updateCommentThread(
@@ -474,9 +487,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		getCommentByUniqueId(uniqueId: number): vscode.Comment | undefined {
-			for (let key of this._commentsMap) {
-				let comment = key[0];
-				let id = key[1];
+			for (const key of this._commentsMap) {
+				const comment = key[0];
+				const id = key[1];
 				if (uniqueId === id) {
 					return comment;
 				}
@@ -582,32 +595,32 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		createCommentThread(resource: vscode.Uri, range: vscode.Range, comments: vscode.Comment[]): ExtHostCommentThread;
 		createCommentThread(arg0: vscode.Uri | string, arg1: vscode.Uri | vscode.Range, arg2: vscode.Range | vscode.Comment[], arg3?: vscode.Comment[]): vscode.CommentThread {
 			if (typeof arg0 === 'string') {
-				const commentThread = new ExtHostCommentThread(this.id, this.handle, arg0, arg1 as vscode.Uri, arg2 as vscode.Range, arg3 as vscode.Comment[], this._extension);
+				const commentThread = new ExtHostCommentThread(this.id, this.handle, arg0, arg1 as vscode.Uri, arg2 as vscode.Range, arg3 as vscode.Comment[], this._extension, false);
 				this._threads.set(commentThread.handle, commentThread);
 				return commentThread;
 			} else {
-				const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, arg0 as vscode.Uri, arg1 as vscode.Range, arg2 as vscode.Comment[], this._extension);
+				const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, arg0 as vscode.Uri, arg1 as vscode.Range, arg2 as vscode.Comment[], this._extension, false);
 				this._threads.set(commentThread.handle, commentThread);
 				return commentThread;
 			}
 		}
 
 		$createCommentThreadTemplate(uriComponents: UriComponents, range: IRange): ExtHostCommentThread {
-			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, URI.revive(uriComponents), extHostTypeConverter.Range.to(range), [], this._extension);
+			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, URI.revive(uriComponents), extHostTypeConverter.Range.to(range), [], this._extension, true);
 			commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 			this._threads.set(commentThread.handle, commentThread);
 			return commentThread;
 		}
 
 		$updateCommentThreadTemplate(threadHandle: number, range: IRange): void {
-			let thread = this._threads.get(threadHandle);
+			const thread = this._threads.get(threadHandle);
 			if (thread) {
 				thread.range = extHostTypeConverter.Range.to(range);
 			}
 		}
 
 		$deleteCommentThread(threadHandle: number): void {
-			let thread = this._threads.get(threadHandle);
+			const thread = this._threads.get(threadHandle);
 
 			if (thread) {
 				thread.dispose();

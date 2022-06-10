@@ -85,7 +85,7 @@ export class LineCommentCommand implements ICommand {
 	 */
 	private static _gatherPreflightCommentStrings(model: ITextModel, startLineNumber: number, endLineNumber: number, languageConfigurationService: ILanguageConfigurationService): ILinePreflightData[] | null {
 
-		model.tokenizeIfCheap(startLineNumber);
+		model.tokenization.tokenizeIfCheap(startLineNumber);
 		const languageId = model.getLanguageIdAtPosition(startLineNumber, 1);
 
 		const config = languageConfigurationService.getLanguageConfiguration(languageId).comments;
@@ -95,7 +95,7 @@ export class LineCommentCommand implements ICommand {
 			return null;
 		}
 
-		let lines: ILinePreflightData[] = [];
+		const lines: ILinePreflightData[] = [];
 		for (let i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
 			lines[i] = {
 				ignore: false,
@@ -232,7 +232,7 @@ export class LineCommentCommand implements ICommand {
 		let startLineNumber = s.startLineNumber;
 		let endLineNumber = s.endLineNumber;
 
-		let startTokenAllowedBeforeColumn = endToken.length + Math.max(
+		const startTokenAllowedBeforeColumn = endToken.length + Math.max(
 			model.getLineFirstNonWhitespaceColumn(s.startLineNumber),
 			s.startColumn
 		);
@@ -282,8 +282,8 @@ export class LineCommentCommand implements ICommand {
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
 	private _executeBlockComment(model: ITextModel, builder: IEditOperationBuilder, s: Selection): void {
-		model.tokenizeIfCheap(s.startLineNumber);
-		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
+		model.tokenization.tokenizeIfCheap(s.startLineNumber);
+		const languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
 		const config = this.languageConfigurationService.getLanguageConfiguration(languageId).comments;
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
@@ -381,7 +381,7 @@ export class LineCommentCommand implements ICommand {
 	 * Generate edit operations in the remove line comment case
 	 */
 	public static _createRemoveLineCommentsOperations(lines: ILinePreflightData[], startLineNumber: number): ISingleEditOperation[] {
-		let res: ISingleEditOperation[] = [];
+		const res: ISingleEditOperation[] = [];
 
 		for (let i = 0, len = lines.length; i < len; i++) {
 			const lineData = lines[i];
@@ -403,7 +403,7 @@ export class LineCommentCommand implements ICommand {
 	 * Generate edit operations in the add line comment case
 	 */
 	private _createAddLineCommentsOperations(lines: ILinePreflightData[], startLineNumber: number): ISingleEditOperation[] {
-		let res: ISingleEditOperation[] = [];
+		const res: ISingleEditOperation[] = [];
 		const afterCommentStr = this._insertSpace ? ' ' : '';
 
 

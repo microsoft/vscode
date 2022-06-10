@@ -920,6 +920,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._modifiedEditor.trigger(source, handlerId, payload);
 	}
 
+	public createDecorationsCollection(decorations?: IModelDeltaDecoration[]): editorCommon.IEditorDecorationsCollection {
+		return this._modifiedEditor.createDecorationsCollection(decorations);
+	}
+
 	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		return this._modifiedEditor.changeDecorations(callback);
 	}
@@ -2333,7 +2337,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			let viewLineCounts: number[] | null = null;
 			for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
 				const lineIndex = lineNumber - lineChange.originalStartLineNumber;
-				const lineTokens = this._originalModel.getLineTokens(lineNumber);
+				const lineTokens = this._originalModel.tokenization.getLineTokens(lineNumber);
 				const lineContent = lineTokens.getLineContent();
 				const lineBreakData = lineBreaks[lineBreakIndex++];
 				const actualDecorations = LineDecoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
@@ -2491,7 +2495,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			marginDomNode.appendChild(marginElement);
 		}
 
-		return output.characterMapping.getAbsoluteOffset(output.characterMapping.length);
+		return output.characterMapping.getHorizontalOffset(output.characterMapping.length);
 	}
 }
 

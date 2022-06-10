@@ -24,7 +24,7 @@ import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { IRange } from 'vs/editor/common/core/range';
-import { commentThreadStateColorVar } from 'vs/workbench/contrib/comments/browser/commentColors';
+import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 
@@ -109,6 +109,41 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		if (controller) {
 			commentControllerKey.set(controller.contextValue);
 		}
+
+		this.currentThreadListeners();
+	}
+
+	private updateCurrentThread(hasMouse: boolean, hasFocus: boolean) {
+		if (hasMouse || hasFocus) {
+			this.commentService.setCurrentCommentThread(this.commentThread);
+		} else {
+			this.commentService.setCurrentCommentThread(undefined);
+		}
+	}
+
+	private currentThreadListeners() {
+		let hasMouse = false;
+		let hasFocus = false;
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_ENTER, (e) => {
+			if ((<any>e).toElement === this.container) {
+				hasMouse = true;
+				this.updateCurrentThread(hasMouse, hasFocus);
+			}
+		}, true));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_LEAVE, (e) => {
+			if ((<any>e).fromElement === this.container) {
+				hasMouse = false;
+				this.updateCurrentThread(hasMouse, hasFocus);
+			}
+		}, true));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.FOCUS_IN, () => {
+			hasFocus = true;
+			this.updateCurrentThread(hasMouse, hasFocus);
+		}, true));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.FOCUS_OUT, () => {
+			hasFocus = false;
+			this.updateCurrentThread(hasMouse, hasFocus);
+		}, true));
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
@@ -133,7 +168,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	display(lineHeight: number) {
-		let headHeight = Math.ceil(lineHeight * 1.2);
+		const headHeight = Math.ceil(lineHeight * 1.2);
 		this._header.updateHeight(headHeight);
 
 		this._body.display();
@@ -150,7 +185,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		// if this._commentThread.comments is undefined, it doesn't finish initialization yet, so we don't focus the editor immediately.
 		if (this._commentThread.canReply && this._commentReply) {
-			this._commentReply?.focusIfNeeded();
+			this._commentReply.focusIfNeeded();
 		}
 
 		this._bindCommentThreadListeners();
@@ -161,7 +196,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._onDidResize.fire(dimension);
 	}
 
-
+	override dispose() {
+		super.dispose();
+		this.updateCurrentThread(false, false);
+	}
 
 	private _bindCommentThreadListeners() {
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCanReply(() => {
@@ -248,6 +286,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		const content: string[] = [];
 
 		content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid var(${commentThreadStateColorVar}) }`);
+		content.push(`.monaco-editor .review-widget > .head { background-color: var(${commentThreadStateBackgroundColorVar}) }`);
 
 		const linkColor = theme.getColor(textLinkForeground);
 		if (linkColor) {

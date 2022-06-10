@@ -10,7 +10,7 @@ import { MainThreadLanguagesShape, MainContext, ExtHostContext, ExtHostLanguages
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -68,8 +68,8 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		if (!model) {
 			return undefined;
 		}
-		model.tokenizeIfCheap(position.lineNumber);
-		const tokens = model.getLineTokens(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
+		const tokens = model.tokenization.getLineTokens(position.lineNumber);
 		const idx = tokens.findTokenIndexAtOffset(position.column - 1);
 		return {
 			type: tokens.getStandardTokenType(idx),

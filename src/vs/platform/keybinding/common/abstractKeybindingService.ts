@@ -125,6 +125,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
+		this._log(`/ Soft dispatching keyboard event`);
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.isChord()) {
 			console.warn('Unexpected keyboard event mapped to a chord');
@@ -133,6 +134,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		const [firstPart,] = keybinding.getDispatchParts();
 		if (firstPart === null) {
 			// cannot be dispatched, probably only modifier keys
+			this._log(`\\ Keyboard event cannot be dispatched`);
 			return null;
 		}
 
@@ -276,11 +278,13 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		if (resolveResult && resolveResult.enterChord) {
 			shouldPreventDefault = true;
 			this._enterChordMode(firstPart, keypressLabel);
+			this._log(`+ Entering chord mode...`);
 			return shouldPreventDefault;
 		}
 
 		if (this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
+				this._log(`+ Leaving chord mode: Nothing bound to "${this._currentChord.label} ${keypressLabel}".`);
 				this._notificationService.status(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", this._currentChord.label, keypressLabel), { hideAfter: 10 * 1000 /* 10s */ });
 				shouldPreventDefault = true;
 			}
@@ -292,6 +296,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			if (!resolveResult.bubble) {
 				shouldPreventDefault = true;
 			}
+			this._log(`+ Invoking command ${resolveResult.commandId}.`);
 			if (typeof resolveResult.commandArgs === 'undefined') {
 				this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
 			} else {

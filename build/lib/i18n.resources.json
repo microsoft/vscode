@@ -119,7 +119,11 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/localizations",
+			"name": "vs/workbench/contrib/mergeEditor",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/localization",
 			"project": "vscode-workbench"
 		},
 		{
@@ -449,6 +453,14 @@
 		{
 			"name": "vs/workbench/services/host",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/profiles",
+			"project": "vscode-profiles"
+		},
+		{
+			"name": "vs/workbench/services/profiles",
+			"project": "vscode-profiles"
 		}
 	]
 }

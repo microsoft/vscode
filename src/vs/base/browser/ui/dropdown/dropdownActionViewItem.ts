@@ -88,6 +88,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			this.element.setAttribute('aria-haspopup', 'true');
 			this.element.setAttribute('aria-expanded', 'false');
 			this.element.title = this._action.label || '';
+			this.element.ariaLabel = this._action.label || '';
 
 			return null;
 		};

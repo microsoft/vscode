@@ -3,21 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { workspace } from 'vscode';
 import { RemoteSourceProvider, RemoteSource } from './typings/git-base';
 import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
 
-function parse(url: string): { owner: string; repo: string } | undefined {
+function getRepositoryFromUrl(url: string): { owner: string; repo: string } | undefined {
 	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\.git/i.exec(url)
 		|| /^git@github\.com:([^/]+)\/([^/]+)\.git/i.exec(url);
-	return (match && { owner: match[1], repo: match[2] }) ?? undefined;
+	return match ? { owner: match[1], repo: match[2] } : undefined;
+}
+
+function getRepositoryFromQuery(query: string): { owner: string; repo: string } | undefined {
+	const match = /^([^/]+)\/([^/]+)$/i.exec(query);
+	return match ? { owner: match[1], repo: match[2] } : undefined;
 }
 
 function asRemoteSource(raw: any): RemoteSource {
+	const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
 	return {
 		name: `$(github) ${raw.full_name}`,
-		description: raw.description || undefined,
-		url: raw.clone_url
+		description: `${raw.stargazers_count > 0 ? `$(star-full) ${raw.stargazers_count}` : ''
+			}`,
+		detail: raw.description || undefined,
+		url: protocol === 'https' ? raw.clone_url : raw.ssh_url
 	};
 }
 
@@ -33,7 +42,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		const octokit = await getOctokit();
 
 		if (query) {
-			const repository = parse(query);
+			const repository = getRepositoryFromUrl(query);
 
 			if (repository) {
 				const raw = await octokit.repos.get(repository);
@@ -73,12 +82,20 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 			return [];
 		}
 
+		const repository = getRepositoryFromQuery(query);
+
+		if (repository) {
+			query = `user:${repository.owner}+${repository.repo}`;
+		}
+
+		query += ` fork:true`;
+
 		const raw = await octokit.search.repos({ q: query, sort: 'stars' });
 		return raw.data.items.map(asRemoteSource);
 	}
 
 	async getBranches(url: string): Promise<string[]> {
-		const repository = parse(url);
+		const repository = getRepositoryFromUrl(url);
 
 		if (!repository) {
 			return [];
@@ -90,7 +107,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		let page = 1;
 
 		while (true) {
-			let res = await octokit.repos.listBranches({ ...repository, per_page: 100, page });
+			const res = await octokit.repos.listBranches({ ...repository, per_page: 100, page });
 
 			if (res.data.length === 0) {
 				break;

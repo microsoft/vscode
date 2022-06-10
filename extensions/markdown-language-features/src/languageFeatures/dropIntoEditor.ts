@@ -7,41 +7,73 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import * as URI from 'vscode-uri';
 
+const imageFileExtensions = new Set<string>([
+	'.bmp',
+	'.gif',
+	'.ico',
+	'.jpe',
+	'.jpeg',
+	'.jpg',
+	'.png',
+	'.psd',
+	'.svg',
+	'.tga',
+	'.tif',
+	'.tiff',
+	'.webp',
+]);
+
 export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
-	return vscode.languages.registerDocumentOnDropProvider(selector, new class implements vscode.DocumentOnDropProvider {
-		async provideDocumentOnDropEdits(document: vscode.TextDocument, position: vscode.Position, dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
-			const urlList = await dataTransfer.get('text/uri-list')?.asString();
-			if (!urlList) {
+	return vscode.languages.registerDocumentOnDropEditProvider(selector, new class implements vscode.DocumentOnDropEditProvider {
+		async provideDocumentOnDropEdits(document: vscode.TextDocument, _position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
+			const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.drop.enabled', true);
+			if (!enabled) {
 				return undefined;
 			}
 
-			const uris: vscode.Uri[] = [];
-			for (const resource of urlList.split('\n')) {
-				try {
-					uris.push(vscode.Uri.parse(resource));
-				} catch {
-					// noop
-				}
+			const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
+			if (snippet) {
+				return { insertText: snippet };
 			}
-
-			if (!uris.length) {
-				return;
-			}
-
-			const snippet = new vscode.SnippetString();
-			uris.forEach((uri, i) => {
-				const rel = path.relative(URI.Utils.dirname(document.uri).fsPath, uri.fsPath);
-
-				snippet.appendText('[');
-				snippet.appendTabstop();
-				snippet.appendText(`](${rel})`);
-
-				if (i <= uris.length - 1 && uris.length > 1) {
-					snippet.appendText(' ');
-				}
-			});
-
-			return new vscode.SnippetTextEdit(new vscode.Range(position, position), snippet);
+			return undefined;
 		}
 	});
+}
+
+export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetString | undefined> {
+	const urlList = await dataTransfer.get('text/uri-list')?.asString();
+	if (!urlList || token.isCancellationRequested) {
+		return undefined;
+	}
+
+	const uris: vscode.Uri[] = [];
+	for (const resource of urlList.split('\n')) {
+		try {
+			uris.push(vscode.Uri.parse(resource));
+		} catch {
+			// noop
+		}
+	}
+
+	if (!uris.length) {
+		return;
+	}
+
+	const snippet = new vscode.SnippetString();
+	uris.forEach((uri, i) => {
+		const mdPath = document.uri.scheme === uri.scheme
+			? encodeURI(path.relative(URI.Utils.dirname(document.uri).fsPath, uri.fsPath).replace(/\\/g, '/'))
+			: uri.toString(false);
+
+		const ext = URI.Utils.extname(uri).toLowerCase();
+		snippet.appendText(imageFileExtensions.has(ext) ? '![' : '[');
+		snippet.appendTabstop();
+		snippet.appendText(`](${mdPath})`);
+
+		if (i <= uris.length - 1 && uris.length > 1) {
+			snippet.appendText(' ');
+		}
+	});
+
+	return snippet;
 }

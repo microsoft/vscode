@@ -420,16 +420,16 @@ suite('UserDataSyncService', () => {
 		// Setup and sync from the first client
 		const client = disposableStore.add(new UserDataSyncClient(target));
 		await client.setUp();
-		let fileService = client.instantiationService.get(IFileService);
-		let environmentService = client.instantiationService.get(IEnvironmentService);
+		const fileService = client.instantiationService.get(IFileService);
+		const environmentService = client.instantiationService.get(IEnvironmentService);
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
 		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 
 		// Setup the test client and get conflicts in settings
 		const testClient = disposableStore.add(new UserDataSyncClient(target));
 		await testClient.setUp();
-		let testFileService = testClient.instantiationService.get(IFileService);
-		let testEnvironmentService = testClient.instantiationService.get(IEnvironmentService);
+		const testFileService = testClient.instantiationService.get(IFileService);
+		const testEnvironmentService = testClient.instantiationService.get(IEnvironmentService);
 		await testFileService.writeFile(testEnvironmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 16 })));
 		const testObject = testClient.instantiationService.get(IUserDataSyncService);
 		await (await testObject.createSyncTask(null)).run();

@@ -68,7 +68,7 @@ export class CommentsPanel extends ViewPane {
 
 		container.classList.add('comments-panel');
 
-		let domContainer = dom.append(container, dom.$('.comments-panel-container'));
+		const domContainer = dom.append(container, dom.$('.comments-panel-container'));
 		this.treeContainer = dom.append(domContainer, dom.$('.tree-container'));
 		this.treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 		this.commentsModel = new CommentsModel();
@@ -120,7 +120,7 @@ export class CommentsPanel extends ViewPane {
 
 		const focusColor = theme.getColor(focusBorder);
 		if (focusColor) {
-			content.push(`.comments-panel .commenst-panel-container a:focus { outline-color: ${focusColor}; }`);
+			content.push(`.comments-panel .comments-panel-container a:focus { outline-color: ${focusColor}; }`);
 		}
 
 		const codeTextForegroundColor = theme.getColor(textPreformatForeground);
@@ -145,6 +145,10 @@ export class CommentsPanel extends ViewPane {
 			this.tree.domFocus();
 			this.tree.focusFirst();
 		}
+	}
+
+	public get hasRendered(): boolean {
+		return !!this.tree;
 	}
 
 	public override layoutBody(height: number, width: number): void {
@@ -216,7 +220,7 @@ export class CommentsPanel extends ViewPane {
 		const activeEditor = this.editorService.activeTextEditorControl;
 		// If the active editor is a diff editor where one of the sides has the comment,
 		// then we try to reveal the comment in the diff editor.
-		let currentActiveResources: IEditor[] = isDiffEditor(activeEditor) ? [activeEditor.getOriginalEditor(), activeEditor.getModifiedEditor()]
+		const currentActiveResources: IEditor[] = isDiffEditor(activeEditor) ? [activeEditor.getOriginalEditor(), activeEditor.getModifiedEditor()]
 			: (activeEditor ? [activeEditor] : []);
 
 		for (const editor of currentActiveResources) {

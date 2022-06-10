@@ -120,7 +120,9 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<html><script>var i = 0;</script></html>', 'javascript', '              var i = 0;                ');
 		assertEmbeddedLanguageContent('<script type="text/javascript">var i = 0;</script>', 'javascript', '                               var i = 0;         ');
 
-		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '         ()=>{foo()};      ()=>{bar()}; ');
+		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '              foo();            bar();  ');
+		assertEmbeddedLanguageContent('<div onKeyUp="return"/>', 'javascript', '              return;  ');
+
 	});
 
 });

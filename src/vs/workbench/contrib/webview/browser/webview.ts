@@ -14,6 +14,7 @@ import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
+import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
 
 /**
  * Set when the find widget in a webview in a webview is visible.
@@ -53,12 +54,7 @@ export interface IWebviewService {
 	/**
 	 * Create a basic webview dom element.
 	 */
-	createWebviewElement(
-		id: string,
-		options: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-	): IWebviewElement;
+	createWebviewElement(initInfo: WebviewInitInfo): IWebviewElement;
 
 	/**
 	 * Create a lazily created webview element that is overlaid on top of another element.
@@ -66,12 +62,7 @@ export interface IWebviewService {
 	 * Allows us to avoid re-parenting the webview (which destroys its contents) when
 	 * moving webview around the workbench.
 	 */
-	createWebviewOverlay(
-		id: string,
-		options: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-	): IOverlayWebview;
+	createWebviewOverlay(initInfo: WebviewInitInfo): IOverlayWebview;
 }
 
 export const enum WebviewContentPurpose {
@@ -160,7 +151,15 @@ export interface WebviewMessageReceivedEvent {
 
 export interface IWebview extends IDisposable {
 
+	/**
+	 * External identifier of this webview.
+	 */
 	readonly id: string;
+
+	/**
+	 * The origin this webview itself is loaded from. May not be unique
+	 */
+	readonly origin: string;
 
 	html: string;
 	contentOptions: WebviewContentOptions;
@@ -183,7 +182,7 @@ export interface IWebview extends IDisposable {
 	readonly onMessage: Event<WebviewMessageReceivedEvent>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
-	postMessage(message: any, transfer?: readonly ArrayBuffer[]): void;
+	postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean>;
 
 	focus(): void;
 	reload(): void;
@@ -264,6 +263,7 @@ export interface IOverlayWebview extends IWebview {
 	 * @param element Element to position the webview on top of. This element should
 	 *   be an placeholder for the webview since the webview will entirely cover it.
 	 * @param dimension Optional explicit dimensions to use for sizing the webview.
+	 * @param clippingContainer Optional container to clip the webview to. This should generally be a parent of `element`.
 	 */
-	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
+	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement): void;
 }

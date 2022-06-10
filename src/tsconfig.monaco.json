@@ -2,7 +2,10 @@
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
 		"noEmit": true,
-		"types": ["trusted-types"],
+		"types": [
+			"trusted-types",
+			"wicg-file-system-access"
+		],
 		"paths": {},
 		"module": "amd",
 		"moduleResolution": "classic",

@@ -135,11 +135,14 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
 			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
 			const fontWeight = fontInfo.fontWeight;
+			const letterSpacing = fontInfo.letterSpacing;
 			const fontSizePx = `${fontSize}px`;
 			const lineHeightPx = `${lineHeight}px`;
+			const letterSpacingPx = `${letterSpacing}px`;
 
 			data.root.style.fontSize = fontSizePx;
 			data.root.style.fontWeight = fontWeight;
+			data.root.style.letterSpacing = letterSpacingPx;
 			main.style.fontFamily = fontFamily;
 			main.style.fontFeatureSettings = fontFeatureSettings;
 			main.style.lineHeight = lineHeightPx;
@@ -170,7 +173,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			matches: createMatches(element.score)
 		};
 
-		let color: string[] = [];
+		const color: string[] = [];
 		if (completion.kind === CompletionItemKind.Color && _completionItemColor.extract(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';

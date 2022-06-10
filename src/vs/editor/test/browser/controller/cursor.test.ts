@@ -13,7 +13,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { EncodedTokenizationResult, IState, ITokenizationSupport, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { IndentAction, IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
@@ -115,8 +116,8 @@ function assertCursor(viewModel: ViewModel, what: Position | Selection | Selecti
 	} else {
 		selections = what;
 	}
-	let actual = viewModel.getSelections().map(s => s.toString());
-	let expected = selections.map(s => s.toString());
+	const actual = viewModel.getSelections().map(s => s.toString());
+	const expected = selections.map(s => s.toString());
 
 	assert.deepStrictEqual(actual, expected);
 }
@@ -442,7 +443,7 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('issue #144041: Cursor up/down works', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'Word1 Word2 Word3 Word4',
 				'Word5 Word6 Word7 Word8',
@@ -452,7 +453,7 @@ suite('Editor Controller - Cursor', () => {
 		withTestCodeEditor(model, { wrappingIndent: 'indent', wordWrap: 'wordWrapColumn', wordWrapColumn: 20 }, (editor, viewModel) => {
 			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
 
-			let cursorPositions: any[] = [];
+			const cursorPositions: any[] = [];
 			function reportCursorPosition() {
 				cursorPositions.push(viewModel.getCursorStates()[0].viewState.position.toString());
 			}
@@ -493,7 +494,7 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('issue #140195: Cursor up/down makes progress', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'Word1 Word2 Word3 Word4',
 				'Word5 Word6 Word7 Word8',
@@ -515,7 +516,7 @@ suite('Editor Controller - Cursor', () => {
 			]);
 			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
 
-			let cursorPositions: any[] = [];
+			const cursorPositions: any[] = [];
 			function reportCursorPosition() {
 				cursorPositions.push(viewModel.getCursorStates()[0].viewState.position.toString());
 			}
@@ -873,7 +874,7 @@ suite('Editor Controller - Cursor', () => {
 			moveTo(editor, viewModel, 2, 1, true);
 			assertCursor(viewModel, new Selection(1, 1, 2, 1));
 
-			let savedState = JSON.stringify(viewModel.saveCursorState());
+			const savedState = JSON.stringify(viewModel.saveCursorState());
 
 			moveTo(editor, viewModel, 1, 1, false);
 			assertCursor(viewModel, new Position(1, 1));
@@ -913,7 +914,7 @@ suite('Editor Controller - Cursor', () => {
 				doColumnSelect: true
 			});
 
-			let expectedSelections = [
+			const expectedSelections = [
 				new Selection(1, 7, 1, 12),
 				new Selection(2, 4, 2, 9),
 				new Selection(3, 3, 3, 6),
@@ -1330,7 +1331,7 @@ suite('Editor Controller - Cursor', () => {
 
 		const LANGUAGE_ID = 'modelModeTest1';
 		const languageRegistration = TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		let model = createTextModel('Just text', LANGUAGE_ID);
+		const model = createTextModel('Just text', LANGUAGE_ID);
 
 		withTestCodeEditor(model, {}, (editor1, cursor1) => {
 			let event: ICursorPositionChangedEvent | undefined = undefined;
@@ -1500,7 +1501,7 @@ suite('Editor Controller', () => {
 				while (line.length > 0) {
 					advance();
 				}
-				let result = new Uint32Array(tokens.length * 2);
+				const result = new Uint32Array(tokens.length * 2);
 				let startIndex = 0;
 				for (let i = 0; i < tokens.length; i++) {
 					result[2 * i] = startIndex;
@@ -1622,7 +1623,7 @@ suite('Editor Controller', () => {
 	}
 
 	function extractAutoClosingSpecialColumns(maxColumn: number, annotatedLine: string): AutoClosingColumnType[] {
-		let result: AutoClosingColumnType[] = [];
+		const result: AutoClosingColumnType[] = [];
 		for (let j = 1; j <= maxColumn; j++) {
 			result[j] = AutoClosingColumnType.Normal;
 		}
@@ -1640,8 +1641,8 @@ suite('Editor Controller', () => {
 	}
 
 	function assertType(editor: ITestCodeEditor, model: ITextModel, viewModel: ViewModel, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
-		let lineContent = model.getLineContent(lineNumber);
-		let expected = lineContent.substr(0, column - 1) + expectedInsert + lineContent.substr(column - 1);
+		const lineContent = model.getLineContent(lineNumber);
+		const expected = lineContent.substr(0, column - 1) + expectedInsert + lineContent.substr(column - 1);
 		moveTo(editor, viewModel, lineNumber, column);
 		viewModel.type(chr, 'keyboard');
 		assert.deepStrictEqual(model.getLineContent(lineNumber), expected, message);
@@ -2751,7 +2752,7 @@ suite('Editor Controller', () => {
 			withTestCodeEditor(model, {}, (editor2, cursor2) => {
 
 				editor1.onDidChangeCursorPosition(() => {
-					model.tokenizeIfCheap(1);
+					model.tokenization.tokenizeIfCheap(1);
 				});
 
 				model.applyEdits([{ range: new Range(1, 1, 1, 1), text: '-' }]);
@@ -3225,6 +3226,33 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #148256: Pressing Enter creates line with bad indent with insertSpaces: true', () => {
+		usingCursor({
+			text: [
+				'  \t'
+			],
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 1, 4, false);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), '  \t\n    ');
+		});
+	});
+
+	test('issue #148256: Pressing Enter creates line with bad indent with insertSpaces: false', () => {
+		usingCursor({
+			text: [
+				'  \t'
+			]
+		}, (editor, model, viewModel) => {
+			model.updateOptions({
+				insertSpaces: false
+			});
+			moveTo(editor, viewModel, 1, 4, false);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), '  \t\n\t');
+		});
+	});
+
 	test('removeAutoWhitespace off', () => {
 		usingCursor({
 			text: [
@@ -3680,7 +3708,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
 			moveTo(editor, viewModel, 3, 13, false);
@@ -3743,7 +3771,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(2, 14, 2, 14));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(3, 1, 3, 1));
 
 			moveTo(editor, viewModel, 5, 16, false);
@@ -3771,7 +3799,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(2, 11, 2, 11));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(3, 3, 3, 3));
 
 			viewModel.type('console.log();', 'keyboard');
@@ -3856,7 +3884,7 @@ suite('Editor Controller', () => {
 			viewModel.type('\n', 'keyboard');
 			assertCursor(viewModel, new Selection(2, 5, 2, 5));
 
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 
 			moveTo(editor, viewModel, 3, 13, false);
 			assertCursor(viewModel, new Selection(3, 13, 3, 13));
@@ -3878,7 +3906,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 5, 2, 5));
 
 			moveTo(editor, viewModel, 3, 16, false);
@@ -3903,7 +3931,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
 			moveTo(editor, viewModel, 3, 16, false);
@@ -4551,8 +4579,8 @@ suite('Editor Controller', () => {
 				['(', ')']
 			],
 			indentationRules: {
-				increaseIndentPattern: new RegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$'),
-				decreaseIndentPattern: new RegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$'),
+				increaseIndentPattern: new RegExp("(^.*\\{[^}]*$)"),
+				decreaseIndentPattern: new RegExp("^\\s*\\}")
 			}
 		}));
 
@@ -4614,13 +4642,13 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 9, 1, 9));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
 			moveTo(editor, viewModel, 1, 9, false);
 			assertCursor(viewModel, new Selection(1, 9, 1, 9));
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 		});
 	});
@@ -4636,8 +4664,8 @@ suite('Editor Controller', () => {
 				['(', ')']
 			],
 			indentationRules: {
-				increaseIndentPattern: new RegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$'),
-				decreaseIndentPattern: new RegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$'),
+				increaseIndentPattern: new RegExp("({+(?=([^\"]*\"[^\"]*\")*[^\"}]*$))|(\\[+(?=([^\"]*\"[^\"]*\")*[^\"\\]]*$))"),
+				decreaseIndentPattern: new RegExp("^\\s*[}\\]],?\\s*$")
 			}
 		}));
 
@@ -4931,7 +4959,7 @@ suite('Editor Controller', () => {
 			text: ['const markup = highlight'],
 			languageId: autoClosingLanguageId
 		}, (editor, model, viewModel) => {
-			model.forceTokenization(1);
+			model.tokenization.forceTokenization(1);
 			assertType(editor, model, viewModel, 1, 25, '`', '``', `auto closes \` @ (1, 25)`);
 		});
 	});
@@ -4944,7 +4972,7 @@ suite('Editor Controller', () => {
 			{},
 			(editor, viewModel) => {
 				const model = viewModel.model;
-				model.forceTokenization(1);
+				model.tokenization.forceTokenization(1);
 				assertType(editor, model, viewModel, 1, 28, '`', '`', `does not auto close \` @ (1, 28)`);
 			}
 		);
@@ -4965,7 +4993,7 @@ suite('Editor Controller', () => {
 			languageId: autoClosingLanguageId
 		}, (editor, model, viewModel) => {
 
-			let autoClosePositions = [
+			const autoClosePositions = [
 				'var| a| |=| [|]|;|',
 				'var| b| |=| `asd`|;|',
 				'var| c| |=| \'asd\'|;|',
@@ -4980,7 +5008,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5009,7 +5037,7 @@ suite('Editor Controller', () => {
 			}
 		}, (editor, model, viewModel) => {
 
-			let autoClosePositions = [
+			const autoClosePositions = [
 				'var| a| =| [|];|',
 				'var| b| =| `asd`;|',
 				'var| c| =| \'asd\';|',
@@ -5024,7 +5052,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5047,7 +5075,7 @@ suite('Editor Controller', () => {
 			}
 		}, (editor, model, viewModel) => {
 
-			let autoClosePositions = [
+			const autoClosePositions = [
 				'var| a| =| [|];|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
@@ -5055,7 +5083,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5077,7 +5105,7 @@ suite('Editor Controller', () => {
 			}
 		}, (editor, model, viewModel) => {
 
-			let autoClosePositions = [
+			const autoClosePositions = [
 				'var b =| [|];|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
@@ -5085,7 +5113,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5116,7 +5144,7 @@ suite('Editor Controller', () => {
 			}
 		}, (editor, model, viewModel) => {
 
-			let autoClosePositions = [
+			const autoClosePositions = [
 				'v|ar |a = [|];|',
 				'v|ar |b = `|asd`;|',
 				'v|ar |c = \'|asd\';|',
@@ -5131,7 +5159,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5161,7 +5189,7 @@ suite('Editor Controller', () => {
 			}
 		}, (editor, model, viewModel) => {
 
-			let autoClosePositions = [
+			const autoClosePositions = [
 				'var a = [];',
 				'var b = `asd`;',
 				'var c = \'asd\';',
@@ -5176,7 +5204,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 						assertType(editor, model, viewModel, lineNumber, column, '"', '""', `auto closes @ (${lineNumber}, ${column})`);
@@ -5295,7 +5323,7 @@ suite('Editor Controller', () => {
 			languageId: autoClosingLanguageId
 		}, (editor, model, viewModel) => {
 
-			let autoClosePositions = [
+			const autoClosePositions = [
 				'var a |=| [|]|;|',
 				'var b |=| `asd`|;|',
 				'var c |=| \'asd\'|;|',
@@ -5310,7 +5338,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
 					} else if (autoCloseColumns[column] === AutoClosingColumnType.Special2) {
@@ -5408,15 +5436,15 @@ suite('Editor Controller', () => {
 			],
 			languageId: languageId
 		}, (editor, model, viewModel) => {
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 1, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 2, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 3, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 4, 2, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 4, 3, '"', '"', `does not double quote when ending with open`);
 		});
 	});
@@ -5447,50 +5475,50 @@ suite('Editor Controller', () => {
 			}
 
 			// First gif
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste1 = teste\' ok');
 			assert.strictEqual(model.getLineContent(1), 'teste1 = teste\' ok');
 
 			viewModel.setSelections('test', [new Selection(1, 1000, 1, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste2 = teste \'ok');
 			assert.strictEqual(model.getLineContent(2), 'teste2 = teste \'ok\'');
 
 			viewModel.setSelections('test', [new Selection(2, 1000, 2, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste3 = teste" ok');
 			assert.strictEqual(model.getLineContent(3), 'teste3 = teste" ok');
 
 			viewModel.setSelections('test', [new Selection(3, 1000, 3, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste4 = teste "ok');
 			assert.strictEqual(model.getLineContent(4), 'teste4 = teste "ok"');
 
 			// Second gif
 			viewModel.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste \'');
 			assert.strictEqual(model.getLineContent(5), 'teste \'\'');
 
 			viewModel.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste "');
 			assert.strictEqual(model.getLineContent(6), 'teste ""');
 
 			viewModel.setSelections('test', [new Selection(6, 1000, 6, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste\'');
 			assert.strictEqual(model.getLineContent(7), 'teste\'');
 
 			viewModel.setSelections('test', [new Selection(7, 1000, 7, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste"');
 			assert.strictEqual(model.getLineContent(8), 'teste"');
 		});
@@ -6032,7 +6060,7 @@ suite('Editor Controller', () => {
 	});
 
 	test('All cursors should do the same thing when deleting left', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'var a = ()'
 			].join('\n'),
@@ -6053,7 +6081,7 @@ suite('Editor Controller', () => {
 	});
 
 	test('issue #7100: Mouse word selection is strange when non-word character is at the end of line', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'before.a',
 				'before',
@@ -6083,7 +6111,7 @@ suite('Editor Controller', () => {
 suite('Undo stops', () => {
 
 	test('there is an undo stop between typing and deleting left', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'A  line',
 				'Another line',
@@ -6114,7 +6142,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is an undo stop between typing and deleting right', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'A  line',
 				'Another line',
@@ -6145,7 +6173,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is an undo stop between deleting left and typing', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'A  line',
 				'Another line',
@@ -6181,7 +6209,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is an undo stop between deleting left and deleting right', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'A  line',
 				'Another line',
@@ -6221,7 +6249,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is an undo stop between deleting right and typing', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'A  line',
 				'Another line',
@@ -6254,7 +6282,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is an undo stop between deleting right and deleting left', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'A  line',
 				'Another line',
@@ -6292,7 +6320,7 @@ suite('Undo stops', () => {
 	});
 
 	test('inserts undo stop when typing space', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'A  line',
 				'Another line',
@@ -6322,7 +6350,7 @@ suite('Undo stops', () => {
 	});
 
 	test('can undo typing and EOL change in one undo stop', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'A  line',
 				'Another line',
@@ -6348,7 +6376,7 @@ suite('Undo stops', () => {
 	});
 
 	test('issue #93585: Undo multi cursor edit corrupts document', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'hello world',
 				'hello world',
@@ -6371,7 +6399,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is a single undo stop for consecutive whitespaces', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				''
 			].join('\n'),
@@ -6405,7 +6433,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is no undo stop after a single whitespace', () => {
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				''
 			].join('\n'),

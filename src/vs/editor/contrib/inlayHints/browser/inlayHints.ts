@@ -107,7 +107,7 @@ export class InlayHintsFragments {
 
 			for (const hint of list.hints) {
 				// compute the range to which the item should be attached to
-				let position = model.validatePosition(hint.position);
+				const position = model.validatePosition(hint.position);
 				let direction: 'before' | 'after' = 'before';
 
 				const wordRange = InlayHintsFragments._getRangeAtPosition(model, position);
@@ -139,8 +139,8 @@ export class InlayHintsFragments {
 			return new Range(line, word.startColumn, line, word.endColumn);
 		}
 
-		model.tokenizeIfCheap(line);
-		const tokens = model.getLineTokens(line);
+		model.tokenization.tokenizeIfCheap(line);
+		const tokens = model.tokenization.getLineTokens(line);
 		const offset = position.column - 1;
 		const idx = tokens.findTokenIndexAtOffset(offset);
 

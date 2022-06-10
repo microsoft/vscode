@@ -14,6 +14,12 @@
 		"constructor-super": "warn",
 		"curly": "warn",
 		"eqeqeq": "warn",
+		"prefer-const": [
+			"warn",
+			{
+				"destructuring": "all"
+			}
+		],
 		"no-buffer-constructor": "warn",
 		"no-caller": "warn",
 		"no-case-declarations": "warn",
@@ -248,6 +254,7 @@
 							"url",
 							"util",
 							"v8-inspect-profiler",
+							"vscode-policy-watcher",
 							"vscode-proxy-agent",
 							"vscode-regexpp",
 							"vscode-textmate",

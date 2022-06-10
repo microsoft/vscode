@@ -71,10 +71,6 @@ export class Win32UpdateService extends AbstractUpdateService {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
-	override initialize(): void {
-		super.initialize();
-	}
-
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
 		let platform = 'win32';
 

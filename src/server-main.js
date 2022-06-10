@@ -55,7 +55,7 @@ async function start() {
 	 * @typedef { import('./vs/server/node/remoteExtensionHostAgentServer').IServerAPI } IServerAPI
 	 */
 	/** @type {IServerAPI | null} */
-	let _remoteExtensionHostAgentServer = null;
+	const _remoteExtensionHostAgentServer = null;
 	/** @type {Promise<IServerAPI> | null} */
 	let _remoteExtensionHostAgentServerPromise = null;
 	/** @returns {Promise<IServerAPI>} */
@@ -281,6 +281,12 @@ function loadCode() {
 		const path = require('path');
 
 		delete process.env['ELECTRON_RUN_AS_NODE']; // Keep bootstrap-amd.js from redefining 'fs'.
+
+		// See https://github.com/microsoft/vscode-remote-release/issues/6543
+		// We would normally install a SIGPIPE listener in bootstrap.js
+		// But in certain situations, the console itself can be in a broken pipe state
+		// so logging SIGPIPE to the console will cause an infinite async loop
+		process.env['VSCODE_HANDLES_SIGPIPE'] = 'true';
 
 		if (process.env['VSCODE_DEV']) {
 			// When running out of sources, we need to load node modules from remote/node_modules,

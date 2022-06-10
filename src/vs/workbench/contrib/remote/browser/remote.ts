@@ -163,7 +163,7 @@ class HelpModel {
 		remoteExplorerService: IRemoteExplorerService,
 		environmentService: IWorkbenchEnvironmentService
 	) {
-		let helpItems: IHelpItem[] = [];
+		const helpItems: IHelpItem[] = [];
 		const getStarted = viewModel.helpInformation.filter(info => info.getStarted);
 
 		if (getStarted.length) {
@@ -268,7 +268,7 @@ class HelpItemValue {
 	private async getUrl(): Promise<string> {
 		if (this._url === undefined) {
 			if (this.urlOrCommand) {
-				let url = URI.parse(this.urlOrCommand);
+				const url = URI.parse(this.urlOrCommand);
 				if (url.authority) {
 					this._url = this.urlOrCommand;
 				} else {
@@ -305,9 +305,9 @@ abstract class HelpItemBase implements IHelpItem {
 		if (remoteAuthority) {
 			for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
 				if (remoteAuthority.startsWith(this.remoteExplorerService.targetType[i])) {
-					for (let value of this.values) {
+					for (const value of this.values) {
 						if (value.remoteAuthority) {
-							for (let authority of value.remoteAuthority) {
+							for (const authority of value.remoteAuthority) {
 								if (remoteAuthority.startsWith(authority)) {
 									await this.takeAction(value.extensionDescription, await value.url);
 									return;
@@ -320,7 +320,7 @@ abstract class HelpItemBase implements IHelpItem {
 		}
 
 		if (this.values.length > 1) {
-			let actions = (await Promise.all(this.values.map(async (value) => {
+			const actions = (await Promise.all(this.values.map(async (value) => {
 				return {
 					label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
 					description: await value.url,
@@ -334,8 +334,9 @@ abstract class HelpItemBase implements IHelpItem {
 					await this.takeAction(action.extensionDescription, action.description);
 				}
 			}
+		} else {
+			await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
 		}
-		await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
 
 	}
 
@@ -479,8 +480,8 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
 		remoteHelpExtPoint.setHandler((extensions) => {
-			let helpInformation: HelpInformation[] = [];
-			for (let extension of extensions) {
+			const helpInformation: HelpInformation[] = [];
+			for (const extension of extensions) {
 				this._handleRemoteInfoExtensionPoint(extension, helpInformation);
 			}
 
@@ -776,6 +777,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 				callback: () => {
 
 					type ReconnectReloadClassification = {
+						owner: 'alexdima';
+						comment: 'The reload button in the builtin permanent reconnection failure dialog was pressed';
 						remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 						reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 						millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -820,6 +823,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = 0;
 
 						type RemoteConnectionLostClassification = {
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ConnectionLost`';
 							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 						};
@@ -854,6 +859,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteReconnectionRunningClassification = {
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ReconnectionRunning`';
 							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -893,6 +900,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteReconnectionPermanentFailureClassification = {
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ReconnectionPermanentFailure`';
 							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -936,6 +945,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteConnectionGainClassification = {
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ConnectionGain`';
 							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };

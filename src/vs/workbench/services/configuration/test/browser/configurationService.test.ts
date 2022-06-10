@@ -44,6 +44,9 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteA
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { hash } from 'vs/base/common/hash';
 import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
+import { NullPolicyService } from 'vs/platform/policy/common/policy';
+import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {
@@ -63,7 +66,9 @@ const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 suite('WorkspaceContextService - Folder', () => {
 
-	let folderName = 'Folder A', folder: URI, testObject: WorkspaceService;
+	const folderName = 'Folder A';
+	let folder: URI;
+	let testObject: WorkspaceService;
 	const disposables = new DisposableStore();
 
 	setup(async () => {
@@ -77,7 +82,7 @@ suite('WorkspaceContextService - Folder', () => {
 
 		const environmentService = TestEnvironmentService;
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(undefined, undefined), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService(), new NullPolicyService()));
 		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
 	});
 
@@ -101,6 +106,47 @@ suite('WorkspaceContextService - Folder', () => {
 
 	test('getWorkspaceFolder()', () => {
 		const actual = testObject.getWorkspaceFolder(joinPath(folder, 'a'));
+
+		assert.strictEqual(actual, testObject.getWorkspace().folders[0]);
+	});
+
+	test('getWorkspaceFolder() - queries in workspace folder', async () => {
+
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+
+		const folder = joinPath(ROOT, folderName).with({ query: 'myquery=1' });
+		await fileService.createFolder(folder);
+
+		const environmentService = TestEnvironmentService;
+		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
+		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService(), new NullPolicyService()));
+		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
+
+		const actual = testObject.getWorkspaceFolder(joinPath(folder, 'a'));
+
+		assert.strictEqual(actual, testObject.getWorkspace().folders[0]);
+	});
+
+	test('getWorkspaceFolder() - queries in resource', async () => {
+
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+
+		const folder = joinPath(ROOT, folderName);
+		await fileService.createFolder(folder);
+
+		const environmentService = TestEnvironmentService;
+		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
+		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService(), new NullPolicyService()));
+		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
+
+
+		const actual = testObject.getWorkspaceFolder(joinPath(folder, 'a').with({ query: 'myquery=1' }));
 
 		assert.strictEqual(actual, testObject.getWorkspace().folders[0]);
 	});
@@ -143,7 +189,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService(), new NullPolicyService()));
 
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
@@ -201,7 +247,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService(), new NullPolicyService()));
 
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
@@ -444,7 +490,7 @@ suite('WorkspaceService - Initialization', () => {
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService(), new NullPolicyService()));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
@@ -628,7 +674,7 @@ suite('WorkspaceService - Initialization', () => {
 
 suite('WorkspaceConfigurationService - Folder', () => {
 
-	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService;
+	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: IWorkbenchEnvironmentService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const disposables: DisposableStore = new DisposableStore();
 
@@ -667,6 +713,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'default': 'isSet',
 					restricted: true
 				},
+				'configurationService.folder.policySetting': {
+					'type': 'string',
+					'default': 'isSet',
+					policy: {
+						name: 'configurationService.folder.policySetting',
+						minimumVersion: '1.0.0',
+					}
+				},
 			}
 		});
 
@@ -690,10 +744,11 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
+		environmentService.policyFile = joinPath(folder, 'policies.json');
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		workspaceService = testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		workspaceService = testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService(), new FilePolicyService(environmentService.policyFile, fileService, logService)));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
@@ -709,7 +764,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	teardown(() => disposables.clear());
 
 	test('defaults', () => {
-		assert.deepStrictEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet', 'languageSetting': 'isSet', 'restrictedSetting': 'isSet' } });
+		assert.deepStrictEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet', 'languageSetting': 'isSet', 'restrictedSetting': 'isSet', 'policySetting': 'isSet' } });
 	});
 
 	test('globals override defaults', async () => {
@@ -913,6 +968,25 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+	});
+
+	test('policy value override all', async () => {
+		const result = await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
+			return promise;
+		});
+		assert.deepStrictEqual(result.affectedKeys, ['configurationService.folder.policySetting']);
+		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'policyValue');
+		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, 'policyValue');
+	});
+
+	test('policy settings when policy value is not set', async () => {
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.policySetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.policySetting": "workspaceValue" }'));
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'workspaceValue');
+		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, undefined);
 	});
 
 	test('reload configuration emits events after global configuraiton changes', async () => {
@@ -1364,7 +1438,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService(), new NullPolicyService()));
 
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -2025,7 +2099,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
 		const configurationCache: IConfigurationCache = { read: () => Promise.resolve(''), write: () => Promise.resolve(), remove: () => Promise.resolve(), needsCaching: () => false };
-		testObject = disposables.add(new WorkspaceService({ configurationCache, remoteAuthority }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		testObject = disposables.add(new WorkspaceService({ configurationCache, remoteAuthority }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService(), new NullPolicyService()));
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
 		instantiationService.stub(IEnvironmentService, environmentService);

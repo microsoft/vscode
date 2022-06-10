@@ -14,7 +14,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 // -----------------------------------------------------------------------------------------------------------------------
 // Uncomment the next line to print warnings whenever an emitter with listeners is disposed. That is a sign of code smell.
 // -----------------------------------------------------------------------------------------------------------------------
-let _enableDisposeWithListenerWarning = false;
+const _enableDisposeWithListenerWarning = false;
 // _enableDisposeWithListenerWarning = Boolean("TRUE"); // causes a linter warning so that it cannot be pushed
 
 
@@ -22,7 +22,7 @@ let _enableDisposeWithListenerWarning = false;
 // Uncomment the next line to print warnings whenever a snapshotted event is used repeatedly without cleanup.
 // See https://github.com/microsoft/vscode/issues/142851
 // -----------------------------------------------------------------------------------------------------------------------
-let _enableSnapshotPotentialLeakWarning = false;
+const _enableSnapshotPotentialLeakWarning = false;
 // _enableSnapshotPotentialLeakWarning = Boolean("TRUE"); // causes a linter warning so that it cannot be pushed
 
 /**
@@ -60,7 +60,7 @@ export namespace Event {
 		return (listener, thisArgs = null, disposables?) => {
 			// we need this, in case the event fires during the listener call
 			let didFire = false;
-			let result: IDisposable;
+			let result: IDisposable | undefined = undefined;
 			result = event(e => {
 				if (didFire) {
 					return;
@@ -690,9 +690,7 @@ export class Emitter<T> {
 				}
 
 				const result = listener.subscription.set(() => {
-					if (removeMonitor) {
-						removeMonitor();
-					}
+					removeMonitor?.();
 					if (!this._disposed) {
 						removeListener();
 						if (this._options && this._options.onLastListenerRemove) {
@@ -730,7 +728,7 @@ export class Emitter<T> {
 				this._deliveryQueue = new PrivateEventDeliveryQueue();
 			}
 
-			for (let listener of this._listeners) {
+			for (const listener of this._listeners) {
 				this._deliveryQueue.push(this, listener, event);
 			}
 

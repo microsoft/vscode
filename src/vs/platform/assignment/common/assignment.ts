@@ -31,6 +31,7 @@ https://experimentation.visualstudio.com/Analysis%20and%20Experimentation/_git/A
 "X-VSCode-Build": "build",
 "X-MSEdge-ClientId": "clientid",
 "X-VSCode-ExtensionName": "extensionname",
+"X-VSCode-ExtensionVersion": "extensionversion",
 "X-VSCode-TargetPopulation": "targetpopulation",
 "X-VSCode-Language": "language"
 */
@@ -66,6 +67,11 @@ export enum Filters {
 	ExtensionName = 'X-VSCode-ExtensionName',
 
 	/**
+	 * The version of the extension.
+	 */
+	ExtensionVersion = 'X-VSCode-ExtensionVersion',
+
+	/**
 	 * The language in use by VS Code
 	 */
 	Language = 'X-VSCode-Language',
@@ -97,6 +103,8 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 				return platform.language;
 			case Filters.ExtensionName:
 				return 'vscode-core'; // always return vscode-core for exp service
+			case Filters.ExtensionVersion:
+				return '999999.0'; // always return a very large number for cross-extension experimentation
 			case Filters.TargetPopulation:
 				return this.targetPopulation;
 			default:
@@ -105,9 +113,9 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 	}
 
 	getFilters(): Map<string, any> {
-		let filters: Map<string, any> = new Map<string, any>();
-		let filterValues = Object.values(Filters);
-		for (let value of filterValues) {
+		const filters: Map<string, any> = new Map<string, any>();
+		const filterValues = Object.values(Filters);
+		for (const value of filterValues) {
 			filters.set(value, this.getFilterValue(value));
 		}
 

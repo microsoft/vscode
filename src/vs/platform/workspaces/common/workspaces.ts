@@ -174,11 +174,11 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
 }
 
 export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI, extUri: IExtUri): WorkspaceFolder[] {
-	let result: WorkspaceFolder[] = [];
-	let seen: Set<string> = new Set();
+	const result: WorkspaceFolder[] = [];
+	const seen: Set<string> = new Set();
 
 	const relativeTo = extUri.dirname(workspaceConfigFile);
-	for (let configuredFolder of configuredFolders) {
+	for (const configuredFolder of configuredFolders) {
 		let uri: URI | undefined = undefined;
 		if (isRawFileWorkspaceFolder(configuredFolder)) {
 			if (configuredFolder.path) {
@@ -198,7 +198,7 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 		if (uri) {
 
 			// remove duplicates
-			let comparisonKey = extUri.getComparisonKey(uri);
+			const comparisonKey = extUri.getComparisonKey(uri);
 			if (!seen.has(comparisonKey)) {
 				seen.add(comparisonKey);
 
@@ -216,7 +216,7 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
  * Throws an exception if file is not a valid workspace file
  */
 export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string, configPathURI: URI, isFromUntitledWorkspace: boolean, targetConfigPathURI: URI, extUri: IExtUri) {
-	let storedWorkspace = doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
+	const storedWorkspace = doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
 
 	const sourceConfigFolder = extUri.dirname(configPathURI);
 	const targetConfigFolder = extUri.dirname(targetConfigPathURI);
@@ -252,7 +252,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 
 	// Parse workspace file
-	let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
+	const storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
 
 	// Filter out folders which do not have a path or uri set
 	if (storedWorkspace && Array.isArray(storedWorkspace.folders)) {
@@ -295,13 +295,6 @@ interface ISerializedRecentFile {
 	readonly fileUri: string;
 	readonly label?: string;
 	readonly remoteAuthority?: string;
-}
-
-interface ISerializedRecentlyOpenedLegacy {
-	readonly workspaces3: Array<{ id: string; configURIPath: string } | string>; // workspace or URI.toString() // added in 1.32
-	readonly workspaceLabels?: Array<string | null>; // added in 1.33
-	readonly files2: string[]; // files as URI.toString() // added in 1.32
-	readonly fileLabels?: Array<string | null>; // added in 1.33
 }
 
 interface ISerializedRecentlyOpened {
@@ -349,26 +342,6 @@ export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefine
 					result.files.push({ label, remoteAuthority, fileUri: URI.parse(entry.fileUri) });
 				}
 			});
-		} else {
-			const storedRecents2 = data as ISerializedRecentlyOpenedLegacy;
-			if (Array.isArray(storedRecents2.workspaces3)) {
-				restoreGracefully(storedRecents2.workspaces3, (workspace, i) => {
-					const label: string | undefined = (Array.isArray(storedRecents2.workspaceLabels) && storedRecents2.workspaceLabels[i]) || undefined;
-					if (typeof workspace === 'object' && typeof workspace.id === 'string' && typeof workspace.configURIPath === 'string') {
-						result.workspaces.push({ label, workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) } });
-					} else if (typeof workspace === 'string') {
-						result.workspaces.push({ label, folderUri: URI.parse(workspace) });
-					}
-				});
-			}
-			if (Array.isArray(storedRecents2.files2)) {
-				restoreGracefully(storedRecents2.files2, (file, i) => {
-					const label: string | undefined = (Array.isArray(storedRecents2.fileLabels) && storedRecents2.fileLabels[i]) || undefined;
-					if (typeof file === 'string') {
-						result.files.push({ label, fileUri: URI.parse(file) });
-					}
-				});
-			}
 		}
 	}
 

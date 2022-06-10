@@ -10,17 +10,11 @@ import { InMemoryDocument } from '../util/inMemoryDocument';
 export const joinLines = (...args: string[]) =>
 	args.join(os.platform() === 'win32' ? '\r\n' : '\n');
 
-export const noopToken = new class implements vscode.CancellationToken {
-	_onCancellationRequestedEmitter = new vscode.EventEmitter<void>();
-	onCancellationRequested = this._onCancellationRequestedEmitter.event;
-
-	get isCancellationRequested() { return false; }
-};
 
 export const CURSOR = '$$CURSOR$$';
 
 export function getCursorPositions(contents: string, doc: InMemoryDocument): vscode.Position[] {
-	let positions: vscode.Position[] = [];
+	const positions: vscode.Position[] = [];
 	let index = 0;
 	let wordLength = 0;
 	while (index !== -1) {

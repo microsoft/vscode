@@ -115,7 +115,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const skippedExtensions: ISyncExtension[] = lastSyncUserData?.skippedExtensions || [];
 		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData?.syncData ? await parseAndMigrateExtensions(lastSyncUserData.syncData, this.extensionManagementService) : null;
 
-		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, true);
+		const installedExtensions = await this.extensionManagementService.getInstalled(undefined);
 		const localExtensions = this.getLocalExtensions(installedExtensions);
 		const ignoredExtensions = this.ignoredExtensionsManagementService.getIgnoredExtensions(installedExtensions);
 
@@ -150,7 +150,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	protected async hasRemoteChanged(lastSyncUserData: ILastSyncUserData): Promise<boolean> {
 		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData.syncData ? await parseAndMigrateExtensions(lastSyncUserData.syncData, this.extensionManagementService) : null;
-		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, true);
+		const installedExtensions = await this.extensionManagementService.getInstalled(undefined);
 		const localExtensions = this.getLocalExtensions(installedExtensions);
 		const ignoredExtensions = this.ignoredExtensionsManagementService.getIgnoredExtensions(installedExtensions);
 		const { remote } = merge(localExtensions, lastSyncExtensions, lastSyncExtensions, lastSyncUserData.skippedExtensions || [], ignoredExtensions);
@@ -246,7 +246,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [IExtensionResourcePreview, IExtensionResourceMergeResult][], force: boolean): Promise<void> {
 		let { skippedExtensions, localExtensions } = resourcePreviews[0][0];
-		let { local, remote, localChange, remoteChange } = resourcePreviews[0][1];
+		const { local, remote, localChange, remoteChange } = resourcePreviews[0][1];
 
 		if (localChange === Change.None && remoteChange === Change.None) {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing extensions.`);

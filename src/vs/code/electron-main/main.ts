@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/platform/update/common/update.config.contribution';
+
 import { app, dialog } from 'electron';
 import { unlinkSync } from 'fs';
+import { URI } from 'vs/base/common/uri';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -15,7 +18,7 @@ import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join, resolve } from 'vs/base/common/path';
 import { mark } from 'vs/base/common/performance';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { rtrim, trim } from 'vs/base/common/strings';
 import { Promises as FSPromises } from 'vs/base/node/pfs';
@@ -59,7 +62,10 @@ import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import 'vs/platform/update/common/update.config.contribution';
+import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
+import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
+import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 /**
  * The main VS Code entry point.
@@ -87,13 +93,13 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService] = this.createServices();
+		const [instantiationService, instanceEnvironment, environmentMainService, policyService, configurationService, stateMainService, bufferLogService, productService] = this.createServices();
 
 		try {
 
 			// Init services
 			try {
-				await this.initServices(environmentMainService, configurationService, stateMainService);
+				await this.initServices(environmentMainService, policyService, configurationService, stateMainService);
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -135,8 +141,10 @@ class CodeMain {
 		}
 	}
 
-	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService] {
+	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, IPolicyService, ConfigurationService, StateMainService, BufferLogService, IProductService] {
 		const services = new ServiceCollection();
+		const disposables = new DisposableStore();
+		process.once('exit', () => disposables.dispose());
 
 		// Product
 		const productService = { _serviceBrand: undefined, ...product };
@@ -151,8 +159,7 @@ class CodeMain {
 		// we are the only instance running, otherwise we'll have concurrent
 		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
 		const bufferLogService = new BufferLogService();
-		const logService = new MultiplexLogService([new ConsoleMainLogger(getLogLevel(environmentMainService)), bufferLogService]);
-		process.once('exit', () => logService.dispose());
+		const logService = disposables.add(new MultiplexLogService([new ConsoleMainLogger(getLogLevel(environmentMainService)), bufferLogService]));
 		services.set(ILogService, logService);
 
 		// Files
@@ -164,8 +171,14 @@ class CodeMain {
 		// Logger
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
+		// Policy
+		const policyService = isWindows && productService.win32RegValueName ? disposables.add(new NativePolicyService(productService.win32RegValueName))
+			: environmentMainService.policyFile ? disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService))
+				: new NullPolicyService();
+		services.set(IPolicyService, policyService);
+
 		// Configuration
-		const configurationService = new ConfigurationService(environmentMainService.settingsResource, fileService);
+		const configurationService = new ConfigurationService(environmentMainService.settingsResource, fileService, policyService, logService);
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle
@@ -190,7 +203,7 @@ class CodeMain {
 		// Protocol
 		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, policyService, configurationService, stateMainService, bufferLogService, productService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -210,7 +223,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private initServices(environmentMainService: IEnvironmentMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
+	private initServices(environmentMainService: IEnvironmentMainService, policyService: IPolicyService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
 		return Promises.settled<unknown>([
 
 			// Environment service (paths)
@@ -364,7 +377,7 @@ class CodeMain {
 
 	private handleStartupDataDirError(environmentMainService: IEnvironmentMainService, title: string, error: NodeJS.ErrnoException): void {
 		if (error.code === 'EACCES' || error.code === 'EPERM') {
-			const directories = coalesce([environmentMainService.userDataPath, environmentMainService.extensionsPath, XDG_RUNTIME_DIR]).map(folder => getPathLabel(folder, environmentMainService));
+			const directories = coalesce([environmentMainService.userDataPath, environmentMainService.extensionsPath, XDG_RUNTIME_DIR]).map(folder => getPathLabel(URI.file(folder), { os: OS, tildify: environmentMainService }));
 
 			this.showStartupWarningDialog(
 				localize('startupDataDirError', "Unable to write program user data."),

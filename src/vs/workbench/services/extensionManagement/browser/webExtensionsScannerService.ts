@@ -36,8 +36,9 @@ import { IExtensionStorageService } from 'vs/platform/extensionManagement/common
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExtensionManifestValidator } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
+import Severity from 'vs/base/common/severity';
 
 type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrateStorageFrom?: string };
 type ExtensionInfo = { readonly id: string; preRelease: boolean };
@@ -107,7 +108,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private readCustomBuiltinExtensionsInfoFromEnv(): Promise<{ extensions: ExtensionInfo[]; extensionsToMigrate: [string, string][]; extensionLocations: URI[] }> {
 		if (!this._customBuiltinExtensionsInfoPromise) {
 			this._customBuiltinExtensionsInfoPromise = (async () => {
-				let extensions: ExtensionInfo[] = [], extensionLocations: URI[] = [];
+				let extensions: ExtensionInfo[] = [];
+				const extensionLocations: URI[] = [];
 				const extensionsToMigrate: [string, string][] = [];
 				const customBuiltinExtensionsInfo = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions)
 					? this.environmentService.options.additionalBuiltinExtensions.map(additionalBuiltinExtension => isString(additionalBuiltinExtension) ? { id: additionalBuiltinExtension } : additionalBuiltinExtension)
@@ -139,10 +141,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				this.logService.info(`Checking additional builtin extensions: Ignoring '${extension.id}' because it is reported to be malicious.`);
 				continue;
 			}
-			if (extensionsControlManifest.unsupportedPreReleaseExtensions && extensionsControlManifest.unsupportedPreReleaseExtensions[extension.id.toLowerCase()]) {
-				const preReleaseExtensionId = extensionsControlManifest.unsupportedPreReleaseExtensions[extension.id.toLowerCase()].id;
-				this.logService.info(`Checking additional builtin extensions: '${extension.id}' is no longer supported, instead using '${preReleaseExtensionId}'`);
-				result.push({ id: preReleaseExtensionId, preRelease: true });
+			const deprecationInfo = extensionsControlManifest.deprecated[extension.id.toLowerCase()];
+			if (deprecationInfo?.extension?.autoMigrate) {
+				const preReleaseExtensionId = deprecationInfo.extension.id;
+				this.logService.info(`Checking additional builtin extensions: '${extension.id}' is deprecated, instead using '${preReleaseExtensionId}'`);
+				result.push({ id: preReleaseExtensionId, preRelease: !!extension.preRelease });
 			} else {
 				result.push(extension);
 			}
@@ -196,8 +199,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				const extension = await this.toScannedExtension(webExtension, true);
 				if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
 					result.push(extension);
-				} else {
-					this.logService.info(`Ignoring additional builtin extension ${webExtension.identifier.id} because it is not valid.`, extension.validationMessages);
 				}
 			} catch (error) {
 				this.logService.info(`Error while fetching the additional builtin extension ${location.toString()}.`, getErrorMessage(error));
@@ -225,8 +226,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						const extension = await this.toScannedExtension(webExtension, true);
 						if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
 							result.push(extension);
-						} else {
-							this.logService.info(`Ignoring additional builtin extension ${webExtension.identifier.id} because it is not valid.`, extension.validationMessages);
 						}
 					} catch (error) {
 						this.logService.info(`Ignoring additional builtin extension ${webExtension.identifier.id} because there is an error while converting it into scanned extension`, getErrorMessage(error));
@@ -485,7 +484,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async scanInstalledExtensions(scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
-		let installedExtensions = await this.readInstalledExtensions();
+		const installedExtensions = await this.readInstalledExtensions();
 		installedExtensions.sort((a, b) => a.identifier.id < b.identifier.id ? -1 : a.identifier.id > b.identifier.id ? 1 : semver.rcompare(a.version, b.version));
 		const result = new Map<string, IScannedExtension>();
 		for (const webExtension of installedExtensions) {
@@ -493,19 +492,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			if (existing && semver.gt(existing.manifest.version, webExtension.version)) {
 				continue;
 			}
-			try {
-				const extension = await this.toScannedExtension(webExtension, false);
-				if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
-					result.set(extension.identifier.id.toLowerCase(), extension);
-				} else {
-					this.logService.info(`Skipping user installed extension ${webExtension.identifier.id} because it is not valid.`, extension.validationMessages);
-				}
-			} catch (error) {
-				if (scanOptions?.bailOut) {
-					throw error;
-				} else {
-					this.logService.error(error, 'Error while scanning user extension', webExtension.identifier.id);
-				}
+			const extension = await this.toScannedExtension(webExtension, false);
+			if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
+				result.set(extension.identifier.id.toLowerCase(), extension);
 			}
 		}
 		return [...result.values()];
@@ -562,26 +551,50 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private async toScannedExtension(webExtension: IWebExtension, isBuiltin: boolean, type: ExtensionType = ExtensionType.User): Promise<IScannedExtension> {
 		const url = joinPath(webExtension.location, 'package.json');
 
-		let content;
+		const validations: [Severity, string][] = [];
+		let content: string | undefined;
 		try {
 			content = await this.extensionResourceLoaderService.readExtensionResource(url);
+			if (!content) {
+				validations.push([Severity.Error, `Error while fetching package.json from the location '${url}'. Server returned no content`]);
+			}
 		} catch (error) {
-			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}' from the location '${url}'. ${getErrorMessage(error)}`);
+			validations.push([Severity.Error, `Error while fetching package.json from the location '${url}'. ${getErrorMessage(error)}`]);
 		}
 
-		if (!content) {
-			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}'. Server returned no content for the request '${url}'`);
+		let manifest: IExtensionManifest | null = null;
+		if (content) {
+			try {
+				manifest = JSON.parse(content);
+			} catch (error) {
+				validations.push([Severity.Error, `Error while parsing package.json. ${getErrorMessage(error)}`]);
+			}
 		}
 
-		let manifest: IExtensionManifest = JSON.parse(content);
+		if (!manifest) {
+			const [publisher, name] = webExtension.identifier.id.split('.');
+			manifest = {
+				name,
+				publisher,
+				version: webExtension.version,
+				engines: { vscode: '*' },
+			};
+		}
+
 		if (webExtension.packageNLSUri) {
 			manifest = await this.translateManifest(manifest, webExtension.packageNLSUri);
 		}
 
 		const uuid = (<IGalleryMetadata | undefined>webExtension.metadata)?.id;
 
-		const validationMessages: string[] = [];
-		const isValid = ExtensionManifestValidator.isValidExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false, validationMessages);
+		validations.push(...validateExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false));
+		let isValid = true;
+		for (const [severity, message] of validations) {
+			if (severity === Severity.Error) {
+				isValid = false;
+				this.logService.error(message);
+			}
+		}
 
 		return {
 			identifier: { id: webExtension.identifier.id, uuid: webExtension.identifier.uuid || uuid },
@@ -593,7 +606,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			changelogUrl: webExtension.changelogUri,
 			metadata: webExtension.metadata,
 			targetPlatform: TargetPlatform.WEB,
-			validationMessages,
+			validations,
 			isValid
 		};
 	}

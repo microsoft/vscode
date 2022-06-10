@@ -90,7 +90,7 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 	ctor: ManageExtensionsQuickAccessProvider,
 	prefix: ManageExtensionsQuickAccessProvider.PREFIX,
 	placeholder: localize('manageExtensionsQuickAccessPlaceholder', "Press Enter to manage extensions."),
-	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions"), needsEditor: false }]
+	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions") }]
 });
 
 // Editor
@@ -200,9 +200,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				},
 				additionalProperties: false,
-				default: {
-					'pub.name': false
-				}
+				default: {},
+				defaultSnippets: [{
+					'body': {
+						'pub.name': false
+					}
+				}]
 			},
 			'extensions.experimental.affinity': {
 				type: 'object',
@@ -214,9 +217,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				},
 				additionalProperties: false,
-				default: {
-					'pub.name': 1
-				}
+				default: {},
+				defaultSnippets: [{
+					'body': {
+						'pub.name': 1
+					}
+				}]
 			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
@@ -485,7 +491,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				ctor: InstallExtensionQuickAccessProvider,
 				prefix: InstallExtensionQuickAccessProvider.PREFIX,
 				placeholder: localize('installExtensionQuickAccessPlaceholder', "Type the name of an extension to install or search."),
-				helpEntries: [{ description: localize('installExtensionQuickAccessHelp', "Install or Search Extensions"), needsEditor: false }]
+				helpEntries: [{ description: localize('installExtensionQuickAccessHelp', "Install or Search Extensions") }]
 			});
 		}
 	}
@@ -1330,7 +1336,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const clipboardService = accessor.get(IClipboardService);
-				let extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
+				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
 					const name = localize('extensionInfoName', 'Name: {0}', extension.displayName);

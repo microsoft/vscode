@@ -47,7 +47,7 @@ import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
 
 // sticky suggest widget which doesn't disappear on focus out and such
-let _sticky = false;
+const _sticky = false;
 // _sticky = Boolean("true"); // done "weirdly" so that a lint warning prevents you from pushing this
 
 class LineSuffix {
@@ -253,8 +253,8 @@ export class SuggestController implements IEditorContribution {
 		}));
 
 		// Manage the acceptSuggestionsOnEnter context key
-		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
-		let updateFromConfig = () => {
+		const acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
+		const updateFromConfig = () => {
 			const acceptSuggestionOnEnter = this.editor.getOption(EditorOption.acceptSuggestionOnEnter);
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
@@ -329,7 +329,7 @@ export class SuggestController implements IEditorContribution {
 					docListener.dispose();
 					return;
 				}
-				for (let change of e.changes) {
+				for (const change of e.changes) {
 					const thisPosition = Range.getEndPosition(change.range);
 					if (!position || Position.isBefore(thisPosition, position)) {
 						position = thisPosition;
@@ -337,10 +337,10 @@ export class SuggestController implements IEditorContribution {
 				}
 			});
 
-			let oldFlags = flags;
+			const oldFlags = flags;
 			flags |= InsertFlags.NoAfterUndoStop;
 			let didType = false;
-			let typeListener = this.editor.onWillType(() => {
+			const typeListener = this.editor.onWillType(() => {
 				typeListener.dispose();
 				didType = true;
 				if (!(oldFlags & InsertFlags.NoAfterUndoStop)) {
@@ -434,7 +434,7 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
-			this._reportSuggestionAcceptedTelemetry(model, event);
+			this._reportSuggestionAcceptedTelemetry(item, model, event);
 
 			this.model.clear();
 			cts.dispose();
@@ -442,23 +442,27 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _telemetryGate: number = 0;
-	private _reportSuggestionAcceptedTelemetry(model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
+	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
 		if (this._telemetryGate++ % 100 !== 0) {
 			return;
 		}
 
-		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string };
+		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; kind: number };
 		type AcceptedSuggestionClassification = {
-			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'jrieken';
+			comment: 'Information accepting completion items';
+			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Provider of the completions item' };
+			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Hash of the basename of the file into which the completion was inserted' };
+			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension of the file into which the completion was inserted' };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Language type of the file into which the completion was inserted' };
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The completion item kind' };
 		};
 		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
 		// normalize it to just the extension ID and lowercase
-		const providerId = (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
+		const providerId = item.extensionId ? item.extensionId.value : (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
 			providerId,
+			kind: item.completion.kind,
 			basenameHash: hash(basename(model.uri)).toString(16),
 			languageId: model.getLanguageId(),
 			fileExtension: extname(model.uri),
@@ -485,14 +489,14 @@ export class SuggestController implements IEditorContribution {
 
 	private _alertCompletionItem(item: CompletionItem): void {
 		if (isNonEmptyArray(item.completion.additionalTextEdits)) {
-			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
+			const msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
 			alert(msg);
 		}
 	}
 
-	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean): void {
+	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean, noFilter?: boolean): void {
 		if (this.editor.hasModel()) {
-			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom);
+			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom, undefined, noFilter);
 			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}
@@ -535,7 +539,7 @@ export class SuggestController implements IEditorContribution {
 
 		Event.once(this.model.onDidTrigger)(_ => {
 			// wait for trigger because only then the cancel-event is trustworthy
-			let listener: IDisposable[] = [];
+			const listener: IDisposable[] = [];
 
 			Event.any<any>(this.model.onDidTrigger, this.model.onDidCancel)(() => {
 				// retrigger or cancel -> try to type default text

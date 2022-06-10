@@ -63,7 +63,7 @@ declare namespace monaco.editor {
 export interface ICommandHandler {
 	(...args: any[]): void;
 }
-#include(vs/platform/contextkey/common/contextkey): IContextKey
+#include(vs/platform/contextkey/common/contextkey): IContextKey, ContextKeyValue
 #include(vs/editor/standalone/browser/standaloneServices): IEditorOverrideServices
 #include(vs/platform/markers/common/markers): IMarker, IMarkerData, IRelatedInformation
 #include(vs/editor/standalone/browser/colorizer): IColorizerOptions, IColorizerElementOptions

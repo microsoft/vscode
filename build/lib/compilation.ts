@@ -26,7 +26,7 @@ const reporter = createReporter();
 
 function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	const rootDir = path.join(__dirname, `../../${src}`);
-	let options: ts.CompilerOptions = {};
+	const options: ts.CompilerOptions = {};
 	options.verbose = false;
 	options.sourceMap = true;
 	if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
@@ -40,7 +40,7 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 }
 
 function createCompile(src: string, build: boolean, emitError?: boolean) {
-	const tsb = require('gulp-tsb') as typeof import('gulp-tsb');
+	const tsb = require('./tsb') as typeof import('./tsb');
 	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
 
@@ -50,7 +50,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean) {
 		overrideOptions.inlineSourceMap = true;
 	}
 
-	const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
+	const compilation = tsb.create(projectPath, overrideOptions, { verbose: false }, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
 		const bom = require('gulp-bom') as typeof import('gulp-bom');
@@ -96,7 +96,7 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 
 		const compile = createCompile(src, build, true);
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
-		let generator = new MonacoGenerator(false);
+		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
 			generator.execute();
 		}
@@ -116,7 +116,7 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 		const src = gulp.src('src/**', { base: 'src' });
 		const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
 
-		let generator = new MonacoGenerator(true);
+		const generator = new MonacoGenerator(true);
 		generator.execute();
 
 		return watchSrc
@@ -140,7 +140,7 @@ class MonacoGenerator {
 		this._isWatch = isWatch;
 		this.stream = es.through();
 		this._watchedFiles = {};
-		let onWillReadFile = (moduleId: string, filePath: string) => {
+		const onWillReadFile = (moduleId: string, filePath: string) => {
 			if (!this._isWatch) {
 				return;
 			}
@@ -182,7 +182,7 @@ class MonacoGenerator {
 	}
 
 	private _run(): monacodts.IMonacoDeclarationResult | null {
-		let r = monacodts.run3(this._declarationResolver);
+		const r = monacodts.run3(this._declarationResolver);
 		if (!r && !this._isWatch) {
 			// The build must always be able to generate the monaco.d.ts
 			throw new Error(`monaco.d.ts generation error - Cannot continue`);

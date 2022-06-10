@@ -459,6 +459,11 @@ export interface ITerminalInstance {
 	target?: TerminalLocation;
 
 	/**
+	 * Whether or not shell integration telemetry / warnings should be reported for this terminal.
+	 */
+	disableShellIntegrationReporting: boolean;
+
+	/**
 	 * The id of a persistent process. This is defined if this is a terminal created by a pty host
 	 * that supports reconnection.
 	 */
@@ -665,6 +670,12 @@ export interface ITerminalInstance {
 	clearSelection(): void;
 
 	/**
+	 * When the panel is hidden or a terminal in the editor area becomes inactive, reset the focus context key
+	 * to avoid issues like #147180.
+	 */
+	resetFocusContextKey(): void;
+
+	/**
 	 * Select all text in the terminal.
 	 */
 	selectAll(): void;
@@ -862,6 +873,8 @@ export interface IXtermTerminal {
 	 */
 	readonly shellIntegration: IShellIntegration;
 
+	readonly onDidChangeSelection: Event<void>;
+
 	/**
 	 * The position of the terminal.
 	 */
@@ -903,14 +916,14 @@ export interface IXtermTerminal {
 	clearBuffer(): void;
 
 	/**
-	 * Clears decorations - for example, when shell integration is disabled.
-	 */
-	clearDecorations(): void;
-
-	/**
 	 * Clears the search result decorations
 	 */
 	clearSearchDecorations(): void;
+
+	/**
+	 * Clears the active search result decorations
+	 */
+	clearActiveSearchDecoration(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

@@ -45,7 +45,7 @@ export class KeybindingResolver {
 
 		this._keybindings = KeybindingResolver.handleRemovals(([] as ResolvedKeybindingItem[]).concat(defaultKeybindings).concat(overrides));
 		for (let i = 0, len = this._keybindings.length; i < len; i++) {
-			let k = this._keybindings[i];
+			const k = this._keybindings[i];
 			if (k.keypressParts.length === 0) {
 				// unbound
 				continue;
@@ -153,7 +153,7 @@ export class KeybindingResolver {
 		}
 
 		for (let i = conflicts.length - 1; i >= 0; i--) {
-			let conflict = conflicts[i];
+			const conflict = conflicts[i];
 
 			if (conflict.command === item.command) {
 				continue;
@@ -197,7 +197,7 @@ export class KeybindingResolver {
 		if (!item.command) {
 			return;
 		}
-		let arr = this._lookupMap.get(item.command);
+		const arr = this._lookupMap.get(item.command);
 		if (typeof arr === 'undefined') {
 			return;
 		}
@@ -236,13 +236,14 @@ export class KeybindingResolver {
 	}
 
 	public lookupKeybindings(commandId: string): ResolvedKeybindingItem[] {
-		let items = this._lookupMap.get(commandId);
+		const items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return [];
 		}
 
 		// Reverse to get the most specific item first
-		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
+		const result: ResolvedKeybindingItem[] = [];
+		let resultLen = 0;
 		for (let i = items.length - 1; i >= 0; i--) {
 			result[resultLen++] = items[i];
 		}
@@ -284,7 +285,7 @@ export class KeybindingResolver {
 
 			lookupMap = [];
 			for (let i = 0, len = candidates.length; i < len; i++) {
-				let candidate = candidates[i];
+				const candidate = candidates[i];
 				// TODO@chords
 				if (candidate.keypressParts[1] === keypress) {
 					lookupMap.push(candidate);
@@ -301,7 +302,7 @@ export class KeybindingResolver {
 			lookupMap = candidates;
 		}
 
-		let result = this._findCommand(context, lookupMap);
+		const result = this._findCommand(context, lookupMap);
 		if (!result) {
 			this._log(`\\ From ${lookupMap.length} keybinding entries, no when clauses matched the context.`);
 			return null;
@@ -331,7 +332,7 @@ export class KeybindingResolver {
 
 	private _findCommand(context: IContext, matches: ResolvedKeybindingItem[]): ResolvedKeybindingItem | null {
 		for (let i = matches.length - 1; i >= 0; i--) {
-			let k = matches[i];
+			const k = matches[i];
 
 			if (!KeybindingResolver._contextMatchesRules(context, k.when)) {
 				continue;

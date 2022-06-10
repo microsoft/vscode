@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { TestNativePathService, TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { TestContextService, TestProductService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestProductService, TestStorageService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -17,13 +17,12 @@ import { dirname, join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
 import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IFileService } from 'vs/platform/files/common/files';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestLifecycleService, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLifecycleService, TestRemoteAgentService, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
 import { joinPath, dirname as resourcesDirname, basename } from 'vs/base/common/resources';
@@ -58,7 +57,7 @@ export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryServi
 
 		const uriIdentityService = new UriIdentityService(fileService);
 
-		const labelService = new LabelService(environmentService, new TestContextService(), new TestNativePathService());
+		const labelService = new LabelService(environmentService, new TestContextService(), new TestNativePathService(), new TestRemoteAgentService(), new TestStorageService(), new TestLifecycleService());
 
 		const lifecycleService = new TestLifecycleService();
 
@@ -136,7 +135,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 	});
 
 	test('addEntry', async () => {
-		let addEvents: IWorkingCopyHistoryEvent[] = [];
+		const addEvents: IWorkingCopyHistoryEvent[] = [];
 		service.onDidAddEntry(e => addEvents.push(e));
 
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
@@ -186,7 +185,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 	});
 
 	test('renameEntry', async () => {
-		let changeEvents: IWorkingCopyHistoryEvent[] = [];
+		const changeEvents: IWorkingCopyHistoryEvent[] = [];
 		service.onDidChangeEntry(e => changeEvents.push(e));
 
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
@@ -222,7 +221,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 	});
 
 	test('removeEntry', async () => {
-		let removeEvents: IWorkingCopyHistoryEvent[] = [];
+		const removeEvents: IWorkingCopyHistoryEvent[] = [];
 		service.onDidRemoveEntry(e => removeEvents.push(e));
 
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
@@ -415,7 +414,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.ok(existsSync(metaFile));
 		unlinkSync(metaFile);
 
-		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		const entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 1);
 		assertEntryEqual(entries[0], entry1, false /* skip timestamp that is unreliable when entries.json is gone */);
 	});
@@ -438,7 +437,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 		unlinkSync(entry1.location.fsPath);
 
-		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		const entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 1);
 		assertEntryEqual(entries[0], entry2);
 	});
@@ -462,7 +461,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 		const entry3 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		const entry4 = await addEntry({ resource: workingCopy1.resource, source: 'other-source' }, CancellationToken.None);
 
-		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		const entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 4);
 		assertEntryEqual(entries[0], entry1);
 		assertEntryEqual(entries[1], entry2);

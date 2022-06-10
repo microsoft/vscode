@@ -54,6 +54,7 @@ export class MenuId {
 	static readonly DebugVariablesContext = new MenuId('DebugVariablesContext');
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
+	static readonly DebugToolBarStop = new MenuId('DebugToolBarStop');
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
 	static readonly EditorContextCopy = new MenuId('EditorContextCopy');
@@ -66,6 +67,7 @@ export class MenuId {
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
+	static readonly CommandCenter = new MenuId('CommandCenter');
 	static readonly LayoutControlMenuSubmenu = new MenuId('LayoutControlMenuSubmenu');
 	static readonly LayoutControlMenu = new MenuId('LayoutControlMenu');
 	static readonly MenubarMainMenu = new MenuId('MenubarMainMenu');
@@ -137,6 +139,7 @@ export class MenuId {
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
 	static readonly NotebookEditorLayoutConfigure = new MenuId('NotebookEditorLayoutConfigure');
+	static readonly NotebookKernelSource = new MenuId('NotebookKernelSource');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
 	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
@@ -155,6 +158,7 @@ export class MenuId {
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly NewFile = new MenuId('NewFile');
+	static readonly MergeToolbar = new MenuId('MergeToolbar');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -272,7 +276,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 		return toDisposable(() => {
 			if (toRemove.size > 0) {
-				for (let fn of toRemove) {
+				for (const fn of toRemove) {
 					fn();
 				}
 				this._onDidChangeMenu.fire(changedIds);
@@ -541,7 +545,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 
 	// keybinding
 	if (Array.isArray(keybinding)) {
-		for (let item of keybinding) {
+		for (const item of keybinding) {
 			KeybindingsRegistry.registerKeybindingRule({
 				...item,
 				id: command.id,

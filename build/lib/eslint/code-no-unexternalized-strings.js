@@ -41,7 +41,7 @@ module.exports = new (_a = class NoUnexternalizedStrings {
                     key = keyNode.value;
                 }
                 else if (keyNode.type === experimental_utils_1.AST_NODE_TYPES.ObjectExpression) {
-                    for (let property of keyNode.properties) {
+                    for (const property of keyNode.properties) {
                         if (property.type === experimental_utils_1.AST_NODE_TYPES.Property && !property.computed) {
                             if (property.key.type === experimental_utils_1.AST_NODE_TYPES.Identifier && property.key.name === 'key') {
                                 if (isStringLiteral(property.value)) {
@@ -83,7 +83,7 @@ module.exports = new (_a = class NoUnexternalizedStrings {
                     // (2)
                     // report all invalid NLS keys
                     if (!key.match(NoUnexternalizedStrings._rNlsKeys)) {
-                        for (let value of values) {
+                        for (const value of values) {
                             context.report({ loc: value.call.loc, messageId: 'badKey', data: { key } });
                         }
                     }

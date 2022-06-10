@@ -25,8 +25,7 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -76,7 +75,7 @@ export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<str
 
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
-export type NotebookRendererEntrypoint = string | { extends: string; path: string };
+export type NotebookRendererEntrypoint = string | { readonly extends: string; readonly path: string };
 
 export enum NotebookRunState {
 	Running = 1,
@@ -780,7 +779,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	hasAssociatedFilePath(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
-	saveAs(target: URI): Promise<EditorInput | undefined>;
+	saveAs(target: URI): Promise<IUntypedEditorInput | undefined>;
 	revert(options?: IRevertOptions): Promise<void>;
 }
 
@@ -913,7 +912,11 @@ export const NotebookSetting = {
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
-	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode'
+	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
+	outputLineHeight: 'notebook.outputLineHeight',
+	outputFontSize: 'notebook.outputFontSize',
+	outputFontFamily: 'notebook.outputFontFamily',
+	interactiveWindowAlwaysScrollOnNewCell: 'interactiveWindow.alwaysScrollOnNewCell'
 } as const;
 
 export const enum CellStatusbarAlignment {

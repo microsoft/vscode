@@ -5,6 +5,7 @@
 
 import type { ApplicationInsights } from '@microsoft/applicationinsights-web';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IObservableValue } from 'vs/base/common/observableValue';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILoggerService } from 'vs/platform/log/common/log';
@@ -25,7 +26,7 @@ class WebAppInsightsAppender implements ITelemetryAppender {
 	private _telemetryCache: { eventName: string; data: any }[] = [];
 
 	constructor(private _eventPrefix: string, aiKey: string) {
-		const endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+		const endpointUrl = 'https://mobile.events.data.microsoft.com/collect/v1';
 		import('@microsoft/applicationinsights-web').then(aiLibrary => {
 			this._aiClient = new aiLibrary.ApplicationInsights({
 				config: {
@@ -48,7 +49,7 @@ class WebAppInsightsAppender implements ITelemetryAppender {
 
 			// If we cannot access the endpoint this most likely means it's being blocked
 			// and we should not attempt to send any telemetry.
-			fetch(endpointUrl).catch(() => (this._aiClient = undefined));
+			fetch(endpointUrl, { method: 'POST' }).catch(() => (this._aiClient = undefined));
 		}).catch(err => {
 			console.error(err);
 		});
@@ -138,7 +139,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.setExperimentProperty(name, value);
 	}
 
-	get telemetryLevel(): TelemetryLevel {
+	get telemetryLevel(): IObservableValue<TelemetryLevel> {
 		return this.impl.telemetryLevel;
 	}
 

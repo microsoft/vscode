@@ -1,14 +1,16 @@
 name: CI
 
-on:
-  push:
-    branches:
-      - main
-      - release/*
-  pull_request:
-    branches:
-      - main
-      - release/*
+on: workflow_dispatch
+
+# on:
+#   push:
+#     branches:
+#       - main
+#       - release/*
+#   pull_request:
+#     branches:
+#       - main
+#       - release/*
 
 jobs:
   windows:
@@ -21,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
         with:
           node-version: 16
 
@@ -111,7 +113,7 @@ jobs:
           sudo update-rc.d xvfb defaults
           sudo service xvfb start
 
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
         with:
           node-version: 16
 
@@ -123,8 +125,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules21-
+          key: ${{ runner.os }}-cacheNodeModules22-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules22-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -183,7 +185,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
         with:
           node-version: 16
 
@@ -195,8 +197,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules21-
+          key: ${{ runner.os }}-cacheNodeModules22-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules22-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -249,7 +251,7 @@ jobs:
         run: DISPLAY=:10 ./scripts/test-remote-integration.sh
 
   hygiene:
-    name: Hygiene, Layering and Monaco Editor
+    name: Hygiene and Layering
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -257,7 +259,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
         with:
           node-version: 16
 
@@ -269,8 +271,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules21-
+          key: ${{ runner.os }}-cacheNodeModules22-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules22-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}

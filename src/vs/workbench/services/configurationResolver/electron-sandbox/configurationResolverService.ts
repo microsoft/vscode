@@ -11,10 +11,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/baseConfigurationResolverService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ConfigurationResolverService extends BaseConfigurationResolverService {
 
@@ -27,7 +28,8 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IQuickInputService quickInputService: IQuickInputService,
 		@ILabelService labelService: ILabelService,
 		@IShellEnvironmentService shellEnvironmentService: IShellEnvironmentService,
-		@IPathService pathService: IPathService
+		@IPathService pathService: IPathService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super({
 			getAppRoot: (): string | undefined => {
@@ -35,9 +37,9 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 			},
 			getExecPath: (): string | undefined => {
 				return environmentService.execPath;
-			}
+			},
 		}, shellEnvironmentService.getShellEnv(), editorService, configurationService, commandService,
-			workspaceContextService, quickInputService, labelService, pathService);
+			workspaceContextService, quickInputService, labelService, pathService, extensionService);
 	}
 }
 
