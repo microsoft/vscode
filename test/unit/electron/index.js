@@ -187,8 +187,7 @@ app.on('ready', () => {
 			nodeIntegration: true,
 			contextIsolation: false,
 			enableWebSQL: false,
-			spellcheck: false,
-			nativeWindowOpen: true
+			spellcheck: false
 		}
 	});
 
