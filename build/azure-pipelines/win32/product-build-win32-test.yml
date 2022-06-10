@@ -6,6 +6,15 @@ parameters:
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
 
+variables:
+  - name: LOG_ARTIFACT_NAME
+    ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+      value: '-integration'
+    ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+      value: '-smoke'
+    ${{ else }}:
+      value: ''
+
 steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -141,31 +150,34 @@ steps:
       continueOnError: true
       condition: succeededOrFailed()
 
-  - task: PublishPipelineArtifact@0
-    inputs:
-      artifactName: crash-dump-windows-$(VSCODE_ARCH)
-      targetPath: .build\crashes
-    displayName: "Publish Crash Reports"
-    continueOnError: true
-    condition: failed()
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+    - task: PublishPipelineArtifact@0
+      inputs:
+        artifactName: crash-dump-windows-$(VSCODE_ARCH)$(LOG_ARTIFACT_NAME)-$(System.JobAttempt)
+        targetPath: .build\crashes
+      displayName: "Publish Crash Reports"
+      continueOnError: true
+      condition: failed()
 
-  # In order to properly symbolify above crash reports
-  # (if any), we need the compiled native modules too
-  - task: PublishPipelineArtifact@0
-    inputs:
-      artifactName: node-modules-windows-$(VSCODE_ARCH)
-      targetPath: node_modules
-    displayName: "Publish Node Modules"
-    continueOnError: true
-    condition: failed()
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+    # In order to properly symbolify above crash reports
+    # (if any), we need the compiled native modules too
+    - task: PublishPipelineArtifact@0
+      inputs:
+        artifactName: node-modules-windows-$(VSCODE_ARCH)$(LOG_ARTIFACT_NAME)-$(System.JobAttempt)
+        targetPath: node_modules
+      displayName: "Publish Node Modules"
+      continueOnError: true
+      condition: failed()
 
-  - task: PublishPipelineArtifact@0
-    inputs:
-      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-      targetPath: .build\logs
-    displayName: "Publish Log Files"
-    continueOnError: true
-    condition: succeededOrFailed()
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+    - task: PublishPipelineArtifact@0
+      inputs:
+        artifactName: logs-windows-$(VSCODE_ARCH)$(LOG_ARTIFACT_NAME)-$(System.JobAttempt)
+        targetPath: .build\logs
+      displayName: "Publish Log Files"
+      continueOnError: true
+      condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results
