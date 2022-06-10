@@ -1459,11 +1459,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 			hasPendingChangeContentHeight = true;
 
-			DOM.scheduleAtNextAnimationFrame(() => {
+			this._localStore.add(DOM.scheduleAtNextAnimationFrame(() => {
 				hasPendingChangeContentHeight = false;
 				this._updateScrollHeight();
 				this._onDidChangeContentHeight.fire(this._list.getScrollHeight());
-			}, 100);
+			}, 100));
 		}));
 
 		this._localStore.add(this._list.onDidRemoveOutputs(outputs => {

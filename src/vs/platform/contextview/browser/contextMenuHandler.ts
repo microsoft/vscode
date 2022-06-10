@@ -129,9 +129,7 @@ export class ContextMenuHandler {
 			},
 
 			onHide: (didCancel?: boolean) => {
-				if (delegate.onHide) {
-					delegate.onHide(!!didCancel);
-				}
+				delegate.onHide?.(!!didCancel);
 
 				if (this.block) {
 					this.block.remove();

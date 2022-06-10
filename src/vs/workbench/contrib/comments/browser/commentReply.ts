@@ -250,9 +250,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}));
 
 		this._commentFormActions = new CommentFormActions(container, async (action: IAction) => {
-			if (this._actionRunDelegate) {
-				this._actionRunDelegate();
-			}
+			this._actionRunDelegate?.();
 
 			action.run({
 				thread: this._commentThread,

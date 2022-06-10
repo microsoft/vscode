@@ -291,9 +291,7 @@ export class WalkThroughPart extends EditorPane {
 					this.updateSizeClasses();
 					this.decorateContent();
 					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
-					if (input.onReady) {
-						input.onReady(this.content.firstElementChild as HTMLElement, store);
-					}
+					input.onReady?.(this.content.firstElementChild as HTMLElement, store);
 					this.scrollbar.scanDomNode();
 					this.loadTextEditorViewState(input);
 					this.updatedScrollPosition();
@@ -371,9 +369,7 @@ export class WalkThroughPart extends EditorPane {
 						this.multiCursorModifier();
 					}
 				}));
-				if (input.onReady) {
-					input.onReady(innerContent, store);
-				}
+				input.onReady?.(innerContent, store);
 				this.scrollbar.scanDomNode();
 				this.loadTextEditorViewState(input);
 				this.updatedScrollPosition();

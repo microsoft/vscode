@@ -99,16 +99,18 @@ class MarketplaceThemesPicker {
 		try {
 			const installedExtensions = await this._installedExtensions;
 
-			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 40 };
+			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 20 };
 			const pager = await this.extensionGalleryService.query(options, token);
-			for (let i = 0; i < pager.total && i < 1; i++) {
+			for (let i = 0; i < pager.total && i < 1; i++) { // loading multiple pages is turned of for now to avoid flickering
 				if (token.isCancellationRequested) {
 					break;
 				}
 
 				const nThemes = this._marketplaceThemes.length;
+				const gallery = i === 0 ? pager.firstPage : await pager.getPage(i, token);
 
-				const gallery = await pager.getPage(i, token);
+				const promises: Promise<IWorkbenchTheme[]>[] = [];
+				const promisesGalleries = [];
 				for (let i = 0; i < gallery.length; i++) {
 					if (token.isCancellationRequested) {
 						break;
@@ -116,12 +118,18 @@ class MarketplaceThemesPicker {
 					const ext = gallery[i];
 					if (!installedExtensions.has(ext.identifier.id) && !this._marketplaceExtensions.has(ext.identifier.id)) {
 						this._marketplaceExtensions.add(ext.identifier.id);
-						const themes = await this.getMarketplaceColorThemes(ext.publisher, ext.name, ext.version);
-						for (const theme of themes) {
-							this._marketplaceThemes.push({ id: theme.id, theme: theme, label: theme.label, description: `${ext.displayName} · ${ext.publisherDisplayName}`, galleryExtension: ext, buttons: [configureButton] });
-						}
+						promises.push(this.getMarketplaceColorThemes(ext.publisher, ext.name, ext.version));
+						promisesGalleries.push(ext);
 					}
 				}
+				const allThemes = await Promise.all(promises);
+				for (let i = 0; i < allThemes.length; i++) {
+					const ext = promisesGalleries[i];
+					for (const theme of allThemes[i]) {
+						this._marketplaceThemes.push({ id: theme.id, theme: theme, label: theme.label, description: `${ext.displayName} · ${ext.publisherDisplayName}`, galleryExtension: ext, buttons: [configureButton] });
+					}
+				}
+
 				if (nThemes !== this._marketplaceThemes.length) {
 					this._marketplaceThemes.sort((t1, t2) => t1.label.localeCompare(t2.label));
 					this._onDidChange.fire();

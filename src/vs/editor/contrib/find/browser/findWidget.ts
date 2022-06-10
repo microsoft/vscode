@@ -1348,9 +1348,7 @@ export class SimpleButton extends Widget {
 				e.preventDefault();
 				return;
 			}
-			if (this._opts.onKeyDown) {
-				this._opts.onKeyDown(e);
-			}
+			this._opts.onKeyDown?.(e);
 		});
 	}
 

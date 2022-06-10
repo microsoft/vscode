@@ -283,9 +283,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 			(err: any) => {
 				// in Firefox, web workers fail lazily :(
 				// we will reject the proxy
-				if (lazyProxyReject) {
-					lazyProxyReject(err);
-				}
+				lazyProxyReject?.(err);
 			}
 		));
 

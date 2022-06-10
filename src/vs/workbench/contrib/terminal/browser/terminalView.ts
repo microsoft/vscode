@@ -175,6 +175,9 @@ export class TerminalViewPane extends ViewPane {
 					this._terminalGroupService.activeGroup?.setVisible(visible);
 				}
 			} else {
+				for (const instance of this._terminalGroupService.instances) {
+					instance.resetFocusContextKey();
+				}
 				this._terminalGroupService.activeGroup?.setVisible(false);
 			}
 		}));

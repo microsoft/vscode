@@ -71,9 +71,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		const key = uri.toString();
 		if (!this._canonicalURIRequests.has(key)) {
 			const request = new PendingPromise<URI, URI>(uri);
-			if (this._canonicalURIProvider) {
-				this._canonicalURIProvider(request.input).then((uri) => request.resolve(uri), (err) => request.reject(err));
-			}
+			this._canonicalURIProvider?.(request.input).then((uri) => request.resolve(uri), (err) => request.reject(err));
 			this._canonicalURIRequests.set(key, request);
 		}
 		return this._canonicalURIRequests.get(key)!.promise;

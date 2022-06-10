@@ -163,10 +163,15 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
 		this._logService.trace('ExtHostCommands#executeCommand', id);
-		return this._doExecuteCommand(id, args, true);
+		return this._doExecuteCommand(id, args);
 	}
 
-	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean): Promise<T> {
+	private async _doExecuteCommand<T>(id: string, args: any[]): Promise<T> {
+
+		// make sure to emit an onCommand-activation event in ALL cases
+		// (1) locally known command -> activation notificed bystander
+		// (2) unknown command -> can activate future local extension
+		await this.#proxy.$activateByCommandEvent(id);
 
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
@@ -201,17 +206,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			});
 
 			try {
-				const result = await this.#proxy.$executeCommand(id, hasBuffers ? new SerializableObjectWithBuffers(toArgs) : toArgs, retry);
+				const result = await this.#proxy.$executeCommand(id, hasBuffers ? new SerializableObjectWithBuffers(toArgs) : toArgs);
 				return revive<any>(result);
 			} catch (e) {
-				// Rerun the command when it wasn't known, had arguments, and when retry
-				// is enabled. We do this because the command might be registered inside
-				// the extension host now and can therfore accept the arguments as-is.
-				if (e instanceof Error && e.message === '$executeCommand:retry') {
-					return this._doExecuteCommand(id, args, false);
-				} else {
-					throw e;
-				}
+				throw e;
 			}
 		}
 	}

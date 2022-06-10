@@ -670,6 +670,12 @@ export interface ITerminalInstance {
 	clearSelection(): void;
 
 	/**
+	 * When the panel is hidden or a terminal in the editor area becomes inactive, reset the focus context key
+	 * to avoid issues like #147180.
+	 */
+	resetFocusContextKey(): void;
+
+	/**
 	 * Select all text in the terminal.
 	 */
 	selectAll(): void;

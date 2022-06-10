@@ -231,9 +231,7 @@ abstract class ViewItem<TLayoutContext> {
 
 		this.container.classList.toggle('visible', visible);
 
-		if (this.view.setVisible) {
-			this.view.setVisible(visible);
-		}
+		this.view.setVisible?.(visible);
 	}
 
 	get minimumSize(): number { return this.visible ? this.view.minimumSize : 0; }
