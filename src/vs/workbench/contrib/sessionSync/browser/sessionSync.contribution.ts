@@ -58,7 +58,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private registerActions() {
-		if (this.registered || this.configurationService.getValue('workbench.experimental.sessionSync.enabled') === false) {
+		if (this.registered || this.configurationService.getValue('workbench.experimental.sessionSync.enabled') !== true) {
 			return;
 		}
 
