@@ -29,7 +29,6 @@ import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/ed
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 
