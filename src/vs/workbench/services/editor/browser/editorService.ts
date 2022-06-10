@@ -233,7 +233,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private async handleMovedFile(source: URI, target: URI): Promise<void> {
 		for (const group of this.editorGroupService.groups) {
-			let replacements: (IUntypedEditorReplacement | IEditorReplacement)[] = [];
+			const replacements: (IUntypedEditorReplacement | IEditorReplacement)[] = [];
 
 			for (const editor of group.editors) {
 				const resource = editor.resource;

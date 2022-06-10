@@ -97,7 +97,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	}
 
 	private async getReferencesToHeader(document: SkinnyTextDocument, header: TocEntry): Promise<MdReference[]> {
-		const links = (await this._linkCache.getAll()).flat();
+		const links = (await this._linkCache.values()).flat();
 
 		const references: MdReference[] = [];
 
@@ -150,7 +150,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	}
 
 	private async getReferencesToLink(sourceLink: MdLink, triggerPosition: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
-		const allLinksInWorkspace = (await this._linkCache.getAll()).flat();
+		const allLinksInWorkspace = (await this._linkCache.values()).flat();
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -227,7 +227,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	}
 
 	public async getAllReferencesToFile(resource: vscode.Uri, _token: vscode.CancellationToken): Promise<MdReference[]> {
-		const allLinksInWorkspace = (await this._linkCache.getAll()).flat();
+		const allLinksInWorkspace = (await this._linkCache.values()).flat();
 		return Array.from(this.findAllLinksToFile(resource, allLinksInWorkspace, undefined));
 	}
 

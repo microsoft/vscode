@@ -82,6 +82,10 @@
 	overflow: hidden;
 }
 
+.extension-list-item.deprecated > .details > .header-container > .header > .name {
+	text-decoration: line-through;
+}
+
 .extension-list-item > .details > .header-container > .header > .activation-status,
 .extension-list-item > .details > .header-container > .header > .install-count,
 .extension-list-item > .details > .header-container > .header > .ratings {
@@ -152,6 +156,10 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.monaco-list-row.selected .extension-list-item > .details > .description{
+	color: unset;
+}
+
 .hc-black .extension-list-item > .details > .description,
 .hc-light .extension-list-item > .details > .description {
 	color: unset;
@@ -205,6 +213,10 @@
 
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.disabled {
 	min-width: 0;
+}
+
+.monaco-list-row.disabled .extension-list-item .details .description {
+	color: var(--vscode-disabledForeground);
 }
 
 .extension-list-item .monaco-action-bar .action-label.icon {

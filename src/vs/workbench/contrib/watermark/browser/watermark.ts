@@ -181,7 +181,9 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 		this.handleEditorPartSize(container, this.editorGroupsService.contentDimension);
 
 		/* __GDPR__
-		"watermark:open" : { }
+		"watermark:open" : {
+			"owner": "digitarald"
+		}
 		*/
 		this.telemetryService.publicLog('watermark:open');
 	}

@@ -121,7 +121,16 @@ steps:
 
   - script: |
       set -e
-      export npm_config_arch=$(NPM_ARCH)
+      if [ "$NPM_ARCH" = "armv7l" ]; then
+        # There is no target_arch="armv7l" supported by node_gyp,
+        # arm versions for compilation are decided based on the CC
+        # macros.
+        # Mapping value is based on
+        # https://github.com/nodejs/node/blob/0903515e126c2697042d6546c6aa4b72e1a4b33e/configure.py#L49-L50
+        export npm_config_arch="arm"
+      else
+        export npm_config_arch=$(NPM_ARCH)
+      fi
 
       if [ -z "$CC" ] || [ -z "$CXX" ]; then
         # Download clang based on chromium revision used by vscode
@@ -378,7 +387,7 @@ steps:
       targetPath: .build/logs
     displayName: "Publish Log Files"
     continueOnError: true
-    condition: and(failed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results

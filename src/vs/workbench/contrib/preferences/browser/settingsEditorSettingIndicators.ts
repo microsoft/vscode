@@ -122,16 +122,18 @@ export class SettingsTreeIndicatorsLabel {
 
 	updateDefaultOverrideIndicator(element: SettingsTreeSettingElement) {
 		this.defaultOverrideIndicatorElement.style.display = 'none';
-		const defaultValueSource = element.setting.defaultValueSource;
+		const defaultValueSource = element.defaultValueSource;
 		if (defaultValueSource) {
 			this.defaultOverrideIndicatorElement.style.display = 'inline';
+			let sourceToDisplay = '';
 			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
-				const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
-				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", extensionSource);
-				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(replace) {0}", extensionSource);
+				sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
 			} else if (typeof defaultValueSource === 'string') {
-				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", defaultValueSource);
-				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(replace) {0}", defaultValueSource);
+				sourceToDisplay = defaultValueSource;
+			}
+			if (sourceToDisplay) {
+				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay);
+				this.defaultOverrideIndicatorLabel.text = `$(replace) ${sourceToDisplay}`;
 			}
 		}
 		this.render();
@@ -157,8 +159,8 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	}
 
 	// Add default override indicator text
-	if (element.setting.defaultValueSource) {
-		const defaultValueSource = element.setting.defaultValueSource;
+	if (element.defaultValueSource) {
+		const defaultValueSource = element.defaultValueSource;
 		if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
 			const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
 			ariaLabelSections.push(localize('defaultOverriddenDetails', "Default setting value overridden by {0}", extensionSource));

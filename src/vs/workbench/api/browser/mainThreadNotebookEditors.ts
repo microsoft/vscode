@@ -86,7 +86,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 
 	private _updateEditorViewColumns(): void {
 		const result: INotebookEditorViewColumnInfo = Object.create(null);
-		for (let editorPane of this._editorService.visibleEditorPanes) {
+		for (const editorPane of this._editorService.visibleEditorPanes) {
 			const candidate = getNotebookEditorFromEditorPane(editorPane);
 			if (candidate && this._mainThreadEditors.has(candidate.getId())) {
 				result[candidate.getId()] = editorGroupToColumn(this._editorGroupService, editorPane.group);

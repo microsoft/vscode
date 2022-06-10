@@ -128,8 +128,8 @@ export class LanguageFeatureDebounceService implements ILanguageFeatureDebounceS
 
 	private _overallAverage(): number {
 		// Average of all language features. Not a great value but an approximation
-		let result = new MovingAverage();
-		for (let info of this._data.values()) {
+		const result = new MovingAverage();
+		for (const info of this._data.values()) {
 			result.update(info.default());
 		}
 		return result.value;

@@ -38,6 +38,20 @@ class SCMInput implements ISCMInput {
 	private readonly _onDidChangePlaceholder = new Emitter<string>();
 	readonly onDidChangePlaceholder: Event<string> = this._onDidChangePlaceholder.event;
 
+	private _enabled = true;
+
+	get enabled(): boolean {
+		return this._enabled;
+	}
+
+	set enabled(enabled: boolean) {
+		this._enabled = enabled;
+		this._onDidChangeEnablement.fire(enabled);
+	}
+
+	private readonly _onDidChangeEnablement = new Emitter<boolean>();
+	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
+
 	private _visible = true;
 
 	get visible(): boolean {

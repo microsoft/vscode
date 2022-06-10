@@ -459,6 +459,11 @@ export interface ITerminalInstance {
 	target?: TerminalLocation;
 
 	/**
+	 * Whether or not shell integration telemetry / warnings should be reported for this terminal.
+	 */
+	disableShellIntegrationReporting: boolean;
+
+	/**
 	 * The id of a persistent process. This is defined if this is a terminal created by a pty host
 	 * that supports reconnection.
 	 */
@@ -663,6 +668,12 @@ export interface ITerminalInstance {
 	 * Clear current selection.
 	 */
 	clearSelection(): void;
+
+	/**
+	 * When the panel is hidden or a terminal in the editor area becomes inactive, reset the focus context key
+	 * to avoid issues like #147180.
+	 */
+	resetFocusContextKey(): void;
 
 	/**
 	 * Select all text in the terminal.

@@ -371,7 +371,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 			// Installing
 			installEvent.fire({ identifier, source: gallery });
-			let local = testObject.local;
+			const local = testObject.local;
 			assert.strictEqual(1, local.length);
 			const actual = local[0];
 			assert.strictEqual(`${gallery.publisher}.${gallery.name}`, actual.identifier.id);
@@ -446,21 +446,19 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const gallery = aGalleryExtension('gallery1');
 		testObject = await aWorkbenchService();
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		const target = sinon.spy();
 
-		return testObject.queryGallery(CancellationToken.None).then(page => {
-			const extension = page.firstPage[0];
-			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
+		const page = await testObject.queryGallery(CancellationToken.None);
+		const extension = page.firstPage[0];
+		assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-			testObject.install(extension);
-			installEvent.fire({ identifier: gallery.identifier, source: gallery });
-			testObject.onChange(target);
+		testObject.install(extension);
+		installEvent.fire({ identifier: gallery.identifier, source: gallery });
+		const promise = Event.toPromise(testObject.onChange);
 
-			// Installed
-			didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension(gallery.name, gallery, gallery) }]);
+		// Installed
+		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension(gallery.name, gallery, gallery) }]);
 
-			assert.ok(target.calledOnce);
-		});
+		await promise;
 	});
 
 	test('test onchange event is triggered when installation is finished', async () => {

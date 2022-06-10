@@ -109,7 +109,7 @@ export class AzureActiveDirectoryService {
 
 	public async initialize(): Promise<void> {
 		Logger.info('Reading sessions from secret storage...');
-		let sessions = await this._tokenStorage.getAll();
+		const sessions = await this._tokenStorage.getAll();
 		Logger.info(`Got ${sessions.length} stored sessions`);
 
 		const refreshes = sessions.map(async session => {
@@ -352,7 +352,7 @@ export class AzureActiveDirectoryService {
 			code_challenge_method: 'S256',
 			code_challenge: codeChallenge,
 		});
-		let uri = vscode.Uri.parse(`${signInUrl}?${oauthStartQuery.toString()}`);
+		const uri = vscode.Uri.parse(`${signInUrl}?${oauthStartQuery.toString()}`);
 		vscode.env.openExternal(uri);
 
 		const timeoutPromise = new Promise((_: (value: vscode.AuthenticationSession) => void, reject) => {

@@ -166,9 +166,9 @@ class IconRegistry implements IIconRegistry {
 			}
 			return existing;
 		}
-		let iconContribution: IconContribution = { id, description, defaults, deprecationMessage };
+		const iconContribution: IconContribution = { id, description, defaults, deprecationMessage };
 		this.iconsById[id] = iconContribution;
-		let propertySchema: IJSONSchema = { $ref: '#/definitions/icons' };
+		const propertySchema: IJSONSchema = { $ref: '#/definitions/icons' };
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
@@ -240,7 +240,7 @@ class IconRegistry implements IIconRegistry {
 			return `codicon codicon-${i ? i.id : ''}`;
 		};
 
-		let reference = [];
+		const reference = [];
 
 		reference.push(`| preview     | identifier                        | default codicon ID                | description`);
 		reference.push(`| ----------- | --------------------------------- | --------------------------------- | --------------------------------- |`);
@@ -283,7 +283,7 @@ initialize();
 
 export const iconsSchemaId = 'vscode://schemas/icons';
 
-let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+const schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 schemaRegistry.registerSchema(iconsSchemaId, iconRegistry.getIconSchema());
 
 const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(iconsSchemaId), 200);

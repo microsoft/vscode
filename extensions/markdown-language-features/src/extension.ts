@@ -6,8 +6,9 @@
 import * as vscode from 'vscode';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
-import { register as registerDiagnostics } from './languageFeatures/diagnostics';
+import { registerPasteProvider } from './languageFeatures/copyPaste';
 import { MdDefinitionProvider } from './languageFeatures/definitionProvider';
+import { register as registerDiagnostics } from './languageFeatures/diagnostics';
 import { MdLinkProvider } from './languageFeatures/documentLinkProvider';
 import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbolProvider';
 import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
@@ -78,6 +79,7 @@ function registerMarkdownLanguageFeatures(
 		MdPathCompletionProvider.register(selector, engine, linkProvider),
 		registerDiagnostics(selector, engine, workspaceContents, linkProvider, commandManager),
 		registerDropIntoEditor(selector),
+		registerPasteProvider(selector),
 		registerFindFileReferences(commandManager, referencesProvider),
 	);
 }

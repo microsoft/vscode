@@ -308,8 +308,8 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const options = this._configuration.options;
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 		if (wrappingInfo.isViewportWrapping) {
-			const layoutInfo = options.get(EditorOption.layoutInfo);
 			const minimap = options.get(EditorOption.minimap);
 			if (maxLineWidth > layoutInfo.contentWidth + fontInfo.typicalHalfwidthCharacterWidth) {
 				// This is a case where viewport wrapping is on, but the line extends above the viewport
@@ -322,7 +322,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		} else {
 			const extraHorizontalSpace = options.get(EditorOption.scrollBeyondLastColumn) * fontInfo.typicalHalfwidthCharacterWidth;
 			const whitespaceMinWidth = this._linesLayout.getWhitespaceMinWidth();
-			return Math.max(maxLineWidth + extraHorizontalSpace, whitespaceMinWidth);
+			return Math.max(maxLineWidth + extraHorizontalSpace + layoutInfo.verticalScrollbarWidth, whitespaceMinWidth);
 		}
 	}
 

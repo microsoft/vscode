@@ -27,6 +27,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { historyNavigationVisible } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { InternalQuickSuggestionsOptions, QuickSuggestionsValue } from 'vs/editor/common/config/editorOptions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export const Context = {
 	Visible: historyNavigationVisible,
@@ -227,7 +228,7 @@ export async function provideSuggestionItems(
 		if (!container) {
 			return didAddResult;
 		}
-		for (let suggestion of container.suggestions) {
+		for (const suggestion of container.suggestions) {
 			if (!options.kindFilter.has(suggestion.kind)) {
 				// skip if not showing deprecated suggestions
 				if (!options.showDeprecated && suggestion?.tags?.includes(languages.CompletionItemTag.Deprecated)) {
@@ -274,7 +275,7 @@ export async function provideSuggestionItems(
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
 	// get provider groups, always add snippet suggestion provider
-	for (let providerGroup of registry.orderedGroups(model)) {
+	for (const providerGroup of registry.orderedGroups(model)) {
 
 		// for each support in the group ask for suggestions
 		let didAddResult = false;
@@ -436,10 +437,10 @@ export abstract class QuickSuggestionsOptions {
 		return config.other === 'on' && config.comments === 'on' && config.strings === 'on';
 	}
 
-	static valueFor(config: InternalQuickSuggestionsOptions, tokenType: languages.StandardTokenType): QuickSuggestionsValue {
+	static valueFor(config: InternalQuickSuggestionsOptions, tokenType: StandardTokenType): QuickSuggestionsValue {
 		switch (tokenType) {
-			case languages.StandardTokenType.Comment: return config.comments;
-			case languages.StandardTokenType.String: return config.strings;
+			case StandardTokenType.Comment: return config.comments;
+			case StandardTokenType.String: return config.strings;
 			default: return config.other;
 		}
 	}

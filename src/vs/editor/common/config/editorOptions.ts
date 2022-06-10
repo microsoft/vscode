@@ -3119,7 +3119,7 @@ class EditorRulers extends BaseEditorOption<EditorOption.rulers, (number | IRule
 	public validate(input: any): IRulerOption[] {
 		if (Array.isArray(input)) {
 			const rulers: IRulerOption[] = [];
-			for (let _element of input) {
+			for (const _element of input) {
 				if (typeof _element === 'number') {
 					rulers.push({
 						column: EditorIntOption.clampedInt(_element, 0, 0, 10000),
@@ -4996,7 +4996,7 @@ export const EditorOptions = {
 	scrollbar: register(new EditorScrollbar()),
 	scrollBeyondLastColumn: register(new EditorIntOption(
 		EditorOption.scrollBeyondLastColumn, 'scrollBeyondLastColumn',
-		5, 0, Constants.MAX_SAFE_SMALL_INTEGER,
+		4, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{ description: nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally.") }
 	)),
 	scrollBeyondLastLine: register(new EditorBooleanOption(

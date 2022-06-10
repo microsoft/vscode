@@ -96,9 +96,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 							return arg;
 						}
 
-						let commentUniqueId = arg.commentUniqueId;
+						const commentUniqueId = arg.commentUniqueId;
 
-						let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+						const comment = commentThread.getCommentByUniqueId(commentUniqueId);
 
 						if (!comment) {
 							return arg;
@@ -119,10 +119,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 							return arg;
 						}
 
-						let body = arg.text;
-						let commentUniqueId = arg.commentUniqueId;
+						const body = arg.text;
+						const commentUniqueId = arg.commentUniqueId;
 
-						let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+						const comment = commentThread.getCommentByUniqueId(commentUniqueId);
 
 						if (!comment) {
 							return arg;
@@ -487,9 +487,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		getCommentByUniqueId(uniqueId: number): vscode.Comment | undefined {
-			for (let key of this._commentsMap) {
-				let comment = key[0];
-				let id = key[1];
+			for (const key of this._commentsMap) {
+				const comment = key[0];
+				const id = key[1];
 				if (uniqueId === id) {
 					return comment;
 				}
@@ -613,14 +613,14 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		$updateCommentThreadTemplate(threadHandle: number, range: IRange): void {
-			let thread = this._threads.get(threadHandle);
+			const thread = this._threads.get(threadHandle);
 			if (thread) {
 				thread.range = extHostTypeConverter.Range.to(range);
 			}
 		}
 
 		$deleteCommentThread(threadHandle: number): void {
-			let thread = this._threads.get(threadHandle);
+			const thread = this._threads.get(threadHandle);
 
 			if (thread) {
 				thread.dispose();

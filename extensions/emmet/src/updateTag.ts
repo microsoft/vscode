@@ -54,7 +54,7 @@ export async function updateTag(tagName: string | undefined): Promise<boolean | 
 }
 
 function getRangesFromNode(node: HtmlFlatNode, document: vscode.TextDocument): TagRange[] {
-	let ranges: TagRange[] = [];
+	const ranges: TagRange[] = [];
 	if (node.open) {
 		const start = document.positionAt(node.open.start);
 		ranges.push({

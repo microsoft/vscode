@@ -67,8 +67,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.installExtension(manifest, location, options);
 	}
 
-	protected override async getCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
-		const compatibleExtension = await super.getCompatibleVersion(extension, fetchCompatibleVersion, includePreRelease);
+	protected override async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
+		const compatibleExtension = await super.getCompatibleVersion(extension, sameVersion, includePreRelease);
 		if (compatibleExtension) {
 			return compatibleExtension;
 		}
@@ -105,7 +105,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 	const metadata = getMetadata(undefined, extension);
 	return {
 		...extension,
-		identifier: { id: extension.identifier.id, uuid: metadata.id },
+		identifier: { id: extension.identifier.id, uuid: metadata.id ?? extension.identifier.uuid },
 		isMachineScoped: !!metadata.isMachineScoped,
 		publisherId: metadata.publisherId || null,
 		publisherDisplayName: metadata.publisherDisplayName || null,

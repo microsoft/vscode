@@ -33,7 +33,7 @@ import { IGlobalStorageMainService, IStorageMainService } from 'vs/platform/stor
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useWindowControlsOverlay, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -174,7 +174,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.windowState = state;
 			this.logService.trace('window#ctor: using window state', state);
 
-			// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
+			// In case we are maximized or fullscreen, only show later
+			// after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
@@ -187,7 +188,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				backgroundColor: this.themeMainService.getBackgroundColor(),
 				minWidth: WindowMinimumSize.WIDTH,
 				minHeight: WindowMinimumSize.HEIGHT,
-				show: !isFullscreenOrMaximized,
+				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
@@ -250,7 +251,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					options.frame = false;
 				}
 
-				if (isWindows && this.environmentMainService.isBuilt) {
+				if (useWindowControlsOverlay(this.configurationService, this.environmentMainService)) {
 					// This logic will not perfectly guess the right colors to use on initialization,
 					// but prefer to keep things simple as it is temporary and not noticeable
 					const titleBarColor = this.themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? this.themeMainService.getBackgroundColor();
@@ -320,15 +321,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			if (isFullscreenOrMaximized) {
 				mark('code/willMaximizeCodeWindow');
+
+				// this call may or may not show the window, depends
+				// on the platform: currently on Windows and Linux will
+				// show the window as active. To be on the safe side,
+				// we show the window at the end of this block.
 				this._win.maximize();
 
 				if (this.windowState.mode === WindowMode.Fullscreen) {
 					this.setFullScreen(true);
 				}
 
-				if (!this._win.isVisible()) {
-					this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
-				}
+				// to reduce flicker from the default window size
+				// to maximize or fullscreen, we only show after
+				this._win.show();
 				mark('code/didMaximizeCodeWindow');
 			}
 
@@ -811,7 +817,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.focus({ force: true });
 					this._win.webContents.openDevTools();
 				}
-
 			}, 10000)).schedule();
 		}
 

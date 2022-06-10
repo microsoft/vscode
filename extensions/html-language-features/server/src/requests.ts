@@ -149,7 +149,7 @@ export function normalizePath(parts: string[]): string {
 export function joinPath(uriString: string, ...paths: string[]): string {
 	const uri = URI.parse(uriString);
 	const parts = uri.path.split('/');
-	for (let path of paths) {
+	for (const path of paths) {
 		parts.push(...path.split('/'));
 	}
 	return uri.with({ path: normalizePath(parts) }).toString();

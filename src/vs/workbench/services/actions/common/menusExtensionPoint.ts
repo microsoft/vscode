@@ -254,8 +254,14 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
 		supportsSubmenus: false,
-		proposed: 'inlineCompletions'
+		proposed: 'inlineCompletionsAdditions'
 	},
+	{
+		key: 'merge/toolbar',
+		id: MenuId.MergeToolbar,
+		description: localize('merge.toolbar', "The prominent botton in the merge editor"),
+		proposed: 'contribMergeEditorToolbar'
+	}
 ];
 
 namespace schema {
@@ -329,7 +335,7 @@ namespace schema {
 			return false;
 		}
 
-		for (let item of items) {
+		for (const item of items) {
 			if (isMenuItem(item)) {
 				if (!isValidMenuItem(item, collector)) {
 					return false;
@@ -665,7 +671,7 @@ submenusExtensionPoint.setHandler(extensions => {
 
 	_submenus.clear();
 
-	for (let extension of extensions) {
+	for (const extension of extensions) {
 		const { value, collector } = extension;
 
 		forEach(value, entry => {
@@ -727,7 +733,7 @@ menusExtensionPoint.setHandler(extensions => {
 
 	const items: { id: MenuId; item: IMenuItem | ISubmenuItem }[] = [];
 
-	for (let extension of extensions) {
+	for (const extension of extensions) {
 		const { value, collector } = extension;
 
 		forEach(value, entry => {

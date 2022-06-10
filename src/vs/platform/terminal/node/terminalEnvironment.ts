@@ -50,7 +50,7 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
 	}
 	// We have a simple file name. We get the path variable from the env
 	// and try to find the executable on the path.
-	for (let pathEntry of paths) {
+	for (const pathEntry of paths) {
 		// The path entry is absolute.
 		let fullPath: string;
 		if (path.isAbsolute(pathEntry)) {

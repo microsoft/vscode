@@ -12,7 +12,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ALL_SYNC_RESOURCES, getEnablementKey, IUserDataSyncEnablementService, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncEnablementClassification = {
-	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	owner: 'sandy081';
+	comment: 'Reporting when Settings Sync is turned on or off';
+	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if settings sync is enabled or not' };
 };
 
 const enablementKey = 'sync.enable';

@@ -31,7 +31,7 @@ import { isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import 'vs/css!./media/views';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Command } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -64,9 +64,9 @@ import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
+import { createFileDataTransferItemFromFile } from 'vs/editor/browser/dnd';
 
 export class TreeViewPane extends ViewPane {
 
@@ -825,7 +825,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const isTreeEmpty = !this.root.children || this.root.children.length === 0;
 		// Hide tree container only when there is a message and tree is empty and not refreshing
 		if (this._messageValue && isTreeEmpty && !this.refreshing) {
-			this.treeContainer.classList.add('hide');
+			// If there's a dnd controller then hiding the tree prevents it from being dragged into.
+			if (!this.dragAndDropController) {
+				this.treeContainer.classList.add('hide');
+			}
 			this.domNode.setAttribute('tabindex', '0');
 		} else {
 			this.treeContainer.classList.remove('hide');
@@ -1015,7 +1018,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			return ({ start, end });
 		}) : undefined;
 		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? node.icon : node.iconDark;
-		const iconUrl = icon ? URI.revive(icon) : null;
+		const iconUrl = icon ? URI.revive(icon) : undefined;
 		const title = this.getHover(label, resource, node);
 
 		// reset
@@ -1028,7 +1031,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
 				title,
-				hideIcon: !!iconUrl || this.shouldShowThemeIcon(!!resource, node.themeIcon),
+				hideIcon: this.shouldHideResourceLabelIcon(iconUrl, node.themeIcon),
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
@@ -1049,8 +1052,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
 		} else {
 			let iconClass: string | undefined;
-			// If there is a resource for this tree item then we should respect the file icon theme's choice about
-			// whether to show a folder icon.
 			if (this.shouldShowThemeIcon(!!resource, node.themeIcon)) {
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
 				if (node.themeIcon.color) {
@@ -1083,25 +1084,20 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		container.parentElement!.classList.toggle('align-icon-with-twisty', this.aligner.alignIconWithTwisty(treeItem));
 	}
 
+	private shouldHideResourceLabelIcon(iconUrl: URI | undefined, icon: ThemeIcon | undefined): boolean {
+		// We always hide the resource label in favor of the iconUrl when it's provided.
+		// When `ThemeIcon` is provided, we hide the resource label icon in favor of it only if it's a not a file icon.
+		return !!iconUrl || !this.isFileKindThemeIcon(icon);
+	}
+
 	private shouldShowThemeIcon(hasResource: boolean, icon: ThemeIcon | undefined): icon is ThemeIcon {
 		if (!icon) {
 			return false;
 		}
 
-		if (hasResource && (this.isFileKindThemeIcon(icon) || !this.shouldShowFileIcons())) {
-			return false;
-		} else if (hasResource && (this.isFolderThemeIcon(icon) || !this.shouldShowFolderIcons())) {
-			return false;
-		}
-		return true;
-	}
-
-	private shouldShowFileIcons(): boolean {
-		return this.configurationService.getValue(ThemeSettings.FILE_ICON_THEME);
-	}
-
-	private shouldShowFolderIcons(): boolean {
-		return this.themeService.getFileIconTheme().hasFolderIcons && this.shouldShowFileIcons();
+		// If there's a resource and the icon is a file icon, then the icon (or lack thereof) will already be coming from the
+		// icon theme and should use whatever the icon theme has provided.
+		return !(hasResource && this.isFileKindThemeIcon(icon));
 	}
 
 	private isFolderThemeIcon(icon: ThemeIcon | undefined): boolean {
@@ -1503,62 +1499,47 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 		const treeDataTransfer = new VSDataTransfer();
 		const uris: URI[] = [];
-		let itemsCount = Array.from(originalEvent.dataTransfer.items).reduce((previous, current) => {
-			if ((current.kind === 'string') || (current.kind === 'file')) {
-				return previous + 1;
-			}
-			return previous;
-		}, 0);
 
 		let treeSourceInfo: TreeDragSourceInfo | undefined;
 		let willDropUuid: string | undefined;
 		if (this.treeItemsTransfer.hasData(DraggedTreeItemsIdentifier.prototype)) {
 			willDropUuid = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype)![0].identifier;
 		}
-		await new Promise<void>(resolve => {
-			function decrementStringCount() {
-				itemsCount--;
-				if (itemsCount === 0) {
-					// Check if there are uris to add and add them
-					if (uris.length) {
-						treeDataTransfer.setString(Mimes.uriList, uris.map(uri => uri.toString()).join('\n'));
-					}
-					resolve();
-				}
-			}
 
-			if (!originalEvent.dataTransfer) {
-				return;
-			}
-			for (const dataItem of originalEvent.dataTransfer.items) {
-				const type = dataItem.type;
-				const kind = dataItem.kind;
-				const convertedType = this.convertKnownMimes(type, kind).type;
-				if ((INTERNAL_MIME_TYPES.indexOf(convertedType) < 0)
-					&& (convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0)) {
-					if (dataItem.kind === 'string') {
+		await Promise.all([...originalEvent.dataTransfer.items].map(async dataItem => {
+			const type = dataItem.type;
+			const kind = dataItem.kind;
+			const convertedType = this.convertKnownMimes(type, kind).type;
+			if ((INTERNAL_MIME_TYPES.indexOf(convertedType) < 0)
+				&& (convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0)) {
+				if (dataItem.kind === 'string') {
+					await new Promise<void>(resolve =>
 						dataItem.getAsString(dataValue => {
 							if (convertedType === this.treeMimeType) {
 								treeSourceInfo = JSON.parse(dataValue);
 							}
 							if (dataValue) {
 								const converted = this.convertKnownMimes(type, kind, dataValue);
-								treeDataTransfer.setString(converted.type, converted.value + '');
+								treeDataTransfer.append(converted.type, createStringDataTransferItem(converted.value + ''));
 							}
-							decrementStringCount();
-						});
-					} else if (dataItem.kind === 'file') {
-						const dataValue = dataItem.getAsFile();
-						if (dataValue) {
-							uris.push(URI.file(dataValue.path));
+							resolve();
+						}));
+				} else if (dataItem.kind === 'file') {
+					const file = dataItem.getAsFile();
+					if (file) {
+						uris.push(URI.file(file.path));
+						if (dndController.supportsFileDataTransfers) {
+							treeDataTransfer.append(type, createFileDataTransferItemFromFile(file));
 						}
-						decrementStringCount();
 					}
-				} else if (dataItem.kind === 'string' || dataItem.kind === 'file') {
-					decrementStringCount();
 				}
 			}
-		});
+		}));
+
+		// Check if there are uris to add and add them
+		if (uris.length) {
+			treeDataTransfer.replace(Mimes.uriList, createStringDataTransferItem(uris.map(uri => uri.toString()).join('\n')));
+		}
 
 		const additionalWillDropPromise = this.treeViewsDragAndDropService.removeDragOperationTransfer(willDropUuid);
 		if (!additionalWillDropPromise) {
@@ -1567,7 +1548,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		return additionalWillDropPromise.then(additionalDataTransfer => {
 			if (additionalDataTransfer) {
 				for (const item of additionalDataTransfer.entries()) {
-					treeDataTransfer.set(item[0], item[1]);
+					treeDataTransfer.append(item[0], item[1]);
 				}
 			}
 			return dndController.handleDrop(treeDataTransfer, targetNode, new CancellationTokenSource().token, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);

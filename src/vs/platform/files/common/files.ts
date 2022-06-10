@@ -1218,7 +1218,6 @@ export interface IFilesConfiguration {
 		autoSaveDelay: number;
 		eol: string;
 		enableTrash: boolean;
-		excludeGitIgnore: boolean;
 		hotExit: string;
 		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
 	};

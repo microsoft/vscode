@@ -21,6 +21,7 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+__vsc_initialized="0"
 __vsc_in_command_execution="1"
 __vsc_last_history_id=0
 
@@ -58,15 +59,26 @@ __vsc_right_prompt_end() {
 
 __vsc_command_complete() {
 	builtin local __vsc_history_id=$(builtin history | tail -n1 | awk '{print $1;}')
-	if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
-		builtin printf "\033]633;D\007"
-	else
-		builtin printf "\033]633;D;%s\007" "$__vsc_status"
-		__vsc_last_history_id=$__vsc_history_id
+	# Don't write the command complete sequence for the first prompt without an associated command
+	if [[ "$__vsc_initialized" == "1" ]]; then
+		if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
+			builtin printf "\033]633;D\007"
+		else
+			builtin printf "\033]633;D;%s\007" "$__vsc_status"
+			__vsc_last_history_id=$__vsc_history_id
+		fi
 	fi
 	__vsc_update_cwd
 }
 
+if [[ -o NOUNSET ]]; then
+	if [ -z "${RPROMPT-}" ]; then
+		RPROMPT=""
+	fi
+	if [ -z "${PREFIX-}" ]; then
+		PREFIX=""
+	fi
+fi
 __vsc_update_prompt() {
 	__vsc_prior_prompt="$PS1"
 	__vsc_in_command_execution=""
@@ -99,6 +111,7 @@ __vsc_preexec() {
 	if [ -n "$RPROMPT" ]; then
 		RPROMPT="$__vsc_prior_rprompt"
 	fi
+	__vsc_initialized="1"
 	__vsc_in_command_execution="1"
 	__vsc_command_output_start
 }

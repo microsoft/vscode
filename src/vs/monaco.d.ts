@@ -6758,11 +6758,6 @@ declare namespace monaco.languages {
 		eol?: editor.EndOfLineSequence;
 	};
 
-	export interface SnippetTextEdit {
-		range: IRange;
-		snippet: string;
-	}
-
 	/**
 	 * Interface used to format a model
 	 */

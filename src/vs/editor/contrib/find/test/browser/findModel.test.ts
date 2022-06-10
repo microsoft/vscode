@@ -53,11 +53,11 @@ suite('FindModel', () => {
 	}
 
 	function _getFindState(editor: ICodeEditor) {
-		let model = editor.getModel()!;
-		let currentFindMatches: Range[] = [];
-		let allFindMatches: Range[] = [];
+		const model = editor.getModel()!;
+		const currentFindMatches: Range[] = [];
+		const allFindMatches: Range[] = [];
 
-		for (let dec of model.getAllDecorations()) {
+		for (const dec of model.getAllDecorations()) {
 			if (dec.options.className === 'currentFindMatch') {
 				currentFindMatches.push(dec.range);
 				allFindMatches.push(dec.range);
@@ -78,7 +78,7 @@ suite('FindModel', () => {
 	function assertFindState(editor: ICodeEditor, cursor: number[], highlighted: number[] | null, findDecorations: number[][]): void {
 		assert.deepStrictEqual(fromRange(editor.getSelection()!), cursor, 'cursor');
 
-		let expectedState = {
+		const expectedState = {
 			highlighted: highlighted ? [highlighted] : [],
 			findDecorations: findDecorations
 		};
@@ -87,8 +87,8 @@ suite('FindModel', () => {
 
 	findTest('incremental find from beginning of file', (editor) => {
 		editor.setPosition({ lineNumber: 1, column: 1 });
-		let findState = new FindReplaceState();
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findState = new FindReplaceState();
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		// simulate typing the search string
 		findState.change({ searchString: 'H' }, true);
@@ -236,9 +236,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find model removes its decorations', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assert.strictEqual(findState.matchesCount, 5);
 		assertFindState(
@@ -266,9 +266,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find model updates state matchesCount', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assert.strictEqual(findState.matchesCount, 5);
 		assertFindState(
@@ -298,9 +298,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find model reacts to position change', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -351,9 +351,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find model next', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -437,9 +437,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find model next stays in scope', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 9, 1)] }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -489,9 +489,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('multi-selection find model next stays in scope (overlap)', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 8, 2), new Range(8, 1, 9, 1)] }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -541,9 +541,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('multi-selection find model next stays in scope', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', matchCase: true, wholeWord: false, searchScope: [new Range(6, 1, 7, 38), new Range(9, 3, 9, 38)] }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -614,9 +614,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find model prev', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -700,9 +700,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find model prev stays in scope', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 9, 1)] }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -752,9 +752,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find model next/prev with no matches', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'helloo', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -784,9 +784,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find model next/prev respects cursor position', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -833,9 +833,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find ^', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: '^', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -904,9 +904,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find $', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: '$', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -996,9 +996,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find next ^$', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: '^$', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1048,9 +1048,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find .*', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: '.*', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1077,9 +1077,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find next ^.*$', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: '^.*$', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1148,9 +1148,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find prev ^.*$', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: '^.*$', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1219,9 +1219,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('find prev ^$', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: '^$', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1271,9 +1271,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replace hello', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1367,9 +1367,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replace bla', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'bla', replaceString: 'ciao' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1432,9 +1432,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replaceAll hello', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1480,9 +1480,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replaceAll two spaces with one space', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: '  ', replaceString: ' ' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1522,9 +1522,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replaceAll bla', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'bla', replaceString: 'ciao' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1551,9 +1551,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replaceAll bla with \\t\\n', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'bla', replaceString: '<\\n\\t>', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1583,9 +1583,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('issue #3516: "replace all" moves page/cursor/focus/scroll to the place of the last replacement', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'include', replaceString: 'bar' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1613,9 +1613,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('listens to model content changes', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1642,9 +1642,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('selectAllMatches', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1684,9 +1684,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('issue #14143 selectAllMatches should maintain primary cursor if feasible', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1730,9 +1730,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('issue #1914: NPE when there is only one find match', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'cool.h' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1768,9 +1768,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replace when search string has look ahed regex', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1834,9 +1834,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replace when search string has look ahed regex and cursor is at the last find match', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(8, 14)
@@ -1905,9 +1905,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replaceAll when search string has look ahed regex', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -1938,9 +1938,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replace when search string has look ahed regex and replace string has capturing groups', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hel(lo)(?=\\sworld)', replaceString: 'hi$1', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -2004,9 +2004,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replaceAll when search string has look ahed regex and replace string has capturing groups', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'wo(rl)d(?=.*;$)', replaceString: 'gi$1', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -2039,9 +2039,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replaceAll when search string is multiline and has look ahed regex and replace string has capturing groups', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'wo(rl)d(.*;\\n)(?=.*hello)', replaceString: 'gi$1$2', isRegex: true, matchCase: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -2070,9 +2070,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('replaceAll preserving case', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', replaceString: 'goodbye', isRegex: false, matchCase: false, preserveCase: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -2106,9 +2106,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('issue #18711 replaceAll with empty string', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', replaceString: '', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -2143,9 +2143,9 @@ suite('FindModel', () => {
 			initialText += 'line' + i + '\n';
 		}
 		editor!.getModel()!.setValue(initialText);
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: '^', replaceString: 'a ', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		findModel.replaceAll();
 
@@ -2161,9 +2161,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('issue #19740 Find and replace capture group/backreference inserts `undefined` instead of empty string', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello(z)?', replaceString: 'hi$1', isRegex: true, matchCase: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -2192,9 +2192,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('issue #27083. search scope works even if it is a single line', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 8, 1)] }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
 			editor,
@@ -2210,9 +2210,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('issue #3516: Control behavior of "Next" operations (not looping back to beginning)', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', loop: false }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assert.strictEqual(findState.matchesCount, 5);
 
@@ -2290,9 +2290,9 @@ suite('FindModel', () => {
 	});
 
 	findTest('issue #3516: Control behavior of "Next" operations (looping back to beginning)', (editor) => {
-		let findState = new FindReplaceState();
+		const findState = new FindReplaceState();
 		findState.change({ searchString: 'hello' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		const findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assert.strictEqual(findState.matchesCount, 5);
 

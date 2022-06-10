@@ -140,7 +140,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		let resource = EditorResourceAccessor.getCanonicalUri(untypedEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		let options = untypedEditor.options;
+		const options = untypedEditor.options;
 
 		// If it was resolved before we await for the extensions to activate and then proceed with resolution or else the backing extensions won't be registered
 		if (this.cache && resource && this.resourceMatchesCache(resource)) {
@@ -281,7 +281,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (!Array.isArray(rawAssociations)) {
 			return;
 		}
-		let newSettingObject = Object.create(null);
+		const newSettingObject = Object.create(null);
 		// Make the correctly formatted object from the array and then set that object
 		for (const association of rawAssociations) {
 			if (association.filenamePattern) {
@@ -303,7 +303,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				rawAssociations[key] = value;
 			}
 		}
-		let associations = [];
+		const associations = [];
 		for (const [key, value] of Object.entries(rawAssociations)) {
 			const association: EditorAssociation = {
 				filenamePattern: key,
@@ -337,7 +337,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	private findMatchingEditors(resource: URI): RegisteredEditor[] {
 		// The user setting should be respected even if the editor doesn't specify that resource in package.json
 		const userSettings = this.getAssociationsForResource(resource);
-		let matchingEditors: RegisteredEditor[] = [];
+		const matchingEditors: RegisteredEditor[] = [];
 		// Then all glob patterns
 		for (const [key, editors] of this._editors) {
 			for (const editor of editors) {
@@ -396,7 +396,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			};
 		}
 
-		let editors = this.findMatchingEditors(resource);
+		const editors = this.findMatchingEditors(resource);
 
 		const associationsFromSetting = this.getAssociationsForResource(resource);
 		// We only want minPriority+ if no user defined setting is found, else we won't resolve an editor

@@ -192,7 +192,7 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 			}
 		}
 
-		if (req.headers['upgrade'] !== 'websocket') {
+		if (req.headers['upgrade'] === undefined || req.headers['upgrade'].toLowerCase() !== 'websocket') {
 			socket.end('HTTP/1.1 400 Bad Request');
 			return;
 		}
@@ -392,11 +392,11 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 				// We have received a new connection.
 				// This indicates that the server owner has connectivity.
 				// Therefore we will shorten the reconnection grace period for disconnected connections!
-				for (let key in this._managementConnections) {
+				for (const key in this._managementConnections) {
 					const managementConnection = this._managementConnections[key];
 					managementConnection.shortenReconnectionGraceTimeIfNecessary();
 				}
-				for (let key in this._extHostConnections) {
+				for (const key in this._extHostConnections) {
 					const extHostConnection = this._extHostConnections[key];
 					extHostConnection.shortenReconnectionGraceTimeIfNecessary();
 				}
@@ -757,10 +757,10 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		type ServerStartClassification = {
 			owner: 'alexdima';
 			comment: 'The server has started up';
-			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			startedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			codeLoadedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			readyTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time the server started at.' };
+			startedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time the server began listening for connections.' };
+			codeLoadedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time which the code loaded on the server' };
+			readyTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time when the server was completely ready' };
 		};
 		type ServerStartEvent = {
 			startTime: number;

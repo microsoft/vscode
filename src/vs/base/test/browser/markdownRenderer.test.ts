@@ -123,7 +123,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
@@ -131,7 +131,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendMarkdown('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-zap"></span> $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
@@ -139,7 +139,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
@@ -147,7 +147,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
@@ -158,7 +158,7 @@ suite('MarkdownRenderer', () => {
 |--------|----------------------|
 | $(zap) | [$(zap)-link](#link) |`);
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<table>
 <thead>
 <tr>
@@ -181,7 +181,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
@@ -189,7 +189,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
 			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
 		});
 	});

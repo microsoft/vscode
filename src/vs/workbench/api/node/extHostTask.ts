@@ -92,17 +92,17 @@ export class ExtHostTask extends ExtHostTaskBase {
 		}
 	}
 
-	protected provideTasksInternal(validTypes: { [key: string]: boolean }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[]; extension: IExtensionDescription } {
-		const taskDTOs: tasks.TaskDTO[] = [];
+	protected provideTasksInternal(validTypes: { [key: string]: boolean }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.ITaskDTO[]; extension: IExtensionDescription } {
+		const taskDTOs: tasks.ITaskDTO[] = [];
 		if (value) {
-			for (let task of value) {
+			for (const task of value) {
 				this.checkDeprecation(task, handler);
 
 				if (!task.definition || !validTypes[task.definition.type]) {
 					this._logService.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
 
-				const taskDTO: tasks.TaskDTO | undefined = TaskDTO.from(task, handler.extension);
+				const taskDTO: tasks.ITaskDTO | undefined = TaskDTO.from(task, handler.extension);
 				if (taskDTO) {
 					taskDTOs.push(taskDTO);
 
@@ -121,7 +121,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 		};
 	}
 
-	protected async resolveTaskInternal(resolvedTaskDTO: tasks.TaskDTO): Promise<tasks.TaskDTO | undefined> {
+	protected async resolveTaskInternal(resolvedTaskDTO: tasks.ITaskDTO): Promise<tasks.ITaskDTO | undefined> {
 		return resolvedTaskDTO;
 	}
 
@@ -160,7 +160,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 			}
 		} : await this.getAFolder(workspaceFolders);
 
-		for (let variable of toResolve.variables) {
+		for (const variable of toResolve.variables) {
 			result.variables[variable] = await resolver.resolveAsync(ws, variable);
 		}
 		if (toResolve.process !== undefined) {

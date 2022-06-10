@@ -338,6 +338,7 @@ export abstract class EditorAction extends EditorCommand {
 
 	protected reportTelemetry(accessor: ServicesAccessor, editor: ICodeEditor) {
 		type EditorActionInvokedClassification = {
+			owner: 'alexdima';
 			name: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};

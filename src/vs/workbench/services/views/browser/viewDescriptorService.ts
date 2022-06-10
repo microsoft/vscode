@@ -346,7 +346,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
-		let container = this.registerGeneratedViewContainer(location);
+		const container = this.registerGeneratedViewContainer(location);
 		this.moveViewsToContainer([view], container);
 	}
 
@@ -545,7 +545,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const newCachedPositions = this.getCachedViewPositions();
 		const viewsToMove: { views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }[] = [];
 
-		for (let viewId of newCachedPositions.keys()) {
+		for (const viewId of newCachedPositions.keys()) {
 			const viewDescriptor = this.getViewDescriptorById(viewId);
 			if (!viewDescriptor) {
 				continue;

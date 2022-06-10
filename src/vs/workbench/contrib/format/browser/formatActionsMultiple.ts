@@ -73,8 +73,8 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		let extensions = await this._extensionService.getExtensions();
 
 		extensions = extensions.sort((a, b) => {
-			let boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
-			let boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
+			const boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
+			const boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 
 			if (boostA && !boostB) {
 				return -1;

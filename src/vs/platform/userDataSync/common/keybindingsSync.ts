@@ -103,7 +103,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		if (remoteContent) {
 			let localContent: string = fileContent ? fileContent.value.toString() : '[]';
 			localContent = localContent || '[]';
-			if (this.hasErrors(localContent)) {
+			if (this.hasErrors(localContent, true)) {
 				throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync keybindings because the content in the file is not valid. Please open the file and correct it."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
 			}
 
@@ -222,7 +222,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		if (content !== null) {
 			content = content.trim();
 			content = content || '[]';
-			if (this.hasErrors(content)) {
+			if (this.hasErrors(content, true)) {
 				throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync keybindings because the content in the file is not valid. Please open the file and correct it."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
 			}
 		}
