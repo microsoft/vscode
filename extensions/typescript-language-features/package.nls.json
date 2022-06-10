@@ -190,5 +190,26 @@
 	"typescript.findAllFileReferences": "Find File References",
 	"typescript.goToSourceDefinition": "Go to Source Definition",
 	"configuration.suggest.classMemberSnippets.enabled": "Enable/disable snippet completions for class members. Requires using TypeScript 4.5+ in the workspace",
-	"configuration.suggest.objectLiteralMethodSnippets.enabled": "Enable/disable snippet completions for methods in object literals. Requires using TypeScript 4.7+ in the workspace"
+	"configuration.suggest.objectLiteralMethodSnippets.enabled": "Enable/disable snippet completions for methods in object literals. Requires using TypeScript 4.7+ in the workspace",
+
+	"walkthroughs.jsWelcome.title": "Get started with JavaScript",
+	"walkthroughs.jsWelcome.description": "Make the most of Visual Studio Code's first-class JavaScript experience.",
+
+	"walkthroughs.jsWelcome.createHtmlWithScriptTag.title": "Create a Web Page",
+	"walkthroughs.jsWelcome.createHtmlWithScriptTag.description": "The easiest way to start writing JavaScript is inside an HTML file. To do that, we'll need to make an HTML file with a `<script>` tag.\n[Create an HTML file](command:javascript-walkthrough.commands.createHtmlFileWithScriptTag)",
+
+	"walkthroughs.jsWelcome.debugHtmlFile.title": "View Your Web Page",
+	"walkthroughs.jsWelcome.debugHtmlFile.description": "We can save and view your HTML file in a browser. Visual Studio Code makes this easy when you start debugging in an HTML file. Just hit <kbd>F5<kbd> while focused on an HTML file.\n[Start Debugging](command:javascript-walkthrough.commands.debugHtmlFile)",
+
+	"walkthroughs.jsWelcome.downloadNode.forMacOrWindows.title": "Install Node.js",
+	"walkthroughs.jsWelcome.downloadNode.forMacOrWindows.description": "Node.js is an easy way to run JavaScript files directly. You can use it to quickly build command-line apps and servers. It also comes with npm, a package manager which makes reusing and sharing JavaScript code easy.\n[Install Node.js](https://nodejs.org/en/download/)",
+
+	"walkthroughs.jsWelcome.downloadNode.forLinux.title": "Install Node.js",
+	"walkthroughs.jsWelcome.downloadNode.forLinux.description": "Node.js is an easy way to run JavaScript files directly. You can use it to quickly build command-line apps and servers. It also comes with npm, a package manager which makes reusing and sharing JavaScript code easy.\n[Install Node.js](https://nodejs.org/en/download/package-manager/)",
+
+	"walkthroughs.jsWelcome.makeJsFile.title": "Create a JavaScript File",
+	"walkthroughs.jsWelcome.makeJsFile.description": "Writing JavaScript in an HTML file is doable, but often we'll want to write that code in its own file. This lets us include it on multiple pages, or lets us run it right in programs like Node.js.\n[Create a JavaScript File](command:javascript-walkthrough.commands.createJsFile)",
+
+	"walkthroughs.jsWelcome.debugJsFile.title": "Run Your JavaScript in Node.js",
+	"walkthroughs.jsWelcome.debugJsFile.description": "You can run your JavaScript file in Node.js by saving it as a `.mjs` file and running `node your-file-name.mjs`. You can also run it right in Visual Studio Code by hitting <kbd>F5</kbd> and debugging it. When prompted, you can select the Node.js debugger.\n[Start Debugging](command:javascript-walkthrough.commands.debugJsFile)"
 }

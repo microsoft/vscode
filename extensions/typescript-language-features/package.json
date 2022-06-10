@@ -67,7 +67,8 @@
     "onCommand:typescript.fileReferences",
     "onCommand:typescript.goToSourceDefinition",
     "onTaskType:typescript",
-    "onLanguage:jsonc"
+    "onLanguage:jsonc",
+    "onWalkthrough:jsWelcome"
   ],
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
@@ -1504,6 +1505,66 @@
           {
             "kind": "source.organizeImports",
             "title": "%codeActions.source.organizeImports.title%"
+          }
+        ]
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "jsWelcome",
+        "title": "%walkthroughs.jsWelcome.title%",
+        "description": "%walkthroughs.jsWelcome.description%",
+        "when": "isWindows && workspacePlatform == windows || isMac && workspacePlatform == mac || isLinux && workspacePlatform == linux",
+        "steps": [
+          {
+            "id": "walkthroughs.jsWelcome.createHtmlWithScriptTag",
+            "title": "%walkthroughs.jsWelcome.createHtmlWithScriptTag.title%",
+            "description": "%walkthroughs.jsWelcome.createHtmlWithScriptTag.description%",
+            "media": {
+              "markdown": "resources/walkthroughs/TODO.md"
+            }
+          },
+          {
+            "id": "walkthroughs.jsWelcome.debugHtmlFile",
+            "title": "%walkthroughs.jsWelcome.debugHtmlFile.title%",
+            "description": "%walkthroughs.jsWelcome.debugHtmlFile.description%",
+            "media": {
+              "markdown": "resources/walkthroughs/TODO.md"
+            }
+          },
+          {
+            "id": "walkthroughs.jsWelcome.downloadNode.forMacOrWindows",
+            "title": "%walkthroughs.jsWelcome.downloadNode.forMacOrWindows.title%",
+            "description": "%walkthroughs.jsWelcome.downloadNode.forMacOrWindows.description%",
+            "media": {
+              "markdown": "resources/walkthroughs/TODO.md"
+            },
+            "when": "isWindows || isMac"
+          },
+          {
+            "id": "walkthroughs.jsWelcome.downloadNode.forLinux",
+            "title": "%walkthroughs.jsWelcome.downloadNode.forLinux.title%",
+            "description": "%walkthroughs.jsWelcome.downloadNode.forLinux.description%",
+            "media": {
+              "markdown": "resources/walkthroughs/TODO.md"
+            },
+            "when": "isLinux"
+          },
+          {
+            "id": "walkthroughs.jsWelcome.makeJsFile",
+            "title": "%walkthroughs.jsWelcome.makeJsFile.title%",
+            "description": "%walkthroughs.jsWelcome.makeJsFile.description%",
+            "media": {
+              "markdown": "resources/walkthroughs/TODO.md"
+            }
+          },
+          {
+            "id": "walkthroughs.jsWelcome.debugJsFile",
+            "title": "%walkthroughs.jsWelcome.debugJsFile.title%",
+            "description": "%walkthroughs.jsWelcome.debugJsFile.description%",
+            "media": {
+              "markdown": "resources/walkthroughs/TODO.md"
+            }
           }
         ]
       }
