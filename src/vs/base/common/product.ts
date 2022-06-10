@@ -100,7 +100,6 @@ export interface IProductConfiguration {
 	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {
 		readonly asimovKey: string;
-		readonly ariaKey: string;
 	};
 
 	readonly sendASmile?: {
