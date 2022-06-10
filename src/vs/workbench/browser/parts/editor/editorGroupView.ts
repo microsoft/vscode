@@ -1940,10 +1940,14 @@ export interface EditorReplacement extends IEditorReplacement {
 registerThemingParticipant((theme, collector) => {
 
 	// Letterpress
-	const letterpress = `./media/letterpress-${theme.type}.svg`;
+	const letterpress = `./media/letterpress.svg`;
 	collector.addRule(`
 		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: ${asCSSUrl(FileAccess.asBrowserUri(letterpress, require))}
+			mask: ${asCSSUrl(FileAccess.asBrowserUri(letterpress, require))} no-repeat 50% 20%;
+			mask-size: 260px;
+			-webkit-mask: ${asCSSUrl(FileAccess.asBrowserUri(letterpress, require))} no-repeat 50% 20%;
+			-webkit-mask-size: 260px;
+
 		}
 	`);
 

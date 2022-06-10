@@ -30,6 +30,7 @@
 	width: 100%;
 	height: calc(100% - 70px); /* centered below toolbar */
 	max-width: 260px;
+	background-color: red;
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
 	background-size: 70% 70%;
@@ -39,6 +40,12 @@
 	background-size: 100% 100%; /* larger for empty editor part */
 	height: 100%; /* no toolbar in this case */
 }
+
+.monaco-workbench .part.editor.max-height-478px>.content.empty .editor-group-container.empty>.editor-group-letterpress {
+	mask-position: 50% 20%;
+	-webkit-mask-position: 50% 50%;
+}
+
 
 /* Title */
 
