@@ -30,6 +30,7 @@ export interface Ref {
 	readonly name?: string;
 	readonly commit?: string;
 	readonly remote?: string;
+	protected?: boolean;
 }
 
 export interface UpstreamRef {

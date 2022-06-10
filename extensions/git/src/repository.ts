@@ -5,7 +5,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern } from 'vscode';
+import * as picomatch from 'picomatch';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, MarkdownString } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -939,7 +940,8 @@ export class Repository implements Disposable {
 		}, undefined, this.disposables);
 
 		filterEvent(workspace.onDidChangeConfiguration, e =>
-			e.affectsConfiguration('git.branchSortOrder', root)
+			e.affectsConfiguration('git.branchProtection', root)
+			|| e.affectsConfiguration('git.branchSortOrder', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
@@ -1004,6 +1006,16 @@ export class Repository implements Disposable {
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
+		if (this.HEAD?.protected) {
+			const message = new MarkdownString('This branch is protected. [Hide]() [Don\'t show again]()');
+			message.isTrusted = true;
+
+			return {
+				message,
+				type: SourceControlInputBoxValidationType.Information
+			};
+		}
+
 		let tooManyChangesWarning: SourceControlInputBoxValidation | undefined;
 		if (this.isRepositoryHuge) {
 			tooManyChangesWarning = {
@@ -1948,6 +1960,7 @@ export class Repository implements Disposable {
 			if (HEAD.name) {
 				try {
 					HEAD = await this.repository.getBranch(HEAD.name);
+					HEAD.protected = this.isBranchProtected(HEAD.name ?? '');
 				} catch (err) {
 					// noop
 				}
@@ -2209,6 +2222,13 @@ export class Repository implements Disposable {
 		} else {
 			this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message ({0} to commit)");
 		}
+	}
+
+	public isBranchProtected(name: string): boolean {
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const branchProtection = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
+
+		return branchProtection.some(bp => picomatch.isMatch(name, bp));
 	}
 
 	dispose(): void {
