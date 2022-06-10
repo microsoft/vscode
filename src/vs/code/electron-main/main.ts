@@ -191,7 +191,7 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 
 		// State
-		const stateMainService = new StateMainService(environmentMainService, userDataProfilesMainService, logService, fileService);
+		const stateMainService = new StateMainService(userDataProfilesMainService, logService, fileService);
 		services.set(IStateMainService, stateMainService);
 
 		// Request
