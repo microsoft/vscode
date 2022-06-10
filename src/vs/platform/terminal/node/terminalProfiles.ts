@@ -183,10 +183,9 @@ async function transformToTerminalProfiles(
 			validatedProfile.color = profile.color;
 			resultProfiles.push(validatedProfile);
 		} else {
-			logService?.debug('Terminal profile not validated', profileName, originalPaths);
+			logService?.trace('profile not validated', profileName, originalPaths);
 		}
 	}
-	logService?.debug('Validated terminal profiles', resultProfiles);
 	return resultProfiles;
 }
 
