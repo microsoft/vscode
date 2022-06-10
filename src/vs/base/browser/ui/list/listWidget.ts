@@ -265,9 +265,9 @@ class KeyboardController<T> implements IDisposable {
 
 	@memoize
 	private get onKeyDown(): Event.IChainableEvent<StandardKeyboardEvent> {
-		return Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event)
+		return this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event)
 			.filter(e => !isInputElement(e.target as HTMLElement))
-			.map(e => new StandardKeyboardEvent(e));
+			.map(e => new StandardKeyboardEvent(e)));
 	}
 
 	constructor(
@@ -429,7 +429,7 @@ class TypeLabelController<T> implements IDisposable {
 			return;
 		}
 
-		const onChar = Event.chain(this.enabledDisposables.add(new DomEmitter(this.view.domNode, 'keydown')).event)
+		const onChar = this.enabledDisposables.add(Event.chain(this.enabledDisposables.add(new DomEmitter(this.view.domNode, 'keydown')).event))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(event => new StandardKeyboardEvent(event))
@@ -438,8 +438,8 @@ class TypeLabelController<T> implements IDisposable {
 			.map(event => event.browserEvent.key)
 			.event;
 
-		const onClear = Event.debounce<string, null>(onChar, () => null, 800);
-		const onInput = Event.reduce<string | null, string | null>(Event.any(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i));
+		const onClear = Event.debounce<string, null>(onChar, () => null, 800, undefined, undefined, this.enabledDisposables);
+		const onInput = Event.reduce<string | null, string | null>(Event.any(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i), undefined, this.enabledDisposables);
 
 		onInput(this.onInput, this, this.enabledDisposables);
 		onClear(this.onClear, this, this.enabledDisposables);
@@ -512,7 +512,7 @@ class DOMFocusController<T> implements IDisposable {
 		private list: List<T>,
 		private view: ListView<T>
 	) {
-		const onKeyDown = Event.chain(this.disposables.add(new DomEmitter(view.domNode, 'keydown')).event)
+		const onKeyDown = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(view.domNode, 'keydown')).event))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(e => new StandardKeyboardEvent(e));
 
@@ -1233,11 +1233,11 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	protected readonly disposables = new DisposableStore();
 
 	@memoize get onDidChangeFocus(): Event<IListEvent<T>> {
-		return Event.map(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
+		return Event.map(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e), this.disposables);
 	}
 
 	@memoize get onDidChangeSelection(): Event<IListEvent<T>> {
-		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
+		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e), this.disposables);
 	}
 
 	get domId(): string { return this.view.domId; }
@@ -1264,14 +1264,14 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
 		let didJustPressContextMenuKey = false;
 
-		const fromKeyDown = Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event)
+		const fromKeyDown = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
 			.map(stopEvent)
 			.filter(() => false)
 			.event as Event<any>;
 
-		const fromKeyUp = Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keyup')).event)
+		const fromKeyUp = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keyup')).event))
 			.forEach(() => didJustPressContextMenuKey = false)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
@@ -1285,7 +1285,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			})
 			.event;
 
-		const fromMouse = Event.chain(this.view.onContextMenu)
+		const fromMouse = this.disposables.add(Event.chain(this.view.onContextMenu))
 			.filter(_ => !didJustPressContextMenuKey)
 			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.pageX + 1, y: browserEvent.pageY }, browserEvent }))
 			.event;
