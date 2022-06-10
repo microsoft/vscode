@@ -33,7 +33,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
  * the TextEditor widget to show the contents.
  */
-export class AbstractTextResourceEditor extends AbstractTextEditor<ICodeEditorViewState> {
+export abstract class AbstractTextResourceEditor extends AbstractTextEditor<ICodeEditorViewState> {
 
 	constructor(
 		id: string,

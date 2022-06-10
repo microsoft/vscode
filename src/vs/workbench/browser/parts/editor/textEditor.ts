@@ -24,14 +24,14 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { isEqual } from 'vs/base/common/resources';
-
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
-import { Selection } from 'vs/editor/common/core/selection';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+
+import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
+import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export interface IEditorConfiguration {
 	editor: object;
