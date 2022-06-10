@@ -9,11 +9,11 @@ parameters:
 variables:
   - name: LOG_ARTIFACT_NAME
     ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-      value: '-integration'
+      value: "-integration"
     ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-      value: '-smoke'
+      value: "-smoke"
     ${{ else }}:
-      value: ''
+      value: ""
 
 steps:
   - powershell: |
