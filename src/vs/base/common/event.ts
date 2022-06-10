@@ -143,14 +143,14 @@ export namespace Event {
 	}
 
 	function snapshot<T>(event: Event<T>, disposable: DisposableStore | undefined): Event<T> {
-		let listener: IDisposable;
+		let listener: IDisposable | undefined;
 
 		const options: EmitterOptions | undefined = {
 			onFirstListenerAdd() {
 				listener = event(emitter.fire, emitter);
 			},
 			onLastListenerRemove() {
-				listener.dispose();
+				listener?.dispose();
 			}
 		};
 
@@ -310,7 +310,7 @@ export namespace Event {
 		return emitter.event;
 	}
 
-	export interface IChainableEvent<T> {
+	export interface IChainableEvent<T> extends IDisposable {
 
 		event: Event<T>;
 		map<O>(fn: (i: T) => O): IChainableEvent<O>;
@@ -327,34 +327,36 @@ export namespace Event {
 
 	class ChainableEvent<T> implements IChainableEvent<T> {
 
+		private readonly disposables = new DisposableStore();
+
 		constructor(readonly event: Event<T>) { }
 
 		map<O>(fn: (i: T) => O): IChainableEvent<O> {
-			return new ChainableEvent(map(this.event, fn));
+			return new ChainableEvent(map(this.event, fn, this.disposables));
 		}
 
 		forEach(fn: (i: T) => void): IChainableEvent<T> {
-			return new ChainableEvent(forEach(this.event, fn));
+			return new ChainableEvent(forEach(this.event, fn, this.disposables));
 		}
 
 		filter(fn: (e: T) => boolean): IChainableEvent<T>;
 		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
 		filter(fn: (e: T) => boolean): IChainableEvent<T> {
-			return new ChainableEvent(filter(this.event, fn));
+			return new ChainableEvent(filter(this.event, fn, this.disposables));
 		}
 
 		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R> {
-			return new ChainableEvent(reduce(this.event, merge, initial));
+			return new ChainableEvent(reduce(this.event, merge, initial, this.disposables));
 		}
 
 		latch(): IChainableEvent<T> {
-			return new ChainableEvent(latch(this.event));
+			return new ChainableEvent(latch(this.event, undefined, this.disposables));
 		}
 
 		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
 		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
 		debounce<R>(merge: (last: R | undefined, event: T) => R, delay: number = 100, leading = false, leakWarningThreshold?: number): IChainableEvent<R> {
-			return new ChainableEvent(debounce(this.event, merge, delay, leading, leakWarningThreshold));
+			return new ChainableEvent(debounce(this.event, merge, delay, leading, leakWarningThreshold, this.disposables));
 		}
 
 		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[] | DisposableStore) {
@@ -364,11 +366,12 @@ export namespace Event {
 		once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 			return once(this.event)(listener, thisArgs, disposables);
 		}
+
+		dispose() {
+			this.disposables.dispose();
+		}
 	}
 
-	/**
-	 * @deprecated DO NOT use, this leaks memory
-	 */
 	export function chain<T>(event: Event<T>): IChainableEvent<T> {
 		return new ChainableEvent(event);
 	}
