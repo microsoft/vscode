@@ -273,7 +273,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			// re-position traffic light if command center is visible
 			if (useCustomTitleStyle && isMacintosh) {
-				const ccConfigKey = 'window.experimental.commandCenter';
+				const ccConfigKey = 'window.commandCenter';
 				const trafficLightUpdater = () => {
 					const on = this.configurationService.getValue<boolean>(ccConfigKey);
 					if (on) {
