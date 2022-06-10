@@ -107,6 +107,8 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 		const editorConfiguration: ICodeEditorOptions = isObject(configuration.editor) ? deepClone(configuration.editor) : Object.create(null);
 		Object.assign(editorConfiguration, this.getConfigurationOverrides());
 
+		editorConfiguration.enableDropIntoEditor = !editorConfiguration.readOnly;
+
 		// ARIA label
 		editorConfiguration.ariaLabel = this.computeAriaLabel();
 
@@ -179,7 +181,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
 
 		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
-		return this.instantiationService.createInstance(CodeEditorWidget, parent, { enableDropIntoEditor: true, ...configuration }, {});
+		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
 	override async setInput(input: EditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
