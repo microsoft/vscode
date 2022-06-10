@@ -156,7 +156,7 @@ export interface IResourceRefHandle {
 	created: number;
 }
 
-export type ServerResource = SyncResource | 'machines';
+export type ServerResource = SyncResource | 'machines' | 'editSessions';
 export type UserDataSyncStoreType = 'insiders' | 'stable';
 
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
