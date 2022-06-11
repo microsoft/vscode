@@ -302,8 +302,9 @@ interface Collection<T> {
 	readonly onDidChange: Event<T[]>;
 }
 
-class EventCollection<T> implements Collection<T> {
+class EventCollection<T> implements Collection<T>, IDisposable {
 
+	private readonly disposables = new DisposableStore();
 	readonly onDidChange: Event<T[]>;
 
 	get elements(): T[] {
@@ -311,7 +312,11 @@ class EventCollection<T> implements Collection<T> {
 	}
 
 	constructor(onDidChange: Event<T[]>, private _elements: T[] = []) {
-		this.onDidChange = Event.forEach(onDidChange, elements => this._elements = elements);
+		this.onDidChange = Event.forEach(onDidChange, elements => this._elements = elements, this.disposables);
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
 	}
 }
 
@@ -1363,7 +1368,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
 		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
-		const activeNodes = new EventCollection(onDidChangeActiveNodes.event);
+		const activeNodes = this.disposables.add(new EventCollection(onDidChangeActiveNodes.event));
 		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, _options));
 		for (const r of this.renderers) {
 			this.disposables.add(r);
@@ -1390,7 +1395,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				this.focus.onDidModelSplice(e);
 				this.selection.onDidModelSplice(e);
 			});
-		});
+		}, this.disposables);
 
 		// Make sure the `forEach` always runs
 		onDidModelSplice(() => null, null, this.disposables);

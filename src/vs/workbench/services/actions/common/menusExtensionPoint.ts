@@ -684,7 +684,7 @@ submenusExtensionPoint.setHandler(extensions => {
 				return;
 			}
 			if (_submenus.has(entry.value.id)) {
-				collector.warn(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
+				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
 				return;
 			}
 			if (!entry.value.label) {

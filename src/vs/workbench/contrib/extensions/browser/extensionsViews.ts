@@ -655,6 +655,10 @@ export class ExtensionsListView extends ViewPane {
 			return this.queryRecommendations(query, options, token);
 		}
 
+		if (/@deprecated/i.test(query.value)) {
+			return this.getDeprecatedExtensions(options, token);
+		}
+
 		if (/\bcurated:([^\s]+)\b/.test(query.value)) {
 			return this.getCuratedModel(query, options, token);
 		}
@@ -748,6 +752,16 @@ export class ExtensionsListView extends ViewPane {
 			return this.getPagedModel(extensions);
 		}
 		return new PagedModel([]);
+	}
+
+	private async getDeprecatedExtensions(options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
+		const deprecatedExtensionIds = Object.keys(extensionsControlManifest.deprecated);
+		if (deprecatedExtensionIds.length) {
+			const pager = await this.extensionsWorkbenchService.queryGallery({ ...options, names: deprecatedExtensionIds, text: undefined }, token);
+			return this.getPagedModel(pager);
+		}
+		return this.getPagedModel([]);
 	}
 
 	private isRecommendationsQuery(query: Query): boolean {

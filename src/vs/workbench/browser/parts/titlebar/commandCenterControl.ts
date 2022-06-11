@@ -147,6 +147,9 @@ export class CommandCenterControl {
 		};
 		menuUpdater();
 		this._disposables.add(menu.onDidChange(menuUpdater));
+		this._disposables.add(keybindingService.onDidUpdateKeybindings(() => {
+			menuUpdater();
+		}));
 		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
 		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
 	}
