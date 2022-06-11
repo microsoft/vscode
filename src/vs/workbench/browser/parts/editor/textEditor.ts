@@ -27,6 +27,7 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Dimension } from 'vs/base/browser/dom';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -42,6 +43,14 @@ export interface ITextEditorControl extends IDisposable {
 	 * @param options the options to apply
 	 */
 	updateOptions(options: ICodeEditorOptions): void;
+
+	focus(): void;
+	hasTextFocus(): boolean;
+
+	onHide(): void;
+	onVisible(): void;
+
+	layout(dimension: Dimension): void;
 }
 
 /**
@@ -201,13 +210,28 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-
-		// Apply pending configuration if visible
+		const control = assertIsDefined(this.editorControl);
 		if (visible) {
 			this.consumePendingConfigurationChangeEvent();
+
+			control.onVisible();
+		} else {
+			control.onHide();
 		}
 
 		super.setEditorVisible(visible, group);
+	}
+
+	override focus(): void {
+		this.editorControl?.focus();
+	}
+
+	override hasFocus(): boolean {
+		return this.editorControl?.hasTextFocus() || super.hasFocus();
+	}
+
+	layout(dimension: Dimension): void {
+		this.editorControl?.layout(dimension);
 	}
 
 	override getControl(): ITextEditorControl | undefined {

@@ -5,10 +5,8 @@
 
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { Dimension } from 'vs/base/browser/dom';
 import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { isEqual } from 'vs/base/common/resources';
@@ -68,33 +66,5 @@ export abstract class AbstractTextCodeEditor<T extends IEditorViewState> extends
 		if (options) {
 			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
 		}
-	}
-
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
-
-		// Pass on to editor control
-		const control = assertIsDefined(this.getControl());
-		if (visible) {
-			control.onVisible();
-		} else {
-			control.onHide();
-		}
-	}
-
-	override focus(): void {
-		this.getControl()?.focus();
-	}
-
-	override hasFocus(): boolean {
-		if (this.getControl()?.hasTextFocus()) {
-			return true;
-		}
-
-		return super.hasFocus();
-	}
-
-	layout(dimension: Dimension): void {
-		this.getControl()?.layout(dimension);
 	}
 }

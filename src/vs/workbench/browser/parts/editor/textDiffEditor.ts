@@ -26,13 +26,13 @@ import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/co
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
-import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
+import { multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { IFileService } from 'vs/platform/files/common/files';
 
 /**
@@ -237,34 +237,6 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		if (options) {
 			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
 		}
-	}
-
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
-
-		// Pass on to diff editor control
-		const control = assertIsDefined(this.getControl());
-		if (visible) {
-			control.onVisible();
-		} else {
-			control.onHide();
-		}
-	}
-
-	override focus(): void {
-		this.getControl()?.focus();
-	}
-
-	override hasFocus(): boolean {
-		if (this.getControl()?.hasTextFocus()) {
-			return true;
-		}
-
-		return super.hasFocus();
-	}
-
-	layout(dimension: Dimension): void {
-		this.getControl()?.layout(dimension);
 	}
 
 	protected override computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
