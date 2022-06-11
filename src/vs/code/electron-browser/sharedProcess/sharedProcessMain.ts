@@ -102,7 +102,6 @@ import { IExtensionsScannerService } from 'vs/platform/extensionManagement/commo
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
-import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 
 class SharedProcessMain extends Disposable {
 
@@ -274,14 +273,9 @@ class SharedProcessMain extends Disposable {
 			const logAppender = new TelemetryLogAppender(loggerService, environmentService);
 			appenders.push(logAppender);
 			const { installSourcePath } = environmentService;
-			const internalTesting = configurationService.getValue<boolean>('telemetry.internalTesting');
-			if (internalTesting && productService.aiConfig?.ariaKey) {
-				// Hard code ingestion key for now for internal testing of collector++
-				const collectorAppender = new OneDataSystemAppender('monacoworkbench', null, productService.aiConfig.ariaKey);
-				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
-				appenders.push(collectorAppender);
-			} else if (productService.aiConfig && productService.aiConfig.asimovKey) {
-				// Application Insights
+
+			// Application Insights
+			if (productService.aiConfig && productService.aiConfig.asimovKey) {
 				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey);
 				this._register(toDisposable(() => appInsightsAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 				appenders.push(appInsightsAppender);
