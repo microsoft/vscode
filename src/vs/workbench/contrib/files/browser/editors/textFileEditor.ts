@@ -9,7 +9,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { AbstractTextCodeEditor } from 'vs/workbench/browser/parts/editor/textCodeEditor';
 import { IEditorOpenContext, EditorInputCapabilities, isTextEditorViewState, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
@@ -38,7 +38,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 /**
  * An implementation of editor for file system resources.
  */
-export class TextFileEditor extends AbstractTextEditor<ICodeEditorViewState> {
+export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState> {
 
 	static readonly ID = TEXT_FILE_EDITOR_ID;
 

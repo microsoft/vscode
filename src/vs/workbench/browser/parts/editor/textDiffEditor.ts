@@ -8,7 +8,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { isObject, isArray, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
+import { AbstractTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput, isTextEditorViewState } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
@@ -38,7 +38,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 /**
  * The text editor that leverages the diff text editor for the editing experience.
  */
-export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> implements ITextDiffEditorPane {
+export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> implements ITextDiffEditorPane {
 
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
 

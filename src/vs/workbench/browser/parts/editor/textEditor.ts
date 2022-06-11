@@ -7,10 +7,8 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { distinct, deepClone } from 'vs/base/common/objects';
 import { Emitter, Event } from 'vs/base/common/event';
-import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { Dimension } from 'vs/base/browser/dom';
-import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, ITextEditorPane } from 'vs/workbench/common/editor';
-import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
+import { isObject, assertIsDefined } from 'vs/base/common/types';
+import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
@@ -21,15 +19,12 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
-import { isEqual } from 'vs/base/common/resources';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -50,9 +45,9 @@ export interface ITextEditorControl extends IDisposable {
 }
 
 /**
- * The base class of editors that leverage the text editor for the editing experience.
+ * The base class of editors that leverage any kind of text editor for the editing experience.
  */
-export abstract class BaseTextEditor<T extends IEditorViewState> extends AbstractEditorWithViewState<T> implements IEditorPaneWithSelection {
+export abstract class AbstractTextEditor<T extends IEditorViewState> extends AbstractEditorWithViewState<T> implements IEditorPaneWithSelection {
 
 	private static readonly VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -74,7 +69,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, BaseTextEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		super(id, AbstractTextEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
 		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => {
 			const resource = this.getActiveResource();
@@ -272,87 +267,6 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 		this.lastAppliedEditorOptions = undefined;
 
 		super.dispose();
-	}
-}
-
-/**
- * A text editor using the code editor widget.
- */
-export abstract class AbstractTextEditor<T extends IEditorViewState> extends BaseTextEditor<T> implements ITextEditorPane {
-
-	override get scopedContextKeyService(): IContextKeyService | undefined {
-		return this.getControl()?.invokeWithinContext(accessor => accessor.get(IContextKeyService));
-	}
-
-	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): CodeEditorWidget {
-		return this.instantiationService.createInstance(CodeEditorWidget, parent, { enableDropIntoEditor: true, ...configuration }, {});
-	}
-
-	protected getMainControl(): ICodeEditor | undefined {
-		return this.getControl();
-	}
-
-	override getControl(): ICodeEditor | undefined {
-		return super.getControl() as ICodeEditor | undefined;
-	}
-
-	protected override computeEditorViewState(resource: URI): T | undefined {
-		const control = this.getControl();
-		if (!control) {
-			return undefined;
-		}
-
-		const model = control.getModel();
-		if (!model) {
-			return undefined; // view state always needs a model
-		}
-
-		const modelUri = model.uri;
-		if (!modelUri) {
-			return undefined; // model URI is needed to make sure we save the view state correctly
-		}
-
-		if (!isEqual(modelUri, resource)) {
-			return undefined; // prevent saving view state for a model that is not the expected one
-		}
-
-		return withNullAsUndefined(control.saveViewState() as unknown as T);
-	}
-
-	override setOptions(options: ITextEditorOptions | undefined): void {
-		super.setOptions(options);
-
-		if (options) {
-			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
-		}
-	}
-
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
-
-		// Pass on to editor control
-		const control = assertIsDefined(this.getControl());
-		if (visible) {
-			control.onVisible();
-		} else {
-			control.onHide();
-		}
-	}
-
-	override focus(): void {
-		this.getControl()?.focus();
-	}
-
-	override hasFocus(): boolean {
-		if (this.getControl()?.hasTextFocus()) {
-			return true;
-		}
-
-		return super.hasFocus();
-	}
-
-	layout(dimension: Dimension): void {
-		this.getControl()?.layout(dimension);
 	}
 }
 
