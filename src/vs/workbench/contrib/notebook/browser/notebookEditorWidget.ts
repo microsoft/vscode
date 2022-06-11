@@ -73,7 +73,7 @@ import { NotebookOverviewRuler } from 'vs/workbench/contrib/notebook/browser/vie
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, INotebookSearchOptions, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -272,6 +272,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly _editorFocus: IContextKey<boolean>;
 	private readonly _outputFocus: IContextKey<boolean>;
 	private readonly _editorEditable: IContextKey<boolean>;
+	private readonly _cursorNavMode: IContextKey<boolean>;
 	protected readonly _contributions = new Map<string, INotebookEditorContribution>();
 	private _scrollBeyondLastLine: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
@@ -312,16 +313,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const [focused] = this._list.getFocusedElements();
 		return this._renderedEditors.get(focused);
 	}
-
-	private _cursorNavigationMode: boolean = false;
-	get cursorNavigationMode(): boolean {
-		return this._cursorNavigationMode;
-	}
-
-	set cursorNavigationMode(v: boolean) {
-		this._cursorNavigationMode = v;
-	}
-
 
 	get visibleRanges() {
 		return this._list.visibleRanges || [];
@@ -443,6 +434,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.scopedContextKeyService);
+		this._cursorNavMode = NOTEBOOK_CURSOR_NAVIGATION_MODE.bindTo(this.scopedContextKeyService);
 
 		this._editorEditable.set(!creationOptions.isReadOnly);
 
@@ -962,10 +954,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 						return nls.localize('notebookTreeAriaLabel', "Notebook");
 					}
 				},
-				focusNextPreviousDelegate: {
-					onFocusNext: (applyFocusNext: () => void) => this._updateForCursorNavigationMode(applyFocusNext),
-					onFocusPrevious: (applyFocusPrevious: () => void) => this._updateForCursorNavigationMode(applyFocusPrevious),
-				}
 			},
 		);
 		this._dndController.setList(this._list);
@@ -1013,7 +1001,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._register(this._list.onDidChangeFocus(_e => {
 			this._onDidChangeActiveEditor.fire(this);
 			this._onDidChangeActiveCell.fire();
-			this._cursorNavigationMode = false;
+			this._cursorNavMode.set(false);
 		}));
 
 		this._register(this._list.onContextMenu(e => {
@@ -1075,23 +1063,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this.layout(this._dimension);
 			}
 		}));
-	}
-
-	private async _updateForCursorNavigationMode(applyFocusChange: () => void): Promise<void> {
-		if (this._cursorNavigationMode) {
-			// Will fire onDidChangeFocus, resetting the state to Container
-			applyFocusChange();
-
-			const newFocusedCell = this._list.getFocusedElements()[0];
-			if (newFocusedCell.cellKind === CellKind.Code || newFocusedCell.getEditState() === CellEditState.Editing) {
-				await this.focusNotebookCell(newFocusedCell, 'editor');
-			} else {
-				// Reset to "Editor", the state has not been consumed
-				this._cursorNavigationMode = true;
-			}
-		} else {
-			applyFocusChange();
-		}
 	}
 
 	getDomNode() {
@@ -2353,6 +2324,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			cell.focusMode = CellFocusMode.Editor;
 			if (!options?.skipReveal) {
 				if (typeof options?.focusEditorLine === 'number') {
+					this._cursorNavMode.set(true);
 					await this.revealLineInViewAsync(cell, options.focusEditorLine);
 					const editor = this._renderedEditors.get(cell)!;
 					const focusEditorLine = options.focusEditorLine!;
@@ -2404,7 +2376,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this.focusElement(cell);
 			this._cellFocusAria(cell, focusItem);
 			if (!options?.skipReveal) {
-				this.revealInCenterIfOutsideViewport(cell);
+				if (typeof options?.focusEditorLine === 'number') {
+					this._cursorNavMode.set(true);
+					this.revealInView(cell);
+				} else {
+					this.revealInCenterIfOutsideViewport(cell);
+				}
 			}
 			this._list.focusView();
 		}
