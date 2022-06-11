@@ -1464,7 +1464,7 @@ export class Repository {
 	}
 
 	async rebaseContinue(): Promise<void> {
-		const args = ['rebase', '--continue'];
+		const args = ['-c', 'core.editor=true', 'rebase', '--continue'];
 
 		try {
 			await this.exec(args);
