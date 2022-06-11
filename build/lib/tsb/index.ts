@@ -73,9 +73,13 @@ export function create(
 	}
 
 	// FULL COMPILE stream doing transpile, syntax and semantic diagnostics
+
+	let _builder!: builder.ITypeScriptBuilder;
 	function createCompileStream(token?: builder.CancellationToken): Readable & Writable {
 
-		const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
+		if (!_builder) {
+			_builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
+		}
 
 		return through(function (this: through.ThroughStream, file: Vinyl) {
 			// give the file to the compiler
