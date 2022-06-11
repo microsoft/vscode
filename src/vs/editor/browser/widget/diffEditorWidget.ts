@@ -596,7 +596,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorConstructionOptions>, editorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
-		return instantiationService.createInstance(CodeEditorWidget, container, { enableDropIntoEditor: true, ...options }, editorWidgetOptions);
+		return instantiationService.createInstance(CodeEditorWidget, container, options, editorWidgetOptions);
 	}
 
 	public override dispose(): void {
@@ -1113,6 +1113,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			result.ariaLabel = options.originalAriaLabel;
 		}
 		result.readOnly = !this._options.originalEditable;
+		result.enableDropIntoEditor = !result.readOnly;
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
 		return {
 			...result,
