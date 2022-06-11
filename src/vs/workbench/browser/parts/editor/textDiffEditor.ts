@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { deepClone } from 'vs/base/common/objects';
 import { isObject, isArray, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
-import { ICodeEditor, IDiffEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { AbstractTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput, isTextEditorViewState } from 'vs/workbench/common/editor';
@@ -89,13 +89,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	private updateReadonly(input: DiffEditorInput): void {
-		const control = this.getControl();
-		if (control) {
-			control.updateOptions({
-				readOnly: input.modified.hasCapability(EditorInputCapabilities.Readonly),
-				originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly)
-			});
-		}
+		this.getControl()?.updateOptions({
+			readOnly: input.modified.hasCapability(EditorInputCapabilities.Readonly),
+			originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly)
+		});
 	}
 
 	override getTitle(): string {
@@ -309,7 +306,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	protected override computeEditorViewState(resource: URI): IDiffEditorViewState | undefined {
 		const control = this.getControl();
-		if (!isDiffEditor(control)) {
+		if (!control) {
 			return undefined;
 		}
 
