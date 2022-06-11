@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { deepClone } from 'vs/base/common/objects';
 import { isObject, isArray, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
-import { IDiffEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput, isTextEditorViewState } from 'vs/workbench/common/editor';
@@ -26,13 +26,13 @@ import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/co
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
-import { multibyteAwareBtoa } from 'vs/base/browser/dom';
+import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { IFileService } from 'vs/platform/files/common/files';
 
 /**
@@ -110,6 +110,10 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {});
 	}
 
+	protected getMainControl(): ICodeEditor | undefined {
+		return this.getControl()?.getModifiedEditor();
+	}
+
 	override async setInput(input: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Update our listener for input capabilities
@@ -136,24 +140,24 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 			}
 
 			// Set Editor Model
-			const diffEditor = assertIsDefined(this.getControl());
+			const control = assertIsDefined(this.getControl());
 			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
-			diffEditor.setModel(withUndefinedAsNull(resolvedDiffEditorModel.textDiffEditorModel));
+			control.setModel(withUndefinedAsNull(resolvedDiffEditorModel.textDiffEditorModel));
 
 			// Restore view state (unless provided by options)
 			let hasPreviousViewState = false;
 			if (!isTextEditorViewState(options?.viewState)) {
-				hasPreviousViewState = this.restoreTextDiffEditorViewState(input, options, context, diffEditor);
+				hasPreviousViewState = this.restoreTextDiffEditorViewState(input, options, context, control);
 			}
 
 			// Apply options to editor if any
 			let optionsGotApplied = false;
 			if (options) {
-				optionsGotApplied = applyTextEditorOptions(options, diffEditor, ScrollType.Immediate);
+				optionsGotApplied = applyTextEditorOptions(options, control, ScrollType.Immediate);
 			}
 
 			// Diff navigator
-			this.diffNavigator = new DiffNavigator(diffEditor, {
+			this.diffNavigator = new DiffNavigator(control, {
 				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
 			});
 			this.diffNavigatorDisposables.add(this.diffNavigator);
@@ -163,7 +167,7 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 			// was already asked for being readonly or not. The rationale is that
 			// a resolved model might have more specific information about being
 			// readonly or not that the input did not have.
-			diffEditor.updateOptions({
+			control.updateOptions({
 				readOnly: resolvedDiffEditorModel.modifiedModel?.isReadonly(),
 				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
 			});
@@ -227,6 +231,42 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		}]);
 	}
 
+	override setOptions(options: ITextEditorOptions | undefined): void {
+		super.setOptions(options);
+
+		if (options) {
+			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
+		}
+	}
+
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		super.setEditorVisible(visible, group);
+
+		// Pass on to diff editor control
+		const control = assertIsDefined(this.getControl());
+		if (visible) {
+			control.onVisible();
+		} else {
+			control.onHide();
+		}
+	}
+
+	override focus(): void {
+		this.getControl()?.focus();
+	}
+
+	override hasFocus(): boolean {
+		if (this.getControl()?.hasTextFocus()) {
+			return true;
+		}
+
+		return super.hasFocus();
+	}
+
+	layout(dimension: Dimension): void {
+		this.getControl()?.layout(dimension);
+	}
+
 	protected override computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
 		const editorConfiguration = super.computeConfiguration(configuration);
 
@@ -280,8 +320,7 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		this.diffNavigatorDisposables.clear();
 
 		// Clear Model
-		const diffEditor = this.getControl();
-		diffEditor?.setModel(null);
+		this.getControl()?.setModel(null);
 	}
 
 	getDiffNavigator(): DiffNavigator | undefined {

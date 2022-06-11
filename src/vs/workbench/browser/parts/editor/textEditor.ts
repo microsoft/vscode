@@ -9,7 +9,7 @@ import { distinct, deepClone } from 'vs/base/common/objects';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
-import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, ITextEditorPane } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
@@ -29,12 +29,24 @@ import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/ed
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
-import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IEditorConfiguration {
 	editor: object;
 	diffEditor: object;
+}
+
+export interface ITextEditorControl extends IDisposable {
+
+	/**
+	 * A method to apply all configured options to the code
+	 * editors that are used within the editor pane.
+	 *
+	 * @param options the options to apply
+	 */
+	updateOptions(options: ICodeEditorOptions): void;
 }
 
 /**
@@ -47,14 +59,10 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	protected readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
-	private editorControl: IEditor | undefined;
+	private editorControl: ITextEditorControl | undefined;
 	private editorContainer: HTMLElement | undefined;
 	private hasPendingConfigurationChange: boolean | undefined;
 	private lastAppliedEditorOptions?: ICodeEditorOptions;
-
-	override get scopedContextKeyService(): IContextKeyService | undefined {
-		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(accessor => accessor.get(IContextKeyService)) : undefined;
-	}
 
 	constructor(
 		id: string,
@@ -138,12 +146,12 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	}
 
 	private registerCodeEditorListeners(): void {
-		const codeEditor = getCodeEditor(this.editorControl);
-		if (codeEditor) {
-			this._register(codeEditor.onDidChangeModelLanguage(() => this.updateEditorConfiguration()));
-			this._register(codeEditor.onDidChangeModel(() => this.updateEditorConfiguration()));
-			this._register(codeEditor.onDidChangeCursorPosition(e => this._onDidChangeSelection.fire({ reason: this.toEditorPaneSelectionChangeReason(e) })));
-			this._register(codeEditor.onDidChangeModelContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
+		const mainControl = this.getMainControl();
+		if (mainControl) {
+			this._register(mainControl.onDidChangeModelLanguage(() => this.updateEditorConfiguration()));
+			this._register(mainControl.onDidChangeModel(() => this.updateEditorConfiguration()));
+			this._register(mainControl.onDidChangeCursorPosition(e => this._onDidChangeSelection.fire({ reason: this.toEditorPaneSelectionChangeReason(e) })));
+			this._register(mainControl.onDidChangeModelContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
 		}
 	}
 
@@ -157,9 +165,9 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	}
 
 	getSelection(): IEditorPaneSelection | undefined {
-		const codeEditor = getCodeEditor(this.editorControl);
-		if (codeEditor) {
-			const selection = codeEditor.getSelection();
+		const mainControl = this.getMainControl();
+		if (mainControl) {
+			const selection = mainControl.getSelection();
 			if (selection) {
 				return new TextEditorPaneSelection(selection);
 			}
@@ -176,7 +184,14 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	 * The passed in configuration object should be passed to the editor
 	 * control when creating it.
 	 */
-	protected abstract createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor;
+	protected abstract createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): ITextEditorControl;
+
+	/**
+	 * This method returns the main, dominant instance of `ICodeEditor`
+	 * for the editor pane. E.g. for a diff editor, this is the right
+	 * hand (modified) side.
+	 */
+	protected abstract getMainControl(): ICodeEditor | undefined;
 
 	override async setInput(input: EditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
@@ -190,80 +205,22 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 		editorContainer.setAttribute('aria-label', this.computeAriaLabel());
 	}
 
-	override setOptions(options: ITextEditorOptions | undefined): void {
-		super.setOptions(options);
-
-		if (options) {
-			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
-		}
-	}
-
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 
-		// Pass on to Editor
-		const editorControl = assertIsDefined(this.editorControl);
+		// Apply pending configuration if visible
 		if (visible) {
 			this.consumePendingConfigurationChangeEvent();
-
-			editorControl.onVisible();
-		} else {
-			editorControl.onHide();
 		}
 
 		super.setEditorVisible(visible, group);
 	}
 
-	override focus(): void {
-
-		// Pass on to Editor
-		const editorControl = assertIsDefined(this.editorControl);
-		editorControl.focus();
-	}
-
-	override hasFocus(): boolean {
-		if (this.editorControl?.hasTextFocus()) {
-			return true;
-		}
-
-		return super.hasFocus();
-	}
-
-	layout(dimension: Dimension): void {
-
-		// Pass on to Editor
-		const editorControl = assertIsDefined(this.editorControl);
-		editorControl.layout(dimension);
-	}
-
-	override getControl(): IEditor | undefined {
+	override getControl(): ITextEditorControl | undefined {
 		return this.editorControl;
 	}
 
 	protected override toEditorViewStateResource(input: EditorInput): URI | undefined {
 		return input.resource;
-	}
-
-	protected override computeEditorViewState(resource: URI): T | undefined {
-		const control = this.getControl();
-		if (!isCodeEditor(control)) {
-			return undefined;
-		}
-
-		const model = control.getModel();
-		if (!model) {
-			return undefined; // view state always needs a model
-		}
-
-		const modelUri = model.uri;
-		if (!modelUri) {
-			return undefined; // model URI is needed to make sure we save the view state correctly
-		}
-
-		if (!isEqual(modelUri, resource)) {
-			return undefined; // prevent saving view state for a model that is not the expected one
-		}
-
-		return withNullAsUndefined(control.saveViewState() as unknown as T);
 	}
 
 	private updateEditorConfiguration(configuration?: IEditorConfiguration): void {
@@ -296,9 +253,9 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	}
 
 	private getActiveResource(): URI | undefined {
-		const codeEditor = getCodeEditor(this.editorControl);
-		if (codeEditor) {
-			const model = codeEditor.getModel();
+		const mainControl = this.getMainControl();
+		if (mainControl) {
+			const model = mainControl.getModel();
 			if (model) {
 				return model.uri;
 			}
@@ -321,10 +278,81 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 /**
  * A text editor using the code editor widget.
  */
-export abstract class AbstractTextEditor<T extends IEditorViewState> extends BaseTextEditor<T> {
+export abstract class AbstractTextEditor<T extends IEditorViewState> extends BaseTextEditor<T> implements ITextEditorPane {
 
-	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		return this.getControl()?.invokeWithinContext(accessor => accessor.get(IContextKeyService));
+	}
+
+	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): CodeEditorWidget {
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, { enableDropIntoEditor: true, ...configuration }, {});
+	}
+
+	protected getMainControl(): ICodeEditor | undefined {
+		return this.getControl();
+	}
+
+	override getControl(): ICodeEditor | undefined {
+		return super.getControl() as ICodeEditor | undefined;
+	}
+
+	protected override computeEditorViewState(resource: URI): T | undefined {
+		const control = this.getControl();
+		if (!control) {
+			return undefined;
+		}
+
+		const model = control.getModel();
+		if (!model) {
+			return undefined; // view state always needs a model
+		}
+
+		const modelUri = model.uri;
+		if (!modelUri) {
+			return undefined; // model URI is needed to make sure we save the view state correctly
+		}
+
+		if (!isEqual(modelUri, resource)) {
+			return undefined; // prevent saving view state for a model that is not the expected one
+		}
+
+		return withNullAsUndefined(control.saveViewState() as unknown as T);
+	}
+
+	override setOptions(options: ITextEditorOptions | undefined): void {
+		super.setOptions(options);
+
+		if (options) {
+			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
+		}
+	}
+
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		super.setEditorVisible(visible, group);
+
+		// Pass on to editor control
+		const control = assertIsDefined(this.getControl());
+		if (visible) {
+			control.onVisible();
+		} else {
+			control.onHide();
+		}
+	}
+
+	override focus(): void {
+		this.getControl()?.focus();
+	}
+
+	override hasFocus(): boolean {
+		if (this.getControl()?.hasTextFocus()) {
+			return true;
+		}
+
+		return super.hasFocus();
+	}
+
+	layout(dimension: Dimension): void {
+		this.getControl()?.layout(dimension);
 	}
 }
 

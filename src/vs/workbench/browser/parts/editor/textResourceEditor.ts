@@ -5,8 +5,9 @@
 
 import { localize } from 'vs/nls';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
 import { IEditorOpenContext, isTextEditorViewState } from 'vs/workbench/common/editor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -18,7 +19,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ScrollType, IEditor, ICodeEditorViewState } from 'vs/editor/common/editorCommon';
+import { ScrollType, ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -149,15 +150,12 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 	}
 
-	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
+	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): CodeEditorWidget {
 		const control = super.createEditorControl(parent, configuration);
 
 		// Install a listener for paste to update this editors
 		// language if the paste includes a specific language
-		const codeEditor = getCodeEditor(control);
-		if (codeEditor) {
-			this._register(codeEditor.onDidPaste(e => this.onDidEditorPaste(e, codeEditor)));
-		}
+		this._register(control.onDidPaste(e => this.onDidEditorPaste(e, control)));
 
 		return control;
 	}

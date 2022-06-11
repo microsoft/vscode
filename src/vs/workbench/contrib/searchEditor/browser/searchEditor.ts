@@ -17,7 +17,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICodeEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -231,7 +231,7 @@ export class SearchEditor extends AbstractTextEditor<SearchEditorViewState> {
 		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 	}
 
-	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
+	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): CodeEditorWidget {
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: this._getContributions() });
 	}
 
