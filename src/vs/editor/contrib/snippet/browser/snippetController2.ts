@@ -6,7 +6,8 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2, EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -16,11 +17,13 @@ import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/e
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { Choice, SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
 import { localize } from 'vs/nls';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SnippetSession } from './snippetSession';
@@ -346,3 +349,82 @@ export function performSnippetEdit(editor: ICodeEditor, snippet: string, selecti
 	controller.insert(snippet);
 	return controller.isInSnippet();
 }
+
+
+export type ISnippetEdit = {
+	range: Range;
+	snippet: string;
+};
+
+// ---
+
+export function performSnippetEdits(editor: ICodeEditor, edits: ISnippetEdit[]) {
+
+	if (!editor.hasModel()) {
+		return false;
+	}
+	if (edits.length === 0) {
+		return false;
+	}
+
+	const model = editor.getModel();
+	let newText = '';
+	let last: ISnippetEdit | undefined;
+	edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+
+	for (const item of edits) {
+		if (last) {
+			const between = Range.fromPositions(last.range.getEndPosition(), item.range.getStartPosition());
+			const text = model.getValueInRange(between);
+			newText += SnippetParser.escape(text);
+		}
+		newText += item.snippet;
+		last = item;
+	}
+
+	const controller = SnippetController2.get(editor);
+	if (!controller) {
+		return false;
+	}
+	model.pushStackElement();
+	const range = Range.plusRange(edits[0].range, edits[edits.length - 1].range);
+	editor.setSelection(range);
+	controller.insert(newText, { undoStopBefore: false });
+	return controller.isInSnippet();
+}
+
+
+registerAction2(class extends EditorAction2 {
+
+	constructor() {
+		super({
+			id: 'snippet',
+			title: 'Extract constant snippet',
+			f1: true
+		});
+	}
+
+	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+		if (!editor.hasModel()) {
+			return;
+		}
+		const bulkEdit = accessor.get(IBulkEditService);
+		await bulkEdit.apply([
+			new ResourceTextEdit(editor.getModel().uri, {
+				range: new Range(1, 1, 1, 1),
+				text: `const \${1:foo} = 123;`,
+				insertAsSnippet: true
+			}),
+			new ResourceTextEdit(editor.getModel().uri, {
+				range: new Range(3, 4, 3, 7),
+				text: `\${1:foo}`,
+				insertAsSnippet: true
+			}),
+			new ResourceTextEdit(editor.getModel().uri, {
+				range: new Range(3, 8, 3, 8),
+				text: `\$0`,
+				insertAsSnippet: true
+			}),
+		]);
+	}
+});
