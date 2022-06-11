@@ -1271,7 +1271,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _revealInView(viewIndex: number) {
 		const firstIndex = this.view.firstVisibleIndex;
-		if (viewIndex < firstIndex) {
+		if (viewIndex <= firstIndex) {
 			this._revealInternal(viewIndex, true, CellRevealPosition.Top);
 		} else {
 			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom);
