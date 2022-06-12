@@ -266,7 +266,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: workspace.id,
-			tabs: layout ? layout.tabs : []
+			tabs: layout ? layout.tabs : [],
+			editorTerminals: layout ? layout.editorTerminals : []
 		};
 		return this._channel.call<void>('$setTerminalLayoutInfo', args);
 	}

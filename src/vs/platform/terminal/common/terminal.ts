@@ -133,6 +133,9 @@ export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
 	terminal: T;
 }
+export interface IRawTerminalEditorInstanceLayoutInfo<T> {
+	terminal: T;
+}
 export type ITerminalInstanceLayoutInfoById = IRawTerminalInstanceLayoutInfo<number>;
 export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IPtyHostAttachTarget>;
 
@@ -143,9 +146,11 @@ export interface IRawTerminalTabLayoutInfo<T> {
 }
 
 export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
+export type ITerminalEditorInstanceLayoutInfoById = IRawTerminalEditorInstanceLayoutInfo<number>;
 
 export interface IRawTerminalsLayoutInfo<T> {
 	tabs: IRawTerminalTabLayoutInfo<T>[];
+	editorTerminals: IRawTerminalEditorInstanceLayoutInfo<T>[];
 }
 
 export interface IPtyHostAttachTarget {

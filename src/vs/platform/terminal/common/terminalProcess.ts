@@ -5,7 +5,7 @@
 
 import { UriComponents } from 'vs/base/common/uri';
 import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById, ITerminalEditorInstanceLayoutInfoById, TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 
 export interface ISingleTerminalConfiguration<T> {
 	userValue: T | undefined;
@@ -41,6 +41,7 @@ export interface IWorkspaceFolderData {
 export interface ISetTerminalLayoutInfoArgs {
 	workspaceId: string;
 	tabs: ITerminalTabLayoutInfoById[];
+	editorTerminals: ITerminalEditorInstanceLayoutInfoById[];
 }
 
 export interface IGetTerminalLayoutInfoArgs {
