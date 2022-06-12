@@ -261,6 +261,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		const options: IDiffEditorOptions = super.getConfigurationOverrides();
 
 		options.readOnly = this.input instanceof DiffEditorInput && this.input.modified.hasCapability(EditorInputCapabilities.Readonly);
+		options.enableDropIntoEditor = !options.readOnly;
 		options.originalEditable = this.input instanceof DiffEditorInput && !this.input.original.hasCapability(EditorInputCapabilities.Readonly);
 		options.lineDecorationsWidth = '2ch';
 

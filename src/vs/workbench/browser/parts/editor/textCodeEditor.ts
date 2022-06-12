@@ -26,7 +26,7 @@ export abstract class AbstractTextCodeEditor<T extends IEditorViewState> extends
 	}
 
 	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): CodeEditorWidget {
-		return this.instantiationService.createInstance(CodeEditorWidget, parent, { enableDropIntoEditor: true, ...configuration }, {});
+		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
 	protected getMainControl(): ICodeEditor | undefined {
