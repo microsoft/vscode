@@ -99,6 +99,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		for (const group of this.groupRenames(renames)) {
 			const edits = new vscode.WorkspaceEdit();
 			const resourcesBeingRenamed: vscode.Uri[] = [];
+			const resourcesBeingModified: Set<string> = new Set();
 
 			for (const { oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved } of group) {
 				const document = await vscode.workspace.openTextDocument(jsTsFileThatIsBeingMoved);
@@ -107,16 +108,39 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 				this.client.bufferSyncSupport.closeResource(oldUri);
 				this.client.bufferSyncSupport.openTextDocument(document);
 
-				if (await this.withEditsForFileRename(edits, document, oldFilePath, newFilePath)) {
+				const modifiedUris = await this.withEditsForFileRename(edits, document, oldFilePath, newFilePath);
+				if (modifiedUris) {
 					resourcesBeingRenamed.push(newUri);
+					modifiedUris.forEach(x => resourcesBeingModified.add(x.toString()));
 				}
 			}
 
-			if (edits.size) {
-				if (await this.confirmActionWithUser(resourcesBeingRenamed)) {
-					await vscode.workspace.applyEdit(edits);
-				}
+			if (!edits.size) {
+				return;
 			}
+
+			if (!await this.confirmActionWithUser(resourcesBeingRenamed)) {
+				return;
+			}
+
+			if (!await vscode.workspace.applyEdit(edits)) {
+				return;
+			}
+
+			/**
+			 * (#47573, #148901)
+			 * NOTE: This is a temporary solution to automatically save updated files, because what we've done in here
+			 * (i.e., renaming/updating imports) is not identified as a refactoring action by the workspace (as of the
+			 * current extensions API). Therefore, configurations like `files.refactoring.autoSave`will not take action
+			 * automatically. So, we explicitly trigger a `save` command.
+			 */
+			const autoSaveSetting = vscode.workspace.getConfiguration('files.refactoring').get<boolean>('autoSave', false);
+			if (!autoSaveSetting) {
+				return;
+			}
+
+			const docsToAutoSave = vscode.workspace.textDocuments.filter(x => resourcesBeingModified.has(x.uri.toString()));
+			await Promise.allSettled(docsToAutoSave.map(async (x) => x.save()));
 		}
 	}
 
