@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AppInsightsCore } from '@microsoft/1ds-core-js';
+import type { AppInsightsCore, IExtendedConfiguration } from '@microsoft/1ds-core-js';
+import { PostChannel } from '@microsoft/1ds-post-js';
 // import { IChannelConfiguration, IPayloadData, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
 // import * as https from 'https';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -13,17 +14,17 @@ import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry
 async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 	const oneDs = await import('@microsoft/1ds-core-js');
 	const appInsightsCore = new oneDs.AppInsightsCore();
-	// const collectorChannelPlugin: PostChannel = new PostChannel();
-	// // Configure the app insights core to send to collector++ and disable logging of debug info
-	// const coreConfig: IExtendedConfiguration = {
-	// 	instrumentationKey,
-	// 	endpointUrl: 'https://mobile.events.data.microsoft.com/OneCollector/1.0',
-	// 	loggingLevelTelemetry: 0,
-	// 	loggingLevelConsole: 0,
-	// 	channels: [[
-	// 		collectorChannelPlugin
-	// 	]]
-	// };
+	const collectorChannelPlugin: PostChannel = new PostChannel();
+	// Configure the app insights core to send to collector++ and disable logging of debug info
+	const coreConfig: IExtendedConfiguration = {
+		instrumentationKey,
+		endpointUrl: 'https://mobile.events.data.microsoft.com/OneCollector/1.0',
+		loggingLevelTelemetry: 0,
+		loggingLevelConsole: 0,
+		channels: [[
+			collectorChannelPlugin
+		]]
+	};
 
 	// // Setup the collector posting channel to utilize nodes HTTP request rather than webs
 	// if (coreConfig.extensionConfig) {
@@ -63,7 +64,7 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 	// 	coreConfig.extensionConfig[collectorChannelPlugin.identifier] = channelConfig;
 	// }
 
-	appInsightsCore.initialize({}, []);
+	appInsightsCore.initialize(coreConfig, []);
 
 	// appInsightsCore.addTelemetryInitializer((envelope) => {
 	// 	if (envelope.tags) {
