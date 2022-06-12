@@ -1,4 +1,4 @@
-name: Latest Release Monitor
+#1 #2 #3 name: Latest Release Monitor
 on:
   schedule:
     - cron: 0/5 * * * *
