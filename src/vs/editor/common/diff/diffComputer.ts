@@ -177,41 +177,35 @@ class CharChange implements ICharChange {
 	public static createFromDiffChange(diffChange: IDiffChange, originalCharSequence: CharSequence, modifiedCharSequence: CharSequence): CharChange {
 		let originalStartLineNumber: number;
 		let originalStartColumn: number;
-		let originalEndLineNumber: number;
-		let originalEndColumn: number;
 		let modifiedStartLineNumber: number;
 		let modifiedStartColumn: number;
-		let modifiedEndLineNumber: number;
-		let modifiedEndColumn: number;
 
-		if (diffChange.originalLength === 0) {
-			originalStartLineNumber = 0;
-			originalStartColumn = 0;
-			originalEndLineNumber = 0;
-			originalEndColumn = 0;
-		} else {
+		const originalEndLineNumber = originalCharSequence.getEndLineNumber(diffChange.originalStart + diffChange.originalLength - 1);
+		const originalEndColumn = originalCharSequence.getEndColumn(diffChange.originalStart + diffChange.originalLength - 1);
+
+		if (diffChange.originalStart < originalCharSequence.getElements().length) {
 			originalStartLineNumber = originalCharSequence.getStartLineNumber(diffChange.originalStart);
 			originalStartColumn = originalCharSequence.getStartColumn(diffChange.originalStart);
-			originalEndLineNumber = originalCharSequence.getEndLineNumber(diffChange.originalStart + diffChange.originalLength - 1);
-			originalEndColumn = originalCharSequence.getEndColumn(diffChange.originalStart + diffChange.originalLength - 1);
+		} else {
+			originalStartLineNumber = originalEndLineNumber;
+			originalStartColumn = originalEndColumn;
 		}
 
-		if (diffChange.modifiedLength === 0) {
-			modifiedStartLineNumber = 0;
-			modifiedStartColumn = 0;
-			modifiedEndLineNumber = 0;
-			modifiedEndColumn = 0;
-		} else {
+		const modifiedEndLineNumber = modifiedCharSequence.getEndLineNumber(diffChange.modifiedStart + diffChange.modifiedLength - 1);
+		const modifiedEndColumn = modifiedCharSequence.getEndColumn(diffChange.modifiedStart + diffChange.modifiedLength - 1);
+		if (diffChange.modifiedStart < modifiedCharSequence.getElements().length) {
 			modifiedStartLineNumber = modifiedCharSequence.getStartLineNumber(diffChange.modifiedStart);
 			modifiedStartColumn = modifiedCharSequence.getStartColumn(diffChange.modifiedStart);
-			modifiedEndLineNumber = modifiedCharSequence.getEndLineNumber(diffChange.modifiedStart + diffChange.modifiedLength - 1);
-			modifiedEndColumn = modifiedCharSequence.getEndColumn(diffChange.modifiedStart + diffChange.modifiedLength - 1);
+		} else {
+			modifiedStartLineNumber = modifiedEndLineNumber;
+			modifiedStartColumn = modifiedEndColumn;
 		}
 
-		return new CharChange(
+		const c = new CharChange(
 			originalStartLineNumber, originalStartColumn, originalEndLineNumber, originalEndColumn,
 			modifiedStartLineNumber, modifiedStartColumn, modifiedEndLineNumber, modifiedEndColumn,
 		);
+		return c;
 	}
 }
 

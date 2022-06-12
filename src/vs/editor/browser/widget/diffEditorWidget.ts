@@ -52,7 +52,7 @@ import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ILineBreaksComputer } from 'vs/editor/common/modelLineProjectionData';
-import { IChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
@@ -1926,7 +1926,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
-						if (isChangeOrDelete(charChange)) {
+						if (isCharChangeOrDelete(charChange)) {
 							if (ignoreTrimWhitespace) {
 								for (let lineNumber = charChange.originalStartLineNumber; lineNumber <= charChange.originalEndLineNumber; lineNumber++) {
 									let startColumn: number;
@@ -1984,7 +1984,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
-						if (isChangeOrInsert(charChange)) {
+						if (isCharChangeOrInsert(charChange)) {
 							if (ignoreTrimWhitespace) {
 								for (let lineNumber = charChange.modifiedStartLineNumber; lineNumber <= charChange.modifiedEndLineNumber; lineNumber++) {
 									let startColumn: number;
@@ -2159,7 +2159,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
-						if (isChangeOrInsert(charChange)) {
+						if (isCharChangeOrInsert(charChange)) {
 							if (ignoreTrimWhitespace) {
 								for (let lineNumber = charChange.modifiedStartLineNumber; lineNumber <= charChange.modifiedEndLineNumber; lineNumber++) {
 									let startColumn: number;
@@ -2321,7 +2321,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			const decorations: InlineDecoration[] = [];
 			if (lineChange.charChanges) {
 				for (const charChange of lineChange.charChanges) {
-					if (isChangeOrDelete(charChange)) {
+					if (isCharChangeOrDelete(charChange)) {
 						decorations.push(new InlineDecoration(
 							new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
 							'char-delete',
@@ -2504,12 +2504,20 @@ function validateDiffWordWrap(value: 'off' | 'on' | 'inherit' | undefined, defau
 	return validateStringSetOption<'off' | 'on' | 'inherit'>(value, defaultValue, ['off', 'on', 'inherit']);
 }
 
-function isChangeOrInsert(lineChange: IChange): boolean {
+function isChangeOrInsert(lineChange: ILineChange): boolean {
 	return lineChange.modifiedEndLineNumber > 0;
 }
 
-function isChangeOrDelete(lineChange: IChange): boolean {
+function isChangeOrDelete(lineChange: ILineChange): boolean {
 	return lineChange.originalEndLineNumber > 0;
+}
+
+function isCharChangeOrInsert(lineChange: ICharChange): boolean {
+	return lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber > 0;
+}
+
+function isCharChangeOrDelete(lineChange: ICharChange): boolean {
+	return lineChange.originalEndLineNumber - lineChange.originalStartLineNumber > 0;
 }
 
 function createFakeLinesDiv(): HTMLElement {
