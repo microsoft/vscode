@@ -16,13 +16,12 @@ import { Color } from 'vs/base/common/color';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/mergeEditor';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -32,7 +31,8 @@ import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/men
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -40,21 +40,24 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { autorun, autorunWithStore, derivedObservable, IObservable, ITransaction, keepAlive, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
 import { LineRange, ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
 import { applyObservableDecorations, n, ReentrancyBarrier, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from './editorGutter';
 
 export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false);
 export const ctxUsesColumnLayout = new RawContextKey<boolean>('mergeEditorUsesColumnLayout', false);
 
-export class MergeEditor extends EditorPane {
+export class MergeEditor extends AbstractTextEditor<any> {
 
 	static readonly ID = 'mergeEditor';
 
@@ -84,10 +87,13 @@ export class MergeEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
-		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService fileService: IFileService
 	) {
-		super(MergeEditor.ID, telemetryService, themeService, storageService);
+		super(MergeEditor.ID, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
 		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(_contextKeyService);
 		this._ctxUsesColumnLayout = ctxUsesColumnLayout.bindTo(_contextKeyService);
@@ -180,12 +186,15 @@ export class MergeEditor extends EditorPane {
 		super.dispose();
 	}
 
-	// TODO use this method & make it private
-	getEditorOptions(resource: URI): IEditorConfiguration {
-		return deepClone(this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource));
+	override getTitle(): string {
+		if (this.input) {
+			return this.input.getName();
+		}
+
+		return localize('mergeEditor', "Text Merge Editor");
 	}
 
-	protected createEditor(parent: HTMLElement): void {
+	protected createEditorControl(parent: HTMLElement, initialOptions: ICodeEditorOptions): void {
 		parent.classList.add('merge-editor');
 
 		this._grid = SerializableGrid.from<any /*TODO@jrieken*/>({
@@ -212,6 +221,22 @@ export class MergeEditor extends EditorPane {
 
 		reset(parent, this._grid.element);
 		this._ctxUsesColumnLayout.set(false);
+
+		this.applyOptions(initialOptions);
+	}
+
+	protected updateEditorControlOptions(options: ICodeEditorOptions): void {
+		this.applyOptions(options);
+	}
+
+	private applyOptions(options: ICodeEditorOptions): void {
+		this.input1View.editor.updateOptions({ ...options, readOnly: !this.inputsWritable });
+		this.input2View.editor.updateOptions({ ...options, readOnly: !this.inputsWritable });
+		this.inputResultView.editor.updateOptions(options);
+	}
+
+	protected getMainControl(): ICodeEditor | undefined {
+		return this.inputResultView.editor;
 	}
 
 	layout(dimension: Dimension): void {
@@ -231,8 +256,6 @@ export class MergeEditor extends EditorPane {
 		this.input1View.setModel(model, model.input1, localize('yours', 'Yours'), model.input1Detail, model.input1Description);
 		this.input2View.setModel(model, model.input2, localize('theirs', 'Theirs',), model.input2Detail, model.input2Description);
 		this.inputResultView.setModel(model, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
-
-		// TODO: Update editor options!
 
 		this._sessionDisposables.add(autorunWithStore((reader, store) => {
 			const input1ViewZoneIds: string[] = [];
@@ -274,16 +297,57 @@ export class MergeEditor extends EditorPane {
 		}, 'update alignment view zones'));
 	}
 
-	protected override setEditorVisible(visible: boolean): void {
+	override setOptions(options: ITextEditorOptions | undefined): void {
+		super.setOptions(options);
+
+		if (options) {
+			applyTextEditorOptions(options, this.inputResultView.editor, ScrollType.Smooth);
+		}
+	}
+
+	override clearInput(): void {
+		super.clearInput();
+
+		this._sessionDisposables.clear();
+
+		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
+			editor.setModel(null);
+		}
+	}
+
+	override focus(): void {
+		(this.getControl() ?? this.inputResultView.editor).focus();
+	}
+
+	override hasFocus(): boolean {
+		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
+			if (editor.hasTextFocus()) {
+				return true;
+			}
+		}
+		return super.hasFocus();
+	}
+
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		super.setEditorVisible(visible, group);
+
+		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
+			if (visible) {
+				editor.onVisible();
+			} else {
+				editor.onHide();
+			}
+		}
+
 		this._ctxIsMergeEditor.set(visible);
 	}
 
 	// ---- interact with "outside world" via `getControl`, `scopedContextKeyService`
 
-	override getControl(): IEditorControl | undefined {
-		for (const view of [this.input1View, this.input2View, this.inputResultView]) {
-			if (view.editor.hasWidgetFocus()) {
-				return view.editor;
+	override getControl(): ICodeEditor | undefined {
+		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
+			if (editor.hasWidgetFocus()) {
+				return editor;
 			}
 		}
 		return undefined;
@@ -309,6 +373,16 @@ export class MergeEditor extends EditorPane {
 		}
 		this._usesColumnLayout = !this._usesColumnLayout;
 		this._ctxUsesColumnLayout.set(this._usesColumnLayout);
+	}
+
+	// --- view state (TODO@bpasero revisit with https://github.com/microsoft/vscode/issues/150804)
+
+	protected computeEditorViewState(resource: URI): undefined {
+		return undefined;
+	}
+
+	protected tracksEditorViewState(input: EditorInput): boolean {
+		return false;
 	}
 }
 
@@ -534,8 +608,7 @@ class MergeConflictGutterItemView extends Disposable implements IGutterItemView<
 
 		target.classList.add('merge-accept-gutter-marker');
 
-		// TODO: localized title
-		const checkBox = new Toggle({ isChecked: false, title: 'Accept Merge', icon: Codicon.check });
+		const checkBox = new Toggle({ isChecked: false, title: localize('acceptMerge', "Accept Merge"), icon: Codicon.check });
 		checkBox.domNode.classList.add('accept-conflict-group');
 
 		this._register(
