@@ -662,8 +662,7 @@ export class TerminalService implements ITerminalService {
 		}
 		const otherInstances = this.instances.filter(instance => typeof instance.persistentProcessId === 'number' && instance.shouldPersist && seenPersistentProcessIds.indexOf(instance.persistentProcessId) === -1);
 		const editorTerminals = otherInstances.map((instance) => {
-			instance.
-				return {
+			return {
 				terminal: instance.persistentProcessId || 0
 			};
 		});
