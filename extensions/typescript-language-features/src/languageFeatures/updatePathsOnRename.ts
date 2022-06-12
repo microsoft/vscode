@@ -234,7 +234,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		document: vscode.TextDocument,
 		oldFilePath: string,
 		newFilePath: string,
-	): Promise<boolean> {
+	): Promise<false | vscode.Uri[]> {
 		const response = await this.client.interruptGetErr(() => {
 			this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
 			const args: Proto.GetEditsForFileRenameRequestArgs = {
@@ -248,7 +248,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		}
 
 		typeConverters.WorkspaceEdit.withFileCodeEdits(edits, this.client, response.body);
-		return true;
+		return response.body.map(x => this.client.toResource(x.fileName));
 	}
 
 	private groupRenames(renames: Iterable<RenameAction>): Iterable<Iterable<RenameAction>> {
