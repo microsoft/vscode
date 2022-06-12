@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { distinct, deepClone } from 'vs/base/common/objects';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined } from 'vs/base/common/types';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
@@ -28,6 +28,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -65,8 +66,11 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 
 	private editorControl: ITextEditorControl | undefined;
 	private editorContainer: HTMLElement | undefined;
+
 	private hasPendingConfigurationChange: boolean | undefined;
 	private lastAppliedEditorOptions?: ICodeEditorOptions;
+
+	private readonly inputListener = this._register(new MutableDisposable());
 
 	constructor(
 		id: string,
@@ -76,7 +80,8 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService protected readonly fileService: IFileService
 	) {
 		super(id, AbstractTextEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
@@ -96,6 +101,10 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 			this.editorContainer?.setAttribute('aria-label', ariaLabel);
 			this.editorControl?.updateOptions({ ariaLabel });
 		}));
+
+		// Listen to file system provider changes
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProvider(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
 	}
 
 	private handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
@@ -127,6 +136,28 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 
 	private computeAriaLabel(): string {
 		return this._input ? computeEditorAriaLabel(this._input, undefined, this.group, this.editorGroupService.count) : localize('editor', "Editor");
+	}
+
+	private onDidChangeFileSystemProvider(scheme: string): void {
+		if (!this.input) {
+			return;
+		}
+
+		if (this.getActiveResource()?.scheme === scheme) {
+			this.updateReadonly(this.input);
+		}
+	}
+
+	private onDidChangeInputCapabilities(input: EditorInput): void {
+		if (this.input === input) {
+			this.updateReadonly(input);
+		}
+	}
+
+	protected updateReadonly(input: EditorInput): void {
+		this.getControl()?.updateOptions({
+			readOnly: input.hasCapability(EditorInputCapabilities.Readonly)
+		});
 	}
 
 	protected getConfigurationOverrides(): ICodeEditorOptions {
@@ -203,6 +234,9 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	override async setInput(input: EditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
+		// Update our listener for input capabilities
+		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
+
 		// Update editor options after having set the input. We do this because there can be
 		// editor input specific options (e.g. an ARIA label depending on the input showing)
 		this.updateEditorConfiguration();
@@ -210,6 +244,14 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		// Update aria label on editor
 		const editorContainer = assertIsDefined(this.editorContainer);
 		editorContainer.setAttribute('aria-label', this.computeAriaLabel());
+	}
+
+	override clearInput(): void {
+
+		// Clear input listener
+		this.inputListener.clear();
+
+		super.clearInput();
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {

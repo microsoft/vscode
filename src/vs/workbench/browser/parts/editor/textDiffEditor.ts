@@ -23,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -45,8 +45,6 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
 
-	private readonly inputListener = this._register(new MutableDisposable());
-
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		const control = this.getControl();
 		if (!control) {
@@ -67,32 +65,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService fileService: IFileService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
-
-		// Listen to file system provider changes
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProvider(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
-	}
-
-	private onDidChangeFileSystemProvider(scheme: string): void {
-		if (this.input instanceof DiffEditorInput && (this.input.original.resource?.scheme === scheme || this.input.modified.resource?.scheme === scheme)) {
-			this.updateReadonly(this.input);
-		}
-	}
-
-	private onDidChangeInputCapabilities(input: DiffEditorInput): void {
-		if (this.input === input) {
-			this.updateReadonly(input);
-		}
-	}
-
-	private updateReadonly(input: DiffEditorInput): void {
-		this.getControl()?.updateOptions({
-			readOnly: input.modified.hasCapability(EditorInputCapabilities.Readonly),
-			originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly)
-		});
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService, fileService);
 	}
 
 	override getTitle(): string {
@@ -112,9 +87,6 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	override async setInput(input: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-
-		// Update our listener for input capabilities
-		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
@@ -268,6 +240,17 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return options;
 	}
 
+	protected override updateReadonly(input: EditorInput): void {
+		if (input instanceof DiffEditorInput) {
+			this.getControl()?.updateOptions({
+				readOnly: input.hasCapability(EditorInputCapabilities.Readonly),
+				originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly)
+			});
+		} else {
+			super.updateReadonly(input);
+		}
+	}
+
 	private isFileBinaryError(error: Error[]): boolean;
 	private isFileBinaryError(error: Error): boolean;
 	private isFileBinaryError(error: Error | Error[]): boolean {
@@ -282,9 +265,6 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	override clearInput(): void {
 		super.clearInput();
-
-		// Clear input listener
-		this.inputListener.clear();
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();

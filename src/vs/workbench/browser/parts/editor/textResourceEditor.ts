@@ -28,6 +28,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ModelConstants } from 'vs/editor/common/model';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IFileService } from 'vs/platform/files/common/files';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -43,9 +44,10 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IFileService fileService: IFileService
 	) {
-		super(id, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		super(id, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 	}
 
 	override async setInput(input: AbstractTextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -137,9 +139,10 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IFileService fileService: IFileService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
 	}
 
 	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): CodeEditorWidget {
