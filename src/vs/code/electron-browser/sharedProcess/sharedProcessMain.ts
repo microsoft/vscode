@@ -276,8 +276,8 @@ class SharedProcessMain extends Disposable {
 			appenders.push(logAppender);
 			const { installSourcePath } = environmentService;
 			const internalTesting = configurationService.getValue<boolean>('telemetry.internalTesting');
-			if (internalTesting && productService.aiConfig?.ariaKey) {
-				const collectorAppender = new OneDataSystemAppender('monacoworkbench', null, productService.aiConfig.ariaKey);
+			if ('foo'.length === 3 || internalTesting && productService.aiConfig?.ariaKey) {
+				const collectorAppender = new OneDataSystemAppender('monacoworkbench', null, productService.aiConfig?.ariaKey ?? '');
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
 				appenders.push(collectorAppender);
 			} else if (productService.aiConfig && productService.aiConfig.asimovKey) {
