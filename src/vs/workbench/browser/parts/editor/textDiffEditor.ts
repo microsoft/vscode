@@ -26,13 +26,13 @@ import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/co
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
-import { multibyteAwareBtoa } from 'vs/base/browser/dom';
+import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { IFileService } from 'vs/platform/files/common/files';
 
 /**
@@ -42,17 +42,18 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
 
+	private diffEditorControl: IDiffEditor | undefined = undefined;
+
 	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
-		const control = this.getControl();
-		if (!control) {
+		if (!this.diffEditorControl) {
 			return undefined;
 		}
 
-		const originalEditor = control.getOriginalEditor();
-		const modifiedEditor = control.getModifiedEditor();
+		const originalEditor = this.diffEditorControl.getOriginalEditor();
+		const modifiedEditor = this.diffEditorControl.getModifiedEditor();
 
 		return (originalEditor.hasTextFocus() ? originalEditor : modifiedEditor).invokeWithinContext(accessor => accessor.get(IContextKeyService));
 	}
@@ -78,12 +79,16 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return localize('textDiffEditor', "Text Diff Editor");
 	}
 
-	override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {});
+	override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): void {
+		this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {}));
+	}
+
+	protected updateEditorControlOptions(options: ICodeEditorOptions): void {
+		this.diffEditorControl?.updateOptions(options);
 	}
 
 	protected getMainControl(): ICodeEditor | undefined {
-		return this.getControl()?.getModifiedEditor();
+		return this.diffEditorControl?.getModifiedEditor();
 	}
 
 	override async setInput(input: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -109,7 +114,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			}
 
 			// Set Editor Model
-			const control = assertIsDefined(this.getControl());
+			const control = assertIsDefined(this.diffEditorControl);
 			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
 			control.setModel(withUndefinedAsNull(resolvedDiffEditorModel.textDiffEditorModel));
 
@@ -204,7 +209,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		super.setOptions(options);
 
 		if (options) {
-			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
+			applyTextEditorOptions(options, assertIsDefined(this.diffEditorControl), ScrollType.Smooth);
 		}
 	}
 
@@ -242,7 +247,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	protected override updateReadonly(input: EditorInput): void {
 		if (input instanceof DiffEditorInput) {
-			this.getControl()?.updateOptions({
+			this.diffEditorControl?.updateOptions({
 				readOnly: input.hasCapability(EditorInputCapabilities.Readonly),
 				originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly)
 			});
@@ -270,7 +275,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		this.diffNavigatorDisposables.clear();
 
 		// Clear Model
-		this.getControl()?.setModel(null);
+		this.diffEditorControl?.setModel(null);
 	}
 
 	getDiffNavigator(): DiffNavigator | undefined {
@@ -278,7 +283,29 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	override getControl(): IDiffEditor | undefined {
-		return super.getControl() as IDiffEditor | undefined;
+		return this.diffEditorControl;
+	}
+
+	override focus(): void {
+		this.diffEditorControl?.focus();
+	}
+
+	override hasFocus(): boolean {
+		return this.diffEditorControl?.hasTextFocus() || super.hasFocus();
+	}
+
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		super.setEditorVisible(visible, group);
+
+		if (visible) {
+			this.diffEditorControl?.onVisible();
+		} else {
+			this.diffEditorControl?.onHide();
+		}
+	}
+
+	override layout(dimension: Dimension): void {
+		this.diffEditorControl?.layout(dimension);
 	}
 
 	protected override tracksEditorViewState(input: EditorInput): boolean {
@@ -286,12 +313,11 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	protected override computeEditorViewState(resource: URI): IDiffEditorViewState | undefined {
-		const control = this.getControl();
-		if (!control) {
+		if (!this.diffEditorControl) {
 			return undefined;
 		}
 
-		const model = control.getModel();
+		const model = this.diffEditorControl.getModel();
 		if (!model || !model.modified || !model.original) {
 			return undefined; // view state always needs a model
 		}
@@ -305,7 +331,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			return undefined; // prevent saving view state for a model that is not the expected one
 		}
 
-		return withNullAsUndefined(control.saveViewState());
+		return withNullAsUndefined(this.diffEditorControl.saveViewState());
 	}
 
 	protected override toEditorViewStateResource(modelOrInput: IDiffEditorModel | EditorInput): URI | undefined {

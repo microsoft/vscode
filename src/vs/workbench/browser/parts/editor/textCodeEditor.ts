@@ -12,18 +12,22 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { isEqual } from 'vs/base/common/resources';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { Dimension } from 'vs/base/browser/dom';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * A text editor using the code editor widget.
  */
 export abstract class AbstractTextCodeEditor<T extends IEditorViewState> extends AbstractTextEditor<T> implements ITextEditorPane {
 
+	protected editorControl: ICodeEditor | undefined = undefined;
+
 	override get scopedContextKeyService(): IContextKeyService | undefined {
-		return this.getControl()?.invokeWithinContext(accessor => accessor.get(IContextKeyService));
+		return this.editorControl?.invokeWithinContext(accessor => accessor.get(IContextKeyService));
 	}
 
 	override getTitle(): string {
@@ -34,25 +38,32 @@ export abstract class AbstractTextCodeEditor<T extends IEditorViewState> extends
 		return localize('textEditor', "Text Editor");
 	}
 
-	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): CodeEditorWidget {
-		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
+	protected createEditorControl(parent: HTMLElement, initialOptions: ICodeEditorOptions): void {
+		this.editorControl = this._register(this.instantiationService.createInstance(CodeEditorWidget, parent, initialOptions, this.getCodeEditorWidgetOptions()));
+	}
+
+	protected getCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
+		return Object.create(null);
+	}
+
+	protected updateEditorControlOptions(options: ICodeEditorOptions): void {
+		this.editorControl?.updateOptions(options);
 	}
 
 	protected getMainControl(): ICodeEditor | undefined {
-		return this.getControl();
+		return this.editorControl;
 	}
 
 	override getControl(): ICodeEditor | undefined {
-		return super.getControl() as ICodeEditor | undefined;
+		return this.editorControl;
 	}
 
 	protected override computeEditorViewState(resource: URI): T | undefined {
-		const control = this.getControl();
-		if (!control) {
+		if (!this.editorControl) {
 			return undefined;
 		}
 
-		const model = control.getModel();
+		const model = this.editorControl.getModel();
 		if (!model) {
 			return undefined; // view state always needs a model
 		}
@@ -66,14 +77,36 @@ export abstract class AbstractTextCodeEditor<T extends IEditorViewState> extends
 			return undefined; // prevent saving view state for a model that is not the expected one
 		}
 
-		return withNullAsUndefined(control.saveViewState() as unknown as T);
+		return withNullAsUndefined(this.editorControl.saveViewState() as unknown as T);
 	}
 
 	override setOptions(options: ITextEditorOptions | undefined): void {
 		super.setOptions(options);
 
 		if (options) {
-			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
+			applyTextEditorOptions(options, assertIsDefined(this.editorControl), ScrollType.Smooth);
 		}
+	}
+
+	override focus(): void {
+		this.editorControl?.focus();
+	}
+
+	override hasFocus(): boolean {
+		return this.editorControl?.hasTextFocus() || super.hasFocus();
+	}
+
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		super.setEditorVisible(visible, group);
+
+		if (visible) {
+			this.editorControl?.onVisible();
+		} else {
+			this.editorControl?.onHide();
+		}
+	}
+
+	override layout(dimension: Dimension): void {
+		this.editorControl?.layout(dimension);
 	}
 }

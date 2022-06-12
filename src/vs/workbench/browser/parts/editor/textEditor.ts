@@ -8,8 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { distinct, deepClone } from 'vs/base/common/objects';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined } from 'vs/base/common/types';
-import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Dimension } from 'vs/base/browser/dom';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -35,25 +34,6 @@ export interface IEditorConfiguration {
 	diffEditor: object;
 }
 
-export interface ITextEditorControl extends IDisposable {
-
-	/**
-	 * A method to apply all configured options to the code
-	 * editors that are used within the editor pane.
-	 *
-	 * @param options the options to apply
-	 */
-	updateOptions(options: ICodeEditorOptions): void;
-
-	focus(): void;
-	hasTextFocus(): boolean;
-
-	onHide(): void;
-	onVisible(): void;
-
-	layout(dimension: Dimension): void;
-}
-
 /**
  * The base class of editors that leverage any kind of text editor for the editing experience.
  */
@@ -64,7 +44,6 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	protected readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
-	private editorControl: ITextEditorControl | undefined;
 	private editorContainer: HTMLElement | undefined;
 
 	private hasPendingConfigurationChange: boolean | undefined;
@@ -99,7 +78,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 			const ariaLabel = this.computeAriaLabel();
 
 			this.editorContainer?.setAttribute('aria-label', ariaLabel);
-			this.editorControl?.updateOptions({ ariaLabel });
+			this.updateEditorControlOptions({ ariaLabel });
 		}));
 
 		// Listen to file system provider changes
@@ -155,7 +134,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected updateReadonly(input: EditorInput): void {
-		this.getControl()?.updateOptions({
+		this.updateEditorControlOptions({
 			readOnly: input.hasCapability(EditorInputCapabilities.Readonly)
 		});
 	}
@@ -177,7 +156,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 
 		// Create editor control
 		this.editorContainer = parent;
-		this.editorControl = this._register(this.createEditorControl(parent, this.computeConfiguration(this.textResourceConfigurationService.getValue<IEditorConfiguration>(this.getActiveResource()))));
+		this.createEditorControl(parent, this.computeConfiguration(this.textResourceConfigurationService.getValue<IEditorConfiguration>(this.getActiveResource())));
 
 		// Listeners
 		this.registerCodeEditorListeners();
@@ -222,7 +201,13 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	 * The passed in configuration object should be passed to the editor
 	 * control when creating it.
 	 */
-	protected abstract createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): ITextEditorControl;
+	protected abstract createEditorControl(parent: HTMLElement, initialOptions: ICodeEditorOptions): void;
+
+	/**
+	 * The method asks to update the editor control options and is called
+	 * whenever there is change to the options.
+	 */
+	protected abstract updateEditorControlOptions(options: ICodeEditorOptions): void;
 
 	/**
 	 * This method returns the main, dominant instance of `ICodeEditor`
@@ -255,32 +240,11 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		const control = assertIsDefined(this.editorControl);
 		if (visible) {
 			this.consumePendingConfigurationChangeEvent();
-
-			control.onVisible();
-		} else {
-			control.onHide();
 		}
 
 		super.setEditorVisible(visible, group);
-	}
-
-	override focus(): void {
-		this.editorControl?.focus();
-	}
-
-	override hasFocus(): boolean {
-		return this.editorControl?.hasTextFocus() || super.hasFocus();
-	}
-
-	layout(dimension: Dimension): void {
-		this.editorControl?.layout(dimension);
-	}
-
-	override getControl(): ITextEditorControl | undefined {
-		return this.editorControl;
 	}
 
 	protected override toEditorViewStateResource(input: EditorInput): URI | undefined {
@@ -295,7 +259,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 			}
 		}
 
-		if (!this.editorControl || !configuration) {
+		if (!configuration) {
 			return;
 		}
 
@@ -312,7 +276,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		if (Object.keys(editorSettingsToApply).length > 0) {
 			this.lastAppliedEditorOptions = editorConfiguration;
 
-			this.editorControl.updateOptions(editorSettingsToApply);
+			this.updateEditorControlOptions(editorSettingsToApply);
 		}
 	}
 

@@ -6,7 +6,6 @@
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
 import { IEditorOpenContext, isTextEditorViewState } from 'vs/workbench/common/editor';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -67,7 +66,7 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		}
 
 		// Set Editor Model
-		const control = assertIsDefined(this.getControl());
+		const control = assertIsDefined(this.editorControl);
 		const textEditorModel = resolvedModel.textEditorModel;
 		control.setModel(textEditorModel);
 
@@ -100,7 +99,7 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 	 * Reveals the last line of this editor if it has a model set.
 	 */
 	revealLastLine(): void {
-		const control = this.getControl();
+		const control = this.editorControl;
 		if (!control) {
 			return;
 		}
@@ -117,7 +116,7 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		super.clearInput();
 
 		// Clear Model
-		this.getControl()?.setModel(null);
+		this.editorControl?.setModel(null);
 	}
 
 	protected override tracksEditorViewState(input: EditorInput): boolean {
@@ -145,14 +144,15 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
 	}
 
-	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): CodeEditorWidget {
-		const control = super.createEditorControl(parent, configuration);
+	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): void {
+		super.createEditorControl(parent, configuration);
 
 		// Install a listener for paste to update this editors
 		// language if the paste includes a specific language
-		this._register(control.onDidPaste(e => this.onDidEditorPaste(e, control)));
-
-		return control;
+		const control = this.editorControl;
+		if (control) {
+			this._register(control.onDidPaste(e => this.onDidEditorPaste(e, control)));
+		}
 	}
 
 	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {

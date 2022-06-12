@@ -13,12 +13,11 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/browser/peek/referencesController';
@@ -74,7 +73,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
 
 	private queryEditorWidget!: SearchWidget;
-	private searchResultEditor!: CodeEditorWidget;
+	private get searchResultEditor() { return this.editorControl!; }
 	private queryEditorContainer!: HTMLElement;
 	private dimension?: DOM.Dimension;
 	private inputPatternIncludes!: IncludePatternInputWidget;
@@ -231,12 +230,11 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 	}
 
-	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): CodeEditorWidget {
-		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: this._getContributions() });
+	protected override getCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
+		return { contributions: this._getContributions() };
 	}
 
 	private registerEditorListeners() {
-		this.searchResultEditor = super.getControl() as CodeEditorWidget;
 		this.searchResultEditor.onMouseUp(e => {
 			if (e.event.detail === 2) {
 				const behaviour = this.searchConfig.searchEditor.doubleClickBehaviour;

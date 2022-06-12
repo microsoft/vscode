@@ -180,15 +180,15 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerFile
 
 export class TestTextResourceEditor extends TextResourceEditor {
 
-	protected override createEditorControl(parent: HTMLElement, configuration: any): TestCodeEditor {
-		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
+	protected override createEditorControl(parent: HTMLElement, configuration: any): void {
+		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
 	}
 }
 
 export class TestTextFileEditor extends TextFileEditor {
 
-	protected override createEditorControl(parent: HTMLElement, configuration: any): TestCodeEditor {
-		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
+	protected override createEditorControl(parent: HTMLElement, configuration: any): void {
+		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
 	}
 
 	setSelection(selection: Selection | undefined, reason: EditorPaneSelectionChangeReason): void {

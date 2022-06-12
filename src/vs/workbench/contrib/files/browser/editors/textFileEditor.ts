@@ -113,7 +113,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 			const textFileModel = resolvedModel;
 
 			// Editor
-			const control = assertIsDefined(this.getControl());
+			const control = assertIsDefined(this.editorControl);
 			control.setModel(textFileModel.textEditorModel);
 
 			// Restore view state (unless provided by options)
@@ -255,7 +255,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		super.clearInput();
 
 		// Clear Model
-		this.getControl()?.setModel(null);
+		this.editorControl?.setModel(null);
 	}
 
 	protected override tracksEditorViewState(input: EditorInput): boolean {
