@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IExtendedConfiguration, AppInsightsCore } from '@microsoft/1ds-core-js';
-import { IChannelConfiguration, IPayloadData, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
-import * as https from 'https';
+import type { AppInsightsCore } from '@microsoft/1ds-core-js';
+// import { IChannelConfiguration, IPayloadData, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
+// import * as https from 'https';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { mixin } from 'vs/base/common/objects';
 import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -13,64 +13,64 @@ import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry
 async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 	const oneDs = await import('@microsoft/1ds-core-js');
 	const appInsightsCore = new oneDs.AppInsightsCore();
-	const collectorChannelPlugin: PostChannel = new PostChannel();
-	// Configure the app insights core to send to collector++ and disable logging of debug info
-	const coreConfig: IExtendedConfiguration = {
-		instrumentationKey,
-		endpointUrl: 'https://mobile.events.data.microsoft.com/OneCollector/1.0',
-		loggingLevelTelemetry: 0,
-		loggingLevelConsole: 0,
-		channels: [[
-			collectorChannelPlugin
-		]]
-	};
+	// const collectorChannelPlugin: PostChannel = new PostChannel();
+	// // Configure the app insights core to send to collector++ and disable logging of debug info
+	// const coreConfig: IExtendedConfiguration = {
+	// 	instrumentationKey,
+	// 	endpointUrl: 'https://mobile.events.data.microsoft.com/OneCollector/1.0',
+	// 	loggingLevelTelemetry: 0,
+	// 	loggingLevelConsole: 0,
+	// 	channels: [[
+	// 		collectorChannelPlugin
+	// 	]]
+	// };
 
-	// Setup the collector posting channel to utilize nodes HTTP request rather than webs
-	if (coreConfig.extensionConfig) {
-		const customHttpXHROverride: IXHROverride = {
-			sendPOST: (payload: IPayloadData, oncomplete) => {
-				const options = {
-					method: 'POST',
-					headers: {
-						...payload.headers,
-						'Content-Type': 'application/json',
-						'Content-Length': Buffer.byteLength(payload.data)
-					}
-				};
-				try {
-					const req = https.request(payload.urlString, options, res => {
-						res.on('data', function (responseData) {
-							oncomplete(res.statusCode ?? 200, res.headers as Record<string, any>, responseData.toString());
-						});
-						// On response with error send status of 0 and a blank response to oncomplete so we can retry events
-						res.on('error', function (err) {
-							oncomplete(0, {});
-						});
-					});
-					req.write(payload.data);
-					req.end();
-				} catch {
-					// If it errors out, send status of 0 and a blank response to oncomplete so we can retry events
-					oncomplete(0, {});
-				}
-			}
-		};
-		// Configure the channel to use a XHR Request override since it's not available in node
-		const channelConfig: IChannelConfiguration = {
-			alwaysUseXhrOverride: true,
-			httpXHROverride: customHttpXHROverride
-		};
-		coreConfig.extensionConfig[collectorChannelPlugin.identifier] = channelConfig;
-	}
+	// // Setup the collector posting channel to utilize nodes HTTP request rather than webs
+	// if (coreConfig.extensionConfig) {
+	// 	const customHttpXHROverride: IXHROverride = {
+	// 		sendPOST: (payload: IPayloadData, oncomplete) => {
+	// 			const options = {
+	// 				method: 'POST',
+	// 				headers: {
+	// 					...payload.headers,
+	// 					'Content-Type': 'application/json',
+	// 					'Content-Length': Buffer.byteLength(payload.data)
+	// 				}
+	// 			};
+	// 			try {
+	// 				const req = https.request(payload.urlString, options, res => {
+	// 					res.on('data', function (responseData) {
+	// 						oncomplete(res.statusCode ?? 200, res.headers as Record<string, any>, responseData.toString());
+	// 					});
+	// 					// On response with error send status of 0 and a blank response to oncomplete so we can retry events
+	// 					res.on('error', function (err) {
+	// 						oncomplete(0, {});
+	// 					});
+	// 				});
+	// 				req.write(payload.data);
+	// 				req.end();
+	// 			} catch {
+	// 				// If it errors out, send status of 0 and a blank response to oncomplete so we can retry events
+	// 				oncomplete(0, {});
+	// 			}
+	// 		}
+	// 	};
+	// 	// Configure the channel to use a XHR Request override since it's not available in node
+	// 	const channelConfig: IChannelConfiguration = {
+	// 		alwaysUseXhrOverride: true,
+	// 		httpXHROverride: customHttpXHROverride
+	// 	};
+	// 	coreConfig.extensionConfig[collectorChannelPlugin.identifier] = channelConfig;
+	// }
 
-	appInsightsCore.initialize(coreConfig, []);
+	appInsightsCore.initialize({}, []);
 
-	appInsightsCore.addTelemetryInitializer((envelope) => {
-		if (envelope.tags) {
-			// Sets it to be internal only based on Windows UTC flagging
-			envelope.tags['utc.flags'] = 0x0000811ECD;
-		}
-	});
+	// appInsightsCore.addTelemetryInitializer((envelope) => {
+	// 	if (envelope.tags) {
+	// 		// Sets it to be internal only based on Windows UTC flagging
+	// 		envelope.tags['utc.flags'] = 0x0000811ECD;
+	// 	}
+	// });
 
 	return appInsightsCore;
 }
