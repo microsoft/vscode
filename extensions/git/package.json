@@ -1517,7 +1517,7 @@
       "merge/toolbar": [
         {
           "command": "git.acceptMerge",
-          "when": "isMergeEditor"
+          "when": "isMergeEditor && baseResourceScheme =~ /^git$|^file$/"
         }
       ],
       "scm/change/title": [

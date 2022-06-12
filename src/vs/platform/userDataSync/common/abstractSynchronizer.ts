@@ -55,6 +55,9 @@ export function isSyncData(thing: any): thing is ISyncData {
 
 export interface IResourcePreview {
 
+	readonly baseResource: URI;
+	readonly baseContent: string | null;
+
 	readonly remoteResource: URI;
 	readonly remoteContent: string | null;
 	readonly remoteChange: Change;
@@ -533,6 +536,9 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 				}
 				if (this.extUri.isEqual(resourcePreview.localResource, uri)) {
 					return resourcePreview.localContent;
+				}
+				if (this.extUri.isEqual(resourcePreview.baseResource, uri)) {
+					return resourcePreview.baseContent;
 				}
 			}
 		}

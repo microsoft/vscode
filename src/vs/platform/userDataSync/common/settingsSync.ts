@@ -45,6 +45,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 	/* Version 2: Change settings from `sync.${setting}` to `settingsSync.{setting}` */
 	protected readonly version: number = 2;
 	readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'settings.json');
+	readonly baseResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' });
 	readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
 	readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
@@ -121,6 +122,10 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 		return [{
 			fileContent,
+
+			baseResource: this.baseResource,
+			baseContent: lastSettingsSyncContent ? lastSettingsSyncContent.settings : null,
+
 			localResource: this.localResource,
 			localContent: fileContent ? fileContent.value.toString() : null,
 			localChange: previewResult.localChange,
@@ -274,7 +279,11 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 	}
 
 	override async resolveContent(uri: URI): Promise<string | null> {
-		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
+		if (this.extUri.isEqual(this.remoteResource, uri)
+			|| this.extUri.isEqual(this.localResource, uri)
+			|| this.extUri.isEqual(this.acceptedResource, uri)
+			|| this.extUri.isEqual(this.baseResource, uri)
+		) {
 			return this.resolvePreviewContent(uri);
 		}
 		let content = await super.resolveContent(uri);

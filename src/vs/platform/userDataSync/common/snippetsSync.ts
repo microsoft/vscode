@@ -67,7 +67,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		}
 
 		const mergeResult = merge(localSnippets, remoteSnippets, lastSyncSnippets);
-		return this.getResourcePreviews(mergeResult, local, remoteSnippets || {});
+		return this.getResourcePreviews(mergeResult, local, remoteSnippets || {}, lastSyncSnippets || {});
 	}
 
 	protected async hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean> {
@@ -165,7 +165,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 
 	}
 
-	private getResourcePreviews(snippetsMergeResult: ISnippetsMergeResult, localFileContent: IStringDictionary<IFileContent>, remoteSnippets: IStringDictionary<string>): ISnippetsResourcePreview[] {
+	private getResourcePreviews(snippetsMergeResult: ISnippetsMergeResult, localFileContent: IStringDictionary<IFileContent>, remoteSnippets: IStringDictionary<string>, baseSnippets: IStringDictionary<string>): ISnippetsResourcePreview[] {
 		const resourcePreviews: Map<string, ISnippetsResourcePreview> = new Map<string, ISnippetsResourcePreview>();
 
 		/* Snippets added remotely -> add locally */
@@ -177,6 +177,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				remoteChange: Change.None,
 			};
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: null,
 				fileContent: null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				localContent: null,
@@ -199,6 +201,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				remoteChange: Change.None,
 			};
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: baseSnippets[key] || null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: localFileContent[key],
 				localContent: localFileContent[key].value.toString(),
@@ -221,6 +225,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				remoteChange: Change.None,
 			};
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: baseSnippets[key] || null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: localFileContent[key],
 				localContent: localFileContent[key].value.toString(),
@@ -243,6 +249,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				remoteChange: Change.Added,
 			};
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: localFileContent[key],
 				localContent: localFileContent[key].value.toString(),
@@ -265,6 +273,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				remoteChange: Change.Modified,
 			};
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: baseSnippets[key] || null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: localFileContent[key],
 				localContent: localFileContent[key].value.toString(),
@@ -287,6 +297,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				remoteChange: Change.Deleted,
 			};
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: baseSnippets[key] || null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: null,
 				localContent: null,
@@ -309,6 +321,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				remoteChange: remoteSnippets[key] ? Change.Modified : Change.Added
 			};
 			resourcePreviews.set(key, {
+				baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+				baseContent: baseSnippets[key] || null,
 				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 				fileContent: localFileContent[key] || null,
 				localContent: localFileContent[key] ? localFileContent[key].value.toString() : null,
@@ -332,6 +346,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 					remoteChange: Change.None
 				};
 				resourcePreviews.set(key, {
+					baseResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }),
+					baseContent: baseSnippets[key] || null,
 					localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
 					fileContent: localFileContent[key] || null,
 					localContent: localFileContent[key] ? localFileContent[key].value.toString() : null,
@@ -371,6 +387,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	override async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }))
 			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }))
+			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' }))
 			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' }))) {
 			return this.resolvePreviewContent(uri);
 		}

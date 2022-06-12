@@ -53,6 +53,7 @@ import { EditorGutter, IGutterItemInfo, IGutterItemView } from './editorGutter';
 
 export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false);
 export const ctxUsesColumnLayout = new RawContextKey<boolean>('mergeEditorUsesColumnLayout', false);
+export const ctxBaseResourceScheme = new RawContextKey<string>('baseResourceScheme', '');
 
 export class MergeEditor extends EditorPane {
 
@@ -68,6 +69,7 @@ export class MergeEditor extends EditorPane {
 
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
 	private readonly _ctxUsesColumnLayout: IContextKey<boolean>;
+	private readonly _ctxBaseResourceScheme: IContextKey<string>;
 
 	private _model: MergeEditorModel | undefined;
 	public get model(): MergeEditorModel | undefined { return this._model; }
@@ -91,6 +93,7 @@ export class MergeEditor extends EditorPane {
 
 		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(_contextKeyService);
 		this._ctxUsesColumnLayout = ctxUsesColumnLayout.bindTo(_contextKeyService);
+		this._ctxBaseResourceScheme = ctxBaseResourceScheme.bindTo(_contextKeyService);
 
 		const reentrancyBarrier = new ReentrancyBarrier();
 
@@ -231,6 +234,7 @@ export class MergeEditor extends EditorPane {
 		this.input1View.setModel(model, model.input1, localize('yours', 'Yours'), model.input1Detail, model.input1Description);
 		this.input2View.setModel(model, model.input2, localize('theirs', 'Theirs',), model.input2Detail, model.input2Description);
 		this.inputResultView.setModel(model, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
+		this._ctxBaseResourceScheme.set(model.base.uri.scheme);
 
 		// TODO: Update editor options!
 

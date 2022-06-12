@@ -909,6 +909,7 @@ class Synchronizers extends Disposable {
 
 function toStrictResourcePreview(resourcePreview: IResourcePreview): IResourcePreview {
 	return {
+		baseResource: resourcePreview.baseResource,
 		localResource: resourcePreview.localResource,
 		previewResource: resourcePreview.previewResource,
 		remoteResource: resourcePreview.remoteResource,
