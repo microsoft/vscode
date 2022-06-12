@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
 import { IEditorOpenContext, isTextEditorViewState } from 'vs/workbench/common/editor';
@@ -49,14 +48,6 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		super(id, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 	}
 
-	override getTitle(): string | undefined {
-		if (this.input) {
-			return this.input.getName();
-		}
-
-		return localize('textEditor', "Text Editor");
-	}
-
 	override async setInput(input: AbstractTextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Set input and resolve
@@ -74,9 +65,9 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		}
 
 		// Set Editor Model
-		const textEditor = assertIsDefined(this.getControl());
+		const control = assertIsDefined(this.getControl());
 		const textEditorModel = resolvedModel.textEditorModel;
-		textEditor.setModel(textEditorModel);
+		control.setModel(textEditorModel);
 
 		// Restore view state (unless provided by options)
 		if (!isTextEditorViewState(options?.viewState)) {
@@ -86,13 +77,13 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 					editorViewState.cursorState = []; // prevent duplicate selections via options
 				}
 
-				textEditor.restoreViewState(editorViewState);
+				control.restoreViewState(editorViewState);
 			}
 		}
 
 		// Apply options to editor if any
 		if (options) {
-			applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
+			applyTextEditorOptions(options, control, ScrollType.Immediate);
 		}
 
 		// Since the resolved model provides information about being readonly
@@ -100,19 +91,23 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		// was already asked for being readonly or not. The rationale is that
 		// a resolved model might have more specific information about being
 		// readonly or not that the input did not have.
-		textEditor.updateOptions({ readOnly: resolvedModel.isReadonly() });
+		control.updateOptions({ readOnly: resolvedModel.isReadonly() });
 	}
 
 	/**
 	 * Reveals the last line of this editor if it has a model set.
 	 */
 	revealLastLine(): void {
-		const codeEditor = <ICodeEditor>this.getControl();
-		const model = codeEditor.getModel();
+		const control = this.getControl();
+		if (!control) {
+			return;
+		}
+
+		const model = control.getModel();
 
 		if (model) {
 			const lastLine = model.getLineCount();
-			codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
+			control.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
 		}
 	}
 
@@ -120,10 +115,7 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		super.clearInput();
 
 		// Clear Model
-		const textEditor = this.getControl();
-		if (textEditor) {
-			textEditor.setModel(null);
-		}
+		this.getControl()?.setModel(null);
 	}
 
 	protected override tracksEditorViewState(input: EditorInput): boolean {

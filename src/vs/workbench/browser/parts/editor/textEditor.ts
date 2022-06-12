@@ -98,7 +98,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		}));
 	}
 
-	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
+	private handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
 		if (this.isVisible()) {
 			this.updateEditorConfiguration(configuration);
 		} else {

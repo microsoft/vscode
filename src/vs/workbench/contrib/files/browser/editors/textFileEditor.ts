@@ -99,14 +99,15 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 	}
 
 	private updateReadonly(input: FileEditorInput): void {
-		const control = this.getControl();
-		if (control) {
-			control.updateOptions({ readOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
-		}
+		this.getControl()?.updateOptions({ readOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
 	}
 
 	override getTitle(): string {
-		return this.input ? this.input.getName() : localize('textFileEditor', "Text File Editor");
+		if (this.input) {
+			return this.input.getName();
+		}
+
+		return localize('textFileEditor', "Text File Editor");
 	}
 
 	override get input(): FileEditorInput | undefined {
@@ -138,8 +139,8 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 			const textFileModel = resolvedModel;
 
 			// Editor
-			const textEditor = assertIsDefined(this.getControl());
-			textEditor.setModel(textFileModel.textEditorModel);
+			const control = assertIsDefined(this.getControl());
+			control.setModel(textFileModel.textEditorModel);
 
 			// Restore view state (unless provided by options)
 			if (!isTextEditorViewState(options?.viewState)) {
@@ -149,13 +150,13 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 						editorViewState.cursorState = []; // prevent duplicate selections via options
 					}
 
-					textEditor.restoreViewState(editorViewState);
+					control.restoreViewState(editorViewState);
 				}
 			}
 
 			// Apply options to editor if any
 			if (options) {
-				applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
+				applyTextEditorOptions(options, control, ScrollType.Immediate);
 			}
 
 			// Since the resolved model provides information about being readonly
@@ -163,7 +164,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 			// was already asked for being readonly or not. The rationale is that
 			// a resolved model might have more specific information about being
 			// readonly or not that the input did not have.
-			textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
+			control.updateOptions({ readOnly: textFileModel.isReadonly() });
 		} catch (error) {
 			await this.handleSetInputError(error, input, options);
 		}
@@ -283,10 +284,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		this.inputListener.clear();
 
 		// Clear Model
-		const textEditor = this.getControl();
-		if (textEditor) {
-			textEditor.setModel(null);
-		}
+		this.getControl()?.setModel(null);
 	}
 
 	protected override tracksEditorViewState(input: EditorInput): boolean {

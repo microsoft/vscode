@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ITextEditorPane } from 'vs/workbench/common/editor';
@@ -23,6 +24,14 @@ export abstract class AbstractTextCodeEditor<T extends IEditorViewState> extends
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this.getControl()?.invokeWithinContext(accessor => accessor.get(IContextKeyService));
+	}
+
+	override getTitle(): string {
+		if (this.input) {
+			return this.input.getName();
+		}
+
+		return localize('textEditor', "Text Editor");
 	}
 
 	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): CodeEditorWidget {
