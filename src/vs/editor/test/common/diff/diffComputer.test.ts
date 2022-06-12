@@ -3,7 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { Constants } from 'vs/base/common/uint';
+import { Range } from 'vs/editor/common/core/range';
 import { DiffComputer, IChange, ICharChange, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 function extractCharChangeRepresentation(change: ICharChange, expectedChange: ICharChange | null): ICharChange {
 	const hasOriginal = expectedChange && expectedChange.originalStartLineNumber > 0;
@@ -63,7 +67,134 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 	for (let i = 0; i < changes.length; i++) {
 		extracted.push(extractLineChangeRepresentation(changes[i], <ILineChange>(i < expectedChanges.length ? expectedChanges[i] : null)));
 	}
+
 	assert.deepStrictEqual(extracted, expectedChanges);
+
+	if (!shouldIgnoreTrimWhitespace) {
+		// The diffs should describe how to apply edits to the original text model to get to the modified text model.
+
+		const modifiedTextModel = createTextModel(modifiedLines.join('\n'));
+		const expectedValue = modifiedTextModel.getValue();
+
+		{
+			// Line changes:
+			const originalTextModel = createTextModel(originalLines.join('\n'));
+			originalTextModel.applyEdits(changes.map(c => getLineEdit(c, modifiedTextModel)));
+			assert.deepStrictEqual(originalTextModel.getValue(), expectedValue);
+		}
+
+		if (shouldComputeCharChanges) {
+			// Char changes:
+			const originalTextModel = createTextModel(originalLines.join('\n'));
+			originalTextModel.applyEdits(changes.flatMap(c => getCharEdits(c, modifiedTextModel)));
+			assert.deepStrictEqual(originalTextModel.getValue(), expectedValue);
+		}
+	}
+}
+
+function getCharEdits(lineChange: ILineChange, modifiedTextModel: ITextModel): IIdentifiedSingleEditOperation[] {
+	if (!lineChange.charChanges) {
+		return [getLineEdit(lineChange, modifiedTextModel)];
+	}
+	return lineChange.charChanges.map(c => {
+		const originalRange = new Range(c.originalStartLineNumber, c.originalStartColumn, c.originalEndLineNumber, c.originalEndColumn);
+		const modifiedRange = new Range(c.modifiedStartLineNumber, c.modifiedStartColumn, c.modifiedEndLineNumber, c.modifiedEndColumn);
+		return {
+			range: originalRange,
+			text: modifiedTextModel.getValueInRange(modifiedRange)
+		};
+	});
+}
+
+function getLineEdit(lineChange: ILineChange, modifiedTextModel: ITextModel): IIdentifiedSingleEditOperation {
+	let originalRange: LineRange;
+	if (lineChange.originalEndLineNumber === 0) {
+		// Insertion
+		originalRange = new LineRange(lineChange.originalStartLineNumber + 1, 0);
+	} else {
+		originalRange = new LineRange(lineChange.originalStartLineNumber, lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1);
+	}
+
+	let modifiedRange: LineRange;
+	if (lineChange.modifiedEndLineNumber === 0) {
+		// Deletion
+		modifiedRange = new LineRange(lineChange.modifiedStartLineNumber + 1, 0);
+	} else {
+		modifiedRange = new LineRange(lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1);
+	}
+
+	const [r1, r2] = diffFromLineRanges(originalRange, modifiedRange);
+	return {
+		range: r1,
+		text: modifiedTextModel.getValueInRange(r2),
+	};
+}
+
+function diffFromLineRanges(originalRange: LineRange, modifiedRange: LineRange): [Range, Range] {
+	if (originalRange.startLineNumber === 1 || modifiedRange.startLineNumber === 1) {
+		if (!originalRange.isEmpty && !modifiedRange.isEmpty) {
+			return [
+				new Range(
+					originalRange.startLineNumber,
+					1,
+					originalRange.endLineNumberExclusive - 1,
+					Constants.MAX_SAFE_SMALL_INTEGER,
+				),
+				new Range(
+					modifiedRange.startLineNumber,
+					1,
+					modifiedRange.endLineNumberExclusive - 1,
+					Constants.MAX_SAFE_SMALL_INTEGER,
+				)
+			];
+		}
+
+		// When one of them is one and one of them is empty, the other cannot be the last line of the document
+		return [
+			new Range(
+				originalRange.startLineNumber,
+				1,
+				originalRange.endLineNumberExclusive,
+				1,
+			),
+			new Range(
+				modifiedRange.startLineNumber,
+				1,
+				modifiedRange.endLineNumberExclusive,
+				1,
+			)
+		];
+	}
+
+	return [
+		new Range(
+			originalRange.startLineNumber - 1,
+			Constants.MAX_SAFE_SMALL_INTEGER,
+			originalRange.endLineNumberExclusive - 1,
+			Constants.MAX_SAFE_SMALL_INTEGER,
+		),
+		new Range(
+			modifiedRange.startLineNumber - 1,
+			Constants.MAX_SAFE_SMALL_INTEGER,
+			modifiedRange.endLineNumberExclusive - 1,
+			Constants.MAX_SAFE_SMALL_INTEGER,
+		)
+	];
+}
+
+class LineRange {
+	public constructor(
+		public readonly startLineNumber: number,
+		public readonly lineCount: number
+	) { }
+
+	public get isEmpty(): boolean {
+		return this.lineCount === 0;
+	}
+
+	public get endLineNumberExclusive(): number {
+		return this.startLineNumber + this.lineCount;
+	}
 }
 
 function createLineDeletion(startLineNumber: number, endLineNumber: number, modifiedLineNumber: number): ILineChange {
