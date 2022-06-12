@@ -1210,7 +1210,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		await promise;
 	});
 
-	test('creating workspace settings', async () => {
+	test('creating workspace settings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
 		await testObject.reloadConfiguration();
 		await new Promise<void>((c, e) => {
@@ -1222,9 +1222,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			});
 			fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }')).catch(e);
 		});
-	});
+	}));
 
-	test('deleting workspace settings', async () => {
+	test('deleting workspace settings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
 		const workspaceSettingsResource = joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json');
 		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
@@ -1235,7 +1235,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		});
 		assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
 		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'userValue');
-	});
+	}));
 
 	test('restricted setting is read from workspace when workspace is trusted', async () => {
 		testObject.updateWorkspaceTrust(true);
@@ -1335,7 +1335,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.ok(event.affectsConfiguration('configurationService.folder.restrictedSetting'));
 	});
 
-	test('adding an restricted setting triggers change event', async () => {
+	test('adding an restricted setting triggers change event', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
 		testObject.updateWorkspaceTrust(false);
 
@@ -1343,7 +1343,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 
 		return promise;
-	});
+	}));
 
 	test('remove an unregistered setting', async () => {
 		const key = 'configurationService.folder.unknownSetting';
