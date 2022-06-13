@@ -173,6 +173,10 @@ class CodeMain {
 		// Logger
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
+		// State
+		const stateMainService = new StateMainService(environmentMainService, logService, fileService);
+		services.set(IStateMainService, stateMainService);
+
 		// User Data Profiles
 		const userDataProfilesMainService = new UserDataProfilesMainService(environmentMainService, fileService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesMainService);
@@ -184,15 +188,11 @@ class CodeMain {
 		services.set(IPolicyService, policyService);
 
 		// Configuration
-		const configurationService = new ConfigurationService(userDataProfilesMainService, fileService, policyService, logService);
+		const configurationService = new ConfigurationService(userDataProfilesMainService.defaultProfile.settingsResource, fileService, policyService, logService);
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
-
-		// State
-		const stateMainService = new StateMainService(userDataProfilesMainService, logService, fileService);
-		services.set(IStateMainService, stateMainService);
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestMainService));
@@ -229,10 +229,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
-		// State service
-		await stateMainService.init();
-
+	private initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
 		return Promises.settled<unknown>([
 
 			// Environment service (paths)
@@ -246,9 +243,10 @@ class CodeMain {
 				environmentMainService.backupHome
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
+			stateMainService.init(),
+
 			// User Data Profiles Service
-			userDataProfilesMainService.init(stateMainService)
-				.then(() => userDataProfilesMainService.currentProfile.globalStorageHome.fsPath !== userDataProfilesMainService.defaultProfile.globalStorageHome.fsPath ? FSPromises.mkdir(userDataProfilesMainService.currentProfile.globalStorageHome.fsPath, { recursive: true }) : undefined),
+			userDataProfilesMainService.init(stateMainService),
 
 			// Configuration service
 			configurationService.initialize()

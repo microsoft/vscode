@@ -5,14 +5,13 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { DefaultConfiguration, IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 
@@ -21,42 +20,35 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	declare readonly _serviceBrand: undefined;
 
 	private configuration: Configuration;
-	private readonly userConfiguration: MutableDisposable<UserSettings>;
 	private readonly defaultConfiguration: DefaultConfiguration;
 	private readonly policyConfiguration: IPolicyConfiguration;
+	private readonly userConfiguration: UserSettings;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
 	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
-		private readonly userDataProfilesService: IUserDataProfilesService,
-		private readonly fileService: IFileService,
+		private readonly settingsResource: URI,
+		fileService: IFileService,
 		policyService: IPolicyService,
 		logService: ILogService,
 	) {
 		super();
 		this.defaultConfiguration = this._register(new DefaultConfiguration());
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
+		this.userConfiguration = this._register(new UserSettings(this.settingsResource, undefined, extUriBiasedIgnorePathCase, fileService));
 		this.configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel());
-		this.userConfiguration = this._register(new MutableDisposable<UserSettings>());
 
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reloadConfiguration(), 50));
 		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ defaults, properties }) => this.onDidDefaultConfigurationChange(defaults, properties)));
 		this._register(this.policyConfiguration.onDidChangeConfiguration(model => this.onDidPolicyConfigurationChange(model)));
+		this._register(this.userConfiguration.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
-	private initPromise: Promise<void> | undefined;
-	initialize(settingsResource?: URI): Promise<void> {
-		if (!this.initPromise) {
-			this.initPromise = (async () => {
-				this.userConfiguration.value = new UserSettings(settingsResource ?? this.userDataProfilesService.currentProfile.settingsResource, undefined, extUriBiasedIgnorePathCase, this.fileService);
-				this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
-				const [defaultModel, policyModel, userModel] = await Promise.all([this.defaultConfiguration.initialize(), this.policyConfiguration.initialize(), this.userConfiguration.value.loadConfiguration()]);
-				this.configuration = new Configuration(defaultModel, policyModel, userModel);
-			})();
-		}
-		return this.initPromise;
+	async initialize(): Promise<void> {
+		const [defaultModel, policyModel, userModel] = await Promise.all([this.defaultConfiguration.initialize(), this.policyConfiguration.initialize(), this.userConfiguration.loadConfiguration()]);
+		this.configuration = new Configuration(defaultModel, policyModel, userModel);
 	}
 
 	getConfigurationData(): IConfigurationData {
@@ -95,10 +87,8 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	async reloadConfiguration(): Promise<void> {
-		if (this.userConfiguration.value) {
-			const configurationModel = await this.userConfiguration.value.loadConfiguration();
-			this.onDidChangeUserConfiguration(configurationModel);
-		}
+		const configurationModel = await this.userConfiguration.loadConfiguration();
+		this.onDidChangeUserConfiguration(configurationModel);
 	}
 
 	private onDidChangeUserConfiguration(userConfigurationModel: ConfigurationModel): void {

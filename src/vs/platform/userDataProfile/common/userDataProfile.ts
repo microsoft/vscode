@@ -7,6 +7,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
+import { UriDto } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
@@ -24,6 +25,12 @@ export interface IUserDataProfile {
 	readonly extensionsResource: URI | undefined;
 }
 
+export type IUserDataProfileDto = UriDto<IUserDataProfile>;
+export type IUserDataProfilesDto = {
+	readonly current: IUserDataProfileDto;
+	readonly default: IUserDataProfileDto;
+};
+
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
 export interface IUserDataProfilesService {
 	readonly _serviceBrand: undefined;
@@ -38,6 +45,7 @@ export interface IUserDataProfilesService {
 	setProfile(name: string): Promise<void>;
 	getAllProfiles(): Promise<IUserDataProfile[]>;
 
+	serialize(): IUserDataProfilesDto;
 }
 
 function reviveProfile(profile: IUserDataProfile, scheme: string): IUserDataProfile {
@@ -116,4 +124,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	setProfile(name: string): Promise<void> { throw new Error('Not implemented'); }
+
+	serialize(): IUserDataProfilesDto {
+		return {
+			default: this.defaultProfile,
+			current: this.currentProfile
+		};
+	}
 }

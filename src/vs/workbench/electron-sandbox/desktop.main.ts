@@ -54,6 +54,7 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfile';
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
+import { revive } from 'vs/base/common/marshalling';
 
 export class DesktopMain extends Disposable {
 
@@ -239,7 +240,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesNativeService(this.configuration.defaultProfile, this.configuration.currentProfile, mainProcessService.getChannel('userDataProfiles'), environmentService, fileService, logService);
+		const userDataProfilesService = new UserDataProfilesNativeService(revive(this.configuration.profiles.default), revive(this.configuration.profiles.current), mainProcessService.getChannel('userDataProfiles'), environmentService, fileService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

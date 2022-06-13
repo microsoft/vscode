@@ -8,10 +8,10 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { joinPath } from 'vs/base/common/resources';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type StorageDatabase = { [key: string]: unknown };
 
@@ -151,12 +151,12 @@ export class StateMainService implements IStateMainService {
 
 	private static readonly STATE_FILE = 'storage.json';
 
-	private readonly stateFilePath = joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, StateMainService.STATE_FILE);
+	private readonly stateFilePath = joinPath(this.environmentService.stateHome, StateMainService.STATE_FILE);
 
 	private readonly fileStorage: FileStorage;
 
 	constructor(
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
 		@IFileService fileService: IFileService
 	) {

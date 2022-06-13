@@ -60,6 +60,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get cacheHome(): URI { return URI.file(this.userDataPath); }
 
 	@memoize
+	get stateHome(): URI { return joinPath(this.appSettingsHome, 'globalStorage'); }
+
+	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	@memoize

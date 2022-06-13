@@ -231,11 +231,11 @@ class SharedProcessMain extends Disposable {
 		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
 
 		// User Data Profiles
-		const userDataProfilesService = this._register(new UserDataProfilesService(revive(this.configuration.defaultProfile), revive(this.configuration.currentProfile), environmentService, fileService, logService));
+		const userDataProfilesService = this._register(new UserDataProfilesService(revive(this.configuration.profiles.default), revive(this.configuration.profiles.current), environmentService, fileService, logService));
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration
-		const configurationService = this._register(new ConfigurationService(userDataProfilesService, fileService, policyService, logService));
+		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, policyService, logService));
 		services.set(IConfigurationService, configurationService);
 
 		// Storage (global access only)

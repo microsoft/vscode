@@ -232,7 +232,7 @@ export class GlobalStorageMainService extends AbstractStorageService implements 
 	}
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
-		return scope === StorageScope.GLOBAL ? this.userDataProfilesService.currentProfile.globalStorageHome.fsPath : undefined;
+		return scope === StorageScope.GLOBAL ? this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath : undefined;
 	}
 
 	protected override shouldFlushWhenIdle(): boolean {

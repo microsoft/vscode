@@ -39,7 +39,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		// - storage    : all files in global and workspace storage (https://github.com/microsoft/vscode/issues/116735)
 		this.addValidFileRoot(environmentService.appRoot);
 		this.addValidFileRoot(environmentService.extensionsPath);
-		this.addValidFileRoot(userDataProfilesService.currentProfile.globalStorageHome.fsPath);
+		this.addValidFileRoot(userDataProfilesService.defaultProfile.globalStorageHome.fsPath);
 		this.addValidFileRoot(environmentService.workspaceStorageHome.fsPath);
 
 		// Handle protocols

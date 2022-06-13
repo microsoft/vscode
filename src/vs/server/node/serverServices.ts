@@ -112,9 +112,9 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	// Configuration
 	const userDataProfilesService = new UserDataProfilesService(undefined, undefined, environmentService, fileService, logService);
-	const configurationService = new ConfigurationService(userDataProfilesService, fileService, new NullPolicyService(), logService);
+	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService(), logService);
 	services.set(IConfigurationService, configurationService);
-	configurationService.initialize(environmentService.machineSettingsResource);
+	await configurationService.initialize();
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
 	services.set(IExtensionHostStatusService, extensionHostStatusService);

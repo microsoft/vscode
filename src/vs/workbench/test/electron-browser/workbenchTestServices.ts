@@ -48,14 +48,14 @@ import { IElevatedFileService } from 'vs/workbench/services/files/common/elevate
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfile, IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { joinPath } from 'vs/base/common/resources';
 
 const args = parseArgs(process.argv, OPTIONS);
 
 const homeDir = homedir();
-const NULL_PROFILE: IUserDataProfile = {
+const NULL_PROFILE = {
 	name: '',
 	location: URI.file(homeDir),
 	settingsResource: joinPath(URI.file(homeDir), 'settings.json'),
@@ -81,8 +81,7 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	homeDir: homeDir,
 	tmpDir: tmpdir(),
 	userDataDir: getUserDataPath(args),
-	defaultProfile: NULL_PROFILE,
-	currentProfile: NULL_PROFILE,
+	profiles: { current: NULL_PROFILE, default: NULL_PROFILE },
 	...args
 };
 

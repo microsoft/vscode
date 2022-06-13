@@ -261,7 +261,7 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 
 	get path(): string | undefined {
 		if (!this.options.useInMemoryStorage) {
-			return join(this.userDataProfilesService.currentProfile.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
+			return join(this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
 		}
 
 		return undefined;

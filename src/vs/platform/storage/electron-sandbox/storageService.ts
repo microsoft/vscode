@@ -81,7 +81,7 @@ export class NativeStorageService extends AbstractStorageService {
 	}
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
-		return scope === StorageScope.GLOBAL ? this.userDataProfilesService.currentProfile.globalStorageHome.fsPath : this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
+		return scope === StorageScope.GLOBAL ? this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath : this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
 	}
 
 	async close(): Promise<void> {

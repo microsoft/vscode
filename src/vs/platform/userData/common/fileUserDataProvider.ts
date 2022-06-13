@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability } from 'vs/platform/files/common/files';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, hasFileFolderCopyCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
@@ -93,7 +93,7 @@ export class FileUserDataProvider extends Disposable implements
 	}
 
 	copy(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
-		if (this.fileSystemProvider.copy) {
+		if (hasFileFolderCopyCapability(this.fileSystemProvider)) {
 			return this.fileSystemProvider.copy(this.toFileSystemResource(from), this.toFileSystemResource(to), opts);
 		}
 		throw new Error('copy not supported');
