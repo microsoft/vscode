@@ -178,7 +178,7 @@ class CodeMain {
 		services.set(IStateMainService, stateMainService);
 
 		// User Data Profiles
-		const userDataProfilesMainService = new UserDataProfilesMainService(environmentMainService, fileService, logService);
+		const userDataProfilesMainService = new UserDataProfilesMainService(stateMainService, environmentMainService, fileService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesMainService);
 
 		// Policy
@@ -246,7 +246,7 @@ class CodeMain {
 			stateMainService.init(),
 
 			// User Data Profiles Service
-			userDataProfilesMainService.init(stateMainService),
+			userDataProfilesMainService.init(),
 
 			// Configuration service
 			configurationService.initialize()

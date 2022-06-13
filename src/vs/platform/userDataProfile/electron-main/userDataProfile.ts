@@ -13,9 +13,8 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 
 	private static CURRENT_PROFILE_KEY = 'currentUserDataProfile';
 
-	private stateMainService: IStateMainService | undefined;
-
 	constructor(
+		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
@@ -23,8 +22,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		super(undefined, undefined, environmentService, fileService, logService);
 	}
 
-	async init(stateMainService: IStateMainService): Promise<void> {
-		this.stateMainService = stateMainService;
+	async init(): Promise<void> {
 		const profileName = this.stateMainService.getItem<string>(UserDataProfilesMainService.CURRENT_PROFILE_KEY);
 		if (profileName) {
 			const profiles = await this.getAllProfiles();
