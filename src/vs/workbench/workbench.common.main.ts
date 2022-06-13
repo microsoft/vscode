@@ -328,6 +328,9 @@ import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 // User Data Profiles
 import 'vs/workbench/contrib/userDataProfile/browser/userDataProfile.contribution';
 
+// Continue Edit Session
+import 'vs/workbench/contrib/sessionSync/browser/sessionSync.contribution';
+
 // Code Actions
 import 'vs/workbench/contrib/codeActions/browser/codeActions.contribution';
 

@@ -153,6 +153,8 @@ export interface IProductConfiguration {
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
+	readonly 'sessionSync.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
+
 	readonly darwinUniversalAssetId?: string;
 }
 

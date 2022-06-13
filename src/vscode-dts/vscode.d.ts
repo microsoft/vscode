@@ -10114,7 +10114,7 @@ declare module 'vscode' {
 		 * @param callbackfn Callback for iteration through the data transfer items.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callbackfn: (value: DataTransferItem, key: string) => void, thisArg?: unknown): void;
+		forEach(callbackfn: (value: DataTransferItem, key: string) => void, thisArg?: any): void;
 	}
 
 	/**
@@ -15663,7 +15663,7 @@ declare module 'vscode' {
 		 * @param callback Function to execute for each entry.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: unknown): void;
+		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: any): void;
 
 		/**
 		 * Adds the test item to the children. If an item with the same ID already

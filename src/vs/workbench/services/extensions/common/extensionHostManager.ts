@@ -294,16 +294,27 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
 		for (let i = 0, len = namedCustomers.length; i < len; i++) {
 			const [id, ctor] = namedCustomers[i];
-			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._customers.push(instance);
-			this._rpcProtocol.set(id, instance);
+			try {
+				const instance = this._instantiationService.createInstance(ctor, extHostContext);
+				this._customers.push(instance);
+				this._rpcProtocol.set(id, instance);
+			} catch (err) {
+				this._logService.critical(`Cannot instantiate named customer: '${id.sid}'`);
+				this._logService.critical(err);
+				errors.onUnexpectedError(err);
+			}
 		}
 
 		// Customers
 		const customers = ExtHostCustomersRegistry.getCustomers();
 		for (const ctor of customers) {
-			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._customers.push(instance);
+			try {
+				const instance = this._instantiationService.createInstance(ctor, extHostContext);
+				this._customers.push(instance);
+			} catch (err) {
+				this._logService.critical(err);
+				errors.onUnexpectedError(err);
+			}
 		}
 
 		if (!extensionHostProxy) {
