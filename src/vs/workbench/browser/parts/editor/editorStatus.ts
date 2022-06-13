@@ -733,7 +733,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private onLanguageChange(editorWidget: ICodeEditor | undefined, editorInput: EditorInput | undefined): void {
-		let info: StateDelta = { type: 'languageId', languageId: undefined };
+		const info: StateDelta = { type: 'languageId', languageId: undefined };
 
 		// We only support text based editors
 		if (editorWidget && editorInput && toEditorWithLanguageSupport(editorInput)) {
@@ -837,7 +837,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			if (info.selections.length === 1) {
 				const editorPosition = editorWidget.getPosition();
 
-				let selectionClone = new Selection(
+				const selectionClone = new Selection(
 					info.selections[0].selectionStartLineNumber,
 					info.selections[0].selectionStartColumn,
 					info.selections[0].positionLineNumber,

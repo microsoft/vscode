@@ -286,7 +286,7 @@ export class ModifiedBaseRange {
 			new Array<LineDiff>(),
 			new Array<LineDiff>(),
 		];
-		let deltaFromBaseToInput = [0, 0];
+		const deltaFromBaseToInput = [0, 0];
 
 		const result = new Array<ModifiedBaseRange>();
 

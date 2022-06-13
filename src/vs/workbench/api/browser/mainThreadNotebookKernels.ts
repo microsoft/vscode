@@ -136,7 +136,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	dispose(): void {
 		this._disposables.dispose();
-		for (let [, registration] of this._kernels.values()) {
+		for (const [, registration] of this._kernels.values()) {
 			registration.dispose();
 		}
 	}
@@ -153,7 +153,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!selected) {
 				return;
 			}
-			for (let [handle, candidate] of this._kernels) {
+			for (const [handle, candidate] of this._kernels) {
 				if (candidate[0] === selected) {
 					this._proxy.$acceptKernelMessageFromRenderer(handle, editor.getId(), e.message);
 					break;

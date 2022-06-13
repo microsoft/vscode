@@ -246,7 +246,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [IExtensionResourcePreview, IExtensionResourceMergeResult][], force: boolean): Promise<void> {
 		let { skippedExtensions, localExtensions } = resourcePreviews[0][0];
-		let { local, remote, localChange, remoteChange } = resourcePreviews[0][1];
+		const { local, remote, localChange, remoteChange } = resourcePreviews[0][1];
 
 		if (localChange === Change.None && remoteChange === Change.None) {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing extensions.`);

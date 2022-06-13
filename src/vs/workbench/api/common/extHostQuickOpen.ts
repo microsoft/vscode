@@ -136,9 +136,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		$onItemSelected(handle: number): void {
-			if (this._onDidSelectItem) {
-				this._onDidSelectItem(handle);
-			}
+			this._onDidSelectItem?.(handle);
 		}
 
 		// ---- input

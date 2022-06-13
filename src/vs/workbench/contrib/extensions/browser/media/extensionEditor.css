@@ -249,49 +249,36 @@
 .extension-editor > .header > .details > .actions-status-container > .status {
 	line-height: 22px;
 	font-size: 90%;
-	display: flex;
+	margin-top: 3px;
 }
 
 .extension-editor > .header > .details > .actions-status-container.list-layout > .status {
 	margin-top: 5px;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .status > .monaco-action-bar {
-	height: 22px;
-	margin-right: 2px;
-}
-
-.extension-editor > .header > .details > .actions-status-container > .status > .monaco-action-bar .extension-action {
-	margin-top: 3px;
-}
-
-.extension-editor > .header > .details > .actions-status-container.list-layout > .status > .monaco-action-bar .extension-action {
-	margin-top: 0px;
-}
-
-.extension-editor > .header > .details > .actions-status-container:not(.list-layout) > .status > .status-text {
-	margin-top: 2px;
+.extension-editor > .header > .details > .actions-status-container > .status .codicon {
+	vertical-align: text-bottom;
 }
 
 .extension-editor > .header > .details > .pre-release-text p,
-.extension-editor > .header > .details > .actions-status-container > .status > .status-text p {
+.extension-editor > .header > .details > .actions-status-container > .status p {
 	margin-top: 0px;
 	margin-bottom: 0px;
 }
 
 .extension-editor > .header > .details > .pre-release-text a,
-.extension-editor > .header > .details > .actions-status-container > .status > .status-text a {
+.extension-editor > .header > .details > .actions-status-container > .status a {
 	color: var(--vscode-textLink-foreground)
 }
 
 .extension-editor > .header > .details > .pre-release-text a:hover,
-.extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover {
+.extension-editor > .header > .details > .actions-status-container > .status a:hover {
 	text-decoration: underline;
 	color: var(--vscode-textLink-activeForeground)
 }
 
 .extension-editor > .header > .details > .pre-release-text a:active,
-.extension-editor > .header > .details > .actions-status-container > .status > .status-text a:active {
+.extension-editor > .header > .details > .actions-status-container > .status a:active {
 	color: var(--vscode-textLink-activeForeground)
 }
 

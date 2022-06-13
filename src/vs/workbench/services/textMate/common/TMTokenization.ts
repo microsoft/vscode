@@ -45,13 +45,13 @@ export class TMTokenization extends Disposable implements ITokenizationSupport {
 		}
 
 		if (this._containsEmbeddedLanguages) {
-			let seenLanguages = this._seenLanguages;
-			let tokens = textMateResult.tokens;
+			const seenLanguages = this._seenLanguages;
+			const tokens = textMateResult.tokens;
 
 			// Must check if any of the embedded languages was hit
 			for (let i = 0, len = (tokens.length >>> 1); i < len; i++) {
-				let metadata = tokens[(i << 1) + 1];
-				let languageId = TokenMetadata.getLanguageId(metadata);
+				const metadata = tokens[(i << 1) + 1];
+				const languageId = TokenMetadata.getLanguageId(metadata);
 
 				if (!seenLanguages[languageId]) {
 					seenLanguages[languageId] = true;

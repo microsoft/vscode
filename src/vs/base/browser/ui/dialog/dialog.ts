@@ -165,7 +165,7 @@ export class Dialog extends Disposable {
 	}
 
 	private getIconAriaLabel(): string {
-		let typeLabel = nls.localize('dialogInfoMessage', 'Info');
+		const typeLabel = nls.localize('dialogInfoMessage', 'Info');
 		switch (this.options.type) {
 			case 'error':
 				nls.localize('dialogErrorMessage', 'Error');

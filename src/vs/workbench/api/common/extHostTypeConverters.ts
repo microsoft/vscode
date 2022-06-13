@@ -562,15 +562,6 @@ export namespace TextEdit {
 	}
 }
 
-export namespace SnippetTextEdit {
-	export function from(edit: vscode.SnippetTextEdit): languages.SnippetTextEdit {
-		return {
-			range: Range.from(edit.range),
-			snippet: edit.snippet.value
-		};
-	}
-}
-
 export namespace WorkspaceEdit {
 
 	export interface IVersionInformationProvider {
@@ -1574,7 +1565,7 @@ export namespace NotebookData {
 			metadata: data.metadata ?? Object.create(null),
 			cells: [],
 		};
-		for (let cell of data.cells) {
+		for (const cell of data.cells) {
 			types.NotebookCellData.validate(cell);
 			res.cells.push(NotebookCellData.from(cell));
 		}
@@ -1965,6 +1956,8 @@ export namespace DataTransferItem {
 		const file = item.fileData;
 		if (file) {
 			return new class extends types.DataTransferItem {
+				override get kind() { return types.DataTransferItemKind.File; }
+
 				override asFile(): vscode.DataTransferFile {
 					return {
 						name: file.name,

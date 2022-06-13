@@ -153,9 +153,9 @@ suite('MarkersModel Test', () => {
 		model.setResourceMarkers([[document, [{ ...aMarker(), resource: frag1 }, { ...aMarker(), resource: frag2 }]]]);
 
 		assert.strictEqual(model.total, 3);
-		let a = model.getResourceMarkers(document);
-		let b = model.getResourceMarkers(frag1);
-		let c = model.getResourceMarkers(frag2);
+		const a = model.getResourceMarkers(document);
+		const b = model.getResourceMarkers(frag1);
+		const c = model.getResourceMarkers(frag2);
 		assert.ok(a === b);
 		assert.ok(a === c);
 

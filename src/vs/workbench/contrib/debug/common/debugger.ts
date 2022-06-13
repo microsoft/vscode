@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { isObject } from 'vs/base/common/types';
 import { IJSONSchema, IJSONSchemaMap, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage, IDebuggerMetadata } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
@@ -21,7 +21,7 @@ import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtil
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-export class Debugger implements IDebugger {
+export class Debugger implements IDebugger, IDebuggerMetadata {
 
 	private debuggerContribution: IDebuggerContribution;
 	private mergedExtensionDescriptions: IExtensionDescription[] = [];
@@ -149,6 +149,10 @@ export class Debugger implements IDebugger {
 
 	get uiMessages() {
 		return this.debuggerContribution.uiMessages;
+	}
+
+	interestedInLanguage(languageId: string): boolean {
+		return !!(this.languages && this.languages.indexOf(languageId) >= 0);
 	}
 
 	hasInitialConfiguration(): boolean {

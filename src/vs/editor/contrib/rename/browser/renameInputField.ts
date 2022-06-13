@@ -146,15 +146,11 @@ export class RenameInputField implements IContentWidget {
 	private _currentCancelInput?: (focusEditor: boolean) => void;
 
 	acceptInput(wantsPreview: boolean): void {
-		if (this._currentAcceptInput) {
-			this._currentAcceptInput(wantsPreview);
-		}
+		this._currentAcceptInput?.(wantsPreview);
 	}
 
 	cancelInput(focusEditor: boolean): void {
-		if (this._currentCancelInput) {
-			this._currentCancelInput(focusEditor);
-		}
+		this._currentCancelInput?.(focusEditor);
 	}
 
 	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, token: CancellationToken): Promise<RenameInputFieldResult | boolean> {

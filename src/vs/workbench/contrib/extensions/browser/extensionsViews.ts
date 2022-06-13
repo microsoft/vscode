@@ -230,7 +230,7 @@ export class ExtensionsListView extends ViewPane {
 
 		const parsedQuery = Query.parse(query);
 
-		let options: IQueryOptions = {
+		const options: IQueryOptions = {
 			sortOrder: SortOrder.Default
 		};
 
@@ -379,7 +379,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterLocal(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): { extensions: IExtension[]; canIncludeInstalledExtensions: boolean } {
-		let value = query.value;
+		const value = query.value;
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
 
@@ -428,7 +428,7 @@ export class ExtensionsListView extends ViewPane {
 
 		value = value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
-		let result = local
+		const result = local
 			.filter(e => e.isBuiltin && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 		const isThemeExtension = (e: IExtension): boolean => {
@@ -561,7 +561,7 @@ export class ExtensionsListView extends ViewPane {
 	private filterWorkspaceUnsupportedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
 		// shows local extensions which are restricted or disabled in the current workspace because of the extension's capability
 
-		let queryString = query.value; // @sortby is already filtered out
+		const queryString = query.value; // @sortby is already filtered out
 
 		const match = queryString.match(/^\s*@workspaceUnsupported(?::(untrusted|virtual)(Partial)?)?(?:\s+([^\s]*))?/i);
 		if (!match) {
@@ -653,6 +653,10 @@ export class ExtensionsListView extends ViewPane {
 
 		if (this.isRecommendationsQuery(query)) {
 			return this.queryRecommendations(query, options, token);
+		}
+
+		if (/@deprecated/i.test(query.value)) {
+			return this.getDeprecatedExtensions(options, token);
 		}
 
 		if (/\bcurated:([^\s]+)\b/.test(query.value)) {
@@ -748,6 +752,16 @@ export class ExtensionsListView extends ViewPane {
 			return this.getPagedModel(extensions);
 		}
 		return new PagedModel([]);
+	}
+
+	private async getDeprecatedExtensions(options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
+		const deprecatedExtensionIds = Object.keys(extensionsControlManifest.deprecated);
+		if (deprecatedExtensionIds.length) {
+			const pager = await this.extensionsWorkbenchService.queryGallery({ ...options, names: deprecatedExtensionIds, text: undefined }, token);
+			return this.getPagedModel(pager);
+		}
+		return this.getPagedModel([]);
 	}
 
 	private isRecommendationsQuery(query: Query): boolean {
@@ -1234,8 +1248,8 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 	}
 
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		let shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
-		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
+		const shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
+		const model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
 		this.setExpanded(model.length > 0);
 		return model;
 	}

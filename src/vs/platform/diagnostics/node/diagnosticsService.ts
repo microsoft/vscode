@@ -399,7 +399,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		// File Types
 		let line = '|      File types:';
 		const maxShown = 10;
-		let max = workspaceStats.fileTypes.length > maxShown ? maxShown : workspaceStats.fileTypes.length;
+		const max = workspaceStats.fileTypes.length > maxShown ? maxShown : workspaceStats.fileTypes.length;
 		for (let i = 0; i < max; i++) {
 			const item = workspaceStats.fileTypes[i];
 			appendAndWrap(item.name, item.count);

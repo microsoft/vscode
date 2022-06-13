@@ -228,7 +228,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				contextIsolation: false,
 				enableWebSQL: false,
 				spellcheck: false,
-				nativeWindowOpen: true,
 				images: false,
 				webgl: false
 			}

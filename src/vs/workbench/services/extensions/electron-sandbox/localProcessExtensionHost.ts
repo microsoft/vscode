@@ -511,7 +511,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 			err.stack = _err.stack;
 		}
 
-		let errorMessage = toErrorMessage(err);
+		const errorMessage = toErrorMessage(err);
 		if (errorMessage === this._lastExtensionHostError) {
 			return; // prevent error spam
 		}
@@ -538,7 +538,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 			// not a fancy approach, but this is the same approach used by the split2
 			// module which is well-optimized (https://github.com/mcollina/split2)
 			last += chunk;
-			let lines = last.split(/\r?\n/g);
+			const lines = last.split(/\r?\n/g);
 			last = lines.pop()!;
 
 			// protected against an extension spamming and leaking memory if no new line is written.

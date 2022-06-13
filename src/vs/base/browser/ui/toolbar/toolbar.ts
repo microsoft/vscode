@@ -169,7 +169,7 @@ export class ToolBar extends Disposable {
 	setActions(primaryActions: ReadonlyArray<IAction>, secondaryActions?: ReadonlyArray<IAction>): void {
 		this.clear();
 
-		let primaryActionsToSet = primaryActions ? primaryActions.slice(0) : [];
+		const primaryActionsToSet = primaryActions ? primaryActions.slice(0) : [];
 
 		// Inject additional action to open secondary actions if present
 		this.hasSecondaryActions = !!(secondaryActions && secondaryActions.length > 0);

@@ -101,6 +101,21 @@ suite('markdown.DocumentLinkProvider', () => {
 		}
 	});
 
+	test('Should ignore texts in brackets inside link title (#150921)', async () => {
+		{
+			const links = await getLinksForFile('[some [inner bracket pairs] in title](<link>)');
+			assertLinksEqual(links, [
+				new vscode.Range(0, 39, 0, 43),
+			]);
+		}
+		{
+			const links = await getLinksForFile('[some [inner bracket pairs] in title](link)');
+			assertLinksEqual(links, [
+				new vscode.Range(0, 38, 0, 42)
+			]);
+		}
+	});
+
 	test('Should handle two links without space', async () => {
 		const links = await getLinksForFile('a ([test](test)[test2](test2)) c');
 		assertLinksEqual(links, [
@@ -408,5 +423,22 @@ suite('markdown.DocumentLinkProvider', () => {
 		assertLinksEqual(links, [new vscode.Range(0, 8, 0, 13)]);
 	});
 
-
+	test('Should find links with titles', async () => {
+		const links = await getLinksForFile(joinLines(
+			`[link](<no such.md> "text")`,
+			`[link](<no such.md> 'text')`,
+			`[link](<no such.md> (text))`,
+			`[link](no-such.md "text")`,
+			`[link](no-such.md 'text')`,
+			`[link](no-such.md (text))`,
+		));
+		assertLinksEqual(links, [
+			new vscode.Range(0, 8, 0, 18),
+			new vscode.Range(1, 8, 1, 18),
+			new vscode.Range(2, 8, 2, 18),
+			new vscode.Range(3, 7, 3, 17),
+			new vscode.Range(4, 7, 4, 17),
+			new vscode.Range(5, 7, 5, 17),
+		]);
+	});
 });

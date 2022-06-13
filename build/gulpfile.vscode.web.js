@@ -208,7 +208,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			gulp.src('resources/server/code-512.png', { base: 'resources/server' })
 		);
 
-		let all = es.merge(
+		const all = es.merge(
 			packageJsonStream,
 			license,
 			sources,
@@ -218,7 +218,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			pwaicons
 		);
 
-		let result = all
+		const result = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions());
 

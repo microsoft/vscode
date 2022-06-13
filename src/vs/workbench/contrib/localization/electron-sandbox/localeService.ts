@@ -5,7 +5,6 @@
 
 import { language } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
@@ -14,6 +13,8 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { localize } from 'vs/nls';
 
 export class NativeLocaleService implements ILocaleService {
 	_serviceBrand: undefined;
@@ -25,6 +26,7 @@ export class NativeLocaleService implements ILocaleService {
 		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
 		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IProgressService private readonly progressService: IProgressService
 	) { }
 
 	private async writeLocaleValue(locale: string | undefined): Promise<void> {
@@ -42,16 +44,26 @@ export class NativeLocaleService implements ILocaleService {
 			// Only Desktop has the concept of installing language packs so we only do this for Desktop
 			// and only if the language pack is not installed
 			if (!installedLanguages.some(installedLanguage => installedLanguage.id === languagePackItem.id)) {
-				// Show the view so the user can see the language pack to be installed
-				let viewlet = await this.paneCompositePartService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar);
-				(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`@id:${languagePackItem.extensionId}`);
 
 				// Only actually install a language pack from Microsoft
 				if (languagePackItem.galleryExtension?.publisher.toLowerCase() !== 'ms-ceintl') {
+					// Show the view so the user can see the language pack that they should install
+					// as of now, there are no 3rd party language packs available on the Marketplace.
+					const viewlet = await this.paneCompositePartService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar);
+					(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`@id:${languagePackItem.extensionId}`);
 					return false;
 				}
 
-				await this.extensionManagementService.installFromGallery(languagePackItem.galleryExtension);
+				await this.progressService.withProgress(
+					{
+						location: ProgressLocation.Notification,
+						title: localize('installing', "Installing {0} language support...", languagePackItem.label),
+					},
+					progress => this.extensionManagementService.installFromGallery(languagePackItem.galleryExtension!, {
+						// Setting this to false is how you get the extension to be synced with Settings Sync (if enabled).
+						isMachineScoped: false,
+					})
+				);
 			}
 
 			await this.writeLocaleValue(locale);
@@ -75,5 +87,3 @@ export class NativeLocaleService implements ILocaleService {
 		}
 	}
 }
-
-registerSingleton(ILocaleService, NativeLocaleService, true);

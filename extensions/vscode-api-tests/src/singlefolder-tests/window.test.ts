@@ -40,13 +40,13 @@ suite('vscode API - window', () => {
 
 	test('editor, assign and check view columns', async () => {
 		const doc = await workspace.openTextDocument(join(workspace.rootPath || '', './far.js'));
-		let p1 = window.showTextDocument(doc, ViewColumn.One).then(editor => {
+		const p1 = window.showTextDocument(doc, ViewColumn.One).then(editor => {
 			assert.strictEqual(editor.viewColumn, ViewColumn.One);
 		});
-		let p2 = window.showTextDocument(doc, ViewColumn.Two).then(editor_1 => {
+		const p2 = window.showTextDocument(doc, ViewColumn.Two).then(editor_1 => {
 			assert.strictEqual(editor_1.viewColumn, ViewColumn.Two);
 		});
-		let p3 = window.showTextDocument(doc, ViewColumn.Three).then(editor_2 => {
+		const p3 = window.showTextDocument(doc, ViewColumn.Three).then(editor_2 => {
 			assert.strictEqual(editor_2.viewColumn, ViewColumn.Three);
 		});
 		return Promise.all([p1, p2, p3]);
@@ -54,7 +54,7 @@ suite('vscode API - window', () => {
 
 	test('editor, onDidChangeVisibleTextEditors', async () => {
 		let eventCounter = 0;
-		let reg = window.onDidChangeVisibleTextEditors(_editor => {
+		const reg = window.onDidChangeVisibleTextEditors(_editor => {
 			eventCounter += 1;
 		});
 
@@ -75,7 +75,7 @@ suite('vscode API - window', () => {
 
 		let actualEvent: TextEditorViewColumnChangeEvent;
 
-		let registration1 = workspace.registerTextDocumentContentProvider('bikes', {
+		const registration1 = workspace.registerTextDocumentContentProvider('bikes', {
 			provideTextDocumentContent() {
 				return 'mountainbiking,roadcycling';
 			}
@@ -86,10 +86,10 @@ suite('vscode API - window', () => {
 			workspace.openTextDocument(Uri.parse('bikes://testing/two')).then(doc => window.showTextDocument(doc, ViewColumn.Two))
 		]).then(async editors => {
 
-			let [one, two] = editors;
+			const [one, two] = editors;
 
 			await new Promise<void>(resolve => {
-				let registration2 = window.onDidChangeTextEditorViewColumn(event => {
+				const registration2 = window.onDidChangeTextEditorViewColumn(event => {
 					actualEvent = event;
 					registration2.dispose();
 					resolve();
@@ -107,9 +107,9 @@ suite('vscode API - window', () => {
 
 	test('editor, onDidChangeTextEditorViewColumn (move editor group)', () => {
 
-		let actualEvents: TextEditorViewColumnChangeEvent[] = [];
+		const actualEvents: TextEditorViewColumnChangeEvent[] = [];
 
-		let registration1 = workspace.registerTextDocumentContentProvider('bikes', {
+		const registration1 = workspace.registerTextDocumentContentProvider('bikes', {
 			provideTextDocumentContent() {
 				return 'mountainbiking,roadcycling';
 			}
@@ -120,12 +120,12 @@ suite('vscode API - window', () => {
 			workspace.openTextDocument(Uri.parse('bikes://testing/two')).then(doc => window.showTextDocument(doc, ViewColumn.Two))
 		]).then(editors => {
 
-			let [, two] = editors;
+			const [, two] = editors;
 			two.show();
 
 			return new Promise<void>(resolve => {
 
-				let registration2 = window.onDidChangeTextEditorViewColumn(event => {
+				const registration2 = window.onDidChangeTextEditorViewColumn(event => {
 					actualEvents.push(event);
 
 					if (actualEvents.length === 2) {
@@ -182,10 +182,10 @@ suite('vscode API - window', () => {
 			workspace.openTextDocument(randomFile2)
 		]);
 		for (let c = 0; c < 4; c++) {
-			let editorA = await window.showTextDocument(docA, ViewColumn.One);
+			const editorA = await window.showTextDocument(docA, ViewColumn.One);
 			assertActiveEditor(editorA);
 
-			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
+			const editorB = await window.showTextDocument(docB, ViewColumn.Two);
 			assertActiveEditor(editorB);
 		}
 	});
@@ -311,7 +311,7 @@ suite('vscode API - window', () => {
 		const file30Path = join(workspace.rootPath || '', './30linefile.ts');
 
 		let finished = false;
-		let failOncePlease = (err: Error) => {
+		const failOncePlease = (err: Error) => {
 			if (finished) {
 				return;
 			}
@@ -319,7 +319,7 @@ suite('vscode API - window', () => {
 			done(err);
 		};
 
-		let passOncePlease = () => {
+		const passOncePlease = () => {
 			if (finished) {
 				return;
 			}
@@ -327,10 +327,10 @@ suite('vscode API - window', () => {
 			done(null);
 		};
 
-		let subscription = window.onDidChangeTextEditorSelection((e) => {
-			let lineCount = e.textEditor.document.lineCount;
-			let pos1 = e.textEditor.selections[0].active.line;
-			let pos2 = e.selections[0].active.line;
+		const subscription = window.onDidChangeTextEditorSelection((e) => {
+			const lineCount = e.textEditor.document.lineCount;
+			const pos1 = e.textEditor.selections[0].active.line;
+			const pos2 = e.selections[0].active.line;
 
 			if (pos1 !== pos2) {
 				failOncePlease(new Error('received invalid selection changed event!'));
@@ -714,7 +714,7 @@ suite('vscode API - window', () => {
 
 	test('#7013 - input without options', function () {
 		const source = new CancellationTokenSource();
-		let p = window.showInputBox(undefined, source.token);
+		const p = window.showInputBox(undefined, source.token);
 		assert.ok(typeof p === 'object');
 		source.dispose();
 	});
@@ -990,7 +990,7 @@ suite('vscode API - window', () => {
 
 			return new Promise<void>((resolve, _reject) => {
 
-				let subscription = window.onDidChangeTextEditorSelection(e => {
+				const subscription = window.onDidChangeTextEditorSelection(e => {
 					assert.ok(e.textEditor === editor);
 					assert.strictEqual(e.kind, TextEditorSelectionChangeKind.Command);
 

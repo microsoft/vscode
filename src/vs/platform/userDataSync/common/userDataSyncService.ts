@@ -104,7 +104,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			throw userDataSyncError;
 		}
 
-		let executed = false;
+		const executed = false;
 		const that = this;
 		const synchronizers = this.getEnabledSynchronizers();
 		let cancellablePromise: CancelablePromise<void> | undefined;

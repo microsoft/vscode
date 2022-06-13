@@ -109,7 +109,7 @@ export class WindowTitle extends Disposable {
 
 	private getWindowTitle(): string {
 		let title = this.doGetWindowTitle() || this.productService.nameLong;
-		let { prefix, suffix } = this.getTitleDecorations();
+		const { prefix, suffix } = this.getTitleDecorations();
 		if (prefix) {
 			title = `${prefix} ${title}`;
 		}

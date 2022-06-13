@@ -338,7 +338,7 @@ export class ExtensionLinter {
 
 		if (!hasScheme && !info.hasHttpsRepository) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
-			let message = (() => {
+			const message = (() => {
 				switch (context) {
 					case Context.ICON: return relativeIconUrlRequiresHttpsRepository;
 					case Context.BADGE: return relativeBadgeUrlRequiresHttpsRepository;
@@ -367,7 +367,7 @@ export class ExtensionLinter {
 
 function parseUri(src: string, base?: string, retry: boolean = true): Uri | null {
 	try {
-		let url = new URL(src, base);
+		const url = new URL(src, base);
 		return Uri.parse(url.toString());
 	} catch (err) {
 		if (retry) {

@@ -25,8 +25,8 @@ export class TerminalDataBufferer implements IDisposable {
 	}
 
 	startBuffering(id: number, event: Event<string | IProcessDataEvent>, throttleBy: number = 5): IDisposable {
-		let disposable: IDisposable;
-		disposable = event((e: string | IProcessDataEvent) => {
+
+		const disposable = event((e: string | IProcessDataEvent) => {
 			const data = (typeof e === 'string' ? e : e.data);
 			let buffer = this._terminalBufferMap.get(id);
 			if (buffer) {

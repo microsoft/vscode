@@ -100,7 +100,7 @@ export class LanguageFeatureRegistry<T> {
 		const result: T[] = [];
 
 		// from registry
-		for (let entry of this._entries) {
+		for (const entry of this._entries) {
 			if (entry._score > 0) {
 				result.push(entry.provider);
 			}
@@ -163,13 +163,13 @@ export class LanguageFeatureRegistry<T> {
 
 		this._lastCandidate = candidate;
 
-		for (let entry of this._entries) {
+		for (const entry of this._entries) {
 			entry._score = score(entry.selector, candidate.uri, candidate.languageId, shouldSynchronizeModel(model), candidate.notebookUri, candidate.notebookType);
 
 			if (isExclusive(entry.selector) && entry._score > 0) {
 				// support for one exclusive selector that overwrites
 				// any other selector
-				for (let entry of this._entries) {
+				for (const entry of this._entries) {
 					entry._score = 0;
 				}
 				entry._score = 1000;

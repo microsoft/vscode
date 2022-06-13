@@ -397,7 +397,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 		if (this._isDisposed) {
 			throw new Error(`ContextKeyService has been disposed`);
 		}
-		let id = (++this._lastContextId);
+		const id = (++this._lastContextId);
 		this._contexts.set(id, new Context(id, this.getContextValuesContainer(parentContextId)));
 		return id;
 	}
@@ -610,7 +610,7 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand('_generateContextKeyInfo', function () {
 	const result: ContextKeyInfo[] = [];
 	const seen = new Set<string>();
-	for (let info of RawContextKey.all()) {
+	for (const info of RawContextKey.all()) {
 		if (!seen.has(info.key)) {
 			seen.add(info.key);
 			result.push(info);

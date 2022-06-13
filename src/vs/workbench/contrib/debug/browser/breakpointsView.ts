@@ -23,6 +23,7 @@ import * as resources from 'vs/base/common/resources';
 import { Constants } from 'vs/base/common/uint';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -106,6 +107,7 @@ export class BreakpointsView extends ViewPane {
 		@ILabelService private readonly labelService: ILabelService,
 		@IMenuService menuService: IMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -285,12 +287,19 @@ export class BreakpointsView extends ViewPane {
 			return;
 		}
 
-		const hasSomeUnverified = this.debugService.getModel().getBreakpoints().some(bp => !bp.verified);
-
 		const currentType = this.debugService.getViewModel().focusedSession?.configuration.type;
-		const message = currentType && this.debugService.getAdapterManager().getDebuggerUiMessages(currentType)[DebuggerUiMessage.UnverifiedBreakpoints];
+		const dbg = currentType ? this.debugService.getAdapterManager().getDebugger(currentType) : undefined;
+		const message = dbg?.uiMessages && dbg.uiMessages[DebuggerUiMessage.UnverifiedBreakpoints];
+		const debuggerHasUnverifiedBps = message && this.debugService.getModel().getBreakpoints().filter(bp => {
+			if (bp.verified) {
+				return false;
+			}
 
-		if (message && hasSomeUnverified) {
+			const langId = this.languageService.guessLanguageIdByFilepathOrFirstLine(bp.uri);
+			return langId && dbg.interestedInLanguage(langId);
+		});
+
+		if (message && debuggerHasUnverifiedBps?.length) {
 			if (delayed) {
 				const mdown = new MarkdownString(undefined, { isTrusted: true }).appendMarkdown(message);
 				this.hintContainer.setLabel('$(warning)', undefined, { title: { markdown: mdown, markdownNotSupportedFallback: message } });
@@ -1075,7 +1084,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
-export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: BreakpointItem, labelService?: ILabelService): { message?: string; icon: ThemeIcon } {
+export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: BreakpointItem, labelService?: ILabelService): { message?: string; icon: ThemeIcon; showAdapterUnverifiedMessage?: boolean } {
 	const debugActive = state === State.Running || state === State.Stopped;
 
 	const breakpointIcon = breakpoint instanceof DataBreakpoint ? icons.dataBreakpoint : breakpoint instanceof FunctionBreakpoint ? icons.functionBreakpoint : breakpoint.logMessage ? icons.logBreakpoint : icons.breakpoint;
@@ -1094,6 +1103,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 		return {
 			icon: breakpointIcon.unverified,
 			message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : (breakpoint.logMessage ? localize('unverifiedLogpoint', "Unverified Logpoint") : localize('unverifiedBreakpoint', "Unverified Breakpoint")),
+			showAdapterUnverifiedMessage: true
 		};
 	}
 

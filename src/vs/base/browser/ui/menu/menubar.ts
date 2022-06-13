@@ -116,7 +116,7 @@ export class MenuBar extends Disposable {
 		this._register(DOM.ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, (e) => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 			const key = !!e.key ? e.key.toLocaleLowerCase() : '';
 
@@ -154,7 +154,7 @@ export class MenuBar extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_IN, (e) => {
-			let event = e as FocusEvent;
+			const event = e as FocusEvent;
 
 			if (event.relatedTarget) {
 				if (!this.container.contains(event.relatedTarget as HTMLElement)) {
@@ -164,7 +164,7 @@ export class MenuBar extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, (e) => {
-			let event = e as FocusEvent;
+			const event = e as FocusEvent;
 
 			// We are losing focus and there is no related target, e.g. webview case
 			if (!event.relatedTarget) {
@@ -204,11 +204,11 @@ export class MenuBar extends Disposable {
 			const menuIndex = this.menus.length;
 			const cleanMenuLabel = cleanMnemonic(menuBarMenu.label);
 
-			let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(menuBarMenu.label);
+			const mnemonicMatches = MENU_MNEMONIC_REGEX.exec(menuBarMenu.label);
 
 			// Register mnemonics
 			if (mnemonicMatches) {
-				let mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
+				const mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
 
 				this.registerMnemonic(this.menus.length, mnemonic);
 			}
@@ -225,7 +225,7 @@ export class MenuBar extends Disposable {
 				this.updateLabels(titleElement, buttonElement, menuBarMenu.label);
 
 				this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.KEY_UP, (e) => {
-					let event = new StandardKeyboardEvent(e as KeyboardEvent);
+					const event = new StandardKeyboardEvent(e as KeyboardEvent);
 					let eventHandled = true;
 
 					if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
@@ -322,7 +322,7 @@ export class MenuBar extends Disposable {
 		buttonElement.style.visibility = 'hidden';
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.KEY_UP, (e) => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 
 			const triggerKeys = [KeyCode.Enter];
@@ -476,7 +476,7 @@ export class MenuBar extends Disposable {
 		this.numMenusShown = 0;
 
 		const showableMenus = this.menus.filter(menu => menu.buttonElement !== undefined && menu.titleElement !== undefined) as (MenuBarMenuWithElements & { titleElement: HTMLElement; buttonElement: HTMLElement })[];
-		for (let menuBarMenu of showableMenus) {
+		for (const menuBarMenu of showableMenus) {
 			if (!full) {
 				const size = menuBarMenu.buttonElement.offsetWidth;
 				if (currentSize + size > sizeAvailable) {
@@ -542,7 +542,7 @@ export class MenuBar extends Disposable {
 		// Update the button label to reflect mnemonics
 
 		if (this.options.enableMnemonics) {
-			let cleanLabel = strings.escape(label);
+			const cleanLabel = strings.escape(label);
 
 			// This is global so reset it
 			MENU_ESCAPED_MNEMONIC_REGEX.lastIndex = 0;
@@ -569,11 +569,11 @@ export class MenuBar extends Disposable {
 			titleElement.innerText = cleanMenuLabel.replace(/&&/g, '&');
 		}
 
-		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
+		const mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
 
 		// Register mnemonics
 		if (mnemonicMatches) {
-			let mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
+			const mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
 
 			if (this.options.enableMnemonics) {
 				buttonElement.setAttribute('aria-keyshortcuts', 'Alt+' + mnemonic.toLocaleLowerCase());
@@ -838,7 +838,7 @@ export class MenuBar extends Disposable {
 		if (this.menus) {
 			this.menus.forEach(menuBarMenu => {
 				if (menuBarMenu.titleElement && menuBarMenu.titleElement.children.length) {
-					let child = menuBarMenu.titleElement.children.item(0) as HTMLElement;
+					const child = menuBarMenu.titleElement.children.item(0) as HTMLElement;
 					if (child) {
 						child.style.textDecoration = (this.options.alwaysOnMnemonics || visible) ? 'underline' : '';
 					}
@@ -999,7 +999,7 @@ export class MenuBar extends Disposable {
 
 		customMenu.buttonElement.appendChild(menuHolder);
 
-		let menuOptions: IMenuOptions = {
+		const menuOptions: IMenuOptions = {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
@@ -1008,7 +1008,7 @@ export class MenuBar extends Disposable {
 			useEventAsContext: true
 		};
 
-		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
+		const menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
 		if (this.menuStyle) {
 			menuWidget.style(this.menuStyle);
 		}

@@ -114,7 +114,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	private _getIndexFromId(terminalId: number): number {
-		let terminalIndex = this.instances.findIndex(e => e.instanceId === terminalId);
+		const terminalIndex = this.instances.findIndex(e => e.instanceId === terminalId);
 		if (terminalIndex === -1) {
 			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
 		}

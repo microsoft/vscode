@@ -17,7 +17,7 @@ export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): Re
 	}
 
 	const result: ResourceEdit[] = [];
-	for (let edit of revive<IWorkspaceEditDto>(data).edits) {
+	for (const edit of revive<IWorkspaceEditDto>(data).edits) {
 		if (edit._type === WorkspaceEditType.File) {
 			result.push(new ResourceFileEdit(edit.oldUri, edit.newUri, edit.options, edit.metadata));
 		} else if (edit._type === WorkspaceEditType.Text) {

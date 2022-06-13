@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-xgIcbQmGjpT42GEj54VFSNh6MI15PZ2D1+DdVehfYBI=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-v9xEHcwDE5dc/lU7HYs5bG3LpPWGmQe0w/Vz6kmdd60=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -472,9 +472,14 @@
 			}
 
 			if (body) {
-				body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-reduce-motion', 'vscode-using-screen-reader');
+				body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-high-contrast-light', 'vscode-reduce-motion', 'vscode-using-screen-reader');
+
 				if (initData.activeTheme) {
 					body.classList.add(initData.activeTheme);
+					if (initData.activeTheme === 'vscode-high-contrast-light') {
+						// backwards compatibility
+						body.classList.add('vscode-high-contrast');
+					}
 				}
 
 				if (initData.reduceMotion) {
