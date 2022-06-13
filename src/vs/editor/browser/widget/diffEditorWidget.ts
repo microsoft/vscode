@@ -2512,12 +2512,18 @@ function isChangeOrDelete(lineChange: ILineChange): boolean {
 	return lineChange.originalEndLineNumber > 0;
 }
 
-function isCharChangeOrInsert(lineChange: ICharChange): boolean {
-	return lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber > 0;
+function isCharChangeOrInsert(charChange: ICharChange): boolean {
+	if (charChange.modifiedStartLineNumber === charChange.modifiedEndLineNumber) {
+		return charChange.modifiedEndColumn - charChange.modifiedStartColumn > 0;
+	}
+	return charChange.modifiedEndLineNumber - charChange.modifiedStartLineNumber > 0;
 }
 
-function isCharChangeOrDelete(lineChange: ICharChange): boolean {
-	return lineChange.originalEndLineNumber - lineChange.originalStartLineNumber > 0;
+function isCharChangeOrDelete(charChange: ICharChange): boolean {
+	if (charChange.originalStartLineNumber === charChange.originalEndLineNumber) {
+		return charChange.originalEndColumn - charChange.originalStartColumn > 0;
+	}
+	return charChange.originalEndLineNumber - charChange.originalStartLineNumber > 0;
 }
 
 function createFakeLinesDiv(): HTMLElement {
