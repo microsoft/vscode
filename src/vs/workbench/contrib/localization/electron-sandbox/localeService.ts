@@ -18,7 +18,7 @@ import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { stripComments } from 'vs/base/common/json';
+import { stripComments } from 'vs/base/common/stripComments';
 
 export class NativeLocaleService implements ILocaleService {
 	_serviceBrand: undefined;
@@ -35,9 +35,8 @@ export class NativeLocaleService implements ILocaleService {
 		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
-	private async writeLocaleValue(locale: string | undefined): Promise<boolean> {
+	private async validateLocaleFile(): Promise<boolean> {
 		try {
-
 			const content = await this.textFileService.read(this.environmentService.argvResource, { encoding: 'utf8' });
 
 			// This is the same logic that we do where argv.json is parsed so mirror that:
@@ -46,13 +45,20 @@ export class NativeLocaleService implements ILocaleService {
 		} catch (error) {
 			this.notificationService.notify({
 				severity: Severity.Error,
-				message: localize('argvInvalid', 'Your argv.json file is not valid. Please open it and fix any parse errors so that your display language can be set properly.'),
+				message: localize('argvInvalid', 'Unable to write display language. Please open the runtime settings, correct errors/warnings in it and try again.'),
 				actions: {
 					primary: [
 						new Action('openArgv', localize('openArgv', "Open argv.json"), undefined, true, () => this.commandService.executeCommand('workbench.action.configureRuntimeArguments')),
 					]
 				}
 			});
+			return false;
+		}
+		return true;
+	}
+
+	private async writeLocaleValue(locale: string | undefined): Promise<boolean> {
+		if (!(await this.validateLocaleFile())) {
 			return false;
 		}
 		await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true);
