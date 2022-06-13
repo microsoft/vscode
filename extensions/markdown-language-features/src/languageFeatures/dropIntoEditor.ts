@@ -32,10 +32,7 @@ export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
 			}
 
 			const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-			if (snippet) {
-				return { insertText: snippet };
-			}
-			return undefined;
+			return snippet ? new vscode.DocumentDropEdit(snippet) : undefined;
 		}
 	});
 }
