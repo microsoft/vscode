@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MainContext, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { WorkspaceEdit } from 'vs/workbench/api/common/extHostTypeConverters';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 export class ExtHostBulkEdits {
@@ -26,8 +28,9 @@ export class ExtHostBulkEdits {
 		};
 	}
 
-	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): Promise<boolean> {
-		const dto = WorkspaceEdit.from(edit, this._versionInformationProvider);
+	applyWorkspaceEdit(edit: vscode.WorkspaceEdit, extension: IExtensionDescription): Promise<boolean> {
+		const allowSnippetTextEdit = isProposedApiEnabled(extension, 'snippetWorkspaceEdit');
+		const dto = WorkspaceEdit.from(edit, this._versionInformationProvider, allowSnippetTextEdit);
 		return this._proxy.$tryApplyWorkspaceEdit(dto);
 	}
 }

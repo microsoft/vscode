@@ -569,7 +569,7 @@ export namespace WorkspaceEdit {
 		getNotebookDocumentVersion(uri: URI): number | undefined;
 	}
 
-	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider, allowSnippetTextEdit?: boolean): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
@@ -602,7 +602,7 @@ export namespace WorkspaceEdit {
 					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
 						_type: extHostProtocol.WorkspaceEditType.Text,
 						resource: entry.uri,
-						edit: TextEdit.from(entry.edit),
+						edit: { ...TextEdit.from(entry.edit), insertAsSnippet: allowSnippetTextEdit && entry.edit.newText2 instanceof types.SnippetString },
 						modelVersionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
 						metadata: entry.metadata
 					});

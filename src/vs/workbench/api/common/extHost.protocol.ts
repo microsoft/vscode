@@ -1606,7 +1606,7 @@ export interface IWorkspaceFileEditDto {
 export interface IWorkspaceTextEditDto {
 	_type: WorkspaceEditType.Text;
 	resource: UriComponents;
-	edit: languages.TextEdit;
+	edit: languages.TextEdit & { insertAsSnippet?: boolean };
 	modelVersionId?: number;
 	metadata?: IWorkspaceEditEntryMetadataDto;
 }
