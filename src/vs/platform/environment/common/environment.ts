@@ -48,7 +48,7 @@ export interface IEnvironmentService {
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	// --- user roaming data
-	stateHome: URI;
+	stateResource: URI;
 	userRoamingDataHome: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;

@@ -68,7 +68,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get localHistoryHome(): URI { return joinPath(this.userRoamingDataHome, 'History'); }
 
 	@memoize
-	get stateHome(): URI { return joinPath(this.userRoamingDataHome, 'State'); }
+	get stateResource(): URI { return joinPath(this.userRoamingDataHome, 'State', 'state.json'); }
 
 	/**
 	 * In Web every workspace can potentially have scoped user-data

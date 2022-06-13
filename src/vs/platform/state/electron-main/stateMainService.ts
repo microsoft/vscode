@@ -5,7 +5,6 @@
 
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { joinPath } from 'vs/base/common/resources';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -149,18 +148,14 @@ export class StateMainService implements IStateMainService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly STATE_FILE = 'storage.json';
-
-	private readonly stateFilePath = joinPath(this.environmentService.stateHome, StateMainService.STATE_FILE);
-
 	private readonly fileStorage: FileStorage;
 
 	constructor(
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
 		@IFileService fileService: IFileService
 	) {
-		this.fileStorage = new FileStorage(this.stateFilePath, logService, fileService);
+		this.fileStorage = new FileStorage(environmentService.stateResource, logService, fileService);
 	}
 
 	async init(): Promise<void> {
