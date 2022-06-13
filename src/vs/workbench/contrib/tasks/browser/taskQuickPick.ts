@@ -16,9 +16,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getColorClass, getColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 export const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
@@ -49,6 +50,7 @@ export class TaskQuickPick extends Disposable {
 		private _configurationService: IConfigurationService,
 		private _quickInputService: IQuickInputService,
 		private _notificationService: INotificationService,
+		private _themeService: IThemeService,
 		private _dialogService: IDialogService) {
 		super();
 		this._sorter = this._taskService.createSorter();
@@ -61,14 +63,14 @@ export class TaskQuickPick extends Disposable {
 
 	private _guessTaskLabel(task: Task | ConfiguringTask): string {
 		if (task._label) {
-			return task._label;
+			return task.configurationProperties.icon ? `$(${task.configurationProperties.icon}) ${task._label}` : `${task._label}`;
 		}
 		if (ConfiguringTask.is(task)) {
 			let label: string = task.configures.type;
 			const configures: Partial<KeyedTaskIdentifier> = Objects.deepClone(task.configures);
 			delete configures['_key'];
 			delete configures['type'];
-			Object.keys(configures).forEach(key => label += `: ${configures[key]}`);
+			Object.keys(configures).forEach(key => label += `: ${configures[key]} `);
 			return label;
 		}
 		return '';
@@ -77,6 +79,12 @@ export class TaskQuickPick extends Disposable {
 	private _createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): ITaskTwoLevelQuickPickEntry {
 		const entry: ITaskTwoLevelQuickPickEntry = { label: this._guessTaskLabel(task), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined };
 		entry.buttons = [{ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") }, ...extraButtons];
+		if (task.configurationProperties.color) {
+			const colorTheme = this._themeService.getColorTheme();
+			const styleElement = getColorStyleElement(colorTheme);
+			entry.iconClasses = [getColorClass(task.configurationProperties.color)];
+			document.body.appendChild(styleElement);
+		}
 		return entry;
 	}
 
@@ -91,7 +99,7 @@ export class TaskQuickPick extends Disposable {
 	private _createTypeEntries(entries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[], types: string[]) {
 		entries.push({ type: 'separator', label: nls.localize('contributedTasks', "contributed") });
 		types.forEach(type => {
-			entries.push({ label: `$(folder) ${type}`, task: type, ariaLabel: nls.localize('taskType', "All {0} tasks", type) });
+			entries.push({ label: `$(folder) ${type} `, task: type, ariaLabel: nls.localize('taskType', "All {0} tasks", type) });
 		});
 		entries.push({ label: SHOW_ALL, task: SHOW_ALL, alwaysShow: true });
 	}
@@ -367,8 +375,8 @@ export class TaskQuickPick extends Disposable {
 
 	static async show(taskService: ITaskService, configurationService: IConfigurationService,
 		quickInputService: IQuickInputService, notificationService: INotificationService,
-		dialogService: IDialogService, placeHolder: string, defaultEntry?: ITaskQuickPickEntry) {
-		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService, notificationService, dialogService);
+		dialogService: IDialogService, themeService: IThemeService, placeHolder: string, defaultEntry?: ITaskQuickPickEntry) {
+		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService, notificationService, themeService, dialogService);
 		return taskQuickPick.show(placeHolder, defaultEntry);
 	}
 }
