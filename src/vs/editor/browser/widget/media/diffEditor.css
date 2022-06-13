@@ -57,6 +57,15 @@
 	text-align: right;
 }
 
+.monaco-editor .arrow-revert-change {
+	z-index: 10;
+	position: absolute;
+}
+
+.monaco-editor .arrow-revert-change:hover {
+	cursor: pointer;
+}
+
 /* ---------- Inline Diff ---------- */
 
 .monaco-editor .view-zones .view-lines .view-line span {
