@@ -9,7 +9,7 @@ import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
-import { ResolvedTask, ContributedTask, ConfiguringTask } from 'vs/workbench/contrib/tasks/common/tasks';
+import { CustomTask, ContributedTask, ConfiguringTask } from 'vs/workbench/contrib/tasks/common/tasks';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TaskQuickPick, ITaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
@@ -69,7 +69,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 				} else {
 					if (ContributedTask.is(task)) {
 						this._taskService.customize(task, undefined, true);
-					} else if (ResolvedTask.is(task)) {
+					} else if (CustomTask.is(task)) {
 						this._taskService.openConfig(task);
 					}
 					return TriggerAction.CLOSE_PICKER;

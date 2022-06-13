@@ -193,12 +193,12 @@ class CommandConfigurationBuilder {
 
 class CustomTaskBuilder {
 
-	public result: Tasks.ResolvedTask;
+	public result: Tasks.CustomTask;
 	private commandBuilder: CommandConfigurationBuilder;
 
 	constructor(public parent: ConfiguationBuilder, name: string, command: string) {
 		this.commandBuilder = new CommandConfigurationBuilder(this, command);
-		this.result = new Tasks.ResolvedTask(
+		this.result = new Tasks.CustomTask(
 			name,
 			{ kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: workspaceFolder, element: undefined, index: -1, file: '.vscode/tasks.json' } },
 			name,

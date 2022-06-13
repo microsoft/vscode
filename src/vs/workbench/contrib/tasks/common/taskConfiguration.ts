@@ -1519,7 +1519,7 @@ namespace ConfiguringTask {
 }
 
 namespace CustomTask {
-	export function from(this: void, external: ICustomTask, context: IParseContext, index: number, source: TaskConfigSource): Tasks.ResolvedTask | undefined {
+	export function from(this: void, external: ICustomTask, context: IParseContext, index: number, source: TaskConfigSource): Tasks.CustomTask | undefined {
 		if (!external) {
 			return undefined;
 		}
@@ -1556,7 +1556,7 @@ namespace CustomTask {
 			}
 		}
 
-		const result: Tasks.ResolvedTask = new Tasks.ResolvedTask(
+		const result: Tasks.CustomTask = new Tasks.CustomTask(
 			context.uuidMap.getUUID(taskName),
 			taskSource,
 			taskName,
@@ -1600,7 +1600,7 @@ namespace CustomTask {
 		return result;
 	}
 
-	export function fillGlobals(task: Tasks.ResolvedTask, globals: IGlobals): void {
+	export function fillGlobals(task: Tasks.CustomTask, globals: IGlobals): void {
 		// We only merge a command from a global definition if there is no dependsOn
 		// or there is a dependsOn and a defined command.
 		if (CommandConfiguration.hasCommand(task.command) || task.configurationProperties.dependsOn === undefined) {
@@ -1616,7 +1616,7 @@ namespace CustomTask {
 		}
 	}
 
-	export function fillDefaults(task: Tasks.ResolvedTask, context: IParseContext): void {
+	export function fillDefaults(task: Tasks.CustomTask, context: IParseContext): void {
 		CommandConfiguration.fillDefaults(task.command, context);
 		if (task.configurationProperties.promptOnClose === undefined) {
 			task.configurationProperties.promptOnClose = task.configurationProperties.isBackground !== undefined ? !task.configurationProperties.isBackground : true;
@@ -1629,8 +1629,8 @@ namespace CustomTask {
 		}
 	}
 
-	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.ResolvedTask): Tasks.ResolvedTask {
-		const result: Tasks.ResolvedTask = new Tasks.ResolvedTask(
+	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
+		const result: Tasks.CustomTask = new Tasks.CustomTask(
 			configuredProps._id,
 			Object.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
 			configuredProps.configurationProperties.name || contributedTask._label,
@@ -1681,7 +1681,7 @@ namespace CustomTask {
 }
 
 export interface ITaskParseResult {
-	custom: Tasks.ResolvedTask[];
+	custom: Tasks.CustomTask[];
 	configured: Tasks.ConfiguringTask[];
 }
 
@@ -1791,7 +1791,7 @@ export namespace TaskParser {
 		return result;
 	}
 
-	export function assignTasks(target: Tasks.ResolvedTask[], source: Tasks.ResolvedTask[]): Tasks.ResolvedTask[] {
+	export function assignTasks(target: Tasks.CustomTask[], source: Tasks.CustomTask[]): Tasks.CustomTask[] {
 		if (source === undefined || source.length === 0) {
 			return target;
 		}
@@ -1801,7 +1801,7 @@ export namespace TaskParser {
 
 		if (source) {
 			// Tasks are keyed by ID but we need to merge by name
-			const map: IStringDictionary<Tasks.ResolvedTask> = Object.create(null);
+			const map: IStringDictionary<Tasks.CustomTask> = Object.create(null);
 			target.forEach((task) => {
 				map[task.configurationProperties.name!] = task;
 			});
@@ -1809,7 +1809,7 @@ export namespace TaskParser {
 			source.forEach((task) => {
 				map[task.configurationProperties.name!] = task;
 			});
-			const newTarget: Tasks.ResolvedTask[] = [];
+			const newTarget: Tasks.CustomTask[] = [];
 			target.forEach(task => {
 				newTarget.push(map[task.configurationProperties.name!]);
 				delete map[task.configurationProperties.name!];
@@ -1951,7 +1951,7 @@ export namespace JsonSchemaVersion {
 
 export interface IParseResult {
 	validationStatus: ValidationStatus;
-	custom: Tasks.ResolvedTask[];
+	custom: Tasks.CustomTask[];
 	configured: Tasks.ConfiguringTask[];
 	engine: Tasks.ExecutionEngine;
 }
@@ -2072,7 +2072,7 @@ class ConfigurationParser {
 			return { custom: [], configured: [] };
 		}
 		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
-		let globalTasks: Tasks.ResolvedTask[] | undefined = undefined;
+		let globalTasks: Tasks.CustomTask[] | undefined = undefined;
 		let externalGlobalTasks: Array<IConfiguringTask | ICustomTask> | undefined = undefined;
 		if (fileConfig.windows && context.platform === Platform.Windows) {
 			globalTasks = TaskParser.from(fileConfig.windows.tasks, globals, context, source).custom;
@@ -2108,7 +2108,7 @@ class ConfigurationParser {
 			const matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context).value ?? [];
 			const isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
 			const name = Tasks.CommandString.value(globals.command.name);
-			const task: Tasks.ResolvedTask = new Tasks.ResolvedTask(
+			const task: Tasks.CustomTask = new Tasks.CustomTask(
 				context.uuidMap.getUUID(name),
 				Object.assign({} as Tasks.IWorkspaceTaskSource, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
 				name,
@@ -2169,6 +2169,6 @@ export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace |
 
 
 
-export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.ResolvedTask): Tasks.ResolvedTask {
+export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
 	return CustomTask.createCustomTask(contributedTask, configuredProps);
 }

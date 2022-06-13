@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
-import { Task, ContributedTask, ResolvedTask, ConfiguringTask, TaskSorter, KeyedTaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
+import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter, KeyedTaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Types from 'vs/base/common/types';
 import { ITaskService, IWorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
@@ -215,7 +215,7 @@ export class TaskQuickPick extends Disposable {
 				this._quickInputService.cancel();
 				if (ContributedTask.is(task)) {
 					this._taskService.customize(task, undefined, true);
-				} else if (ResolvedTask.is(task) || ConfiguringTask.is(task)) {
+				} else if (CustomTask.is(task) || ConfiguringTask.is(task)) {
 					let canOpenConfig: boolean = false;
 					try {
 						canOpenConfig = await this._taskService.openConfig(task);
