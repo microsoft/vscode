@@ -140,14 +140,15 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			hasConflicts
 		};
 
+		const localContent = fileContent ? fileContent.value.toString() : null;
 		return [{
 			fileContent,
 
 			baseResource: this.baseResource,
-			baseContent: lastSyncContent,
+			baseContent: lastSyncContent !== null ? lastSyncContent : localContent,
 
 			localResource: this.localResource,
-			localContent: fileContent ? fileContent.value.toString() : null,
+			localContent,
 			localChange: previewResult.localChange,
 
 			remoteResource: this.remoteResource,

@@ -134,8 +134,11 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected updateReadonly(input: EditorInput): void {
+		const readOnly = input.hasCapability(EditorInputCapabilities.Readonly);
+
 		this.updateEditorControlOptions({
-			readOnly: input.hasCapability(EditorInputCapabilities.Readonly)
+			readOnly,
+			enableDropIntoEditor: !readOnly
 		});
 	}
 

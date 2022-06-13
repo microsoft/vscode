@@ -135,12 +135,13 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			remoteChange: remote !== null ? Change.Modified : Change.None,
 		};
 
+		const localContent = this.stringify(localExtensions, false);
 		return [{
 			skippedExtensions,
 			baseResource: this.baseResource,
-			baseContent: lastSyncExtensions ? this.stringify(lastSyncExtensions, false) : null,
+			baseContent: lastSyncExtensions ? this.stringify(lastSyncExtensions, false) : localContent,
 			localResource: this.localResource,
-			localContent: this.stringify(localExtensions, false),
+			localContent,
 			localExtensions,
 			remoteResource: this.remoteResource,
 			remoteContent: remoteExtensions ? this.stringify(remoteExtensions, false) : null,

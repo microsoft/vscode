@@ -122,14 +122,15 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			hasConflicts
 		};
 
+		const localContent = fileContent ? fileContent.value.toString() : null;
 		return [{
 			fileContent,
 
 			baseResource: this.baseResource,
-			baseContent: lastSettingsSyncContent ? lastSettingsSyncContent.settings : null,
+			baseContent: lastSettingsSyncContent ? lastSettingsSyncContent.settings : localContent,
 
 			localResource: this.localResource,
-			localContent: fileContent ? fileContent.value.toString() : null,
+			localContent,
 			localChange: previewResult.localChange,
 
 			remoteResource: this.remoteResource,
