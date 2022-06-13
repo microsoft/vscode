@@ -204,7 +204,7 @@ export class SponsorWidget extends ExtensionWidget {
 
 		const sponsor = append(this.container, $('span.sponsor.clickable', { tabIndex: 0, title: this.extension?.publisherSponsorLink }));
 		sponsor.setAttribute('role', 'link'); // #132645
-		const sponsorIcon = renderIcon(Codicon.heart);
+		const sponsorIcon = renderIcon(Codicon.heartFilled);
 		const label = $('span', undefined, localize('sponsor', "Sponsor"));
 		append(sponsor, sponsorIcon, label);
 		this.disposables.add(onClick(sponsor, () => {
