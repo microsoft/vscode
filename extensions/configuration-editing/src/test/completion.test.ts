@@ -260,7 +260,7 @@ suite('Completions in settings.json', () => {
 				'\t}',
 				'}',
 			].join('\n');
-			const expected = { label: 'vscode.bat' };
+			const expected = { label: 'vscode.npm' };
 			await testCompletion(testFile, 'jsonc', content, expected);
 		}
 	});

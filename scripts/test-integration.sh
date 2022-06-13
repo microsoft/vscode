@@ -42,6 +42,7 @@ else
 	#			compile-extension:json-language-features-server \
 	#			compile-extension:git \
 	#			compile-extension:ipynb \
+	#			compile-extension:configuration-editing \
 	#			compile-extension-media
 
 	# Configuration for more verbose output
@@ -123,7 +124,7 @@ kill_app
 echo
 echo "### Configuration editing tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --extensionDevelopmentPath=$ROOT/extensions/configuration-editing --extensionTestsPath=$ROOT/extensions/configuration-editing/out/test $API_TESTS_EXTRA_ARGS
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/configuration-editing --extensionTestsPath=$ROOT/extensions/configuration-editing/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 
 
