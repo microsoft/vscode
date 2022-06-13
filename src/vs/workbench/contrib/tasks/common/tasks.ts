@@ -697,7 +697,7 @@ export abstract class CommonTask {
  * For ContributedTasks of all other types, this is the result of
  * resolving a ConfiguringTask.
  */
-export class CustomTask extends CommonTask {
+export class ResolvedTask extends CommonTask {
 
 	override type!: '$customized'; // CUSTOMIZED_TASK_TYPE
 
@@ -725,8 +725,8 @@ export class CustomTask extends CommonTask {
 		}
 	}
 
-	public override clone(): CustomTask {
-		return new CustomTask(this._id, this._source, this._label, this.type, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties);
+	public override clone(): ResolvedTask {
+		return new ResolvedTask(this._id, this._source, this._label, this.type, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties);
 	}
 
 	public customizes(): KeyedTaskIdentifier | undefined {
@@ -772,8 +772,8 @@ export class CustomTask extends CommonTask {
 		}
 	}
 
-	public static is(value: any): value is CustomTask {
-		return value instanceof CustomTask;
+	public static is(value: any): value is ResolvedTask {
+		return value instanceof ResolvedTask;
 	}
 
 	public override getMapKey(): string {
@@ -823,8 +823,8 @@ export class CustomTask extends CommonTask {
 		}
 	}
 
-	protected fromObject(object: CustomTask): CustomTask {
-		return new CustomTask(object._id, object._source, object._label, object.type, object.command, object.hasDefinedMatchers, object.runOptions, object.configurationProperties);
+	protected fromObject(object: ResolvedTask): ResolvedTask {
+		return new ResolvedTask(object._id, object._source, object._label, object.type, object.command, object.hasDefinedMatchers, object.runOptions, object.configurationProperties);
 	}
 }
 
@@ -893,12 +893,12 @@ export class ConfiguringTask extends CommonTask {
 }
 
 /**
- * A task from an extension via resolveTask or provideTask
+ * A task from an extension created via resolveTask or provideTask
  */
 export class ContributedTask extends CommonTask {
 
 	/**
-	 * Indicated the source of the task (e.g. tasks.json or extension)
+	 * Indicates the source of the task (e.g. tasks.json or extension)
 	 * Set in the super constructor
 	 */
 	override _source!: IExtensionTaskSource;
@@ -1016,7 +1016,7 @@ export class InMemoryTask extends CommonTask {
 	}
 }
 
-export type Task = CustomTask | ContributedTask | InMemoryTask;
+export type Task = ResolvedTask | ContributedTask | InMemoryTask;
 
 export interface ITaskExecution {
 	id: string;

@@ -49,7 +49,7 @@ import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/c
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, ITaskTerminateResponse, ITaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import {
-	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, ITaskEvent,
+	Task, ResolvedTask, ConfiguringTask, ContributedTask, InMemoryTask, ITaskEvent,
 	ITaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
 	TaskSorter, ITaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
 	KeyedTaskIdentifier as KeyedTaskIdentifier, TaskDefinition, RuntimeType,
@@ -768,7 +768,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				for (const task of tasks) {
 					if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
 						result.push(task);
-					} else if (CustomTask.is(task)) {
+					} else if (ResolvedTask.is(task)) {
 						if (task.type === filter.type) {
 							result.push(task);
 						} else {
@@ -903,7 +903,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const readTasksMap: Map<string, (Task | ConfiguringTask)> = new Map();
 		async function readTasks(that: AbstractTaskService, map: Map<string, any>, isWorkspaceFile: boolean) {
 			for (const key of map.keys()) {
-				const custom: CustomTask[] = [];
+				const custom: ResolvedTask[] = [];
 				const customized: IStringDictionary<ConfiguringTask> = Object.create(null);
 				const taskConfigSource = (folderMap[key]
 					? (isWorkspaceFile
@@ -957,7 +957,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!InMemoryTask.is(task) && key) {
 			const customizations = this._createCustomizableTask(task);
 			if (ContributedTask.is(task) && customizations) {
-				const custom: CustomTask[] = [];
+				const custom: ResolvedTask[] = [];
 				const customized: IStringDictionary<ConfiguringTask> = Object.create(null);
 				await this._computeTasksForSingleConfig(task._source.workspaceFolder ?? this.workspaceFolders[0], {
 					version: '2.0.0',
@@ -1110,7 +1110,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private _getTypeForTask(task: Task): string {
 		let type: string;
-		if (CustomTask.is(task)) {
+		if (ResolvedTask.is(task)) {
 			const configProperties: TaskConfig.IConfigurationProperties = task._source.config.element;
 			type = (<any>configProperties).type;
 		} else {
@@ -1136,7 +1136,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (ContributedTask.is(task)) {
 			return !task.hasDefinedMatchers && !!task.configurationProperties.problemMatchers && (task.configurationProperties.problemMatchers.length === 0);
 		}
-		if (CustomTask.is(task)) {
+		if (ResolvedTask.is(task)) {
 			const configProperties: TaskConfig.IConfigurationProperties = task._source.config.element;
 			return configProperties.problemMatcher === undefined && !task.hasDefinedMatchers;
 		}
@@ -1158,7 +1158,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._configurationService.updateValue(PROBLEM_MATCHER_NEVER_CONFIG, newValue);
 	}
 
-	private _attachProblemMatcher(task: ContributedTask | CustomTask): Promise<Task | undefined> {
+	private _attachProblemMatcher(task: ContributedTask | ResolvedTask): Promise<Task | undefined> {
 		interface IProblemMatcherPickEntry extends IQuickPickItem {
 			matcher: INamedProblemMatcher | undefined;
 			never?: boolean;
@@ -1191,7 +1191,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			});
 			entries.unshift({ type: 'separator', label: nls.localize('TaskService.associate', 'associate') });
 			let taskType: string;
-			if (CustomTask.is(task)) {
+			if (ResolvedTask.is(task)) {
 				const configProperties: TaskConfig.IConfigurationProperties = task._source.config.element;
 				taskType = (<any>configProperties).type;
 			} else {
@@ -1262,7 +1262,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this.schemaVersion !== JsonSchemaVersion.V2_0_0) {
 			return false;
 		}
-		if (CustomTask.is(task)) {
+		if (ResolvedTask.is(task)) {
 			return true;
 		}
 		if (ContributedTask.is(task)) {
@@ -1346,9 +1346,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private _createCustomizableTask(task: ContributedTask | CustomTask | ConfiguringTask): TaskConfig.ICustomTask | TaskConfig.IConfiguringTask | undefined {
+	private _createCustomizableTask(task: ContributedTask | ResolvedTask | ConfiguringTask): TaskConfig.ICustomTask | TaskConfig.IConfiguringTask | undefined {
 		let toCustomize: TaskConfig.ICustomTask | TaskConfig.IConfiguringTask | undefined;
-		const taskConfig = CustomTask.is(task) || ConfiguringTask.is(task) ? task._source.config : undefined;
+		const taskConfig = ResolvedTask.is(task) || ConfiguringTask.is(task) ? task._source.config : undefined;
 		if (taskConfig && taskConfig.element) {
 			toCustomize = { ...(taskConfig.element) };
 		} else if (ContributedTask.is(task)) {
@@ -1379,7 +1379,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return toCustomize;
 	}
 
-	public async customize(task: ContributedTask | CustomTask | ConfiguringTask, properties?: ICustomizationProperties, openConfig?: boolean): Promise<void> {
+	public async customize(task: ContributedTask | ResolvedTask | ConfiguringTask, properties?: ICustomizationProperties, openConfig?: boolean): Promise<void> {
 		if (!(await this._trust())) {
 			return;
 		}
@@ -1399,7 +1399,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!toCustomize) {
 			return Promise.resolve(undefined);
 		}
-		const index: number | undefined = CustomTask.is(task) ? task._source.config.index : undefined;
+		const index: number | undefined = ResolvedTask.is(task) ? task._source.config.index : undefined;
 		if (properties) {
 			for (const property of Object.getOwnPropertyNames(properties)) {
 				const value = (<any>properties)[property];
@@ -1491,8 +1491,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private _getResourceForTask(task: CustomTask | ConfiguringTask | ContributedTask): URI {
-		if (CustomTask.is(task)) {
+	private _getResourceForTask(task: ResolvedTask | ConfiguringTask | ContributedTask): URI {
+		if (ResolvedTask.is(task)) {
 			let uri = this._getResourceForKind(task._source.kind);
 			if (!uri) {
 				const taskFolder = task.getWorkspaceFolder();
@@ -1508,7 +1508,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public async openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> {
+	public async openConfig(task: ResolvedTask | ConfiguringTask | undefined): Promise<boolean> {
 		let resource: URI | undefined;
 		if (task) {
 			resource = this._getResourceForTask(task);
@@ -1605,7 +1605,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		async function quickResolve(that: AbstractTaskService, uri: URI | string, identifier: string | ITaskIdentifier) {
 			const foundTasks = await that._findWorkspaceTasks((task: Task | ConfiguringTask): boolean => {
-				const taskUri = ((ConfiguringTask.is(task) || CustomTask.is(task)) ? task._source.config.workspaceFolder?.uri : undefined);
+				const taskUri = ((ConfiguringTask.is(task) || ResolvedTask.is(task)) ? task._source.config.workspaceFolder?.uri : undefined);
 				const originalUri = (typeof uri === 'string' ? uri : uri.toString());
 				if (taskUri?.toString() !== originalUri) {
 					return false;
@@ -2043,9 +2043,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private _getLegacyTaskConfigurations(workspaceTasks: ITaskSet): IStringDictionary<CustomTask> | undefined {
-		let result: IStringDictionary<CustomTask> | undefined;
-		function getResult(): IStringDictionary<CustomTask> {
+	private _getLegacyTaskConfigurations(workspaceTasks: ITaskSet): IStringDictionary<ResolvedTask> | undefined {
+		let result: IStringDictionary<ResolvedTask> | undefined;
+		function getResult(): IStringDictionary<ResolvedTask> {
 			if (result) {
 				return result;
 			}
@@ -2053,7 +2053,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return result!;
 		}
 		for (const task of workspaceTasks.tasks) {
-			if (CustomTask.is(task)) {
+			if (ResolvedTask.is(task)) {
 				const commandName = task.command && task.command.name;
 				// This is for backwards compatibility with the 0.1.0 task annotation code
 				// if we had a gulp, jake or grunt command a task specification was a annotation
@@ -2197,7 +2197,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			byIdentifier: Object.create(null)
 		};
 
-		const custom: CustomTask[] = [];
+		const custom: ResolvedTask[] = [];
 		await this._computeTasksForSingleConfig(workspaceFolder, configuration.config, runSource, custom, customizedTasks.byIdentifier, TaskConfig.TaskConfigSource.WorkspaceFile);
 		const engine = configuration.config ? TaskConfig.ExecutionEngine.from(configuration.config) : ExecutionEngine.Terminal;
 		if (engine === ExecutionEngine.Process) {
@@ -2217,7 +2217,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			byIdentifier: Object.create(null)
 		};
 
-		const custom: CustomTask[] = [];
+		const custom: ResolvedTask[] = [];
 		await this._computeTasksForSingleConfig(workspaceFolder, configuration.config, runSource, custom, customizedTasks.byIdentifier, TaskConfig.TaskConfigSource.User);
 		const engine = configuration.config ? TaskConfig.ExecutionEngine.from(configuration.config) : ExecutionEngine.Terminal;
 		if (engine === ExecutionEngine.Process) {
@@ -2231,7 +2231,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return { workspaceFolder, set: undefined, configurations: undefined, hasErrors: false };
 	}
 
-	private async _computeTasksForSingleConfig(workspaceFolder: IWorkspaceFolder, config: TaskConfig.IExternalTaskRunnerConfiguration | undefined, runSource: TaskRunSource, custom: CustomTask[], customized: IStringDictionary<ConfiguringTask>, source: TaskConfig.TaskConfigSource, isRecentTask: boolean = false): Promise<boolean> {
+	private async _computeTasksForSingleConfig(workspaceFolder: IWorkspaceFolder, config: TaskConfig.IExternalTaskRunnerConfiguration | undefined, runSource: TaskRunSource, custom: ResolvedTask[], customized: IStringDictionary<ConfiguringTask>, source: TaskConfig.TaskConfigSource, isRecentTask: boolean = false): Promise<boolean> {
 		if (!config) {
 			return false;
 		}
@@ -2567,7 +2567,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._quickInputService.cancel();
 			if (ContributedTask.is(task)) {
 				this.customize(task, undefined, true);
-			} else if (CustomTask.is(task)) {
+			} else if (ResolvedTask.is(task)) {
 				this.openConfig(task);
 			}
 		});
@@ -2696,7 +2696,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				for (const task of tasks) {
 					if (ContributedTask.is(task) && task.defines.type === filter.type) {
 						result.push(task);
-					} else if (CustomTask.is(task)) {
+					} else if (ResolvedTask.is(task)) {
 						if (task.type === filter.type) {
 							result.push(task);
 						} else {
@@ -3129,7 +3129,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _configureTask(task: Task) {
 		if (ContributedTask.is(task)) {
 			this.customize(task, undefined, true);
-		} else if (CustomTask.is(task)) {
+		} else if (ResolvedTask.is(task)) {
 			this.openConfig(task);
 		} else if (ConfiguringTask.is(task)) {
 			// Do nothing.
@@ -3293,7 +3293,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							if ((task === undefined) || (task === null)) {
 								return;
 							}
-							if (task === selectedTask && CustomTask.is(task)) {
+							if (task === selectedTask && ResolvedTask.is(task)) {
 								this.openConfig(task);
 							}
 							if (!InMemoryTask.is(task)) {
@@ -3346,7 +3346,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							if (!task) {
 								return;
 							}
-							if (task === selectedTask && CustomTask.is(task)) {
+							if (task === selectedTask && ResolvedTask.is(task)) {
 								this.openConfig(task);
 							}
 							if (!InMemoryTask.is(task)) {
@@ -3413,7 +3413,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _upgradeTask(task: Task, suppressTaskName: boolean, globalConfig: { windows?: ICommandUpgrade; osx?: ICommandUpgrade; linux?: ICommandUpgrade }): TaskConfig.ICustomTask | TaskConfig.IConfiguringTask | undefined {
-		if (!CustomTask.is(task)) {
+		if (!ResolvedTask.is(task)) {
 			return;
 		}
 		const configElement: any = {
@@ -3455,7 +3455,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		task._source.config.element = configElement;
-		const tempTask = new CustomTask(task._id, task._source, task._label, task.type, task.command, task.hasDefinedMatchers, task.runOptions, task.configurationProperties);
+		const tempTask = new ResolvedTask(task._id, task._source, task._label, task.type, task.command, task.hasDefinedMatchers, task.runOptions, task.configurationProperties);
 		const configTask = this._createCustomizableTask(tempTask);
 		if (configTask) {
 			return configTask;

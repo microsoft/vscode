@@ -16,7 +16,7 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platf
 
 import {
 	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, ITaskExecution, Task, ITaskEvent, TaskEventKind,
-	IPresentationOptions, CommandOptions, ICommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource,
+	IPresentationOptions, CommandOptions, ICommandConfiguration, RuntimeType, ResolvedTask, TaskScope, TaskSource,
 	TaskSourceKind, IExtensionTaskSource, IRunOptions, ITaskSet, TaskGroup, TaskDefinition, PresentationOptions, RunOptions
 } from 'vs/workbench/contrib/tasks/common/tasks';
 
@@ -305,7 +305,7 @@ namespace TaskHandleDTO {
 
 namespace TaskDTO {
 	export function from(task: Task | ConfiguringTask): ITaskDTO | undefined {
-		if (task === undefined || task === null || (!CustomTask.is(task) && !ContributedTask.is(task) && !ConfiguringTask.is(task))) {
+		if (task === undefined || task === null || (!ResolvedTask.is(task) && !ContributedTask.is(task) && !ConfiguringTask.is(task))) {
 			return undefined;
 		}
 		const result: ITaskDTO = {

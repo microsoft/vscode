@@ -10,7 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { Task, ContributedTask, CustomTask, ITaskSet, TaskSorter, ITaskEvent, ITaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
+import { Task, ContributedTask, ResolvedTask, ITaskSet, TaskSorter, ITaskEvent, ITaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -79,8 +79,8 @@ export interface ITaskService {
 	createSorter(): TaskSorter;
 
 	getTaskDescription(task: Task | ConfiguringTask): string | undefined;
-	customize(task: ContributedTask | CustomTask | ConfiguringTask, properties?: {}, openConfig?: boolean): Promise<void>;
-	openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean>;
+	customize(task: ContributedTask | ResolvedTask | ConfiguringTask, properties?: {}, openConfig?: boolean): Promise<void>;
+	openConfig(task: ResolvedTask | ConfiguringTask | undefined): Promise<boolean>;
 
 	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 
