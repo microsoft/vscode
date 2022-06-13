@@ -234,22 +234,24 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return editorConfiguration;
 	}
 
-	protected override getConfigurationOverrides(): ICodeEditorOptions {
-		const options: IDiffEditorOptions = super.getConfigurationOverrides();
+	protected override getConfigurationOverrides(): IDiffEditorOptions {
+		const readOnly = this.input instanceof DiffEditorInput && this.input.modified.hasCapability(EditorInputCapabilities.Readonly);
 
-		options.readOnly = this.input instanceof DiffEditorInput && this.input.modified.hasCapability(EditorInputCapabilities.Readonly);
-		options.enableDropIntoEditor = !options.readOnly;
-		options.originalEditable = this.input instanceof DiffEditorInput && !this.input.original.hasCapability(EditorInputCapabilities.Readonly);
-		options.lineDecorationsWidth = '2ch';
-
-		return options;
+		return {
+			...super.getConfigurationOverrides(),
+			readOnly,
+			enableDropIntoEditor: !readOnly,
+			originalEditable: this.input instanceof DiffEditorInput && !this.input.original.hasCapability(EditorInputCapabilities.Readonly),
+			lineDecorationsWidth: '2ch'
+		};
 	}
 
 	protected override updateReadonly(input: EditorInput): void {
 		if (input instanceof DiffEditorInput) {
 			this.diffEditorControl?.updateOptions({
 				readOnly: input.hasCapability(EditorInputCapabilities.Readonly),
-				originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly)
+				originalEditable: !input.original.hasCapability(EditorInputCapabilities.Readonly),
+				enableDropIntoEditor: !input.hasCapability(EditorInputCapabilities.Readonly)
 			});
 		} else {
 			super.updateReadonly(input);
