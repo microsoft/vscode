@@ -189,19 +189,19 @@ steps:
         pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-$(VSCODE_ARCH)-web && zip -Xry vscode-server-darwin-$(VSCODE_ARCH)-web.zip vscode-server-darwin-$(VSCODE_ARCH)-web && popd
       displayName: Prepare to publish servers
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (client)
       inputs:
         BuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
         PackageName: Visual Studio Code
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
     - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (client)
       artifact: vscode_client_darwin_$(VSCODE_ARCH)_sbom
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (server)
       inputs:
