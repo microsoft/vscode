@@ -35,11 +35,6 @@ steps:
       git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
-  - script: |
-      set -e
-      node build/azure-pipelines/mixin
-    displayName: Mix in quality
-
   - task: Cache@2
     inputs:
       key: "buildNodeModules | $(Agent.OS) | $(VSCODE_ARCH) | build/yarn.lock"
@@ -67,6 +62,11 @@ steps:
       done
     displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.BUILD_NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      node build/azure-pipelines/mixin
+    displayName: Mix in quality
 
   - download: current
     artifact: unsigned_vscode_client_darwin_x64_archive
