@@ -124,11 +124,12 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			remoteChange: remote !== null ? Change.Modified : Change.None,
 		};
 
+		const localContent = stringify(localGlobalState, false);
 		return [{
 			baseResource: this.baseResource,
-			baseContent: lastSyncGlobalState ? stringify(lastSyncGlobalState, false) : null,
+			baseContent: lastSyncGlobalState ? stringify(lastSyncGlobalState, false) : localContent,
 			localResource: this.localResource,
-			localContent: stringify(localGlobalState, false),
+			localContent,
 			localUserData: localGlobalState,
 			remoteResource: this.remoteResource,
 			remoteContent: remoteGlobalState ? stringify(remoteGlobalState, false) : null,

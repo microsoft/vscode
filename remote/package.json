@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@microsoft/applicationinsights-web": "^2.6.4",
+    "@microsoft/1ds-core-js": "^3.2.2",
+    "@microsoft/1ds-post-js": "^3.2.2",
+    "@microsoft/applicationinsights-web": "^2.8.4",
     "@parcel/watcher": "2.0.5",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/ripgrep": "^1.14.2",

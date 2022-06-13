@@ -52,7 +52,7 @@ import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ILineBreaksComputer } from 'vs/editor/common/modelLineProjectionData';
-import { IChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { IChange, ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
@@ -592,7 +592,73 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			});
 		}));
 
+		// Revert change when an arrow is clicked.
+		this._register(editor.onMouseDown(event => {
+			if (!event.event.rightButton && event.target.position && event.target.element?.className.includes('arrow-revert-change')) {
+				const lineNumber = event.target.position.lineNumber;
+				const change = this._diffComputationResult?.changes.find(c => c.modifiedStartLineNumber === lineNumber - 1 || c.modifiedStartLineNumber === lineNumber);
+				if (change) {
+					this.revertChange(change);
+				}
+				event.event.stopPropagation();
+				this._updateDecorations();
+				return;
+			}
+		}));
+
 		return editor;
+	}
+
+	/**
+	 * Reverts a change in the modified editor.
+	 */
+	revertChange(change: IChange) {
+		const editor = this._modifiedEditor;
+		const original = this._originalEditor.getModel();
+		const modified = this._modifiedEditor.getModel();
+		if (!original || !modified || !editor) {
+			return;
+		}
+
+		const originalRange = change.originalEndLineNumber > 0 ? new Range(change.originalStartLineNumber, 1, change.originalEndLineNumber, original.getLineMaxColumn(change.originalEndLineNumber)) : null;
+		const originalContent = originalRange ? original.getValueInRange(originalRange) : null;
+
+		const newRange = change.modifiedEndLineNumber > 0 ? new Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber, modified.getLineMaxColumn(change.modifiedEndLineNumber)) : null;
+
+		const eol = modified.getEOL();
+
+		if (change.originalEndLineNumber === 0 && newRange) {
+			// Insert change.
+			// To revert: delete the new content and a linebreak (if possible)
+
+			let range = newRange;
+			if (change.modifiedStartLineNumber > 1) {
+				// Try to include a linebreak from before.
+				range = newRange.setStartPosition(change.modifiedStartLineNumber - 1, modified.getLineMaxColumn(change.modifiedStartLineNumber - 1));
+			} else if (change.modifiedEndLineNumber < modified.getLineCount()) {
+				// Try to include the linebreak from after.
+				range = newRange.setEndPosition(change.modifiedEndLineNumber + 1, 1);
+			}
+			editor.executeEdits('diffEditor', [{
+				range,
+				text: '',
+			}]);
+		} else if (change.modifiedEndLineNumber === 0 && originalContent) {
+			// Delete change.
+			// To revert: insert the old content and a linebreak.
+
+			const insertAt = change.modifiedStartLineNumber < modified.getLineCount() ? new Position(change.modifiedStartLineNumber + 1, 1) : new Position(change.modifiedStartLineNumber, modified.getLineMaxColumn(change.modifiedStartLineNumber));
+			editor.executeEdits('diffEditor', [{
+				range: Range.fromPositions(insertAt, insertAt),
+				text: change.modifiedStartLineNumber < modified.getLineCount() ? originalContent + eol : eol + originalContent,
+			}]);
+		} else if (newRange && originalContent !== null) {
+			// Modified change.
+			editor.executeEdits('diffEditor', [{
+				range: newRange,
+				text: originalContent,
+			}]);
+		}
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorConstructionOptions>, editorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
@@ -1734,6 +1800,11 @@ function createDecoration(startLineNumber: number, startColumn: number, endLineN
 
 const DECORATIONS = {
 
+	arrowRevertChange: ModelDecorationOptions.register({
+		description: 'diff-editor-arrow-revert-change',
+		glyphMarginClassName: 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight),
+	}),
+
 	charDelete: ModelDecorationOptions.register({
 		description: 'diff-editor-char-delete',
 		className: 'char-delete'
@@ -1926,7 +1997,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
-						if (isChangeOrDelete(charChange)) {
+						if (isCharChangeOrDelete(charChange)) {
 							if (ignoreTrimWhitespace) {
 								for (let lineNumber = charChange.originalStartLineNumber; lineNumber <= charChange.originalEndLineNumber; lineNumber++) {
 									let startColumn: number;
@@ -1969,6 +2040,19 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 
 		for (const lineChange of lineChanges) {
 
+			// Arrows for reverting changes.
+			if (lineChange.modifiedEndLineNumber > 0) {
+				result.decorations.push({
+					range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedStartLineNumber, 1),
+					options: DECORATIONS.arrowRevertChange
+				});
+			} else {
+				const viewZone = zones.modified.find(z => z.afterLineNumber === lineChange.modifiedStartLineNumber);
+				if (viewZone) {
+					viewZone.marginDomNode = createViewZoneMarginArrow();
+				}
+			}
+
 			if (isChangeOrInsert(lineChange)) {
 
 				result.decorations.push({
@@ -1984,7 +2068,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
-						if (isChangeOrInsert(charChange)) {
+						if (isCharChangeOrInsert(charChange)) {
 							if (ignoreTrimWhitespace) {
 								for (let lineNumber = charChange.modifiedStartLineNumber; lineNumber <= charChange.modifiedEndLineNumber; lineNumber++) {
 									let startColumn: number;
@@ -2159,7 +2243,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
-						if (isChangeOrInsert(charChange)) {
+						if (isCharChangeOrInsert(charChange)) {
 							if (ignoreTrimWhitespace) {
 								for (let lineNumber = charChange.modifiedStartLineNumber; lineNumber <= charChange.modifiedEndLineNumber; lineNumber++) {
 									let startColumn: number;
@@ -2321,7 +2405,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			const decorations: InlineDecoration[] = [];
 			if (lineChange.charChanges) {
 				for (const charChange of lineChange.charChanges) {
-					if (isChangeOrDelete(charChange)) {
+					if (isCharChangeOrDelete(charChange)) {
 						decorations.push(new InlineDecoration(
 							new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
 							'char-delete',
@@ -2504,18 +2588,38 @@ function validateDiffWordWrap(value: 'off' | 'on' | 'inherit' | undefined, defau
 	return validateStringSetOption<'off' | 'on' | 'inherit'>(value, defaultValue, ['off', 'on', 'inherit']);
 }
 
-function isChangeOrInsert(lineChange: IChange): boolean {
+function isChangeOrInsert(lineChange: ILineChange): boolean {
 	return lineChange.modifiedEndLineNumber > 0;
 }
 
-function isChangeOrDelete(lineChange: IChange): boolean {
+function isChangeOrDelete(lineChange: ILineChange): boolean {
 	return lineChange.originalEndLineNumber > 0;
+}
+
+function isCharChangeOrInsert(charChange: ICharChange): boolean {
+	if (charChange.modifiedStartLineNumber === charChange.modifiedEndLineNumber) {
+		return charChange.modifiedEndColumn - charChange.modifiedStartColumn > 0;
+	}
+	return charChange.modifiedEndLineNumber - charChange.modifiedStartLineNumber > 0;
+}
+
+function isCharChangeOrDelete(charChange: ICharChange): boolean {
+	if (charChange.originalStartLineNumber === charChange.originalEndLineNumber) {
+		return charChange.originalEndColumn - charChange.originalStartColumn > 0;
+	}
+	return charChange.originalEndLineNumber - charChange.originalStartLineNumber > 0;
 }
 
 function createFakeLinesDiv(): HTMLElement {
 	const r = document.createElement('div');
 	r.className = 'diagonal-fill';
 	return r;
+}
+
+function createViewZoneMarginArrow(): HTMLElement {
+	const arrow = document.createElement('div');
+	arrow.className = 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight);
+	return dom.$('div', {}, arrow);
 }
 
 function getViewRange(model: ITextModel, viewModel: IViewModel, startLineNumber: number, endLineNumber: number): Range {
