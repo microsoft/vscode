@@ -208,7 +208,7 @@ steps:
         BuildDropPath: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         PackageName: Visual Studio Code Server
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
     - publish: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (server)
       artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
