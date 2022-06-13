@@ -11,7 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
@@ -19,6 +19,9 @@ import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDat
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { EditSession, EDIT_SESSION_SYNC_TITLE, ISessionSyncWorkbenchService } from 'vs/workbench/services/sessionSync/common/sessionSync';
+
+type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
+type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
 
 export class SessionSyncWorkbenchService extends Disposable implements ISessionSyncWorkbenchService {
 
@@ -61,7 +64,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	async write(editSession: EditSession): Promise<void> {
 		this.initialized = await this.waitAndInitialize();
 		if (!this.initialized) {
-			throw new Error('Unable to store edit session.');
+			throw new Error('Please sign in to store your edit session.');
 		}
 
 		await this.storeClient?.write('editSessions', JSON.stringify(editSession), null);
@@ -74,7 +77,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	async read(): Promise<EditSession | undefined> {
 		this.initialized = await this.waitAndInitialize();
 		if (!this.initialized) {
-			throw new Error('Unable to apply latest edit session.');
+			throw new Error('Please sign in to apply your latest edit session.');
 		}
 
 		// Pull latest session data from service
@@ -137,22 +140,46 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	 * Prompts the user to pick an authentication option for storing and getting edit sessions.
 	 */
 	private async getAccountPreference(): Promise<AuthenticationSession & { providerId: string } | undefined> {
-		const quickpick = this.quickInputService.createQuickPick<IQuickPickItem & { session: AuthenticationSession & { providerId: string } }>();
+		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption>();
 		quickpick.title = localize('account preference', 'Edit Sessions');
 		quickpick.ok = false;
 		quickpick.placeholder = localize('choose account placeholder', "Select an account to sign in");
 		quickpick.ignoreFocusOut = true;
-		// TODO@joyceerhl Should we be showing sessions here?
-		quickpick.items = await this.getAllSessions();
+		quickpick.items = await this.createQuickpickItems();
 
 		return new Promise((resolve, reject) => {
 			quickpick.onDidHide((e) => quickpick.dispose());
-			quickpick.onDidAccept((e) => {
-				resolve(quickpick.selectedItems[0].session);
+
+			quickpick.onDidAccept(async (e) => {
+				const selection = quickpick.selectedItems[0];
+				const session = 'provider' in selection ? { ...await this.authenticationService.createSession(selection.provider.id, selection.provider.scopes), providerId: selection.provider.id } : selection.session;
+				resolve(session);
 				quickpick.hide();
 			});
+
 			quickpick.show();
 		});
+	}
+
+	private async createQuickpickItems(): Promise<(ExistingSession | AuthenticationProviderOption | IQuickPickSeparator)[]> {
+		const options: (ExistingSession | AuthenticationProviderOption | IQuickPickSeparator)[] = [];
+
+		options.push({ type: 'separator', label: localize('signed in', "Signed In") });
+
+		const sessions = await this.getAllSessions();
+		options.push(...sessions);
+
+		options.push({ type: 'separator', label: localize('others', "Others") });
+
+		for (const authenticationProvider of (await this.getAuthenticationProviders())) {
+			const signedInForProvider = sessions.some(account => account.session.providerId === authenticationProvider.id);
+			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
+				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
+				options.push({ label: localize('sign in using account', "Sign in with {0}", providerName), provider: authenticationProvider });
+			}
+		}
+
+		return options;
 	}
 
 	/**
@@ -160,7 +187,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	 * Returns all authentication sessions available from {@link getAuthenticationProviders}.
 	 */
 	private async getAllSessions() {
-		const options = [];
+		const options: ExistingSession[] = [];
 		const authenticationProviders = await this.getAuthenticationProviders();
 
 		for (const provider of authenticationProviders) {
