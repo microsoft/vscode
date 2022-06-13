@@ -16,9 +16,9 @@ import { IExtensionManagementService } from 'vs/platform/extensionManagement/com
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { stripComments } from 'vs/base/common/stripComments';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class NativeLocaleService implements ILocaleService {
 	_serviceBrand: undefined;
@@ -31,8 +31,8 @@ export class NativeLocaleService implements ILocaleService {
 		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ICommandService private readonly commandService: ICommandService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService
 	) { }
 
 	private async validateLocaleFile(): Promise<boolean> {
@@ -48,7 +48,10 @@ export class NativeLocaleService implements ILocaleService {
 				message: localize('argvInvalid', 'Unable to write display language. Please open the runtime settings, correct errors/warnings in it and try again.'),
 				actions: {
 					primary: [
-						new Action('openArgv', localize('openArgv', "Open argv.json"), undefined, true, () => this.commandService.executeCommand('workbench.action.configureRuntimeArguments')),
+						new Action('openArgv', localize('openArgv', "Open runtime settings"), undefined, true, () => this.editorService.openEditor({
+							resource: this.environmentService.argvResource,
+							options: { preserveFocus: false }
+						}))
 					]
 				}
 			});
