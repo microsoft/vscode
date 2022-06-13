@@ -2397,14 +2397,6 @@ export class Task implements vscode.Task {
 		this._presentationOptions = value;
 	}
 
-	get color(): string | undefined {
-		return this._color;
-	}
-
-	get icon(): string | undefined {
-		return this._icon;
-	}
-
 	get runOptions(): vscode.RunOptions {
 		return this._runOptions;
 	}
