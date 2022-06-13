@@ -21,7 +21,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
-import { Position } from 'vs/editor/common/core/position';
 
 suite('Workbench editor utils', () => {
 
@@ -375,7 +374,10 @@ suite('Workbench editor utils', () => {
 			cursorState: [],
 			viewState: {
 				scrollLeft: 0,
-				firstPosition: new Position(1, 1),
+				firstPosition: {
+					lineNumber: 1,
+					column: 1,
+				},
 				firstPositionDeltaTop: 1
 			}
 		};

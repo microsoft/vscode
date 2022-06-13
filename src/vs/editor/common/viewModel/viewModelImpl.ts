@@ -583,9 +583,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		const firstPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(firstViewLineNumber, this.getLineMinColumn(firstViewLineNumber)));
 		const firstPositionDeltaTop = this.viewLayout.getVerticalOffsetForLineNumber(firstViewLineNumber) - scrollTop;
 
+		// all properties must be serializable
 		return {
 			scrollLeft: compatViewState.scrollLeft,
-			firstPosition: firstPosition,
+			firstPosition: { ...firstPosition },
 			firstPositionDeltaTop: firstPositionDeltaTop
 		};
 	}
