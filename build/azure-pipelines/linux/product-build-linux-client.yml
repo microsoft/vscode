@@ -253,6 +253,30 @@ steps:
       displayName: Prepare for Publish
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+      displayName: Generate SBOM (client)
+      inputs:
+        BuildDropPath: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+        PackageName: Visual Studio Code
+
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - publish: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/_manifest
+      displayName: Publish SBOM (client)
+      artifact: vscode_client_linux_$(VSCODE_ARCH)_sbom
+
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+      displayName: Generate SBOM (server)
+      inputs:
+        BuildDropPath: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
+        PackageName: Visual Studio Code Server
+
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - publish: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)/_manifest
+      displayName: Publish SBOM (server)
+      artifact: vscode_server_linux_$(VSCODE_ARCH)_sbom
+
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
     - publish: $(DEB_PATH)
       artifact: vscode_client_linux_$(VSCODE_ARCH)_deb-package
       displayName: Publish deb package
@@ -283,27 +307,3 @@ steps:
       inputs:
         artifactName: "snap-$(VSCODE_ARCH)"
         targetPath: .build/linux/snap-tarball
-
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-      displayName: Generate SBOM (client)
-      inputs:
-        BuildDropPath: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-        PackageName: Visual Studio Code
-
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-    - publish: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/_manifest
-      displayName: Publish SBOM (client)
-      artifact: vscode_client_linux_$(VSCODE_ARCH)_sbom
-
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-      displayName: Generate SBOM (server)
-      inputs:
-        BuildDropPath: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
-        PackageName: Visual Studio Code Server
-
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-    - publish: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)/_manifest
-      displayName: Publish SBOM (server)
-      artifact: vscode_server_linux_$(VSCODE_ARCH)_sbom

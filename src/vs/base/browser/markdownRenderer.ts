@@ -13,7 +13,7 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
+import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -108,13 +108,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		let attributes: string[] = [];
 		if (href) {
 			({ href, dimensions } = parseHrefAndDimensions(href));
-			attributes.push(`src="${href}"`);
+			attributes.push(`src="${escapeDoubleQuotes(href)}"`);
 		}
 		if (text) {
-			attributes.push(`alt="${text}"`);
+			attributes.push(`alt="${escapeDoubleQuotes(text)}"`);
 		}
 		if (title) {
-			attributes.push(`title="${title}"`);
+			attributes.push(`title="${escapeDoubleQuotes(title)}"`);
 		}
 		if (dimensions.length) {
 			attributes = attributes.concat(dimensions);
@@ -131,7 +131,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			text = removeMarkdownEscapes(text);
 		}
 
-		title = typeof title === 'string' ? removeMarkdownEscapes(title) : '';
+		title = typeof title === 'string' ? escapeDoubleQuotes(removeMarkdownEscapes(title)) : '';
 		href = removeMarkdownEscapes(href);
 
 		// HTML Encode href

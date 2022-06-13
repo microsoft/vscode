@@ -375,7 +375,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 
 	getFocus(): (MarkerTableItem | null)[] {
 		const focus = this.table.getFocus();
-		return focus.length > 0 ? [this.table.row(focus[0])] : [];
+		return focus.length > 0 ? [...focus.map(f => this.table.row(f))] : [];
 	}
 
 	getHTMLElement(): HTMLElement {
@@ -388,7 +388,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 
 	getSelection(): (MarkerTableItem | null)[] {
 		const selection = this.table.getSelection();
-		return selection.length > 0 ? [this.table.row(selection[0])] : [];
+		return selection.length > 0 ? [...selection.map(i => this.table.row(i))] : [];
 	}
 
 	getVisibleItemCount(): number {
@@ -499,13 +499,15 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		this.table.domNode.ariaLabel = label;
 	}
 
-	setMarkerSelection(marker?: Marker): void {
+	setMarkerSelection(selection?: Marker[], focus?: Marker[]): void {
 		if (this.isVisible()) {
-			if (marker) {
-				const index = this.findMarkerIndex(marker);
-				if (index !== -1) {
-					this.table.setFocus([index]);
-					this.table.setSelection([index]);
+			if (selection && selection.length > 0) {
+				this.table.setSelection(selection.map(m => this.findMarkerIndex(m)));
+
+				if (focus && focus.length > 0) {
+					this.table.setFocus(focus.map(f => this.findMarkerIndex(f)));
+				} else {
+					this.table.setFocus([this.findMarkerIndex(selection[0])]);
 				}
 			} else if (this.getSelection().length === 0 && this.getVisibleItemCount() > 0) {
 				this.table.setFocus([0]);

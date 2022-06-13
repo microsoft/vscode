@@ -51,8 +51,11 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
         }
     }
     // FULL COMPILE stream doing transpile, syntax and semantic diagnostics
+    let _builder;
     function createCompileStream(token) {
-        const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
+        if (!_builder) {
+            _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
+        }
         return through(function (file) {
             // give the file to the compiler
             if (file.isStream()) {

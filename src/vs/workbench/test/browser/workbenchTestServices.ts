@@ -93,7 +93,7 @@ import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogSer
 import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEditorService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditor, IEditor } from 'vs/editor/common/editorCommon';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -180,15 +180,15 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerFile
 
 export class TestTextResourceEditor extends TextResourceEditor {
 
-	protected override createEditorControl(parent: HTMLElement, configuration: any): IEditor {
-		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
+	protected override createEditorControl(parent: HTMLElement, configuration: any): void {
+		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
 	}
 }
 
 export class TestTextFileEditor extends TextFileEditor {
 
-	protected override createEditorControl(parent: HTMLElement, configuration: any): IEditor {
-		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
+	protected override createEditorControl(parent: HTMLElement, configuration: any): void {
+		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
 	}
 
 	setSelection(selection: Selection | undefined, reason: EditorPaneSelectionChangeReason): void {

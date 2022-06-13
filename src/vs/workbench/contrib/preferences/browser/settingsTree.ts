@@ -153,9 +153,8 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 	);
 
 	return Object.keys(data).map(key => {
+		const defaultValue = elementDefaultValue[key];
 		if (isDefined(objectProperties) && key in objectProperties) {
-			const defaultValue = elementDefaultValue[key];
-
 			if (element.setting.allKeysAreBoolean) {
 				return {
 					key: {
@@ -188,6 +187,9 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			} as IObjectDataItem;
 		}
 
+		// The row is removable if it doesn't have a default value assigned.
+		// Otherwise, it is not removable, but its value can be reset to the default.
+		const removable = !defaultValue;
 		const schema = patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
 		if (schema) {
 			const valueEnumOptions = getEnumOptionsFromSchema(schema);
@@ -199,7 +201,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					options: valueEnumOptions,
 				},
 				keyDescription: schema.description,
-				removable: true,
+				removable,
 			} as IObjectDataItem;
 		}
 
@@ -217,7 +219,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				options: additionalValueEnums,
 			},
 			keyDescription: typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties.description : undefined,
-			removable: true,
+			removable,
 		} as IObjectDataItem;
 	}).filter(item => !isUndefinedOrNull(item.value.data));
 }

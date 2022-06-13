@@ -80,6 +80,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	protected readonly version: number = 5;
 
 	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'extensions.json');
+	private readonly baseResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' });
 	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
 	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
@@ -133,10 +134,13 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			remoteChange: remote !== null ? Change.Modified : Change.None,
 		};
 
+		const localContent = this.stringify(localExtensions, false);
 		return [{
 			skippedExtensions,
+			baseResource: this.baseResource,
+			baseContent: lastSyncExtensions ? this.stringify(lastSyncExtensions, false) : localContent,
 			localResource: this.localResource,
-			localContent: this.stringify(localExtensions, false),
+			localContent,
 			localExtensions,
 			remoteResource: this.remoteResource,
 			remoteContent: remoteExtensions ? this.stringify(remoteExtensions, false) : null,
@@ -285,7 +289,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			return this.stringify(localExtensions, true);
 		}
 
-		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
+		if (this.extUri.isEqual(this.remoteResource, uri)
+			|| this.extUri.isEqual(this.baseResource, uri)
+			|| this.extUri.isEqual(this.localResource, uri)
+			|| this.extUri.isEqual(this.acceptedResource, uri)
+		) {
 			const content = await this.resolvePreviewContent(uri);
 			return content ? this.stringify(JSON.parse(content), true) : content;
 		}
