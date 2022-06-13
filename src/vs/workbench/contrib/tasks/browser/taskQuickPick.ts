@@ -63,7 +63,7 @@ export class TaskQuickPick extends Disposable {
 
 	private _guessTaskLabel(task: Task | ConfiguringTask): string {
 		if (task._label) {
-			return task.configurationProperties.icon ? `$(${task.configurationProperties.icon}) ${task._label}` : `${task._label}`;
+			return task.configurationProperties.icon ? `$(${task.configurationProperties.icon}) ${task._label}` : task.configurationProperties.color ? `$(${Codicon.tools.id}) ${task._label}` : `${task._label}`;
 		}
 		if (ConfiguringTask.is(task)) {
 			let label: string = task.configures.type;
