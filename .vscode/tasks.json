@@ -67,7 +67,7 @@
 				"kind": "build",
 				"isDefault": true
 			},
-			"problemMatcher": [],
+			"problemMatcher": []
 		},
 		{
 			"type": "npm",
