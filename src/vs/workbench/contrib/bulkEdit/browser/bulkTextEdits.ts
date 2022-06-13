@@ -206,7 +206,7 @@ export class BulkTextEdits {
 				let makeMinimal = false;
 				if (this._editor?.getModel()?.uri.toString() === ref.object.textEditorModel.uri.toString()) {
 					task = new EditorEditTask(ref, this._editor);
-					makeMinimal = true && false;
+					makeMinimal = true && false; // todo@jrieken HACK
 				} else {
 					task = new ModelEditTask(ref);
 				}
