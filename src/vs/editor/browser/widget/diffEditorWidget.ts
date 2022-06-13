@@ -52,7 +52,7 @@ import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ILineBreaksComputer } from 'vs/editor/common/modelLineProjectionData';
-import { ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { IChange, ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
