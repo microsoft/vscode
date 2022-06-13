@@ -21,6 +21,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { SessionSyncWorkbenchService } from 'vs/workbench/services/sessionSync/browser/sessionSyncWorkbenchService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
@@ -42,7 +45,9 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		@ISessionSyncWorkbenchService private readonly sessionSyncWorkbenchService: ISessionSyncWorkbenchService,
 		@IFileService private readonly fileService: IFileService,
 		@IProgressService private readonly progressService: IProgressService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISCMService private readonly scmService: ISCMService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 	) {
@@ -177,7 +182,30 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 
 		const data: EditSession = { folders, version: 1 };
 
-		await this.sessionSyncWorkbenchService.write(data);
+		try {
+			await this.sessionSyncWorkbenchService.write(data);
+		} catch (ex) {
+
+			type UploadFailedEvent = { reason: string };
+			type UploadFailedClassification = {
+				owner: 'joyceerhl'; comment: 'Reporting when Continue On server request fails.';
+				reason?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The reason that the server request failed.' };
+			};
+
+			if (ex instanceof UserDataSyncStoreError) {
+				switch (ex.code) {
+					case UserDataSyncErrorCode.TooLarge:
+						// Uploading a payload can fail due to server size limits
+						this.telemetryService.publicLog2<UploadFailedEvent, UploadFailedClassification>('sessionSync.upload.failed', { reason: 'TooLarge' });
+						this.notificationService.error(localize('payload too large', 'Your edit session exceeds the size limit and cannot be stored.'));
+						break;
+					default:
+						this.telemetryService.publicLog2<UploadFailedEvent, UploadFailedClassification>('sessionSync.upload.failed', { reason: 'unknown' });
+						this.notificationService.error(localize('payload failed', 'Your edit session cannot be stored.'));
+						break;
+				}
+			}
+		}
 	}
 }
 
