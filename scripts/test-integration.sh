@@ -56,10 +56,10 @@ fi
 
 # Tests standalone (AMD)
 
-echo
-echo "### node.js integration tests"
-echo
-./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
+# echo
+# echo "### node.js integration tests"
+# echo
+# ./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
 
 
 # Tests in the extension host
@@ -118,6 +118,12 @@ echo
 echo "### Ipynb tests"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/ipynb --extensionTestsPath=$ROOT/extensions/ipynb/out/test $API_TESTS_EXTRA_ARGS
+kill_app
+
+echo
+echo "### Configuration editing tests"
+echo
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --extensionDevelopmentPath=$ROOT/extensions/configuration-editing --extensionTestsPath=$ROOT/extensions/configuration-editing/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 
 
