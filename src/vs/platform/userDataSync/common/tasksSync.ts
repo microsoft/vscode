@@ -38,6 +38,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 
 	protected readonly version: number = 1;
 	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'tasks.json');
+	private readonly baseResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' });
 	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
 	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
@@ -103,6 +104,10 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 
 		return [{
 			fileContent,
+
+			baseResource: this.baseResource,
+			baseContent: lastSyncContent,
+
 			localResource: this.localResource,
 			localContent: fileContent ? fileContent.value.toString() : null,
 			localChange: previewResult.localChange,
@@ -221,7 +226,11 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 	}
 
 	override async resolveContent(uri: URI): Promise<string | null> {
-		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
+		if (this.extUri.isEqual(this.remoteResource, uri)
+			|| this.extUri.isEqual(this.baseResource, uri)
+			|| this.extUri.isEqual(this.localResource, uri)
+			|| this.extUri.isEqual(this.acceptedResource, uri)
+		) {
 			return this.resolvePreviewContent(uri);
 		}
 		let content = await super.resolveContent(uri);
