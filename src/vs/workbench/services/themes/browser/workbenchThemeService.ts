@@ -447,27 +447,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onColorThemeChange.event;
 	}
 
-	public async togglePreferredTheme(): Promise<IWorkbenchColorTheme | null> {
-		const currentTheme = this.getColorTheme();
-		let newColorScheme: ColorScheme = ColorScheme.DARK;
-		switch (currentTheme.type) {
-			case ColorScheme.LIGHT:
-				newColorScheme = ColorScheme.DARK;
-				break;
-			case ColorScheme.DARK:
-				newColorScheme = ColorScheme.LIGHT;
-				break;
-			case ColorScheme.HIGH_CONTRAST_LIGHT:
-				newColorScheme = ColorScheme.HIGH_CONTRAST_DARK;
-				break;
-			case ColorScheme.HIGH_CONTRAST_DARK:
-				newColorScheme = ColorScheme.HIGH_CONTRAST_LIGHT;
-				break;
-		}
-
-		return await this.applyPreferredColorTheme(newColorScheme);
-	}
-
 	public setColorTheme(themeIdOrTheme: string | undefined | IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null> {
 		return this.colorThemeSequencer.queue(async () => {
 			return this.internalSetColorTheme(themeIdOrTheme, settingsTarget);

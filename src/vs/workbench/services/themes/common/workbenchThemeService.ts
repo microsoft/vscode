@@ -76,7 +76,6 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
 	getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]>;
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
-	togglePreferredTheme(): Promise<IWorkbenchColorTheme | null>;
 
 	setFileIconTheme(iconThemeId: string | undefined | IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;
