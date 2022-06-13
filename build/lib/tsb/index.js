@@ -76,7 +76,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
                 this.emit('error', 'no support for streams');
                 return;
             }
-            if (!file.contents) {
+            if (!file.contents || file.path.endsWith('.d.ts')) {
                 return;
             }
             const out = ts.transpileModule(String(file.contents), {
@@ -85,10 +85,12 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
             if (out.diagnostics) {
                 out.diagnostics.forEach(printDiagnostic);
             }
+            const outBase = cmdLine.options.outDir;
+            const outRelative = (0, path_1.relative)(cmdLine.options.rootDir, file.path);
+            const outPath = (0, path_1.join)(outBase, outRelative.replace(/\.ts$/, '.js'));
             const outFile = new Vinyl({
-                path: file.path.replace(/\.ts$/, '.js'),
-                cwd: file.cwd,
-                base: file.base,
+                path: outPath,
+                base: outBase,
                 contents: Buffer.from(out.outputText),
             });
             this.push(outFile);

@@ -8,7 +8,7 @@ import * as through from 'through';
 import * as builder from './builder';
 import * as ts from 'typescript';
 import { Readable, Writable, Duplex } from 'stream';
-import { dirname } from 'path';
+import { dirname, join, relative } from 'path';
 import { strings } from './utils';
 import { readFileSync, statSync } from 'fs';
 import * as log from 'fancy-log';
@@ -109,7 +109,7 @@ export function create(
 				return;
 			}
 
-			if (!file.contents) {
+			if (!file.contents || file.path.endsWith('.d.ts')) {
 				return;
 			}
 
@@ -121,10 +121,13 @@ export function create(
 				out.diagnostics.forEach(printDiagnostic);
 			}
 
+			const outBase = cmdLine.options.outDir!;
+			const outRelative = relative(cmdLine.options.rootDir!, file.path);
+			const outPath = join(outBase, outRelative.replace(/\.ts$/, '.js'));
+
 			const outFile = new Vinyl({
-				path: file.path.replace(/\.ts$/, '.js'),
-				cwd: file.cwd,
-				base: file.base,
+				path: outPath,
+				base: outBase,
 				contents: Buffer.from(out.outputText),
 			});
 
