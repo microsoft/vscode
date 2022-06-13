@@ -281,8 +281,6 @@ export namespace TaskDTO {
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
 			runOptions: value.runOptions ? value.runOptions : { reevaluateOnRerun: true },
 			detail: value.detail,
-			color: (value as types.Task)._color!,
-			icon: (value as types.Task)._icon!
 		};
 		return result;
 	}
@@ -329,12 +327,6 @@ export namespace TaskDTO {
 		}
 		if (value.presentationOptions) {
 			result.presentationOptions = TaskPresentationOptionsDTO.to(value.presentationOptions)!;
-		}
-		if (value.icon) {
-			result._icon = value.icon;
-		}
-		if (value.color) {
-			result._color = value.color;
 		}
 		if (value._id) {
 			result._id = value._id;

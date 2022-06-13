@@ -495,9 +495,6 @@ export class MainThreadTask implements MainThreadTaskShape {
 					dto.name = ((dto.name === undefined) ? '' : dto.name); // Using an empty name causes the name to default to the one given by the provider.
 					return Promise.resolve(this._proxy.$resolveTask(handle, dto)).then(resolvedTask => {
 						if (resolvedTask) {
-							//TODO: @meganrogge figure out why this is needed and fix / remove
-							resolvedTask.icon = task.configurationProperties.icon;
-							resolvedTask.color = task.configurationProperties.color;
 							return TaskDTO.to(resolvedTask, this._workspaceContextServer, true);
 						}
 
