@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType } from 'vs/workbench/services/sessionSync/common/sessionSync';
+import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_TITLE } from 'vs/workbench/services/sessionSync/common/sessionSync';
 import { ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -27,14 +27,13 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
-const SYNC_TITLE = localize('session sync', 'Edit Sessions');
 const applyLatestCommand = {
 	id: 'workbench.sessionSync.actions.applyLatest',
-	title: localize('apply latest', "{0}: Apply Latest Edit Session", SYNC_TITLE),
+	title: localize('apply latest', "{0}: Apply Latest Edit Session", EDIT_SESSION_SYNC_TITLE),
 };
 const storeLatestCommand = {
 	id: 'workbench.sessionSync.actions.storeLatest',
-	title: localize('store latest', "{0}: Store Latest Edit Session", SYNC_TITLE),
+	title: localize('store latest', "{0}: Store Latest Edit Session", EDIT_SESSION_SYNC_TITLE),
 };
 
 export class SessionSyncContribution extends Disposable implements IWorkbenchContribution {
@@ -185,7 +184,6 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		try {
 			await this.sessionSyncWorkbenchService.write(data);
 		} catch (ex) {
-
 			type UploadFailedEvent = { reason: string };
 			type UploadFailedClassification = {
 				owner: 'joyceerhl'; comment: 'Reporting when Continue On server request fails.';

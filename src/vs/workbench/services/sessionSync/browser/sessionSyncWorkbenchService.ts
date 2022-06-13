@@ -6,6 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -17,7 +18,7 @@ import { IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDat
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { EditSession, ISessionSyncWorkbenchService } from 'vs/workbench/services/sessionSync/common/sessionSync';
+import { EditSession, EDIT_SESSION_SYNC_TITLE, ISessionSyncWorkbenchService } from 'vs/workbench/services/sessionSync/common/sessionSync';
 
 export class SessionSyncWorkbenchService extends Disposable implements ISessionSyncWorkbenchService {
 
@@ -49,6 +50,8 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 
 		// If another window changes the preferred session storage, reset our cached auth state in memory
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
+
+		this.registerResetAuthenticationAction();
 	}
 
 	/**
@@ -226,11 +229,34 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		}
 	}
 
+	private clearAuthenticationPreference(): void {
+		this.#authenticationInfo = undefined;
+		this.initialized = false;
+		this.existingSessionId = undefined;
+	}
+
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
 		if (this.#authenticationInfo?.sessionId && e.removed.find(session => session.id === this.#authenticationInfo?.sessionId)) {
-			this.#authenticationInfo = undefined;
-			this.existingSessionId = undefined;
-			this.initialized = false;
+			this.clearAuthenticationPreference();
 		}
+	}
+
+	private registerResetAuthenticationAction() {
+		const that = this;
+		this._register(registerAction2(class ResetEditSessionAuthenticationAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.sessionSync.actions.resetAuth',
+					title: localize('reset auth', '{0}: Reset Authentication State', EDIT_SESSION_SYNC_TITLE),
+					menu: {
+						id: MenuId.CommandPalette,
+					}
+				});
+			}
+
+			run() {
+				that.clearAuthenticationPreference();
+			}
+		}));
 	}
 }

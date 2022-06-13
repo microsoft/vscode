@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const EDIT_SESSION_SYNC_TITLE = localize('session sync', 'Edit Sessions');
 
 export const ISessionSyncWorkbenchService = createDecorator<ISessionSyncWorkbenchService>('ISessionSyncWorkbenchService');
 export interface ISessionSyncWorkbenchService {
