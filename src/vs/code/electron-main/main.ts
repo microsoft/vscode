@@ -243,6 +243,7 @@ class CodeMain {
 				environmentMainService.backupHome
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
+			// State service
 			stateMainService.init(),
 
 			// User Data Profiles Service
