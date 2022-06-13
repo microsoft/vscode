@@ -1,7 +1,4 @@
 steps:
-  - checkout: self
-    fetchDepth: 1
-
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
