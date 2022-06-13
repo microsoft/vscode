@@ -6,8 +6,7 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2, EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -21,9 +20,7 @@ import { Choice, SnippetParser } from 'vs/editor/contrib/snippet/browser/snippet
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
 import { localize } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SnippetSession } from './snippetSession';
@@ -392,39 +389,3 @@ export function performSnippetEdits(editor: ICodeEditor, edits: ISnippetEdit[]) 
 	controller.insert(newText, { undoStopBefore: false });
 	return controller.isInSnippet();
 }
-
-
-registerAction2(class extends EditorAction2 {
-
-	constructor() {
-		super({
-			id: 'snippet',
-			title: 'Extract constant snippet',
-			f1: true
-		});
-	}
-
-	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-		if (!editor.hasModel()) {
-			return;
-		}
-		const bulkEdit = accessor.get(IBulkEditService);
-		await bulkEdit.apply([
-			new ResourceTextEdit(editor.getModel().uri, {
-				range: new Range(1, 1, 1, 1),
-				text: `const \${1:foo} = 123;`,
-				insertAsSnippet: true
-			}),
-			new ResourceTextEdit(editor.getModel().uri, {
-				range: new Range(3, 4, 3, 7),
-				text: `\${1:foo}`,
-				insertAsSnippet: true
-			}),
-			new ResourceTextEdit(editor.getModel().uri, {
-				range: new Range(3, 8, 3, 8),
-				text: `\$0`,
-				insertAsSnippet: true
-			}),
-		]);
-	}
-});
