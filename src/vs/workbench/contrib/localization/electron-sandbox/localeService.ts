@@ -17,6 +17,8 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { stripComments } from 'vs/base/common/json';
 
 export class NativeLocaleService implements ILocaleService {
 	_serviceBrand: undefined;
@@ -29,12 +31,18 @@ export class NativeLocaleService implements ILocaleService {
 		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
 	private async writeLocaleValue(locale: string | undefined): Promise<boolean> {
 		try {
-			await this.jsonEditingService.read(this.environmentService.argvResource);
+
+			const content = await this.textFileService.read(this.environmentService.argvResource, { encoding: 'utf8' });
+
+			// This is the same logic that we do where argv.json is parsed so mirror that:
+			// https://github.com/microsoft/vscode/blob/32d40cf44e893e87ac33ac4f08de1e5f7fe077fc/src/main.js#L238-L246
+			JSON.parse(stripComments(content.value));
 		} catch (error) {
 			this.notificationService.notify({
 				severity: Severity.Error,

@@ -38,5 +38,4 @@ export interface IJSONEditingService {
 	readonly _serviceBrand: undefined;
 
 	write(resource: URI, values: IJSONValue[], save: boolean): Promise<void>;
-	read(resource: URI): Promise<any>;
 }

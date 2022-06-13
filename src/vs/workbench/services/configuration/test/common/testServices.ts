@@ -10,5 +10,4 @@ export class TestJSONEditingService implements IJSONEditingService {
 	_serviceBrand: any;
 
 	async write(resource: URI, values: IJSONValue[], save: boolean): Promise<void> { }
-	async read(resource: URI): Promise<any> { return {}; }
 }

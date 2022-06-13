@@ -19,7 +19,6 @@ import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/se
 import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { stripComments } from 'vs/base/common/stripComments';
 
 export class JSONEditingService implements IJSONEditingService {
 
@@ -30,25 +29,13 @@ export class JSONEditingService implements IJSONEditingService {
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@ITextFileService private readonly textFileService: ITextFileService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		this.queue = new Queue<void>();
 	}
 
 	write(resource: URI, values: IJSONValue[], save: boolean): Promise<void> {
 		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(resource, values, save))); // queue up writes to prevent race conditions
-	}
-
-	// Throws if the content is not valid JSON
-	async read(resource: URI): Promise<any> {
-		const exists = await this.fileService.exists(resource);
-		if (!exists) {
-			throw new Error('Resource does not exist');
-		}
-		const reference = await this.textModelResolverService.createModelReference(resource);
-
-		const value = reference.object.textEditorModel.getValue();
-		return JSON.parse(stripComments(value));
 	}
 
 	private async doWriteConfiguration(resource: URI, values: IJSONValue[], save: boolean): Promise<void> {
