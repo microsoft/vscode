@@ -20,6 +20,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getColorClass, getColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { TaskQuickPickEntryType } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 
 export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 export const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
@@ -63,7 +64,7 @@ export class TaskQuickPick extends Disposable {
 
 	private _guessTaskLabel(task: Task | ConfiguringTask): string {
 		if (task._label) {
-			return task.configurationProperties.icon ? `$(${task.configurationProperties.icon}) ${task._label}` : task.configurationProperties.color ? `$(${Codicon.tools.id}) ${task._label}` : `${task._label}`;
+			return TaskQuickPick.getTaskLabelWithIcon(task);
 		}
 		if (ConfiguringTask.is(task)) {
 			let label: string = task.configures.type;
@@ -76,15 +77,23 @@ export class TaskQuickPick extends Disposable {
 		return '';
 	}
 
-	private _createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): ITaskTwoLevelQuickPickEntry {
-		const entry: ITaskTwoLevelQuickPickEntry = { label: this._guessTaskLabel(task), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined };
-		entry.buttons = [{ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") }, ...extraButtons];
+	public static getTaskLabelWithIcon(task: Task | ConfiguringTask): string {
+		return task.configurationProperties.icon ? `$(${task.configurationProperties.icon}) ${task._label}` : task.configurationProperties.color ? `$(${Codicon.tools.id}) ${task._label}` : `${task._label}`;
+	}
+
+	public static applyColorStyles(task: Task | ConfiguringTask, entry: TaskQuickPickEntryType | ITaskTwoLevelQuickPickEntry, themeService: IThemeService): void {
 		if (task.configurationProperties.color) {
-			const colorTheme = this._themeService.getColorTheme();
+			const colorTheme = themeService.getColorTheme();
 			const styleElement = getColorStyleElement(colorTheme);
 			entry.iconClasses = [getColorClass(task.configurationProperties.color)];
 			document.body.appendChild(styleElement);
 		}
+	}
+
+	private _createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): ITaskTwoLevelQuickPickEntry {
+		const entry: ITaskTwoLevelQuickPickEntry = { label: this._guessTaskLabel(task), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined };
+		entry.buttons = [{ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") }, ...extraButtons];
+		TaskQuickPick.applyColorStyles(task, entry, this._themeService);
 		return entry;
 	}
 
