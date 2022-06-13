@@ -24,7 +24,7 @@ export class PackageDocument {
 	}
 
 	private provideLanguageOverridesCompletionItems(location: Location, position: vscode.Position): vscode.ProviderResult<vscode.CompletionItem[]> {
-		let range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+		let range = this.getReplaceRange(location, position);
 		const text = this.document.getText(range);
 
 		if (location.path.length === 2) {
@@ -63,6 +63,17 @@ export class PackageDocument {
 			});
 		}
 		return Promise.resolve([]);
+	}
+
+	private getReplaceRange(location: Location, position: vscode.Position) {
+		const node = location.previousNode;
+		if (node) {
+			const nodeStart = this.document.positionAt(node.offset), nodeEnd = this.document.positionAt(node.offset + node.length);
+			if (nodeStart.isBeforeOrEqual(position) && nodeEnd.isAfterOrEqual(position)) {
+				return new vscode.Range(nodeStart, nodeEnd);
+			}
+		}
+		return new vscode.Range(position, position);
 	}
 
 	private newSimpleCompletionItem(text: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {

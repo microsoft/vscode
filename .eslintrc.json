@@ -227,6 +227,8 @@
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
 							"applicationinsights",
+							"@microsoft/1ds-core-js",
+							"@microsoft/1ds-post-js",
 							"assert",
 							"child_process",
 							"console",

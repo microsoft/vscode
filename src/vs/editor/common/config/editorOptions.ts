@@ -3478,14 +3478,14 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 
 	public override applyUpdate(value: Required<Readonly<IUnicodeHighlightOptions>>, update: Required<Readonly<IUnicodeHighlightOptions>>): ApplyUpdateResult<Required<Readonly<IUnicodeHighlightOptions>>> {
 		let didChange = false;
-		if (update.allowedCharacters) {
+		if (update?.allowedCharacters && value?.allowedCharacters) {
 			// Treat allowedCharacters atomically
 			if (!objects.equals(value.allowedCharacters, update.allowedCharacters)) {
 				value = { ...value, allowedCharacters: update.allowedCharacters };
 				didChange = true;
 			}
 		}
-		if (update.allowedLocales) {
+		if (update?.allowedLocales && value?.allowedLocales) {
 			// Treat allowedLocales atomically
 			if (!objects.equals(value.allowedLocales, update.allowedLocales)) {
 				value = { ...value, allowedLocales: update.allowedLocales };
