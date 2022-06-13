@@ -148,7 +148,10 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		quickpick.items = await this.createQuickpickItems();
 
 		return new Promise((resolve, reject) => {
-			quickpick.onDidHide((e) => quickpick.dispose());
+			quickpick.onDidHide((e) => {
+				resolve(undefined);
+				quickpick.dispose();
+			});
 
 			quickpick.onDidAccept(async (e) => {
 				const selection = quickpick.selectedItems[0];
