@@ -352,6 +352,16 @@ export interface IConfigurationProperties {
 	 * Task run options. Control run related properties.
 	 */
 	runOptions?: IRunOptionsConfig;
+
+	/**
+	 * The icon for this task in the terminal tabs list
+	 */
+	icon?: string;
+
+	/**
+	 * The icon's color in the terminal tabs list
+	 */
+	color?: string;
 }
 
 export interface ICustomTask extends ICommandProperties, IConfigurationProperties {
@@ -1303,11 +1313,17 @@ namespace DependsOrder {
 namespace ConfigurationProperties {
 
 	const properties: IMetaData<Tasks.IConfigurationProperties, any>[] = [
-
-		{ property: 'name' }, { property: 'identifier' }, { property: 'group' }, { property: 'isBackground' },
-		{ property: 'promptOnClose' }, { property: 'dependsOn' },
-		{ property: 'presentation', type: CommandConfiguration.PresentationOptions }, { property: 'problemMatchers' },
-		{ property: 'options' }
+		{ property: 'name' },
+		{ property: 'identifier' },
+		{ property: 'group' },
+		{ property: 'isBackground' },
+		{ property: 'promptOnClose' },
+		{ property: 'dependsOn' },
+		{ property: 'presentation', type: CommandConfiguration.PresentationOptions },
+		{ property: 'problemMatchers' },
+		{ property: 'options' },
+		{ property: 'color' },
+		{ property: 'icon' }
 	];
 
 	export function from(this: void, external: IConfigurationProperties & { [key: string]: any }, context: IParseContext,
@@ -1334,6 +1350,13 @@ namespace ConfigurationProperties {
 		if (Types.isString(external.identifier)) {
 			result.identifier = external.identifier;
 		}
+		if (Types.isString(external.color)) {
+			result.color = external.color;
+		}
+		if (Types.isString(external.icon)) {
+			result.icon = external.icon;
+		}
+
 		if (external.isBackground !== undefined) {
 			result.isBackground = !!external.isBackground;
 		}
@@ -1618,7 +1641,10 @@ namespace CustomTask {
 			{
 				name: configuredProps.configurationProperties.name || contributedTask.configurationProperties.name,
 				identifier: configuredProps.configurationProperties.identifier || contributedTask.configurationProperties.identifier,
-			}
+				icon: contributedTask.configurationProperties.icon,
+				color: contributedTask.configurationProperties.color
+			},
+
 		);
 		result.addTaskLoadMessages(configuredProps.taskLoadMessages);
 		const resultConfigProps: Tasks.IConfigurationProperties = result.configurationProperties;

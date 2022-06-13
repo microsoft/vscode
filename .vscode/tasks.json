@@ -3,14 +3,17 @@
 	"tasks": [
 		{
 			"type": "npm",
+			"color": "terminal.ansiRed",
+			"icon": "plus",
 			"script": "watch-clientd",
-			"label": "Core - Build",
+			"label": "Core - Build :)",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never",
 				"group": "buildWatchers",
 				"close": false
 			},
+
 			"problemMatcher": {
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
@@ -67,6 +70,7 @@
 				"kind": "build",
 				"isDefault": true
 			},
+			"color": "terminal.ansiRed",
 			"problemMatcher": []
 		},
 		{
@@ -187,7 +191,13 @@
 			"windows": {
 				"command": ".\\scripts\\code-server.bat"
 			},
-			"args": ["--no-launch", "--connection-token", "dev-token", "--port", "8080"],
+			"args": [
+				"--no-launch",
+				"--connection-token",
+				"dev-token",
+				"--port",
+				"8080"
+			],
 			"label": "Run code server",
 			"isBackground": true,
 			"problemMatcher": {
@@ -233,6 +243,15 @@
 			"group": "build",
 			"label": "npm: tsec-compile-check",
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
+		},
+		{
+			"type": "shell",
+			"command": "echo 'hi'",
+			"color": "terminal.ansiCyan",
+			"icon": "lightbulb",
+			"problemMatcher": [],
+			"label": "npm: 7z",
+			"detail": "7z"
 		}
 	]
 }

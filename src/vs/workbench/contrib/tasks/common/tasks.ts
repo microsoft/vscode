@@ -544,6 +544,16 @@ export interface IConfigurationProperties {
 	 * The problem watchers to use for this task
 	 */
 	problemMatchers?: Array<string | ProblemMatcher>;
+
+	/**
+	 * The icon for this task in the terminal tabs list
+	 */
+	icon?: string;
+
+	/**
+	 * The icon's color in the terminal tabs list
+	 */
+	color?: string;
 }
 
 export enum RunOnOptions {

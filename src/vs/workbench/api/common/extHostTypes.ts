@@ -2165,6 +2165,8 @@ export class Task implements vscode.Task {
 	private _presentationOptions: vscode.TaskPresentationOptions;
 	private _runOptions: vscode.RunOptions;
 	private _detail: string | undefined;
+	private __icon: string | undefined;
+	private __color: string | undefined;
 
 	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
@@ -2211,6 +2213,22 @@ export class Task implements vscode.Task {
 
 	set _id(value: string | undefined) {
 		this.__id = value;
+	}
+
+	get _icon(): string | undefined {
+		return this.__icon;
+	}
+
+	set _icon(value: string | undefined) {
+		this.__icon = value;
+	}
+
+	get _color(): string | undefined {
+		return this.__color;
+	}
+
+	set _color(value: string | undefined) {
+		this.__color = value;
 	}
 
 	get _deprecated(): boolean {
@@ -2377,6 +2395,14 @@ export class Task implements vscode.Task {
 		}
 		this.clear();
 		this._presentationOptions = value;
+	}
+
+	get color(): string | undefined {
+		return this._color;
+	}
+
+	get icon(): string | undefined {
+		return this._icon;
 	}
 
 	get runOptions(): vscode.RunOptions {
