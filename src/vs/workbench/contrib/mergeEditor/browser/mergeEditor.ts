@@ -9,7 +9,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IAction } from 'vs/base/common/actions';
-import { findLast } from 'vs/base/common/arrays';
+import { CompareResult, findLast } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
@@ -48,7 +48,7 @@ import { autorun, autorunWithStore, derivedObservable, IObservable, ITransaction
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
 import { LineRange, ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
-import { applyObservableDecorations, n, ReentrancyBarrier, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { applyObservableDecorations, join, n, ReentrancyBarrier, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -432,19 +432,6 @@ function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: C
 
 	const factor = Math.min((scrollingEditor.getScrollTop() - sourceStartTopPx) / (sourceEndPx - sourceStartTopPx), 1);
 	const resultScrollPosition = resultStartTopPx + (resultEndPx - resultStartTopPx) * factor;
-	/*
-		console.log({
-			topLineNumber,
-			sourceRange: sourceRange.toString(),
-			targetRange: targetRange.toString(),
-			// resultStartTopPx,
-			// resultEndPx,
-			// sourceStartTopPx,
-			// sourceEndPx,
-			factor,
-			resultScrollPosition,
-			top: scrollingEditor.getScrollTop(),
-		});*/
 
 	targetEditor.setScrollTop(resultScrollPosition, ScrollType.Immediate);
 }
@@ -541,7 +528,7 @@ class InputCodeEditorView extends CodeEditorView {
 					range: new Range(range.startLineNumber, 1, range.endLineNumberExclusive - 1, 1),
 					options: {
 						isWholeLine: true,
-						className: 'merge-base-range-projection',
+						className: `merge-editor-modified-base-range-input${this.inputNumber}`,
 						description: 'Base Range Projection'
 					}
 				});
@@ -666,18 +653,47 @@ class ResultCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const result = new Array<IModelDeltaDecoration>();
-		for (const m of model.resultDiffs.read(reader)) {
-			const range = m.modifiedRange;
-			if (!range.isEmpty) {
-				result.push({
-					range: new Range(range.startLineNumber, 1, range.endLineNumberExclusive - 1, 1),
-					options: {
-						isWholeLine: true,
-						// TODO
-						className: 'merge-base-range-projection',
-						description: 'Result Diff'
-					}
-				});
+
+		const baseRangeWithStoreAndTouchingDiffs = join(
+			model.modifiedBaseRanges.read(reader),
+			model.resultDiffs.read(reader),
+			(baseRange, diff) =>
+				baseRange.baseRange.touches(diff.originalRange)
+					? CompareResult.neitherLessOrGreaterThan
+					: LineRange.compareByStart(
+						baseRange.baseRange,
+						diff.originalRange
+					)
+		);
+
+		for (const m of baseRangeWithStoreAndTouchingDiffs) {
+			for (const r of m.rights) {
+				const range = r.modifiedRange;
+
+				const state = m.left ? model.getState(m.left).read(reader) : undefined;
+
+				if (!range.isEmpty) {
+					result.push({
+						range: new Range(range.startLineNumber, 1, range.endLineNumberExclusive - 1, 1),
+						options: {
+							isWholeLine: true,
+							// TODO
+
+							className: (() => {
+								if (state) {
+									if (state.input1 && !state.input2) {
+										return 'merge-editor-modified-base-range-input1';
+									}
+									if (state.input2 && !state.input1) {
+										return 'merge-editor-modified-base-range-input2';
+									}
+								}
+								return 'merge-editor-modified-base-range-combination';
+							})(),
+							description: 'Result Diff'
+						}
+					});
+				}
 			}
 		}
 		return result;
