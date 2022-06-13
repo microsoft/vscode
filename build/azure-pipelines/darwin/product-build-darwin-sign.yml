@@ -29,6 +29,7 @@ steps:
       set -e
       tar -xzf .build/node_modules_cache/cache.tgz
     displayName: Extract node_modules cache
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e
