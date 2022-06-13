@@ -893,7 +893,7 @@ export class ConfiguringTask extends CommonTask {
 }
 
 /**
- * A task from an extension via resolveTask or provideTask
+ * A task from an extension created via resolveTask or provideTask
  */
 export class ContributedTask extends CommonTask {
 
