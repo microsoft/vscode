@@ -56,10 +56,10 @@ fi
 
 # Tests standalone (AMD)
 
-# echo
-# echo "### node.js integration tests"
-# echo
-# ./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
+echo
+echo "### node.js integration tests"
+echo
+./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
 
 
 # Tests in the extension host
