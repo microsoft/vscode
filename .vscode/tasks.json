@@ -68,8 +68,6 @@
 				"isDefault": true
 			},
 			"problemMatcher": [],
-			"icon": "light-bulb",
-			"color": "terminal.ansiYellow"
 		},
 		{
 			"type": "npm",
