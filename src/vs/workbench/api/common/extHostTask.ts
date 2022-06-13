@@ -280,7 +280,7 @@ export namespace TaskDTO {
 			problemMatchers: value.problemMatchers,
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
 			runOptions: value.runOptions ? value.runOptions : { reevaluateOnRerun: true },
-			detail: value.detail,
+			detail: value.detail
 		};
 		return result;
 	}
