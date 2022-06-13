@@ -108,7 +108,7 @@ export class TaskQuickPick extends Disposable {
 	private _createTypeEntries(entries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[], types: string[]) {
 		entries.push({ type: 'separator', label: nls.localize('contributedTasks', "contributed") });
 		types.forEach(type => {
-			entries.push({ label: `$(folder) ${type} `, task: type, ariaLabel: nls.localize('taskType', "All {0} tasks", type) });
+			entries.push({ label: `$(folder) ${type}`, task: type, ariaLabel: nls.localize('taskType', "All {0} tasks", type) });
 		});
 		entries.push({ label: SHOW_ALL, task: SHOW_ALL, alwaysShow: true });
 	}
