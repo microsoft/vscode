@@ -6035,7 +6035,7 @@ declare module 'vscode' {
 		/**
 		 * Get a new iterator with the `[resource uri, diagnostics]` pairs for each element in the collection.
 		 */
-		entries(): IterableIterator<[uri: Uri, diagnostics: readonly Diagnostic[]]>;
+		[Symbol.iterator](): IterableIterator<[uri: Uri, diagnostics: readonly Diagnostic[]]>;
 
 		/**
 		 * Get the diagnostics for a given resource. *Note* that you cannot
@@ -10124,7 +10124,7 @@ declare module 'vscode' {
 		/**
 		 * Get a new iterator with the `[mime, item]` pairs for each element in this data transfer.
 		 */
-		entries(): IterableIterator<[mimeType: string, item: DataTransferItem]>;
+		[Symbol.iterator](): IterableIterator<[mimeType: string, item: DataTransferItem]>;
 	}
 
 	/**
@@ -10852,7 +10852,7 @@ declare module 'vscode' {
 		/**
 		 * Get a new iterator with the `[variable, mutator]` pairs for each element in this collection.
 		 */
-		entries(): IterableIterator<[variable: string, mutator: EnvironmentVariableMutator]>;
+		[Symbol.iterator](): IterableIterator<[variable: string, mutator: EnvironmentVariableMutator]>;
 
 		/**
 		 * Deletes this collection's mutator for a variable.
@@ -15681,11 +15681,9 @@ declare module 'vscode' {
 		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: any): void;
 
 		/**
-		 * Get a new iterator with `[test item, test item]` pairs from the collection.
-		 *
-		 * Note that the two elements are the same here to be compatible with `new Map().entries()`
+		 * Get a new iterator with `[item id, test item]` pairs from the collection.
 		 */
-		entries(): IterableIterator<[TestItem, TestItem]>;
+		[Symbol.iterator](): IterableIterator<[id: string, testItem: TestItem]>;
 
 		/**
 		 * Adds the test item to the children. If an item with the same ID already

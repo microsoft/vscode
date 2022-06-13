@@ -2479,7 +2479,7 @@ export class DataTransfer implements vscode.DataTransfer {
 		}
 	}
 
-	*entries(): IterableIterator<[mimeType: string, item: vscode.DataTransferItem]> {
+	*[Symbol.iterator](): IterableIterator<[mimeType: string, item: vscode.DataTransferItem]> {
 		for (const [mime, items] of this.#items) {
 			for (const item of items) {
 				yield [mime, item];

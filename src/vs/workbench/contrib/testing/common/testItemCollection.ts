@@ -562,11 +562,11 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 }
 
 /** Implementation of vscode.TestItemCollection */
-export interface ITestItemChildren<T extends ITestItemLike> extends Iterable<T> {
+export interface ITestItemChildren<T extends ITestItemLike> {
 	readonly size: number;
 	replace(items: readonly T[]): void;
 	forEach(callback: (item: T, collection: this) => unknown, thisArg?: unknown): void;
-	entries(): IterableIterator<[T, T]>;
+	[Symbol.iterator](): IterableIterator<[string, T]>;
 	add(item: T): void;
 	delete(itemId: string): void;
 	get(itemId: string): T | undefined;
@@ -609,10 +609,9 @@ export const createTestItemChildren = <T extends ITestItemLike>(api: ITestItemAp
 		},
 
 		/** @inheritdoc */
-		*entries(): IterableIterator<[T, T]> {
-			for (const value of mapped.values()) {
-				return [value, value];
-			}
+		[Symbol.iterator](): IterableIterator<[string, T]> {
+			const z = mapped[Symbol.iterator]();
+			return z;
 		},
 
 		/** @inheritdoc */
@@ -677,11 +676,6 @@ export const createTestItemChildren = <T extends ITestItemLike>(api: ITestItemAp
 		/** JSON serialization function. */
 		toJSON() {
 			return Array.from(mapped.values());
-		},
-
-		/** @inheritdoc */
-		[Symbol.iterator]() {
-			return mapped.values();
 		},
 	};
 };
