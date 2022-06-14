@@ -31,7 +31,6 @@ import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/termin
 import { serializeEnvironmentVariableCollections } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { IBeforeProcessDataEvent, ITerminalBackend, ITerminalConfigHelper, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
