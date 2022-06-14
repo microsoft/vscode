@@ -142,7 +142,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	private readonly mapProfileToStorage = new Map<string /* profile ID */, IStorageMain>();
 
 	globalStorage(profile: IUserDataProfile): IStorageMain {
-		if (profile.id === this.userDataProfilesService.defaultProfile.id) {
+		if (profile.isDefault) {
 			return this.applicationStorage; // for default profile, use application storage
 		}
 
