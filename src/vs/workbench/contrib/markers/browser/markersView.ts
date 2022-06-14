@@ -1007,6 +1007,8 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 				} else {
 					this.setFocus([this.findMarkerNode(selection[0])]);
 				}
+
+				this.reveal(this.findMarkerNode(selection[0]));
 			} else if (this.getSelection().length === 0) {
 				const firstVisibleElement = this.firstVisibleElement;
 				const marker = firstVisibleElement ?
@@ -1015,8 +1017,9 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 					: undefined;
 
 				if (marker) {
-					this.setFocus([marker]);
 					this.setSelection([marker]);
+					this.setFocus([marker]);
+					this.reveal(marker);
 				}
 			}
 		}
