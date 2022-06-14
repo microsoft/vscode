@@ -340,21 +340,17 @@ export class DiagnosticManager extends Disposable {
 	}
 }
 
-interface FileLinksData {
-	readonly path: vscode.Uri;
-
-	readonly links: Array<{
-		readonly source: MdLinkSource;
-		readonly fragment: string;
-	}>;
-}
-
 /**
  * Map of file paths to markdown links to that file.
  */
 class FileLinkMap {
 
-	private readonly _filesToLinksMap = new ResourceMap<FileLinksData>();
+	private readonly _filesToLinksMap = new ResourceMap<{
+		readonly outgoingLinks: Array<{
+			readonly source: MdLinkSource;
+			readonly fragment: string;
+		}>;
+	}>();
 
 	constructor(links: Iterable<MdLink>) {
 		for (const link of links) {
@@ -365,9 +361,9 @@ class FileLinkMap {
 			const existingFileEntry = this._filesToLinksMap.get(link.href.path);
 			const linkData = { source: link.source, fragment: link.href.fragment };
 			if (existingFileEntry) {
-				existingFileEntry.links.push(linkData);
+				existingFileEntry.outgoingLinks.push(linkData);
 			} else {
-				this._filesToLinksMap.set(link.href.path, { path: link.href.path, links: [linkData] });
+				this._filesToLinksMap.set(link.href.path, { outgoingLinks: [linkData] });
 			}
 		}
 	}
@@ -376,8 +372,8 @@ class FileLinkMap {
 		return this._filesToLinksMap.size;
 	}
 
-	public entries(): Iterable<FileLinksData> {
-		return this._filesToLinksMap.values();
+	public entries() {
+		return this._filesToLinksMap.entries();
 	}
 }
 
@@ -469,7 +465,7 @@ export class DiagnosticComputer {
 
 		const diagnostics: vscode.Diagnostic[] = [];
 		await Promise.all(
-			Array.from(linkSet.entries()).map(({ path, links }) => {
+			Array.from(linkSet.entries()).map(([path, { outgoingLinks: links }]) => {
 				return limiter.queue(async () => {
 					if (token.isCancellationRequested) {
 						return;
