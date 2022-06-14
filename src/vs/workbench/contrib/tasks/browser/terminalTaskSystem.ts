@@ -766,7 +766,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				hasAllVariables = false;
 			}
 		});
-
 		if (!hasAllVariables) {
 			return this._acquireInput(lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().workspaceFolder, task, variables, alreadyResolved).then((resolvedVariables) => {
 				if (!resolvedVariables) {
@@ -847,6 +846,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this._logService.error('Task terminal process never got ready');
 			});
 			this._fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId));
+			terminal.sendText('\x1b]633;C\x07', false);
 			const onData = terminal.onLineData((line) => {
 				watchingProblemMatcher.processLine(line);
 				if (!delayer) {
@@ -896,13 +896,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						this._fireTaskEvent(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 						processStartedSignaled = true;
 					}
-
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode ?? undefined));
 
 					for (let i = 0; i < eventCounter; i++) {
 						this._fireTaskEvent(TaskEvent.create(TaskEventKind.Inactive, task));
 					}
 					eventCounter = 0;
+					terminal?.sendText(`\x1b]633;D\x07;${exitCode}`, false);
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.End, task));
 					toDispose.dispose();
 					resolve({ exitCode: exitCode ?? undefined });
@@ -928,6 +928,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				// The process never got ready. Need to think how to handle this.
 			});
 			this._fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId, resolver.values));
+			terminal?.sendText(`\x1b]633;C\x07`, false);
 			const mapKey = task.getMapKey();
 			this._busyTasks[mapKey] = task;
 			this._fireTaskEvent(TaskEvent.create(TaskEventKind.Active, task));
@@ -980,12 +981,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						this._fireTaskEvent(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId!));
 						processStartedSignaled = true;
 					}
-
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode ?? undefined));
 					if (this._busyTasks[mapKey]) {
 						delete this._busyTasks[mapKey];
 					}
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.Inactive, task));
+					terminal?.sendText(`\x1b]633;D\x07;${exitCode}`, false);
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode: exitCode ?? undefined });
 				});
@@ -1112,9 +1113,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = formatMessageForTerminal(`Executing task in folder ${workspaceFolder.name}: ${commandLine}`, { excludeLeadingNewLine: true });
+					shellLaunchConfig.initialText = '\x1b]633;A\x07' + '\x1b]633;B\x07' + formatMessageForTerminal(`Executing task in folder ${workspaceFolder.name}: ${commandLine}`, { excludeLeadingNewLine: true });
 				} else {
-					shellLaunchConfig.initialText = formatMessageForTerminal(`Executing task: ${commandLine}`, { excludeLeadingNewLine: true });
+					shellLaunchConfig.initialText = '\x1b]633;A\x07' + '\x1b]633;B\x07' + formatMessageForTerminal(`Executing task: ${commandLine}`, { excludeLeadingNewLine: true });
 				}
 			}
 		} else {
