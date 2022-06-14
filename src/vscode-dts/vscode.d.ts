@@ -5980,7 +5980,7 @@ declare module 'vscode' {
 	 * To get an instance of a `DiagnosticCollection` use
 	 * {@link languages.createDiagnosticCollection createDiagnosticCollection}.
 	 */
-	export interface DiagnosticCollection {
+	export interface DiagnosticCollection extends Iterable<[uri: Uri, diagnostics: readonly Diagnostic[]]> {
 
 		/**
 		 * The name of this diagnostic collection, for instance `typescript`. Every diagnostic
@@ -6031,11 +6031,6 @@ declare module 'vscode' {
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
 		forEach(callback: (uri: Uri, diagnostics: readonly Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void;
-
-		/**
-		 * Get a new iterator with the `[resource uri, diagnostics]` pairs for each element in the collection.
-		 */
-		[Symbol.iterator](): IterableIterator<[uri: Uri, diagnostics: readonly Diagnostic[]]>;
 
 		/**
 		 * Get the diagnostics for a given resource. *Note* that you cannot
@@ -10094,7 +10089,7 @@ declare module 'vscode' {
 	 * data transfer. These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
 	 * an element in the same drag and drop controller.
 	 */
-	export class DataTransfer {
+	export class DataTransfer implements Iterable<[mimeType: string, item: DataTransferItem]> {
 		/**
 		 * Retrieves the data transfer item for a given mime type.
 		 *
@@ -10791,7 +10786,7 @@ declare module 'vscode' {
 	/**
 	 * A collection of mutations that an extension can apply to a process environment.
 	 */
-	export interface EnvironmentVariableCollection {
+	export interface EnvironmentVariableCollection extends Iterable<[variable: string, mutator: EnvironmentVariableMutator]> {
 		/**
 		 * Whether the collection should be cached for the workspace and applied to the terminal
 		 * across window reloads. When true the collection will be active immediately such when the
@@ -10848,11 +10843,6 @@ declare module 'vscode' {
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
 		forEach(callback: (variable: string, mutator: EnvironmentVariableMutator, collection: EnvironmentVariableCollection) => any, thisArg?: any): void;
-
-		/**
-		 * Get a new iterator with the `[variable, mutator]` pairs for each element in this collection.
-		 */
-		[Symbol.iterator](): IterableIterator<[variable: string, mutator: EnvironmentVariableMutator]>;
 
 		/**
 		 * Deletes this collection's mutator for a variable.
@@ -15660,7 +15650,7 @@ declare module 'vscode' {
 	 * Collection of test items, found in {@link TestItem.children} and
 	 * {@link TestController.items}.
 	 */
-	export interface TestItemCollection {
+	export interface TestItemCollection extends Iterable<[id: string, testItem: TestItem]> {
 		/**
 		 * Gets the number of items in the collection.
 		 */
@@ -15679,11 +15669,6 @@ declare module 'vscode' {
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
 		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: any): void;
-
-		/**
-		 * Get a new iterator with `[item id, test item]` pairs from the collection.
-		 */
-		[Symbol.iterator](): IterableIterator<[id: string, testItem: TestItem]>;
 
 		/**
 		 * Adds the test item to the children. If an item with the same ID already
