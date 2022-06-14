@@ -15,7 +15,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
+import { toAction } from 'vs/base/common/actions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { stripComments } from 'vs/base/common/stripComments';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -48,10 +48,11 @@ export class NativeLocaleService implements ILocaleService {
 				message: localize('argvInvalid', 'Unable to write display language. Please open the runtime settings, correct errors/warnings in it and try again.'),
 				actions: {
 					primary: [
-						new Action('openArgv', localize('openArgv', "Open Runtime Settings"), undefined, true, () => this.editorService.openEditor({
-							resource: this.environmentService.argvResource,
-							options: { preserveFocus: false }
-						}))
+						toAction({
+							id: 'openArgv',
+							label: localize('openArgv', "Open Runtime Settings"),
+							run: () => this.editorService.openEditor({ resource: this.environmentService.argvResource })
+						})
 					]
 				}
 			});
