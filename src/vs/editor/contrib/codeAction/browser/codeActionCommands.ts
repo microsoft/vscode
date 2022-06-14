@@ -156,11 +156,11 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	}
 
 	private _applyCodeAction(action: CodeActionItem, preview: boolean): Promise<void> {
-		return this._instantiationService.invokeFunction(applyCodeAction, action, { preview, editor: this._editor }, applyCodeActionReason.FromCodeActions);
+		return this._instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.FromCodeActions, { preview, editor: this._editor });
 	}
 }
 
-export enum applyCodeActionReason {
+export enum ApplyCodeActionReason {
 	OnSave = 'onSave',
 	FromProblemsView = 'fromProblemsView',
 	FromCodeActions = 'fromCodeActions'
@@ -169,8 +169,8 @@ export enum applyCodeActionReason {
 export async function applyCodeAction(
 	accessor: ServicesAccessor,
 	item: CodeActionItem,
+	codeActionReason: ApplyCodeActionReason,
 	options?: { preview?: boolean; editor?: ICodeEditor },
-	codeActionReason?: applyCodeActionReason,
 ): Promise<void> {
 	const bulkEditService = accessor.get(IBulkEditService);
 	const commandService = accessor.get(ICommandService);
@@ -181,13 +181,13 @@ export async function applyCodeAction(
 		codeActionTitle: string;
 		codeActionKind: string | undefined;
 		codeActionIsPreferred: boolean;
-		context?: applyCodeActionReason;
+		reason?: ApplyCodeActionReason;
 	};
 	type ApplyCodeEventClassification = {
 		codeActionTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The display label of the applied code action' };
 		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind (refactor, quickfix) of the applied code action' };
 		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Was the code action marked as being a preferred action?' };
-		context?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to trigger apply code action.' };
+		reason?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to trigger apply code action.' };
 		owner: 'mjbvz';
 		comment: 'Event used to gain insights into which code actions are being triggered';
 	};
@@ -196,7 +196,7 @@ export async function applyCodeAction(
 		codeActionTitle: item.action.title,
 		codeActionKind: item.action.kind,
 		codeActionIsPreferred: !!item.action.isPreferred,
-		context: codeActionReason
+		reason: codeActionReason
 	});
 
 	await item.resolve(CancellationToken.None);
