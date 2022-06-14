@@ -11,6 +11,10 @@ const Vinyl = require("vinyl");
 const path_1 = require("path");
 const node_os_1 = require("node:os");
 function transpile(tsSrc, options) {
+    const isAmd = /\n(import|export)/m.test(tsSrc);
+    if (!isAmd) {
+        options.compilerOptions.module = ts.ModuleKind.None;
+    }
     const out = ts.transpileModule(tsSrc, options);
     return {
         jsSrc: out.outputText,

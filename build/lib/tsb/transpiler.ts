@@ -20,6 +20,11 @@ interface TranspileRes {
 }
 
 function transpile(tsSrc: string, options: ts.TranspileOptions): { jsSrc: string; diag?: ts.Diagnostic[] } {
+
+	const isAmd = /\n(import|export)/m.test(tsSrc);
+	if (!isAmd) {
+		options.compilerOptions!.module = ts.ModuleKind.None;
+	}
 	const out = ts.transpileModule(tsSrc, options);
 	return {
 		jsSrc: out.outputText,

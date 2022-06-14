@@ -36,7 +36,7 @@ const _defaultOnError = (err: string) => console.log(JSON.stringify(err, null, 4
 export function create(
 	projectPath: string,
 	existingOptions: Partial<ts.CompilerOptions>,
-	config: { verbose?: boolean; transplileOnly?: boolean },
+	config: { verbose?: boolean; transpileOnly?: boolean },
 	onError: (message: string) => void = _defaultOnError
 ): IncrementalCompiler {
 
@@ -121,7 +121,7 @@ export function create(
 
 
 	let result: IncrementalCompiler;
-	if (config.transplileOnly) {
+	if (config.transpileOnly) {
 		const transpiler = new Transpiler(logFn, { compilerOptions: cmdLine.options });
 		result = <any>(() => createTranspileStream(transpiler));
 	} else {

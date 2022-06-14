@@ -84,7 +84,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
         });
     }
     let result;
-    if (config.transplileOnly) {
+    if (config.transpileOnly) {
         const transpiler = new transpiler_1.Transpiler(logFn, { compilerOptions: cmdLine.options });
         result = (() => createTranspileStream(transpiler));
     }
