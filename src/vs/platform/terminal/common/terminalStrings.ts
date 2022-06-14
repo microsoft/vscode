@@ -20,7 +20,6 @@ export interface ITerminalFormatMessageOptions {
  */
 export function formatMessageForTerminal(message: string, options: ITerminalFormatMessageOptions = {}): string {
 	let result = '';
-	// TODO: Test that new lines are correct for all messages
 	if (!options.excludeLeadingNewLine) {
 		result += '\r\n';
 	}
