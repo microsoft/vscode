@@ -25,16 +25,19 @@ export class Memento {
 
 	getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
 		switch (scope) {
-			case StorageScope.APPLICATION: {
-				let applicationMemento = Memento.applicationMementos.get(this.id);
-				if (!applicationMemento) {
-					applicationMemento = new ScopedMemento(this.id, scope, target, this.storageService);
-					Memento.applicationMementos.set(this.id, applicationMemento);
+
+			// Scope by Workspace
+			case StorageScope.WORKSPACE: {
+				let workspaceMemento = Memento.workspaceMementos.get(this.id);
+				if (!workspaceMemento) {
+					workspaceMemento = new ScopedMemento(this.id, scope, target, this.storageService);
+					Memento.workspaceMementos.set(this.id, workspaceMemento);
 				}
 
-				return applicationMemento.getMemento();
+				return workspaceMemento.getMemento();
 			}
 
+			// Scope Global
 			case StorageScope.GLOBAL: {
 				let globalMemento = Memento.globalMementos.get(this.id);
 				if (!globalMemento) {
@@ -45,34 +48,35 @@ export class Memento {
 				return globalMemento.getMemento();
 			}
 
-			case StorageScope.WORKSPACE: {
-				let workspaceMemento = Memento.workspaceMementos.get(this.id);
-				if (!workspaceMemento) {
-					workspaceMemento = new ScopedMemento(this.id, scope, target, this.storageService);
-					Memento.workspaceMementos.set(this.id, workspaceMemento);
+			// Scope Application
+			case StorageScope.APPLICATION: {
+				let applicationMemento = Memento.applicationMementos.get(this.id);
+				if (!applicationMemento) {
+					applicationMemento = new ScopedMemento(this.id, scope, target, this.storageService);
+					Memento.applicationMementos.set(this.id, applicationMemento);
 				}
 
-				return workspaceMemento.getMemento();
+				return applicationMemento.getMemento();
 			}
 		}
 	}
 
 	saveMemento(): void {
-		Memento.applicationMementos.get(this.id)?.save();
-		Memento.globalMementos.get(this.id)?.save();
 		Memento.workspaceMementos.get(this.id)?.save();
+		Memento.globalMementos.get(this.id)?.save();
+		Memento.applicationMementos.get(this.id)?.save();
 	}
 
 	static clear(scope: StorageScope): void {
 		switch (scope) {
-			case StorageScope.APPLICATION:
-				Memento.applicationMementos.clear();
+			case StorageScope.WORKSPACE:
+				Memento.workspaceMementos.clear();
 				break;
 			case StorageScope.GLOBAL:
 				Memento.globalMementos.clear();
 				break;
-			case StorageScope.WORKSPACE:
-				Memento.workspaceMementos.clear();
+			case StorageScope.APPLICATION:
+				Memento.applicationMementos.clear();
 				break;
 		}
 	}
