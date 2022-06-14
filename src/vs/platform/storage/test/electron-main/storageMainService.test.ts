@@ -93,8 +93,8 @@ suite('StorageMainService', function () {
 
 	async function testStorage(storage: IStorageMain, scope: StorageScope): Promise<void> {
 
-		// Telemetry: added after init unless workspace scoped
-		if (scope === StorageScope.APPLICATION || scope === StorageScope.GLOBAL) {
+		// Telemetry: added after init unless workspace/global scoped
+		if (scope === StorageScope.APPLICATION) {
 			strictEqual(storage.items.size, 0);
 			await storage.init();
 			strictEqual(typeof storage.get(firstSessionDateStorageKey), 'string');

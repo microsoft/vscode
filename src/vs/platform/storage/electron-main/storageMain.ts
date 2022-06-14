@@ -281,30 +281,6 @@ class BaseProfileAwareStorageMain extends BaseStorageMain {
 			logging: this.createLoggingOptions()
 		}));
 	}
-
-	protected override async doInit(storage: IStorage): Promise<void> {
-		await super.doInit(storage);
-
-		// Apply telemetry values as part of the initialization
-		this.updateTelemetryState(storage);
-	}
-
-	private updateTelemetryState(storage: IStorage): void {
-
-		// First session date (once)
-		const firstSessionDate = storage.get(firstSessionDateStorageKey, undefined);
-		if (firstSessionDate === undefined) {
-			storage.set(firstSessionDateStorageKey, new Date().toUTCString());
-		}
-
-		// Last / current session (always)
-		// previous session date was the "current" one at that time
-		// current session date is "now"
-		const lastSessionDate = storage.get(currentSessionDateStorageKey, undefined);
-		const currentSessionDate = new Date().toUTCString();
-		storage.set(lastSessionDateStorageKey, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
-		storage.set(currentSessionDateStorageKey, currentSessionDate);
-	}
 }
 
 export class GlobalStorageMain extends BaseProfileAwareStorageMain {
@@ -328,6 +304,30 @@ export class ApplicationStorageMain extends BaseProfileAwareStorageMain {
 		fileService: IFileService
 	) {
 		super(userDataProfileService.defaultProfile, options, logService, fileService);
+	}
+
+	protected override async doInit(storage: IStorage): Promise<void> {
+		await super.doInit(storage);
+
+		// Apply telemetry values as part of the application storage initialization
+		this.updateTelemetryState(storage);
+	}
+
+	private updateTelemetryState(storage: IStorage): void {
+
+		// First session date (once)
+		const firstSessionDate = storage.get(firstSessionDateStorageKey, undefined);
+		if (firstSessionDate === undefined) {
+			storage.set(firstSessionDateStorageKey, new Date().toUTCString());
+		}
+
+		// Last / current session (always)
+		// previous session date was the "current" one at that time
+		// current session date is "now"
+		const lastSessionDate = storage.get(currentSessionDateStorageKey, undefined);
+		const currentSessionDate = new Date().toUTCString();
+		storage.set(lastSessionDateStorageKey, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
+		storage.set(currentSessionDateStorageKey, currentSessionDate);
 	}
 }
 
