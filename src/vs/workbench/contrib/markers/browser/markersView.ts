@@ -449,6 +449,12 @@ export class MarkersView extends ViewPane implements IMarkersView {
 			this.filter.options,
 			{
 				accessibilityProvider: this.widgetAccessibilityProvider,
+				dnd: this.instantiationService.createInstance(ResourceListDnDHandler, (element) => {
+					if (element instanceof MarkerTableItem) {
+						return withSelection(element.resource, element.range);
+					}
+					return null;
+				}),
 				horizontalScrolling: false,
 				identityProvider: this.widgetIdentityProvider,
 				multipleSelectionSupport: true,
