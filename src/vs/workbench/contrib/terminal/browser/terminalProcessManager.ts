@@ -162,18 +162,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 		}
 
-		console.log('ctor env var collections', extEnvironmentVariableCollection);
+		// TODO: Refactor to share code
 		if (extEnvironmentVariableCollection) {
 			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(extEnvironmentVariableCollection);
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 			this.environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
 			this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 		}
-
-		// this.onEnvironmentVariableInfoChanged(e => {
-		// 	// TODO: Fix types, see any
-		// 	this._process?.updateProperty(ProcessPropertyType.EnvironmentVariableCollection, this._extEnvironmentVariableCollection?.map ? serializeEnvironmentVariableCollection(this._extEnvironmentVariableCollection.map as any) : undefined)
-		// });
 	}
 
 	override dispose(immediate: boolean = false): void {

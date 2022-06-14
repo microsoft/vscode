@@ -30,29 +30,3 @@ export function deserializeEnvironmentVariableCollections(
 		return [e[0], { map: deserializeEnvironmentVariableCollection(e[1]) }];
 	}));
 }
-
-// export function serializeMergedEnvironmentVariableCollection(collection: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]> | undefined): ISerializableMergedEnvironmentVariableCollection | undefined {
-// 	if (!collection) {
-// 		return undefined;
-// 	}
-// 	return [...collection.entries()];
-// }
-
-// export function deserializeMergedEnvironmentVariableCollection(
-// 	serializedCollection: ISerializableMergedEnvironmentVariableCollection | undefined
-// ): Map<string, IExtensionOwnedEnvironmentVariableMutator[]> | undefined {
-// 	if (!serializedCollection) {
-// 		return undefined;
-// 	}
-// 	// const entries: [string, IEnvironmentVariableCollection][] = [];
-// 	// const envVariableCollections = new Map<string, IEnvironmentVariableCollection>(entries);
-// 	// for (const [k, v] of envVariableCollections) {
-// 	// 	entries.push([k, { map: deserializeEnvironmentVariableCollection(v) }]);
-// 	// }
-// 	// const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections);
-// 	return new Map<string, IExtensionOwnedEnvironmentVariableMutator[]>(serializedCollection);
-// }
-
-// export function removeExtOwned() {
-
-// }

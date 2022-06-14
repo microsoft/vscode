@@ -128,7 +128,6 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string) {
 		for (const terminal of state) {
-			this._logService.info('revive', terminal.processLaunchConfig);
 			const restoreMessage = localize({
 				key: 'terminal-session-restore',
 				comment: ['date the snapshot was taken', 'time the snapshot was taken']
@@ -177,7 +176,6 @@ export class PtyService extends Disposable implements IPtyService {
 		workspaceName: string,
 		isReviving?: boolean
 	): Promise<number> {
-		this._logService.info('create process options', options);
 		if (shellLaunchConfig.attachPersistentProcess) {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}

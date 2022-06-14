@@ -62,9 +62,6 @@ export interface IMergedEnvironmentVariableCollection {
 	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined;
 }
 
-/** [ext, mutators] */
-// export type ISerializableMergedEnvironmentVariableCollection = [string, IExtensionOwnedEnvironmentVariableMutator[]][];
-
 /**
  * Tracks and persists environment variable collections as defined by extensions.
  */
