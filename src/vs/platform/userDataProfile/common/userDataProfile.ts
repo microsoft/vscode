@@ -5,6 +5,7 @@
 
 import { coalesce } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
+import { hash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { UriDto } from 'vs/base/common/types';
@@ -15,6 +16,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IUserDataProfile {
+	readonly id: string;
 	readonly name: string;
 	readonly location: URI;
 	readonly globalStorageHome: URI;
@@ -50,6 +52,7 @@ export interface IUserDataProfilesService {
 
 function reviveProfile(profile: IUserDataProfile, scheme: string): IUserDataProfile {
 	return {
+		id: profile.id,
 		name: profile.name,
 		location: URI.revive(profile.location).with({ scheme }),
 		globalStorageHome: URI.revive(profile.globalStorageHome).with({ scheme }),
@@ -92,8 +95,9 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	createProfile(name: string | undefined): IUserDataProfile {
 		const location = name && name !== UserDataProfilesService.DEFAULT_PROFILE_NAME ? joinPath(this.profilesHome, name) : this.environmentService.userRoamingDataHome;
 		return {
+			id: hash(location.toString()).toString(16),
 			name: name ?? UserDataProfilesService.DEFAULT_PROFILE_NAME,
-			location: location,
+			location,
 			globalStorageHome: joinPath(location, 'globalStorage'),
 			settingsResource: joinPath(location, 'settings.json'),
 			keybindingsResource: joinPath(location, 'keybindings.json'),

@@ -40,6 +40,8 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { revive } from 'vs/base/common/marshalling';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -111,6 +113,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
+
+	private _profile: IUserDataProfile | undefined;
+	get profile(): IUserDataProfile | undefined { if (!this._profile) { this._profile = revive(this._config?.profiles.current); } return this._profile; }
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 

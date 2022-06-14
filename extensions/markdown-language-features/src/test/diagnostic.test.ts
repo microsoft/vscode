@@ -131,7 +131,7 @@ suite('markdown: Diagnostics', () => {
 
 		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]));
 		assertDiagnosticsEqual(diagnostics, [
-			new vscode.Range(5, 6, 5, 35),
+			new vscode.Range(5, 14, 5, 35),
 		]);
 	});
 
@@ -236,7 +236,9 @@ suite('markdown: Diagnostics', () => {
 			// But we should be able to override the default
 			const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration({ validateFragmentLinks: DiagnosticLevel.ignore, validateMarkdownFileLinkFragments: DiagnosticLevel.warning }));
 			const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-			assert.deepStrictEqual(diagnostics.length, 1);
+			assertDiagnosticsEqual(diagnostics, [
+				new vscode.Range(1, 13, 1, 21),
+			]);
 		}
 	});
 

@@ -57,6 +57,7 @@ const args = parseArgs(process.argv, OPTIONS);
 const homeDir = homedir();
 const NULL_PROFILE = {
 	name: '',
+	id: '',
 	location: URI.file(homeDir),
 	settingsResource: joinPath(URI.file(homeDir), 'settings.json'),
 	globalStorageHome: joinPath(URI.file(homeDir), 'globalStorage'),
