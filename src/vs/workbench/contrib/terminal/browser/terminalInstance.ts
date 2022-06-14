@@ -35,6 +35,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -42,13 +43,15 @@ import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notif
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IProcessDataEvent, IProcessPropertyMap, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ProcessPropertyType, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
@@ -66,9 +69,8 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IEnvironmentVariableCollection, IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { deserializeEnvironmentVariableCollections } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { getCommandHistory, getDirectoryHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, ShellIntegrationExitCode, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -81,7 +83,6 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const enum Constants {
 	/**
@@ -1451,7 +1452,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	protected _createProcessManager(): TerminalProcessManager {
-		const processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper, this.shellLaunchConfig?.cwd);
+		let deserializedCollections: ReadonlyMap<string, IEnvironmentVariableCollection> | undefined;
+		if (this.shellLaunchConfig.attachPersistentProcess?.environmentVariableCollections) {
+			deserializedCollections = deserializeEnvironmentVariableCollections(this.shellLaunchConfig.attachPersistentProcess.environmentVariableCollections);
+		}
+		const processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper, this.shellLaunchConfig?.cwd, deserializedCollections);
 		this.capabilities.add(processManager.capabilities);
 		processManager.onProcessReady(async (e) => {
 			this._onProcessIdReady.fire(this);
@@ -2160,7 +2165,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (
 			!info ||
 			this._configHelper.config.environmentChangesIndicator === 'off' ||
-			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction
+			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction ||
+			this._configHelper.config.environmentChangesIndicator === 'on' && !info.requiresAction
 		) {
 			this.statusList.remove(TerminalStatus.RelaunchNeeded);
 			this._environmentInfo?.disposable.dispose();
@@ -2512,6 +2518,7 @@ export class TerminalLabelComputer extends Disposable {
 
 	private readonly _onDidChangeLabel = this._register(new Emitter<{ title: string; description: string }>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
+
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
 		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
