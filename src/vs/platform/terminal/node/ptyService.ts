@@ -128,6 +128,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string) {
 		for (const terminal of state) {
+			this._logService.info('revive', terminal.processLaunchConfig);
 			const restoreMessage = localize({
 				key: 'terminal-session-restore',
 				comment: ['date the snapshot was taken', 'time the snapshot was taken']
@@ -176,6 +177,7 @@ export class PtyService extends Disposable implements IPtyService {
 		workspaceName: string,
 		isReviving?: boolean
 	): Promise<number> {
+		this._logService.info('create process options', options);
 		if (shellLaunchConfig.attachPersistentProcess) {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
@@ -383,6 +385,7 @@ export class PtyService extends Disposable implements IPtyService {
 		// If the process was just revived, don't do the orphan check as it will
 		// take some time
 		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), wasRevived ? true : persistentProcess.isOrphaned()]);
+		this._logService.info('_buildProcessDetails', 'collections', persistentProcess.processLaunchOptions.options.environmentVariableCollections);
 		return {
 			id,
 			title: persistentProcess.title,
@@ -394,7 +397,8 @@ export class PtyService extends Disposable implements IPtyService {
 			isOrphan,
 			icon: persistentProcess.icon,
 			color: persistentProcess.color,
-			fixedDimensions: persistentProcess.fixedDimensions
+			fixedDimensions: persistentProcess.fixedDimensions,
+			environmentVariableCollections: persistentProcess.processLaunchOptions.options.environmentVariableCollections
 		};
 	}
 
@@ -571,6 +575,7 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
+		// TODO: ext environment variable collection needs to make it back to the renderer
 		this._logService.trace('persistentTerminalProcess#start', this._persistentProcessId, this._isStarted);
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();

@@ -45,6 +45,7 @@ export interface IMergedEnvironmentVariableCollectionDiff {
  * together.
  */
 export interface IMergedEnvironmentVariableCollection {
+	readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>;
 	readonly map: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
 
 	/**
@@ -60,6 +61,9 @@ export interface IMergedEnvironmentVariableCollection {
 	 */
 	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined;
 }
+
+/** [ext, mutators] */
+// export type ISerializableMergedEnvironmentVariableCollection = [string, IExtensionOwnedEnvironmentVariableMutator[]][];
 
 /**
  * Tracks and persists environment variable collections as defined by extensions.
@@ -98,6 +102,9 @@ export interface IEnvironmentVariableService {
 
 /** [variable, mutator] */
 export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
+
+/** [extension, collection] */
+export type ISerializableEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];
 
 export interface IEnvironmentVariableInfo {
 	readonly requiresAction: boolean;

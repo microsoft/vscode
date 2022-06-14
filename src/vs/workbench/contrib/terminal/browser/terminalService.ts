@@ -45,6 +45,8 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -412,6 +414,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): Promise<number> {
+		console.log('recreate terminal groups', layoutInfo);
 		let reconnectCounter = 0;
 		let activeGroup: ITerminalGroup | undefined;
 		if (layoutInfo) {
@@ -422,10 +425,13 @@ export class TerminalService implements ITerminalService {
 					let terminalInstance: ITerminalInstance | undefined;
 					let group: ITerminalGroup | undefined;
 					for (const terminalLayout of terminalLayouts) {
+						const deserializedCollections = terminalLayout.terminal?.environmentVariableCollections?.map(e => {
+							return [e[0], { map: deserializeEnvironmentVariableCollection(e[1]) }];
+						}) as [string, IEnvironmentVariableCollection][];
 						if (!terminalInstance) {
 							// create group and terminal
 							terminalInstance = await this.createTerminal({
-								config: { attachPersistentProcess: terminalLayout.terminal! },
+								config: { attachPersistentProcess: terminalLayout.terminal!, environmentVariableCollections: new Map(deserializedCollections) },
 								location: TerminalLocation.Panel
 							});
 							group = this._terminalGroupService.getGroupForInstance(terminalInstance);
@@ -434,7 +440,10 @@ export class TerminalService implements ITerminalService {
 							}
 						} else {
 							// add split terminals to this group
-							terminalInstance = await this.createTerminal({ config: { attachPersistentProcess: terminalLayout.terminal! }, location: { parentTerminal: terminalInstance } });
+							terminalInstance = await this.createTerminal({
+								config: { attachPersistentProcess: terminalLayout.terminal!, environmentVariableCollections: new Map(deserializedCollections) },
+								location: { parentTerminal: terminalInstance }
+							});
 						}
 					}
 					const activeInstance = this.instances.find(t => {
