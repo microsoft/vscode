@@ -9,8 +9,6 @@ import { Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { hash } from 'vs/base/common/hash';
-import { isEqual } from 'vs/base/common/resources';
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -50,10 +48,10 @@ export class BrowserStorageService extends AbstractStorageService {
 			case StorageScope.APPLICATION:
 				return 'global'; // use the default profile global DB for application scope
 			case StorageScope.GLOBAL:
-				if (isEqual(this.userDataProfileService.currentProfile.location, this.userDataProfileService.defaultProfile.location)) {
+				if (this.userDataProfileService.currentProfile.isDefault) {
 					return 'global'; // default profile DB has a fixed name for backwards compatibility
 				} else {
-					return `global-${hash(this.userDataProfileService.currentProfile.location.toString()).toString(16)}`;
+					return `global-${this.userDataProfileService.currentProfile.id}`;
 				}
 			case StorageScope.WORKSPACE:
 				return this.payload.id;
@@ -63,11 +61,14 @@ export class BrowserStorageService extends AbstractStorageService {
 	protected async doInitialize(): Promise<void> {
 
 		// Create Storage in Parallel
-		const [applicationStorageDatabase, globalStorageDatabase, workspaceStorageDatabase] = await Promises.settled([
-			IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.APPLICATION), broadcastChanges: true }, this.logService),
-			IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService),
-			IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService)
-		]);
+		const promises: Promise<IIndexedDBStorageDatabase>[] = [];
+		promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.APPLICATION), broadcastChanges: true }, this.logService));
+		promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService));
+		// Create global storage only if the current profile is not a default profie otherwise we use the application storage
+		if (!this.userDataProfileService.currentProfile.isDefault) {
+			promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService));
+		}
+		const [applicationStorageDatabase, workspaceStorageDatabase, globalStorageDatabase] = await Promises.settled(promises);
 
 		// Workspace Storage
 		this.workspaceStorageDatabase = this._register(workspaceStorageDatabase);
@@ -80,11 +81,15 @@ export class BrowserStorageService extends AbstractStorageService {
 		this._register(this.applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
 
 		// Global Storage
-		this.globalStorageDatabase = this._register(globalStorageDatabase);
-		this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
+		if (globalStorageDatabase) {
+			this.globalStorageDatabase = this._register(globalStorageDatabase);
+			this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
+		} else {
+			this.globalStorage = this.applicationStorage;
+		}
 		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 
-		// Init both
+		// Init storages
 		await Promises.settled([
 			this.workspaceStorage.init(),
 			this.globalStorage.init(),
