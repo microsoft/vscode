@@ -29,12 +29,13 @@ import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, IManualSyncTask, IResour
 
 type SyncErrorClassification = {
 	owner: 'sandy081';
-	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	url?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	resource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	executionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	comment: 'Information about the error that occurred while syncing';
+	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
+	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync service for which this error has occurred' };
+	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync service error code' };
+	url?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync resource URL for which this error has occurred' };
+	resource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync resource for which this error has occurred' };
+	executionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync execution id for which this error has occurred' };
 };
 
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
@@ -103,7 +104,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			throw userDataSyncError;
 		}
 
-		let executed = false;
+		const executed = false;
 		const that = this;
 		const synchronizers = this.getEnabledSynchronizers();
 		let cancellablePromise: CancelablePromise<void> | undefined;
@@ -908,6 +909,7 @@ class Synchronizers extends Disposable {
 
 function toStrictResourcePreview(resourcePreview: IResourcePreview): IResourcePreview {
 	return {
+		baseResource: resourcePreview.baseResource,
 		localResource: resourcePreview.localResource,
 		previewResource: resourcePreview.previewResource,
 		remoteResource: resourcePreview.remoteResource,

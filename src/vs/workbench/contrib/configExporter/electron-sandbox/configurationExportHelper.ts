@@ -93,7 +93,7 @@ export class DefaultConfigurationExportHelper {
 
 		const processConfig = (config: IConfigurationNode) => {
 			if (config.properties) {
-				for (let name in config.properties) {
+				for (const name in config.properties) {
 					processProperty(name, config.properties[name]);
 				}
 			}
@@ -106,7 +106,7 @@ export class DefaultConfigurationExportHelper {
 		configurations.forEach(processConfig);
 
 		const excludedProps = configRegistry.getExcludedConfigurationProperties();
-		for (let name in excludedProps) {
+		for (const name in excludedProps) {
 			processProperty(name, excludedProps[name]);
 		}
 

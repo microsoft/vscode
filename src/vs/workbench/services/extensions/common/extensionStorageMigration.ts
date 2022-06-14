@@ -12,6 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 /**
@@ -22,6 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 export async function migrateExtensionStorage(fromExtensionId: string, toExtensionId: string, global: boolean, instantionService: IInstantiationService): Promise<void> {
 	return instantionService.invokeFunction(async serviceAccessor => {
 		const environmentService = serviceAccessor.get(IEnvironmentService);
+		const userDataProfilesService = serviceAccessor.get(IUserDataProfilesService);
 		const extensionStorageService = serviceAccessor.get(IExtensionStorageService);
 		const storageService = serviceAccessor.get(IStorageService);
 		const uriIdentityService = serviceAccessor.get(IUriIdentityService);
@@ -37,7 +39,7 @@ export async function migrateExtensionStorage(fromExtensionId: string, toExtensi
 
 		const getExtensionStorageLocation = (extensionId: string, global: boolean): URI => {
 			if (global) {
-				return uriIdentityService.extUri.joinPath(environmentService.globalStorageHome, extensionId.toLowerCase() /* Extension id is lower cased for global storage */);
+				return uriIdentityService.extUri.joinPath(userDataProfilesService.defaultProfile.globalStorageHome, extensionId.toLowerCase() /* Extension id is lower cased for global storage */);
 			}
 			return uriIdentityService.extUri.joinPath(environmentService.workspaceStorageHome, workspaceContextService.getWorkspace().id, extensionId);
 		};

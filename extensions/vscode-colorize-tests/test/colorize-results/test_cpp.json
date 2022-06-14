@@ -709,7 +709,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.cpp",
+		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.arithmetic.cpp",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",

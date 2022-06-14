@@ -127,7 +127,11 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		if (this.canBuildAST) {
 			const closingBracketInfo = this.languageConfigurationService
 				.getLanguageConfiguration(languageId)
-				.bracketsNew.getClosingBracketInfo(_bracket)!;
+				.bracketsNew.getClosingBracketInfo(_bracket);
+
+			if (!closingBracketInfo) {
+				return null;
+			}
 
 			const bracketPair = findLast(this.getBracketPairsInRange(Range.fromPositions(_position, _position)) || [], (b) =>
 				closingBracketInfo.closes(b.openingBracketInfo)

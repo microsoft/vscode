@@ -19,7 +19,7 @@ import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
 import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
 
 suite('StorageMainService', function () {
@@ -126,7 +126,9 @@ suite('StorageMainService', function () {
 	}
 
 	function createStorageService(lifecycleMainService: ILifecycleMainService = new StorageTestLifecycleMainService()): TestStorageMainService {
-		return new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), lifecycleMainService, new FileService(new NullLogService()), NullTelemetryService);
+		const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
+		const fileService = new FileService(new NullLogService());
+		return new TestStorageMainService(new NullLogService(), environmentService, new UserDataProfilesService(undefined, undefined, environmentService, fileService, new NullLogService()), lifecycleMainService, fileService);
 	}
 
 	test('basics (global)', function () {
@@ -147,13 +149,13 @@ suite('StorageMainService', function () {
 		const workspace = { id: generateUuid() };
 		const storageMainService = createStorageService(lifecycleMainService);
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
 		let didCloseWorkspaceStorage = false;
 		workspaceStorage.onDidCloseStorage(() => {
 			didCloseWorkspaceStorage = true;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
+		const globalStorage = storageMainService.globalStorage;
 		let didCloseGlobalStorage = false;
 		globalStorage.onDidCloseStorage(() => {
 			didCloseGlobalStorage = true;
@@ -169,7 +171,7 @@ suite('StorageMainService', function () {
 		strictEqual(didCloseGlobalStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
 
-		let storage2 = storageMainService.workspaceStorage(workspace);
+		const storage2 = storageMainService.workspaceStorage(workspace);
 		notStrictEqual(workspaceStorage, storage2);
 
 		return storage2.close();
@@ -179,13 +181,13 @@ suite('StorageMainService', function () {
 		const storageMainService = createStorageService();
 		const workspace = { id: generateUuid() };
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
 		let didCloseWorkspaceStorage = false;
 		workspaceStorage.onDidCloseStorage(() => {
 			didCloseWorkspaceStorage = true;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
+		const globalStorage = storageMainService.globalStorage;
 		let didCloseGlobalStorage = false;
 		globalStorage.onDidCloseStorage(() => {
 			didCloseGlobalStorage = true;
@@ -202,13 +204,13 @@ suite('StorageMainService', function () {
 		const storageMainService = createStorageService();
 		const workspace = { id: generateUuid() };
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		const workspaceStorage = storageMainService.workspaceStorage(workspace);
 		let didCloseWorkspaceStorage = false;
 		workspaceStorage.onDidCloseStorage(() => {
 			didCloseWorkspaceStorage = true;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
+		const globalStorage = storageMainService.globalStorage;
 		let didCloseGlobalStorage = false;
 		globalStorage.onDidCloseStorage(() => {
 			didCloseGlobalStorage = true;

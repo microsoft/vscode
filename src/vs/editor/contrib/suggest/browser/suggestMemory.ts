@@ -24,7 +24,7 @@ export abstract class Memory {
 		if (items.length === 0) {
 			return 0;
 		}
-		let topScore = items[0].score[0];
+		const topScore = items[0].score[0];
 		for (let i = 0; i < items.length; i++) {
 			const { score, completion: suggestion } = items[i];
 			if (score[0] !== topScore) {
@@ -100,7 +100,7 @@ export class LRUMemory extends Memory {
 			return super.select(model, pos, items);
 		}
 
-		let topScore = items[0].score[0];
+		const topScore = items[0].score[0];
 		let indexPreselect = -1;
 		let indexRecency = -1;
 		let seq = -1;
@@ -135,7 +135,7 @@ export class LRUMemory extends Memory {
 
 	fromJSON(data: [string, MemItem][]): void {
 		this._cache.clear();
-		let seq = 0;
+		const seq = 0;
 		for (const [key, value] of data) {
 			value.touch = seq;
 			value.type = typeof value.type === 'number' ? value.type : CompletionItemKinds.fromString(value.type);
@@ -166,18 +166,18 @@ export class PrefixMemory extends Memory {
 	}
 
 	override select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number {
-		let { word } = model.getWordUntilPosition(pos);
+		const { word } = model.getWordUntilPosition(pos);
 		if (!word) {
 			return super.select(model, pos, items);
 		}
-		let key = `${model.getLanguageId()}/${word}`;
+		const key = `${model.getLanguageId()}/${word}`;
 		let item = this._trie.get(key);
 		if (!item) {
 			item = this._trie.findSubstr(key);
 		}
 		if (item) {
 			for (let i = 0; i < items.length; i++) {
-				let { kind, insertText } = items[i].completion;
+				const { kind, insertText } = items[i].completion;
 				if (kind === item.type && insertText === item.insertText) {
 					return i;
 				}
@@ -188,7 +188,7 @@ export class PrefixMemory extends Memory {
 
 	toJSON(): object {
 
-		let entries: [string, MemItem][] = [];
+		const entries: [string, MemItem][] = [];
 		this._trie.forEach((value, key) => entries.push([key, value]));
 
 		// sort by last recently used (touch), then

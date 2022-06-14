@@ -75,7 +75,7 @@ export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<str
 
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
-export type NotebookRendererEntrypoint = string | { extends: string; path: string };
+export type NotebookRendererEntrypoint = string | { readonly extends: string; readonly path: string };
 
 export enum NotebookRunState {
 	Running = 1,
@@ -915,18 +915,13 @@ export const NotebookSetting = {
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
 	outputLineHeight: 'notebook.outputLineHeight',
 	outputFontSize: 'notebook.outputFontSize',
-	outputFontFamily: 'notebook.outputFontFamily'
+	outputFontFamily: 'notebook.outputFontFamily',
+	interactiveWindowAlwaysScrollOnNewCell: 'interactiveWindow.alwaysScrollOnNewCell'
 } as const;
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
 	Right = 2
-}
-
-export interface INotebookDecorationRenderOptions {
-	backgroundColor?: string | ThemeColor;
-	borderColor?: string | ThemeColor;
-	top?: editorCommon.IContentDecorationRenderOptions;
 }
 
 export class NotebookWorkingCopyTypeIdentifier {

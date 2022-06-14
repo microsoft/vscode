@@ -3119,7 +3119,7 @@ class EditorRulers extends BaseEditorOption<EditorOption.rulers, (number | IRule
 	public validate(input: any): IRulerOption[] {
 		if (Array.isArray(input)) {
 			const rulers: IRulerOption[] = [];
-			for (let _element of input) {
+			for (const _element of input) {
 				if (typeof _element === 'number') {
 					rulers.push({
 						column: EditorIntOption.clampedInt(_element, 0, 0, 10000),
@@ -3478,14 +3478,14 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 
 	public override applyUpdate(value: Required<Readonly<IUnicodeHighlightOptions>>, update: Required<Readonly<IUnicodeHighlightOptions>>): ApplyUpdateResult<Required<Readonly<IUnicodeHighlightOptions>>> {
 		let didChange = false;
-		if (update.allowedCharacters) {
+		if (update?.allowedCharacters && value?.allowedCharacters) {
 			// Treat allowedCharacters atomically
 			if (!objects.equals(value.allowedCharacters, update.allowedCharacters)) {
 				value = { ...value, allowedCharacters: update.allowedCharacters };
 				didChange = true;
 			}
 		}
-		if (update.allowedLocales) {
+		if (update?.allowedLocales && value?.allowedLocales) {
 			// Treat allowedLocales atomically
 			if (!objects.equals(value.allowedLocales, update.allowedLocales)) {
 				value = { ...value, allowedLocales: update.allowedLocales };
@@ -4996,7 +4996,7 @@ export const EditorOptions = {
 	scrollbar: register(new EditorScrollbar()),
 	scrollBeyondLastColumn: register(new EditorIntOption(
 		EditorOption.scrollBeyondLastColumn, 'scrollBeyondLastColumn',
-		5, 0, Constants.MAX_SAFE_SMALL_INTEGER,
+		4, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{ description: nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally.") }
 	)),
 	scrollBeyondLastLine: register(new EditorBooleanOption(

@@ -94,7 +94,7 @@ suite('NotebookExecutionStateService', () => {
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
+			executionStateService.createCellExecution(viewModel.uri, cell.handle);
 			assert.strictEqual(didCancel, false);
 			viewModel.notebookDocument.applyEdits([{
 				editType: CellEditType.Replace, index: 0, count: 1, cells: []
@@ -113,7 +113,7 @@ suite('NotebookExecutionStateService', () => {
 
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			const exe = executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
+			const exe = executionStateService.createCellExecution(viewModel.uri, cell.handle);
 
 			let didFire = false;
 			disposables.add(executionStateService.onDidChangeCellExecution(e => {
@@ -154,7 +154,7 @@ suite('NotebookExecutionStateService', () => {
 				deferred.complete();
 			}));
 
-			executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
+			executionStateService.createCellExecution(viewModel.uri, cell.handle);
 
 			return deferred.p;
 		});
@@ -170,7 +170,7 @@ suite('NotebookExecutionStateService', () => {
 
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
+			executionStateService.createCellExecution(viewModel.uri, cell.handle);
 			const exe = executionStateService.getCellExecution(cell.uri);
 			assert.ok(exe);
 

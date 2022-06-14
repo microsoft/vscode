@@ -199,7 +199,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 			}
 		}
 
-		let edits: ISingleEditOperation[] = [];
+		const edits: ISingleEditOperation[] = [];
 		for (let i = 1, len = this._currentDecorations.length; i < len; i++) {
 			const mirrorRange = this._currentDecorations.getRange(i);
 			if (!mirrorRange) {

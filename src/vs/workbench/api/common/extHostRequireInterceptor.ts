@@ -73,7 +73,7 @@ export abstract class RequireInterceptor {
 	public register(interceptor: INodeModuleFactory | IAlternativeModuleProvider): void {
 		if ('nodeModuleName' in interceptor) {
 			if (Array.isArray(interceptor.nodeModuleName)) {
-				for (let moduleName of interceptor.nodeModuleName) {
+				for (const moduleName of interceptor.nodeModuleName) {
 					this._factories.set(moduleName, interceptor);
 				}
 			} else {

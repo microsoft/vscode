@@ -156,6 +156,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._onDidChangeState.fire({ outputCollapsedChanged: true });
 	}
 
+	private _isDisposed = false;
+
 	constructor(
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
@@ -550,6 +552,10 @@ export abstract class BaseCellViewModel extends Disposable {
 	async resolveTextModel(): Promise<model.ITextModel> {
 		if (!this._textModelRef || !this.textModel) {
 			this._textModelRef = await this._modelService.createModelReference(this.uri);
+			if (this._isDisposed) {
+				return this.textModel!;
+			}
+
 			if (!this._textModelRef) {
 				throw new Error(`Cannot resolve text model for ${this.uri}`);
 			}
@@ -590,6 +596,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	override dispose() {
+		this._isDisposed = true;
 		super.dispose();
 
 		dispose(this._editorListeners);

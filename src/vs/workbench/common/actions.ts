@@ -63,7 +63,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		// https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
 		if (descriptor.label) {
 
-			let idx = alias.indexOf(': ');
+			const idx = alias.indexOf(': ');
 			let categoryOriginal = '';
 			if (idx > 0) {
 				categoryOriginal = alias.substr(0, idx);

@@ -188,7 +188,7 @@ export class ExplorerItem {
 	}
 
 	getId(): string {
-		return this.resource.toString();
+		return this.root.resource.toString() + '::' + this.resource.toString();
 	}
 
 	toString(): string {

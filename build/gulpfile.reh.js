@@ -281,7 +281,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			].map(resource => gulp.src(resource, { base: '.' }).pipe(rename(resource)));
 		}
 
-		let all = es.merge(
+		const all = es.merge(
 			packageJsonStream,
 			productJsonStream,
 			license,

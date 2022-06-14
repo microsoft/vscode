@@ -97,7 +97,7 @@ export class Position {
 		if (other instanceof Position) {
 			return true;
 		}
-		let { line, character } = <Position>other;
+		const { line, character } = <Position>other;
 		if (typeof line === 'number' && typeof character === 'number') {
 			return true;
 		}
@@ -647,17 +647,6 @@ export class NotebookEdit implements vscode.NotebookEdit {
 	}
 }
 
-export class SnippetTextEdit implements vscode.SnippetTextEdit {
-
-	range: vscode.Range;
-	snippet: vscode.SnippetString;
-
-	constructor(range: Range, snippet: SnippetString) {
-		this.range = range;
-		this.snippet = snippet;
-	}
-}
-
 export interface IFileOperationOptions {
 	overwrite?: boolean;
 	ignoreIfExists?: boolean;
@@ -807,6 +796,8 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 					if (NotebookEdit.isNotebookCellEdit(edit)) {
 						if (edit.newCellMetadata) {
 							this.replaceNotebookCellMetadata(uri, edit.range.start, edit.newCellMetadata);
+						} else if (edit.newNotebookMetadata) {
+							this.replaceNotebookMetadata(uri, edit.newNotebookMetadata);
 						} else {
 							this.replaceNotebookCells(uri, edit.range, edit.newCells);
 						}
@@ -820,7 +811,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	get(uri: URI): TextEdit[] {
 		const res: TextEdit[] = [];
-		for (let candidate of this._edits) {
+		for (const candidate of this._edits) {
 			if (candidate._type === FileEditType.Text && candidate.uri.toString() === uri.toString()) {
 				res.push(candidate.edit);
 			}
@@ -830,7 +821,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	entries(): [URI, TextEdit[]][] {
 		const textEdits = new ResourceMap<[URI, TextEdit[]]>();
-		for (let candidate of this._edits) {
+		for (const candidate of this._edits) {
 			if (candidate._type === FileEditType.Text) {
 				let textEdit = textEdits.get(candidate.uri);
 				if (!textEdit) {
@@ -2028,7 +2019,7 @@ export class ProcessExecution implements vscode.ProcessExecution {
 			props.push(this._process);
 		}
 		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
+			for (const arg of this._args) {
 				props.push(arg);
 			}
 		}
@@ -2114,7 +2105,7 @@ export class ShellExecution implements vscode.ShellExecution {
 			props.push(typeof this._command === 'string' ? this._command : this._command.value);
 		}
 		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
+			for (const arg of this._args) {
 				props.push(typeof arg === 'string' ? arg : arg.value);
 			}
 		}
@@ -2436,8 +2427,16 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
+export enum DataTransferItemKind {
+	String = 1,
+	File = 2,
+}
+
 @es5ClassCompat
 export class DataTransferItem {
+
+	get kind(): DataTransferItemKind { return DataTransferItemKind.String; }
+
 	async asString(): Promise<string> {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
 	}
@@ -2451,21 +2450,57 @@ export class DataTransferItem {
 
 @es5ClassCompat
 export class DataTransfer {
-	#items = new Map<string, DataTransferItem>();
+	#items = new Map<string, DataTransferItem[]>();
+
+	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
+		for (const [mime, item] of init ?? []) {
+			const existing = this.#items.get(mime);
+			if (existing) {
+				existing.push(item);
+			} else {
+				this.#items.set(mime, [item]);
+			}
+		}
+	}
 
 	get(mimeType: string): DataTransferItem | undefined {
-		return this.#items.get(mimeType);
+		return this.#items.get(mimeType)?.[0];
 	}
 
 	set(mimeType: string, value: DataTransferItem): void {
-		this.#items.set(mimeType, value);
+		// This intentionally overwrites all entries for a given mimetype.
+		// This is similar to how the DOM DataTransfer type works
+		this.#items.set(mimeType, [value]);
 	}
 
-	forEach(callbackfn: (value: DataTransferItem, key: string) => void): void {
-		this.#items.forEach(callbackfn);
+	forEach(callbackfn: (value: DataTransferItem, key: string) => void, thisArg?: unknown): void {
+		for (const [mime, items] of this.#items) {
+			items.forEach(item => callbackfn(item, mime), thisArg);
+		}
 	}
 }
 
+@es5ClassCompat
+export class DocumentDropEdit {
+	insertText: string | SnippetString;
+
+	additionalEdit?: WorkspaceEdit;
+
+	constructor(insertText: string | SnippetString) {
+		this.insertText = insertText;
+	}
+}
+
+@es5ClassCompat
+export class DocumentPasteEdit {
+	insertText: string | SnippetString;
+
+	additionalEdit?: WorkspaceEdit;
+
+	constructor(insertText: string | SnippetString) {
+		this.insertText = insertText;
+	}
+}
 
 @es5ClassCompat
 export class ThemeIcon {
@@ -2981,7 +3016,7 @@ export class SemanticTokensBuilder {
 	}
 
 	private static _sortAndDeltaEncode(data: number[]): Uint32Array {
-		let pos: number[] = [];
+		const pos: number[] = [];
 		const tokenCount = (data.length / 5) | 0;
 		for (let i = 0; i < tokenCount; i++) {
 			pos[i] = i;

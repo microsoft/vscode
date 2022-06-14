@@ -18,7 +18,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, refactorPreviewCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
@@ -27,8 +27,8 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './types';
@@ -37,6 +37,26 @@ function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
 		SUPPORTED_CODE_ACTIONS.keys()[0],
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
+}
+
+function RefactorTrigger(editor: ICodeEditor, userArgs: any, preview: boolean) {
+	const args = CodeActionCommandArgs.fromUser(userArgs, {
+		kind: CodeActionKind.Refactor,
+		apply: CodeActionAutoApply.Never
+	});
+	return triggerCodeActionsForEditorSelection(editor,
+		typeof userArgs?.kind === 'string'
+			? args.preferred
+				? nls.localize('editor.action.refactor.noneMessage.preferred.kind', "No preferred refactorings for '{0}' available", userArgs.kind)
+				: nls.localize('editor.action.refactor.noneMessage.kind', "No refactorings for '{0}' available", userArgs.kind)
+			: args.preferred
+				? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
+				: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
+		{
+			include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
+			onlyIncludePreferredActions: args.preferred
+		},
+		args.apply, preview);
 }
 
 const argsSchema: IJSONSchema = {
@@ -92,11 +112,12 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
+
 		this._ui = new Lazy(() =>
 			this._register(new CodeActionUi(editor, QuickFixAction.Id, AutoFixAction.Id, {
-				applyCodeAction: async (action, retrigger) => {
+				applyCodeAction: async (action, retrigger, preview) => {
 					try {
-						await this._applyCodeAction(action);
+						await this._applyCodeAction(action, preview);
 					} finally {
 						if (retrigger) {
 							this._trigger({ type: CodeActionTriggerType.Auto, filter: {} });
@@ -118,7 +139,8 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	public manualTriggerAtCurrentPosition(
 		notAvailableMessage: string,
 		filter?: CodeActionFilter,
-		autoApply?: CodeActionAutoApply
+		autoApply?: CodeActionAutoApply,
+		preview?: boolean
 	): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -126,22 +148,22 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		MessageController.get(this._editor)?.closeMessage();
 		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
+		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition }, preview });
 	}
 
 	private _trigger(trigger: CodeActionTrigger) {
 		return this._model.trigger(trigger);
 	}
 
-	private _applyCodeAction(action: CodeActionItem): Promise<void> {
-		return this._instantiationService.invokeFunction(applyCodeAction, action, this._editor);
+	private _applyCodeAction(action: CodeActionItem, preview: boolean): Promise<void> {
+		return this._instantiationService.invokeFunction(applyCodeAction, action, { preview, editor: this._editor });
 	}
 }
 
 export async function applyCodeAction(
 	accessor: ServicesAccessor,
 	item: CodeActionItem,
-	editor?: ICodeEditor,
+	options?: { preview?: boolean; editor?: ICodeEditor }
 ): Promise<void> {
 	const bulkEditService = accessor.get(IBulkEditService);
 	const commandService = accessor.get(ICommandService);
@@ -171,11 +193,12 @@ export async function applyCodeAction(
 
 	if (item.action.edit) {
 		await bulkEditService.apply(ResourceEdit.convert(item.action.edit), {
-			editor,
+			editor: options?.editor,
 			label: item.action.title,
 			quotableLabel: item.action.title,
 			code: 'undoredo.codeAction',
-			respectAutoSaveConfig: true
+			respectAutoSaveConfig: true,
+			showPreview: options?.preview,
 		});
 	}
 
@@ -206,12 +229,13 @@ function triggerCodeActionsForEditorSelection(
 	editor: ICodeEditor,
 	notAvailableMessage: string,
 	filter: CodeActionFilter | undefined,
-	autoApply: CodeActionAutoApply | undefined
+	autoApply: CodeActionAutoApply | undefined,
+	preview: boolean = false
 ): void {
 	if (editor.hasModel()) {
 		const controller = QuickFixController.get(editor);
 		if (controller) {
-			controller.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply);
+			controller.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply, preview);
 		}
 	}
 }
@@ -306,23 +330,27 @@ export class RefactorAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		const args = CodeActionCommandArgs.fromUser(userArgs, {
-			kind: CodeActionKind.Refactor,
-			apply: CodeActionAutoApply.Never
+		return RefactorTrigger(editor, userArgs, false);
+	}
+}
+
+export class RefactorPreview extends EditorAction {
+
+	constructor() {
+		super({
+			id: refactorPreviewCommandId,
+			label: nls.localize('refactor.preview.label', "Refactor with Preview..."),
+			alias: 'Refactor Preview...',
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
+			description: {
+				description: 'Refactor Preview...',
+				args: [{ name: 'args', schema: argsSchema }]
+			}
 		});
-		return triggerCodeActionsForEditorSelection(editor,
-			typeof userArgs?.kind === 'string'
-				? args.preferred
-					? nls.localize('editor.action.refactor.noneMessage.preferred.kind', "No preferred refactorings for '{0}' available", userArgs.kind)
-					: nls.localize('editor.action.refactor.noneMessage.kind', "No refactorings for '{0}' available", userArgs.kind)
-				: args.preferred
-					? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
-					: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
-			{
-				include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
-				onlyIncludePreferredActions: args.preferred,
-			},
-			args.apply);
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
+		return RefactorTrigger(editor, userArgs, true);
 	}
 }
 

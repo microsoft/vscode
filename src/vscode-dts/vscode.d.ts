@@ -766,8 +766,9 @@ declare module 'vscode' {
 
 		/**
 		 * An optional flag that controls if an {@link TextEditor editor}-tab shows as preview. Preview tabs will
-		 * be replaced and reused until set to stay - either explicitly or through editing. The default behaviour depends
-		 * on the `workbench.editor.enablePreview`-setting.
+		 * be replaced and reused until set to stay - either explicitly or through editing.
+		 *
+		 * *Note* that the flag is ignored if a user has disabled preview editors in settings.
 		 */
 		preview?: boolean;
 
@@ -2049,8 +2050,8 @@ declare module 'vscode' {
 		 * to the user.
 		 *
 		 * @param value The current value of the input box.
-		 * @return A human-readable string which is presented as diagnostic message.
-		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
+		 * @return Either a human-readable string which is presented as an error message or an {@link InputBoxValidationMessage}
+		 *  which can provide a specific message severity. Return `undefined`, `null`, or the empty string when 'value' is valid.
 		 */
 		validateInput?(value: string): string | InputBoxValidationMessage | undefined | null |
 			Thenable<string | InputBoxValidationMessage | undefined | null>;
@@ -10057,14 +10058,27 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A class for encapsulating data transferred during a drag and drop event.
-	 *
-	 * You can use the `value` of the `DataTransferItem` to get back the object you put into it
-	 * so long as the extension that created the `DataTransferItem` runs in the same extension host.
+	 * Encapsulates data transferred during drag and drop operations.
 	 */
 	export class DataTransferItem {
+		/**
+		 * Get a string representation of this item.
+		 *
+		 * If {@linkcode DataTransferItem.value} is an object, this returns the result of json stringifying {@linkcode DataTransferItem.value} value.
+		 */
 		asString(): Thenable<string>;
+
+		/**
+		 * Custom data stored on this item.
+		 *
+		 * You can use `value` to share data across operations. The original object can be retrieved so long as the extension that
+		 * created the `DataTransferItem` runs in the same extension host.
+		 */
 		readonly value: any;
+
+		/**
+		 * @param value Custom data stored on this item. Can be retrieved using {@linkcode DataTransferItem.value}.
+		 */
 		constructor(value: any);
 	}
 
@@ -10096,9 +10110,11 @@ declare module 'vscode' {
 
 		/**
 		 * Allows iteration through the data transfer items.
+		 *
 		 * @param callbackfn Callback for iteration through the data transfer items.
+		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callbackfn: (value: DataTransferItem, key: string) => void): void;
+		forEach(callbackfn: (value: DataTransferItem, key: string) => void, thisArg?: any): void;
 	}
 
 	/**
@@ -11124,6 +11140,8 @@ declare module 'vscode' {
 
 		/**
 		 * An optional validation message indicating a problem with the current input value.
+		 * By returning a string, the InputBox will use a default {@link InputBoxValidationSeverity} of Error.
+		 * Returning undefined clears the validation message.
 		 */
 		validationMessage: string | InputBoxValidationMessage | undefined;
 	}
@@ -15645,7 +15663,7 @@ declare module 'vscode' {
 		 * @param callback Function to execute for each entry.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: unknown): void;
+		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: any): void;
 
 		/**
 		 * Adds the test item to the children. If an item with the same ID already
@@ -16028,7 +16046,7 @@ declare module 'vscode' {
 		readonly viewColumn: ViewColumn;
 
 		/**
-		 * The active {@link Tab tab} in the group. This is the tab which contents are currently
+		 * The active {@link Tab tab} in the group. This is the tab whose contents are currently
 		 * being rendered.
 		 *
 		 * *Note* that there can be one active tab per group but there can only be one {@link TabGroups.activeTabGroup active group}.

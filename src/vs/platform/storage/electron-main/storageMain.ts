@@ -17,7 +17,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey, ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export interface IStorageMainOptions {
@@ -97,7 +98,7 @@ export interface IStorageChangeEvent {
 
 abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
-	private static readonly LOG_SLOW_CLOSE_THRESHOLD = 300;
+	private static readonly LOG_SLOW_CLOSE_THRESHOLD = 2000;
 
 	protected readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
@@ -119,8 +120,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	constructor(
 		protected readonly logService: ILogService,
-		private readonly fileService: IFileService,
-		private readonly telemetryService: ITelemetryService
+		private readonly fileService: IFileService
 	) {
 		super();
 	}
@@ -232,26 +232,6 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 			const dbSize = (await this.fileService.stat(URI.file(this.path))).size;
 
 			this.logService.warn(`[storage main] detected slow close() operation: Time: ${watch.elapsed()}ms, DB size: ${dbSize}b, Large Keys: ${largestEntries}`);
-
-			type StorageSlowCloseClassification = {
-				duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time it took to close the DB in ms.' };
-				size: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The size of the DB in bytes.' };
-				largestEntries: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The 5 largest keys in the DB.' };
-				owner: 'bpasero';
-				comment: 'Used to gain insight into reasons a database may be slow. This is used to assist with further optimizations';
-			};
-
-			type StorageSlowCloseEvent = {
-				duration: number;
-				size: number;
-				largestEntries: string;
-			};
-
-			this.telemetryService.publicLog2<StorageSlowCloseEvent, StorageSlowCloseClassification>('storageSlowClose', {
-				duration: watch.elapsed(),
-				size: dbSize,
-				largestEntries
-			});
 		} catch (error) {
 			this.logService.error('[storage main] figuring out stats for slow DB on close() resulted in an error', error);
 		}
@@ -281,7 +261,7 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 
 	get path(): string | undefined {
 		if (!this.options.useInMemoryStorage) {
-			return join(this.environmentService.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
+			return join(this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
 		}
 
 		return undefined;
@@ -290,11 +270,10 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 	constructor(
 		private readonly options: IStorageMainOptions,
 		logService: ILogService,
-		private readonly environmentService: IEnvironmentService,
-		fileService: IFileService,
-		telemetryService: ITelemetryService
+		private readonly userDataProfilesService: IUserDataProfilesService,
+		fileService: IFileService
 	) {
-		super(logService, fileService, telemetryService);
+		super(logService, fileService);
 	}
 
 	protected async doCreate(): Promise<IStorage> {
@@ -346,10 +325,9 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		private readonly options: IStorageMainOptions,
 		logService: ILogService,
 		private readonly environmentService: IEnvironmentService,
-		fileService: IFileService,
-		telemetryService: ITelemetryService
+		fileService: IFileService
 	) {
-		super(logService, fileService, telemetryService);
+		super(logService, fileService);
 	}
 
 	protected async doCreate(): Promise<IStorage> {

@@ -23,13 +23,15 @@ import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/us
 
 type AutoSyncClassification = {
 	owner: 'sandy081';
-	sources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	comment: 'Information about the sources triggering auto sync';
+	sources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Source that triggered auto sync' };
 };
 
 type AutoSyncErrorClassification = {
 	owner: 'sandy081';
-	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	comment: 'Information about the error that causes auto sync to fail';
+	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
+	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings sync service for which this error has occurred' };
 };
 
 const disableMachineEventuallyKey = 'sync.disableMachineEventually';
@@ -196,7 +198,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 			// Reset
 			if (everywhere) {
-				this.telemetryService.publicLog2<{}, { owner: 'sandy081' }>('sync/turnOffEveryWhere');
+				this.telemetryService.publicLog2<{}, { owner: 'sandy081'; comment: 'Reporting when settings sync is turned off in all devices' }>('sync/turnOffEveryWhere');
 				await this.userDataSyncService.reset();
 			} else {
 				await this.userDataSyncService.resetLocal();

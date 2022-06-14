@@ -6,9 +6,11 @@
 import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
+import * as semver from 'vs/base/common/semver/semver';
 
+// TODO: @sandy081 merge this with deduping in extensionsScannerService.ts
 export function dedupExtensions(system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[], logService: ILogService): IExtensionDescription[] {
-	let result = new Map<string, IExtensionDescription>();
+	const result = new Map<string, IExtensionDescription>();
 	system.forEach((systemExtension) => {
 		const extensionKey = ExtensionIdentifier.toKey(systemExtension.identifier);
 		const extension = result.get(extensionKey);
@@ -22,6 +24,10 @@ export function dedupExtensions(system: IExtensionDescription[], user: IExtensio
 		const extension = result.get(extensionKey);
 		if (extension) {
 			if (extension.isBuiltin) {
+				if (semver.gt(extension.version, userExtension.version)) {
+					logService.warn(`Skipping extension ${userExtension.extensionLocation.path} with lower version ${userExtension.version}.`);
+					return;
+				}
 				// Overwriting a builtin extension inherits the `isBuiltin` property and it doesn't show a warning
 				(<IRelaxedExtensionDescription>userExtension).isBuiltin = true;
 			} else {
@@ -42,7 +48,7 @@ export function dedupExtensions(system: IExtensionDescription[], user: IExtensio
 		}
 		result.set(extensionKey, developedExtension);
 	});
-	let r: IExtensionDescription[] = [];
+	const r: IExtensionDescription[] = [];
 	result.forEach((value) => r.push(value));
 	return r;
 }

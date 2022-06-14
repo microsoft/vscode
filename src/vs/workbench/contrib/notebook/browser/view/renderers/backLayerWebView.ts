@@ -75,6 +75,7 @@ export interface INotebookDelegateForWebview {
 	didDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
 	didDropMarkupCell(cellId: string, event: { dragOffsetY: number; ctrlKey: boolean; altKey: boolean }): void;
 	didEndDragMarkupCell(cellId: string): void;
+	didResizeOutput(cellId: string): void;
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
 }
@@ -818,6 +819,10 @@ var requirejs = (function() {
 					this._handleHighlightCodeBlock(data.codeBlocks);
 					break;
 				}
+
+				case 'outputResized':
+					this.notebookEditor.didResizeOutput(data.cellId);
+					break;
 			}
 		}));
 	}
@@ -852,7 +857,9 @@ var requirejs = (function() {
 			return;
 		}
 
-		const defaultDir = dirname(this.documentUri);
+		const defaultDir = this.documentUri.scheme === Schemas.vscodeInteractive ?
+			this.workspaceContextService.getWorkspace().folders[0]?.uri ?? await this.fileDialogService.defaultFilePath() :
+			dirname(this.documentUri);
 		let defaultName: string;
 		if (event.downloadName) {
 			defaultName = event.downloadName;
@@ -1329,12 +1336,10 @@ var requirejs = (function() {
 			this.webview?.focus();
 		}
 
-		setTimeout(() => { // Need this, or focus decoration is not shown. No clue.
-			this._sendMessageToWebview({
-				type: 'focus-output',
-				cellId,
-			});
-		}, 50);
+		this._sendMessageToWebview({
+			type: 'focus-output',
+			cellId,
+		});
 	}
 
 	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }): Promise<IFindMatch[]> {

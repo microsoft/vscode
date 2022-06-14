@@ -99,7 +99,7 @@ const testModules = (async function () {
 
 	return promise.then(files => {
 		const modules = [];
-		for (let file of files) {
+		for (const file of files) {
 			if (!minimatch(file, excludeGlob)) {
 				modules.push(file.replace(/\.js$/, ''));
 
@@ -151,7 +151,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	emitter.on('fail', (test, err) => {
 		if (err.stack) {
 			const regex = /(vs\/.*\.test)\.js/;
-			for (let line of String(err.stack).split('\n')) {
+			for (const line of String(err.stack).split('\n')) {
 				const match = regex.exec(line);
 				if (match) {
 					fails.push(match[1]);
@@ -255,7 +255,7 @@ testModules.then(async modules => {
 	}
 
 	// aftermath
-	for (let msg of messages) {
+	for (const msg of messages) {
 		if (msg) {
 			didFail = true;
 			console.log(msg);

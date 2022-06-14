@@ -22,7 +22,7 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 	setup(() => {
 		workspaceResourceEdits = null!;
 
-		let rpcProtocol = new TestRPCProtocol();
+		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadBulkEdits, new class extends mock<MainThreadBulkEditsShape>() {
 			override $tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceEditDto): Promise<boolean> {
 				workspaceResourceEdits = _workspaceResourceEdits;
@@ -44,7 +44,7 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 	});
 
 	test('uses version id if document available', async () => {
-		let edit = new extHostTypes.WorkspaceEdit();
+		const edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'hello');
 		await bulkEdits.applyWorkspaceEdit(edit);
 		assert.strictEqual(workspaceResourceEdits.edits.length, 1);
@@ -54,7 +54,7 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 	});
 
 	test('does not use version id if document is not available', async () => {
-		let edit = new extHostTypes.WorkspaceEdit();
+		const edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(URI.parse('foo:bar2'), new extHostTypes.Range(0, 0, 0, 0), 'hello');
 		await bulkEdits.applyWorkspaceEdit(edit);
 		assert.strictEqual(workspaceResourceEdits.edits.length, 1);

@@ -6,12 +6,10 @@
 import { Action } from 'vs/base/common/actions';
 import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose, MutableDisposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isEqual, basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import type { IEditorContribution } from 'vs/editor/common/editorCommon';
 import type { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -20,7 +18,7 @@ import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -31,7 +29,6 @@ import {
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService,
 	getSyncResourceFromLocalPreview, IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore
 } from 'vs/platform/userDataSync/common/userDataSync';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -55,11 +52,17 @@ import { UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser
 import { IUserDataSyncWorkbenchService, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_VIEW_ICON } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { Codicon } from 'vs/base/common/codicons';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -67,8 +70,9 @@ type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description
 
 type SyncConflictsClassification = {
 	owner: 'sandy081';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	comment: 'Response information when conflict happens during settings sync';
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'settings sync resource. eg., settings, keybindings...' };
+	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'action taken while resolving conflicts. Eg: acceptLocal, acceptRemote' };
 };
 
 const turnOnSyncCommand = { id: 'workbench.userDataSync.actions.turnOn', title: localize('turn on sync with category', "{0}: Turn On...", SYNC_TITLE) };
@@ -114,6 +118,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IActivityService private readonly activityService: IActivityService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -437,7 +442,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (!this.hostService.hasFocus) {
 			return;
 		}
-		const resource = source === SyncResource.Settings ? this.environmentService.settingsResource : this.environmentService.keybindingsResource;
+		const resource = source === SyncResource.Settings ? this.userDataProfilesService.defaultProfile.settingsResource : this.userDataProfilesService.defaultProfile.keybindingsResource;
 		if (isEqual(resource, EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }))) {
 			// Do not show notification if the file in error is active
 			return;
@@ -725,21 +730,35 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async handleConflicts([syncResource, conflicts]: [SyncResource, IResourcePreview[]]): Promise<void> {
+		const useMergeEditor = this.configurationService.getValue('settingsSync.mergeEditor') ?? true;
 		for (const conflict of conflicts) {
-			const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(conflict.remoteResource));
-			const rightResourceName = localize('merges', "{0} (Merges)", basename(conflict.previewResource));
-			await this.editorService.openEditor({
-				original: { resource: conflict.remoteResource },
-				modified: { resource: conflict.previewResource },
-				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
-				description: localize('sideBySideDescription', "Settings Sync"),
-				options: {
-					preserveFocus: false,
-					pinned: true,
-					revealIfVisible: true,
-					override: EditorResolution.DISABLED
-				},
-			});
+			if (useMergeEditor) {
+				const remoteResourceName = localize({ key: 'remoteResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(conflict.remoteResource));
+				const localResourceName = localize('localResourceName', "{0} (Local)", basename(conflict.remoteResource));
+				const input = this.instantiationService.createInstance(
+					MergeEditorInput,
+					conflict.baseResource,
+					{ description: localResourceName, detail: undefined, uri: conflict.localResource },
+					{ description: remoteResourceName, detail: undefined, uri: conflict.remoteResource },
+					conflict.previewResource,
+				);
+				await this.editorService.openEditor(input);
+			} else {
+				const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(conflict.remoteResource));
+				const rightResourceName = localize('merges', "{0} (Merges)", basename(conflict.previewResource));
+				await this.editorService.openEditor({
+					original: { resource: conflict.remoteResource },
+					modified: { resource: conflict.previewResource },
+					label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+					description: localize('sideBySideDescription', "Settings Sync"),
+					options: {
+						preserveFocus: false,
+						pinned: true,
+						revealIfVisible: true,
+						override: EditorResolution.DISABLED
+					},
+				});
+			}
 		}
 	}
 
@@ -810,6 +829,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.registerHelpAction();
 		this.registerShowLogAction();
 		this.registerResetSyncDataAction();
+		this.registerAcceptMergesAction();
 	}
 
 	private registerTurnOnSyncAction(): void {
@@ -1282,6 +1302,37 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			when: ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID),
 			group: '1_help',
 		});
+	}
+
+	private registerAcceptMergesAction(): void {
+		const that = this;
+		this._register(registerAction2(class AcceptMergesAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.userDataSync.actions.acceptMerges',
+					title: localize('accept merges title', "Accept Merge"),
+					menu: [{
+						id: MenuId.MergeToolbar,
+						when: ContextKeyExpr.and(ContextKeyDefinedExpr.create('isMergeEditor'), ContextKeyEqualsExpr.create('baseResourceScheme', USER_DATA_SYNC_SCHEME)),
+					}],
+				});
+			}
+
+			async run(accessor: ServicesAccessor, previewResource: URI): Promise<void> {
+				const textFileService = accessor.get(ITextFileService);
+				await textFileService.save(previewResource);
+				const content = await textFileService.read(previewResource);
+				await that.userDataSyncService.accept(this.getSyncResource(previewResource), previewResource, content.value, true);
+			}
+
+			private getSyncResource(previewResource: URI): SyncResource {
+				const conflict = that.userDataSyncService.conflicts.find(([, conflicts]) => conflicts.some(conflict => isEqual(conflict.previewResource, previewResource)));
+				if (conflict) {
+					return conflict[0];
+				}
+				throw new Error(`Unknown resource: ${previewResource.toString()}`);
+			}
+		}));
 	}
 
 	private registerViews(): void {

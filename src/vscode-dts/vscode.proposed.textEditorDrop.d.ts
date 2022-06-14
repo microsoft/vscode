@@ -7,12 +7,6 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/142990
 
-	export class SnippetTextEdit {
-		snippet: SnippetString;
-		range: Range;
-		constructor(range: Range, snippet: SnippetString);
-	}
-
 	/**
 	 * Provider which handles dropping of resources into a text editor.
 	 *
@@ -27,10 +21,30 @@ declare module 'vscode' {
 		 * @param dataTransfer A {@link DataTransfer} object that holds data about what is being dragged and dropped.
 		 * @param token A cancellation token.
 		 *
-		 * @return A {@link SnippetTextEdit} or a thenable that resolves to such. The lack of a result can be
+		 * @return A {@link DocumentDropEdit} or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideDocumentOnDropEdits(document: TextDocument, position: Position, dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<SnippetTextEdit>;
+		provideDocumentOnDropEdits(document: TextDocument, position: Position, dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<DocumentDropEdit>;
+	}
+
+	/**
+	 * An edit operation applied on drop.
+	 */
+	export class DocumentDropEdit {
+		/**
+		 * The text or snippet to insert at the drop location.
+		 */
+		insertText: string | SnippetString;
+
+		/**
+		 * An optional additional edit to apply on drop.
+		 */
+		additionalEdit?: WorkspaceEdit;
+
+		/**
+		 * @param insertText The text or snippet to insert at the drop location.
+		 */
+		constructor(insertText: string | SnippetString);
 	}
 
 	export namespace languages {

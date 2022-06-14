@@ -32,7 +32,7 @@ function printDiagnostics(options, diagnostics) {
             result += `${path.join(options.sourcesRoot, diag.file.fileName)}`;
         }
         if (diag.file && diag.start) {
-            let location = diag.file.getLineAndCharacterOfPosition(diag.start);
+            const location = diag.file.getLineAndCharacterOfPosition(diag.start);
             result += `:${location.line + 1}:${location.character}`;
         }
         result += ` - ` + JSON.stringify(diag.messageText);
@@ -150,7 +150,7 @@ function processLibFiles(ts, options) {
             result[key] = sourceText;
             // precess dependencies and "recurse"
             const info = ts.preProcessFile(sourceText);
-            for (let ref of info.libReferenceDirectives) {
+            for (const ref of info.libReferenceDirectives) {
                 stack.push(ref.fileName);
             }
         }
@@ -503,7 +503,7 @@ function markNodes(ts, languageService, options) {
                         }
                         // queue the heritage clauses
                         if (declaration.heritageClauses) {
-                            for (let heritageClause of declaration.heritageClauses) {
+                            for (const heritageClause of declaration.heritageClauses) {
                                 enqueue_black(heritageClause);
                             }
                         }
@@ -551,7 +551,7 @@ function generateResult(ts, languageService, shakeLevel) {
     if (!program) {
         throw new Error('Could not get program from language service');
     }
-    let result = {};
+    const result = {};
     const writeFile = (filePath, contents) => {
         result[filePath] = contents;
     };
@@ -567,7 +567,7 @@ function generateResult(ts, languageService, shakeLevel) {
             }
             return;
         }
-        let text = sourceFile.text;
+        const text = sourceFile.text;
         let result = '';
         function keep(node) {
             result += text.substring(node.pos, node.end);
@@ -597,7 +597,7 @@ function generateResult(ts, languageService, shakeLevel) {
                         }
                     }
                     else {
-                        let survivingImports = [];
+                        const survivingImports = [];
                         for (const importNode of node.importClause.namedBindings.elements) {
                             if (getColor(importNode) === 2 /* NodeColor.Black */) {
                                 survivingImports.push(importNode.getFullText(sourceFile));
@@ -626,7 +626,7 @@ function generateResult(ts, languageService, shakeLevel) {
             }
             if (ts.isExportDeclaration(node)) {
                 if (node.exportClause && node.moduleSpecifier && ts.isNamedExports(node.exportClause)) {
-                    let survivingExports = [];
+                    const survivingExports = [];
                     for (const exportSpecifier of node.exportClause.elements) {
                         if (getColor(exportSpecifier) === 2 /* NodeColor.Black */) {
                             survivingExports.push(exportSpecifier.getFullText(sourceFile));
@@ -647,8 +647,8 @@ function generateResult(ts, languageService, shakeLevel) {
                         // keep method
                         continue;
                     }
-                    let pos = member.pos - node.pos;
-                    let end = member.end - node.pos;
+                    const pos = member.pos - node.pos;
+                    const end = member.end - node.pos;
                     toWrite = toWrite.substring(0, pos) + toWrite.substring(end);
                 }
                 return write(toWrite);

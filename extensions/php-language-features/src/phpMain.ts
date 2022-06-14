@@ -12,7 +12,7 @@ import PHPValidationProvider from './features/validationProvider';
 
 export function activate(context: vscode.ExtensionContext): any {
 
-	let validator = new PHPValidationProvider();
+	const validator = new PHPValidationProvider();
 	validator.activate(context.subscriptions);
 
 	// add providers

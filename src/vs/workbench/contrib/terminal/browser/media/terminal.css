@@ -87,13 +87,12 @@
 
 .monaco-workbench .simple-find-part-wrapper.result-count {
 	z-index: 33 !important;
-	padding-right: 80px;
 }
 
 .result-count .simple-find-part {
-	width: 280px;
-	max-width: 280px;
-	min-width: 280px;
+	width: 330px;
+	max-width: 330px;
+	min-width: 330px;
 }
 
 .result-count .matchesCount {
@@ -459,8 +458,14 @@
 	outline-style: dotted !important;
 }
 
-.hc-black .xterm-find-active-result-decoration,
-.hc-light .xterm-find-active-result-decoration {
+.hc-black .xterm-find-result-decoration,
+.hc-light .xterm-find-result-decoration {
+	outline-style: solid !important;
+}
+
+.xterm-find-active-result-decoration {
 	outline-style: solid !important;
 	outline-width: 2px !important;
+	/* Ensure the active decoration is above the regular decoration */
+	z-index: 7 !important;
 }

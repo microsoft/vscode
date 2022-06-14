@@ -46,6 +46,13 @@
 	justify-content: left;
 }
 
+.monaco-workbench.web.safari .part.titlebar,
+.monaco-workbench.web.safari .part.titlebar>.titlebar-container {
+	/* Must be scoped to safari due to #148851 */
+	/* Is required in safari due to #149476 */
+	overflow: visible;
+}
+
 /* Draggable region */
 .monaco-workbench .part.titlebar>.titlebar-container>.titlebar-drag-region {
 	top: 0;
@@ -121,7 +128,6 @@
 	display: inline-flex;
 	text-align: center;
 	font-size: 12px;
-	line-height: 14px;
 	background-color: inherit;
 	justify-content: center;
 	width: calc(100% - 19px);
@@ -130,7 +136,7 @@
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen>.action-label.search>.search-icon {
 	font-size: 14px;
 	opacity: .8;
-	padding: 0 3px;
+	margin: auto 3px;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen>.action-label.search>.search-label {
@@ -278,7 +284,7 @@
 	min-width: 28px;
 }
 
-.monaco-workbench.mac:not(.web) .part.titlebar>.layout-controls-container {
+.monaco-workbench.mac:not(.web) .part.titlebar>.titlebar-container>.layout-controls-container {
 	position: absolute;
 	right: 8px;
 }

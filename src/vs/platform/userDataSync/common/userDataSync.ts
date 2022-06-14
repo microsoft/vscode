@@ -156,7 +156,7 @@ export interface IResourceRefHandle {
 	created: number;
 }
 
-export type ServerResource = SyncResource | 'machines';
+export type ServerResource = SyncResource | 'machines' | 'editSessions';
 export type UserDataSyncStoreType = 'insiders' | 'stable';
 
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
@@ -359,6 +359,7 @@ export const enum MergeState {
 }
 
 export interface IResourcePreview {
+	readonly baseResource: URI;
 	readonly remoteResource: URI;
 	readonly localResource: URI;
 	readonly previewResource: URI;

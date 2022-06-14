@@ -441,10 +441,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, extensionInfo: IExtensionInfo | undefined, restrictedProperties: string[] | undefined, scope: ConfigurationScope = ConfigurationScope.WINDOW): string[] {
 		scope = types.isUndefinedOrNull(configuration.scope) ? scope : configuration.scope;
-		let propertyKeys: string[] = [];
-		let properties = configuration.properties;
+		const propertyKeys: string[] = [];
+		const properties = configuration.properties;
 		if (properties) {
-			for (let key in properties) {
+			for (const key in properties) {
 				const property: IRegisteredConfigurationPropertySchema = properties[key];
 				if (validate && validateProperty(key, property)) {
 					delete properties[key];
@@ -486,9 +486,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				propertyKeys.push(key);
 			}
 		}
-		let subNodes = configuration.allOf;
+		const subNodes = configuration.allOf;
 		if (subNodes) {
-			for (let node of subNodes) {
+			for (const node of subNodes) {
 				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, extensionInfo, restrictedProperties, scope));
 			}
 		}
@@ -518,13 +518,13 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	private registerJSONConfiguration(configuration: IConfigurationNode) {
 		const register = (configuration: IConfigurationNode) => {
-			let properties = configuration.properties;
+			const properties = configuration.properties;
 			if (properties) {
 				for (const key in properties) {
 					this.updateSchema(key, properties[key]);
 				}
 			}
-			let subNodes = configuration.allOf;
+			const subNodes = configuration.allOf;
 			if (subNodes) {
 				subNodes.forEach(register);
 			}

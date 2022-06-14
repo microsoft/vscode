@@ -158,6 +158,7 @@ export class MenuId {
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly NewFile = new MenuId('NewFile');
+	static readonly MergeToolbar = new MenuId('MergeToolbar');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -275,7 +276,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 		return toDisposable(() => {
 			if (toRemove.size > 0) {
-				for (let fn of toRemove) {
+				for (const fn of toRemove) {
 					fn();
 				}
 				this._onDidChangeMenu.fire(changedIds);
@@ -544,7 +545,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 
 	// keybinding
 	if (Array.isArray(keybinding)) {
-		for (let item of keybinding) {
+		for (const item of keybinding) {
 			KeybindingsRegistry.registerKeybindingRule({
 				...item,
 				id: command.id,

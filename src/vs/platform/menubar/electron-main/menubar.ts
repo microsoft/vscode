@@ -172,7 +172,7 @@ export class Menubar {
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
-		let enableMenuBarMnemonics = this.configurationService.getValue('window.enableMenuBarMnemonics');
+		const enableMenuBarMnemonics = this.configurationService.getValue('window.enableMenuBarMnemonics');
 		if (typeof enableMenuBarMnemonics !== 'boolean') {
 			return true;
 		}
@@ -185,7 +185,7 @@ export class Menubar {
 			return false;
 		}
 
-		let enableNativeTabs = this.configurationService.getValue('window.nativeTabs');
+		const enableNativeTabs = this.configurationService.getValue('window.nativeTabs');
 		if (typeof enableNativeTabs !== 'boolean') {
 			return false;
 		}
@@ -816,9 +816,7 @@ export class Menubar {
 		const originalClick = options.click;
 		options.click = (item, window, event) => {
 			this.reportMenuActionTelemetry(commandId);
-			if (originalClick) {
-				originalClick(item, window, event);
-			}
+			originalClick?.(item, window, event);
 		};
 
 		return options;

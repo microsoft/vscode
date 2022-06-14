@@ -5,7 +5,6 @@
 
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IExpression, IRelativePattern } from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -1148,7 +1147,7 @@ export interface ICreateFileOptions {
 	readonly overwrite?: boolean;
 }
 
-export class FileOperationError extends ErrorNoTelemetry {
+export class FileOperationError extends Error {
 	constructor(
 		message: string,
 		readonly fileOperationResult: FileOperationResult,
@@ -1218,7 +1217,6 @@ export interface IFilesConfiguration {
 		autoSaveDelay: number;
 		eol: string;
 		enableTrash: boolean;
-		excludeGitIgnore: boolean;
 		hotExit: string;
 		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
 	};

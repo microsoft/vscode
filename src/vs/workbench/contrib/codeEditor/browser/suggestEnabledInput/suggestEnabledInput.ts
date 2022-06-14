@@ -167,7 +167,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this._register(this.inputWidget.onDidFocusEditorText(() => this._onDidFocus.fire()));
 		this._register(this.inputWidget.onDidBlurEditorText(() => this._onDidBlur.fire()));
 
-		let scopeHandle = uri.parse(resourceHandle);
+		const scopeHandle = uri.parse(resourceHandle);
 		this.inputModel = modelService.createModel('', null, scopeHandle, true);
 		this._register(this.inputModel);
 		this.inputWidget.setModel(this.inputModel);
@@ -191,7 +191,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		const inputWidgetModel = this.inputWidget.getModel();
 		if (inputWidgetModel) {
 			this._register(inputWidgetModel.onDidChangeContent(() => {
-				let content = this.getValue();
+				const content = this.getValue();
 				this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
 				if (preexistingContent.trim() === content.trim()) { return; }
 				this._onInputDidChange.fire(undefined);
@@ -199,7 +199,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			}));
 		}
 
-		let validatedSuggestProvider = {
+		const validatedSuggestProvider = {
 			provideResults: suggestionProvider.provideResults,
 			sortKey: suggestionProvider.sortKey || (a => a),
 			triggerCharacters: suggestionProvider.triggerCharacters || []
@@ -210,12 +210,12 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: languages.CompletionContext) => {
-				let query = model.getValue();
+				const query = model.getValue();
 
 				const zeroIndexedColumn = position.column - 1;
 
-				let zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
-				let alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
+				const zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
+				const alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
 
 				// dont show suggestions if the user has typed something, but hasn't used the trigger character
 				if (alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters.indexOf(query[zeroIndexedWordStart]) === -1) {

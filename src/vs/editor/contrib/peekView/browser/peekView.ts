@@ -79,7 +79,7 @@ class PeekContextController implements IEditorContribution {
 registerEditorContribution(PeekContextController.ID, PeekContextController);
 
 export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
-	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor instanceof EmbeddedCodeEditorWidget) {
 		return editor.getParentEditor();
 	}
@@ -135,7 +135,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	}
 
 	override style(styles: IPeekViewStyles): void {
-		let options = <IPeekViewOptions>this.options;
+		const options = <IPeekViewOptions>this.options;
 		if (styles.headerBackgroundColor) {
 			options.headerBackgroundColor = styles.headerBackgroundColor;
 		}
@@ -150,7 +150,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	protected override _applyStyles(): void {
 		super._applyStyles();
-		let options = <IPeekViewOptions>this.options;
+		const options = <IPeekViewOptions>this.options;
 		if (this._headElement && options.headerBackgroundColor) {
 			this._headElement.style.backgroundColor = options.headerBackgroundColor.toString();
 		}

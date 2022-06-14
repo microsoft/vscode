@@ -468,7 +468,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			let actions: IAction[] = [];
 			disposableStore.add(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions));
 			if (actions) {
-				let labelActions = actions.filter(action => action.id.toLowerCase().indexOf('label') >= 0);
+				const labelActions = actions.filter(action => action.id.toLowerCase().indexOf('label') >= 0);
 				if (labelActions.length > 1) {
 					labelActions.sort((a, b) => a.label.length - b.label.length);
 					labelActions.pop();

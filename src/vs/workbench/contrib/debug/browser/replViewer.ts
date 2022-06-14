@@ -239,6 +239,7 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer {
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
 		renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
+		data.expression.classList.toggle('nested-variable', isNestedVariable(expression));
 	}
 
 	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions | undefined {

@@ -126,12 +126,12 @@ export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 		throw new TypeError('invalid index');
 	}
 
-	let pivotValue = data[Math.floor(data.length * Math.random())];
-	let lower: T[] = [];
-	let higher: T[] = [];
-	let pivots: T[] = [];
+	const pivotValue = data[Math.floor(data.length * Math.random())];
+	const lower: T[] = [];
+	const higher: T[] = [];
+	const pivots: T[] = [];
 
-	for (let value of data) {
+	for (const value of data) {
 		const val = compare(value, pivotValue);
 		if (val < 0) {
 			lower.push(value);
@@ -641,11 +641,37 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 }
 
 /**
+ * When comparing two values,
+ * a negative number indicates that the first value is less than the second,
+ * a positive number indicates that the first value is greater than the second,
+ * and zero indicates that neither is the case.
+*/
+export type CompareResult = number;
+
+export namespace CompareResult {
+	export function isLessThan(result: CompareResult): boolean {
+		return result < 0;
+	}
+
+	export function isGreaterThan(result: CompareResult): boolean {
+		return result > 0;
+	}
+
+	export function isNeitherLessOrGreaterThan(result: CompareResult): boolean {
+		return result === 0;
+	}
+
+	export const greaterThan = 1;
+	export const lessThan = -1;
+	export const neitherLessOrGreaterThan = 0;
+}
+
+/**
  * A comparator `c` defines a total order `<=` on `T` as following:
  * `c(a, b) <= 0` iff `a` <= `b`.
  * We also have `c(a, b) == 0` iff `c(b, a) == 0`.
 */
-export type Comparator<T> = (a: T, b: T) => number;
+export type Comparator<T> = (a: T, b: T) => CompareResult;
 
 export function compareBy<TItem, TCompareBy>(selector: (item: TItem) => TCompareBy, comparator: Comparator<TCompareBy>): Comparator<TItem> {
 	return (a, b) => comparator(selector(a), selector(b));
@@ -706,7 +732,7 @@ export class ArrayQueue<T> {
 	/**
 	 * Constructs a queue that is backed by the given array. Runtime is O(1).
 	*/
-	constructor(private readonly items: T[]) { }
+	constructor(private readonly items: readonly T[]) { }
 
 	get length(): number {
 		return this.lastIdx - this.firstIdx + 1;
@@ -748,12 +774,28 @@ export class ArrayQueue<T> {
 	}
 
 	peek(): T | undefined {
+		if (this.length === 0) {
+			return undefined;
+		}
 		return this.items[this.firstIdx];
+	}
+
+	peekLast(): T | undefined {
+		if (this.length === 0) {
+			return undefined;
+		}
+		return this.items[this.lastIdx];
 	}
 
 	dequeue(): T | undefined {
 		const result = this.items[this.firstIdx];
 		this.firstIdx++;
+		return result;
+	}
+
+	removeLast(): T | undefined {
+		const result = this.items[this.lastIdx];
+		this.lastIdx--;
 		return result;
 	}
 

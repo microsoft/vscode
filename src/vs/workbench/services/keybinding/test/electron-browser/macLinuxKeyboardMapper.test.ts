@@ -1455,7 +1455,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 suite('keyboardMapper', () => {
 
 	test('issue #23706: Linux UK layout: Ctrl + Apostrophe also toggles terminal', () => {
-		let mapper = new MacLinuxKeyboardMapper(false, {
+		const mapper = new MacLinuxKeyboardMapper(false, {
 			'Backquote': {
 				'value': '`',
 				'withShift': '¬',
@@ -1489,7 +1489,7 @@ suite('keyboardMapper', () => {
 	});
 
 	test('issue #24064: NumLock/NumPad keys stopped working in 1.11 on Linux', () => {
-		let mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
+		const mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
 
 		function assertNumpadKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string | null, userSettingsLabel: string, dispatch: string): void {
 			assertResolveKeyboardEvent(
@@ -1530,7 +1530,7 @@ suite('keyboardMapper', () => {
 	});
 
 	test('issue #24107: Delete, Insert, Home, End, PgUp, PgDn, and arrow keys no longer work editor in 1.11', () => {
-		let mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
+		const mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
 
 		function assertKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string, userSettingsLabel: string, dispatch: string): void {
 			assertResolveKeyboardEvent(

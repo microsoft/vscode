@@ -265,9 +265,9 @@ class KeyboardController<T> implements IDisposable {
 
 	@memoize
 	private get onKeyDown(): Event.IChainableEvent<StandardKeyboardEvent> {
-		return Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event)
+		return this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event)
 			.filter(e => !isInputElement(e.target as HTMLElement))
-			.map(e => new StandardKeyboardEvent(e));
+			.map(e => new StandardKeyboardEvent(e)));
 	}
 
 	constructor(
@@ -429,7 +429,7 @@ class TypeLabelController<T> implements IDisposable {
 			return;
 		}
 
-		const onChar = Event.chain(this.enabledDisposables.add(new DomEmitter(this.view.domNode, 'keydown')).event)
+		const onChar = this.enabledDisposables.add(Event.chain(this.enabledDisposables.add(new DomEmitter(this.view.domNode, 'keydown')).event))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(event => new StandardKeyboardEvent(event))
@@ -438,8 +438,8 @@ class TypeLabelController<T> implements IDisposable {
 			.map(event => event.browserEvent.key)
 			.event;
 
-		const onClear = Event.debounce<string, null>(onChar, () => null, 800);
-		const onInput = Event.reduce<string | null, string | null>(Event.any(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i));
+		const onClear = Event.debounce<string, null>(onChar, () => null, 800, undefined, undefined, this.enabledDisposables);
+		const onInput = Event.reduce<string | null, string | null>(Event.any(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i), undefined, this.enabledDisposables);
 
 		onInput(this.onInput, this, this.enabledDisposables);
 		onClear(this.onClear, this, this.enabledDisposables);
@@ -512,7 +512,7 @@ class DOMFocusController<T> implements IDisposable {
 		private list: List<T>,
 		private view: ListView<T>
 	) {
-		const onKeyDown = Event.chain(this.disposables.add(new DomEmitter(view.domNode, 'keydown')).event)
+		const onKeyDown = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(view.domNode, 'keydown')).event))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(e => new StandardKeyboardEvent(e));
 
@@ -1109,9 +1109,7 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			if (renderer.disposeElement) {
-				renderer.disposeElement(element, index, templateData[i], height);
-			}
+			renderer.disposeElement?.(element, index, templateData[i], height);
 
 			i += 1;
 		}
@@ -1182,9 +1180,7 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		if (this.dnd.onDragStart) {
-			this.dnd.onDragStart(data, originalEvent);
-		}
+		this.dnd.onDragStart?.(data, originalEvent);
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
@@ -1196,9 +1192,7 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 	}
 
 	onDragEnd(originalEvent: DragEvent): void {
-		if (this.dnd.onDragEnd) {
-			this.dnd.onDragEnd(originalEvent);
-		}
+		this.dnd.onDragEnd?.(originalEvent);
 	}
 
 	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {
@@ -1239,11 +1233,11 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	protected readonly disposables = new DisposableStore();
 
 	@memoize get onDidChangeFocus(): Event<IListEvent<T>> {
-		return Event.map(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
+		return Event.map(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e), this.disposables);
 	}
 
 	@memoize get onDidChangeSelection(): Event<IListEvent<T>> {
-		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
+		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e), this.disposables);
 	}
 
 	get domId(): string { return this.view.domId; }
@@ -1270,14 +1264,14 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
 		let didJustPressContextMenuKey = false;
 
-		const fromKeyDown = Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event)
+		const fromKeyDown = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
 			.map(stopEvent)
 			.filter(() => false)
 			.event as Event<any>;
 
-		const fromKeyUp = Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keyup')).event)
+		const fromKeyUp = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keyup')).event))
 			.forEach(() => didJustPressContextMenuKey = false)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
@@ -1291,7 +1285,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			})
 			.event;
 
-		const fromMouse = Event.chain(this.view.onContextMenu)
+		const fromMouse = this.disposables.add(Event.chain(this.view.onContextMenu))
 			.filter(_ => !didJustPressContextMenuKey)
 			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.pageX + 1, y: browserEvent.pageY }, browserEvent }))
 			.event;
@@ -1328,9 +1322,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		if (this.accessibilityProvider) {
 			baseRenderers.push(new AccessibiltyRenderer<T>(this.accessibilityProvider));
 
-			if (this.accessibilityProvider.onDidChangeActiveDescendant) {
-				this.accessibilityProvider.onDidChangeActiveDescendant(this.onDidChangeActiveDescendant, this, this.disposables);
-			}
+			this.accessibilityProvider.onDidChangeActiveDescendant?.(this.onDidChangeActiveDescendant, this, this.disposables);
 		}
 
 		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [...baseRenderers, r]));
@@ -1597,20 +1589,25 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	async focusNextPage(browserEvent?: UIEvent, filter?: (element: T) => boolean): Promise<void> {
 		let lastPageIndex = this.view.indexAt(this.view.getScrollTop() + this.view.renderHeight);
 		lastPageIndex = lastPageIndex === 0 ? 0 : lastPageIndex - 1;
-		const lastPageElement = this.view.element(lastPageIndex);
-		const currentlyFocusedElement = this.getFocusedElements()[0];
+		const currentlyFocusedElementIndex = this.getFocus()[0];
 
-		if (currentlyFocusedElement !== lastPageElement) {
+		if (currentlyFocusedElementIndex !== lastPageIndex && (currentlyFocusedElementIndex === undefined || lastPageIndex > currentlyFocusedElementIndex)) {
 			const lastGoodPageIndex = this.findPreviousIndex(lastPageIndex, false, filter);
 
-			if (lastGoodPageIndex > -1 && currentlyFocusedElement !== this.view.element(lastGoodPageIndex)) {
+			if (lastGoodPageIndex > -1 && currentlyFocusedElementIndex !== lastGoodPageIndex) {
 				this.setFocus([lastGoodPageIndex], browserEvent);
 			} else {
 				this.setFocus([lastPageIndex], browserEvent);
 			}
 		} else {
 			const previousScrollTop = this.view.getScrollTop();
-			this.view.setScrollTop(previousScrollTop + this.view.renderHeight - this.view.elementHeight(lastPageIndex));
+			let nextpageScrollTop = previousScrollTop + this.view.renderHeight;
+			if (lastPageIndex > currentlyFocusedElementIndex) {
+				// scroll last page element to the top only if the last page element is below the focused element
+				nextpageScrollTop -= this.view.elementHeight(lastPageIndex);
+			}
+
+			this.view.setScrollTop(nextpageScrollTop);
 
 			if (this.view.getScrollTop() !== previousScrollTop) {
 				this.setFocus([]);
@@ -1632,13 +1629,12 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			firstPageIndex = this.view.indexAfter(scrollTop - 1);
 		}
 
-		const firstPageElement = this.view.element(firstPageIndex);
-		const currentlyFocusedElement = this.getFocusedElements()[0];
+		const currentlyFocusedElementIndex = this.getFocus()[0];
 
-		if (currentlyFocusedElement !== firstPageElement) {
+		if (currentlyFocusedElementIndex !== firstPageIndex && (currentlyFocusedElementIndex === undefined || currentlyFocusedElementIndex >= firstPageIndex)) {
 			const firstGoodPageIndex = this.findNextIndex(firstPageIndex, false, filter);
 
-			if (firstGoodPageIndex > -1 && currentlyFocusedElement !== this.view.element(firstGoodPageIndex)) {
+			if (firstGoodPageIndex > -1 && currentlyFocusedElementIndex !== firstGoodPageIndex) {
 				this.setFocus([firstGoodPageIndex], browserEvent);
 			} else {
 				this.setFocus([firstPageIndex], browserEvent);
