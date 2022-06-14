@@ -818,7 +818,7 @@ export interface IEditorOption<K extends EditorOption, V> {
 	/**
 	 * Might modify `value`.
 	*/
-	applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
+	applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V>;
 }
 
 /**
@@ -847,7 +847,7 @@ abstract class BaseEditorOption<K extends EditorOption, T, V> implements IEditor
 		this.schema = schema;
 	}
 
-	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+	public applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V> {
 		return applyUpdate(value, update);
 	}
 
@@ -865,7 +865,7 @@ export class ApplyUpdateResult<T> {
 	) { }
 }
 
-function applyUpdate<T>(value: T, update: T): ApplyUpdateResult<T> {
+function applyUpdate<T>(value: T | undefined, update: T): ApplyUpdateResult<T> {
 	if (typeof value !== 'object' || typeof update !== 'object' || !value || !update) {
 		return new ApplyUpdateResult(update, value !== update);
 	}
@@ -902,7 +902,7 @@ abstract class ComputedEditorOption<K extends EditorOption, V> implements IEdito
 		this.defaultValue = <any>undefined;
 	}
 
-	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+	public applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V> {
 		return applyUpdate(value, update);
 	}
 
@@ -927,7 +927,7 @@ class SimpleEditorOption<K extends EditorOption, V> implements IEditorOption<K, 
 		this.schema = schema;
 	}
 
-	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+	public applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V> {
 		return applyUpdate(value, update);
 	}
 
@@ -3476,16 +3476,16 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 		);
 	}
 
-	public override applyUpdate(value: Required<Readonly<IUnicodeHighlightOptions>>, update: Required<Readonly<IUnicodeHighlightOptions>>): ApplyUpdateResult<Required<Readonly<IUnicodeHighlightOptions>>> {
+	public override applyUpdate(value: Required<Readonly<IUnicodeHighlightOptions>> | undefined, update: Required<Readonly<IUnicodeHighlightOptions>>): ApplyUpdateResult<Required<Readonly<IUnicodeHighlightOptions>>> {
 		let didChange = false;
-		if (update?.allowedCharacters && value?.allowedCharacters) {
+		if (update.allowedCharacters && value) {
 			// Treat allowedCharacters atomically
 			if (!objects.equals(value.allowedCharacters, update.allowedCharacters)) {
 				value = { ...value, allowedCharacters: update.allowedCharacters };
 				didChange = true;
 			}
 		}
-		if (update?.allowedLocales && value?.allowedLocales) {
+		if (update.allowedLocales && value) {
 			// Treat allowedLocales atomically
 			if (!objects.equals(value.allowedLocales, update.allowedLocales)) {
 				value = { ...value, allowedLocales: update.allowedLocales };
