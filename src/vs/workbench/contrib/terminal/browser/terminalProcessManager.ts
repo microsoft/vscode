@@ -411,7 +411,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 		if (!this._isDisposed && !shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
-			console.log('_resolveEnvironment collections', this._shellLaunchConfig?.environmentVariableCollections);
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
 			// TODO: Check if it's already conflicting
 
