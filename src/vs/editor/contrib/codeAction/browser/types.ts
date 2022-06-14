@@ -121,8 +121,10 @@ export interface CodeActionTrigger {
 	readonly context?: {
 		readonly notAvailableMessage: string;
 		readonly position: Position;
+		readonly triggerAction?: string;
 	};
 	readonly preview?: boolean;
+	readonly triggerAction?: string;
 }
 
 export class CodeActionCommandArgs {

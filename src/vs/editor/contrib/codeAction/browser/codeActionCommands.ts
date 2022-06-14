@@ -39,7 +39,7 @@ function contextKeyForSupportedActions(kind: CodeActionKind) {
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
 }
 
-function RefactorTrigger(editor: ICodeEditor, userArgs: any, preview: boolean) {
+function RefactorTrigger(editor: ICodeEditor, userArgs: any, preview: boolean, context: string) {
 	const args = CodeActionCommandArgs.fromUser(userArgs, {
 		kind: CodeActionKind.Refactor,
 		apply: CodeActionAutoApply.Never
@@ -56,7 +56,7 @@ function RefactorTrigger(editor: ICodeEditor, userArgs: any, preview: boolean) {
 			include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
 			onlyIncludePreferredActions: args.preferred
 		},
-		args.apply, preview);
+		args.apply, preview, context);
 }
 
 const argsSchema: IJSONSchema = {
@@ -140,7 +140,8 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		notAvailableMessage: string,
 		filter?: CodeActionFilter,
 		autoApply?: CodeActionAutoApply,
-		preview?: boolean
+		preview?: boolean,
+		triggerAction?: string,
 	): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -148,7 +149,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		MessageController.get(this._editor)?.closeMessage();
 		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition }, preview });
+		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition }, preview, triggerAction });
 	}
 
 	private _trigger(trigger: CodeActionTrigger) {
@@ -240,12 +241,13 @@ function triggerCodeActionsForEditorSelection(
 	notAvailableMessage: string,
 	filter: CodeActionFilter | undefined,
 	autoApply: CodeActionAutoApply | undefined,
-	preview: boolean = false
+	preview: boolean = false,
+	triggerAction: string = 'default'
 ): void {
 	if (editor.hasModel()) {
 		const controller = QuickFixController.get(editor);
 		if (controller) {
-			controller.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply, preview);
+			controller.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply, preview, triggerAction);
 		}
 	}
 }
@@ -340,7 +342,7 @@ export class RefactorAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		return RefactorTrigger(editor, userArgs, false);
+		return RefactorTrigger(editor, userArgs, false, 'from: refactor');
 	}
 }
 
@@ -360,7 +362,7 @@ export class RefactorPreview extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		return RefactorTrigger(editor, userArgs, true);
+		return RefactorTrigger(editor, userArgs, true, 'from: refactor preview');
 	}
 }
 
