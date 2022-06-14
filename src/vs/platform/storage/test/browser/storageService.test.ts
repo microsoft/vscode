@@ -6,15 +6,19 @@
 import { strictEqual } from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 import { Storage } from 'vs/base/parts/storage/common/storage';
+import { mock } from 'vs/base/test/common/mock';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { BrowserStorageService, IndexedDBStorageDatabase } from 'vs/platform/storage/browser/storageService';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
 	const disposables = new DisposableStore();
@@ -25,7 +29,13 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
 	disposables.add(fileService.registerProvider(Schemas.vscodeUserData, userDataProvider));
 
-	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService));
+	class EnvironmentServiceMock extends mock<IEnvironmentService>() {
+		override readonly userRoamingDataHome = URI.file('/foo').with({ scheme: Schemas.inMemory });
+	}
+
+	const userDataProfileService = new UserDataProfilesService(undefined, undefined, new EnvironmentServiceMock(), fileService, new NullLogService());
+
+	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService, userDataProfileService));
 
 	await storageService.initialize();
 
@@ -69,6 +79,8 @@ flakySuite('StorageService (browser specific)', () => {
 
 	test('clear', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			storageService.store('bar', 'foo', StorageScope.APPLICATION, StorageTarget.MACHINE);
+			storageService.store('bar', 3, StorageScope.APPLICATION, StorageTarget.USER);
 			storageService.store('bar', 'foo', StorageScope.GLOBAL, StorageTarget.MACHINE);
 			storageService.store('bar', 3, StorageScope.GLOBAL, StorageTarget.USER);
 			storageService.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -76,7 +88,7 @@ flakySuite('StorageService (browser specific)', () => {
 
 			await storageService.clear();
 
-			for (const scope of [StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
+			for (const scope of [StorageScope.APPLICATION, StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
 				for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
 					strictEqual(storageService.get('bar', scope), undefined);
 					strictEqual(storageService.keys(scope, target).length, 0);
