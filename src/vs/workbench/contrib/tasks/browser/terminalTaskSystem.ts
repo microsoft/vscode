@@ -51,6 +51,7 @@ import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -1111,9 +1112,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${commandLine} <\x1b[0m\n`;
+					shellLaunchConfig.initialText = formatMessageForTerminal(`Executing task in folder ${workspaceFolder.name}: ${commandLine}`, { excludeLeadingNewLine: true });
 				} else {
-					shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine} <\x1b[0m\n`;
+					shellLaunchConfig.initialText = formatMessageForTerminal(`Executing task: ${commandLine}`, { excludeLeadingNewLine: true });
 				}
 			}
 		} else {
@@ -1143,9 +1144,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					return args.join(' ');
 				};
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)} <\x1b[0m\n`;
+					shellLaunchConfig.initialText = formatMessageForTerminal(`Executing task in folder ${workspaceFolder.name}: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`, { excludeLeadingNewLine: true });
 				} else {
-					shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)} <\x1b[0m\n`;
+					shellLaunchConfig.initialText = formatMessageForTerminal(`Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`, { excludeLeadingNewLine: true });
 				}
 			}
 		}
@@ -1245,7 +1246,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				customPtyImplementation: (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService),
 				waitOnExit,
 				name: this._createTerminalName(task),
-				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined,
+				initialText: task.command.presentation && task.command.presentation.echo ? formatMessageForTerminal(`Executing task: ${task._label}`, { excludeLeadingNewLine: true }) : undefined,
 				isFeatureTerminal: true,
 				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : undefined,
 				color: task.configurationProperties.color
