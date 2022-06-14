@@ -40,9 +40,7 @@ export class TerminalMainContribution implements IWorkbenchContribution {
 				const instance = terminalService.getInstanceFromResource(resource);
 				if (instance) {
 					const sourceGroup = terminalGroupService.getGroupForInstance(instance);
-					if (sourceGroup) {
-						sourceGroup.removeInstance(instance);
-					}
+					sourceGroup?.removeInstance(instance);
 				}
 				const resolvedResource = terminalEditorService.resolveResource(instance || resource);
 				const editor = terminalEditorService.getInputFromResource(resolvedResource) || { editor: resolvedResource };

@@ -86,15 +86,11 @@ class WebWorker implements IWorker {
 	}
 
 	public postMessage(message: any, transfer: Transferable[]): void {
-		if (this.worker) {
-			this.worker.then(w => w.postMessage(message, transfer));
-		}
+		this.worker?.then(w => w.postMessage(message, transfer));
 	}
 
 	public dispose(): void {
-		if (this.worker) {
-			this.worker.then(w => w.terminate());
-		}
+		this.worker?.then(w => w.terminate());
 		this.worker = null;
 	}
 }

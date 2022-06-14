@@ -1757,9 +1757,7 @@ registerAction2(class StartExtensionEditorFindNextAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor): any {
 		const extensionEditor = getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.runFindAction(false);
-		}
+		extensionEditor?.runFindAction(false);
 	}
 });
 
@@ -1779,9 +1777,7 @@ registerAction2(class StartExtensionEditorFindPreviousAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor): any {
 		const extensionEditor = getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.runFindAction(true);
-		}
+		extensionEditor?.runFindAction(true);
 	}
 });
 

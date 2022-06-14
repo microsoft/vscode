@@ -266,9 +266,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		const updates = data.value;
 		try {
 			const execution = this._executions.get(handle);
-			if (execution) {
-				execution.update(updates.map(NotebookDto.fromCellExecuteUpdateDto));
-			}
+			execution?.update(updates.map(NotebookDto.fromCellExecuteUpdateDto));
 		} catch (e) {
 			onUnexpectedError(e);
 		}
@@ -277,9 +275,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void {
 		try {
 			const execution = this._executions.get(handle);
-			if (execution) {
-				execution.complete(NotebookDto.fromCellExecuteCompleteDto(data.value));
-			}
+			execution?.complete(NotebookDto.fromCellExecuteCompleteDto(data.value));
 		} catch (e) {
 			onUnexpectedError(e);
 		} finally {

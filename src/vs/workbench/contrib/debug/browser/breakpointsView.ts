@@ -242,9 +242,7 @@ export class BreakpointsView extends ViewPane {
 		}
 
 		super.layoutBody(height, width);
-		if (this.list) {
-			this.list.layout(height, width);
-		}
+		this.list?.layout(height, width);
 		try {
 			this.ignoreLayout = true;
 			this.updateSize();

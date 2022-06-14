@@ -483,18 +483,14 @@ export class SearchView extends ViewPane {
 		this._register(inputFocusTracker.onDidFocus(() => {
 			this.lastFocusState = 'input';
 			this.inputBoxFocused.set(true);
-			if (contextKey) {
-				contextKey.set(true);
-			}
+			contextKey?.set(true);
 		}));
 		this._register(inputFocusTracker.onDidBlur(() => {
 			this.inputBoxFocused.set(this.searchWidget.searchInputHasFocus()
 				|| this.searchWidget.replaceInputHasFocus()
 				|| this.inputPatternIncludes.inputHasFocus()
 				|| this.inputPatternExcludes.inputHasFocus());
-			if (contextKey) {
-				contextKey.set(false);
-			}
+			contextKey?.set(false);
 		}));
 	}
 
@@ -752,9 +748,7 @@ export class SearchView extends ViewPane {
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(options => {
 			if (options.element instanceof Match) {
 				const selectedMatch: Match = options.element;
-				if (this.currentSelectedFileMatch) {
-					this.currentSelectedFileMatch.setSelectedMatch(null);
-				}
+				this.currentSelectedFileMatch?.setSelectedMatch(null);
 				this.currentSelectedFileMatch = selectedMatch.parent();
 				this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
 

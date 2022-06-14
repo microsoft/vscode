@@ -355,9 +355,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 						const selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
 						foldingModel.update(foldingRanges, selectionLineNumbers);
 
-						if (scrollState) {
-							scrollState.restore(this.editor);
-						}
+						scrollState?.restore(this.editor);
 
 						// update debounce info
 						const newValue = this.updateDebounceInfo.update(foldingModel.textModel, sw.elapsed());

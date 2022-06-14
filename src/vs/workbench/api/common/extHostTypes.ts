@@ -1209,9 +1209,7 @@ export class DocumentSymbol {
 		if (!candidate.range.contains(candidate.selectionRange)) {
 			throw new Error('selectionRange must be contained in fullRange');
 		}
-		if (candidate.children) {
-			candidate.children.forEach(DocumentSymbol.validate);
-		}
+		candidate.children?.forEach(DocumentSymbol.validate);
 	}
 
 	name: string;

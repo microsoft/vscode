@@ -506,9 +506,7 @@ export class SearchWidget extends Widget {
 	}
 
 	override dispose(): void {
-		if (this.options.focusKey) {
-			this.options.focusKey.set(false);
-		}
+		this.options.focusKey?.set(false);
 		super.dispose();
 	}
 }

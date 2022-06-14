@@ -1325,15 +1325,11 @@ class InnerMinimap extends Disposable {
 		return false;
 	}
 	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): boolean {
-		if (this._lastRenderData) {
-			this._lastRenderData.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
-		}
+		this._lastRenderData?.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
 		return true;
 	}
 	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): boolean {
-		if (this._lastRenderData) {
-			this._lastRenderData.onLinesInserted(insertFromLineNumber, insertToLineNumber);
-		}
+		this._lastRenderData?.onLinesInserted(insertFromLineNumber, insertToLineNumber);
 		return true;
 	}
 	public onScrollChanged(): boolean {
