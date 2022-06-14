@@ -48,7 +48,7 @@ export class NativeLocaleService implements ILocaleService {
 				message: localize('argvInvalid', 'Unable to write display language. Please open the runtime settings, correct errors/warnings in it and try again.'),
 				actions: {
 					primary: [
-						new Action('openArgv', localize('openArgv', "Open runtime settings"), undefined, true, () => this.editorService.openEditor({
+						new Action('openArgv', localize('openArgv', "Open Runtime Settings"), undefined, true, () => this.editorService.openEditor({
 							resource: this.environmentService.argvResource,
 							options: { preserveFocus: false }
 						}))
