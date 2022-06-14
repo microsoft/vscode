@@ -171,7 +171,7 @@ export class LabelService extends Disposable implements ILabelService {
 					continue;
 				}
 
-				if (!formatter.authority) {
+				if (!formatter.authority || typeof formatter.authority !== 'string') {
 					continue;
 				}
 
