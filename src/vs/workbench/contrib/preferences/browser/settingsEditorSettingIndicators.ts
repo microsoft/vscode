@@ -55,7 +55,7 @@ export class SettingsTreeIndicatorsLabel {
 	private createSyncIgnoredElement(): HTMLElement {
 		const syncIgnoredElement = $('span.setting-item-ignored');
 		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
-		syncIgnoredLabel.text = localize('extensionSyncIgnoredLabel', 'Setting not synced') + ' $(info)';
+		syncIgnoredLabel.text = '$(info) ' + localize('extensionSyncIgnoredLabel', 'Setting not synced');
 		syncIgnoredLabel.title = localize('syncIgnoredTitle', "Settings sync does not sync this setting");
 		return syncIgnoredElement;
 	}
@@ -136,7 +136,7 @@ export class SettingsTreeIndicatorsLabel {
 			}
 			if (sourceToDisplay) {
 				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay);
-				this.defaultOverrideIndicatorLabel.text = localize('defaultOverriddenLabel', "Default value changed") + ' $(info)';
+				this.defaultOverrideIndicatorLabel.text = '$(info) ' + localize('defaultOverriddenLabel', "Default value changed");
 			}
 		}
 		this.render();
