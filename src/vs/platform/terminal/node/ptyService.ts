@@ -127,14 +127,12 @@ export class PtyService extends Disposable implements IPtyService {
 		return JSON.stringify(serialized);
 	}
 
-	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string) {
+	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocale: string) {
 		for (const terminal of state) {
-			const restoreMessage = localize({
-				key: 'terminal-session-restore',
-				comment: ['date the snapshot was taken', 'time the snapshot was taken']
-			}, "History restored");
-			// from {0} at {1}
-			//, new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocate), new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocate));
+			const restoreMessage = localize('terminal-history-restored', "History restored");
+			// TODO: We may at some point want to show date information in a hover via a custom sequence:
+			//   new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocale)
+			//   new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocale)
 			const newId = await this.createProcess(
 				{
 					...terminal.shellLaunchConfig,
