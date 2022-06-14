@@ -30,6 +30,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { FileAccess } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { parentOriginHash } from 'vs/workbench/browser/webview';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -66,6 +67,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILogService private readonly _logService: ILogService,
 		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
+		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@IProductService private readonly _productService: IProductService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -282,7 +284,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-				globalStorageHome: this._environmentService.globalStorageHome,
+				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {

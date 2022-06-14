@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallVSIXOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode
+	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallVSIXOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -483,6 +483,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			this._targetPlatformPromise = computeTargetPlatform(this.fileService, this.logService);
 		}
 		return this._targetPlatformPromise;
+	}
+
+	async getMetadata(extension: ILocalExtension): Promise<Metadata | undefined> {
+		const server = this.getServer(extension);
+		if (!server) {
+			return undefined;
+		}
+		return server.extensionManagementService.getMetadata(extension);
 	}
 
 	registerParticipant() { throw new Error('Not Supported'); }

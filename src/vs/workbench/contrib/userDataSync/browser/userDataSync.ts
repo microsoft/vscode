@@ -56,6 +56,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
@@ -117,6 +118,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IActivityService private readonly activityService: IActivityService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -440,7 +442,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (!this.hostService.hasFocus) {
 			return;
 		}
-		const resource = source === SyncResource.Settings ? this.environmentService.settingsResource : this.environmentService.keybindingsResource;
+		const resource = source === SyncResource.Settings ? this.userDataProfilesService.defaultProfile.settingsResource : this.userDataProfilesService.defaultProfile.keybindingsResource;
 		if (isEqual(resource, EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }))) {
 			// Do not show notification if the file in error is active
 			return;

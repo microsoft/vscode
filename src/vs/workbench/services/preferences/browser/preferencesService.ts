@@ -20,7 +20,6 @@ import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -45,6 +44,7 @@ import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEd
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { isArray, isObject } from 'vs/base/common/types';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -66,7 +66,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private readonly modelService: IModelService,
@@ -93,7 +93,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.json' });
 
 	get userSettingsResource(): URI {
-		return this.environmentService.settingsResource;
+		return this.userDataProfilesService.currentProfile.settingsResource;
 	}
 
 	get workspaceSettingsResource(): URI | null {
@@ -304,7 +304,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		options = { pinned: true, revealIfOpened: true, ...options };
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
-			const editableKeybindings = this.environmentService.keybindingsResource;
+			const editableKeybindings = this.userDataProfilesService.currentProfile.keybindingsResource;
 			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor

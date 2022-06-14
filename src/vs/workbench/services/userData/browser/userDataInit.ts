@@ -37,6 +37,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { TasksInitializer } from 'vs/platform/userDataSync/common/tasksSync';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -62,6 +63,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IFileService private readonly fileService: IFileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
@@ -270,11 +272,11 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 
 	private createSyncResourceInitializer(syncResource: SyncResource): IUserDataInitializer {
 		switch (syncResource) {
-			case SyncResource.Settings: return new SettingsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
-			case SyncResource.Keybindings: return new KeybindingsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
-			case SyncResource.Tasks: return new TasksInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
-			case SyncResource.Snippets: return new SnippetsInitializer(this.fileService, this.environmentService, this.logService, this.uriIdentityService);
-			case SyncResource.GlobalState: return new GlobalStateInitializer(this.storageService, this.fileService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.Settings: return new SettingsInitializer(this.fileService, this.userDataProfilesService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.Keybindings: return new KeybindingsInitializer(this.fileService, this.userDataProfilesService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.Tasks: return new TasksInitializer(this.fileService, this.userDataProfilesService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.Snippets: return new SnippetsInitializer(this.fileService, this.userDataProfilesService, this.environmentService, this.logService, this.uriIdentityService);
+			case SyncResource.GlobalState: return new GlobalStateInitializer(this.storageService, this.fileService, this.userDataProfilesService, this.environmentService, this.logService, this.uriIdentityService);
 		}
 		throw new Error(`Cannot create initializer for ${syncResource}`);
 	}
@@ -291,11 +293,12 @@ class ExtensionsPreviewInitializer extends AbstractExtensionsInitializer {
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IIgnoredExtensionsManagementService ignoredExtensionsManagementService: IIgnoredExtensionsManagementService,
 		@IFileService fileService: IFileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(extensionManagementService, ignoredExtensionsManagementService, fileService, environmentService, logService, uriIdentityService);
+		super(extensionManagementService, ignoredExtensionsManagementService, fileService, userDataProfilesService, environmentService, logService, uriIdentityService);
 	}
 
 	getPreview(): Promise<IExtensionsInitializerPreviewResult | null> {

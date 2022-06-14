@@ -11,7 +11,7 @@ import { Platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -413,11 +413,25 @@ export interface IExtensionManagementService {
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 
+	getMetadata(extension: ILocalExtension): Promise<Metadata | undefined>;
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 	updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
 
 	registerParticipant(pariticipant: IExtensionManagementParticipant): void;
 	getTargetPlatform(): Promise<TargetPlatform>;
+}
+
+export type ServerInstallOptions = InstallOptions & { profileLocation?: URI };
+export type ServerInstallVSIXOptions = InstallVSIXOptions & { profileLocation?: URI };
+export type ServerUninstallOptions = UninstallOptions & { profileLocation?: URI };
+
+export const IServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, IServerExtensionManagementService>(IExtensionManagementService);
+export interface IServerExtensionManagementService extends IExtensionManagementService {
+	readonly _serviceBrand: undefined;
+	getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
+	install(vsix: URI, options?: ServerInstallVSIXOptions): Promise<ILocalExtension>;
+	installFromGallery(extension: IGalleryExtension, options?: ServerInstallOptions): Promise<ILocalExtension>;
+	uninstall(extension: ILocalExtension, options?: ServerUninstallOptions): Promise<void>;
 }
 
 export const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';

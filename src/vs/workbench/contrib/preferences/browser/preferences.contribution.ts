@@ -43,6 +43,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -139,6 +140,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IUserDataProfilesService private readonly userDataProfileService: IUserDataProfilesService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -250,7 +252,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					icon: preferencesOpenSettingsIcon,
 					menu: [{
 						id: MenuId.EditorTitle,
-						when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(that.environmentService.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')),
+						when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')),
 						group: 'navigation',
 						order: 1
 					}]
@@ -742,7 +744,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						{ id: MenuId.CommandPalette },
 						{
 							id: MenuId.EditorTitle,
-							when: ResourceContextKey.Resource.isEqualTo(that.environmentService.keybindingsResource.toString()),
+							when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString()),
 							group: 'navigation',
 							order: 1,
 						}

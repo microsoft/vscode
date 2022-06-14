@@ -9,7 +9,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IResourceProfile } from 'vs/workbench/services/profiles/common/profile';
+import { IResourceProfile } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IProfileExtension {
 	identifier: IExtensionIdentifier;
