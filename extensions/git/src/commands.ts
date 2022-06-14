@@ -2178,12 +2178,26 @@ export class CommandCenter {
 
 	@command('git.fetch', { repository: true })
 	async fetch(repository: Repository): Promise<void> {
-		if (repository.remotes.length === 0) {
+		const remotesNum = repository.remotes.length;
+		if (remotesNum === 0) {
 			window.showWarningMessage(localize('no remotes to fetch', "This repository has no remotes configured to fetch from."));
 			return;
+		} else if (remotesNum === 1) {
+			await repository.fetchDefault();
+		} else if (remotesNum > 1) {
+			const choice = await window.showQuickPick(['all', ...repository.remotes.map(i => i.name)]);
+
+			if (!choice) {
+				return;
+			}
+
+			await repository.fetch(choice === 'all' ? {
+				all: true,
+			} : {
+				remote: choice,
+			});
 		}
 
-		await repository.fetchDefault();
 	}
 
 	@command('git.fetchPrune', { repository: true })
