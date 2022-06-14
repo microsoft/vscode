@@ -42,10 +42,7 @@ export class GitProtocolHandler implements UriHandler {
 
 			// Handle SSH Uri
 			// Ex: git@github.com:microsoft/vscode.git
-			if (/^git@[^\/:]+:/i.test(rawUri)) {
-				rawUri = rawUri.replace(/:/, '/');
-				rawUri = `ssh://${rawUri}`;
-			}
+			rawUri = rawUri.replace(/^(git@[^\/:]+)(:)/i, 'ssh://$1/');
 
 			cloneUri = Uri.parse(rawUri, true);
 
