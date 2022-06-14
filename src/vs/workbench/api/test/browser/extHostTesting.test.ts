@@ -334,7 +334,7 @@ suite('ExtHost Testing', () => {
 				},
 			]);
 
-			assert.deepStrictEqual([...single.root.children], [single.root.children.get('id-a')]);
+			assert.deepStrictEqual([...single.root.children].map(([_, item]) => item), [single.root.children.get('id-a')]);
 			assert.deepStrictEqual(b.parent, a);
 		});
 	});

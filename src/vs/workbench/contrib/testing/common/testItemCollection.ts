@@ -609,8 +609,7 @@ export const createTestItemChildren = <T extends ITestItemLike>(api: ITestItemAp
 
 		/** @inheritdoc */
 		[Symbol.iterator](): IterableIterator<[string, T]> {
-			const z = mapped[Symbol.iterator]();
-			return z;
+			return mapped.entries();
 		},
 
 		/** @inheritdoc */
