@@ -138,8 +138,8 @@ class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implement
 
 	readonly onDidChangeItemsExternal = Event.None; // unsupported for workspace storage because we only ever write from one window
 
-	constructor(channel: IChannel, profile: IUserDataProfileDto, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier) {
-		super(channel, profile, workspace);
+	constructor(channel: IChannel, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier) {
+		super(channel, undefined, workspace);
 	}
 
 	async close(): Promise<void> {
@@ -175,7 +175,7 @@ export class StorageDatabaseChannelClient extends Disposable {
 	private _workspaceStorage: WorkspaceStorageDatabaseClient | undefined = undefined;
 	get workspaceStorage() {
 		if (!this._workspaceStorage && this.workspace) {
-			this._workspaceStorage = new WorkspaceStorageDatabaseClient(this.channel, this.userDataProfileService.serialize().current, this.workspace);
+			this._workspaceStorage = new WorkspaceStorageDatabaseClient(this.channel, this.workspace);
 		}
 
 		return this._workspaceStorage;
