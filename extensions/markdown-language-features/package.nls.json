@@ -32,8 +32,9 @@
 	"configuration.markdown.editor.pasteLinks.enabled": "Enable/disable pasting files into a Markdown editor inserts Markdown links.",
 	"configuration.markdown.experimental.validate.enabled.description": "Enable/disable all error reporting in Markdown files.",
 	"configuration.markdown.experimental.validate.referenceLinks.enabled.description": "Validate reference links in Markdown files, e.g. `[link][ref]`.  Requires enabling `#markdown.experimental.validate.enabled#`.",
-	"configuration.markdown.experimental.validate.headerLinks.enabled.description": "Validate links to headers in Markdown files, e.g. `[link](#header)`. Requires enabling `#markdown.experimental.validate.enabled#`.",
+	"configuration.markdown.experimental.validate.fragmentLinks.enabled.description": "Validate fragment links to headers in the current Markdown file, e.g. `[link](#header)`. Requires enabling `#markdown.experimental.validate.enabled#`.",
 	"configuration.markdown.experimental.validate.fileLinks.enabled.description": "Validate links to other files in Markdown files, e.g. `[link](/path/to/file.md)`. This checks that the target files exists. Requires enabling `#markdown.experimental.validate.enabled#`.",
+	"configuration.markdown.experimental.validate.fileLinks.markdownFragmentLinks.description": "Validate the fragment part of links to headers in other files in Markdown files, e.g. `[link](/path/to/file.md#header)`. Inherits the setting value from `#markdown.experimental.validate.fragmentLinks.enabled#` by default.",
 	"configuration.markdown.experimental.validate.ignoreLinks.description": "Configure links that should not be validated. For example `/about` would not validate the link `[about](/about)`, while the glob `/assets/**/*.svg` would let you skip validation for any link to `.svg` files under the `assets` directory.",
 	"workspaceTrust": "Required for loading styles configured in the workspace."
 }
