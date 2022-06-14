@@ -101,6 +101,9 @@ suite('Edit session sync', () => {
 		const readStub = sandbox.stub().returns(editSession);
 		instantiationService.stub(ISessionSyncWorkbenchService, 'read', readStub);
 
+		// Stub repositories
+		instantiationService.stub(ISCMService, '_repositories', new Map());
+
 		// Create root folder
 		await fileService.createFolder(folderUri);
 
