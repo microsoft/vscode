@@ -11,7 +11,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_TITLE } from 'vs/workbench/services/sessionSync/common/sessionSync';
-import { ISCMService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
@@ -24,6 +24,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ILogService } from 'vs/platform/log/common/log';
 
 registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
@@ -47,6 +49,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISCMService private readonly scmService: ISCMService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 	) {
@@ -122,20 +126,53 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			return;
 		}
 
-		for (const folder of editSession.folders) {
-			const folderRoot = this.contextService.getWorkspace().folders.find((f) => f.name === folder.name);
-			if (!folderRoot) {
-				return;
+		try {
+			const changes: ({ uri: URI; type: ChangeType; contents: string | undefined })[] = [];
+			let hasLocalUncommittedChanges = false;
+
+			for (const folder of editSession.folders) {
+				const folderRoot = this.contextService.getWorkspace().folders.find((f) => f.name === folder.name);
+				if (!folderRoot) {
+					return;
+				}
+
+				for (const repository of this.scmService.repositories) {
+					if (repository.provider.rootUri !== undefined &&
+						this.contextService.getWorkspaceFolder(repository.provider.rootUri)?.name === folder.name &&
+						this.getChangedResources(repository).length > 0
+					) {
+						hasLocalUncommittedChanges = true;
+						break;
+					}
+				}
+
+				for (const { relativeFilePath, contents, type } of folder.workingChanges) {
+					const uri = joinPath(folderRoot.uri, relativeFilePath);
+					changes.push({ uri: uri, type: type, contents: contents });
+				}
 			}
 
-			for (const { relativeFilePath, contents, type } of folder.workingChanges) {
-				const uri = joinPath(folderRoot.uri, relativeFilePath);
+			if (hasLocalUncommittedChanges) {
+				const result = await this.dialogService.confirm({
+					message: localize('apply edit session warning', 'Applying your edit session may overwrite your existing uncommitted changes. Do you want to proceed?'),
+					type: 'warning',
+					title: EDIT_SESSION_SYNC_TITLE
+				});
+				if (!result.confirmed) {
+					return;
+				}
+			}
+
+			for (const { uri, type, contents } of changes) {
 				if (type === ChangeType.Addition) {
-					await this.fileService.writeFile(uri, VSBuffer.fromString(contents));
+					await this.fileService.writeFile(uri, VSBuffer.fromString(contents!));
 				} else if (type === ChangeType.Deletion && await this.fileService.exists(uri)) {
 					await this.fileService.del(uri);
 				}
 			}
+		} catch (ex) {
+			this.logService.error(ex);
+			this.notificationService.error(localize('apply failed', "Failed to apply your edit session."));
 		}
 	}
 
@@ -144,10 +181,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 
 		for (const repository of this.scmService.repositories) {
 			// Look through all resource groups and compute which files were added/modified/deleted
-			const trackedUris = repository.provider.groups.elements.reduce((resources, resourceGroups) => {
-				resourceGroups.elements.map((resource) => resources.add(resource.sourceUri));
-				return resources;
-			}, new Set<URI>()); // A URI might appear in more than one resource group
+			const trackedUris = this.getChangedResources(repository); // A URI might appear in more than one resource group
 
 			const workingChanges: Change[] = [];
 			let name = repository.provider.rootUri ? this.contextService.getWorkspaceFolder(repository.provider.rootUri)?.name : undefined;
@@ -204,6 +238,15 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				}
 			}
 		}
+	}
+
+	private getChangedResources(repository: ISCMRepository) {
+		const trackedUris = repository.provider.groups.elements.reduce((resources, resourceGroups) => {
+			resourceGroups.elements.forEach((resource) => resources.add(resource.sourceUri));
+			return resources;
+		}, new Set<URI>()); // A URI might appear in more than one resource group
+
+		return [...trackedUris];
 	}
 }
 
