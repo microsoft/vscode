@@ -1289,7 +1289,7 @@ export class Repository implements Disposable {
 		});
 	}
 
-	closeDiffEditors(indexResources: string[], workingTreeResources: string[], ignoreSetting: boolean = false): void {
+	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting: boolean = false): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
 
@@ -1298,11 +1298,11 @@ export class Repository implements Disposable {
 		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
 			const { input } = tab;
 			if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
-				if (input.modified.scheme === 'git' && indexResources.some(r => pathEquals(r, input.modified.fsPath))) {
+				if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
 					// Index
 					diffEditorTabsToClose.push(tab);
 				}
-				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && workingTreeResources.some(r => pathEquals(r, input.modified.fsPath))) {
+				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
 					// Working Tree
 					diffEditorTabsToClose.push(tab);
 				}
