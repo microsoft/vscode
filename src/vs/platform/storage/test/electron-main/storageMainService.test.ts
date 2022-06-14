@@ -31,6 +31,7 @@ suite('StorageMainService', function () {
 
 	const inMemoryProfileRoot = URI.file('/location').with({ scheme: Schemas.inMemory });
 	const inMemoryProfile: IUserDataProfile = {
+		id: 'id',
 		name: 'inMemory',
 		location: inMemoryProfileRoot,
 		globalStorageHome: joinPath(inMemoryProfileRoot, 'globalStorageHome'),

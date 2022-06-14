@@ -16,7 +16,12 @@ import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorksp
 
 export class NativeStorageService extends AbstractStorageService {
 
+	// Application Storage is readonly and shared across
+	// windows and profiles.
+	private readonly applicationStorage: IStorage;
+
 	// Global Storage is readonly and shared across windows
+	// under the same profile.
 	private readonly globalStorage: IStorage;
 
 	// Workspace Storage is scoped to a window but can change
@@ -33,12 +38,23 @@ export class NativeStorageService extends AbstractStorageService {
 	) {
 		super();
 
+		this.applicationStorage = this.createApplicationStorage();
 		this.globalStorage = this.createGlobalStorage();
 		this.workspaceStorage = this.createWorkspaceStorage(workspace);
 	}
 
+	private createApplicationStorage(): IStorage {
+		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, undefined);
+
+		const applicationStorage = new Storage(storageDataBaseClient.applicationStorage);
+
+		this._register(applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
+
+		return applicationStorage;
+	}
+
 	private createGlobalStorage(): IStorage {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), undefined);
+		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, undefined);
 
 		const globalStorage = new Storage(storageDataBaseClient.globalStorage);
 
@@ -50,7 +66,7 @@ export class NativeStorageService extends AbstractStorageService {
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorage;
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined;
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), workspace);
+		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, workspace);
 
 		if (storageDataBaseClient.workspaceStorage) {
 			const workspaceStorage = new Storage(storageDataBaseClient.workspaceStorage);
@@ -71,17 +87,32 @@ export class NativeStorageService extends AbstractStorageService {
 
 		// Init all storage locations
 		await Promises.settled([
+			this.applicationStorage.init(),
 			this.globalStorage.init(),
 			this.workspaceStorage?.init() ?? Promise.resolve()
 		]);
 	}
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {
-		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+		switch (scope) {
+			case StorageScope.APPLICATION:
+				return this.applicationStorage;
+			case StorageScope.GLOBAL:
+				return this.globalStorage;
+			default:
+				return this.workspaceStorage;
+		}
 	}
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
-		return scope === StorageScope.GLOBAL ? this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath : this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
+		switch (scope) {
+			case StorageScope.APPLICATION:
+				return this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath;
+			case StorageScope.GLOBAL:
+				return this.userDataProfilesService.currentProfile.globalStorageHome.fsPath;
+			default:
+				return this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
+		}
 	}
 
 	async close(): Promise<void> {
@@ -94,6 +125,7 @@ export class NativeStorageService extends AbstractStorageService {
 
 		// Do it
 		await Promises.settled([
+			this.applicationStorage.close(),
 			this.globalStorage.close(),
 			this.workspaceStorage?.close() ?? Promise.resolve()
 		]);
