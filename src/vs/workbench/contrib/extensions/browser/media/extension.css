@@ -219,6 +219,10 @@
 	color: var(--vscode-disabledForeground);
 }
 
+.monaco-list-row.disabled.selected .extension-list-item .details .description {
+	color: unset;
+}
+
 .extension-list-item .monaco-action-bar .action-label.icon {
 	padding: 1px 2px;
 }
