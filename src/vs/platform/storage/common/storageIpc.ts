@@ -166,7 +166,7 @@ export class StorageDatabaseChannelClient extends Disposable {
 	private _globalStorage: GlobalStorageDatabaseClient | undefined = undefined;
 	get globalStorage() {
 		if (!this._globalStorage) {
-			this._globalStorage = new GlobalStorageDatabaseClient(this.channel, this.userDataProfileService.serialize().current);
+			this._globalStorage = new GlobalStorageDatabaseClient(this.channel, this.userDataProfileService.currentProfile);
 		}
 
 		return this._globalStorage;
