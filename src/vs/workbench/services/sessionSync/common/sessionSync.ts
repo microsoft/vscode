@@ -12,7 +12,7 @@ export const ISessionSyncWorkbenchService = createDecorator<ISessionSyncWorkbenc
 export interface ISessionSyncWorkbenchService {
 	_serviceBrand: undefined;
 
-	read(): Promise<EditSession | undefined>;
+	read(ref: string | undefined): Promise<EditSession | undefined>;
 	write(editSession: EditSession): Promise<void>;
 }
 
