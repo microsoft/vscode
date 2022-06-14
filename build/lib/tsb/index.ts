@@ -8,11 +8,12 @@ import * as through from 'through';
 import * as builder from './builder';
 import * as ts from 'typescript';
 import { Readable, Writable, Duplex } from 'stream';
-import { dirname, join, relative } from 'path';
+import { dirname } from 'path';
 import { strings } from './utils';
 import { readFileSync, statSync } from 'fs';
 import * as log from 'fancy-log';
 import colors = require('ansi-colors');
+import { Transpiler } from './transpiler';
 
 export interface IncrementalCompiler {
 	(token?: any): Readable & Writable;
@@ -73,13 +74,7 @@ export function create(
 	}
 
 	// FULL COMPILE stream doing transpile, syntax and semantic diagnostics
-
-	let _builder!: builder.ITypeScriptBuilder;
-	function createCompileStream(token?: builder.CancellationToken): Readable & Writable {
-
-		if (!_builder) {
-			_builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
-		}
+	function createCompileStream(builder: builder.ITypeScriptBuilder, token?: builder.CancellationToken): Readable & Writable {
 
 		return through(function (this: through.ThroughStream, file: Vinyl) {
 			// give the file to the compiler
@@ -87,11 +82,11 @@ export function create(
 				this.emit('error', 'no support for streams');
 				return;
 			}
-			_builder.file(file);
+			builder.file(file);
 
 		}, function (this: { queue(a: any): void }) {
 			// start the compilation process
-			_builder.build(
+			builder.build(
 				file => this.queue(file),
 				printDiagnostic,
 				token
@@ -100,49 +95,39 @@ export function create(
 	}
 
 	// TRANSPILE ONLY stream doing just TS to JS conversion
-	function createTranspileStream(): Readable & Writable {
-
-		return through(function (this: through.ThroughStream, file: Vinyl) {
+	function createTranspileStream(transpiler: Transpiler): Readable & Writable {
+		return through(function (this: through.ThroughStream & { queue(a: any): void }, file: Vinyl) {
 			// give the file to the compiler
 			if (file.isStream()) {
 				this.emit('error', 'no support for streams');
 				return;
 			}
-
 			if (!file.contents || file.path.endsWith('.d.ts')) {
 				return;
 			}
 
-			const out = ts.transpileModule(String(file.contents), {
-				compilerOptions: { ...cmdLine.options, declaration: false, sourceMap: false }
+			transpiler.transpile(
+				file,
+				file => this.queue(file),
+				printDiagnostic
+			);
+
+		}, function (this: { queue(a: any): void }) {
+			transpiler.join().then(() => {
+				this.queue(null);
 			});
-
-			if (out.diagnostics) {
-				out.diagnostics.forEach(printDiagnostic);
-			}
-
-			const outBase = cmdLine.options.outDir!;
-			const outRelative = relative(cmdLine.options.rootDir!, file.path);
-			const outPath = join(outBase, outRelative.replace(/\.ts$/, '.js'));
-
-			const outFile = new Vinyl({
-				path: outPath,
-				base: outBase,
-				contents: Buffer.from(out.outputText),
-			});
-
-			this.push(outFile);
-
-			logFn('Transpiled', file.path);
 		});
 	}
 
 
-	const result = (token: builder.CancellationToken) => {
-		return config.transplileOnly
-			? createTranspileStream()
-			: createCompileStream(token);
-	};
+	let result: IncrementalCompiler;
+	if (config.transplileOnly) {
+		const transpiler = new Transpiler(logFn, { compilerOptions: cmdLine.options });
+		result = <any>(() => createTranspileStream(transpiler));
+	} else {
+		const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
+		result = <any>((token: builder.CancellationToken) => createCompileStream(_builder, token));
+	}
 
 	result.src = (opts?: { cwd?: string; base?: string }) => {
 		let _pos = 0;
