@@ -139,9 +139,10 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				for (const repository of this.scmService.repositories) {
 					if (repository.provider.rootUri !== undefined &&
 						this.contextService.getWorkspaceFolder(repository.provider.rootUri)?.name === folder.name &&
-						(await this.getChangedResources(repository)).length > 0
+						this.getChangedResources(repository).length > 0
 					) {
 						hasLocalUncommittedChanges = true;
+						break;
 					}
 				}
 
@@ -180,7 +181,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 
 		for (const repository of this.scmService.repositories) {
 			// Look through all resource groups and compute which files were added/modified/deleted
-			const trackedUris = await this.getChangedResources(repository); // A URI might appear in more than one resource group
+			const trackedUris = this.getChangedResources(repository); // A URI might appear in more than one resource group
 
 			const workingChanges: Change[] = [];
 			let name = repository.provider.rootUri ? this.contextService.getWorkspaceFolder(repository.provider.rootUri)?.name : undefined;
@@ -239,9 +240,9 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		}
 	}
 
-	private async getChangedResources(repository: ISCMRepository) {
+	private getChangedResources(repository: ISCMRepository) {
 		const trackedUris = repository.provider.groups.elements.reduce((resources, resourceGroups) => {
-			resourceGroups.elements.map((resource) => resources.add(resource.sourceUri));
+			resourceGroups.elements.forEach((resource) => resources.add(resource.sourceUri));
 			return resources;
 		}, new Set<URI>()); // A URI might appear in more than one resource group
 
