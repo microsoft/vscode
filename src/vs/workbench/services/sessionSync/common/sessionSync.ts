@@ -46,7 +46,9 @@ export interface Folder {
 	workingChanges: Change[];
 }
 
+export const EditSessionSchemaVersion = 1;
+
 export interface EditSession {
-	version: 1;
+	version: number;
 	folders: Folder[];
 }
