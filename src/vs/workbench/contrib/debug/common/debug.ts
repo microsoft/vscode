@@ -373,7 +373,7 @@ export interface IDebugSession extends ITreeElement {
 	restartFrame(frameId: number, threadId: number): Promise<void>;
 	next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
-	stepInTargets(frameId: number): Promise<{ id: number; label: string }[] | undefined>;
+	stepInTargets(frameId: number): Promise<DebugProtocol.StepInTarget[] | undefined>;
 	stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	continue(threadId: number): Promise<void>;
