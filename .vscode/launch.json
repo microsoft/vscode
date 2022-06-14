@@ -95,6 +95,23 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
+			"name": "VS Code Configuration Editing Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/configuration-editing",
+				"--extensionTestsPath=${workspaceFolder}/extensions/configuration-editing/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
 			"name": "VS Code Git Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
