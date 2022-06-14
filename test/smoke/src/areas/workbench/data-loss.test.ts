@@ -16,7 +16,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		installDiagnosticsHandler(logger, () => app);
 		installAppAfterHandler(() => app);
 
-		it.only('verifies opened editors are restored', async function () {
+		it('verifies opened editors are restored', async function () {
 			app = createApp({
 				...this.defaultOptions,
 				logsPath: suiteLogsPath(this.defaultOptions, 'test_verifies_opened_editors_are_restored'),
