@@ -44,6 +44,7 @@ steps:
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { yarn gulp `
+          compile-extension:configuration-editing `
           compile-extension:css-language-features-server `
           compile-extension:emmet `
           compile-extension:git `
