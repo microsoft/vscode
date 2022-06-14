@@ -121,7 +121,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 	}
 
 	async applyEditSession() {
-		const editSession = await this.sessionSyncWorkbenchService.read();
+		const editSession = await this.sessionSyncWorkbenchService.read(undefined);
 		if (!editSession) {
 			return;
 		}
