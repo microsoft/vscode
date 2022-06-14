@@ -65,7 +65,6 @@ const vscodeResources = [
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
 	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
 	'out-build/vs/platform/environment/node/userDataPath.js',
-	'out-build/vs/platform/extensions/node/extensionHostStarterWorkerMain.js',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
@@ -123,9 +122,9 @@ gulp.task(core);
  * @return {Object} A map of paths to checksums.
  */
 function computeChecksums(out, filenames) {
-	let result = {};
+	const result = {};
 	filenames.forEach(function (filename) {
-		let fullPath = path.join(process.cwd(), out, filename);
+		const fullPath = path.join(process.cwd(), out, filename);
 		result[filename] = computeChecksum(fullPath);
 	});
 	return result;
@@ -138,9 +137,9 @@ function computeChecksums(out, filenames) {
  * @return {string} The checksum for `filename`.
  */
 function computeChecksum(filename) {
-	let contents = fs.readFileSync(filename);
+	const contents = fs.readFileSync(filename);
 
-	let hash = crypto
+	const hash = crypto
 		.createHash('md5')
 		.update(contents)
 		.digest('base64')
@@ -289,6 +288,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
 		} else if (platform === 'darwin') {
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
+				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/code'));
 
 			all = es.merge(all, shortcut);
@@ -331,13 +331,10 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
 
-			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
-				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
-
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@PRODNAME@@', product.nameLong))
-				.pipe(replace('@@NAME@@', product.applicationName))
+				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
@@ -456,20 +453,20 @@ gulp.task(task.define(
 
 gulp.task('vscode-translations-pull', function () {
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		let includeDefault = !!innoSetupConfig[language.id].defaultInfo;
+		const includeDefault = !!innoSetupConfig[language.id].defaultInfo;
 		return i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-translations-import/${language.id}/setup`));
 	}));
 });
 
 gulp.task('vscode-translations-import', function () {
-	let options = minimist(process.argv.slice(2), {
+	const options = minimist(process.argv.slice(2), {
 		string: 'location',
 		default: {
 			location: '../vscode-translations-import'
 		}
 	});
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		let id = language.id;
+		const id = language.id;
 		return gulp.src(`${options.location}/${id}/vscode-setup/messages.xlf`)
 			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
 			.pipe(vfs.dest(`./build/win32/i18n`));

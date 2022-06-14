@@ -97,7 +97,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined
+		overrideDimensions: undefined,
+		failedShellIntegrationActivation: false
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -213,6 +214,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 						await fs.copyFile(f.source, f.dest);
 					}
 				}
+			} else {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.FailedShellIntegrationActivation, value: true });
 			}
 		}
 
@@ -264,7 +267,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} catch (err) {
 			if (err?.code === 'ENOENT') {
 				// The executable isn't an absolute path, try find it on the PATH or CWD
-				let cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
+				const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
 				const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
 				const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
 				if (!executable) {

@@ -25,6 +25,7 @@ import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { hash } from 'vs/base/common/hash';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type TelemetryData = {
 	mimeType: string;
@@ -54,7 +55,8 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		@IEditorService editorService: IEditorService,
 		@IKeybindingService keybindingsService: IKeybindingService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@ITextFileService textFileService: ITextFileService
@@ -72,6 +74,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		};
 
 		type WorkspaceLoadClassification = {
+			owner: 'bpasero';
 			userAgent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			emptyWorkbench: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 			windowSize: WindowSizeFragment;
@@ -134,12 +137,15 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		const settingsType = this.getTypeIfSettings(e.model.resource);
 		if (settingsType) {
 			type SettingsReadClassification = {
+				owner: 'bpasero';
 				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsReadClassification>('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
 		} else {
-			type FileGetClassification = {} & FileTelemetryDataFragment;
+			type FileGetClassification = {
+				owner: 'bpasero';
+			} & FileTelemetryDataFragment;
 
 			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(e.model.resource, e.reason));
 		}
@@ -149,11 +155,14 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		const settingsType = this.getTypeIfSettings(e.model.resource);
 		if (settingsType) {
 			type SettingsWrittenClassification = {
+				owner: 'bpasero';
 				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 		} else {
-			type FilePutClassfication = {} & FileTelemetryDataFragment;
+			type FilePutClassfication = {
+				owner: 'bpasero';
+			} & FileTelemetryDataFragment;
 			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(e.model.resource, e.reason));
 		}
 	}
@@ -164,17 +173,17 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		}
 
 		// Check for global settings file
-		if (isEqual(resource, this.environmentService.settingsResource)) {
+		if (isEqual(resource, this.userDataProfilesService.currentProfile.settingsResource)) {
 			return 'global-settings';
 		}
 
 		// Check for keybindings file
-		if (isEqual(resource, this.environmentService.keybindingsResource)) {
+		if (isEqual(resource, this.userDataProfilesService.currentProfile.keybindingsResource)) {
 			return 'keybindings';
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(resource, this.environmentService.snippetsHome)) {
+		if (isEqualOrParent(resource, this.userDataProfilesService.currentProfile.snippetsHome)) {
 			return 'snippets';
 		}
 

@@ -108,7 +108,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private readCustomBuiltinExtensionsInfoFromEnv(): Promise<{ extensions: ExtensionInfo[]; extensionsToMigrate: [string, string][]; extensionLocations: URI[] }> {
 		if (!this._customBuiltinExtensionsInfoPromise) {
 			this._customBuiltinExtensionsInfoPromise = (async () => {
-				let extensions: ExtensionInfo[] = [], extensionLocations: URI[] = [];
+				let extensions: ExtensionInfo[] = [];
+				const extensionLocations: URI[] = [];
 				const extensionsToMigrate: [string, string][] = [];
 				const customBuiltinExtensionsInfo = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions)
 					? this.environmentService.options.additionalBuiltinExtensions.map(additionalBuiltinExtension => isString(additionalBuiltinExtension) ? { id: additionalBuiltinExtension } : additionalBuiltinExtension)
@@ -140,10 +141,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				this.logService.info(`Checking additional builtin extensions: Ignoring '${extension.id}' because it is reported to be malicious.`);
 				continue;
 			}
-			if (extensionsControlManifest.unsupportedPreReleaseExtensions && extensionsControlManifest.unsupportedPreReleaseExtensions[extension.id.toLowerCase()]) {
-				const preReleaseExtensionId = extensionsControlManifest.unsupportedPreReleaseExtensions[extension.id.toLowerCase()].id;
-				this.logService.info(`Checking additional builtin extensions: '${extension.id}' is no longer supported, instead using '${preReleaseExtensionId}'`);
-				result.push({ id: preReleaseExtensionId, preRelease: true });
+			const deprecationInfo = extensionsControlManifest.deprecated[extension.id.toLowerCase()];
+			if (deprecationInfo?.extension?.autoMigrate) {
+				const preReleaseExtensionId = deprecationInfo.extension.id;
+				this.logService.info(`Checking additional builtin extensions: '${extension.id}' is deprecated, instead using '${preReleaseExtensionId}'`);
+				result.push({ id: preReleaseExtensionId, preRelease: !!extension.preRelease });
 			} else {
 				result.push(extension);
 			}
@@ -399,13 +401,18 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return result;
 	}
 
-	async scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null> {
+	async scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IScannedExtension | null> {
 		if (extensionType === ExtensionType.System) {
 			const systemExtensions = await this.scanSystemExtensions();
 			return systemExtensions.find(e => e.location.toString() === extensionLocation.toString()) || null;
 		}
 		const userExtensions = await this.scanUserExtensions();
 		return userExtensions.find(e => e.location.toString() === extensionLocation.toString()) || null;
+	}
+
+	async scanMetadata(extensionLocation: URI): Promise<Metadata | undefined> {
+		const extension = await this.scanExistingExtension(extensionLocation, ExtensionType.User);
+		return extension?.metadata;
 	}
 
 	async scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null> {
@@ -482,7 +489,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async scanInstalledExtensions(scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
-		let installedExtensions = await this.readInstalledExtensions();
+		const installedExtensions = await this.readInstalledExtensions();
 		installedExtensions.sort((a, b) => a.identifier.id < b.identifier.id ? -1 : a.identifier.id > b.identifier.id ? 1 : semver.rcompare(a.version, b.version));
 		const result = new Map<string, IScannedExtension>();
 		for (const webExtension of installedExtensions) {

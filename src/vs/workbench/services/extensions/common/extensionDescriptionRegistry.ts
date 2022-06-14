@@ -133,12 +133,12 @@ export class ExtensionDescriptionRegistry {
 			}
 		};
 
-		let descs = new Map<string, IExtensionDescription>();
-		for (let extensionDescription of extensionDescriptions) {
+		const descs = new Map<string, IExtensionDescription>();
+		for (const extensionDescription of extensionDescriptions) {
 			const extensionId = ExtensionIdentifier.toKey(extensionDescription.identifier);
 			descs.set(extensionId, extensionDescription);
 			if (extensionDescription.extensionDependencies) {
-				for (let _depId of extensionDescription.extensionDependencies) {
+				for (const _depId of extensionDescription.extensionDependencies) {
 					const depId = ExtensionIdentifier.toKey(_depId);
 					G.addArc(extensionId, depId);
 				}
@@ -146,11 +146,11 @@ export class ExtensionDescriptionRegistry {
 		}
 
 		// initialize with all extensions with no dependencies.
-		let good = new Set<string>();
+		const good = new Set<string>();
 		G.getNodes().filter(id => G.getArcs(id).length === 0).forEach(id => good.add(id));
 
 		// all other extensions will be processed below.
-		let nodes = G.getNodes().filter(id => !good.has(id));
+		const nodes = G.getNodes().filter(id => !good.has(id));
 
 		let madeProgress: boolean;
 		do {

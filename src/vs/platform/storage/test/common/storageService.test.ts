@@ -76,7 +76,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 	});
 
 	function removeData(scope: StorageScope): void {
-		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
+		const storageValueChangeEvents: IStorageValueChangeEvent[] = [];
 		storageService.onDidChangeValue(e => storageValueChangeEvents.push(e));
 
 		storageService.store('test.remove', 'foobar', scope, StorageTarget.MACHINE);
@@ -84,7 +84,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 		storageService.remove('test.remove', scope);
 		ok(!storageService.get('test.remove', scope, (undefined)!));
-		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.remove');
+		const storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.remove');
 		strictEqual(storageValueChangeEvent?.scope, scope);
 		strictEqual(storageValueChangeEvent?.key, 'test.remove');
 	}

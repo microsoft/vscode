@@ -22,7 +22,7 @@ function fixReferences(literal: any) {
 			literal['$ref'] = literal['$ref'] + '2';
 		}
 		Object.getOwnPropertyNames(literal).forEach(property => {
-			let value = literal[property];
+			const value = literal[property];
 			if (Array.isArray(value) || typeof value === 'object') {
 				fixReferences(value);
 			}
@@ -92,6 +92,16 @@ const dependsOrder: IJSONSchema = {
 const detail: IJSONSchema = {
 	type: 'string',
 	description: nls.localize('JsonSchema.tasks.detail', 'An optional description of a task that shows in the Run Task quick pick as a detail.')
+};
+
+const color: IJSONSchema = {
+	type: 'string',
+	description: nls.localize('JsonSchema.tasks.color', 'An optional color for the task icon')
+};
+
+const icon: IJSONSchema = {
+	type: 'string',
+	description: nls.localize('JsonSchema.tasks.icon', 'An optional icon for the task')
 };
 
 const presentation: IJSONSchema = {
@@ -352,7 +362,7 @@ const options: IJSONSchema = Objects.deepClone(commonSchemaDefinitions.options);
 const optionsProperties = options.properties!;
 optionsProperties.shell = Objects.deepClone(commonSchemaDefinitions.shellConfiguration);
 
-let taskConfiguration: IJSONSchema = {
+const taskConfiguration: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
 	properties: {
@@ -378,6 +388,8 @@ let taskConfiguration: IJSONSchema = {
 			default: false
 		},
 		presentation: Objects.deepClone(presentation),
+		color: Objects.deepClone(color),
+		icon: Objects.deepClone(icon),
 		options: options,
 		problemMatcher: {
 			$ref: '#/definitions/problemMatcherType',
@@ -390,13 +402,13 @@ let taskConfiguration: IJSONSchema = {
 	}
 };
 
-let taskDefinitions: IJSONSchema[] = [];
+const taskDefinitions: IJSONSchema[] = [];
 TaskDefinitionRegistry.onReady().then(() => {
 	updateTaskDefinitions();
 });
 
 export function updateTaskDefinitions() {
-	for (let taskType of TaskDefinitionRegistry.all()) {
+	for (const taskType of TaskDefinitionRegistry.all()) {
 		// Check that we haven't already added this task type
 		if (taskDefinitions.find(schema => {
 			return schema.properties?.type?.enum?.find ? schema.properties?.type.enum.find(element => element === taskType.taskType) : undefined;
@@ -404,7 +416,7 @@ export function updateTaskDefinitions() {
 			continue;
 		}
 
-		let schema: IJSONSchema = Objects.deepClone(taskConfiguration);
+		const schema: IJSONSchema = Objects.deepClone(taskConfiguration);
 		const schemaProperties = schema.properties!;
 		// Since we do this after the schema is assigned we need to patch the refs.
 		schemaProperties.type = {
@@ -420,8 +432,8 @@ export function updateTaskDefinitions() {
 		// Customized tasks require that the task type be set.
 		schema.required.push('type');
 		if (taskType.properties) {
-			for (let key of Object.keys(taskType.properties)) {
-				let property = taskType.properties[key];
+			for (const key of Object.keys(taskType.properties)) {
+				const property = taskType.properties[key];
 				schemaProperties[key] = Objects.deepClone(property);
 			}
 		}
@@ -430,7 +442,7 @@ export function updateTaskDefinitions() {
 	}
 }
 
-let customize = Objects.deepClone(taskConfiguration);
+const customize = Objects.deepClone(taskConfiguration);
 customize.properties!.customize = {
 	type: 'string',
 	deprecationMessage: nls.localize('JsonSchema.tasks.customize.deprecated', 'The customize property is deprecated. See the 1.14 release notes on how to migrate to the new task customization approach')
@@ -441,8 +453,8 @@ if (!customize.required) {
 customize.required.push('customize');
 taskDefinitions.push(customize);
 
-let definitions = Objects.deepClone(commonSchemaDefinitions);
-let taskDescription: IJSONSchema = definitions.taskDescription;
+const definitions = Objects.deepClone(commonSchemaDefinitions);
+const taskDescription: IJSONSchema = definitions.taskDescription;
 taskDescription.required = ['label'];
 const taskDescriptionProperties = taskDescription.properties!;
 taskDescriptionProperties.label = Objects.deepClone(label);
@@ -455,6 +467,8 @@ taskDescriptionProperties.identifier = Objects.deepClone(identifier);
 taskDescriptionProperties.type = Objects.deepClone(taskType);
 taskDescriptionProperties.presentation = Objects.deepClone(presentation);
 taskDescriptionProperties.terminal = terminal;
+taskDescriptionProperties.color = color;
+taskDescriptionProperties.icon = icon;
 taskDescriptionProperties.group = Objects.deepClone(group);
 taskDescriptionProperties.runOptions = Objects.deepClone(runOptions);
 taskDescriptionProperties.detail = detail;
@@ -508,7 +522,7 @@ taskDefinitions.push({
 } as IJSONSchema);
 
 const definitionsTaskRunnerConfigurationProperties = definitions.taskRunnerConfiguration.properties!;
-let tasks = definitionsTaskRunnerConfigurationProperties.tasks;
+const tasks = definitionsTaskRunnerConfigurationProperties.tasks;
 tasks.items = {
 	oneOf: taskDefinitions
 };
@@ -534,7 +548,7 @@ definitionsTaskRunnerConfigurationProperties.taskSelector.deprecationMessage = n
 	'The property taskSelector is deprecated. Inline the command with its arguments into the task instead. See also the 1.14 release notes.'
 );
 
-let osSpecificTaskRunnerConfiguration = Objects.deepClone(definitions.taskRunnerConfiguration);
+const osSpecificTaskRunnerConfiguration = Objects.deepClone(definitions.taskRunnerConfiguration);
 delete osSpecificTaskRunnerConfiguration.properties!.tasks;
 osSpecificTaskRunnerConfiguration.additionalProperties = false;
 definitions.osSpecificTaskRunnerConfiguration = osSpecificTaskRunnerConfiguration;
@@ -585,7 +599,7 @@ function deprecatedVariableMessage(schemaMap: IJSONSchemaMap, property: string) 
 }
 
 Object.getOwnPropertyNames(definitions).forEach(key => {
-	let newKey = key + '2';
+	const newKey = key + '2';
 	definitions[newKey] = definitions[key];
 	delete definitions[key];
 	deprecatedVariableMessage(definitions, newKey);
@@ -594,7 +608,7 @@ fixReferences(schema);
 
 export function updateProblemMatchers() {
 	try {
-		let matcherIds = ProblemMatcherRegistry.keys().map(key => '$' + key);
+		const matcherIds = ProblemMatcherRegistry.keys().map(key => '$' + key);
 		definitions.problemMatcherType2.oneOf![0].enum = matcherIds;
 		(definitions.problemMatcherType2.oneOf![2].items as IJSONSchema).anyOf![0].enum = matcherIds;
 	} catch (err) {

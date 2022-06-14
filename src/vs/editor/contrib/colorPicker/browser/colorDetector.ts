@@ -16,7 +16,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -41,7 +41,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private _decorationsIds: string[] = [];
 	private _colorDatas = new Map<string, IColorData>();
 
-	private _colorDecoratorIds: ReadonlySet<string> = new Set<string>();
+	private readonly _colorDecoratorIds = this._editor.createDecorationsCollection();
 
 	private _isEnabled: boolean;
 
@@ -62,7 +62,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
 		this._register(_languageFeaturesService.colorProvider.onDidChange(() => this.onModelChanged()));
 		this._register(_editor.onDidChangeConfiguration(() => {
-			let prevIsEnabled = this._isEnabled;
+			const prevIsEnabled = this._isEnabled;
 			this._isEnabled = this.isEnabled();
 			if (prevIsEnabled !== this._isEnabled) {
 				if (this._isEnabled) {
@@ -183,12 +183,12 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private updateColorDecorators(colorData: IColorData[]): void {
 		this._colorDecorationClassRefs.clear();
 
-		let decorations: IModelDeltaDecoration[] = [];
+		const decorations: IModelDeltaDecoration[] = [];
 
 		for (let i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
 			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
 			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
-			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
+			const color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 
 			const ref = this._colorDecorationClassRefs.add(
 				this._ruleFactory.createClassNameRef({
@@ -215,12 +215,12 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			});
 		}
 
-		this._colorDecoratorIds = new Set(this._editor.deltaDecorations([...this._colorDecoratorIds], decorations));
+		this._colorDecoratorIds.set(decorations);
 	}
 
 	private removeAllDecorations(): void {
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
-		this._colorDecoratorIds = new Set(this._editor.deltaDecorations([...this._colorDecoratorIds], []));
+		this._colorDecoratorIds.clear();
 		this._colorDecorationClassRefs.clear();
 	}
 
@@ -241,8 +241,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		return this._colorDatas.get(decorations[0].id)!;
 	}
 
-	isColorDecorationId(decorationId: string): boolean {
-		return this._colorDecoratorIds.has(decorationId);
+	isColorDecoration(decoration: IModelDecoration): boolean {
+		return this._colorDecoratorIds.has(decoration);
 	}
 }
 

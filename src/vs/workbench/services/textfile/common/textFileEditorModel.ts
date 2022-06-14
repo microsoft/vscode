@@ -370,7 +370,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Abort if someone else managed to resolve the model by now
-		let isNewModel = !this.isResolved();
+		const isNewModel = !this.isResolved();
 		if (!isNewModel) {
 			this.trace('resolveFromBackup() - exit - without resolving because previously new model got created meanwhile');
 

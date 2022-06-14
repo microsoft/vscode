@@ -11,6 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class NativeStorageService extends AbstractStorageService {
@@ -27,7 +28,8 @@ export class NativeStorageService extends AbstractStorageService {
 	constructor(
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
 		private readonly mainProcessService: IMainProcessService,
-		private readonly environmentService: IEnvironmentService
+		private readonly userDataProfilesService: IUserDataProfilesService,
+		private readonly environmentService: IEnvironmentService,
 	) {
 		super();
 
@@ -79,7 +81,7 @@ export class NativeStorageService extends AbstractStorageService {
 	}
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
-		return scope === StorageScope.GLOBAL ? this.environmentService.globalStorageHome.fsPath : this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
+		return scope === StorageScope.GLOBAL ? this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath : this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
 	}
 
 	async close(): Promise<void> {

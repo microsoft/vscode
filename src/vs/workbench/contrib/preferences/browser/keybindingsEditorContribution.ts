@@ -31,8 +31,8 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { equals } from 'vs/base/common/arrays';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqual } from 'vs/base/common/resources';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -51,7 +51,7 @@ export class DefineKeybindingController extends Disposable implements IEditorCon
 	constructor(
 		private _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService
+		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService
 	) {
 		super();
 
@@ -70,7 +70,7 @@ export class DefineKeybindingController extends Disposable implements IEditorCon
 	}
 
 	private _update(): void {
-		if (!isInterestingEditorModel(this._editor, this._environmentService)) {
+		if (!isInterestingEditorModel(this._editor, this._userDataProfilesService)) {
 			this._disposeKeybindingWidgetRenderer();
 			this._disposeKeybindingDecorationRenderer();
 			return;
@@ -163,7 +163,7 @@ export class KeybindingWidgetRenderer extends Disposable {
 export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 	private _updateDecorations: RunOnceScheduler;
-	private _dec: string[] = [];
+	private readonly _dec = this._editor.createDecorationsCollection();
 
 	constructor(
 		private _editor: ICodeEditor,
@@ -175,10 +175,10 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 		const model = assertIsDefined(this._editor.getModel());
 		this._register(model.onDidChangeContent(() => this._updateDecorations.schedule()));
-		this._register(this._keybindingService.onDidUpdateKeybindings((e) => this._updateDecorations.schedule()));
+		this._register(this._keybindingService.onDidUpdateKeybindings(() => this._updateDecorations.schedule()));
 		this._register({
 			dispose: () => {
-				this._dec = this._editor.deltaDecorations(this._dec, []);
+				this._dec.clear();
 				this._updateDecorations.cancel();
 			}
 		});
@@ -201,7 +201,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			}
 		}
 
-		this._dec = this._editor.deltaDecorations(this._dec, newDecorations);
+		this._dec.set(newDecorations);
 	}
 
 	private _getDecorationForEntry(model: ITextModel, entry: Node): IModelDeltaDecoration | null {
@@ -365,7 +365,7 @@ class DefineKeybindingCommand extends EditorCommand {
 	}
 
 	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!isInterestingEditorModel(editor, accessor.get(IEnvironmentService)) || editor.getOption(EditorOption.readOnly)) {
+		if (!isInterestingEditorModel(editor, accessor.get(IUserDataProfilesService)) || editor.getOption(EditorOption.readOnly)) {
 			return;
 		}
 		const controller = DefineKeybindingController.get(editor);
@@ -375,12 +375,12 @@ class DefineKeybindingCommand extends EditorCommand {
 	}
 }
 
-function isInterestingEditorModel(editor: ICodeEditor, environmentService: IEnvironmentService): boolean {
+function isInterestingEditorModel(editor: ICodeEditor, userDataProfilesService: IUserDataProfilesService): boolean {
 	const model = editor.getModel();
 	if (!model) {
 		return false;
 	}
-	return isEqual(model.uri, environmentService.keybindingsResource);
+	return isEqual(model.uri, userDataProfilesService.currentProfile.keybindingsResource);
 }
 
 registerEditorContribution(DefineKeybindingController.ID, DefineKeybindingController);

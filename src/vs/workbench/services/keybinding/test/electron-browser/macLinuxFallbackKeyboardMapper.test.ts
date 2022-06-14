@@ -11,7 +11,7 @@ import { IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEven
 
 suite('keyboardMapper - MAC fallback', () => {
 
-	let mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Macintosh);
+	const mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Macintosh);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
 		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
@@ -225,7 +225,7 @@ suite('keyboardMapper - MAC fallback', () => {
 
 suite('keyboardMapper - LINUX fallback', () => {
 
-	let mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Linux);
+	const mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Linux);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
 		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { MetadataConsts } from 'vs/editor/common/languages';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 
 suite('LineTokens', () => {
@@ -16,7 +16,7 @@ suite('LineTokens', () => {
 	}
 
 	function createLineTokens(text: string, tokens: ILineToken[]): LineTokens {
-		let binTokens = new Uint32Array(tokens.length << 1);
+		const binTokens = new Uint32Array(tokens.length << 1);
 
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			binTokens[(i << 1)] = (i + 1 < len ? tokens[i + 1].startIndex : text.length);
@@ -162,7 +162,7 @@ suite('LineTokens', () => {
 	}
 
 	function assertViewLineTokens(_actual: IViewLineTokens, expected: ITestViewLineToken[]): void {
-		let actual: ITestViewLineToken[] = [];
+		const actual: ITestViewLineToken[] = [];
 		for (let i = 0, len = _actual.getCount(); i < len; i++) {
 			actual[i] = {
 				endIndex: _actual.getEndOffset(i),

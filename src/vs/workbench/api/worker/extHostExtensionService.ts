@@ -18,8 +18,8 @@ class WorkerRequireInterceptor extends RequireInterceptor {
 	_installInterceptor() { }
 
 	getModule(request: string, parent: URI): undefined | any {
-		for (let alternativeModuleName of this._alternatives) {
-			let alternative = alternativeModuleName(request);
+		for (const alternativeModuleName of this._alternatives) {
+			const alternative = alternativeModuleName(request);
 			if (alternative) {
 				request = alternative;
 				break;

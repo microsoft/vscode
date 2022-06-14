@@ -296,6 +296,10 @@ export class Resource implements SourceControlResourceState {
 		const command = this._commandResolver.resolveChangeCommand(this);
 		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
 	}
+
+	clone() {
+		return new Resource(this._commandResolver, this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
+	}
 }
 
 export const enum Operation {
@@ -450,6 +454,13 @@ class ProgressManager {
 		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
 		onDidChange(_ => this.updateEnablement());
 		this.updateEnablement();
+
+		this.repository.onDidChangeOperations(() => {
+			const commitInProgress = this.repository.operations.isRunning(Operation.Commit);
+
+			this.repository.sourceControl.inputBox.enabled = !commitInProgress;
+			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+		});
 	}
 
 	private updateEnablement(): void {
@@ -546,7 +557,7 @@ class DotGitWatcher implements IFileWatcher {
 
 		// Ignore changes to the "index.lock" file, and watchman fsmonitor hook (https://git-scm.com/docs/githooks#_fsmonitor_watchman) cookie files.
 		// Watchman creates a cookie file inside the git directory whenever a query is run (https://facebook.github.io/watchman/docs/cookies.html).
-		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => !/\/\.git(\/index\.lock)?$|\/\.watchman-cookie-/.test(uri.path));
+		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => uri.scheme === 'file' && !/\/\.git(\/index\.lock)?$|\/\.watchman-cookie-/.test(uri.path));
 		this.event = anyEvent(filteredRootWatcher, this.emitter.event);
 
 		repository.onDidRunGitStatus(this.updateTransientWatchers, this, this.disposables);
@@ -603,11 +614,20 @@ class ResourceCommandResolver {
 		const title = this.getTitle(resource);
 
 		if (!resource.leftUri) {
-			return {
-				command: 'vscode.open',
-				title: localize('open', "Open"),
-				arguments: [resource.rightUri, { override: resource.type === Status.BOTH_MODIFIED ? false : undefined }, title]
-			};
+			const bothModified = resource.type === Status.BOTH_MODIFIED;
+			if (resource.rightUri && bothModified && workspace.getConfiguration('git').get<boolean>('experimental.mergeEditor', false)) {
+				return {
+					command: '_git.openMergeEditor',
+					title: localize('open.merge', "Open Merge"),
+					arguments: [resource.rightUri]
+				};
+			} else {
+				return {
+					command: 'vscode.open',
+					title: localize('open', "Open"),
+					arguments: [resource.rightUri, { override: bothModified ? false : undefined }, title]
+				};
+			}
 		} else {
 			return {
 				command: 'vscode.diff',
@@ -912,6 +932,12 @@ export class Repository implements Disposable {
 		onConfigListener(updateIndexGroupVisibility, this, this.disposables);
 		updateIndexGroupVisibility();
 
+		workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('git.experimental.mergeEditor')) {
+				this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
+			}
+		}, undefined, this.disposables);
+
 		filterEvent(workspace.onDidChangeConfiguration, e =>
 			e.affectsConfiguration('git.branchSortOrder', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
@@ -1010,7 +1036,7 @@ export class Repository implements Disposable {
 		}
 
 		let lineNumber = 0;
-		let start = 0, end;
+		let start = 0;
 		let match: RegExpExecArray | null;
 		const regex = /\r?\n/g;
 
@@ -1019,7 +1045,7 @@ export class Repository implements Disposable {
 			lineNumber++;
 		}
 
-		end = match ? match.index : text.length;
+		const end = match ? match.index : text.length;
 
 		const line = text.substring(start, end);
 
@@ -1263,7 +1289,7 @@ export class Repository implements Disposable {
 		});
 	}
 
-	closeDiffEditors(indexResources: string[], workingTreeResources: string[], ignoreSetting: boolean = false): void {
+	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting: boolean = false): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
 
@@ -1272,11 +1298,11 @@ export class Repository implements Disposable {
 		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
 			const { input } = tab;
 			if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
-				if (input.modified.scheme === 'git' && indexResources.some(r => pathEquals(r, input.modified.fsPath))) {
+				if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
 					// Index
 					diffEditorTabsToClose.push(tab);
 				}
-				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && workingTreeResources.some(r => pathEquals(r, input.modified.fsPath))) {
+				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
 					// Working Tree
 					diffEditorTabsToClose.push(tab);
 				}
@@ -1382,15 +1408,15 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async fetchAll(): Promise<void> {
-		await this._fetch({ all: true });
+	async fetchAll(cancellationToken?: CancellationToken): Promise<void> {
+		await this._fetch({ all: true, cancellationToken });
 	}
 
 	async fetch(options: FetchOptions): Promise<void> {
 		await this._fetch(options);
 	}
 
-	private async _fetch(options: { remote?: string; ref?: string; all?: boolean; prune?: boolean; depth?: number; silent?: boolean } = {}): Promise<void> {
+	private async _fetch(options: { remote?: string; ref?: string; all?: boolean; prune?: boolean; depth?: number; silent?: boolean; cancellationToken?: CancellationToken } = {}): Promise<void> {
 		if (!options.prune) {
 			const config = workspace.getConfiguration('git', Uri.file(this.root));
 			const prune = config.get<boolean>('pruneOnFetch');
@@ -1435,7 +1461,7 @@ export class Repository implements Disposable {
 
 				// When fetchOnPull is enabled, fetch all branches when pulling
 				if (fetchOnPull) {
-					await this.repository.fetch({ all: true });
+					await this.fetchAll();
 				}
 
 				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
@@ -1506,7 +1532,7 @@ export class Repository implements Disposable {
 				const fn = async (cancellationToken?: CancellationToken) => {
 					// When fetchOnPull is enabled, fetch all branches when pulling
 					if (fetchOnPull) {
-						await this.repository.fetch({ all: true, cancellationToken });
+						await this.fetchAll(cancellationToken);
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
@@ -1864,6 +1890,7 @@ export class Repository implements Disposable {
 		if (didHitLimit) {
 			/* __GDPR__
 				"statusLimit" : {
+					"owner": "lszomoru",
 					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"limit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }

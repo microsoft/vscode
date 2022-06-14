@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStringDictionary } from 'vs/base/common/collections';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { IUserDataProfilesDto } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
 
 export interface ISharedProcess {
 
@@ -24,4 +27,8 @@ export interface ISharedProcessConfiguration extends ISandboxConfiguration {
 	readonly logLevel: LogLevel;
 
 	readonly backupWorkspacesPath: string;
+
+	readonly profiles: IUserDataProfilesDto;
+
+	readonly policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
 }

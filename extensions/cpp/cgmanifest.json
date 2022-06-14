@@ -4,14 +4,27 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "jeff-hykin/cpp-textmate-grammar",
-					"repositoryUrl": "https://github.com/jeff-hykin/cpp-textmate-grammar",
-					"commitHash": "db3f4e4a5d8335b2f6d689bec490c23f8313630f"
+					"name": "jeff-hykin/better-cpp-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-cpp-syntax",
+					"commitHash": "156fc0eef532928c9dbf22f622d4a8efc7d97a6b"
 				}
 			},
 			"license": "MIT",
-			"version": "1.15.6",
-			"description": "The files syntaxes/c.json and syntaxes/c++.json were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+			"version": "1.15.13",
+			"description": "The original JSON grammars were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "jeff-hykin/better-c-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-c-syntax",
+					"commitHash": "34712a6106a4ffb0a04d2fa836fd28ff6c5849a4"
+				}
+			},
+			"license": "MIT",
+			"version": "1.13.2",
+			"description": "The original JSON grammars were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
 		},
 		{
 			"component": {

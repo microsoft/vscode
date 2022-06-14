@@ -68,7 +68,7 @@ class DecorationsManager implements IDisposable {
 		if (!model) {
 			return;
 		}
-		for (let ref of this._model.references) {
+		for (const ref of this._model.references) {
 			if (ref.uri.toString() === model.uri.toString()) {
 				this._addDecorations(ref.parent);
 				return;
@@ -86,7 +86,7 @@ class DecorationsManager implements IDisposable {
 		const newDecorationsActualIndex: number[] = [];
 
 		for (let i = 0, len = reference.children.length; i < len; i++) {
-			let oneReference = reference.children[i];
+			const oneReference = reference.children[i];
 			if (this._decorationIgnoreSet.has(oneReference.id)) {
 				continue;
 			}
@@ -114,7 +114,7 @@ class DecorationsManager implements IDisposable {
 			return;
 		}
 
-		for (let [decorationId, reference] of this._decorations) {
+		for (const [decorationId, reference] of this._decorations) {
 
 			const newRange = model.getDecorationRange(decorationId);
 
@@ -295,7 +295,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 
 		// editor
 		this._previewContainer = dom.append(containerElement, dom.$('div.preview.inline'));
-		let options: IEditorOptions = {
+		const options: IEditorOptions = {
 			scrollBeyondLastLine: false,
 			scrollbar: {
 				verticalScrollbarSize: 14,
@@ -380,7 +380,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		}, undefined));
 
 		// listen on selection and focus
-		let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
+		const onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
 			if (element instanceof OneReference) {
 				if (kind === 'show') {
 					this._revealReference(element, false);

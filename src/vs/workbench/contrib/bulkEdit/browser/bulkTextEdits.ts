@@ -170,9 +170,9 @@ export class BulkTextEdits {
 	private _validateBeforePrepare(): void {
 		// First check if loaded models were not changed in the meantime
 		for (const array of this._edits.values()) {
-			for (let edit of array) {
+			for (const edit of array) {
 				if (typeof edit.versionId === 'number') {
-					let model = this._modelService.getModel(edit.resource);
+					const model = this._modelService.getModel(edit.resource);
 					if (model && model.getVersionId() !== edit.versionId) {
 						// model changed in the meantime
 						throw new Error(`${model.uri.toString()} has changed in the meantime`);
@@ -187,7 +187,7 @@ export class BulkTextEdits {
 		const tasks: ModelEditTask[] = [];
 		const promises: Promise<any>[] = [];
 
-		for (let [key, value] of this._edits) {
+		for (const [key, value] of this._edits) {
 			const promise = this._textModelResolverService.createModelReference(key).then(async ref => {
 				let task: ModelEditTask;
 				let makeMinimal = false;
@@ -204,7 +204,7 @@ export class BulkTextEdits {
 						if (!newEdits) {
 							task.addEdit(edit);
 						} else {
-							for (let moreMinialEdit of newEdits) {
+							for (const moreMinialEdit of newEdits) {
 								task.addEdit(new ResourceTextEdit(edit.resource, moreMinialEdit, edit.versionId, edit.metadata));
 							}
 						}

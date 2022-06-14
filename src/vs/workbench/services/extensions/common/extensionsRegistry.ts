@@ -92,8 +92,8 @@ export class ExtensionPointUserDelta<T> {
 		const previousSet = this._toSet(previous);
 		const currentSet = this._toSet(current);
 
-		let added = current.filter(user => !previousSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
-		let removed = previous.filter(user => !currentSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
+		const added = current.filter(user => !previousSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
+		const removed = previous.filter(user => !currentSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
 
 		return new ExtensionPointUserDelta<T>(added, removed);
 	}
@@ -514,6 +514,19 @@ export const schema: IJSONSchema = {
 							markdownDescription: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.description', "A description of how workspace trust affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`."),
 						}
 					}
+				}
+			}
+		},
+		sponsor: {
+			description: nls.localize('vscode.extension.contributes.sponsor', "Specify the location from where users can sponsor your extension."),
+			type: 'object',
+			defaultSnippets: [
+				{ body: { url: '${1:https:}' } },
+			],
+			properties: {
+				'url': {
+					description: nls.localize('vscode.extension.contributes.sponsor.url', "URL from where users can sponsor your extension. It must be a valid URL with a HTTP or HTTPS protocol. Example value: https://github.com/sponsors/nvaccess"),
+					type: 'string',
 				}
 			}
 		},

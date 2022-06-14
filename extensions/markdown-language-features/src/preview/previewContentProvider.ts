@@ -66,7 +66,8 @@ export class MarkdownContentProvider {
 		resourceProvider: WebviewResourceProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		initialLine: number | undefined = undefined,
-		state?: any
+		state: any | undefined,
+		token: vscode.CancellationToken
 	): Promise<MarkdownContentProviderOutput> {
 		const sourceUri = markdownDocument.uri;
 		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
@@ -89,6 +90,10 @@ export class MarkdownContentProvider {
 		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
 
 		const body = await this.markdownBody(markdownDocument, resourceProvider);
+		if (token.isCancellationRequested) {
+			return { html: '', containingImages: [] };
+		}
+
 		const html = `<!DOCTYPE html>
 			<html style="${escapeAttribute(this.getSettingsOverrideStyles(config))}">
 			<head>

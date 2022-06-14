@@ -17,7 +17,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { LocationLink } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -42,7 +42,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	private readonly editor: ICodeEditor;
 	private readonly toUnhook = new DisposableStore();
 	private readonly toUnhookForKeyboard = new DisposableStore();
-	private linkDecorations: string[] = [];
+	private readonly linkDecorations: IEditorDecorationsCollection;
 	private currentWordAtPosition: IWordAtPosition | null = null;
 	private previousPromise: CancelablePromise<LocationLink[] | null> | null = null;
 
@@ -53,8 +53,9 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this.editor = editor;
+		this.linkDecorations = this.editor.createDecorationsCollection();
 
-		let linkGesture = new ClickLinkGesture(editor);
+		const linkGesture = new ClickLinkGesture(editor);
 		this.toUnhook.add(linkGesture);
 
 		this.toUnhook.add(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
@@ -150,7 +151,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.currentWordAtPosition = word;
 
 		// Find definition and decorate word if found
-		let state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
+		const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
 		if (this.previousPromise) {
 			this.previousPromise.cancel();
@@ -175,7 +176,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 
 			// Single result
 			else {
-				let result = results[0];
+				const result = results[0];
 
 				if (!result.uri) {
 					return;
@@ -247,7 +248,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		let endLineNumber = startLineNumber + 1;
 
 		for (; endLineNumber < maxLineNumber; endLineNumber++) {
-			let endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
+			const endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
 
 			if (startIndent === endIndent) {
 				break;
@@ -268,13 +269,11 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			}
 		};
 
-		this.linkDecorations = this.editor.deltaDecorations(this.linkDecorations, [newDecorations]);
+		this.linkDecorations.set([newDecorations]);
 	}
 
 	private removeLinkDecorations(): void {
-		if (this.linkDecorations.length > 0) {
-			this.linkDecorations = this.editor.deltaDecorations(this.linkDecorations, []);
-		}
+		this.linkDecorations.clear();
 	}
 
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {

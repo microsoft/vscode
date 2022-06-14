@@ -8,7 +8,6 @@ import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/com
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Event } from 'vs/base/common/event';
-import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export const INotebookEditorService = createDecorator<INotebookEditorService>('INotebookEditorWidgetService');
 
@@ -27,8 +26,4 @@ export interface INotebookEditorService {
 	removeNotebookEditor(editor: INotebookEditor): void;
 	getNotebookEditor(editorId: string): INotebookEditor | undefined;
 	listNotebookEditors(): readonly INotebookEditor[];
-
-	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
-	removeEditorDecorationType(key: string): void;
-	resolveEditorDecorationOptions(key: string): INotebookDecorationRenderOptions | undefined;
 }

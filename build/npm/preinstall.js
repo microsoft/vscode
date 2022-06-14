@@ -9,9 +9,12 @@ const majorNodeVersion = parseInt(nodeVersion[1]);
 const minorNodeVersion = parseInt(nodeVersion[2]);
 const patchNodeVersion = parseInt(nodeVersion[3]);
 
-if (majorNodeVersion < 14 || (majorNodeVersion === 14 && minorNodeVersion < 17) || (majorNodeVersion === 14 && minorNodeVersion === 17 && patchNodeVersion < 4) || majorNodeVersion >= 17) {
-	console.error('\033[1;31m*** Please use node.js versions >=14.17.4 and <17.\033[0;0m');
+if (majorNodeVersion < 16 || (majorNodeVersion === 16 && minorNodeVersion < 14)) {
+	console.error('\033[1;31m*** Please use node.js versions >=16.14.x and <17.\033[0;0m');
 	err = true;
+}
+if (majorNodeVersion >= 17) {
+	console.warn('\033[1;31m*** Warning: Versions of node.js >= 17 have not been tested.\033[0;0m')
 }
 
 const path = require('path');

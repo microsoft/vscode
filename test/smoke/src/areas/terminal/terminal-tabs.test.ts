@@ -55,6 +55,7 @@ export function setup() {
 		it('should update icon of the tab in the tabs list', async () => {
 			await terminal.createTerminal();
 			await terminal.runCommand(TerminalCommandId.Split);
+			await terminal.waitForTerminalText(lines => lines.some(line => line.length > 0), undefined, 1);
 			const icon = 'symbol-method';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
 			await terminal.assertTerminalGroups([[{}, { icon }]]);
@@ -67,7 +68,7 @@ export function setup() {
 			await terminal.assertSingleTab({ name });
 		});
 
-		it.skip('should reset the tab name to the default value when no name is provided', async () => { // https://github.com/microsoft/vscode/issues/146796
+		it('should reset the tab name to the default value when no name is provided', async () => {
 			await terminal.createTerminal();
 			const defaultName = await terminal.getSingleTabName();
 			const name = 'my terminal name';

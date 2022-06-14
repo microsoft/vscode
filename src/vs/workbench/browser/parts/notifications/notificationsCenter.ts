@@ -271,8 +271,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this.workbenchDimensions = dimension;
 
 		if (this._isVisible && this.notificationsCenterContainer) {
-			let maxWidth = NotificationsCenter.MAX_DIMENSIONS.width;
-			let maxHeight = NotificationsCenter.MAX_DIMENSIONS.height;
+			const maxWidth = NotificationsCenter.MAX_DIMENSIONS.width;
+			const maxHeight = NotificationsCenter.MAX_DIMENSIONS.height;
 
 			let availableWidth = maxWidth;
 			let availableHeight = maxHeight;

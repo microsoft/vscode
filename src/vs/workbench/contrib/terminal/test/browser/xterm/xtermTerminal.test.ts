@@ -16,7 +16,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Emitter } from 'vs/base/common/event';
-import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { WebglAddon } from 'xterm-addon-webgl';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -113,7 +113,7 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore());
+		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), true);
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
@@ -130,7 +130,7 @@ suite('XtermTerminal', () => {
 				[PANEL_BACKGROUND]: '#ff0000',
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
-			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore());
+			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), true);
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 			viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Sidebar);
 			strictEqual(xterm.raw.options.theme?.background, '#00ff00');
@@ -146,6 +146,7 @@ suite('XtermTerminal', () => {
 				[TERMINAL_CURSOR_FOREGROUND_COLOR]: '#000300',
 				[TERMINAL_CURSOR_BACKGROUND_COLOR]: '#000400',
 				[TERMINAL_SELECTION_BACKGROUND_COLOR]: '#000500',
+				[TERMINAL_SELECTION_FOREGROUND_COLOR]: undefined,
 				'terminal.ansiBlack': '#010000',
 				'terminal.ansiRed': '#020000',
 				'terminal.ansiGreen': '#030000',
@@ -163,13 +164,14 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#150000',
 				'terminal.ansiBrightWhite': '#160000',
 			}));
-			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore());
+			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), true);
 			deepStrictEqual(xterm.raw.options.theme, {
 				background: '#000100',
 				foreground: '#000200',
 				cursor: '#000300',
 				cursorAccent: '#000400',
 				selection: '#000500',
+				selectionForeground: undefined,
 				black: '#010000',
 				green: '#030000',
 				red: '#020000',
@@ -193,6 +195,7 @@ suite('XtermTerminal', () => {
 				[TERMINAL_CURSOR_FOREGROUND_COLOR]: '#00030f',
 				[TERMINAL_CURSOR_BACKGROUND_COLOR]: '#00040f',
 				[TERMINAL_SELECTION_BACKGROUND_COLOR]: '#00050f',
+				[TERMINAL_SELECTION_FOREGROUND_COLOR]: '#00060f',
 				'terminal.ansiBlack': '#01000f',
 				'terminal.ansiRed': '#02000f',
 				'terminal.ansiGreen': '#03000f',
@@ -216,6 +219,7 @@ suite('XtermTerminal', () => {
 				cursor: '#00030f',
 				cursorAccent: '#00040f',
 				selection: '#00050f',
+				selectionForeground: '#00060f',
 				black: '#01000f',
 				green: '#03000f',
 				red: '#02000f',

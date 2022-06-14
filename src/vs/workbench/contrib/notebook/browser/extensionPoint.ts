@@ -131,21 +131,20 @@ const notebookRendererContribution: IJSONSchema = {
 					{
 						type: 'string',
 					},
-					// todo@connor4312 + @mjbvz: uncomment this once it's ready for external adoption
-					// {
-					// 	type: 'object',
-					// 	required: ['extends', 'path'],
-					// 	properties: {
-					// 		extends: {
-					// 			type: 'string',
-					// 			description: nls.localize('contributes.notebook.renderer.entrypoint.extends', 'Existing renderer that this one extends.'),
-					// 		},
-					// 		path: {
-					// 			type: 'string',
-					// 			description: nls.localize('contributes.notebook.renderer.entrypoint', 'File to load in the webview to render the extension.'),
-					// 		},
-					// 	}
-					// }
+					{
+						type: 'object',
+						required: ['extends', 'path'],
+						properties: {
+							extends: {
+								type: 'string',
+								description: nls.localize('contributes.notebook.renderer.entrypoint.extends', 'Existing renderer that this one extends.'),
+							},
+							path: {
+								type: 'string',
+								description: nls.localize('contributes.notebook.renderer.entrypoint', 'File to load in the webview to render the extension.'),
+							},
+						}
+					}
 				]
 			},
 			[NotebookRendererContribution.hardDependencies]: {

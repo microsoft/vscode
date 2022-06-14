@@ -354,7 +354,7 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 	}
 
 	public toString(): string {
-		let result: string[] = [];
+		const result: string[] = [];
 		for (const editStackElement of this._editStackElementsArr) {
 			result.push(`${basename(editStackElement.resource)}: ${editStackElement}`);
 		}

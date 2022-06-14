@@ -546,9 +546,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
-		if (this._activeSearchCallbacks[requestId]) {
-			this._activeSearchCallbacks[requestId](result);
-		}
+		this._activeSearchCallbacks[requestId]?.(result);
 	}
 
 	saveAll(includeUntitled?: boolean): Promise<boolean> {

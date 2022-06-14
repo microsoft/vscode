@@ -51,6 +51,50 @@ steps:
       set -e
       tar -xzf .build/node_modules_cache/cache.tgz
     displayName: Extract node_modules cache
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      npm install -g node-gyp@latest
+      node-gyp --version
+    displayName: Update node-gyp
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
+
+  - script: |
+      set -e
+      export npm_config_arch=$(VSCODE_ARCH)
+      export npm_config_node_gyp=$(which node-gyp)
+
+      for i in {1..3}; do # try 3 times, for Terrapin
+        yarn --frozen-lockfile --check-files && break
+        if [ $i -eq 3 ]; then
+          echo "Yarn failed too many times" >&2
+          exit 1
+        fi
+        echo "Yarn failed $i, trying again..."
+      done
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Install dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+      mkdir -p .build/node_modules_cache
+      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Create node_modules archive
 
   - script: |
       set -e

@@ -204,7 +204,7 @@ export class LogContentProvider {
 
 	provideTextContent(resource: URI): Promise<ITextModel> | null {
 		if (resource.scheme === LOG_SCHEME) {
-			let channelModel = this.getChannelModel(resource);
+			const channelModel = this.getChannelModel(resource);
 			if (channelModel) {
 				return channelModel.loadModel();
 			}

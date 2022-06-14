@@ -7,7 +7,8 @@ import * as dom from 'vs/base/browser/dom';
 import { addMatchMediaChangeListener } from 'vs/base/browser/browser';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
-import { FontStyle, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/languages';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { FontStyle, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { hc_black, hc_light, vs, vs_dark } from 'vs/editor/standalone/common/themes';
@@ -74,12 +75,12 @@ class StandaloneTheme implements IStandaloneTheme {
 	private getColors(): Map<string, Color> {
 		if (!this.colors) {
 			const colors = new Map<string, Color>();
-			for (let id in this.themeData.colors) {
+			for (const id in this.themeData.colors) {
 				colors.set(id, Color.fromHex(this.themeData.colors[id]));
 			}
 			if (this.themeData.inherit) {
 				const baseData = getBuiltinRules(this.themeData.base);
-				for (let id in baseData.colors) {
+				for (const id in baseData.colors) {
 					if (!colors.has(id)) {
 						colors.set(id, Color.fromHex(baseData.colors[id]));
 					}

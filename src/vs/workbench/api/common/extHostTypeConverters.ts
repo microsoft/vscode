@@ -20,6 +20,7 @@ import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
+import * as encodedTokenAttributes from 'vs/editor/common/encodedTokenAttributes';
 import * as languageSelector from 'vs/editor/common/languageSelector';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -38,6 +39,8 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { once } from 'vs/base/common/functional';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 
 export namespace Command {
 
@@ -111,12 +114,12 @@ export namespace Range {
 }
 
 export namespace TokenType {
-	export function to(type: languages.StandardTokenType): types.StandardTokenType {
+	export function to(type: encodedTokenAttributes.StandardTokenType): types.StandardTokenType {
 		switch (type) {
-			case languages.StandardTokenType.Comment: return types.StandardTokenType.Comment;
-			case languages.StandardTokenType.Other: return types.StandardTokenType.Other;
-			case languages.StandardTokenType.RegEx: return types.StandardTokenType.RegEx;
-			case languages.StandardTokenType.String: return types.StandardTokenType.String;
+			case encodedTokenAttributes.StandardTokenType.Comment: return types.StandardTokenType.Comment;
+			case encodedTokenAttributes.StandardTokenType.Other: return types.StandardTokenType.Other;
+			case encodedTokenAttributes.StandardTokenType.RegEx: return types.StandardTokenType.RegEx;
+			case encodedTokenAttributes.StandardTokenType.String: return types.StandardTokenType.String;
 		}
 	}
 }
@@ -556,15 +559,6 @@ export namespace TextEdit {
 		const result = new types.TextEdit(Range.to(edit.range), edit.text);
 		result.newEol = (typeof edit.eol === 'undefined' ? undefined : EndOfLine.to(edit.eol))!;
 		return result;
-	}
-}
-
-export namespace SnippetTextEdit {
-	export function from(edit: vscode.SnippetTextEdit): languages.SnippetTextEdit {
-		return {
-			range: Range.from(edit.range),
-			snippet: edit.snippet.value
-		};
 	}
 }
 
@@ -1571,7 +1565,7 @@ export namespace NotebookData {
 			metadata: data.metadata ?? Object.create(null),
 			cells: [],
 		};
-		for (let cell of data.cells) {
+		for (const cell of data.cells) {
 			types.NotebookCellData.validate(cell);
 			res.cells.push(NotebookCellData.from(cell));
 		}
@@ -1678,16 +1672,6 @@ export namespace NotebookExclusiveDocumentPattern {
 			return false;
 		}
 		return !isUndefinedOrNull(ep.include) && !isUndefinedOrNull(ep.exclude);
-	}
-}
-
-export namespace NotebookDecorationRenderOptions {
-	export function from(options: vscode.NotebookDecorationRenderOptions): notebooks.INotebookDecorationRenderOptions {
-		return {
-			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
-			borderColor: <string | types.ThemeColor>options.borderColor,
-			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
-		};
 	}
 }
 
@@ -1954,5 +1938,55 @@ export namespace ViewBadge {
 			value: badge.value,
 			tooltip: badge.tooltip
 		};
+	}
+}
+
+export namespace DataTransferItem {
+	export function toDataTransferItem(item: extHostProtocol.DataTransferItemDTO, resolveFileData: () => Promise<Uint8Array>): types.DataTransferItem {
+		const file = item.fileData;
+		if (file) {
+			return new class extends types.DataTransferItem {
+				override get kind() { return types.DataTransferItemKind.File; }
+
+				override asFile(): vscode.DataTransferFile {
+					return {
+						name: file.name,
+						uri: URI.revive(file.uri),
+						data: once(() => resolveFileData()),
+					};
+				}
+			}('');
+		} else {
+			return new types.DataTransferItem(item.asString);
+		}
+	}
+}
+
+export namespace DataTransfer {
+	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (dataItemIndex: number) => Promise<Uint8Array>): types.DataTransfer {
+		const init = value.items.map(([type, item], index) => {
+			return [type, DataTransferItem.toDataTransferItem(item, () => resolveFileData(index))] as const;
+		});
+		return new types.DataTransfer(init);
+	}
+
+	export async function toDataTransferDTO(value: vscode.DataTransfer | VSDataTransfer): Promise<extHostProtocol.DataTransferDTO> {
+		const newDTO: extHostProtocol.DataTransferDTO = { items: [] };
+
+		const promises: Promise<any>[] = [];
+		value.forEach((value, key) => {
+			promises.push((async () => {
+				const stringValue = await value.asString();
+				const fileValue = value.asFile();
+				newDTO.items.push([key, {
+					asString: stringValue,
+					fileData: fileValue ? { name: fileValue.name, uri: fileValue.uri } : undefined,
+				}]);
+			})());
+		});
+
+		await Promise.all(promises);
+
+		return newDTO;
 	}
 }

@@ -63,7 +63,7 @@ class RenameSkeleton {
 			if (!provider.resolveRenameLocation) {
 				break;
 			}
-			let res = await provider.resolveRenameLocation(this.model, this.position, token);
+			const res = await provider.resolveRenameLocation(this.model, this.position, token);
 			if (!res) {
 				continue;
 			}
@@ -197,7 +197,7 @@ class RenameController implements IEditorContribution {
 		this._cts = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, loc.range);
 
 		// do rename at location
-		let selection = this.editor.getSelection();
+		const selection = this.editor.getSelection();
 		let selectionStart = 0;
 		let selectionEnd = loc.text.length;
 

@@ -259,6 +259,7 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 			conflicts.map(r =>
 			({
 				...r,
+				baseResource: URI.revive(r.baseResource),
 				localResource: URI.revive(r.localResource),
 				remoteResource: URI.revive(r.remoteResource),
 				previewResource: URI.revive(r.previewResource),
@@ -369,6 +370,7 @@ class ManualSyncTaskChannelClient extends Disposable implements IManualSyncTask 
 				isLastSyncFromCurrentMachine: preview.isLastSyncFromCurrentMachine,
 				resourcePreviews: preview.resourcePreviews.map(r => ({
 					...r,
+					baseResource: URI.revive(r.baseResource),
 					localResource: URI.revive(r.localResource),
 					remoteResource: URI.revive(r.remoteResource),
 					previewResource: URI.revive(r.previewResource),

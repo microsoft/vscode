@@ -13,6 +13,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Hasher } from 'vs/base/common/hash';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { splitLines } from 'vs/base/common/strings';
+import { IMatch } from 'vs/base/common/filters';
 
 export type MarkerElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -21,8 +22,8 @@ export function compareMarkersByUri(a: IMarker, b: IMarker) {
 }
 
 function compareResourceMarkers(a: ResourceMarkers, b: ResourceMarkers): number {
-	let [firstMarkerOfA] = a.markers;
-	let [firstMarkerOfB] = b.markers;
+	const [firstMarkerOfA] = a.markers;
+	const [firstMarkerOfB] = b.markers;
 	let res = 0;
 	if (firstMarkerOfA && firstMarkerOfB) {
 		res = MarkerSeverity.compare(firstMarkerOfA.marker.severity, firstMarkerOfB.marker.severity);
@@ -70,7 +71,7 @@ export class ResourceMarkers {
 	}
 
 	delete(uri: URI) {
-		let array = this._markersMap.get(uri);
+		const array = this._markersMap.get(uri);
 		if (array) {
 			this._total -= array.length;
 			this._cachedMarkers = undefined;
@@ -114,6 +115,19 @@ export class Marker {
 			resource: this.marker.resource.path,
 			relatedInformation: this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : undefined
 		}, null, '\t');
+	}
+}
+
+export class MarkerTableItem extends Marker {
+	constructor(
+		marker: Marker,
+		readonly sourceMatches?: IMatch[],
+		readonly codeMatches?: IMatch[],
+		readonly messageMatches?: IMatch[],
+		readonly fileMatches?: IMatch[],
+		readonly ownerMatches?: IMatch[],
+	) {
+		super(marker.id, marker.marker, marker.relatedInformation);
 	}
 }
 

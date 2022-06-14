@@ -129,7 +129,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 			return connectRemoteAgentExtensionHost(options, startParams).then(result => {
 				this._register(result);
-				let { protocol, debugPort, reconnectionToken } = result;
+				const { protocol, debugPort, reconnectionToken } = result;
 				const isExtensionDevelopmentDebug = typeof debugPort === 'number';
 				if (debugOk && this._environmentService.isExtensionDevelopment && this._environmentService.debugExtensionHost.debugId && debugPort) {
 					this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, debugPort, this._initDataProvider.remoteAuthority);
@@ -149,7 +149,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				// 2) wait for the incoming `initialized` event.
 				return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
-					let handle = setTimeout(() => {
+					const handle = setTimeout(() => {
 						reject('The remote extenion host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 

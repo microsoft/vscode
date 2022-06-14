@@ -679,7 +679,7 @@ class SemanticColoringFeature extends Disposable {
 			delete this._watchers[model.uri.toString()];
 		};
 		const handleSettingOrThemeChange = () => {
-			for (let model of modelService.getModels()) {
+			for (const model of modelService.getModels()) {
 				const curr = this._watchers[model.uri.toString()];
 				if (isSemanticColoringEnabled(model, themeService, configurationService)) {
 					if (!curr) {
