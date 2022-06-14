@@ -17,6 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { isString } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -28,7 +29,8 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IQuickInputService private _quickInputService: IQuickInputService,
 		@INotificationService private _notificationService: INotificationService,
-		@IDialogService private _dialogService: IDialogService
+		@IDialogService private _dialogService: IDialogService,
+		@IThemeService private _themeService: IThemeService
 	) {
 		super(TasksQuickAccessProvider.PREFIX, {
 			noResultsPick: {
@@ -42,7 +44,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			return [];
 		}
 
-		const taskQuickPick = new TaskQuickPick(this._taskService, this._configurationService, this._quickInputService, this._notificationService, this._dialogService);
+		const taskQuickPick = new TaskQuickPick(this._taskService, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
 		const topLevelPicks = await taskQuickPick.getTopLevelEntries();
 		const taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
