@@ -6,6 +6,7 @@
 import { strictEqual } from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Storage } from 'vs/base/parts/storage/common/storage';
 import { mock } from 'vs/base/test/common/mock';
@@ -18,7 +19,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { BrowserStorageService, IndexedDBStorageDatabase } from 'vs/platform/storage/browser/storageService';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
 	const disposables = new DisposableStore();
@@ -29,11 +30,41 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
 	disposables.add(fileService.registerProvider(Schemas.vscodeUserData, userDataProvider));
 
+	const profilesRoot = URI.file('/profiles').with({ scheme: Schemas.inMemory });
+
 	class EnvironmentServiceMock extends mock<IEnvironmentService>() {
-		override readonly userRoamingDataHome = URI.file('/foo').with({ scheme: Schemas.inMemory });
+		override readonly userRoamingDataHome = profilesRoot;
 	}
 
-	const userDataProfileService = new UserDataProfilesService(undefined, undefined, new EnvironmentServiceMock(), fileService, new NullLogService());
+	const inMemoryDefaultProfileRoot = joinPath(profilesRoot, 'default');
+	const inMemoryDefaultProfile: IUserDataProfile = {
+		id: 'id',
+		name: 'inMemory',
+		isDefault: true,
+		location: inMemoryDefaultProfileRoot,
+		globalStorageHome: joinPath(inMemoryDefaultProfileRoot, 'globalStorageHome'),
+		settingsResource: joinPath(inMemoryDefaultProfileRoot, 'settingsResource'),
+		keybindingsResource: joinPath(inMemoryDefaultProfileRoot, 'keybindingsResource'),
+		tasksResource: joinPath(inMemoryDefaultProfileRoot, 'tasksResource'),
+		snippetsHome: joinPath(inMemoryDefaultProfileRoot, 'snippetsHome'),
+		extensionsResource: joinPath(inMemoryDefaultProfileRoot, 'extensionsResource')
+	};
+
+	const inMemoryExtraProfileRoot = joinPath(profilesRoot, 'extra');
+	const inMemoryExtraProfile: IUserDataProfile = {
+		id: 'id',
+		name: 'inMemory',
+		isDefault: false,
+		location: inMemoryExtraProfileRoot,
+		globalStorageHome: joinPath(inMemoryExtraProfileRoot, 'globalStorageHome'),
+		settingsResource: joinPath(inMemoryExtraProfileRoot, 'settingsResource'),
+		keybindingsResource: joinPath(inMemoryExtraProfileRoot, 'keybindingsResource'),
+		tasksResource: joinPath(inMemoryExtraProfileRoot, 'tasksResource'),
+		snippetsHome: joinPath(inMemoryExtraProfileRoot, 'snippetsHome'),
+		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource')
+	};
+
+	const userDataProfileService = new UserDataProfilesService(inMemoryDefaultProfile, inMemoryExtraProfile, new EnvironmentServiceMock(), fileService, new NullLogService());
 
 	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService, userDataProfileService));
 
