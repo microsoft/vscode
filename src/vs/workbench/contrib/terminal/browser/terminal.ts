@@ -339,6 +339,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalF
 	hidePanel(): void;
 	focusTabs(): void;
 	showTabs(): void;
+	updateVisibility(): void;
 }
 
 /**
@@ -752,7 +753,7 @@ export interface ITerminalInstance {
 	 *
 	 * @param container The element to attach the terminal instance to.
 	 */
-	attachToElement(container: HTMLElement): Promise<void> | void;
+	attachToElement(container: HTMLElement): void;
 
 	/**
 	 * Detaches the terminal instance from the terminal editor DOM element.

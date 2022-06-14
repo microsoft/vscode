@@ -764,8 +764,6 @@ export class TerminalService implements ITerminalService {
 		group.addInstance(source);
 		this.setActiveInstance(source);
 		await this._terminalGroupService.showPanel(true);
-		// TODO: Shouldn't this happen automatically?
-		source.setVisible(true);
 
 		if (target && side) {
 			const index = group.terminalInstances.indexOf(target) + (side === 'after' ? 1 : 0);
@@ -775,7 +773,6 @@ export class TerminalService implements ITerminalService {
 		// Fire events
 		this._onDidChangeInstances.fire();
 		this._onDidChangeActiveGroup.fire(this._terminalGroupService.activeGroup);
-		this._terminalGroupService.showPanel(true);
 		this._onDidRequestHideFindWidget.fire();
 	}
 
@@ -1033,7 +1030,6 @@ export class TerminalService implements ITerminalService {
 			}
 			shellLaunchConfig.parentTerminalId = parent.instanceId;
 			instance = group.split(shellLaunchConfig);
-			this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
 		}
 		return instance;
 	}
