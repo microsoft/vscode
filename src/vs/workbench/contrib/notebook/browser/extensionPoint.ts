@@ -8,12 +8,12 @@ import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { NotebookEditorPriority, NotebookRendererEntrypoint, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-namespace NotebookEditorContribution {
-	export const type = 'type';
-	export const displayName = 'displayName';
-	export const selector = 'selector';
-	export const priority = 'priority';
-}
+const NotebookEditorContribution = Object.freeze({
+	type: 'type',
+	displayName: 'displayName',
+	selector: 'selector',
+	priority: 'priority',
+});
 
 export interface INotebookEditorContribution {
 	readonly [NotebookEditorContribution.type]: string;
@@ -22,16 +22,15 @@ export interface INotebookEditorContribution {
 	readonly [NotebookEditorContribution.priority]?: string;
 }
 
-namespace NotebookRendererContribution {
-
-	export const id = 'id';
-	export const displayName = 'displayName';
-	export const mimeTypes = 'mimeTypes';
-	export const entrypoint = 'entrypoint';
-	export const hardDependencies = 'dependencies';
-	export const optionalDependencies = 'optionalDependencies';
-	export const requiresMessaging = 'requiresMessaging';
-}
+const NotebookRendererContribution = Object.freeze({
+	id: 'id',
+	displayName: 'displayName',
+	mimeTypes: 'mimeTypes',
+	entrypoint: 'entrypoint',
+	hardDependencies: 'dependencies',
+	optionalDependencies: 'optionalDependencies',
+	requiresMessaging: 'requiresMessaging',
+});
 
 export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.id]?: string;
