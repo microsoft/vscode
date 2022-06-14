@@ -39,7 +39,7 @@ export class CodeActionUi extends Disposable {
 
 		this._codeActionWidget = new Lazy(() => {
 			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
-				onSelectCodeAction: async (action, trigger) => {
+				onSelectCodeAction: async (action, trigger, context) => {
 					this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(trigger.preview));
 				}
 			}));
@@ -47,7 +47,7 @@ export class CodeActionUi extends Disposable {
 
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
-			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false })));
+			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false, from: 'lightbulb' })));
 			return widget;
 		});
 	}
