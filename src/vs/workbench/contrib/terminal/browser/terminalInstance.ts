@@ -72,7 +72,8 @@ import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/e
 import { getCommandHistory, getDirectoryHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, ShellIntegrationExitCode, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -1615,10 +1616,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
 			this._xtermReadyPromise.then(xterm => {
 				if (exitMessage) {
-					xterm.raw.writeln(exitMessage);
+					xterm.raw.write(formatMessageForTerminal(exitMessage));
 				}
 				if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
-					xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit));
+					xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit, { excludeLeadingNewLine: true }));
 				}
 				// Disable all input if the terminal is exiting and listen for next keypress
 				xterm.raw.options.disableStdin = true;

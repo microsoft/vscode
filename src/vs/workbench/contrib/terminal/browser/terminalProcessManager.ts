@@ -24,7 +24,7 @@ import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironme
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, ITerminalProcessOptions, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
-import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -488,7 +488,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					// For normal terminals write a message indicating what happened and relaunch
 					// using the previous shellLaunchConfig
 					const message = localize('ptyHostRelaunch', "Restarting the terminal because the connection to the shell process was lost...");
-					this._onProcessData.fire({ data: formatMessageForTerminal(message), trackCommit: false });
+					this._onProcessData.fire({ data: formatMessageForTerminal(message, { loudFormatting: true }), trackCommit: false });
 					await this.relaunch(this._shellLaunchConfig, this._dimensions.cols, this._dimensions.rows, this._isScreenReaderModeEnabled, false);
 				}
 			}

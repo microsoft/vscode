@@ -26,6 +26,7 @@ import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonito
 import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoResponder';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 
 type WorkspaceId = string;
 
@@ -141,7 +142,7 @@ export class PtyService extends Disposable implements IPtyService {
 					color: terminal.processDetails.color,
 					icon: terminal.processDetails.icon,
 					name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
-					initialText: terminal.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[7m * \x1b[0m ' + restoreMessage + ' \x1b[0m\n\r'
+					initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true })
 				},
 				terminal.processDetails.cwd,
 				terminal.replayEvent.events[0].cols,
