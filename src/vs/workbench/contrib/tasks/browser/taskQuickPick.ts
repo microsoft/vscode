@@ -95,12 +95,8 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	private _createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): ITaskTwoLevelQuickPickEntry {
-		const customizeIconButton = { iconClass: ThemeIcon.asClassName(Codicon.pencil), tooltip: nls.localize('setIconAndColor', "Choose color and icon") };
 		const entry: ITaskTwoLevelQuickPickEntry = { label: this._guessTaskLabel(task), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined };
 		entry.buttons = [];
-		if (CustomTask.is(task)) {
-			entry.buttons.push(customizeIconButton);
-		}
 		entry.buttons.push({ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") });
 		entry.buttons.push(...extraButtons);
 		TaskQuickPick.applyColorStyles(task, entry, this._themeService);
