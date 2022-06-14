@@ -74,7 +74,8 @@ import { deserializeEnvironmentVariableCollections } from 'vs/workbench/contrib/
 import { getCommandHistory, getDirectoryHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, ShellIntegrationExitCode, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -562,8 +563,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The terminal panel needs to have been created to get the real view dimensions
 		if (!this._container) {
 			// Set the fallback dimensions if not
-			this._cols = 80;
-			this._rows = 30;
+			this._cols = Constants.DefaultCols;
+			this._rows = Constants.DefaultRows;
 			return;
 		}
 
@@ -746,6 +747,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
 		});
+
+		if (this._isVisible) {
+			this._open();
+		}
+
 		return xterm;
 	}
 
@@ -964,7 +970,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container = undefined;
 	}
 
-	attachToElement(container: HTMLElement): Promise<void> | void {
+	attachToElement(container: HTMLElement): void {
 		// The container did not change, do nothing
 		if (this._container === container) {
 			return;
@@ -972,24 +978,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._attachBarrier.open();
 
-		// Attach has not occurred yet
-		if (!this._wrapperElement) {
-			return this._attachToElement(container);
-		}
-		this.xterm?.attachToElement(this._wrapperElement);
-
 		// The container changed, reattach
 		this._container = container;
-		this._container.appendChild(this._wrapperElement);
+		if (this._wrapperElement) {
+			this._container.appendChild(this._wrapperElement);
+		}
 		setTimeout(() => this._initDragAndDrop(container));
 	}
 
-	private async _attachToElement(container: HTMLElement): Promise<void> {
-		if (this._wrapperElement) {
-			throw new Error('The terminal instance has already been attached to a container');
+	/**
+	 * Opens the the terminal instance inside the parent DOM element previously set with
+	 * `attachToElement`, you must ensure the parent DOM element is explicitly visible before
+	 * invoking this function as it performs some DOM calculations internally
+	 */
+	private _open(): void {
+		if (this._wrapperElement || !this.xterm) {
+			return;
 		}
 
-		this._container = container;
+		if (!this._container || !this._container.isConnected) {
+			throw new Error('A container element needs to be set with `attachToElement` and be part of the DOM before calling `_open`');
+		}
+
 		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
 		const xtermElement = document.createElement('div');
@@ -997,7 +1007,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._container.appendChild(this._wrapperElement);
 
-		const xterm = await this._xtermReadyPromise;
+		const xterm = this.xterm;
 
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
 		this._wrapperElement.xterm = xterm.raw;
@@ -1116,21 +1126,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(dom.addDisposableListener(xterm.raw.textarea, 'blur', () => this._setFocus(false)));
 		this._register(dom.addDisposableListener(xterm.raw.textarea, 'focusout', () => this._setFocus(false)));
 
-		this._initDragAndDrop(container);
+		this._initDragAndDrop(this._container);
 
 		this._widgetManager.attachToElement(screenElement);
 		this._processManager.onProcessReady((e) => {
 			this._linkManager?.setWidgetManager(this._widgetManager);
 		});
 
-		// const computedStyle = window.getComputedStyle(this._container);
-		// const computedStyle = window.getComputedStyle(this._container.parentElement!);
-		// const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
-		// const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 		if (this._lastLayoutDimensions) {
 			this.layout(this._lastLayoutDimensions);
 		}
-		this.setVisible(this._isVisible);
 		this.updateConfig();
 
 		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
@@ -1391,10 +1396,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	setVisible(visible: boolean): void {
 		this._isVisible = visible;
-		if (this._wrapperElement) {
-			this._wrapperElement.classList.toggle('active', visible);
-		}
+		this._wrapperElement?.classList.toggle('active', visible);
 		if (visible && this.xterm) {
+			this._open();
 			// Resize to re-evaluate dimensions, this will ensure when switching to a terminal it is
 			// using the most up to date dimensions (eg. when terminal is created in the background
 			// using cached dimensions of a split terminal).
@@ -1620,10 +1624,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
 			this._xtermReadyPromise.then(xterm => {
 				if (exitMessage) {
-					xterm.raw.writeln(exitMessage);
+					xterm.raw.write(formatMessageForTerminal(exitMessage));
 				}
 				if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
-					xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit));
+					xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit, { excludeLeadingNewLine: true }));
 				}
 				// Disable all input if the terminal is exiting and listen for next keypress
 				xterm.raw.options.disableStdin = true;

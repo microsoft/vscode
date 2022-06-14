@@ -1638,34 +1638,34 @@ declare module 'vscode' {
 		 * true if this file system watcher has been created such that
 		 * it ignores creation file system events.
 		 */
-		ignoreCreateEvents: boolean;
+		readonly ignoreCreateEvents: boolean;
 
 		/**
 		 * true if this file system watcher has been created such that
 		 * it ignores change file system events.
 		 */
-		ignoreChangeEvents: boolean;
+		readonly ignoreChangeEvents: boolean;
 
 		/**
 		 * true if this file system watcher has been created such that
 		 * it ignores delete file system events.
 		 */
-		ignoreDeleteEvents: boolean;
+		readonly ignoreDeleteEvents: boolean;
 
 		/**
 		 * An event which fires on file/folder creation.
 		 */
-		onDidCreate: Event<Uri>;
+		readonly onDidCreate: Event<Uri>;
 
 		/**
 		 * An event which fires on file/folder change.
 		 */
-		onDidChange: Event<Uri>;
+		readonly onDidChange: Event<Uri>;
 
 		/**
 		 * An event which fires on file/folder deletion.
 		 */
-		onDidDelete: Event<Uri>;
+		readonly onDidDelete: Event<Uri>;
 	}
 
 	/**
