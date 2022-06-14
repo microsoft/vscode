@@ -64,9 +64,6 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
-      - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
-
       - name: Run Unit Tests
         id: electron-unit-tests
         run: DISPLAY=:10 ./scripts/test.sh
