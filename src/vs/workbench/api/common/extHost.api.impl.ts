@@ -51,7 +51,6 @@ import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyId
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import type * as vscode from 'vscode';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { values } from 'vs/base/common/collections';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -186,7 +185,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands));
 
 	// Check that no named customers are missing
-	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
+	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
 	rpcProtocol.assertRegistered(expected);
 
 	// Other instances
