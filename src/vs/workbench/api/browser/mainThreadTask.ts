@@ -319,7 +319,6 @@ namespace TaskDTO {
 			problemMatchers: [],
 			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
 			icon: task.configurationProperties.icon,
-			color: task.configurationProperties.color,
 			runOptions: RunOptionsDTO.from(task.runOptions),
 		};
 		result.group = TaskGroupDTO.from(task.configurationProperties.group);
@@ -385,7 +384,6 @@ namespace TaskDTO {
 				isBackground: !!task.isBackground,
 				problemMatchers: task.problemMatchers.slice(),
 				detail: task.detail,
-				color: task.color,
 				icon: task.icon
 			}
 		);
@@ -495,6 +493,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 					dto.name = ((dto.name === undefined) ? '' : dto.name); // Using an empty name causes the name to default to the one given by the provider.
 					return Promise.resolve(this._proxy.$resolveTask(handle, dto)).then(resolvedTask => {
 						if (resolvedTask) {
+							resolvedTask.icon = task.configurationProperties.icon;
 							return TaskDTO.to(resolvedTask, this._workspaceContextServer, true);
 						}
 

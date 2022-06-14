@@ -94,14 +94,19 @@ const detail: IJSONSchema = {
 	description: nls.localize('JsonSchema.tasks.detail', 'An optional description of a task that shows in the Run Task quick pick as a detail.')
 };
 
-const color: IJSONSchema = {
-	type: 'string',
-	description: nls.localize('JsonSchema.tasks.color', 'An optional color for the task icon')
-};
-
 const icon: IJSONSchema = {
-	type: 'string',
-	description: nls.localize('JsonSchema.tasks.icon', 'An optional icon for the task')
+	type: 'object',
+	description: nls.localize('JsonSchema.tasks.icon', 'An optional icon for the task'),
+	properties: {
+		id: {
+			type: 'string',
+			description: nls.localize('JsonSchema.tasks.icon.id', 'The codicon id')
+		},
+		color: {
+			type: 'string',
+			description: nls.localize('JsonSchema.tasks.icon.color', 'An optional color to use for the task icon')
+		}
+	}
 };
 
 const presentation: IJSONSchema = {
@@ -388,7 +393,6 @@ const taskConfiguration: IJSONSchema = {
 			default: false
 		},
 		presentation: Objects.deepClone(presentation),
-		color: Objects.deepClone(color),
 		icon: Objects.deepClone(icon),
 		options: options,
 		problemMatcher: {
@@ -467,8 +471,7 @@ taskDescriptionProperties.identifier = Objects.deepClone(identifier);
 taskDescriptionProperties.type = Objects.deepClone(taskType);
 taskDescriptionProperties.presentation = Objects.deepClone(presentation);
 taskDescriptionProperties.terminal = terminal;
-taskDescriptionProperties.color = color;
-taskDescriptionProperties.icon = icon;
+taskDescriptionProperties.icon = Objects.deepClone(icon);
 taskDescriptionProperties.group = Objects.deepClone(group);
 taskDescriptionProperties.runOptions = Objects.deepClone(runOptions);
 taskDescriptionProperties.detail = detail;

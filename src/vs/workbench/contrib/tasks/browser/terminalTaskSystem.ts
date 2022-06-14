@@ -1035,8 +1035,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				executable: defaultProfile.path,
 				args: defaultProfile.args,
 				env: { ...defaultProfile.env },
-				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : defaultProfile.icon,
-				color: task.configurationProperties.color || defaultProfile.color,
+				icon: task.configurationProperties.icon?.id ? ThemeIcon.fromId(task.configurationProperties.icon.id) : undefined,
+				color: task.configurationProperties.icon?.color || undefined,
 				waitOnExit
 			};
 			let shellSpecified: boolean = false;
@@ -1127,8 +1127,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig = {
 				name: terminalName,
 				type,
-				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : undefined,
-				color: task.configurationProperties.color,
+				icon: task.configurationProperties.icon?.id ? ThemeIcon.fromId(task.configurationProperties.icon.id) : undefined,
+				color: task.configurationProperties.icon?.color || undefined,
 				executable: executable,
 				args: args.map(a => Types.isString(a) ? a : a.value),
 				waitOnExit
@@ -1248,8 +1248,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				name: this._createTerminalName(task),
 				initialText: task.command.presentation && task.command.presentation.echo ? formatMessageForTerminal(`Executing task: ${task._label}`, { excludeLeadingNewLine: true }) : undefined,
 				isFeatureTerminal: true,
-				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : undefined,
-				color: task.configurationProperties.color
+				icon: task.configurationProperties.icon?.id ? ThemeIcon.fromId(task.configurationProperties.icon.id) : undefined,
+				color: task.configurationProperties.icon?.color || undefined,
 			};
 		} else {
 			const resolvedResult: { command: CommandString; args: CommandString[] } = await this._resolveCommandAndArgs(resolver, task.command);
