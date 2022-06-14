@@ -318,6 +318,8 @@ namespace TaskDTO {
 			isBackground: task.configurationProperties.isBackground,
 			problemMatchers: [],
 			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
+			icon: task.configurationProperties.icon,
+			color: task.configurationProperties.color,
 			runOptions: RunOptionsDTO.from(task.runOptions),
 		};
 		result.group = TaskGroupDTO.from(task.configurationProperties.group);
@@ -382,7 +384,9 @@ namespace TaskDTO {
 				group: task.group,
 				isBackground: !!task.isBackground,
 				problemMatchers: task.problemMatchers.slice(),
-				detail: task.detail
+				detail: task.detail,
+				color: task.color,
+				icon: task.icon
 			}
 		);
 		return result;

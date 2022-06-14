@@ -401,13 +401,18 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return result;
 	}
 
-	async scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null> {
+	async scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IScannedExtension | null> {
 		if (extensionType === ExtensionType.System) {
 			const systemExtensions = await this.scanSystemExtensions();
 			return systemExtensions.find(e => e.location.toString() === extensionLocation.toString()) || null;
 		}
 		const userExtensions = await this.scanUserExtensions();
 		return userExtensions.find(e => e.location.toString() === extensionLocation.toString()) || null;
+	}
+
+	async scanMetadata(extensionLocation: URI): Promise<Metadata | undefined> {
+		const extension = await this.scanExistingExtension(extensionLocation, ExtensionType.User);
+		return extension?.metadata;
 	}
 
 	async scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null> {

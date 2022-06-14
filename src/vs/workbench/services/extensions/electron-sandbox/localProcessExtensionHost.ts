@@ -41,6 +41,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { generateUuid } from 'vs/base/common/uuid';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 
@@ -140,6 +141,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService protected readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -465,7 +467,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-				globalStorageHome: this._environmentService.globalStorageHome,
+				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {

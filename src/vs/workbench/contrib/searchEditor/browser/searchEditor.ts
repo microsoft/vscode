@@ -13,12 +13,11 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICodeEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/browser/peek/referencesController';
@@ -37,7 +36,7 @@ import { inputBorder, registerColor, searchEditorFindMatch, searchEditorFindMatc
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { AbstractTextCodeEditor } from 'vs/workbench/browser/parts/editor/textCodeEditor';
 import { EditorInputCapabilities, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
@@ -68,13 +67,13 @@ const FILE_LINE_REGEX = /^(\S.*):$/;
 
 type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
 
-export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
+export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> {
 	static readonly ID: string = SearchEditorID;
 
 	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
 
 	private queryEditorWidget!: SearchWidget;
-	private searchResultEditor!: CodeEditorWidget;
+	private get searchResultEditor() { return this.editorControl!; }
 	private queryEditorContainer!: HTMLElement;
 	private dimension?: DOM.Dimension;
 	private inputPatternIncludes!: IncludePatternInputWidget;
@@ -112,9 +111,9 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService fileService: IFileService
 	) {
-		super(SearchEditor.ID, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService);
+		super(SearchEditor.ID, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService, fileService);
 		this.container = DOM.$('.search-editor');
 
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
@@ -231,12 +230,11 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 	}
 
-	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
-		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: this._getContributions() });
+	protected override getCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
+		return { contributions: this._getContributions() };
 	}
 
 	private registerEditorListeners() {
-		this.searchResultEditor = super.getControl() as CodeEditorWidget;
 		this.searchResultEditor.onMouseUp(e => {
 			if (e.event.detail === 2) {
 				const behaviour = this.searchConfig.searchEditor.doubleClickBehaviour;

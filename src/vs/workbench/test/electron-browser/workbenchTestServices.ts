@@ -25,7 +25,7 @@ import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from '
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, IColorScheme, INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { LogLevel, ILogService } from 'vs/platform/log/common/log';
+import { LogLevel, ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -48,8 +48,24 @@ import { IElevatedFileService } from 'vs/workbench/services/files/common/elevate
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { joinPath } from 'vs/base/common/resources';
 
 const args = parseArgs(process.argv, OPTIONS);
+
+const homeDir = homedir();
+const NULL_PROFILE = {
+	name: '',
+	id: '',
+	location: URI.file(homeDir),
+	settingsResource: joinPath(URI.file(homeDir), 'settings.json'),
+	globalStorageHome: joinPath(URI.file(homeDir), 'globalStorage'),
+	keybindingsResource: joinPath(URI.file(homeDir), 'keybindings.json'),
+	tasksResource: joinPath(URI.file(homeDir), 'tasks.json'),
+	snippetsHome: joinPath(URI.file(homeDir), 'snippets'),
+	extensionsResource: undefined
+};
 
 export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
@@ -63,9 +79,10 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	colorScheme: { dark: true, highContrast: false },
 	os: { release: release(), hostname: hostname() },
 	product,
-	homeDir: homedir(),
+	homeDir: homeDir,
 	tmpDir: tmpdir(),
 	userDataDir: getUserDataPath(args),
+	profiles: { current: NULL_PROFILE, default: NULL_PROFILE },
 	...args
 };
 
@@ -269,6 +286,7 @@ export function workbenchInstantiationService(disposables = new DisposableStore(
 	instantiationService.stub(INativeEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
+	instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, undefined, TestEnvironmentService, new FileService(new NullLogService()), new NullLogService()));
 
 	return instantiationService;
 }

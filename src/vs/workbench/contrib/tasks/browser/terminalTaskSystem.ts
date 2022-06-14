@@ -50,6 +50,7 @@ import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTermi
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -1032,9 +1033,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				type,
 				executable: defaultProfile.path,
 				args: defaultProfile.args,
-				icon: defaultProfile.icon,
 				env: { ...defaultProfile.env },
-				color: defaultProfile.color,
+				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : defaultProfile.icon,
+				color: task.configurationProperties.color || defaultProfile.color,
 				waitOnExit
 			};
 			let shellSpecified: boolean = false;
@@ -1125,6 +1126,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig = {
 				name: terminalName,
 				type,
+				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : undefined,
+				color: task.configurationProperties.color,
 				executable: executable,
 				args: args.map(a => Types.isString(a) ? a : a.value),
 				waitOnExit
@@ -1243,7 +1246,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				waitOnExit,
 				name: this._createTerminalName(task),
 				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined,
-				isFeatureTerminal: true
+				isFeatureTerminal: true,
+				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : undefined,
+				color: task.configurationProperties.color
 			};
 		} else {
 			const resolvedResult: { command: CommandString; args: CommandString[] } = await this._resolveCommandAndArgs(resolver, task.command);

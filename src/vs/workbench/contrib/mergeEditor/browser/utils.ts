@@ -183,3 +183,19 @@ export function* leftJoin<TLeft, TRight>(
 		yield { left: leftElement, rights: equals || [] };
 	}
 }
+
+export function* join<TLeft, TRight>(
+	left: Iterable<TLeft>,
+	right: readonly TRight[],
+	compare: (left: TLeft, right: TRight) => CompareResult,
+): IterableIterator<{ left?: TLeft; rights: TRight[] }> {
+	const rightQueue = new ArrayQueue(right);
+	for (const leftElement of left) {
+		const skipped = rightQueue.takeWhile(rightElement => CompareResult.isGreaterThan(compare(leftElement, rightElement)));
+		if (skipped) {
+			yield { rights: skipped };
+		}
+		const equals = rightQueue.takeWhile(rightElement => CompareResult.isNeitherLessOrGreaterThan(compare(leftElement, rightElement)));
+		yield { left: leftElement, rights: equals || [] };
+	}
+}

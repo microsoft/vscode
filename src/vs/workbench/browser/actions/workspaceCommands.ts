@@ -24,6 +24,7 @@ import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs
 import { IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { isWeb } from 'vs/base/common/platform';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = { value: localize('addFolderToWorkspace', "Add Folder to Workspace..."), original: 'Add Folder to Workspace...' };
@@ -306,3 +307,9 @@ CommandsRegistry.registerCommand('_workbench.getRecentlyOpened', async function 
 
 	return workspacesService.getRecentlyOpened();
 });
+
+if (isWeb) {
+	CommandsRegistry.registerCommand('workbench.experimental.requestUsbDevice', async (_accessor: ServicesAccessor): Promise<void> => {
+		await (navigator as any).usb.requestDevice({ filters: [] });
+	});
+}

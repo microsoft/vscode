@@ -17,7 +17,6 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeyboardEvent, IUserFriendlyKeybinding, IKeybindingService, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
@@ -52,6 +51,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { dirname } from 'vs/base/common/resources';
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -191,7 +191,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService private readonly hostService: IHostService,
 		@IExtensionService extensionService: IExtensionService,
@@ -224,7 +224,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		this._cachedResolver = null;
 
-		this.userKeybindings = this._register(new UserKeybindings(environmentService.keybindingsResource, fileService, logService));
+		this.userKeybindings = this._register(new UserKeybindings(userDataProfilesService.currentProfile.keybindingsResource, fileService, logService));
 		this.userKeybindings.initialize().then(() => {
 			if (this.userKeybindings.keybindings.length) {
 				this.updateResolver();

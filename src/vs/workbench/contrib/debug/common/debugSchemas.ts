@@ -72,6 +72,11 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					type: 'string',
 					default: ''
 				},
+				deprecated: {
+					description: nls.localize('vscode.extension.contributes.debuggers.deprecated', "Optional message to mark this debug type as being deprecated."),
+					type: 'string',
+					default: ''
+				},
 				windows: {
 					description: nls.localize('vscode.extension.contributes.debuggers.windows', "Windows specific settings."),
 					type: 'object',

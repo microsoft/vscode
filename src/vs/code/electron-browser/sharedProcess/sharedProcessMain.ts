@@ -100,9 +100,13 @@ import { InspectProfilingService as V8InspectProfilingService } from 'vs/platfor
 import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profiling';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { revive } from 'vs/base/common/marshalling';
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
+// import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 
 class SharedProcessMain extends Disposable {
 
@@ -228,12 +232,16 @@ class SharedProcessMain extends Disposable {
 		));
 		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
 
+		// User Data Profiles
+		const userDataProfilesService = this._register(new UserDataProfilesService(revive(this.configuration.profiles.default), revive(this.configuration.profiles.current), environmentService, fileService, logService));
+		services.set(IUserDataProfilesService, userDataProfilesService);
+
 		// Configuration
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService, policyService, logService));
+		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, policyService, logService));
 		services.set(IConfigurationService, configurationService);
 
 		// Storage (global access only)
-		const storageService = new NativeStorageService(undefined, mainProcessService, environmentService);
+		const storageService = new NativeStorageService(undefined, mainProcessService, userDataProfilesService, environmentService);
 		services.set(IStorageService, storageService);
 		this._register(toDisposable(() => storageService.flush()));
 
@@ -276,7 +284,6 @@ class SharedProcessMain extends Disposable {
 			const { installSourcePath } = environmentService;
 			const internalTesting = configurationService.getValue<boolean>('telemetry.internalTesting');
 			if (internalTesting && productService.aiConfig?.ariaKey) {
-				// Hard code ingestion key for now for internal testing of collector++
 				const collectorAppender = new OneDataSystemAppender('monacoworkbench', null, productService.aiConfig.ariaKey);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
 				appenders.push(collectorAppender);
@@ -307,6 +314,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
 
 		// Extension Management
+		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 

@@ -2480,6 +2480,27 @@ export class DataTransfer {
 	}
 }
 
+@es5ClassCompat
+export class DocumentDropEdit {
+	insertText: string | SnippetString;
+
+	additionalEdit?: WorkspaceEdit;
+
+	constructor(insertText: string | SnippetString) {
+		this.insertText = insertText;
+	}
+}
+
+@es5ClassCompat
+export class DocumentPasteEdit {
+	insertText: string | SnippetString;
+
+	additionalEdit?: WorkspaceEdit;
+
+	constructor(insertText: string | SnippetString) {
+		this.insertText = insertText;
+	}
+}
 
 @es5ClassCompat
 export class ThemeIcon {

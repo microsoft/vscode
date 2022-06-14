@@ -17,7 +17,6 @@ import { CharCode } from 'vs/base/common/charCode';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
 
 class FsLinkProvider {
 
@@ -296,7 +295,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private _getFsProvider(handle: number): vscode.FileSystemProvider {
 		const provider = this._fsProvider.get(handle);
 		if (!provider) {
-			const err = new ErrorNoTelemetry();
+			const err = new Error();
 			err.name = 'ENOPRO';
 			err.message = `no provider`;
 			throw err;

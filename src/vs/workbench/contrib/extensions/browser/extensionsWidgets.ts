@@ -7,7 +7,7 @@ import 'vs/css!./media/extensionsWidgets';
 import * as semver from 'vs/base/common/semver/semver';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
-import { append, $, reset } from 'vs/base/browser/dom';
+import { append, $, reset, addDisposableListener, EventType, finalHandler } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -21,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
@@ -35,6 +35,10 @@ import { Color } from 'vs/base/common/color';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -42,6 +46,20 @@ export abstract class ExtensionWidget extends Disposable implements IExtensionCo
 	set extension(extension: IExtension | null) { this._extension = extension; this.update(); }
 	update(): void { this.render(); }
 	abstract render(): void;
+}
+
+export function onClick(element: HTMLElement, callback: () => void): IDisposable {
+	const disposables: DisposableStore = new DisposableStore();
+	disposables.add(addDisposableListener(element, EventType.CLICK, finalHandler(callback)));
+	disposables.add(addDisposableListener(element, EventType.KEY_UP, e => {
+		const keyboardEvent = new StandardKeyboardEvent(e);
+		if (keyboardEvent.equals(KeyCode.Space) || keyboardEvent.equals(KeyCode.Enter)) {
+			e.preventDefault();
+			e.stopPropagation();
+			callback();
+		}
+	}));
+	return disposables;
 }
 
 export class InstallCountWidget extends ExtensionWidget {
@@ -160,6 +178,46 @@ export class RatingsWidget extends ExtensionWidget {
 				ratingCountElemet.style.paddingLeft = '1px';
 			}
 		}
+	}
+}
+
+export class SponsorWidget extends ExtensionWidget {
+
+	private disposables = this._register(new DisposableStore());
+
+	constructor(
+		private container: HTMLElement,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) {
+		super();
+		this.render();
+	}
+
+	render(): void {
+		reset(this.container);
+		this.disposables.clear();
+		if (!this.extension?.publisherSponsorLink) {
+			return;
+		}
+
+		const sponsor = append(this.container, $('span.sponsor.clickable', { tabIndex: 0, title: this.extension?.publisherSponsorLink }));
+		sponsor.setAttribute('role', 'link'); // #132645
+		const sponsorIconElement = renderIcon(sponsorIcon);
+		const label = $('span', undefined, localize('sponsor', "Sponsor"));
+		append(sponsor, sponsorIconElement, label);
+		this.disposables.add(onClick(sponsor, () => {
+			type SponsorExtensionClassification = {
+				owner: 'sandy081';
+				comment: 'Reporting when sponosor extension action is executed';
+				'extensionId': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the extension to be sponsored' };
+			};
+			type SponsorExtensionEvent = {
+				'extensionId': string;
+			};
+			this.telemetryService.publicLog2<SponsorExtensionEvent, SponsorExtensionClassification>('extensionsAction.sponsorExtension', { extensionId: this.extension!.identifier.id });
+			this.openerService.open(this.extension!.publisherSponsorLink!);
+		}));
 	}
 }
 
@@ -469,6 +527,36 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		markdown.appendText(`\n`);
 
+		if (this.extension.state === ExtensionState.Installed) {
+			let addSeparator = false;
+			const installLabel = InstallCountWidget.getInstallLabel(this.extension, true);
+			if (installLabel) {
+				if (addSeparator) {
+					markdown.appendText(`  |  `);
+				}
+				markdown.appendMarkdown(`$(${installCountIcon.id}) ${installLabel}`);
+				addSeparator = true;
+			}
+			if (this.extension.rating) {
+				if (addSeparator) {
+					markdown.appendText(`  |  `);
+				}
+				const rating = Math.round(this.extension.rating * 2) / 2;
+				markdown.appendMarkdown(`$(${starFullIcon.id}) [${rating}](${this.extension.url}&ssr=false#review-details)`);
+				addSeparator = true;
+			}
+			if (this.extension.publisherSponsorLink) {
+				if (addSeparator) {
+					markdown.appendText(`  |  `);
+				}
+				markdown.appendMarkdown(`$(${sponsorIcon.id}) [${localize('sponsor', "Sponsor")}](${this.extension.publisherSponsorLink})`);
+				addSeparator = true;
+			}
+			if (addSeparator) {
+				markdown.appendText(`\n`);
+			}
+		}
+
 		if (this.extension.description) {
 			markdown.appendMarkdown(`${this.extension.description}`);
 			markdown.appendText(`\n`);
@@ -663,15 +751,16 @@ export class ExtensionRecommendationWidget extends ExtensionWidget {
 	}
 }
 
-// Rating icon
 export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hcDark: '#FF8E00', hcLight: textLinkForeground }, localize('extensionIconStarForeground', "The icon color for extension ratings."), true);
 export const extensionVerifiedPublisherIconColor = registerColor('extensionIcon.verifiedForeground', { dark: textLinkForeground, light: textLinkForeground, hcDark: textLinkForeground, hcLight: textLinkForeground }, localize('extensionIconVerifiedForeground', "The icon color for extension verified publisher."), true);
 export const extensionPreReleaseIconColor = registerColor('extensionIcon.preReleaseForeground', { dark: '#1d9271', light: '#1d9271', hcDark: '#1d9271', hcLight: textLinkForeground }, localize('extensionPreReleaseForeground', "The icon color for pre-release extension."), true);
+export const extensionSponsorIconColor = registerColor('extensionIcon.sponsorForeground', { light: '#B51E78', dark: '#D758B3', hcDark: null, hcLight: '#B51E78' }, localize('extensionIcon.sponsorForeground', "The icon color for extension sponsor."), true);
 
 registerThemingParticipant((theme, collector) => {
 	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);
 	if (extensionRatingIcon) {
 		collector.addRule(`.extension-ratings .codicon-extensions-star-full, .extension-ratings .codicon-extensions-star-half { color: ${extensionRatingIcon}; }`);
+		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(starFullIcon)} { color: ${extensionRatingIcon}; }`);
 	}
 
 	const fgColor = theme.getColor(extensionButtonProminentForeground);
@@ -690,4 +779,6 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`${ThemeIcon.asCSSSelector(verifiedPublisherIcon)} { color: ${extensionVerifiedPublisherIcon}; }`);
 	}
 
+	collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(sponsorIcon)} { color: var(--vscode-extensionIcon-sponsorForeground); }`);
+	collector.addRule(`.extension-editor > .header > .details > .subtitle .sponsor ${ThemeIcon.asCSSSelector(sponsorIcon)} { color: var(--vscode-extensionIcon-sponsorForeground); }`);
 });

@@ -24,6 +24,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import './colors';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(

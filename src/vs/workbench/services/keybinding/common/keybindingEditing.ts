@@ -19,13 +19,13 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export const IKeybindingEditingService = createDecorator<IKeybindingEditingService>('keybindingEditingService');
 
@@ -47,14 +47,14 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	public _serviceBrand: undefined;
 	private queue: Queue<void>;
 
-	private resource: URI = this.environmentService.keybindingsResource;
+	private resource: URI = this.userDataProfilesService.currentProfile.keybindingsResource;
 
 	constructor(
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService
 	) {
 		super();
 		this.queue = new Queue<void>();

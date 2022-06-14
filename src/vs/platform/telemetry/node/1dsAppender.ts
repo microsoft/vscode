@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IExtendedConfiguration, AppInsightsCore } from '@microsoft/1ds-core-js';
-import { IChannelConfiguration, IPayloadData, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
+import type { AppInsightsCore, IExtendedConfiguration } from '@microsoft/1ds-core-js';
+import type { IChannelConfiguration, IPayloadData, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
 import * as https from 'https';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { mixin } from 'vs/base/common/objects';
@@ -12,8 +12,9 @@ import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry
 
 async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 	const oneDs = await import('@microsoft/1ds-core-js');
+	const postPlugin = await import('@microsoft/1ds-post-js');
 	const appInsightsCore = new oneDs.AppInsightsCore();
-	const collectorChannelPlugin: PostChannel = new PostChannel();
+	const collectorChannelPlugin: PostChannel = new postPlugin.PostChannel();
 	// Configure the app insights core to send to collector++ and disable logging of debug info
 	const coreConfig: IExtendedConfiguration = {
 		instrumentationKey,

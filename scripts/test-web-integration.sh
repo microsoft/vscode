@@ -25,6 +25,7 @@ else
 	#			compile-extension:emmet \
 	#			compile-extension:git \
 	#			compile-extension:ipynb \
+	#			compile-extension:configuration-editing \
 	#			compile-extension-media
 fi
 
@@ -69,4 +70,9 @@ echo
 echo "### Ipynb tests"
 echo
 node test/integration/browser/out/index.js --workspacePath $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/ipynb --extensionTestsPath=$ROOT/extensions/ipynb/out/test "$@"
+
+echo
+echo "### Configuration editing tests"
+echo
+node test/integration/browser/out/index.js --workspacePath $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/configuration-editing --extensionTestsPath=$ROOT/extensions/configuration-editing/out/test "$@"
 

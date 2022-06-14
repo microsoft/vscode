@@ -544,6 +544,16 @@ export interface IConfigurationProperties {
 	 * The problem watchers to use for this task
 	 */
 	problemMatchers?: Array<string | ProblemMatcher>;
+
+	/**
+	 * The icon for this task in the terminal tabs list
+	 */
+	icon?: string;
+
+	/**
+	 * The icon's color in the terminal tabs list
+	 */
+	color?: string;
 }
 
 export enum RunOnOptions {
@@ -681,6 +691,12 @@ export abstract class CommonTask {
 	}
 }
 
+/**
+ * For tasks of type shell or process, this is created upon parse
+ * of the tasks.json or workspace file.
+ * For ContributedTasks of all other types, this is the result of
+ * resolving a ConfiguringTask.
+ */
 export class CustomTask extends CommonTask {
 
 	override type!: '$customized'; // CUSTOMIZED_TASK_TYPE
@@ -812,6 +828,11 @@ export class CustomTask extends CommonTask {
 	}
 }
 
+/**
+ * After a contributed task has been parsed, but before
+ * the task has been resolved via the extension, its properties
+ * are stored in this
+ */
 export class ConfiguringTask extends CommonTask {
 
 	/**
@@ -871,6 +892,9 @@ export class ConfiguringTask extends CommonTask {
 	}
 }
 
+/**
+ * A task from an extension created via resolveTask or provideTask
+ */
 export class ContributedTask extends CommonTask {
 
 	/**

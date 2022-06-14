@@ -23,6 +23,10 @@ export class ErrorHandler {
 		this.unexpectedErrorHandler = function (e: any) {
 			setTimeout(() => {
 				if (e.stack) {
+					if (ErrorNoTelemetry.isErrorNoTelemetry(e)) {
+						throw new ErrorNoTelemetry(e.message + '\n\n' + e.stack);
+					}
+
 					throw new Error(e.message + '\n\n' + e.stack);
 				}
 
@@ -109,7 +113,7 @@ export function transformErrorForSerialization(error: any): any {
 			name,
 			message,
 			stack,
-			noTelemetry: error instanceof ErrorNoTelemetry
+			noTelemetry: ErrorNoTelemetry.isErrorNoTelemetry(error)
 		};
 	}
 
@@ -235,24 +239,27 @@ export class ExpectedError extends Error {
  * Error that when thrown won't be logged in telemetry as an unhandled error.
  */
 export class ErrorNoTelemetry extends Error {
+	override readonly name: string;
 
-	public static fromError(err: any): ErrorNoTelemetry {
-		if (err && err instanceof ErrorNoTelemetry) {
+	constructor(msg?: string) {
+		super(msg);
+		this.name = 'ErrorNoTelemetry';
+	}
+
+	public static fromError(err: Error): ErrorNoTelemetry {
+		if (err instanceof ErrorNoTelemetry) {
 			return err;
 		}
 
-		if (err && err instanceof Error) {
-			const result = new ErrorNoTelemetry();
-			result.name = err.name;
-			result.message = err.message;
-			result.stack = err.stack;
-			return result;
-		}
-
-		return new ErrorNoTelemetry(err);
+		const result = new ErrorNoTelemetry();
+		result.message = err.message;
+		result.stack = err.stack;
+		return result;
 	}
 
-	readonly logTelemetry = false;
+	public static isErrorNoTelemetry(err: Error): err is ErrorNoTelemetry {
+		return err.name === 'ErrorNoTelemetry';
+	}
 }
 
 /**

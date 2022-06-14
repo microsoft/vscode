@@ -17,6 +17,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
@@ -260,7 +261,7 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 
 	get path(): string | undefined {
 		if (!this.options.useInMemoryStorage) {
-			return join(this.environmentService.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
+			return join(this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
 		}
 
 		return undefined;
@@ -269,7 +270,7 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 	constructor(
 		private readonly options: IStorageMainOptions,
 		logService: ILogService,
-		private readonly environmentService: IEnvironmentService,
+		private readonly userDataProfilesService: IUserDataProfilesService,
 		fileService: IFileService
 	) {
 		super(logService, fileService);
