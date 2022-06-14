@@ -121,7 +121,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		private readonly _instanceId: number,
 		private readonly _configHelper: ITerminalConfigHelper,
 		cwd: string | URI | undefined,
-		extEnvironmentVariableCollection: ReadonlyMap<string, IEnvironmentVariableCollection> | undefined,
+		environmentVariableCollections: ReadonlyMap<string, IEnvironmentVariableCollection> | undefined,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -162,9 +162,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 		}
 
-		// TODO: Refactor to share code
-		if (extEnvironmentVariableCollection) {
-			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(extEnvironmentVariableCollection);
+		if (environmentVariableCollections) {
+			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(environmentVariableCollections);
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 			this.environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
 			this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
@@ -407,7 +406,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 		if (!this._isDisposed && !shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
-			// TODO: Check if it's already conflicting
 
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 			// For remote terminals, this is a copy of the mergedEnvironmentCollection created on

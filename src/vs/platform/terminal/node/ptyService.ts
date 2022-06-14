@@ -383,7 +383,6 @@ export class PtyService extends Disposable implements IPtyService {
 		// If the process was just revived, don't do the orphan check as it will
 		// take some time
 		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), wasRevived ? true : persistentProcess.isOrphaned()]);
-		this._logService.info('_buildProcessDetails', 'collections', persistentProcess.processLaunchOptions.options.environmentVariableCollections);
 		return {
 			id,
 			title: persistentProcess.title,
@@ -573,7 +572,6 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
-		// TODO: ext environment variable collection needs to make it back to the renderer
 		this._logService.trace('persistentTerminalProcess#start', this._persistentProcessId, this._isStarted);
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();

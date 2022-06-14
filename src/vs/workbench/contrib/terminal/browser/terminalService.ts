@@ -412,7 +412,6 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): Promise<number> {
-		console.log('recreate terminal groups', layoutInfo);
 		let reconnectCounter = 0;
 		let activeGroup: ITerminalGroup | undefined;
 		if (layoutInfo) {
