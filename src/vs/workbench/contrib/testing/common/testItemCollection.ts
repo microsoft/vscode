@@ -134,7 +134,7 @@ const diffTestItems = (a: ITestItem, b: ITestItem) => {
 	return output as Partial<ITestItem> | undefined;
 };
 
-export interface ITestChildrenLike<T> extends Iterable<T> {
+export interface ITestChildrenLike<T> extends Iterable<[string, T]> {
 	get(id: string): T | undefined;
 	delete(id: string): void;
 }
@@ -356,7 +356,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		this.connectItemAndChildren(actual, internal, parent);
 
 		// Remove any orphaned children.
-		for (const child of oldChildren) {
+		for (const [_, child] of oldChildren) {
 			if (!this.options.getChildren(actual).get(child.id)) {
 				this.removeItem(TestId.joinToString(fullId, child.id));
 			}
@@ -417,7 +417,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		this.connectItem(actual, internal, parent);
 
 		// Discover any existing children that might have already been added
-		for (const child of this.options.getChildren(actual)) {
+		for (const [_, child] of this.options.getChildren(actual)) {
 			this.upsertItem(child, internal);
 		}
 	}
@@ -464,7 +464,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		}
 
 		const expandRequests: Promise<void>[] = [];
-		for (const child of this.options.getChildren(internal.actual)) {
+		for (const [_, child] of this.options.getChildren(internal.actual)) {
 			const promise = this.expand(TestId.joinToString(internal.fullId, child.id), levels);
 			if (isThenable(promise)) {
 				expandRequests.push(promise);
@@ -544,7 +544,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			}
 
 			this.tree.delete(item.fullId.toString());
-			for (const child of this.options.getChildren(item.actual)) {
+			for (const [_, child] of this.options.getChildren(item.actual)) {
 				queue.push(this.tree.get(TestId.joinToString(item.fullId, child.id)));
 			}
 		}
@@ -562,11 +562,10 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 }
 
 /** Implementation of vscode.TestItemCollection */
-export interface ITestItemChildren<T extends ITestItemLike> {
+export interface ITestItemChildren<T extends ITestItemLike> extends Iterable<[string, T]> {
 	readonly size: number;
 	replace(items: readonly T[]): void;
 	forEach(callback: (item: T, collection: this) => unknown, thisArg?: unknown): void;
-	[Symbol.iterator](): IterableIterator<[string, T]>;
 	add(item: T): void;
 	delete(itemId: string): void;
 	get(itemId: string): T | undefined;
