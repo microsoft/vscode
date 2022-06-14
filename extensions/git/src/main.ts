@@ -23,10 +23,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
-import { TerminalEnvironmentManager } from './terminal';
 import { OutputChannelLogger } from './log';
 import { createIPCServer, IIPCServer } from './ipc/ipcServer';
 import { GitEditor } from './gitEditor';
+import { EnvironmentManager } from './environment';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -76,9 +76,8 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 	const gitEditor = new GitEditor(ipc);
 	disposables.push(gitEditor);
 
-	const environment = { ...askpass.getEnv(), ...gitEditor.getEnv() };
-	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, environment);
-	disposables.push(terminalEnvironmentManager);
+	const environmentManager = new EnvironmentManager(context, ipc);
+	disposables.push(environmentManager);
 
 	outputChannelLogger.logInfo(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
@@ -86,7 +85,7 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		gitPath: info.path,
 		userAgent: `git/${info.version} (${(os as any).version?.() ?? os.type()} ${os.release()}; ${os.platform()} ${os.arch()}) vscode/${vscodeVersion} (${env.appName})`,
 		version: info.version,
-		env: environment,
+		env: environmentManager.getEnv(),
 	});
 	const model = new Model(git, askpass, context.globalState, outputChannelLogger, telemetryReporter);
 	disposables.push(model);
