@@ -102,7 +102,7 @@ export function create(
 				this.emit('error', 'no support for streams');
 				return;
 			}
-			if (!file.contents || file.path.endsWith('.d.ts')) {
+			if (!file.contents) {
 				return;
 			}
 

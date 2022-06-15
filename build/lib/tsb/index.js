@@ -73,7 +73,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
                 this.emit('error', 'no support for streams');
                 return;
             }
-            if (!file.contents || file.path.endsWith('.d.ts')) {
+            if (!file.contents) {
                 return;
             }
             if (!transpiler.onOutfile) {

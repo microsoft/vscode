@@ -22,7 +22,7 @@ interface TranspileRes {
 function transpile(tsSrc: string, options: ts.TranspileOptions): { jsSrc: string; diag: ts.Diagnostic[] } {
 
 	const isAmd = /\n(import|export)/m.test(tsSrc);
-	if (!isAmd) {
+	if (!isAmd && options.compilerOptions?.module === ts.ModuleKind.AMD) {
 		// enforce NONE module-system for not-amd cases
 		options = { ...options, ...{ compilerOptions: { ...options.compilerOptions, module: ts.ModuleKind.None } } };
 	}
@@ -83,9 +83,13 @@ class TranspileWorker {
 					continue;
 				}
 
+				const suffixLen = file.path.endsWith('.d.ts') ? 5
+					: file.path.endsWith('.ts') ? 3
+						: 0;
+
 				const outBase = options.compilerOptions.outDir ?? file.base;
 				const outRelative = relative(options.compilerOptions.rootDir, file.path);
-				const outPath = join(outBase, outRelative.replace(/\.ts$/, '.js'));
+				const outPath = join(outBase, outRelative.slice(0, -suffixLen) + '.js');
 				outFiles.push(new Vinyl({
 					path: outPath,
 					base: outBase ?? file.base,
