@@ -44,6 +44,9 @@ export const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCatego
 export const walkthroughMetadataConfigurationKey = 'workbench.welcomePage.walkthroughMetadata';
 export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: string[]; manaullyOpened: boolean }>;
 
+// List of extension ids to skip the walkthrough for
+export const skipWalkthroughOnInstallKey = 'workbench.welcomePage.skipWalkthroughOnInstall';
+
 const BUILT_IN_SOURCE = localize('builtin', "Built-In");
 
 export interface IWalkthrough {
@@ -136,7 +139,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private steps = new Map<string, IWalkthroughStep>();
 
 	private tasExperimentService?: IWorkbenchAssignmentService;
-	private sessionInstalledExtensions = new Set<string>();
+	private sessionInstalledExtensions: Set<string>;
+	private extensionsToSkipWalkthroughOnInstall: Set<string> = new Set<string>();
 
 	private categoryVisibilityContextKeys = new Set<string>();
 	private stepCompletionContextKeyExpressions = new Set<ContextKeyExpression>();
@@ -164,6 +168,18 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		super();
 
 		this.tasExperimentService = tasExperimentService;
+
+		this.storageService.store(walkthroughMetadataConfigurationKey, '[]', StorageScope.GLOBAL, StorageTarget.USER);
+
+		// If the walkthrough was previously skipped on install, load it into the session installed extensions so it is auto opened on this startup
+		this.sessionInstalledExtensions = new Set(JSON.parse(this.storageService.get(skipWalkthroughOnInstallKey, StorageScope.GLOBAL, '[]')));
+		this.storageService.store(skipWalkthroughOnInstallKey, '[]', StorageScope.GLOBAL, StorageTarget.USER);
+		// Listen for changes on the storage service to rebuild the set of extension ids we should skip for this session
+		this._register(this.storageService.onDidChangeValue(e => {
+			if (e.key === skipWalkthroughOnInstallKey) {
+				this.extensionsToSkipWalkthroughOnInstall = new Set(JSON.parse(this.storageService.get(skipWalkthroughOnInstallKey, StorageScope.GLOBAL, '[]')));
+			}
+		}));
 
 		this.metadata = new Map(
 			JSON.parse(
@@ -425,12 +441,12 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
 
-
-		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
+		const skipOpeningOnInstall = this.extensionsToSkipWalkthroughOnInstall.has(extension.identifier.value.toLowerCase());
+		if (!skipOpeningOnInstall && sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			type GettingStartedAutoOpenClassification = {
 				id: {
 					classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight';
-					owner: 'JacksonKearl';
+					owner: 'lramos15';
 					comment: 'Used to understand what walkthroughs are consulted most frequently';
 				};
 			};
