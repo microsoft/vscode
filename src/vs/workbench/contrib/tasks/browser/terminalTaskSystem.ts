@@ -815,7 +815,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						delete this._busyTasks[mapKey];
 					}
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.Inactive, task));
-
 					if (eventCounter === 0) {
 						if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 							(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
