@@ -161,7 +161,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		if (commentUniqueId !== undefined) {
-			let height = this.editor.getLayoutInfo().height;
+			const height = this.editor.getLayoutInfo().height;
 			const coords = this._commentThreadWidget.getCommentCoords(commentUniqueId);
 			if (coords) {
 				const commentThreadCoords = coords.thread;
@@ -198,7 +198,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			{
 				actionRunner: () => {
 					if (!this._commentThread.comments || !this._commentThread.comments.length) {
-						let newPosition = this.getPosition();
+						const newPosition = this.getPosition();
 
 						if (newPosition) {
 							let range: Range;
@@ -388,7 +388,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				return;
 			}
 
-			let currentPosition = this.getPosition();
+			const currentPosition = this.getPosition();
 
 			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber) {
 				this._viewZone.afterLineNumber = currentPosition.lineNumber;

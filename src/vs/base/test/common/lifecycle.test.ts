@@ -95,16 +95,16 @@ suite('Lifecycle', () => {
 	});
 
 	test('Action bar has broken accessibility #100273', function () {
-		let array = [{ dispose() { } }, { dispose() { } }];
-		let array2 = dispose(array);
+		const array = [{ dispose() { } }, { dispose() { } }];
+		const array2 = dispose(array);
 
 		assert.strictEqual(array.length, 2);
 		assert.strictEqual(array2.length, 0);
 		assert.ok(array !== array2);
 
-		let set = new Set<IDisposable>([{ dispose() { } }, { dispose() { } }]);
-		let setValues = set.values();
-		let setValues2 = dispose(setValues);
+		const set = new Set<IDisposable>([{ dispose() { } }, { dispose() { } }]);
+		const setValues = set.values();
+		const setValues2 = dispose(setValues);
 		assert.ok(setValues === setValues2);
 	});
 

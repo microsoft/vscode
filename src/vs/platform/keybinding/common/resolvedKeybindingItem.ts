@@ -38,7 +38,7 @@ export class ResolvedKeybindingItem {
 }
 
 export function removeElementsAfterNulls<T>(arr: (T | null)[]): T[] {
-	let result: T[] = [];
+	const result: T[] = [];
 	for (let i = 0, len = arr.length; i < len; i++) {
 		const element = arr[i];
 		if (!element) {

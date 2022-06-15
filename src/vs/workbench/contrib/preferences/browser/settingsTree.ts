@@ -132,6 +132,14 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		? element.defaultValue ?? {}
 		: {};
 
+	const elementScopeValue: Record<string, unknown> = typeof element.scopeValue === 'object'
+		? element.scopeValue ?? {}
+		: {};
+
+	const data = element.isConfigured ?
+		{ ...elementDefaultValue, ...elementScopeValue } :
+		elementDefaultValue;
+
 	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
 	const patternsAndSchemas = Object
 		.entries(objectPatternProperties ?? {})
@@ -144,12 +152,8 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		([key, schema]) => ({ value: key, description: schema.description })
 	);
 
-	let data: Record<string, unknown> = element.value ?? {};
-	if (element.setting.allKeysAreBoolean) {
-		// Add on default values, because we want to display all checkboxes.
-		data = { ...elementDefaultValue, ...data };
-	}
 	return Object.keys(data).map(key => {
+		const defaultValue = elementDefaultValue[key];
 		if (isDefined(objectProperties) && key in objectProperties) {
 			if (element.setting.allKeysAreBoolean) {
 				return {
@@ -166,7 +170,6 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				} as IObjectDataItem;
 			}
 
-			const defaultValue = elementDefaultValue[key];
 			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
 			return {
 				key: {
@@ -184,6 +187,9 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			} as IObjectDataItem;
 		}
 
+		// The row is removable if it doesn't have a default value assigned.
+		// Otherwise, it is not removable, but its value can be reset to the default.
+		const removable = !defaultValue;
 		const schema = patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
 		if (schema) {
 			const valueEnumOptions = getEnumOptionsFromSchema(schema);
@@ -195,7 +201,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					options: valueEnumOptions,
 				},
 				keyDescription: schema.description,
-				removable: true,
+				removable,
 			} as IObjectDataItem;
 		}
 
@@ -213,7 +219,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				options: additionalValueEnums,
 			},
 			keyDescription: typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties.description : undefined,
-			removable: true,
+			removable,
 		} as IObjectDataItem;
 	}).filter(item => !isUndefinedOrNull(item.value.data));
 }
@@ -1166,9 +1172,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		common.toDispose.add(
 			listWidget.onDidChangeList(e => {
 				const newList = this.computeNewList(template, e);
-				if (template.onChange) {
-					template.onChange(newList);
-				}
+				template.onChange?.(newList);
 			})
 		);
 
@@ -1336,22 +1340,22 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 				newItems.push(e.item);
 			}
 
+			Object.entries(newValue).forEach(([key, value]) => {
+				// value from the scope has changed back to the default
+				if (scopeValue[key] !== value && defaultValue[key] === value) {
+					delete newValue[key];
+				}
+			});
+
+			const newObject = Object.keys(newValue).length === 0 ? undefined : newValue;
+
 			if (template.objectCheckboxWidget) {
-				Object.entries(newValue).forEach(([key, value]) => {
-					// A value from the scope has changed back to the default.
-					// For the bool object renderer, we don't want to save these values.
-					if (scopeValue[key] !== value && defaultValue[key] === value) {
-						delete newValue[key];
-					}
-				});
 				template.objectCheckboxWidget.setValue(newItems);
 			} else {
 				template.objectDropdownWidget!.setValue(newItems);
 			}
 
-			if (template.onChange) {
-				template.onChange(newValue);
-			}
+			template.onChange?.(newObject);
 		}
 	}
 
@@ -1539,9 +1543,7 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 		}));
 		common.toDispose.add(
 			inputBox.onDidChange(e => {
-				if (template.onChange) {
-					template.onChange(e);
-				}
+				template.onChange?.(e);
 			}));
 		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
@@ -1652,9 +1654,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 
 		common.toDispose.add(
 			selectBox.onDidSelect(e => {
-				if (template.onChange) {
-					template.onChange(e.index);
-				}
+				template.onChange?.(e.index);
 			}));
 
 		const enumDescriptionElement = common.containerElement.insertBefore($('.setting-item-enumDescription'), common.descriptionElement.nextSibling);
@@ -1758,9 +1758,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 		}));
 		common.toDispose.add(
 			inputBox.onDidChange(e => {
-				if (template.onChange) {
-					template.onChange(e);
-				}
+				template.onChange?.(e);
 			}));
 		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);

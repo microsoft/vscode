@@ -45,7 +45,7 @@ export class GitEditor implements IIPCHandler {
 			};
 		}
 
-		let env: { [key: string]: string } = {
+		const env: { [key: string]: string } = {
 			VSCODE_GIT_EDITOR_NODE: process.execPath,
 			VSCODE_GIT_EDITOR_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
 			VSCODE_GIT_EDITOR_MAIN: path.join(__dirname, 'git-editor-main.js')

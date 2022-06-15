@@ -31,7 +31,7 @@ export class CodeActionUi extends Disposable {
 		quickFixActionId: string,
 		preferredFixActionId: string,
 		private readonly delegate: {
-			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean) => Promise<void>;
+			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean, preview: boolean) => Promise<void>;
 		},
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -39,8 +39,8 @@ export class CodeActionUi extends Disposable {
 
 		this._codeActionWidget = new Lazy(() => {
 			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
-				onSelectCodeAction: async (action) => {
-					this.delegate.applyCodeAction(action, /* retrigger */ true);
+				onSelectCodeAction: async (action, trigger) => {
+					this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(trigger.preview));
 				}
 			}));
 		});
@@ -85,7 +85,7 @@ export class CodeActionUi extends Disposable {
 				if (validActionToApply) {
 					try {
 						this._lightBulbWidget.getValue().hide();
-						await this.delegate.applyCodeAction(validActionToApply, false);
+						await this.delegate.applyCodeAction(validActionToApply, false, false);
 					} finally {
 						actions.dispose();
 					}

@@ -255,7 +255,7 @@ export class WebClientServer {
 			);
 
 			const newQuery = Object.create(null);
-			for (let key in parsedUrl.query) {
+			for (const key in parsedUrl.query) {
 				if (key !== connectionTokenQueryName) {
 					newQuery[key] = parsedUrl.query[key];
 				}

@@ -927,6 +927,80 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 
 		assert.strictEqual(executionWasCancelled, true);
 	});
+
+	test('appendOutput to different cell', async function () {
+		const notebook = await openRandomNotebookDocument();
+		const editor = await vscode.window.showNotebookDocument(notebook);
+		const cell0 = editor.notebook.cellAt(0);
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		const cell1 = editor.notebook.cellAt(1);
+
+		const nextCellKernel = new class extends Kernel {
+			constructor() {
+				super('nextCellKernel', 'Append to cell kernel');
+			}
+
+			override async _runCell(cell: vscode.NotebookCell) {
+				const task = this.controller.createNotebookCellExecution(cell);
+				task.start();
+				await task.appendOutput([new vscode.NotebookCellOutput([
+					vscode.NotebookCellOutputItem.text('my output')
+				])], cell1);
+				await task.appendOutput([new vscode.NotebookCellOutput([
+					vscode.NotebookCellOutputItem.text('my output 2')
+				])], cell1);
+				task.end(true);
+			}
+		};
+		testDisposables.push(nextCellKernel.controller);
+
+		await withEvent<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument, async (event) => {
+			await assertKernel(nextCellKernel, notebook);
+			await vscode.commands.executeCommand('notebook.cell.execute');
+			await event;
+			assert.strictEqual(cell0.outputs.length, 0, 'should not change cell 0');
+			assert.strictEqual(cell1.outputs.length, 2, 'should update cell 1');
+			assert.strictEqual(cell1.outputs[0].items.length, 1);
+			assert.deepStrictEqual(new TextDecoder().decode(cell1.outputs[0].items[0].data), 'my output');
+		});
+	});
+
+	test('replaceOutput to different cell', async function () {
+		const notebook = await openRandomNotebookDocument();
+		const editor = await vscode.window.showNotebookDocument(notebook);
+		const cell0 = editor.notebook.cellAt(0);
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		const cell1 = editor.notebook.cellAt(1);
+
+		const nextCellKernel = new class extends Kernel {
+			constructor() {
+				super('nextCellKernel', 'Replace to cell kernel');
+			}
+
+			override async _runCell(cell: vscode.NotebookCell) {
+				const task = this.controller.createNotebookCellExecution(cell);
+				task.start();
+				await task.replaceOutput([new vscode.NotebookCellOutput([
+					vscode.NotebookCellOutputItem.text('my output')
+				])], cell1);
+				await task.replaceOutput([new vscode.NotebookCellOutput([
+					vscode.NotebookCellOutputItem.text('my output 2')
+				])], cell1);
+				task.end(true);
+			}
+		};
+		testDisposables.push(nextCellKernel.controller);
+
+		await withEvent<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument, async (event) => {
+			await assertKernel(nextCellKernel, notebook);
+			await vscode.commands.executeCommand('notebook.cell.execute');
+			await event;
+			assert.strictEqual(cell0.outputs.length, 0, 'should not change cell 0');
+			assert.strictEqual(cell1.outputs.length, 1, 'should update cell 1');
+			assert.strictEqual(cell1.outputs[0].items.length, 1);
+			assert.deepStrictEqual(new TextDecoder().decode(cell1.outputs[0].items[0].data), 'my output 2');
+		});
+	});
 });
 
 (vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('statusbar', () => {

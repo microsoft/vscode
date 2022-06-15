@@ -8,12 +8,12 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { ExtensionsProfile } from 'vs/workbench/services/profiles/common/extensionsProfile';
-import { GlobalStateProfile } from 'vs/workbench/services/profiles/common/globalStateProfile';
-import { IProfile, IWorkbenchProfileService, PROFILES_CATEGORY } from 'vs/workbench/services/profiles/common/profile';
-import { SettingsProfile } from 'vs/workbench/services/profiles/common/settingsProfile';
+import { ExtensionsProfile } from 'vs/workbench/services/userDataProfile/common/extensionsProfile';
+import { GlobalStateProfile } from 'vs/workbench/services/userDataProfile/common/globalStateProfile';
+import { IUserDataProfileTemplate, IUserDataProfileWorkbenchService, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { SettingsProfile } from 'vs/workbench/services/userDataProfile/common/settingsProfile';
 
-export class WorkbenchProfileService implements IWorkbenchProfileService {
+export class UserDataProfileWorkbenchService implements IUserDataProfileWorkbenchService {
 
 	readonly _serviceBrand: undefined;
 
@@ -31,7 +31,7 @@ export class WorkbenchProfileService implements IWorkbenchProfileService {
 		this.extensionsProfile = instantiationService.createInstance(ExtensionsProfile);
 	}
 
-	async createProfile(options?: { skipComments: boolean }): Promise<IProfile> {
+	async createProfile(options?: { skipComments: boolean }): Promise<IUserDataProfileTemplate> {
 		const settings = await this.settingsProfile.getProfileContent(options);
 		const globalState = await this.globalStateProfile.getProfileContent();
 		const extensions = await this.extensionsProfile.getProfileContent();
@@ -42,7 +42,7 @@ export class WorkbenchProfileService implements IWorkbenchProfileService {
 		};
 	}
 
-	async setProfile(profile: IProfile): Promise<void> {
+	async setProfile(profile: IUserDataProfileTemplate): Promise<void> {
 		await this.progressService.withProgress({
 			location: ProgressLocation.Notification,
 			title: localize('profiles.applying', "{0}: Applying...", PROFILES_CATEGORY),
@@ -62,4 +62,4 @@ export class WorkbenchProfileService implements IWorkbenchProfileService {
 
 }
 
-registerSingleton(IWorkbenchProfileService, WorkbenchProfileService);
+registerSingleton(IUserDataProfileWorkbenchService, UserDataProfileWorkbenchService);

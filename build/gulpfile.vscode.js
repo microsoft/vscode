@@ -122,9 +122,9 @@ gulp.task(core);
  * @return {Object} A map of paths to checksums.
  */
 function computeChecksums(out, filenames) {
-	let result = {};
+	const result = {};
 	filenames.forEach(function (filename) {
-		let fullPath = path.join(process.cwd(), out, filename);
+		const fullPath = path.join(process.cwd(), out, filename);
 		result[filename] = computeChecksum(fullPath);
 	});
 	return result;
@@ -137,9 +137,9 @@ function computeChecksums(out, filenames) {
  * @return {string} The checksum for `filename`.
  */
 function computeChecksum(filename) {
-	let contents = fs.readFileSync(filename);
+	const contents = fs.readFileSync(filename);
 
-	let hash = crypto
+	const hash = crypto
 		.createHash('md5')
 		.update(contents)
 		.digest('base64')
@@ -453,20 +453,20 @@ gulp.task(task.define(
 
 gulp.task('vscode-translations-pull', function () {
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		let includeDefault = !!innoSetupConfig[language.id].defaultInfo;
+		const includeDefault = !!innoSetupConfig[language.id].defaultInfo;
 		return i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-translations-import/${language.id}/setup`));
 	}));
 });
 
 gulp.task('vscode-translations-import', function () {
-	let options = minimist(process.argv.slice(2), {
+	const options = minimist(process.argv.slice(2), {
 		string: 'location',
 		default: {
 			location: '../vscode-translations-import'
 		}
 	});
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		let id = language.id;
+		const id = language.id;
 		return gulp.src(`${options.location}/${id}/vscode-setup/messages.xlf`)
 			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
 			.pipe(vfs.dest(`./build/win32/i18n`));

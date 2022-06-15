@@ -418,8 +418,8 @@ export class CommandCenter {
 
 		type InputData = { uri: Uri; detail?: string; description?: string };
 		const mergeUris = toMergeUris(uri);
-		let input1: InputData = { uri: mergeUris.ours };
-		let input2: InputData = { uri: mergeUris.theirs };
+		const input1: InputData = { uri: mergeUris.ours };
+		const input2: InputData = { uri: mergeUris.theirs };
 
 		try {
 			const [head, mergeHead] = await Promise.all([repo.getCommit('HEAD'), repo.getCommit('MERGE_HEAD')]);
@@ -1569,7 +1569,7 @@ export class CommandCenter {
 			}
 		}
 
-		let message = await getCommitMessage();
+		const message = await getCommitMessage();
 
 		if (!message && !opts.amend && !opts.useEditor) {
 			return false;
@@ -1638,7 +1638,7 @@ export class CommandCenter {
 			let _message: string | undefined = message;
 
 			if (!_message && !config.get<boolean>('useEditorAsCommitInput')) {
-				let value: string | undefined = undefined;
+				const value: string | undefined = undefined;
 
 				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
 					return undefined;
@@ -2970,13 +2970,7 @@ export class CommandCenter {
 
 	@command('git.closeAllDiffEditors', { repository: true })
 	closeDiffEditors(repository: Repository): void {
-		const resources = [
-			...repository.indexGroup.resourceStates.map(r => r.resourceUri.fsPath),
-			...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath),
-			...repository.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath)
-		];
-
-		repository.closeDiffEditors(resources, resources, true);
+		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
@@ -3129,9 +3123,7 @@ export class CommandCenter {
 				if (result) {
 					const resultFn = choices.get(result);
 
-					if (resultFn) {
-						resultFn();
-					}
+					resultFn?.();
 				}
 			});
 		};

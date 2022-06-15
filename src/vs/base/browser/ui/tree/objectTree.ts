@@ -140,13 +140,9 @@ class CompressibleRenderer<T extends NonNullable<any>, TFilterData, TTemplateDat
 
 	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>, height: number | undefined): void {
 		if (templateData.compressedTreeNode) {
-			if (this.renderer.disposeCompressedElements) {
-				this.renderer.disposeCompressedElements(templateData.compressedTreeNode, index, templateData.data, height);
-			}
+			this.renderer.disposeCompressedElements?.(templateData.compressedTreeNode, index, templateData.data, height);
 		} else {
-			if (this.renderer.disposeElement) {
-				this.renderer.disposeElement(node, index, templateData.data, height);
-			}
+			this.renderer.disposeElement?.(node, index, templateData.data, height);
 		}
 	}
 

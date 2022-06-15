@@ -30,7 +30,7 @@ import { assertNoRpc, poll } from '../utils';
 	});
 
 	suite('Terminal', () => {
-		let disposables: Disposable[] = [];
+		const disposables: Disposable[] = [];
 
 		teardown(async () => {
 			assertNoRpc();
@@ -132,7 +132,7 @@ import { assertNoRpc, poll } from '../utils';
 				}));
 			});
 			equal(result, terminal);
-			let pid = await result.processId;
+			const pid = await result.processId;
 			equal(true, pid && pid > 0);
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {

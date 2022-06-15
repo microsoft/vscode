@@ -123,7 +123,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			return;
 		}
 		const entries: [URI, IMarkerData[]][] = [];
-		for (let uri of toSync) {
+		for (const uri of toSync) {
 			let marker: IMarkerData[] = [];
 			const diagnostics = this.#data.get(uri);
 			if (diagnostics) {
@@ -133,7 +133,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					marker = [];
 					const order = [DiagnosticSeverity.Error, DiagnosticSeverity.Warning, DiagnosticSeverity.Information, DiagnosticSeverity.Hint];
 					orderLoop: for (let i = 0; i < 4; i++) {
-						for (let diagnostic of diagnostics) {
+						for (const diagnostic of diagnostics) {
 							if (diagnostic.severity === order[i]) {
 								const len = marker.push(converter.Diagnostic.from(diagnostic));
 								if (len === this._maxDiagnosticsPerFile) {
@@ -182,7 +182,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void {
 		this._checkDisposed();
-		for (let uri of this.#data.keys()) {
+		for (const uri of this.#data.keys()) {
 			callback.apply(thisArg, [uri, this.get(uri), this]);
 		}
 	}
@@ -317,7 +317,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private _getDiagnostics(resource: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
 		let res: vscode.Diagnostic[] = [];
-		for (let collection of this._collections.values()) {
+		for (const collection of this._collections.values()) {
 			if (collection.has(resource)) {
 				res = res.concat(collection.get(resource));
 			}

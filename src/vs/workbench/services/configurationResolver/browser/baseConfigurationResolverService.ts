@@ -181,7 +181,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		let inputs: ConfiguredInput[] = [];
 		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
 			const overrides: IConfigurationOverrides = folder ? { resource: folder.uri } : {};
-			let result = this.configurationService.inspect(section, overrides);
+			const result = this.configurationService.inspect(section, overrides);
 			if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue)) {
 				switch (target) {
 					case ConfigurationTarget.USER: inputs = (<any>result.userValue)?.inputs; break;
