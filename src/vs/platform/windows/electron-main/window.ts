@@ -40,7 +40,7 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { revive } from 'vs/base/common/marshalling';
 
 export interface IWindowCreationOptions {
@@ -156,6 +156,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IFileService private readonly fileService: IFileService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,
@@ -882,6 +883,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
+		configuration.profiles = {
+			default: this.userDataProfilesService.defaultProfile,
+			current: configuration.workspace ? this.userDataProfilesService.getProfile(isWorkspaceIdentifier(configuration.workspace) ? configuration.workspace.configPath : configuration.workspace.uri) : this.userDataProfilesService.defaultProfile,
+		};
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
