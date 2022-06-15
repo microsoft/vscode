@@ -267,9 +267,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 				this.tags.add(MODIFIED_SETTING_TAG);
 			}
 
-			if (this.setting.tags) {
-				this.setting.tags.forEach(tag => this.tags!.add(tag));
-			}
+			this.setting.tags?.forEach(tag => this.tags!.add(tag));
 
 			if (this.setting.restricted) {
 				this.tags.add(REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG);

@@ -1506,9 +1506,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			throw new Error('Command name should never be undefined here.');
 		}
 		this._collectVariables(variables, command.name);
-		if (command.args) {
-			command.args.forEach(arg => this._collectVariables(variables, arg));
-		}
+		command.args?.forEach(arg => this._collectVariables(variables, arg));
 		// Try to get a scope.
 		const scope = (<IExtensionTaskSource>task._source).scope;
 		if (scope !== TaskScope.Global) {
@@ -1532,9 +1530,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (options.shell.executable) {
 					this._collectVariables(variables, options.shell.executable);
 				}
-				if (options.shell.args) {
-					options.shell.args.forEach(arg => this._collectVariables(variables, arg));
-				}
+				options.shell.args?.forEach(arg => this._collectVariables(variables, arg));
 			}
 		}
 	}
@@ -1703,8 +1699,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _appendOutput(output: string): void {
 		const outputChannel = this._outputService.getChannel(this._outputChannelId);
-		if (outputChannel) {
-			outputChannel.append(output);
-		}
+		outputChannel?.append(output);
 	}
 }

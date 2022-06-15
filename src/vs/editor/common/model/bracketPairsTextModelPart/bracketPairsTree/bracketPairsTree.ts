@@ -304,9 +304,7 @@ function collectBrackets(
 			nodeOffsetStart = nodeOffsetEnd;
 		}
 
-		if (levelPerBracketType) {
-			levelPerBracketType.set(node.openingBracket.text, levelPerBracket);
-		}
+		levelPerBracketType?.set(node.openingBracket.text, levelPerBracket);
 	} else if (node.kind === AstNodeKind.UnexpectedClosingBracket) {
 		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
 		result.push(new BracketInfo(range, level - 1, 0, true));
@@ -394,9 +392,7 @@ function collectBracketPairs(
 			}
 		}
 
-		if (levelPerBracketType) {
-			levelPerBracketType.set(node.openingBracket.text, levelPerBracket);
-		}
+		levelPerBracketType?.set(node.openingBracket.text, levelPerBracket);
 	} else {
 		let curOffset = nodeOffsetStart;
 		for (const child of node.children) {

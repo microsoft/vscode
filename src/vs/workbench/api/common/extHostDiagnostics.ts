@@ -108,9 +108,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					}
 				} else {
 					const currentDiagnostics = this.#data.get(uri);
-					if (currentDiagnostics) {
-						currentDiagnostics.push(...diagnostics);
-					}
+					currentDiagnostics?.push(...diagnostics);
 				}
 			}
 		}

@@ -1197,9 +1197,7 @@ export class IssueReporter extends Disposable {
 
 	private addEventListener(elementId: string, eventType: string, handler: (event: Event) => void): void {
 		const element = this.getElementById(elementId);
-		if (element) {
-			element.addEventListener(eventType, handler);
-		}
+		element?.addEventListener(eventType, handler);
 	}
 }
 

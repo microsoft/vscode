@@ -1357,9 +1357,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Add as window tab if configured (macOS only)
 			if (options.forceNewTabbedWindow) {
 				const activeWindow = this.getLastActiveWindow();
-				if (activeWindow) {
-					activeWindow.addTabbedWindow(createdWindow);
-				}
+				activeWindow?.addTabbedWindow(createdWindow);
 			}
 
 			// Add to our list of windows
@@ -1475,9 +1473,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	sendToFocused(channel: string, ...args: any[]): void {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
-		if (focusedWindow) {
-			focusedWindow.sendWhenReady(channel, CancellationToken.None, ...args);
-		}
+		focusedWindow?.sendWhenReady(channel, CancellationToken.None, ...args);
 	}
 
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {

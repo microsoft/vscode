@@ -120,9 +120,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 					}
 				}
 
-				if (items.delete) {
-					items.delete.forEach(key => storage.delete(key));
-				}
+				items.delete?.forEach(key => storage.delete(key));
 
 				break;
 			}

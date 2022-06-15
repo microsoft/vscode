@@ -1786,9 +1786,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	protected _postDetachModelCleanup(detachedModel: ITextModel | null): void {
-		if (detachedModel) {
-			detachedModel.removeAllDecorationsWithOwnerId(this._id);
-		}
+		detachedModel?.removeAllDecorationsWithOwnerId(this._id);
 	}
 
 	private _detachModel(): ITextModel | null {

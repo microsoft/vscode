@@ -640,18 +640,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			case RequestType.Promise:
 			case RequestType.EventListen: {
 				const msgLength = this.send([request.type, request.id, request.channelName, request.name], request.arg);
-				if (this.logger) {
-					this.logger.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, `${requestTypeToStr(request.type)}: ${request.channelName}.${request.name}`, request.arg);
-				}
+				this.logger?.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, `${requestTypeToStr(request.type)}: ${request.channelName}.${request.name}`, request.arg);
 				return;
 			}
 
 			case RequestType.PromiseCancel:
 			case RequestType.EventDispose: {
 				const msgLength = this.send([request.type, request.id]);
-				if (this.logger) {
-					this.logger.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, requestTypeToStr(request.type));
-				}
+				this.logger?.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, requestTypeToStr(request.type));
 				return;
 			}
 		}
@@ -682,18 +678,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		switch (type) {
 			case ResponseType.Initialize:
-				if (this.logger) {
-					this.logger.logIncoming(message.byteLength, 0, RequestInitiator.LocalSide, responseTypeToStr(type));
-				}
+				this.logger?.logIncoming(message.byteLength, 0, RequestInitiator.LocalSide, responseTypeToStr(type));
 				return this.onResponse({ type: header[0] });
 
 			case ResponseType.PromiseSuccess:
 			case ResponseType.PromiseError:
 			case ResponseType.EventFire:
 			case ResponseType.PromiseErrorObj:
-				if (this.logger) {
-					this.logger.logIncoming(message.byteLength, header[1], RequestInitiator.LocalSide, responseTypeToStr(type), body);
-				}
+				this.logger?.logIncoming(message.byteLength, header[1], RequestInitiator.LocalSide, responseTypeToStr(type), body);
 				return this.onResponse({ type: header[0], id: header[1], data: body });
 		}
 	}

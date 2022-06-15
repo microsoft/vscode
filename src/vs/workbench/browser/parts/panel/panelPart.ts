@@ -731,9 +731,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		const primaryActions = this.globalActions.getPrimaryActions();
 		const secondaryActions = this.globalActions.getSecondaryActions();
 
-		if (this.globalToolBar) {
-			this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
-		}
+		this.globalToolBar?.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction } {

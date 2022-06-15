@@ -84,9 +84,7 @@ export class OutputViewPane extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-		if (this.editorPromise) {
-			this.editorPromise.then(() => this.editor.focus());
-		}
+		this.editorPromise?.then(() => this.editor.focus());
 	}
 
 	override renderBody(container: HTMLElement): void {

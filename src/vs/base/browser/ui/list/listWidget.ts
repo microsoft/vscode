@@ -1390,9 +1390,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	updateOptions(optionsUpdate: IListOptionsUpdate = {}): void {
 		this._options = { ...this._options, ...optionsUpdate };
 
-		if (this.typeLabelController) {
-			this.typeLabelController.updateOptions(this._options);
-		}
+		this.typeLabelController?.updateOptions(this._options);
 
 		if (this._options.multipleSelectionController !== undefined) {
 			if (this._options.multipleSelectionSupport) {

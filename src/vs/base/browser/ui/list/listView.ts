@@ -813,9 +813,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			throw new Error(`No renderer found for template id ${item.templateId}`);
 		}
 
-		if (renderer) {
-			renderer.renderElement(item.element, index, item.row.templateData, item.size);
-		}
+		renderer?.renderElement(item.element, index, item.row.templateData, item.size);
 
 		const uri = this.dnd.getDragURI(item.element);
 		item.dragStartDisposable.dispose();

@@ -1281,9 +1281,7 @@ function registerOtherEditorCommands(): void {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		const { group } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
-		if (group) {
-			group.lock(locked ?? !group.isLocked);
-		}
+		group?.lock(locked ?? !group.isLocked);
 	}
 
 	registerAction2(class extends Action2 {
