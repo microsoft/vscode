@@ -113,6 +113,10 @@ export const enum TerminalSettingId {
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
 }
 
+export const enum TerminalLogFiles {
+	PtyHost = 'ptyhost'
+}
+
 export const enum PosixShellType {
 	PowerShell = 'pwsh',
 	Bash = 'bash',
