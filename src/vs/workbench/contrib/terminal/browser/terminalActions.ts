@@ -1082,11 +1082,18 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command"), original: 'Scroll To Previous Command' },
 				f1: true,
 				category,
-				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
+				keybinding: [
+					{
+						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+						when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+						weight: KeybindingWeight.WorkbenchContrib
+					},
+					{
+						primary: KeyCode.UpArrow,
+						when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+						weight: KeybindingWeight.WorkbenchContrib
+					}
+				],
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
@@ -1104,11 +1111,18 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command"), original: 'Scroll To Next Command' },
 				f1: true,
 				category,
-				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
+				keybinding: [
+					{
+						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+						when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+						weight: KeybindingWeight.WorkbenchContrib
+					},
+					{
+						primary: KeyCode.DownArrow,
+						when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+						weight: KeybindingWeight.WorkbenchContrib
+					}
+				],
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
