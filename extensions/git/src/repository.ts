@@ -868,6 +868,7 @@ export class Repository implements Disposable {
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
+	private isBranchProtectedMatcher: picomatch.Matcher | undefined;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private disposables: Disposable[] = [];
 
@@ -940,8 +941,7 @@ export class Repository implements Disposable {
 		}, undefined, this.disposables);
 
 		filterEvent(workspace.onDidChangeConfiguration, e =>
-			e.affectsConfiguration('git.branchProtection', root)
-			|| e.affectsConfiguration('git.branchSortOrder', root)
+			e.affectsConfiguration('git.branchSortOrder', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
@@ -986,6 +986,10 @@ export class Repository implements Disposable {
 				window.showInformationMessage(localize('push success', "Successfully pushed."));
 			}
 		}, null, this.disposables);
+
+		const onDidChangeBranchProtection = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchProtection', root));
+		onDidChangeBranchProtection(this.updateBranchProtectionMatcher, this, this.disposables);
+		this.updateBranchProtectionMatcher();
 
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
@@ -2213,11 +2217,15 @@ export class Repository implements Disposable {
 		}
 	}
 
-	public isBranchProtected(name: string = this.HEAD?.name ?? ''): boolean {
+	private updateBranchProtectionMatcher(): void {
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const branchProtection = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
+		const branchProtectionGlobs = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
 
-		return branchProtection.some(bp => picomatch.isMatch(name, bp));
+		this.isBranchProtectedMatcher = picomatch(branchProtectionGlobs);
+	}
+
+	public isBranchProtected(name: string = this.HEAD?.name ?? ''): boolean {
+		return this.isBranchProtectedMatcher ? this.isBranchProtectedMatcher(name) : false;
 	}
 
 	dispose(): void {
