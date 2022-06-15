@@ -13,6 +13,7 @@ import { ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/proble
 import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
 import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
+import { Codicon } from 'vs/base/common/codicons';
 
 function fixReferences(literal: any) {
 	if (Array.isArray(literal)) {
@@ -96,16 +97,28 @@ const detail: IJSONSchema = {
 
 const icon: IJSONSchema = {
 	type: 'object',
-	description: nls.localize('JsonSchema.tasks.icon', 'An optional icon for the task'),
 	properties: {
 		id: {
+			description: nls.localize('JsonSchema.tasks.icon.id', 'An optional icon for the task'),
 			type: 'string',
-			description: nls.localize('JsonSchema.tasks.icon.id', 'The codicon id')
+			enum: Array.from(Codicon.getAll(), icon => icon.id),
+			markdownEnumDescriptions: Array.from(Codicon.getAll(), icon => `$(${icon.id})`),
 		},
 		color: {
-			type: 'string',
-			description: nls.localize('JsonSchema.tasks.icon.color', 'An optional color to use for the task icon')
-		}
+			description: nls.localize('JsonSchema.tasks.icon.color', 'An optional color to use for the task icon'),
+			type: ['string', 'null'],
+			enum: [
+				'terminal.ansiBlack',
+				'terminal.ansiRed',
+				'terminal.ansiGreen',
+				'terminal.ansiYellow',
+				'terminal.ansiBlue',
+				'terminal.ansiMagenta',
+				'terminal.ansiCyan',
+				'terminal.ansiWhite'
+			],
+			default: null
+		},
 	}
 };
 
