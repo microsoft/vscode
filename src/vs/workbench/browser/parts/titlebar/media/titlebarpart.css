@@ -162,6 +162,7 @@
 	/* move menubar above drag region as negative z-index on drag region cause greyscale AA */
 	z-index: 2500;
 	min-width: 36px;
+	flex-wrap: nowrap;
 }
 
 /* Resizer */
