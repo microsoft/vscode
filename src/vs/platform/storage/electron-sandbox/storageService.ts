@@ -45,7 +45,6 @@ export class NativeStorageService extends AbstractStorageService {
 
 	private createApplicationStorage(): IStorage {
 		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, undefined);
-
 		const applicationStorage = new Storage(storageDataBaseClient.applicationStorage);
 
 		this._register(applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
@@ -54,9 +53,20 @@ export class NativeStorageService extends AbstractStorageService {
 	}
 
 	private createGlobalStorage(): IStorage {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, undefined);
+		let globalStorage: IStorage;
 
-		const globalStorage = new Storage(storageDataBaseClient.globalStorage);
+		if (this.userDataProfilesService.currentProfile.isDefault) {
+
+			// If we are in default profile, the global storage is
+			// actually the same as application storage. As such we
+			// avoid creating the storage library a second time on
+			// the same DB.
+
+			globalStorage = this.applicationStorage;
+		} else {
+			const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, undefined);
+			globalStorage = new Storage(storageDataBaseClient.globalStorage);
+		}
 
 		this._register(globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 
