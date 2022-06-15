@@ -9,14 +9,11 @@
  */
 export type IStringDictionary<V> = Record<string, V>;
 
-
 /**
  * An interface for a JavaScript object that
  * acts a dictionary. The keys are numbers.
  */
 export type INumberDictionary<V> = Record<number, V>;
-
-const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
  * Iterates over each entry in the provided dictionary. The iterator will stop when the callback returns `false`.
