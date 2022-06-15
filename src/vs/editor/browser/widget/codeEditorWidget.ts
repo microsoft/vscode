@@ -588,9 +588,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public setHiddenAreas(ranges: IRange[]): void {
-		if (this._modelData) {
-			this._modelData.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
-		}
+		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
 	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {

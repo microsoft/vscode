@@ -956,9 +956,7 @@ export class MenuBar extends Disposable {
 			}
 
 			if (this.focusedMenu.holder) {
-				if (this.focusedMenu.holder.parentElement) {
-					this.focusedMenu.holder.parentElement.classList.remove('open');
-				}
+				this.focusedMenu.holder.parentElement?.classList.remove('open');
 
 				this.focusedMenu.holder.remove();
 			}

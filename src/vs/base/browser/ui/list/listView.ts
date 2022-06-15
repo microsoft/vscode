@@ -1110,9 +1110,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				const item = this.items[index]!;
 				item.dropTarget = true;
 
-				if (item.row) {
-					item.row.domNode.classList.add('drop-target');
-				}
+				item.row?.domNode.classList.add('drop-target');
 			}
 
 			this.currentDragFeedbackDisposable = toDisposable(() => {
@@ -1120,9 +1118,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					const item = this.items[index]!;
 					item.dropTarget = false;
 
-					if (item.row) {
-						item.row.domNode.classList.remove('drop-target');
-					}
+					item.row?.domNode.classList.remove('drop-target');
 				}
 			});
 		}
