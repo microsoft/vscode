@@ -28,7 +28,7 @@ export class IndexedDB {
 		return new IndexedDB(database, name);
 	}
 
-	static async openDatabase(name: string, version: number | undefined, stores: string[]): Promise<IDBDatabase> {
+	private static async openDatabase(name: string, version: number | undefined, stores: string[]): Promise<IDBDatabase> {
 		mark(`code/willOpenDatabase/${name}`);
 		try {
 			return await IndexedDB.doOpenDatabase(name, version, stores);

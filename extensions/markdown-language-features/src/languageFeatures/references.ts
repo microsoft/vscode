@@ -10,7 +10,7 @@ import { TableOfContents, TocEntry } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalHref, MdLink, MdLinkProvider } from './documentLinkProvider';
+import { InternalHref, MdLink, MdLinkComputer } from './documentLinkProvider';
 import { MdWorkspaceCache } from './workspaceCache';
 
 
@@ -64,14 +64,14 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	private readonly _linkCache: MdWorkspaceCache<readonly MdLink[]>;
 
 	public constructor(
-		private readonly linkProvider: MdLinkProvider,
+		private readonly linkComputer: MdLinkComputer,
 		private readonly workspaceContents: MdWorkspaceContents,
 		private readonly engine: MarkdownEngine,
 		private readonly slugifier: Slugifier,
 	) {
 		super();
 
-		this._linkCache = this._register(new MdWorkspaceCache(workspaceContents, doc => linkProvider.getAllLinks(doc, noopToken)));
+		this._linkCache = this._register(new MdWorkspaceCache(workspaceContents, doc => linkComputer.getAllLinks(doc, noopToken)));
 	}
 
 	async provideReferences(document: SkinnyTextDocument, position: vscode.Position, context: vscode.ReferenceContext, token: vscode.CancellationToken): Promise<vscode.Location[] | undefined> {
@@ -129,7 +129,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	}
 
 	private async getReferencesToLinkAtPosition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
-		const docLinks = await this.linkProvider.getAllLinks(document, token);
+		const docLinks = await this.linkComputer.getAllLinks(document, token);
 
 		for (const link of docLinks) {
 			if (link.kind === 'definition') {

@@ -253,7 +253,6 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	private _instanceDisposables: Map<number, IDisposable[]> = new Map();
 
 	private _activeInstanceIndex: number = -1;
-	private _isVisible: boolean = false;
 
 	get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
@@ -314,8 +313,6 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		if (this._splitPaneContainer) {
 			this._splitPaneContainer!.split(instance, parentIndex + 1);
 		}
-
-		instance.setVisible(this._isVisible);
 
 		this._onInstancesChanged.fire();
 	}
@@ -481,7 +478,6 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 				this._initialRelativeSizes = undefined;
 			}
 		}
-		this.setVisible(this._isVisible);
 	}
 
 	get title(): string {
@@ -514,7 +510,6 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	setVisible(visible: boolean): void {
-		this._isVisible = visible;
 		if (this._groupElement) {
 			this._groupElement.style.display = visible ? '' : 'none';
 		}

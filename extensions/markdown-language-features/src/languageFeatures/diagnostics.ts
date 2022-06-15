@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as picomatch from 'picomatch';
+import { CommandManager } from '../commandManager';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { Delayer } from '../util/async';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { Limiter } from '../util/limiter';
-import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinkProvider';
-import { tryFindMdDocumentForLink } from './references';
-import { CommandManager } from '../commandManager';
 import { ResourceMap } from '../util/resourceMap';
+import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
+import { InternalHref, LinkDefinitionSet, MdLink, MdLinkComputer, MdLinkSource } from './documentLinkProvider';
+import { tryFindMdDocumentForLink } from './references';
 
 const localize = nls.loadMessageBundle();
 
@@ -382,11 +382,11 @@ export class DiagnosticComputer {
 	constructor(
 		private readonly engine: MarkdownEngine,
 		private readonly workspaceContents: MdWorkspaceContents,
-		private readonly linkProvider: MdLinkProvider,
+		private readonly linkComputer: MdLinkComputer,
 	) { }
 
 	public async getDiagnostics(doc: SkinnyTextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<{ readonly diagnostics: vscode.Diagnostic[]; readonly links: MdLink[] }> {
-		const links = await this.linkProvider.getAllLinks(doc, token);
+		const links = await this.linkComputer.getAllLinks(doc, token);
 		if (token.isCancellationRequested) {
 			return { links, diagnostics: [] };
 		}
@@ -559,11 +559,11 @@ export function register(
 	selector: vscode.DocumentSelector,
 	engine: MarkdownEngine,
 	workspaceContents: MdWorkspaceContents,
-	linkProvider: MdLinkProvider,
+	linkComputer: MdLinkComputer,
 	commandManager: CommandManager,
 ): vscode.Disposable {
 	const configuration = new VSCodeDiagnosticConfiguration();
-	const manager = new DiagnosticManager(new DiagnosticComputer(engine, workspaceContents, linkProvider), configuration);
+	const manager = new DiagnosticManager(new DiagnosticComputer(engine, workspaceContents, linkComputer), configuration);
 	return vscode.Disposable.from(
 		configuration,
 		manager,

@@ -569,7 +569,7 @@ export namespace WorkspaceEdit {
 		getNotebookDocumentVersion(uri: URI): number | undefined;
 	}
 
-	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider, allowSnippetTextEdit?: boolean): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
@@ -598,14 +598,21 @@ export namespace WorkspaceEdit {
 					});
 
 				} else if (entry._type === types.FileEditType.Text) {
+
 					// text edits
-					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
+					const dto = <extHostProtocol.IWorkspaceTextEditDto>{
 						_type: extHostProtocol.WorkspaceEditType.Text,
 						resource: entry.uri,
 						edit: TextEdit.from(entry.edit),
 						modelVersionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
 						metadata: entry.metadata
-					});
+					};
+					if (allowSnippetTextEdit && entry.edit.newText2 instanceof types.SnippetString) {
+						dto.edit.insertAsSnippet = true;
+						dto.edit.text = entry.edit.newText2.value;
+					}
+					result.edits.push(dto);
+
 				} else if (entry._type === types.FileEditType.Cell) {
 					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
 						_type: extHostProtocol.WorkspaceEditType.Cell,

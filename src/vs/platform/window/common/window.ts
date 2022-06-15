@@ -6,6 +6,7 @@
 import { IStringDictionary } from 'vs/base/common/collections';
 import { PerformanceMark } from 'vs/base/common/performance';
 import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
+import { UriDto } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -16,7 +17,7 @@ import { FileType } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfilesDto } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const WindowMinimumSize = {
@@ -283,7 +284,10 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	execPath: string;
 	backupPath?: string;
 
-	profiles: IUserDataProfilesDto;
+	profiles: {
+		default: UriDto<IUserDataProfile>;
+		current: UriDto<IUserDataProfile>;
+	};
 
 	homeDir: string;
 	tmpDir: string;
