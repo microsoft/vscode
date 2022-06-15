@@ -98,3 +98,17 @@ steps:
       exec { .\scripts\test.bat --tfs "Unit Tests" }
     displayName: Run unit tests (Electron)
     timeoutInMinutes: 15
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { yarn test-node }
+    displayName: Run unit tests (node.js)
+    timeoutInMinutes: 15
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { yarn test-browser-no-install --sequential --browser chromium --browser firefox --tfs "Browser Unit Tests" }
+    displayName: Run unit tests (Browser, Chromium & Firefox)
+    timeoutInMinutes: 20
