@@ -20,7 +20,7 @@ export function setup() {
 			await setTerminalTestSettings(app);
 		});
 
-		after(async function () {
+		afterEach(async function () {
 			await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 			await settingsEditor.clearUserSettings();
 		});
