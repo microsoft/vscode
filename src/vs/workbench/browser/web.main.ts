@@ -254,7 +254,7 @@ export class BrowserMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService(payload, logService).then(service => {
+			this.createStorageService(payload, logService, userDataProfilesService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
@@ -426,8 +426,8 @@ export class BrowserMain extends Disposable {
 		});
 	}
 
-	private async createStorageService(payload: IAnyWorkspaceIdentifier, logService: ILogService): Promise<IStorageService> {
-		const storageService = new BrowserStorageService(payload, logService);
+	private async createStorageService(payload: IAnyWorkspaceIdentifier, logService: ILogService, userDataProfilesService: IUserDataProfilesService): Promise<IStorageService> {
+		const storageService = new BrowserStorageService(payload, logService, userDataProfilesService);
 
 		try {
 			await storageService.initialize();

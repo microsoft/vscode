@@ -52,6 +52,8 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import { GroupKind } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
+import { Codicon } from 'vs/base/common/codicons';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -1029,13 +1031,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				os,
 				remoteAuthority: this._environmentService.remoteAuthority
 			});
+			let icon: URI | ThemeIcon | { light: URI; dark: URI } | undefined;
+			if (task.configurationProperties.icon) {
+				icon = ThemeIcon.fromId(task.configurationProperties.icon);
+			} else {
+				const taskGroupKind = task.configurationProperties.group ? GroupKind.to(task.configurationProperties.group) : undefined;
+				const kindId = typeof taskGroupKind === 'string' ? taskGroupKind : taskGroupKind?.kind;
+				icon = kindId === 'test' ? ThemeIcon.fromId(Codicon.beaker.id) : defaultProfile.icon;
+			}
 			shellLaunchConfig = {
 				name: terminalName,
 				type,
 				executable: defaultProfile.path,
 				args: defaultProfile.args,
 				env: { ...defaultProfile.env },
-				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : defaultProfile.icon,
+				icon,
 				color: task.configurationProperties.color || defaultProfile.color,
 				waitOnExit
 			};

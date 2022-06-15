@@ -34,9 +34,7 @@ const defaultPasteEditProvider = new class implements DocumentPasteEditProvider 
 		const textDataTransfer = dataTransfer.get(Mimes.text) ?? dataTransfer.get('text');
 		if (textDataTransfer) {
 			const text = await textDataTransfer.asString();
-			return {
-				insertText: text
-			};
+			return { insertText: text };
 		}
 
 		return undefined;
@@ -82,7 +80,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private handleCopy(e: ClipboardEvent) {
-		if (!e.clipboardData) {
+		if (!e.clipboardData || !this._editor.hasTextFocus()) {
 			return;
 		}
 
@@ -126,8 +124,12 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
+		if (!e.clipboardData || !this._editor.hasTextFocus()) {
+			return;
+		}
+
 		const selections = this._editor.getSelections();
-		if (!e.clipboardData || !selections?.length || !this._editor.hasModel()) {
+		if (!selections?.length || !this._editor.hasModel()) {
 			return;
 		}
 

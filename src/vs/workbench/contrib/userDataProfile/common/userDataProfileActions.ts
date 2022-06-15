@@ -17,6 +17,11 @@ import { asJson, asText, IRequestService } from 'vs/platform/request/common/requ
 import { IUserDataProfileTemplate, isProfile, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 registerAction2(class SaveProfileAsAction extends Action2 {
 	constructor() {
@@ -27,7 +32,8 @@ registerAction2(class SaveProfileAsAction extends Action2 {
 				original: 'Save Settings Profile As...'
 			},
 			category: PROFILES_CATEGORY,
-			f1: true
+			f1: true,
+			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
 		});
 	}
 
@@ -39,7 +45,7 @@ registerAction2(class SaveProfileAsAction extends Action2 {
 			title: localize('save profile as', "Save Settings Profile As..."),
 		});
 		if (name) {
-			await userDataProfileManagementService.createAndEnterProfile(name);
+			await userDataProfileManagementService.createAndEnterProfile(name, undefined, true);
 		}
 	}
 });
@@ -53,7 +59,8 @@ registerAction2(class SwitchProfileAction extends Action2 {
 				original: 'Switch Settings Profile'
 			},
 			category: PROFILES_CATEGORY,
-			f1: true
+			f1: true,
+			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
 		});
 	}
 
@@ -85,7 +92,8 @@ registerAction2(class RemoveProfileAction extends Action2 {
 				original: 'Remove Settings Profile'
 			},
 			category: PROFILES_CATEGORY,
-			f1: true
+			f1: true,
+			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
 		});
 	}
 
@@ -104,16 +112,70 @@ registerAction2(class RemoveProfileAction extends Action2 {
 	}
 });
 
+registerAction2(class CleanupProfilesAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.cleanupProfiles',
+			title: {
+				value: localize('cleanup profile', "Cleanup Profiles"),
+				original: 'Cleanup Profiles'
+			},
+			category: CATEGORIES.Developer,
+			f1: true,
+			precondition: IsDevelopmentContext,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		const fileService = accessor.get(IFileService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+
+		const allProfiles = await userDataProfilesService.getAllProfiles();
+		const stat = await fileService.resolve(userDataProfilesService.profilesHome);
+		await Promise.all((stat.children || [])?.filter(child => child.isDirectory && allProfiles.every(p => !uriIdentityService.extUri.isEqual(p.location, child.resource)))
+			.map(child => fileService.del(child.resource, { recursive: true })));
+	}
+});
+
+registerAction2(class CreateAndEnterEmptyProfileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.createAndEnterEmptyProfile',
+			title: {
+				value: localize('create and enter empty profile', "Create and Enter Empty Profile..."),
+				original: 'Create and Enter Empty Profile...'
+			},
+			category: PROFILES_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const name = await quickInputService.input({
+			placeHolder: localize('name', "Profile name"),
+			title: localize('create and enter empty profile', "Create and Enter Empty Profile..."),
+		});
+		if (name) {
+			await userDataProfileManagementService.createAndEnterProfile(name);
+		}
+	}
+});
+
 registerAction2(class ExportProfileAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.exportProfile',
+			id: 'workbench.profiles.actions.exportProfile2',
 			title: {
-				value: localize('export profile', "Export Settings Profile as a Template..."),
-				original: 'Export Settings as a Profile as a Template...'
+				value: localize('export profile', "Export Settings as a Profile (2)..."),
+				original: 'Export Settings as a Profile as a Profile (2)...'
 			},
 			category: PROFILES_CATEGORY,
-			f1: true
+			f1: true,
+			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
 		});
 	}
 
@@ -140,16 +202,17 @@ registerAction2(class ExportProfileAction extends Action2 {
 	}
 });
 
-registerAction2(class CreateProfileFromTemplateAction extends Action2 {
+registerAction2(class ImportProfileAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.createProfileFromTemplate',
+			id: 'workbench.profiles.actions.importProfile2',
 			title: {
-				value: localize('create profile from template', "Create Settings Profile from Template..."),
-				original: 'Create Settings Profile from Template...'
+				value: localize('import profile', "Import Settings from a Profile (2)..."),
+				original: 'Import Settings from a Profile (2)...'
 			},
 			category: PROFILES_CATEGORY,
-			f1: true
+			f1: true,
+			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
 		});
 	}
 
