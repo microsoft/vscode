@@ -252,7 +252,7 @@ registerAction2(class extends Action2 {
 			// there is no kernel, show the install from marketplace
 			quickPickItems.push({
 				id: 'install',
-				label: nls.localize('installKernels', "Install kernels from the marketplace"),
+				label: nls.localize('searchForKernels', "Search for kernels on the marketplace"),
 			});
 		}
 
