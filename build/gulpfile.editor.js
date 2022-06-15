@@ -112,9 +112,6 @@ const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () =>
 			'vs/nls.ts',
 			'vs/nls.build.js',
 			'vs/nls.d.ts',
-			'vs/css.js',
-			'vs/css.build.js',
-			'vs/css.d.ts',
 			'vs/base/worker/workerMain.ts',
 		],
 		renames: {
