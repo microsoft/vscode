@@ -82,10 +82,20 @@ class TranspileWorker {
 					diag.push(...diag);
 					continue;
 				}
+				const enum SuffixTypes {
+					Dts = 5,
+					Ts = 3,
+					Unknown = 0
+				}
+				const suffixLen = file.path.endsWith('.d.ts') ? SuffixTypes.Dts
+					: file.path.endsWith('.ts') ? SuffixTypes.Ts
+						: SuffixTypes.Unknown;
 
-				const suffixLen = file.path.endsWith('.d.ts') ? 5
-					: file.path.endsWith('.ts') ? 3
-						: 0;
+				// check if output of a DTS-files isn't just "empty" and iff so
+				// skip this file
+				if (suffixLen === SuffixTypes.Dts && jsSrc === _defaultEmptyJsSrc) {
+					continue;
+				}
 
 				const outBase = options.compilerOptions.outDir ?? file.base;
 				const outRelative = relative(options.compilerOptions.rootDir, file.path);
@@ -221,3 +231,11 @@ export class Transpiler {
 		}
 	}
 }
+
+
+const _defaultEmptyJsSrc = `"use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+//# sourceMappingURL=module.js.map`;

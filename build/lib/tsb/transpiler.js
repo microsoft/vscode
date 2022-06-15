@@ -59,9 +59,20 @@ class TranspileWorker {
                     diag.push(...diag);
                     continue;
                 }
-                const suffixLen = file.path.endsWith('.d.ts') ? 5
-                    : file.path.endsWith('.ts') ? 3
-                        : 0;
+                let SuffixTypes;
+                (function (SuffixTypes) {
+                    SuffixTypes[SuffixTypes["Dts"] = 5] = "Dts";
+                    SuffixTypes[SuffixTypes["Ts"] = 3] = "Ts";
+                    SuffixTypes[SuffixTypes["Unknown"] = 0] = "Unknown";
+                })(SuffixTypes || (SuffixTypes = {}));
+                const suffixLen = file.path.endsWith('.d.ts') ? 5 /* SuffixTypes.Dts */
+                    : file.path.endsWith('.ts') ? 3 /* SuffixTypes.Ts */
+                        : 0 /* SuffixTypes.Unknown */;
+                // check if output of a DTS-files isn't just "empty" and iff so
+                // skip this file
+                if (suffixLen === 5 /* SuffixTypes.Dts */ && jsSrc === _defaultEmptyJsSrc) {
+                    continue;
+                }
                 const outBase = options.compilerOptions.outDir ?? file.base;
                 const outRelative = (0, path_1.relative)(options.compilerOptions.rootDir, file.path);
                 const outPath = (0, path_1.join)(outBase, outRelative.slice(0, -suffixLen) + '.js');
@@ -170,3 +181,9 @@ class Transpiler {
 }
 exports.Transpiler = Transpiler;
 Transpiler.P = Math.floor((0, node_os_1.cpus)().length * .5);
+const _defaultEmptyJsSrc = `"use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+//# sourceMappingURL=module.js.map`;
