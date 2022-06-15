@@ -10054,7 +10054,28 @@ declare module 'vscode' {
 		 * `true` if the {@link TreeView tree view} is visible otherwise `false`.
 		 */
 		readonly visible: boolean;
+	}
 
+	/**
+	 * A file associated with a {@linkcode DataTransferItem}.
+	 */
+	export interface DataTransferFile {
+		/**
+		 * The name of the file.
+		 */
+		readonly name: string;
+
+		/**
+		 * The full file path of the file.
+		 *
+		 * May be `undefined` on web.
+		 */
+		readonly uri?: Uri;
+
+		/**
+		 * The full file contents of the file.
+		 */
+		data(): Thenable<Uint8Array>;
 	}
 
 	/**
@@ -10067,6 +10088,16 @@ declare module 'vscode' {
 		 * If {@linkcode DataTransferItem.value} is an object, this returns the result of json stringifying {@linkcode DataTransferItem.value} value.
 		 */
 		asString(): Thenable<string>;
+
+		/**
+		 * Try getting the {@link DataTransferFile file} associated with this data transfer item.
+		 *
+		 * Note that the file object is only valid for the scope of the drag and drop operation.
+		 *
+		 * @returns The file for the data transfer or `undefined` if the item is either not a file or the
+		 * file data cannot be accessed.
+		 */
+		asFile(): DataTransferFile | undefined;
 
 		/**
 		 * Custom data stored on this item.

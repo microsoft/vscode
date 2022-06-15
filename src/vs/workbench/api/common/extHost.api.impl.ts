@@ -1327,7 +1327,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
 			DataTransfer: extHostTypes.DataTransfer,
 			DataTransferItem: extHostTypes.DataTransferItem,
-			DataTransferItemKind: extHostTypes.DataTransferItemKind,
 			CoveredCount: extHostTypes.CoveredCount,
 			FileCoverage: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,

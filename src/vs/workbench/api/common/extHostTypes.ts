@@ -2428,15 +2428,8 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
-export enum DataTransferItemKind {
-	String = 1,
-	File = 2,
-}
-
 @es5ClassCompat
 export class DataTransferItem {
-
-	get kind(): DataTransferItemKind { return DataTransferItemKind.String; }
 
 	async asString(): Promise<string> {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
