@@ -876,6 +876,10 @@ export class EnvironmentVariableCollection implements vscode.EnvironmentVariable
 		this.map.forEach((value, key) => callback.call(thisArg, key, value, this));
 	}
 
+	[Symbol.iterator](): IterableIterator<[variable: string, mutator: vscode.EnvironmentVariableMutator]> {
+		return this.map.entries();
+	}
+
 	delete(variable: string): void {
 		this.map.delete(variable);
 		this._onDidChangeCollection.fire();
