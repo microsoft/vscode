@@ -57,11 +57,11 @@ export class RemoteExtensionsInitializerContribution implements IWorkbenchContri
 		}
 		const newRemoteConnectionKey = `${IS_NEW_KEY}.${connection.remoteAuthority}`;
 		// Skip: Not a new remote connection
-		if (!this.storageService.getBoolean(newRemoteConnectionKey, StorageScope.GLOBAL, true)) {
+		if (!this.storageService.getBoolean(newRemoteConnectionKey, StorageScope.APPLICATION, true)) {
 			this.logService.trace(`Skipping initializing remote extensions because the window with this remote authority was opened before.`);
 			return;
 		}
-		this.storageService.store(newRemoteConnectionKey, false, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(newRemoteConnectionKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		// Skip: Not a new workspace
 		if (!this.storageService.isNew(StorageScope.WORKSPACE)) {
 			this.logService.trace(`Skipping initializing remote extensions because this workspace was opened before.`);
