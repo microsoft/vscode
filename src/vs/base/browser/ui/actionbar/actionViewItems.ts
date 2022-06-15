@@ -367,9 +367,7 @@ export class ActionViewItem extends BaseActionViewItem {
 
 			this.updateEnabled();
 		} else {
-			if (this.label) {
-				this.label.classList.remove('codicon');
-			}
+			this.label?.classList.remove('codicon');
 		}
 	}
 
@@ -380,18 +378,14 @@ export class ActionViewItem extends BaseActionViewItem {
 				this.label.classList.remove('disabled');
 			}
 
-			if (this.element) {
-				this.element.classList.remove('disabled');
-			}
+			this.element?.classList.remove('disabled');
 		} else {
 			if (this.label) {
 				this.label.setAttribute('aria-disabled', 'true');
 				this.label.classList.add('disabled');
 			}
 
-			if (this.element) {
-				this.element.classList.add('disabled');
-			}
+			this.element?.classList.add('disabled');
 		}
 	}
 

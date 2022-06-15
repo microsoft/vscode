@@ -110,11 +110,11 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 
 	set collapsibleState(newState: languages.CommentThreadCollapsibleState | undefined) {
 		this._collapsibleState = newState;
-		this._onDidChangeCollasibleState.fire(this._collapsibleState);
+		this._onDidChangeCollapsibleState.fire(this._collapsibleState);
 	}
 
-	private readonly _onDidChangeCollasibleState = new Emitter<languages.CommentThreadCollapsibleState | undefined>();
-	public onDidChangeCollasibleState = this._onDidChangeCollasibleState.event;
+	private readonly _onDidChangeCollapsibleState = new Emitter<languages.CommentThreadCollapsibleState | undefined>();
+	public onDidChangeCollapsibleState = this._onDidChangeCollapsibleState.event;
 
 	private _isDisposed: boolean;
 
@@ -172,7 +172,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 
 	dispose() {
 		this._isDisposed = true;
-		this._onDidChangeCollasibleState.dispose();
+		this._onDidChangeCollapsibleState.dispose();
 		this._onDidChangeComments.dispose();
 		this._onDidChangeInput.dispose();
 		this._onDidChangeLabel.dispose();

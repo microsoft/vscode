@@ -206,9 +206,7 @@ export class CommentService extends Disposable implements ICommentService {
 
 	disposeCommentThread(owner: string, threadId: string) {
 		const controller = this.getCommentController(owner);
-		if (controller) {
-			controller.deleteCommentThreadMain(threadId);
-		}
+		controller?.deleteCommentThreadMain(threadId);
 	}
 
 	getCommentMenus(owner: string): CommentMenus {

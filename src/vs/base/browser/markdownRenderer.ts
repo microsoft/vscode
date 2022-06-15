@@ -265,7 +265,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				|| /^command:(\/\/\/)?_workbench\.downloadResource/i.test(href)
 			) {
 				// drop the link
-				a.replaceWith(a.textContent ?? '');
+				a.replaceWith(...a.childNodes);
 			} else {
 				let resolvedHref = _href(href, false);
 				if (markdown.baseUri) {

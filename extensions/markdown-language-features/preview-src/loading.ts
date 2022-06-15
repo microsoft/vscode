@@ -29,9 +29,7 @@ export class StyleLoadingMonitor {
 				return;
 			}
 			this.finishedLoading = true;
-			if (this.poster) {
-				this.poster.postMessage('previewStyleLoadError', { unloadedStyles: this.unloadedStyles });
-			}
+			this.poster?.postMessage('previewStyleLoadError', { unloadedStyles: this.unloadedStyles });
 		});
 	}
 

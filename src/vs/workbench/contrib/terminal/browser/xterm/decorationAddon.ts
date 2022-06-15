@@ -215,14 +215,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!decoration) {
 			return undefined;
 		}
-
+		if (beforeCommandExecution) {
+			this._placeholderDecoration = decoration;
+		}
 		decoration.onRender(element => {
 			if (element.classList.contains(DecorationSelector.OverviewRuler)) {
 				return;
 			}
-			if (beforeCommandExecution && !this._placeholderDecoration) {
-				this._placeholderDecoration = decoration;
-			} else if (!this._decorations.get(decoration.marker.id)) {
+			if (!this._decorations.get(decoration.marker.id)) {
 				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
 				this._decorations.set(decoration.marker.id,
 					{

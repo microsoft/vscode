@@ -925,9 +925,7 @@ export class DebugSession implements IDebugSession {
 					} catch (e) {
 						// Disconnect the debug session on configuration done error #10596
 						this.notificationService.error(e);
-						if (this.raw) {
-							this.raw.disconnect({});
-						}
+						this.raw?.disconnect({});
 					}
 				}
 
@@ -1030,9 +1028,7 @@ export class DebugSession implements IDebugSession {
 				this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
 				const tokens = this.cancellationMap.get(threadId);
 				this.cancellationMap.delete(threadId);
-				if (tokens) {
-					tokens.forEach(t => t.cancel());
-				}
+				tokens?.forEach(t => t.cancel());
 			} else {
 				this.stoppedDetails = [];
 				this.cancelAllRequests();

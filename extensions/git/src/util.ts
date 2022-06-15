@@ -51,9 +51,7 @@ export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		const result = combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i))));
 
-		if (disposables) {
-			disposables.push(result);
-		}
+		disposables?.push(result);
 
 		return result;
 	};

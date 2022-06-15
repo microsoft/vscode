@@ -10,7 +10,7 @@ import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
 import * as resources from 'vs/base/common/resources';
-import { IStringDictionary, values } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -52,6 +52,8 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import { GroupKind } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
+import { Codicon } from 'vs/base/common/codicons';
 
 const taskShellIntegrationStartSequence = '\x1b]633;A\x07' + '\x1b]633;P;Task=\x07' + '\x1b]633;B\x07';
 const taskShellIntegrationOutputSequence = '\x1b]633;C\x07';
@@ -1054,13 +1056,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				os,
 				remoteAuthority: this._environmentService.remoteAuthority
 			});
+			let icon: URI | ThemeIcon | { light: URI; dark: URI } | undefined;
+			if (task.configurationProperties.icon) {
+				icon = ThemeIcon.fromId(task.configurationProperties.icon);
+			} else {
+				const taskGroupKind = task.configurationProperties.group ? GroupKind.to(task.configurationProperties.group) : undefined;
+				const kindId = typeof taskGroupKind === 'string' ? taskGroupKind : taskGroupKind?.kind;
+				icon = kindId === 'test' ? ThemeIcon.fromId(Codicon.beaker.id) : defaultProfile.icon;
+			}
 			shellLaunchConfig = {
 				name: terminalName,
 				type,
 				executable: defaultProfile.path,
 				args: defaultProfile.args,
 				env: { ...defaultProfile.env },
-				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : defaultProfile.icon,
+				icon,
 				color: task.configurationProperties.color || defaultProfile.color,
 				waitOnExit
 			};
@@ -1137,9 +1147,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(`Executing task in folder ${workspaceFolder.name}: ${commandLine}`, { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
+					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
+						key: 'task.executingInFolder',
+						comment: ['The workspace folder the task is running in', 'The task command line or label']
+					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, commandLine), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				} else {
-					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(`Executing task: ${commandLine}`, { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
+					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
+						key: 'task.executing',
+						comment: ['The task command line or label']
+					}, 'Executing task: {0}', commandLine), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				}
 			}
 		} else {
@@ -1169,9 +1185,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					return args.join(' ');
 				};
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(`Executing task in folder ${workspaceFolder.name}: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`, { excludeLeadingNewLine: true });
+					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
+						key: 'task.executingInFolder',
+						comment: ['The workspace folder the task is running in', 'The task command line or label']
+					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				} else {
-					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(`Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`, { excludeLeadingNewLine: true });
+					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
+						key: 'task.executing',
+						comment: ['The task command line or label']
+					}, 'Executing task: {0}', `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				}
 			}
 		}
@@ -1220,7 +1242,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (group) {
 			// Try to find an existing terminal to split.
 			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
-			for (const terminal of values(this._terminals)) {
+			for (const terminal of Object.values(this._terminals)) {
 				if (terminal.group === group) {
 					this._logService.trace(`Found terminal to split for group ${group}`);
 					const originalInstance = terminal.terminal;
@@ -1270,7 +1292,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				customPtyImplementation: (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService),
 				waitOnExit,
 				name: this._createTerminalName(task),
-				initialText: task.command.presentation && task.command.presentation.echo ? formatMessageForTerminal(`Executing task: ${task._label}`, { excludeLeadingNewLine: true }) : undefined,
+				initialText: task.command.presentation && task.command.presentation.echo ? formatMessageForTerminal(nls.localize({
+					key: 'task.executing',
+					comment: ['The task command line or label']
+				}, 'Executing task: {0}', task._label), { excludeLeadingNewLine: true }) : undefined,
 				isFeatureTerminal: true,
 				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : undefined,
 				color: task.configurationProperties.color
@@ -1505,9 +1530,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			throw new Error('Command name should never be undefined here.');
 		}
 		this._collectVariables(variables, command.name);
-		if (command.args) {
-			command.args.forEach(arg => this._collectVariables(variables, arg));
-		}
+		command.args?.forEach(arg => this._collectVariables(variables, arg));
 		// Try to get a scope.
 		const scope = (<IExtensionTaskSource>task._source).scope;
 		if (scope !== TaskScope.Global) {
@@ -1531,9 +1554,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (options.shell.executable) {
 					this._collectVariables(variables, options.shell.executable);
 				}
-				if (options.shell.args) {
-					options.shell.args.forEach(arg => this._collectVariables(variables, arg));
-				}
+				options.shell.args?.forEach(arg => this._collectVariables(variables, arg));
 			}
 		}
 	}
@@ -1702,8 +1723,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _appendOutput(output: string): void {
 		const outputChannel = this._outputService.getChannel(this._outputChannelId);
-		if (outputChannel) {
-			outputChannel.append(output);
-		}
+		outputChannel?.append(output);
 	}
 }

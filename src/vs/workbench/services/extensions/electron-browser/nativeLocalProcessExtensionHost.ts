@@ -51,9 +51,7 @@ class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommun
 			const namedPipeServer = createServer();
 			namedPipeServer.on('error', reject);
 			namedPipeServer.listen(pipeName, () => {
-				if (namedPipeServer) {
-					namedPipeServer.removeListener('error', reject);
-				}
+				namedPipeServer?.removeListener('error', reject);
 				resolve({ pipeName, namedPipeServer });
 			});
 			this._register(toDisposable(() => {

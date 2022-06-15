@@ -123,9 +123,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected _onFocusTrackerFocus() {
 		const instance = this._terminalService.activeInstance;
-		if (instance) {
-			instance.notifyFindWidgetFocusChanged(true);
-		}
+		instance?.notifyFindWidgetFocusChanged(true);
 		this._findWidgetFocused.set(true);
 	}
 

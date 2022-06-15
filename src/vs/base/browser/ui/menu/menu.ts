@@ -609,9 +609,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 						this.label.innerText = replaceDoubleEscapes(label).trim();
 					}
 
-					if (this.item) {
-						this.item.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase());
-					}
+					this.item?.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase());
 				} else {
 					this.label.innerText = label.replace(/&&/g, '&').trim();
 				}
@@ -966,9 +964,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.submenuIndicator.style.color = fgColor ? `${fgColor}` : '';
 		}
 
-		if (this.parentData.submenu) {
-			this.parentData.submenu.style(this.menuStyle);
-		}
+		this.parentData.submenu?.style(this.menuStyle);
 	}
 
 	override dispose(): void {

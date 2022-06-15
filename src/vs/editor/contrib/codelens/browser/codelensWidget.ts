@@ -254,9 +254,7 @@ export class CodeLensWidget {
 	dispose(helper: CodeLensHelper, viewZoneChangeAccessor?: IViewZoneChangeAccessor): void {
 		this._decorationIds.forEach(helper.removeDecoration, helper);
 		this._decorationIds = [];
-		if (viewZoneChangeAccessor) {
-			viewZoneChangeAccessor.removeZone(this._viewZoneId);
-		}
+		viewZoneChangeAccessor?.removeZone(this._viewZoneId);
 		if (this._contentWidget) {
 			this._editor.removeContentWidget(this._contentWidget);
 			this._contentWidget = undefined;

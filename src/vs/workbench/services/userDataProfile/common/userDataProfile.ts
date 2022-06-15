@@ -20,12 +20,11 @@ export const IUserDataProfileManagementService = createDecorator<IUserDataProfil
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
-	createAndEnterProfile(name: string, options?: CreationOptions): Promise<void>;
+	createAndEnterProfile(name: string, options?: CreationOptions, fromExisting?: boolean): Promise<void>;
 	createAndEnterProfileFromTemplate(name: string, template: IUserDataProfileTemplate, options?: CreationOptions): Promise<void>;
 	removeProfile(name: string): Promise<void>;
 	switchProfile(name: string): Promise<void>;
 
-	reset(): Promise<void>;
 }
 
 export interface IUserDataProfileTemplate {

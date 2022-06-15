@@ -140,9 +140,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	}
 
 	private static _reviveCodeActionDto(data: ReadonlyArray<ICodeActionDto>): languages.CodeAction[] {
-		if (data) {
-			data.forEach(code => reviveWorkspaceEditDto(code.edit));
-		}
+		data?.forEach(code => reviveWorkspaceEditDto(code.edit));
 		return <languages.CodeAction[]>data;
 	}
 

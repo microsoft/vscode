@@ -252,9 +252,7 @@ export class FindInput extends Widget {
 
 		this.domNode.appendChild(this.controls);
 
-		if (parent) {
-			parent.appendChild(this.domNode);
-		}
+		parent?.appendChild(this.domNode);
 
 		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionstart', (e: CompositionEvent) => {
 			this.imeSessionInProgress = true;

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
+import { IStringDictionary, forEach } from 'vs/base/common/collections';
 import { IConfigurationService, IConfigurationOverrides, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -128,7 +128,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			if (!mapping) {
 				return null;
 			} else if (mapping.size > 0) {
-				return this.resolveAnyAsync(folder, config, fromMap(mapping));
+				return this.resolveAnyAsync(folder, config, Object.fromEntries(mapping));
 			} else {
 				return config;
 			}

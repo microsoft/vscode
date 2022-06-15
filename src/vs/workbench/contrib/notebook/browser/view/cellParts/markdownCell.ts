@@ -435,9 +435,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	updateEditorOptions(newValue: IEditorOptions): void {
 		this.editorOptions = newValue;
-		if (this.editor) {
-			this.editor.updateOptions(this.editorOptions);
-		}
+		this.editor?.updateOptions(this.editorOptions);
 	}
 
 	private layoutFoldingIndicator() {

@@ -30,9 +30,7 @@ export abstract class TreeElement {
 	abstract parent: TreeElement | undefined;
 
 	remove(): void {
-		if (this.parent) {
-			this.parent.children.delete(this.id);
-		}
+		this.parent?.children.delete(this.id);
 	}
 
 	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {

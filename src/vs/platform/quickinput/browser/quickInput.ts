@@ -113,9 +113,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 		this.resetContextKeys();
 
-		if (key) {
-			key.set(true);
-		}
+		key?.set(true);
 	}
 
 	private resetContextKeys() {

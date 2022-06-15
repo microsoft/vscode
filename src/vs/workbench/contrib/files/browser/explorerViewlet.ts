@@ -224,9 +224,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 					}
 
 					const openEditorsView = this.getOpenEditorsView();
-					if (openEditorsView) {
-						openEditorsView.setStructuralRefreshDelay(0);
-					}
+					openEditorsView?.setStructuralRefreshDelay(0);
 				}
 			});
 		}

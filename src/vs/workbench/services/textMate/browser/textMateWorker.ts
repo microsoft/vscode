@@ -214,9 +214,7 @@ export class TextMateWorker {
 
 	public async acceptTheme(theme: IRawTheme, colorMap: string[]): Promise<void> {
 		const grammarFactory = await this._grammarFactory;
-		if (grammarFactory) {
-			grammarFactory.setTheme(theme, colorMap);
-		}
+		grammarFactory?.setTheme(theme, colorMap);
 	}
 
 	public _setTokens(resource: URI, versionId: number, tokens: Uint8Array): void {

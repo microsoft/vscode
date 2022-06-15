@@ -489,9 +489,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			const element = e.node.element?.element;
 			if (element) {
 				const navigationController = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
-				if (navigationController) {
-					navigationController.updateCollapsed(e.node.collapsed);
-				}
+				navigationController?.updateCollapsed(e.node.collapsed);
 			}
 		}));
 
@@ -765,9 +763,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	itemsCopied(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void {
 		this.fileCopiedContextKey.set(stats.length > 0);
 		this.resourceCutContextKey.set(cut && stats.length > 0);
-		if (previousCut) {
-			previousCut.forEach(item => this.tree.rerender(item));
-		}
+		previousCut?.forEach(item => this.tree.rerender(item));
 		if (cut) {
 			stats.forEach(s => this.tree.rerender(s));
 		}

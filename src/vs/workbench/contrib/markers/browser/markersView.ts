@@ -227,9 +227,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		const wasSmallLayout = this.smallLayout;
 		this.smallLayout = width < 600 && height > 100;
 		if (this.smallLayout !== wasSmallLayout) {
-			if (this.filterActionBar) {
-				this.filterActionBar.getContainer().classList.toggle('hide', !this.smallLayout);
-			}
+			this.filterActionBar?.getContainer().classList.toggle('hide', !this.smallLayout);
 		}
 		const contentHeight = this.smallLayout ? height - 44 : height;
 		if (this.messageBoxContainer) {
