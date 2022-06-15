@@ -80,7 +80,19 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
-	_locale = navigator.language;
+
+	// Gather loader configuration since that contains the locale
+	let loaderConfiguration: any = null;
+	if (typeof globals.require !== 'undefined' && typeof globals.require.getConfig === 'function') {
+		// Get the configuration from the Monaco AMD Loader
+		loaderConfiguration = globals.require.getConfig();
+	} else if (typeof globals.requirejs !== 'undefined') {
+		// Get the configuration from requirejs
+		loaderConfiguration = globals.requirejs.s.contexts._.config;
+	}
+	const configuredLocale = loaderConfiguration?.['vs/nls']?.['availableLanguages']?.['*'] as string | undefined;
+	_locale = configuredLocale || navigator.language;
+
 	_language = _locale;
 }
 
@@ -209,7 +221,7 @@ export const setTimeout0 = (() => {
 			id: number;
 			callback: () => void;
 		}
-		let pending: IQueueElement[] = [];
+		const pending: IQueueElement[] = [];
 		globals.addEventListener('message', (e: MessageEvent) => {
 			if (e.data && e.data.vscodeScheduleAsyncWork) {
 				for (let i = 0, len = pending.length; i < len; i++) {

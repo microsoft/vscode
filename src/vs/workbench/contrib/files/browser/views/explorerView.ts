@@ -479,7 +479,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this.tree.onDidScroll(async e => {
-			let editable = this.explorerService.getEditable();
+			const editable = this.explorerService.getEditable();
 			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
 				await editable.data.onFinish('', false);
 			}
@@ -538,7 +538,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private async onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): Promise<void> {
 		const disposables = new DisposableStore();
-		let stat = e.element;
+		const stat = e.element;
 		let anchor = e.anchor;
 
 		// Compressed folders
@@ -731,7 +731,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				return this.selectResource(resource, reveal, retry + 1);
 			}
 
-			for (let child of item.children.values()) {
+			for (const child of item.children.values()) {
 				if (this.uriIdentityService.extUri.isEqualOrParent(resource, child.resource)) {
 					item = child;
 					break;

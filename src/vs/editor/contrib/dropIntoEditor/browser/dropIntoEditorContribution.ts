@@ -13,14 +13,17 @@ import { URI } from 'vs/base/common/uri';
 import { toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { DocumentOnDropEditProvider, SnippetTextEdit } from 'vs/editor/common/languages';
+import { DocumentOnDropEdit, DocumentOnDropEditProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { extractEditorsDropData } from 'vs/platform/dnd/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,6 +40,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		super();
 
@@ -87,7 +91,12 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				}
 
 				if (edit) {
-					performSnippetEdit(editor, edit);
+					const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+					performSnippetEdit(editor, typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet, [Selection.fromRange(range, SelectionDirection.LTR)]);
+
+					if (edit.additionalEdit) {
+						await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor });
+					}
 					return;
 				}
 			}
@@ -121,24 +130,26 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<SnippetTextEdit | undefined> {
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-
+	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
 		const urlListEntry = dataTransfer.get('text/uri-list');
 		if (urlListEntry) {
 			const urlList = await urlListEntry.asString();
-			return this.doUriListDrop(range, urlList);
+			const snippet = this.getUriListInsertText(urlList);
+			if (snippet) {
+				return { insertText: snippet };
+			}
 		}
 
 		const textEntry = dataTransfer.get('text') ?? dataTransfer.get(Mimes.text);
 		if (textEntry) {
 			const text = await textEntry.asString();
-			return { range, snippet: text };
+			return { insertText: text };
 		}
+
 		return undefined;
 	}
 
-	private doUriListDrop(range: Range, urlList: string): SnippetTextEdit | undefined {
+	private getUriListInsertText(urlList: string): string | undefined {
 		const uris: URI[] = [];
 		for (const resource of urlList.split('\n')) {
 			try {
@@ -152,7 +163,7 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 			return;
 		}
 
-		const snippet = uris
+		return uris
 			.map(uri => {
 				const root = this._workspaceContextService.getWorkspaceFolder(uri);
 				if (root) {
@@ -164,8 +175,6 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 				return uri.fsPath;
 			})
 			.join(' ');
-
-		return { range, snippet };
 	}
 }
 

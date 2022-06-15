@@ -5,6 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService, NativeExtensionsScannerService, } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -13,6 +14,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 export class ExtensionsScannerService extends NativeExtensionsScannerService implements IExtensionsScannerService {
 
 	constructor(
+		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -23,7 +25,7 @@ export class ExtensionsScannerService extends NativeExtensionsScannerService imp
 			URI.file(environmentService.extensionsPath),
 			environmentService.userHome,
 			URI.file(environmentService.userDataPath),
-			fileService, logService, environmentService, productService);
+			extensionsProfileScannerService, fileService, logService, environmentService, productService);
 	}
 
 }

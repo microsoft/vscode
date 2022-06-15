@@ -25,7 +25,7 @@ export interface ILanguagePackService {
 }
 
 export abstract class LanguagePackBaseService extends Disposable implements ILanguagePackService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService) {
 		super();

@@ -185,7 +185,13 @@ function stripAngleBrackets(link: string) {
 /**
  * Matches `[text](link)`
  */
-const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
+const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]]|\][^(])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*("[^"]*"|'[^']*'|\([^\(\)]*\))?\s*\)/g;
+
+/**
+ * Matches `[text](<link>)`
+ */
+const linkPatternAngle = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]]|\][^(])*\])\(\s*<)(([^<>]|\([^\s\(\)]*?\))+)>\s*("[^"]*"|'[^']*'|\([^\(\)]*\))?\s*\)/g;
+
 
 /**
  * Matches `[text][ref]` or `[shorthand]`
@@ -236,52 +242,11 @@ class NoLinkRanges {
 	}
 }
 
-
-export class MdLinkProvider implements vscode.DocumentLinkProvider {
+export class MdLinkComputer {
 
 	constructor(
 		private readonly engine: MarkdownEngine
 	) { }
-
-	public async provideDocumentLinks(
-		document: SkinnyTextDocument,
-		token: vscode.CancellationToken
-	): Promise<vscode.DocumentLink[]> {
-		const allLinks = await this.getAllLinks(document, token);
-		if (token.isCancellationRequested) {
-			return [];
-		}
-
-		const definitionSet = new LinkDefinitionSet(allLinks);
-		return coalesce(allLinks
-			.map(data => this.toValidDocumentLink(data, definitionSet)));
-	}
-
-	private toValidDocumentLink(link: MdLink, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
-		switch (link.href.kind) {
-			case 'external': {
-				return new vscode.DocumentLink(link.source.hrefRange, link.href.uri);
-			}
-			case 'internal': {
-				const uri = OpenDocumentLinkCommand.createCommandUri(link.source.resource, link.href.path, link.href.fragment);
-				const documentLink = new vscode.DocumentLink(link.source.hrefRange, uri);
-				documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
-				return documentLink;
-			}
-			case 'reference': {
-				const def = definitionSet.lookup(link.href.ref);
-				if (def) {
-					const documentLink = new vscode.DocumentLink(
-						link.source.hrefRange,
-						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.source.hrefRange.start.line, def.source.hrefRange.start.character]))}`));
-					documentLink.tooltip = localize('documentLink.referenceTooltip', 'Go to link definition');
-					return documentLink;
-				} else {
-					return undefined;
-				}
-			}
-		}
-	}
 
 	public async getAllLinks(document: SkinnyTextDocument, token: vscode.CancellationToken): Promise<MdLink[]> {
 		const noLinkRanges = await NoLinkRanges.compute(document, this.engine);
@@ -300,11 +265,27 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	private *getInlineLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 
+		for (const match of text.matchAll(linkPatternAngle)) {
+			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
+			if (matchImageData && !noLinkRanges.contains(matchImageData.source.hrefRange)) {
+				yield matchImageData;
+			}
+			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
+			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
+				yield matchLinkData;
+			}
+		}
+
 		for (const match of text.matchAll(linkPattern)) {
 			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
 			if (matchImageData && !noLinkRanges.contains(matchImageData.source.hrefRange)) {
 				yield matchImageData;
 			}
+
+			if (match[5] !== undefined && match[5].startsWith('<')) {
+				continue;
+			}
+
 			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
 			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
 				yield matchLinkData;
@@ -452,4 +433,58 @@ export class LinkDefinitionSet {
 	public lookup(ref: string): MdLinkDefinition | undefined {
 		return this._map.get(ref);
 	}
+}
+
+export class MdLinkProvider implements vscode.DocumentLinkProvider {
+
+	constructor(
+		private readonly _linkComputer: MdLinkComputer,
+	) { }
+
+	public async provideDocumentLinks(
+		document: SkinnyTextDocument,
+		token: vscode.CancellationToken
+	): Promise<vscode.DocumentLink[]> {
+		const allLinks = (await this._linkComputer.getAllLinks(document, token)) ?? [];
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		const definitionSet = new LinkDefinitionSet(allLinks);
+		return coalesce(allLinks
+			.map(data => this.toValidDocumentLink(data, definitionSet)));
+	}
+
+	private toValidDocumentLink(link: MdLink, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
+		switch (link.href.kind) {
+			case 'external': {
+				return new vscode.DocumentLink(link.source.hrefRange, link.href.uri);
+			}
+			case 'internal': {
+				const uri = OpenDocumentLinkCommand.createCommandUri(link.source.resource, link.href.path, link.href.fragment);
+				const documentLink = new vscode.DocumentLink(link.source.hrefRange, uri);
+				documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
+				return documentLink;
+			}
+			case 'reference': {
+				const def = definitionSet.lookup(link.href.ref);
+				if (def) {
+					const documentLink = new vscode.DocumentLink(
+						link.source.hrefRange,
+						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.source.hrefRange.start.line, def.source.hrefRange.start.character]))}`));
+					documentLink.tooltip = localize('documentLink.referenceTooltip', 'Go to link definition');
+					return documentLink;
+				} else {
+					return undefined;
+				}
+			}
+		}
+	}
+}
+
+export function registerDocumentLinkProvider(
+	selector: vscode.DocumentSelector,
+	linkComputer: MdLinkComputer,
+): vscode.Disposable {
+	return vscode.languages.registerDocumentLinkProvider(selector, new MdLinkProvider(linkComputer));
 }

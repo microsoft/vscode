@@ -403,7 +403,7 @@ flakySuite('Disk File Service', function () {
 		const children = result.children!;
 		assert.strictEqual(children.length, 1);
 
-		let deep = getByName(result, 'deep');
+		const deep = getByName(result, 'deep');
 		assert.ok(deep);
 		assert.ok(deep!.children!.length > 0);
 		assert.strictEqual(deep!.children!.length, 4);
@@ -1223,7 +1223,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(existsSync(target2.fsPath), true);
 		assert.strictEqual(basename(target2.fsPath), 'index.html-clone');
 
-		let target2Size = (await service.resolve(target2, { resolveMetadata: true })).size;
+		const target2Size = (await service.resolve(target2, { resolveMetadata: true })).size;
 
 		assert.strictEqual(source1Size, target2Size);
 	}
@@ -1359,8 +1359,8 @@ flakySuite('Disk File Service', function () {
 	});
 
 	async function testFilesNotIntermingled() {
-		let resource1 = URI.file(join(testDir, 'lorem.txt'));
-		let resource2 = URI.file(join(testDir, 'some_utf16le.css'));
+		const resource1 = URI.file(join(testDir, 'lorem.txt'));
+		const resource2 = URI.file(join(testDir, 'some_utf16le.css'));
 
 		// load in sequence and keep data
 		const value1 = await service.readFile(resource1);

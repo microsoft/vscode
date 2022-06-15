@@ -482,7 +482,7 @@ export class SettingsTreeModel {
 	}
 
 	private disposeChildren(children: SettingsTreeGroupChild[]) {
-		for (let child of children) {
+		for (const child of children) {
 			this.recursiveDispose(child);
 		}
 	}

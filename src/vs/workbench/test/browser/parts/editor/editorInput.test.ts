@@ -20,8 +20,8 @@ suite('EditorInput', () => {
 
 	test('basics', () => {
 		let counter = 0;
-		let input = new MyEditorInput();
-		let otherInput = new MyEditorInput();
+		const input = new MyEditorInput();
+		const otherInput = new MyEditorInput();
 
 		assert.ok(isEditorInput(input));
 		assert.ok(!isEditorInput(undefined));

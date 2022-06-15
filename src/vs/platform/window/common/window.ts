@@ -16,6 +16,7 @@ import { FileType } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
+import { IUserDataProfilesDto } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const WindowMinimumSize = {
@@ -281,6 +282,8 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	execPath: string;
 	backupPath?: string;
+
+	profiles: IUserDataProfilesDto;
 
 	homeDir: string;
 	tmpDir: string;

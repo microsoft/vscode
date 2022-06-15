@@ -5,7 +5,7 @@
 
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { timeout } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
@@ -75,6 +75,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length));
 
 		this._findState = new FindReplaceState();
+
+		Event.any(this.onDidChangeActiveGroup, this.onDidChangeInstances)(() => this.updateVisibility());
 	}
 
 	hidePanel(): void {
@@ -114,7 +116,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	private _getIndexFromId(terminalId: number): number {
-		let terminalIndex = this.instances.findIndex(e => e.instanceId === terminalId);
+		const terminalIndex = this.instances.findIndex(e => e.instanceId === terminalId);
 		if (terminalIndex === -1) {
 			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
 		}
@@ -280,7 +282,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		const oldActiveGroup = this.activeGroup;
 		this.activeGroupIndex = index;
 		if (force || oldActiveGroup !== this.activeGroup) {
-			this.groups.forEach((g, i) => g.setVisible(i === this.activeGroupIndex));
 			this._onDidChangeActiveGroup.fire(this.activeGroup);
 			this._onDidChangeActiveInstance.fire(this.activeInstance);
 		}
@@ -318,8 +319,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.activeGroupIndex = instanceLocation.groupIndex;
 		this._onDidChangeActiveGroup.fire(this.activeGroup);
 		instanceLocation.group.setActiveInstanceByIndex(activeInstanceIndex, true);
-		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
-
 	}
 
 	setActiveGroupToNext() {
@@ -484,6 +483,17 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return this.groups.filter(group => group.terminalInstances.length > 0).map((group, index) => {
 			return `${index + 1}: ${group.title ? group.title : ''}`;
 		});
+	}
+
+	/**
+	 * Visibility should be updated in the following cases:
+	 * 1. Toggle `TERMINAL_VIEW_ID` visibility
+	 * 2. Change active group
+	 * 3. Change instances in active group
+	 */
+	updateVisibility() {
+		const visible = this._viewsService.isViewVisible(TERMINAL_VIEW_ID);
+		this.groups.forEach((g, i) => g.setVisible(visible && i === this.activeGroupIndex));
 	}
 }
 

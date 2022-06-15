@@ -68,6 +68,7 @@ stages:
         steps:
           - template: win32/product-build-win32.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: true
               VSCODE_RUN_INTEGRATION_TESTS: false
@@ -80,6 +81,7 @@ stages:
         steps:
           - template: win32/product-build-win32.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: true
@@ -92,6 +94,7 @@ stages:
         steps:
           - template: win32/product-build-win32.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: false
@@ -113,6 +116,7 @@ stages:
         steps:
           - template: linux/product-build-linux-client.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: true
               VSCODE_RUN_INTEGRATION_TESTS: false
@@ -127,6 +131,7 @@ stages:
         steps:
           - template: linux/product-build-linux-client.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: true
@@ -141,6 +146,7 @@ stages:
         steps:
           - template: linux/product-build-linux-client.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: false
@@ -160,8 +166,9 @@ stages:
         variables:
           VSCODE_ARCH: x64
         steps:
-          - template: darwin/product-build-darwin-test.yml
+          - template: darwin/product-build-darwin.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: true
               VSCODE_RUN_INTEGRATION_TESTS: false
@@ -172,8 +179,9 @@ stages:
         variables:
           VSCODE_ARCH: x64
         steps:
-          - template: darwin/product-build-darwin-test.yml
+          - template: darwin/product-build-darwin.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: true
@@ -184,8 +192,9 @@ stages:
         variables:
           VSCODE_ARCH: x64
         steps:
-          - template: darwin/product-build-darwin-test.yml
+          - template: darwin/product-build-darwin.yml
             parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: false

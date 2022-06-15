@@ -44,7 +44,7 @@ suite('Color Registry', function () {
 		const expression = /-\s*\`([\w\.]+)\`: (.*)/g;
 
 		let m: RegExpExecArray | null;
-		let colorsInDoc: { [id: string]: ColorInfo } = Object.create(null);
+		const colorsInDoc: { [id: string]: ColorInfo } = Object.create(null);
 		let nColorsInDoc = 0;
 		while (m = expression.exec(content)) {
 			colorsInDoc[m[1]] = { description: m[2], offset: m.index, length: m.length };
@@ -52,33 +52,33 @@ suite('Color Registry', function () {
 		}
 		assert.ok(nColorsInDoc > 0, 'theme-color.md contains to color descriptions');
 
-		let missing = Object.create(null);
-		let descriptionDiffs: { [id: string]: DescriptionDiff } = Object.create(null);
+		const missing = Object.create(null);
+		const descriptionDiffs: { [id: string]: DescriptionDiff } = Object.create(null);
 
-		let themingRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
-		for (let color of themingRegistry.getColors()) {
+		const themingRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
+		for (const color of themingRegistry.getColors()) {
 			if (!colorsInDoc[color.id]) {
 				if (!color.deprecationMessage) {
 					missing[color.id] = getDescription(color);
 				}
 			} else {
-				let docDescription = colorsInDoc[color.id].description;
-				let specDescription = getDescription(color);
+				const docDescription = colorsInDoc[color.id].description;
+				const specDescription = getDescription(color);
 				if (docDescription !== specDescription) {
 					descriptionDiffs[color.id] = { docDescription, specDescription };
 				}
 				delete colorsInDoc[color.id];
 			}
 		}
-		let colorsInExtensions = await getColorsFromExtension();
-		for (let colorId in colorsInExtensions) {
+		const colorsInExtensions = await getColorsFromExtension();
+		for (const colorId in colorsInExtensions) {
 			if (!colorsInDoc[colorId]) {
 				missing[colorId] = colorsInExtensions[colorId];
 			} else {
 				delete colorsInDoc[colorId];
 			}
 		}
-		for (let colorId of experimental) {
+		for (const colorId of experimental) {
 			if (missing[colorId]) {
 				delete missing[colorId];
 			}
@@ -87,10 +87,10 @@ suite('Color Registry', function () {
 			}
 		}
 
-		let undocumentedKeys = Object.keys(missing).map(k => `\`${k}\`: ${missing[k]}`);
+		const undocumentedKeys = Object.keys(missing).map(k => `\`${k}\`: ${missing[k]}`);
 		assert.deepStrictEqual(undocumentedKeys, [], 'Undocumented colors ids');
 
-		let superfluousKeys = Object.keys(colorsInDoc);
+		const superfluousKeys = Object.keys(colorsInDoc);
 		assert.deepStrictEqual(superfluousKeys, [], 'Colors ids in doc that do not exist');
 
 	});
@@ -105,18 +105,18 @@ function getDescription(color: ColorContribution) {
 }
 
 async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
-	let extPath = getPathFromAmdModule(require, '../../../../../../../extensions');
-	let extFolders = await pfs.Promises.readDirsInDir(extPath);
-	let result: { [id: string]: string } = Object.create(null);
-	for (let folder of extFolders) {
+	const extPath = getPathFromAmdModule(require, '../../../../../../../extensions');
+	const extFolders = await pfs.Promises.readDirsInDir(extPath);
+	const result: { [id: string]: string } = Object.create(null);
+	for (const folder of extFolders) {
 		try {
-			let packageJSON = JSON.parse((await pfs.Promises.readFile(path.join(extPath, folder, 'package.json'))).toString());
-			let contributes = packageJSON['contributes'];
+			const packageJSON = JSON.parse((await pfs.Promises.readFile(path.join(extPath, folder, 'package.json'))).toString());
+			const contributes = packageJSON['contributes'];
 			if (contributes) {
-				let colors = contributes['colors'];
+				const colors = contributes['colors'];
 				if (colors) {
-					for (let color of colors) {
-						let colorId = color['id'];
+					for (const color of colors) {
+						const colorId = color['id'];
 						if (colorId) {
 							result[colorId] = colorId['description'];
 						}

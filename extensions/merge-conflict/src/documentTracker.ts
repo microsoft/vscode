@@ -50,7 +50,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 	getConflicts(document: vscode.TextDocument, origin: string): PromiseLike<interfaces.IDocumentMergeConflict[]> {
 		// Attempt from cache
 
-		let key = this.getCacheKey(document);
+		const key = this.getCacheKey(document);
 
 		if (!key) {
 			// Document doesn't have a uri, can't cache it, so return
@@ -67,7 +67,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 		}
 
 		return cacheItem.delayTask.trigger(() => {
-			let conflicts = this.getConflictsOrEmpty(document, Array.from(cacheItem!.origins));
+			const conflicts = this.getConflictsOrEmpty(document, Array.from(cacheItem!.origins));
 
 			if (this.cache) {
 				this.cache.delete(key!);
@@ -82,7 +82,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 			return false;
 		}
 
-		let key = this.getCacheKey(document);
+		const key = this.getCacheKey(document);
 		if (!key) {
 			return false;
 		}
@@ -100,7 +100,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 	}
 
 	forget(document: vscode.TextDocument) {
-		let key = this.getCacheKey(document);
+		const key = this.getCacheKey(document);
 
 		if (key) {
 			this.cache.delete(key);

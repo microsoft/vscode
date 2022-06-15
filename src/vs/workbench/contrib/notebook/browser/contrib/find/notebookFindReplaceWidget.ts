@@ -290,7 +290,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 		this._scopedContextKeyService = contextKeyService.createScoped(this._domNode);
 
-		let progressContainer = dom.$('.find-replace-progress');
+		const progressContainer = dom.$('.find-replace-progress');
 		this._progressBar = new ProgressBar(progressContainer);
 		this._register(attachProgressBarStyler(this._progressBar, this._themeService));
 		this._domNode.appendChild(progressContainer);
@@ -564,7 +564,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private _updateButtons(): void {
 		this._findInput.setEnabled(this._isVisible);
 		this._replaceInput.setEnabled(this._isVisible && this._isReplaceVisible);
-		let findInputIsNonEmpty = (this._state.searchString.length > 0);
+		const findInputIsNonEmpty = (this._state.searchString.length > 0);
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 

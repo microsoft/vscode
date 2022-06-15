@@ -454,6 +454,13 @@ class ProgressManager {
 		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
 		onDidChange(_ => this.updateEnablement());
 		this.updateEnablement();
+
+		this.repository.onDidChangeOperations(() => {
+			const commitInProgress = this.repository.operations.isRunning(Operation.Commit);
+
+			this.repository.sourceControl.inputBox.enabled = !commitInProgress;
+			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+		});
 	}
 
 	private updateEnablement(): void {
@@ -1029,7 +1036,7 @@ export class Repository implements Disposable {
 		}
 
 		let lineNumber = 0;
-		let start = 0, end;
+		let start = 0;
 		let match: RegExpExecArray | null;
 		const regex = /\r?\n/g;
 
@@ -1038,7 +1045,7 @@ export class Repository implements Disposable {
 			lineNumber++;
 		}
 
-		end = match ? match.index : text.length;
+		const end = match ? match.index : text.length;
 
 		const line = text.substring(start, end);
 
@@ -1282,7 +1289,7 @@ export class Repository implements Disposable {
 		});
 	}
 
-	closeDiffEditors(indexResources: string[], workingTreeResources: string[], ignoreSetting: boolean = false): void {
+	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting: boolean = false): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
 
@@ -1291,11 +1298,11 @@ export class Repository implements Disposable {
 		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
 			const { input } = tab;
 			if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
-				if (input.modified.scheme === 'git' && indexResources.some(r => pathEquals(r, input.modified.fsPath))) {
+				if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
 					// Index
 					diffEditorTabsToClose.push(tab);
 				}
-				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && workingTreeResources.some(r => pathEquals(r, input.modified.fsPath))) {
+				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
 					// Working Tree
 					diffEditorTabsToClose.push(tab);
 				}

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { isObject } from 'vs/base/common/types';
 import { IJSONSchema, IJSONSchemaMap, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage, IDebuggerMetadata } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
@@ -21,7 +21,7 @@ import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtil
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-export class Debugger implements IDebugger {
+export class Debugger implements IDebugger, IDebuggerMetadata {
 
 	private debuggerContribution: IDebuggerContribution;
 	private mergedExtensionDescriptions: IExtensionDescription[] = [];
@@ -151,6 +151,10 @@ export class Debugger implements IDebugger {
 		return this.debuggerContribution.uiMessages;
 	}
 
+	interestedInLanguage(languageId: string): boolean {
+		return !!(this.languages && this.languages.indexOf(languageId) >= 0);
+	}
+
 	hasInitialConfiguration(): boolean {
 		return !!this.debuggerContribution.initialConfigurations;
 	}
@@ -232,7 +236,8 @@ export class Debugger implements IDebugger {
 				enumDescriptions: [this.label],
 				description: nls.localize('debugType', "Type of configuration."),
 				pattern: '^(?!node2)',
-				deprecationMessage: this.enabled ? undefined : debuggerDisabledMessage(this.type),
+				deprecationMessage: this.debuggerContribution.deprecated || (this.enabled ? undefined : debuggerDisabledMessage(this.type)),
+				doNotSuggest: !!this.debuggerContribution.deprecated,
 				errorMessage: nls.localize('debugTypeNotRecognised', "The debug type is not recognized. Make sure that you have a corresponding debug extension installed and that it is enabled."),
 				patternErrorMessage: nls.localize('node2NotSupported', "\"node2\" is no longer supported, use \"node\" instead and set the \"protocol\" attribute to \"inspector\".")
 			};

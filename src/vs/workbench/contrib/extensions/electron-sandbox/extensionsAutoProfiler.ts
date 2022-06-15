@@ -111,8 +111,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 		let data: NamedSlice[] = [];
 		for (let i = 0; i < profile.ids.length; i++) {
-			let id = profile.ids[i];
-			let total = profile.deltas[i];
+			const id = profile.ids[i];
+			const total = profile.deltas[i];
 			data.push({ id, total, percentage: 0 });
 		}
 

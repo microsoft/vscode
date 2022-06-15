@@ -54,6 +54,7 @@ else
 	#			compile-extension:emmet \
 	#			compile-extension:git \
 	#			compile-extension:ipynb \
+	#			compile-extension:configuration-editing \
 	#			compile-extension:microsoft-authentication \
 	#			compile-extension:github-authentication \
 	#			compile-extension-media
@@ -63,7 +64,7 @@ else
 	export ELECTRON_ENABLE_LOGGING=1
 
 	# Running from a build, we need to enable the vscode-test-resolver extension
-	EXTRA_INTEGRATION_TEST_ARGUMENTS="--extensions-dir=$EXT_PATH  --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests --enable-proposed-api=vscode.markdown-language-features --enable-proposed-api=vscode.git"
+	EXTRA_INTEGRATION_TEST_ARGUMENTS="--extensions-dir=$EXT_PATH  --enable-proposed-api=vscode.vscode-test-resolver --enable-proposed-api=vscode.vscode-api-tests"
 
 	echo "Storing crash reports into '$VSCODECRASHDIR'."
 	echo "Storing log files into '$VSCODELOGSDIR'."
@@ -132,6 +133,11 @@ echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --folder-uri=$AUTHORITY$(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$REMOTE_VSCODE/ipynb --extensionTestsPath=$REMOTE_VSCODE/ipynb/out/test $API_TESTS_EXTRA_ARGS $EXTRA_INTEGRATION_TEST_ARGUMENTS
 kill_app
 
+echo
+echo "### Configuration editing tests"
+echo
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --folder-uri=$AUTHORITY$(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$REMOTE_VSCODE/configuration-editing --extensionTestsPath=$REMOTE_VSCODE/configuration-editing/out/test $API_TESTS_EXTRA_ARGS $EXTRA_INTEGRATION_TEST_ARGUMENTS
+kill_app
 
 # Cleanup
 

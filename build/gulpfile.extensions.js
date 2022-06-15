@@ -91,7 +91,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const baseUrl = getBaseUrl(out);
 
 	let headerId, headerOut;
-	let index = relativeDirname.indexOf('/');
+	const index = relativeDirname.indexOf('/');
 	if (index < 0) {
 		headerId = 'vscode.' + relativeDirname;
 		headerOut = 'out';
@@ -110,7 +110,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
 
-		const compilation = tsb.create(absolutePath, overrideOptions, false, err => reporter(err.toString()));
+		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false }, err => reporter(err.toString()));
 
 		const pipeline = function () {
 			const input = es.through();

@@ -217,7 +217,7 @@ function updateToEdit(update: ICellExecuteUpdate, cellHandle: number): ICellEdit
 	if (update.editType === CellExecutionUpdateType.Output) {
 		return {
 			editType: CellEditType.Output,
-			handle: cellHandle,
+			handle: update.cellHandle,
 			append: update.append,
 			outputs: update.outputs,
 		};

@@ -564,7 +564,7 @@ export async function logStorage(global: Map<string, string>, workspace: Map<str
 	});
 
 	console.group(`Storage: Global (path: ${globalPath})`);
-	let globalValues: { key: string; value: string }[] = [];
+	const globalValues: { key: string; value: string }[] = [];
 	globalItems.forEach((value, key) => {
 		globalValues.push({ key, value });
 	});
@@ -574,7 +574,7 @@ export async function logStorage(global: Map<string, string>, workspace: Map<str
 	console.log(globalItemsParsed);
 
 	console.group(`Storage: Workspace (path: ${workspacePath})`);
-	let workspaceValues: { key: string; value: string }[] = [];
+	const workspaceValues: { key: string; value: string }[] = [];
 	workspaceItems.forEach((value, key) => {
 		workspaceValues.push({ key, value });
 	});

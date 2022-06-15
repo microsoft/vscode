@@ -453,7 +453,7 @@ export class OpenEditorsView extends ViewPane {
 			}
 		}
 
-		let dirty = this.workingCopyService.dirtyCount;
+		const dirty = this.workingCopyService.dirtyCount;
 		if (dirty === 0) {
 			this.dirtyCountElement.classList.add('hidden');
 		} else {
@@ -500,8 +500,8 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	override getOptimalWidth(): number {
-		let parentNode = this.list.getHTMLElement();
-		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+		const parentNode = this.list.getHTMLElement();
+		const childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
 		return dom.getLargestChildWidth(parentNode, childNodes);
 	}

@@ -68,7 +68,7 @@ export class CommentsPanel extends ViewPane {
 
 		container.classList.add('comments-panel');
 
-		let domContainer = dom.append(container, dom.$('.comments-panel-container'));
+		const domContainer = dom.append(container, dom.$('.comments-panel-container'));
 		this.treeContainer = dom.append(domContainer, dom.$('.tree-container'));
 		this.treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 		this.commentsModel = new CommentsModel();
@@ -220,7 +220,7 @@ export class CommentsPanel extends ViewPane {
 		const activeEditor = this.editorService.activeTextEditorControl;
 		// If the active editor is a diff editor where one of the sides has the comment,
 		// then we try to reveal the comment in the diff editor.
-		let currentActiveResources: IEditor[] = isDiffEditor(activeEditor) ? [activeEditor.getOriginalEditor(), activeEditor.getModifiedEditor()]
+		const currentActiveResources: IEditor[] = isDiffEditor(activeEditor) ? [activeEditor.getOriginalEditor(), activeEditor.getModifiedEditor()]
 			: (activeEditor ? [activeEditor] : []);
 
 		for (const editor of currentActiveResources) {

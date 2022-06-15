@@ -9,7 +9,7 @@ export function applyLineChanges(original: TextDocument, modified: TextDocument,
 	const result: string[] = [];
 	let currentLine = 0;
 
-	for (let diff of diffs) {
+	for (const diff of diffs) {
 		const isInsertion = diff.originalEndLineNumber === 0;
 		const isDeletion = diff.modifiedEndLineNumber === 0;
 

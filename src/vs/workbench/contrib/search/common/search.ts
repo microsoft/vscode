@@ -75,7 +75,7 @@ export async function getWorkspaceSymbols(query: string, token: CancellationToke
 			if (!value) {
 				return;
 			}
-			for (let symbol of value) {
+			for (const symbol of value) {
 				all.push(new WorkspaceSymbolItem(symbol, provider));
 			}
 		} catch (err) {

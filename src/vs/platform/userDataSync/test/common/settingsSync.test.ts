@@ -9,9 +9,9 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISettingsSyncContent, parseSettingsSyncContent, SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
@@ -49,7 +49,7 @@ suite('SettingsSync - Auto', () => {
 
 	test('when settings file does not exist', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const settingResource = client.instantiationService.get(IEnvironmentService).settingsResource;
+		const settingResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
 		let manifest = await client.manifest();
@@ -80,7 +80,7 @@ suite('SettingsSync - Auto', () => {
 
 	test('when settings file is empty and remote has no changes', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const settingsResource = client.instantiationService.get(IEnvironmentService).settingsResource;
+		const settingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 		await fileService.writeFile(settingsResource, VSBuffer.fromString(''));
 
 		await testObject.sync(await client.manifest());
@@ -117,11 +117,11 @@ suite('SettingsSync - Auto', () => {
 	// Experimental
 	"workbench.view.experimental.allowMovingToNewContainer": true,
 }`;
-		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(content));
+		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString(content));
 		await client2.sync();
 
 		const fileService = client.instantiationService.get(IFileService);
-		const settingsResource = client.instantiationService.get(IEnvironmentService).settingsResource;
+		const settingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 		await fileService.writeFile(settingsResource, VSBuffer.fromString(''));
 
 		await testObject.sync(await client.manifest());
@@ -136,7 +136,7 @@ suite('SettingsSync - Auto', () => {
 	test('when settings file is created after first sync', async () => {
 		const fileService = client.instantiationService.get(IFileService);
 
-		const settingsResource = client.instantiationService.get(IEnvironmentService).settingsResource;
+		const settingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 		await testObject.sync(await client.manifest());
 		await fileService.createFile(settingsResource, VSBuffer.fromString('{}'));
 
@@ -579,6 +579,6 @@ function parseSettings(content: string): string {
 }
 
 async function updateSettings(content: string, client: UserDataSyncClient): Promise<void> {
-	await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(content));
+	await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString(content));
 	await client.instantiationService.get(IConfigurationService).reloadConfiguration();
 }

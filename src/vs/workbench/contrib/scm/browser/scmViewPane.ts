@@ -543,8 +543,8 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		}
 
 		// FilePath match
-		let labelMatches: IMatch[] = [];
-		let descriptionMatches: IMatch[] = [];
+		const labelMatches: IMatch[] = [];
+		const descriptionMatches: IMatch[] = [];
 
 		for (const match of matches) {
 			if (match.start > pathLength) {
@@ -1164,7 +1164,7 @@ class ViewModel {
 		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
 		this.onDidChangeConfiguration();
 
-		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element))
+		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element), this.disposables)
 			(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
 		this.disposables.add(this.tree.onDidChangeCollapseState(() => this._treeViewStateIsStale = true));
@@ -1710,7 +1710,8 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane>  {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
-class SCMInputWidget extends Disposable {
+class SCMInputWidget {
+
 	private static readonly ValidationTimeouts: { [severity: number]: number } = {
 		[InputValidationType.Information]: 5000,
 		[InputValidationType.Warning]: 8000,
@@ -1723,6 +1724,7 @@ class SCMInputWidget extends Disposable {
 	private editorContainer: HTMLElement;
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
+	private disposables = new DisposableStore();
 
 	private model: { readonly input: ISCMInput; readonly textModel: ITextModel } | undefined;
 	private repositoryIdContextKey: IContextKey<string | undefined>;
@@ -1798,7 +1800,7 @@ class SCMInputWidget extends Disposable {
 
 		// Adaptive indentation rules
 		const opts = this.modelService.getCreationOptions(textModel.getLanguageId(), textModel.uri, textModel.isForSimpleWidget);
-		const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter);
+		const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter, this.repositoryDisposables);
 		this.repositoryDisposables.add(onEnter(() => textModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
 
 		// Keep model in sync with API
@@ -1914,8 +1916,6 @@ class SCMInputWidget extends Disposable {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
-		super();
-
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
 		this.placeholderTextContainer = append(this.editorContainer, $('.scm-editor-placeholder'));
@@ -1965,9 +1965,9 @@ class SCMInputWidget extends Disposable {
 		const services = new ServiceCollection([IContextKeyService, contextKeyService2]);
 		const instantiationService2 = instantiationService.createChild(services);
 		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorOptions, codeEditorWidgetOptions);
-		this._register(this.inputEditor);
+		this.disposables.add(this.inputEditor);
 
-		this._register(this.inputEditor.onDidFocusEditorText(() => {
+		this.disposables.add(this.inputEditor.onDidFocusEditorText(() => {
 			if (this.input?.repository) {
 				this.scmViewService.focus(this.input.repository);
 			}
@@ -1975,7 +1975,7 @@ class SCMInputWidget extends Disposable {
 			this.editorContainer.classList.add('synthetic-focus');
 			this.renderValidation();
 		}));
-		this._register(this.inputEditor.onDidBlurEditorText(() => {
+		this.disposables.add(this.inputEditor.onDidBlurEditorText(() => {
 			this.editorContainer.classList.remove('synthetic-focus');
 
 			setTimeout(() => {
@@ -1988,7 +1988,7 @@ class SCMInputWidget extends Disposable {
 		const firstLineKey = contextKeyService2.createKey<boolean>('scmInputIsInFirstPosition', false);
 		const lastLineKey = contextKeyService2.createKey<boolean>('scmInputIsInLastPosition', false);
 
-		this._register(this.inputEditor.onDidChangeCursorPosition(({ position }) => {
+		this.disposables.add(this.inputEditor.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this.inputEditor._getViewModel()!;
 			const lastLineNumber = viewModel.getLineCount();
 			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
@@ -1997,8 +1997,8 @@ class SCMInputWidget extends Disposable {
 			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
 		}));
 
-		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily') || e.affectsConfiguration('scm.inputFontSize'));
-		this._register(onInputFontFamilyChanged(() => {
+		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily') || e.affectsConfiguration('scm.inputFontSize'), this.disposables);
+		this.disposables.add(onInputFontFamilyChanged(() => {
 			const fontFamily = this.getInputEditorFontFamily();
 			const fontSize = this.getInputEditorFontSize();
 			const lineHeight = this.computeLineHeight(fontSize);
@@ -2012,7 +2012,7 @@ class SCMInputWidget extends Disposable {
 			this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
 		}));
 
-		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged));
+		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged, this.disposables));
 	}
 
 	getContentHeight(): number {
@@ -2142,11 +2142,11 @@ class SCMInputWidget extends Disposable {
 		this.validationHasFocus = false;
 	}
 
-	override dispose(): void {
+	dispose(): void {
 		this.input = undefined;
 		this.repositoryDisposables.dispose();
 		this.clearValidation();
-		super.dispose();
+		this.disposables.dispose();
 	}
 }
 
@@ -2173,6 +2173,7 @@ export class SCMViewPane extends ViewPane {
 	get viewModel(): ViewModel { return this._viewModel; }
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		options: IViewPaneOptions,
@@ -2212,7 +2213,7 @@ export class SCMViewPane extends ViewPane {
 		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
 
 		const updateActionsVisibility = () => this.listContainer.classList.toggle('show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'), this.disposables)(updateActionsVisibility));
 		updateActionsVisibility();
 
 		const updateProviderCountVisibility = () => {
@@ -2220,7 +2221,7 @@ export class SCMViewPane extends ViewPane {
 			this.listContainer.classList.toggle('hide-provider-counts', value === 'hidden');
 			this.listContainer.classList.toggle('auto-provider-counts', value === 'auto');
 		};
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'))(updateProviderCountVisibility));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility));
 		updateProviderCountVisibility();
 
 		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height));
@@ -2288,7 +2289,7 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(this._viewModel.setVisible, this._viewModel));
 
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'))(this.updateActions, this));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'), this.disposables)(this.updateActions, this));
 		this.updateActions();
 	}
 
@@ -2466,6 +2467,11 @@ export class SCMViewPane extends ViewPane {
 
 	override getActionsContext(): unknown {
 		return this.scmViewService.visibleRepositories.length === 1 ? this.scmViewService.visibleRepositories[0].provider : undefined;
+	}
+
+	override dispose(): void {
+		this.disposables.dispose();
+		super.dispose();
 	}
 }
 

@@ -7,8 +7,8 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IResourceProfile } from 'vs/workbench/services/profiles/common/profile';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
+import { IResourceProfile } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 
 interface IGlobalState {
 	storage: IStringDictionary<string>;

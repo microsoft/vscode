@@ -34,7 +34,7 @@ import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingEvent, IKeybindingService, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -410,7 +410,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 					const kb = this._dynamicKeybindings[i];
 					if (kb.command === commandId) {
 						this._dynamicKeybindings.splice(i, 1);
-						this.updateResolver({ source: KeybindingSource.Default });
+						this.updateResolver();
 						return;
 					}
 				}
@@ -419,14 +419,14 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		toDispose.add(CommandsRegistry.registerCommand(commandId, handler));
 
-		this.updateResolver({ source: KeybindingSource.Default });
+		this.updateResolver();
 
 		return toDispose;
 	}
 
-	private updateResolver(event: IKeybindingEvent): void {
+	private updateResolver(): void {
 		this._cachedResolver = null;
-		this._onDidUpdateKeybindings.fire(event);
+		this._onDidUpdateKeybindings.fire();
 	}
 
 	protected _getResolver(): KeybindingResolver {
@@ -771,7 +771,7 @@ class StandaloneBulkEditService implements IBulkEditService {
 
 		const textEdits = new Map<ITextModel, ISingleEditOperation[]>();
 
-		for (let edit of edits) {
+		for (const edit of edits) {
 			if (!(edit instanceof ResourceTextEdit)) {
 				throw new Error('bad edit - only text edits are supported');
 			}

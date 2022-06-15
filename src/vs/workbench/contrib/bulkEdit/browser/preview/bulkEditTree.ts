@@ -54,7 +54,7 @@ export class FileElement implements ICheckable {
 	) { }
 
 	isChecked(): boolean {
-		let model = this.parent instanceof CategoryElement ? this.parent.parent : this.parent;
+		const model = this.parent instanceof CategoryElement ? this.parent.parent : this.parent;
 
 		let checked = true;
 
@@ -64,7 +64,7 @@ export class FileElement implements ICheckable {
 		}
 
 		// multiple file edits -> reflect single state
-		for (let edit of this.edit.originalEdits.values()) {
+		for (const edit of this.edit.originalEdits.values()) {
 			if (edit instanceof ResourceFileEdit) {
 				checked = checked && model.checked.isChecked(edit);
 			}
@@ -72,8 +72,8 @@ export class FileElement implements ICheckable {
 
 		// multiple categories and text change -> read all elements
 		if (this.parent instanceof CategoryElement && this.edit.type === BulkFileOperationType.TextEdit) {
-			for (let category of model.categories) {
-				for (let file of category.fileOperations) {
+			for (const category of model.categories) {
+				for (const file of category.fileOperations) {
 					if (file.uri.toString() === this.edit.uri.toString()) {
 						for (const edit of file.originalEdits.values()) {
 							if (edit instanceof ResourceFileEdit) {
@@ -89,15 +89,15 @@ export class FileElement implements ICheckable {
 	}
 
 	setChecked(value: boolean): void {
-		let model = this.parent instanceof CategoryElement ? this.parent.parent : this.parent;
+		const model = this.parent instanceof CategoryElement ? this.parent.parent : this.parent;
 		for (const edit of this.edit.originalEdits.values()) {
 			model.checked.updateChecked(edit, value);
 		}
 
 		// multiple categories and file change -> update all elements
 		if (this.parent instanceof CategoryElement && this.edit.type !== BulkFileOperationType.TextEdit) {
-			for (let category of model.categories) {
-				for (let file of category.fileOperations) {
+			for (const category of model.categories) {
+				for (const file of category.fileOperations) {
 					if (file.uri.toString() === this.edit.uri.toString()) {
 						for (const edit of file.originalEdits.values()) {
 							model.checked.updateChecked(edit, value);
@@ -110,10 +110,10 @@ export class FileElement implements ICheckable {
 
 	isDisabled(): boolean {
 		if (this.parent instanceof CategoryElement && this.edit.type === BulkFileOperationType.TextEdit) {
-			let model = this.parent.parent;
+			const model = this.parent.parent;
 			let checked = true;
-			for (let category of model.categories) {
-				for (let file of category.fileOperations) {
+			for (const category of model.categories) {
+				for (const file of category.fileOperations) {
 					if (file.uri.toString() === this.edit.uri.toString()) {
 						for (const edit of file.originalEdits.values()) {
 							if (edit instanceof ResourceFileEdit) {
@@ -227,14 +227,14 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 				const range = Range.lift(edit.textEdit.textEdit.range);
 
 				//prefix-math
-				let startTokens = textModel.tokenization.getLineTokens(range.startLineNumber);
+				const startTokens = textModel.tokenization.getLineTokens(range.startLineNumber);
 				let prefixLen = 23; // default value for the no tokens/grammar case
 				for (let idx = startTokens.findTokenIndexAtOffset(range.startColumn - 1) - 1; prefixLen < 50 && idx >= 0; idx--) {
 					prefixLen = range.startColumn - startTokens.getStartOffset(idx);
 				}
 
 				//suffix-math
-				let endTokens = textModel.tokenization.getLineTokens(range.endLineNumber);
+				const endTokens = textModel.tokenization.getLineTokens(range.endLineNumber);
 				let suffixLen = 0;
 				for (let idx = endTokens.findTokenIndexAtOffset(range.endColumn - 1); suffixLen < 50 && idx < endTokens.getCount(); idx++) {
 					suffixLen += endTokens.getEndOffset(idx) - endTokens.getStartOffset(idx);
@@ -583,11 +583,11 @@ class TextEditElementTemplate {
 		value += element.inserting;
 		value += element.suffix;
 
-		let selectHighlight: IHighlight = { start: element.prefix.length, end: element.prefix.length + element.selecting.length, extraClasses: ['remove'] };
-		let insertHighlight: IHighlight = { start: selectHighlight.end, end: selectHighlight.end + element.inserting.length, extraClasses: ['insert'] };
+		const selectHighlight: IHighlight = { start: element.prefix.length, end: element.prefix.length + element.selecting.length, extraClasses: ['remove'] };
+		const insertHighlight: IHighlight = { start: selectHighlight.end, end: selectHighlight.end + element.inserting.length, extraClasses: ['insert'] };
 
 		let title: string | undefined;
-		let { metadata } = element.edit.textEdit;
+		const { metadata } = element.edit.textEdit;
 		if (metadata && metadata.description) {
 			title = localize('title', "{0} - {1}", metadata.label, metadata.description);
 		} else if (metadata) {

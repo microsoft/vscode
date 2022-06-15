@@ -13,7 +13,8 @@
 		// Second group matches a single quoted string
 		// Third group matches a multi line comment
 		// Forth group matches a single line comment
-		const regexp = /("[^"\\]*(?:\\.[^"\\]*)*")|('[^'\\]*(?:\\.[^'\\]*)*')|(\/\*[^\/\*]*(?:(?:\*|\/)[^\/\*]*)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+		// Fifth group matches a trailing comma
+		const regexp = /("[^"\\]*(?:\\.[^"\\]*)*")|('[^'\\]*(?:\\.[^'\\]*)*')|(\/\*[^\/\*]*(?:(?:\*|\/)[^\/\*]*)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))|(,\s*[}\]])/g;
 
 		/**
 		 *
@@ -21,8 +22,8 @@
 		 * @returns {string}
 		 */
 		function stripComments(content) {
-			return content.replace(regexp, function (match, _m1, _m2, m3, m4) {
-				// Only one of m1, m2, m3, m4 matches
+			return content.replace(regexp, function (match, _m1, _m2, m3, m4, m5) {
+				// Only one of m1, m2, m3, m4, m5 matches
 				if (m3) {
 					// A block comment. Replace with nothing
 					return '';
@@ -36,6 +37,9 @@
 					else {
 						return '';
 					}
+				} else if (m5) {
+					// Remove the trailing comma
+					return match.substring(1);
 				} else {
 					// We match a string
 					return match;

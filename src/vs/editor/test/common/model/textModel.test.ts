@@ -14,7 +14,7 @@ import { createModelServices, createTextModel } from 'vs/editor/test/common/test
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
-	let m = createTextModel(
+	const m = createTextModel(
 		text.join('\n'),
 		undefined,
 		{
@@ -23,7 +23,7 @@ function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: numb
 			detectIndentation: true
 		}
 	);
-	let r = m.getOptions();
+	const r = m.getOptions();
 	m.dispose();
 
 	assert.strictEqual(r.insertSpaces, expectedInsertSpaces, msg);
@@ -80,7 +80,7 @@ suite('TextModelData.fromString', () => {
 
 	function testTextModelDataFromString(text: string, expected: ITextBufferData): void {
 		const textBuffer = createTextBuffer(text, TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL).textBuffer;
-		let actual: ITextBufferData = {
+		const actual: ITextBufferData = {
 			EOL: textBuffer.getEOL(),
 			lines: textBuffer.getLinesContent(),
 			containsRTL: textBuffer.mightContainRTL(),
@@ -682,7 +682,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition', () => {
 
-		let m = createTextModel('line one\nline two');
+		const m = createTextModel('line one\nline two');
 
 		assert.deepStrictEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
@@ -713,7 +713,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition around high-low surrogate pairs 1', () => {
 
-		let m = createTextModel('a📚b');
+		const m = createTextModel('a📚b');
 
 		assert.deepStrictEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
@@ -742,7 +742,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition around high-low surrogate pairs 2', () => {
 
-		let m = createTextModel('a📚📚b');
+		const m = createTextModel('a📚📚b');
 
 		assert.deepStrictEqual(m.validatePosition(new Position(1, 1)), new Position(1, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(1, 2)), new Position(1, 2));
@@ -758,7 +758,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition handle NaN.', () => {
 
-		let m = createTextModel('line one\nline two');
+		const m = createTextModel('line one\nline two');
 
 		assert.deepStrictEqual(m.validatePosition(new Position(NaN, 1)), new Position(1, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(1, NaN)), new Position(1, 1));
@@ -771,7 +771,7 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('issue #71480: validatePosition handle floats', () => {
-		let m = createTextModel('line one\nline two');
+		const m = createTextModel('line one\nline two');
 
 		assert.deepStrictEqual(m.validatePosition(new Position(0.2, 1)), new Position(1, 1), 'a');
 		assert.deepStrictEqual(m.validatePosition(new Position(1.2, 1)), new Position(1, 1), 'b');
@@ -786,7 +786,7 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('issue #71480: validateRange handle floats', () => {
-		let m = createTextModel('line one\nline two');
+		const m = createTextModel('line one\nline two');
 
 		assert.deepStrictEqual(m.validateRange(new Range(0.2, 1.5, 0.8, 2.5)), new Range(1, 1, 1, 1));
 		assert.deepStrictEqual(m.validateRange(new Range(1.2, 1.7, 1.8, 2.2)), new Range(1, 1, 1, 2));
@@ -796,7 +796,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validateRange around high-low surrogate pairs 1', () => {
 
-		let m = createTextModel('a📚b');
+		const m = createTextModel('a📚b');
 
 		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
 		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
@@ -826,7 +826,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validateRange around high-low surrogate pairs 2', () => {
 
-		let m = createTextModel('a📚📚b');
+		const m = createTextModel('a📚📚b');
 
 		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
 		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
@@ -871,7 +871,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('modifyPosition', () => {
 
-		let m = createTextModel('line one\nline two');
+		const m = createTextModel('line one\nline two');
 		assert.deepStrictEqual(m.modifyPosition(new Position(1, 1), 0), new Position(1, 1));
 		assert.deepStrictEqual(m.modifyPosition(new Position(0, 0), 0), new Position(1, 1));
 		assert.deepStrictEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 9));
@@ -902,7 +902,7 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('normalizeIndentation 1', () => {
-		let model = createTextModel('',
+		const model = createTextModel('',
 			undefined,
 			{
 				insertSpaces: false
@@ -937,7 +937,7 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('normalizeIndentation 2', () => {
-		let model = createTextModel('');
+		const model = createTextModel('');
 
 		assert.strictEqual(model.normalizeIndentation('\ta'), '    a');
 		assert.strictEqual(model.normalizeIndentation('    a'), '    a');
@@ -955,7 +955,7 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('getLineFirstNonWhitespaceColumn', () => {
-		let model = createTextModel([
+		const model = createTextModel([
 			'asd',
 			' asd',
 			'\tasd',
@@ -987,7 +987,7 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('getLineLastNonWhitespaceColumn', () => {
-		let model = createTextModel([
+		const model = createTextModel([
 			'asd',
 			'asd ',
 			'asd\t',
@@ -1019,7 +1019,7 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('#50471. getValueInRange with invalid range', () => {
-		let m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
+		const m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
 		assert.strictEqual(m.getValueInRange(new Range(1, NaN, 1, 3)), 'My');
 		assert.strictEqual(m.getValueInRange(new Range(NaN, NaN, NaN, NaN)), '');
 		m.dispose();
@@ -1029,19 +1029,19 @@ suite('Editor Model - TextModel', () => {
 suite('TextModel.mightContainRTL', () => {
 
 	test('nope', () => {
-		let model = createTextModel('hello world!');
+		const model = createTextModel('hello world!');
 		assert.strictEqual(model.mightContainRTL(), false);
 		model.dispose();
 	});
 
 	test('yes', () => {
-		let model = createTextModel('Hello,\nזוהי עובדה מבוססת שדעתו');
+		const model = createTextModel('Hello,\nזוהי עובדה מבוססת שדעתו');
 		assert.strictEqual(model.mightContainRTL(), true);
 		model.dispose();
 	});
 
 	test('setValue resets 1', () => {
-		let model = createTextModel('hello world!');
+		const model = createTextModel('hello world!');
 		assert.strictEqual(model.mightContainRTL(), false);
 		model.setValue('Hello,\nזוהי עובדה מבוססת שדעתו');
 		assert.strictEqual(model.mightContainRTL(), true);
@@ -1049,7 +1049,7 @@ suite('TextModel.mightContainRTL', () => {
 	});
 
 	test('setValue resets 2', () => {
-		let model = createTextModel('Hello,\nهناك حقيقة مثبتة منذ زمن طويل');
+		const model = createTextModel('Hello,\nهناك حقيقة مثبتة منذ زمن طويل');
 		assert.strictEqual(model.mightContainRTL(), true);
 		model.setValue('hello world!');
 		assert.strictEqual(model.mightContainRTL(), false);
@@ -1061,46 +1061,46 @@ suite('TextModel.mightContainRTL', () => {
 suite('TextModel.createSnapshot', () => {
 
 	test('empty file', () => {
-		let model = createTextModel('');
-		let snapshot = model.createSnapshot();
+		const model = createTextModel('');
+		const snapshot = model.createSnapshot();
 		assert.strictEqual(snapshot.read(), null);
 		model.dispose();
 	});
 
 	test('file with BOM', () => {
-		let model = createTextModel(UTF8_BOM_CHARACTER + 'Hello');
+		const model = createTextModel(UTF8_BOM_CHARACTER + 'Hello');
 		assert.strictEqual(model.getLineContent(1), 'Hello');
-		let snapshot = model.createSnapshot(true);
+		const snapshot = model.createSnapshot(true);
 		assert.strictEqual(snapshot.read(), UTF8_BOM_CHARACTER + 'Hello');
 		assert.strictEqual(snapshot.read(), null);
 		model.dispose();
 	});
 
 	test('regular file', () => {
-		let model = createTextModel('My First Line\n\t\tMy Second Line\n    Third Line\n\n1');
-		let snapshot = model.createSnapshot();
+		const model = createTextModel('My First Line\n\t\tMy Second Line\n    Third Line\n\n1');
+		const snapshot = model.createSnapshot();
 		assert.strictEqual(snapshot.read(), 'My First Line\n\t\tMy Second Line\n    Third Line\n\n1');
 		assert.strictEqual(snapshot.read(), null);
 		model.dispose();
 	});
 
 	test('large file', () => {
-		let lines: string[] = [];
+		const lines: string[] = [];
 		for (let i = 0; i < 1000; i++) {
 			lines[i] = 'Just some text that is a bit long such that it can consume some memory';
 		}
 		const text = lines.join('\n');
 
-		let model = createTextModel(text);
-		let snapshot = model.createSnapshot();
+		const model = createTextModel(text);
+		const snapshot = model.createSnapshot();
 		let actual = '';
 
 		// 70999 length => at most 2 read calls are necessary
-		let tmp1 = snapshot.read();
+		const tmp1 = snapshot.read();
 		assert.ok(tmp1);
 		actual += tmp1;
 
-		let tmp2 = snapshot.read();
+		const tmp2 = snapshot.read();
 		if (tmp2 === null) {
 			// all good
 		} else {

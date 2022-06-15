@@ -173,7 +173,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			matches: createMatches(element.score)
 		};
 
-		let color: string[] = [];
+		const color: string[] = [];
 		if (completion.kind === CompletionItemKind.Color && _completionItemColor.extract(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
