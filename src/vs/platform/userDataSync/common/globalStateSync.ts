@@ -56,6 +56,8 @@ function stringify(globalState: IGlobalState, format: boolean): string {
 const GLOBAL_STATE_DATA_VERSION = 1;
 
 /**
+ * TODO: @sandy081: Sync only global state of default profile
+ *
  * Synchronises global state that includes
  * 	- Global storage with user scope
  * 	- Locale from argv properties

@@ -55,6 +55,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		return undefined;
 	}
 
+	/* TODO @sandy081: This has to be done across all profiles */
 	static async removeOutdatedExtensionVersions(extensionManagementService: IExtensionManagementService, storageService: IStorageService): Promise<void> {
 		const extensions = await extensionManagementService.getInstalled();
 		const extensionVersionsToRemove: string[] = [];
@@ -193,7 +194,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 	}
 
 	private get migrationList(): [string, string][] {
-		const value = this.storageService.get('extensionStorage.migrationList', StorageScope.GLOBAL, '[]');
+		const value = this.storageService.get('extensionStorage.migrationList', StorageScope.APPLICATION, '[]');
 		try {
 			const migrationList = JSON.parse(value);
 			if (isArray(migrationList)) {
@@ -205,9 +206,9 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 
 	private set migrationList(migrationList: [string, string][]) {
 		if (migrationList.length) {
-			this.storageService.store('extensionStorage.migrationList', JSON.stringify(migrationList), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store('extensionStorage.migrationList', JSON.stringify(migrationList), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		} else {
-			this.storageService.remove('extensionStorage.migrationList', StorageScope.GLOBAL);
+			this.storageService.remove('extensionStorage.migrationList', StorageScope.APPLICATION);
 		}
 	}
 

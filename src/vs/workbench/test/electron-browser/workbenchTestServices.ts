@@ -58,6 +58,7 @@ const homeDir = homedir();
 const NULL_PROFILE = {
 	name: '',
 	id: '',
+	isDefault: false,
 	location: URI.file(homeDir),
 	settingsResource: joinPath(URI.file(homeDir), 'settings.json'),
 	globalStorageHome: joinPath(URI.file(homeDir), 'globalStorage'),

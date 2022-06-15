@@ -70,7 +70,7 @@ import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedPro
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
-import { GlobalStorageMainService, IGlobalStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -648,7 +648,7 @@ export class CodeApplication extends Disposable {
 
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
-		services.set(IGlobalStorageMainService, new SyncDescriptor(GlobalStorageMainService));
+		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService));
 
 		// External terminal
 		if (isWindows) {

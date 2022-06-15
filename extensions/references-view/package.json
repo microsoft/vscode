@@ -4,7 +4,7 @@
   "description": "%description%",
   "icon": "media/icon.png",
   "version": "1.0.0",
-  "publisher": "ms-vscode",
+  "publisher": "vscode",
   "license": "MIT",
   "engines": {
     "vscode": "^1.67.0"

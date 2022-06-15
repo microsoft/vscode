@@ -1197,21 +1197,15 @@ export class IssueReporter extends Disposable {
 
 	private addEventListener(elementId: string, eventType: string, handler: (event: Event) => void): void {
 		const element = this.getElementById(elementId);
-		if (element) {
-			element.addEventListener(eventType, handler);
-		}
+		element?.addEventListener(eventType, handler);
 	}
 }
 
 // helper functions
 
 function hide(el: Element | undefined | null) {
-	if (el) {
-		el.classList.add('hidden');
-	}
+	el?.classList.add('hidden');
 }
 function show(el: Element | undefined | null) {
-	if (el) {
-		el.classList.remove('hidden');
-	}
+	el?.classList.remove('hidden');
 }

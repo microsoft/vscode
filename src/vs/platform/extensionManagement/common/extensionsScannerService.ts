@@ -173,7 +173,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 			this.scanUserExtensions(userScanOptions),
 		]);
 		const development = await this.scanExtensionsUnderDevelopment(systemScanOptions, [...system, ...user]);
-		return this.dedupExtensions([...system, ...user, ...development], await this.getTargetPlatform(), true);
+		return this.dedupExtensions(system, user, development, await this.getTargetPlatform(), true);
 	}
 
 	async scanSystemExtensions(scanOptions: ScanOptions): Promise<IScannedExtension[]> {
@@ -181,7 +181,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		promises.push(this.scanDefaultSystemExtensions(!!scanOptions.useCache, scanOptions.language));
 		promises.push(this.scanDevSystemExtensions(scanOptions.language, !!scanOptions.checkControlFile));
 		const [defaultSystemExtensions, devSystemExtensions] = await Promise.all(promises);
-		return this.applyScanOptions([...defaultSystemExtensions, ...devSystemExtensions], scanOptions, false);
+		return this.applyScanOptions([...defaultSystemExtensions, ...devSystemExtensions], ExtensionType.System, scanOptions, false);
 	}
 
 	async scanUserExtensions(scanOptions: ScanOptions): Promise<IScannedExtension[]> {
@@ -189,7 +189,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		const extensionsScannerInput = await this.createExtensionScannerInput(scanOptions.profileLocation ?? this.userExtensionsLocation, !!scanOptions.profileLocation, ExtensionType.User, !scanOptions.includeUninstalled, scanOptions.language);
 		const extensionsScanner = scanOptions.useCache && !extensionsScannerInput.devMode && extensionsScannerInput.excludeObsolete ? this.userExtensionsCachedScanner : this.extensionsScanner;
 		let extensions = await extensionsScanner.scanExtensions(extensionsScannerInput);
-		extensions = await this.applyScanOptions(extensions, scanOptions, true);
+		extensions = await this.applyScanOptions(extensions, ExtensionType.User, scanOptions, true);
 		this.logService.trace('Scanned user extensions:', extensions.length);
 		return extensions;
 	}
@@ -208,7 +208,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 					});
 				})))
 				.flat();
-			return this.applyScanOptions(extensions, scanOptions, true);
+			return this.applyScanOptions(extensions, 'development', scanOptions, true);
 		}
 		return [];
 	}
@@ -228,7 +228,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	async scanOneOrMultipleExtensions(extensionLocation: URI, extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension[]> {
 		const extensionsScannerInput = await this.createExtensionScannerInput(extensionLocation, false, extensionType, true, scanOptions.language);
 		const extensions = await this.extensionsScanner.scanOneOrMultipleExtensions(extensionsScannerInput);
-		return this.applyScanOptions(extensions, scanOptions, true);
+		return this.applyScanOptions(extensions, extensionType, scanOptions, true);
 	}
 
 	async scanMetadata(extensionLocation: URI): Promise<Metadata | undefined> {
@@ -252,9 +252,9 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		await this.fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
 	}
 
-	private async applyScanOptions(extensions: IRelaxedScannedExtension[], scanOptions: ScanOptions, pickLatest: boolean): Promise<IRelaxedScannedExtension[]> {
+	private async applyScanOptions(extensions: IRelaxedScannedExtension[], type: ExtensionType | 'development', scanOptions: ScanOptions, pickLatest: boolean): Promise<IRelaxedScannedExtension[]> {
 		if (!scanOptions.includeAllVersions) {
-			extensions = this.dedupExtensions(extensions, await this.getTargetPlatform(), pickLatest);
+			extensions = this.dedupExtensions(type === ExtensionType.System ? extensions : undefined, type === ExtensionType.User ? extensions : undefined, type === 'development' ? extensions : undefined, await this.getTargetPlatform(), pickLatest);
 		}
 		if (!scanOptions.includeInvalid) {
 			extensions = extensions.filter(extension => extension.isValid);
@@ -272,33 +272,61 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		});
 	}
 
-	private dedupExtensions(extensions: IRelaxedScannedExtension[], targetPlatform: TargetPlatform, pickLatest: boolean): IRelaxedScannedExtension[] {
-		const result = new Map<string, IRelaxedScannedExtension>();
-		for (const extension of extensions) {
-			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
-			const existing = result.get(extensionKey);
-			if (existing) {
-				if (existing.isValid && !extension.isValid) {
-					continue;
+	private dedupExtensions(system: IScannedExtension[] | undefined, user: IScannedExtension[] | undefined, development: IScannedExtension[] | undefined, targetPlatform: TargetPlatform, pickLatest: boolean): IScannedExtension[] {
+		const pick = (existing: IScannedExtension, extension: IScannedExtension): boolean => {
+			if (existing.isValid && !extension.isValid) {
+				return false;
+			}
+			if (existing.isValid === extension.isValid) {
+				if (pickLatest && semver.gt(existing.manifest.version, extension.manifest.version)) {
+					this.logService.debug(`Skipping extension ${extension.location.path} with lower version ${extension.manifest.version} in favour of ${existing.location.path} with version ${existing.manifest.version}`);
+					return false;
 				}
-				if (existing.isValid === extension.isValid) {
-					if (pickLatest && semver.gt(existing.manifest.version, extension.manifest.version)) {
-						this.logService.debug(`Skipping extension ${extension.location.path} with lower version ${extension.manifest.version}.`);
-						continue;
+				if (semver.eq(existing.manifest.version, extension.manifest.version)) {
+					if (existing.type === ExtensionType.System) {
+						this.logService.debug(`Skipping extension ${extension.location.path} in favour of system extension ${existing.location.path} with same version`);
+						return false;
 					}
-					if (semver.eq(existing.manifest.version, extension.manifest.version) && existing.targetPlatform === targetPlatform) {
+					if (existing.targetPlatform === targetPlatform) {
 						this.logService.debug(`Skipping extension ${extension.location.path} from different target platform ${extension.targetPlatform}`);
-						continue;
+						return false;
 					}
-				}
-				if (existing.type === ExtensionType.System) {
-					this.logService.debug(`Overwriting system extension ${existing.location.path} with ${extension.location.path}.`);
-				} else {
-					this.logService.warn(`Overwriting user extension ${existing.location.path} with ${extension.location.path}.`);
 				}
 			}
+			if (existing.type === ExtensionType.System) {
+				this.logService.debug(`Overwriting system extension ${existing.location.path} with ${extension.location.path}.`);
+			} else {
+				this.logService.warn(`Overwriting user extension ${existing.location.path} with ${extension.location.path}.`);
+			}
+			return true;
+		};
+		const result = new Map<string, IScannedExtension>();
+		system?.forEach((extension) => {
+			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
+			const existing = result.get(extensionKey);
+			if (!existing || pick(existing, extension)) {
+				result.set(extensionKey, extension);
+			}
+		});
+		user?.forEach((extension) => {
+			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
+			const existing = result.get(extensionKey);
+			if (!existing && system && extension.type === ExtensionType.System) {
+				this.logService.debug(`Skipping obsolete system extension ${extension.location.path}.`);
+				return;
+			}
+			if (!existing || pick(existing, extension)) {
+				result.set(extensionKey, extension);
+			}
+		});
+		development?.forEach(extension => {
+			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
+			const existing = result.get(extensionKey);
+			if (!existing || pick(existing, extension)) {
+				result.set(extensionKey, extension);
+			}
 			result.set(extensionKey, extension);
-		}
+		});
 		return [...result.values()];
 	}
 

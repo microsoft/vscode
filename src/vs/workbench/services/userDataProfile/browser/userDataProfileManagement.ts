@@ -16,7 +16,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { CreationOptions, IUserDataProfileManagementService, IUserDataProfileTemplate, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -42,75 +43,94 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		@IHostService private readonly hostService: IHostService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILogService logService: ILogService
 	) {
 		super();
 	}
 
-	async createAndEnterProfile(name: string, options: CreationOptions = DefaultOptions): Promise<void> {
+	async createAndEnterProfile(name: string, options: CreationOptions = DefaultOptions, fromExisting?: boolean): Promise<void> {
+		const workspaceIdentifier = this.getWorkspaceIdentifier();
+		if (!workspaceIdentifier) {
+			throw new Error(localize('cannotCreateProfileInEmptyWorkbench', "Cannot create a profile in an empty workspace"));
+		}
 		const promises: Promise<any>[] = [];
-		const newProfile = this.userDataProfilesService.createProfile(name);
+		const newProfile = this.userDataProfilesService.newProfile(name);
 		await this.fileService.createFolder(newProfile.location);
-		if (options?.uiState) {
-			promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.globalStorageHome, newProfile.globalStorageHome));
-		}
-		if (options?.settings) {
-			promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.settingsResource, newProfile.settingsResource));
-		}
-		if (options?.extensions && newProfile.extensionsResource) {
-			promises.push((async () => {
-				const extensionsProfileResource = this.userDataProfilesService.currentProfile.extensionsResource ?? await this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, basename(newProfile.extensionsResource!)));
-				this.fileService.copy(extensionsProfileResource, newProfile.extensionsResource!);
-			})());
-		}
-		if (options?.keybindings) {
-			promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.keybindingsResource, newProfile.keybindingsResource));
-		}
-		if (options?.tasks) {
-			promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.tasksResource, newProfile.tasksResource));
-		}
-		if (options?.snippets) {
-			promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.snippetsHome, newProfile.snippetsHome));
+		if (fromExisting) {
+			if (options?.uiState) {
+				promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.globalStorageHome, newProfile.globalStorageHome));
+			}
+			if (options?.settings) {
+				promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.settingsResource, newProfile.settingsResource));
+			}
+			if (options?.extensions && newProfile.extensionsResource) {
+				promises.push((async () => {
+					const extensionsProfileResource = this.userDataProfilesService.currentProfile.extensionsResource ?? await this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, basename(newProfile.extensionsResource!)));
+					this.fileService.copy(extensionsProfileResource, newProfile.extensionsResource!);
+				})());
+			}
+			if (options?.keybindings) {
+				promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.keybindingsResource, newProfile.keybindingsResource));
+			}
+			if (options?.tasks) {
+				promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.tasksResource, newProfile.tasksResource));
+			}
+			if (options?.snippets) {
+				promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.snippetsHome, newProfile.snippetsHome));
+			}
+		} else {
+			promises.push(this.fileService.createFolder(newProfile.globalStorageHome));
+			if (!this.userDataProfilesService.defaultProfile.extensionsResource) {
+				promises.push(this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, basename(newProfile.extensionsResource!))));
+			}
 		}
 		await Promise.allSettled(promises);
-		await this.doSwitchProfile(name);
+		await this.userDataProfilesService.createProfile(newProfile, options, workspaceIdentifier);
+		await this.enterProfile();
 	}
 
-	async removeProfile(name: string): Promise<void> {
-		if (name === this.userDataProfilesService.defaultProfile.name) {
+	async removeProfile(profile: IUserDataProfile): Promise<void> {
+		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
+			throw new Error(`Profile ${profile.name} does not exist`);
+		}
+		if (profile.isDefault) {
 			throw new Error(localize('cannotDeleteDefaultProfile', "Cannot delete the default profile"));
 		}
-		if (name === this.userDataProfilesService.currentProfile.name) {
+		if (profile.id === this.userDataProfilesService.currentProfile.id) {
 			throw new Error(localize('cannotDeleteCurrentProfile', "Cannot delete the current profile"));
 		}
-		const profiles = await this.userDataProfilesService.getAllProfiles();
-		const profile = profiles.find(p => p.name === name);
-		if (!profile) {
-			throw new Error(`Profile ${name} does not exist`);
-		}
-		if (profiles.length === 2) {
+		await this.userDataProfilesService.removeProfile(profile);
+		if (this.userDataProfilesService.profiles.length === 2) {
 			await this.fileService.del(this.userDataProfilesService.profilesHome, { recursive: true });
 		} else {
 			await this.fileService.del(profile.location, { recursive: true });
 		}
 	}
 
-	async switchProfile(name: string): Promise<void> {
-		const profiles = await this.userDataProfilesService.getAllProfiles();
-		const profile = profiles.find(p => p.name === name);
-		if (!profile) {
-			throw new Error(`Profile ${name} does not exist`);
+	async switchProfile(profile: IUserDataProfile): Promise<void> {
+		const workspaceIdentifier = this.getWorkspaceIdentifier();
+		if (!workspaceIdentifier) {
+			throw new Error(localize('cannotSwitchProfileInEmptyWorkbench', "Cannot switch a profile in an empty workspace"));
 		}
-		await this.doSwitchProfile(name);
+		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
+			throw new Error(`Profile ${profile.name} does not exist`);
+		}
+		await this.userDataProfilesService.setProfileForWorkspace(profile, workspaceIdentifier);
+		await this.enterProfile();
 	}
 
 	async createAndEnterProfileFromTemplate(name: string, template: IUserDataProfileTemplate, options: CreationOptions = DefaultOptions): Promise<void> {
+		const workspaceIdentifier = this.getWorkspaceIdentifier();
+		if (!workspaceIdentifier) {
+			throw new Error(localize('cannotCreateProfileInEmptyWorkbench', "Cannot create a profile in an empty workspace"));
+		}
 		await this.progressService.withProgress({
 			location: ProgressLocation.Notification,
 			title: localize('profiles.creating', "{0}: Creating...", PROFILES_CATEGORY),
 		}, async progress => {
 			const promises: Promise<any>[] = [];
-			const newProfile = this.userDataProfilesService.createProfile(name);
+			const newProfile = this.userDataProfilesService.newProfile(name);
 			await this.fileService.createFolder(newProfile.location);
 			if (template.globalState) {
 				// todo: create global state
@@ -122,26 +142,30 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 				promises.push(this.fileService.writeFile(newProfile.extensionsResource, VSBuffer.fromString(template.extensions)));
 			}
 			await Promise.allSettled(promises);
+			await this.userDataProfilesService.createProfile(newProfile, options, workspaceIdentifier);
 		});
-		await this.doSwitchProfile(name);
+		await this.enterProfile();
 	}
 
-	async reset(): Promise<void> {
-		if (this.userDataProfilesService.currentProfile.name !== this.userDataProfilesService.defaultProfile.name) {
-			throw new Error('Please switch to default profile to reset');
+	private getWorkspaceIdentifier(): ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier | undefined {
+		const workspace = this.workspaceContextService.getWorkspace();
+		switch (this.workspaceContextService.getWorkbenchState()) {
+			case WorkbenchState.FOLDER:
+				return { uri: workspace.folders[0].uri, id: workspace.id };
+			case WorkbenchState.WORKSPACE:
+				return { configPath: workspace.configuration!, id: workspace.id };
 		}
-		await this.fileService.del(this.userDataProfilesService.profilesHome);
+		return undefined;
 	}
 
-	private async doSwitchProfile(name: string): Promise<void> {
-		await this.userDataProfilesService.setProfile(name);
+	private async enterProfile(): Promise<void> {
 		const result = await this.dialogService.confirm({
 			type: 'info',
-			message: localize('restart message', "Switching a profile requires restarting VS Code."),
-			primaryButton: localize('restart button', "&&Restart"),
+			message: localize('reload message', "Switching a profile requires reloading VS Code."),
+			primaryButton: localize('reload button', "&&Reload"),
 		});
 		if (result.confirmed) {
-			await this.hostService.restart();
+			await this.hostService.reload();
 		}
 	}
 

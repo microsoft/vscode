@@ -9,17 +9,17 @@ import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter, KeyedTa
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Types from 'vs/base/common/types';
 import { ITaskService, IWorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IQuickPickItem, QuickPickInput, IQuickPick, IQuickInputButton, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem, QuickPickInput, IQuickPick, IQuickInputButton } from 'vs/base/parts/quickinput/common/quickInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Codicon } from 'vs/base/common/codicons';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { getColorClass, getColorStyleElement, getStandardColors } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { getColorClass, getColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { TaskQuickPickEntryType } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 
 export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
@@ -78,25 +78,25 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	public static getTaskLabelWithIcon(task: Task | ConfiguringTask): string {
-		return task.configurationProperties.icon ? `$(${task.configurationProperties.icon}) ${task._label}` : task.configurationProperties.color ? `$(${Codicon.tools.id}) ${task._label}` : `${task._label}`;
+		const icon = task.configurationProperties.icon;
+		if (!icon) {
+			return `${task._label}`;
+		}
+		return icon.id ? `$(${icon.id}) ${task._label}` : `$(${Codicon.tools.id}) ${task._label}`;
 	}
 
 	public static applyColorStyles(task: Task | ConfiguringTask, entry: TaskQuickPickEntryType | ITaskTwoLevelQuickPickEntry, themeService: IThemeService): void {
-		if (task.configurationProperties.color) {
+		if (task.configurationProperties.icon?.color) {
 			const colorTheme = themeService.getColorTheme();
 			const styleElement = getColorStyleElement(colorTheme);
-			entry.iconClasses = [getColorClass(task.configurationProperties.color)];
+			entry.iconClasses = [getColorClass(task.configurationProperties.icon.color)];
 			document.body.appendChild(styleElement);
 		}
 	}
 
 	private _createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): ITaskTwoLevelQuickPickEntry {
-		const customizeIconButton = { iconClass: ThemeIcon.asClassName(Codicon.pencil), tooltip: nls.localize('setIconAndColor', "Choose color and icon") };
 		const entry: ITaskTwoLevelQuickPickEntry = { label: this._guessTaskLabel(task), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined };
 		entry.buttons = [];
-		if (CustomTask.is(task)) {
-			entry.buttons.push(customizeIconButton);
-		}
 		entry.buttons.push({ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") });
 		entry.buttons.push(...extraButtons);
 		TaskQuickPick.applyColorStyles(task, entry, this._themeService);
@@ -234,9 +234,6 @@ export class TaskQuickPick extends Disposable {
 				if (indexToRemove >= 0) {
 					picker.items = [...picker.items.slice(0, indexToRemove), ...picker.items.slice(indexToRemove + 1)];
 				}
-			} else if (context.button.iconClass = ThemeIcon.asClassName(Codicon.pencil)) {
-				await this._setColor(task);
-				await this._setIcon(task);
 			} else {
 				this._quickInputService.cancel();
 				if (ContributedTask.is(task)) {
@@ -291,72 +288,6 @@ export class TaskQuickPick extends Disposable {
 		return;
 	}
 
-	private async _setColor(task: Task | ConfiguringTask | null | string | undefined): Promise<void> {
-		if (task === undefined || task === null || typeof task === 'string') {
-			return;
-		}
-		const colorTheme = this._themeService.getColorTheme();
-		const standardColors: string[] = getStandardColors(colorTheme);
-		const styleElement = getColorStyleElement(colorTheme);
-		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		for (const colorKey of standardColors) {
-			const colorClass = getColorClass(colorKey);
-			items.push({
-				label: `$(${Codicon.circleFilled.id}) ${colorKey.replace('terminal.ansi', '')}`, id: colorKey, description: colorKey, iconClasses: [colorClass]
-			});
-		}
-		items.push({ type: 'separator' });
-		const showAllColorsItem = { label: 'Reset to default' };
-		items.push(showAllColorsItem);
-		document.body.appendChild(styleElement);
-
-		const quickPick = this._quickInputService.createQuickPick();
-		quickPick.items = items;
-		quickPick.matchOnDescription = true;
-		quickPick.show();
-		const disposables: IDisposable[] = [];
-		const result = await new Promise<IQuickPickItem | undefined>(r => {
-			disposables.push(quickPick.onDidHide(() => r(undefined)));
-			disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));
-		});
-		dispose(disposables);
-
-		if (result && task && typeof task !== 'string') {
-			task.configurationProperties.color = result.id;
-		}
-		document.body.removeChild(styleElement);
-		quickPick.hide();
-	}
-
-	private async _setIcon(task: Task | ConfiguringTask | null | string | undefined): Promise<void> {
-		if (task === undefined || task === null || typeof task === 'string') {
-			return;
-		}
-		type Item = IQuickPickItem & { icon: ThemeIcon };
-		const items: Item[] = [];
-		for (const icon of Codicon.getAll()) {
-			items.push({ label: `$(${icon.id})`, description: `${icon.id}`, id: icon.id, icon, iconClasses: task.configurationProperties.color ? [getColorClass(task.configurationProperties.color)] : undefined });
-		}
-
-		const quickPick = this._quickInputService.createQuickPick();
-		quickPick.items = items;
-		quickPick.matchOnDescription = true;
-		quickPick.show();
-		const disposables: IDisposable[] = [];
-		const result = await new Promise<IQuickPickItem | undefined>(r => {
-			disposables.push(quickPick.onDidHide(() => r(undefined)));
-			disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));
-		});
-		dispose(disposables);
-
-		if (result && task && typeof task !== 'string') {
-			task.configurationProperties.icon = result.id;
-		}
-		if (CustomTask.is(task) && result) {
-			await this._taskService.customize(task, { icon: result.id, color: task.configurationProperties.color }, false);
-		}
-		quickPick.hide();
-	}
 
 
 	private async _doPickerFirstLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[]): Promise<Task | ConfiguringTask | string | null | undefined> {

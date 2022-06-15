@@ -342,7 +342,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}));
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollasibleState(state => {
+		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollapsibleState(state => {
 			if (state === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
 				const lineNumber = this._commentThread.range.startLineNumber;
 

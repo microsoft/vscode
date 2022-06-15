@@ -218,7 +218,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 		const result: IScannedExtension[] = [];
 		try {
-			const useCache = this.storageService.get('additionalBuiltinExtensions', StorageScope.GLOBAL, '[]') === JSON.stringify(extensions);
+			const useCache = this.storageService.get('additionalBuiltinExtensions', StorageScope.APPLICATION, '[]') === JSON.stringify(extensions);
 			const webExtensions = await (useCache ? this.getCustomBuiltinExtensionsFromCache() : this.updateCustomBuiltinExtensionsCache());
 			if (webExtensions.length) {
 				await Promise.all(webExtensions.map(async webExtension => {
@@ -232,7 +232,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					}
 				}));
 			}
-			this.storageService.store('additionalBuiltinExtensions', JSON.stringify(extensions), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store('additionalBuiltinExtensions', JSON.stringify(extensions), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		} catch (error) {
 			this.logService.info('Ignoring following additional builtin extensions as there is an error while fetching them from gallery', extensions.map(({ id }) => id), getErrorMessage(error));
 		}

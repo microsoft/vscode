@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
-import { MdReferencesProvider } from '../languageFeatures/references';
+import { MdLinkComputer } from '../languageFeatures/documentLinkProvider';
+import { MdReferencesComputer } from '../languageFeatures/references';
 import { MdRenameProvider, MdWorkspaceEdit } from '../languageFeatures/rename';
 import { githubSlugifier } from '../slugify';
 import { noopToken } from '../util/cancellation';
@@ -23,9 +23,9 @@ import { assertRangeEqual, joinLines, workspacePath } from './util';
  */
 function prepareRename(doc: InMemoryDocument, pos: vscode.Position, workspaceContents: MdWorkspaceContents): Promise<undefined | { readonly range: vscode.Range; readonly placeholder: string }> {
 	const engine = createNewMarkdownEngine();
-	const linkProvider = new MdLinkProvider(engine);
-	const referencesProvider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
-	const renameProvider = new MdRenameProvider(referencesProvider, workspaceContents, githubSlugifier);
+	const linkComputer = new MdLinkComputer(engine);
+	const referenceComputer = new MdReferencesComputer(linkComputer, workspaceContents, engine, githubSlugifier);
+	const renameProvider = new MdRenameProvider(referenceComputer, workspaceContents, githubSlugifier);
 	return renameProvider.prepareRename(doc, pos, noopToken);
 }
 
@@ -34,8 +34,8 @@ function prepareRename(doc: InMemoryDocument, pos: vscode.Position, workspaceCon
  */
 function getRenameEdits(doc: InMemoryDocument, pos: vscode.Position, newName: string, workspaceContents: MdWorkspaceContents): Promise<MdWorkspaceEdit | undefined> {
 	const engine = createNewMarkdownEngine();
-	const linkProvider = new MdLinkProvider(engine);
-	const referencesProvider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
+	const linkComputer = new MdLinkComputer(engine);
+	const referencesProvider = new MdReferencesComputer(linkComputer, workspaceContents, engine, githubSlugifier);
 	const renameProvider = new MdRenameProvider(referencesProvider, workspaceContents, githubSlugifier);
 	return renameProvider.provideRenameEditsImpl(doc, pos, newName, noopToken);
 }

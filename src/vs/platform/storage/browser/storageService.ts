@@ -12,76 +12,115 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class BrowserStorageService extends AbstractStorageService {
 
 	private static BROWSER_DEFAULT_FLUSH_INTERVAL = 5 * 1000; // every 5s because async operations are not permitted on shutdown
 
+	private applicationStorage: IStorage | undefined;
 	private globalStorage: IStorage | undefined;
 	private workspaceStorage: IStorage | undefined;
 
+	private applicationStorageDatabase: IIndexedDBStorageDatabase | undefined;
 	private globalStorageDatabase: IIndexedDBStorageDatabase | undefined;
 	private workspaceStorageDatabase: IIndexedDBStorageDatabase | undefined;
 
 	get hasPendingUpdate(): boolean {
-		return Boolean(this.globalStorageDatabase?.hasPendingUpdate || this.workspaceStorageDatabase?.hasPendingUpdate);
+		return Boolean(
+			this.applicationStorageDatabase?.hasPendingUpdate ||
+			this.globalStorageDatabase?.hasPendingUpdate ||
+			this.workspaceStorageDatabase?.hasPendingUpdate
+		);
 	}
 
 	constructor(
 		private readonly payload: IAnyWorkspaceIdentifier,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IUserDataProfilesService private readonly userDataProfileService: IUserDataProfilesService
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
 	}
 
 	private getId(scope: StorageScope): string {
-		return scope === StorageScope.GLOBAL ? 'global' : this.payload.id;
+		switch (scope) {
+			case StorageScope.APPLICATION:
+				return 'global'; // use the default profile global DB for application scope
+			case StorageScope.GLOBAL:
+				if (this.userDataProfileService.currentProfile.isDefault) {
+					return 'global'; // default profile DB has a fixed name for backwards compatibility
+				} else {
+					return `global-${this.userDataProfileService.currentProfile.id}`;
+				}
+			case StorageScope.WORKSPACE:
+				return this.payload.id;
+		}
 	}
 
 	protected async doInitialize(): Promise<void> {
 
 		// Create Storage in Parallel
-		const [workspaceStorageDatabase, globalStorageDatabase] = await Promises.settled([
-			IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService),
-			IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true /* only for global storage */ }, this.logService)
-		]);
+		const promises: Promise<IIndexedDBStorageDatabase>[] = [];
+		promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.APPLICATION), broadcastChanges: true }, this.logService));
+		promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService));
+		if (!this.userDataProfileService.currentProfile.isDefault) {
+
+			// If we are in default profile, the global storage is
+			// actually the same as application storage. As such we
+			// avoid creating the storage library a second time on
+			// the same DB.
+
+			promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService));
+		}
+		const [applicationStorageDatabase, workspaceStorageDatabase, globalStorageDatabase] = await Promises.settled(promises);
 
 		// Workspace Storage
 		this.workspaceStorageDatabase = this._register(workspaceStorageDatabase);
 		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
 
+		// Application Storage
+		this.applicationStorageDatabase = this._register(applicationStorageDatabase);
+		this.applicationStorage = this._register(new Storage(this.applicationStorageDatabase));
+		this._register(this.applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
+
 		// Global Storage
-		this.globalStorageDatabase = this._register(globalStorageDatabase);
-		this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
+		if (globalStorageDatabase) {
+			this.globalStorageDatabase = this._register(globalStorageDatabase);
+			this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
+		} else {
+			this.globalStorage = this.applicationStorage;
+		}
 		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 
-		// Init both
+		// Init storages
 		await Promises.settled([
 			this.workspaceStorage.init(),
-			this.globalStorage.init()
+			this.globalStorage.init(),
+			this.applicationStorage.init()
 		]);
 
-		// Check to see if this is the first time we are "opening" the application
-		const firstOpen = this.globalStorage.getBoolean(IS_NEW_KEY);
-		if (firstOpen === undefined) {
-			this.globalStorage.set(IS_NEW_KEY, true);
-		} else if (firstOpen) {
-			this.globalStorage.set(IS_NEW_KEY, false);
-		}
-
-		// Check to see if this is the first time we are "opening" this workspace
-		const firstWorkspaceOpen = this.workspaceStorage.getBoolean(IS_NEW_KEY);
-		if (firstWorkspaceOpen === undefined) {
-			this.workspaceStorage.set(IS_NEW_KEY, true);
-		} else if (firstWorkspaceOpen) {
-			this.workspaceStorage.set(IS_NEW_KEY, false);
+		// Apply is-new markers
+		for (const storage of [this.applicationStorage, this.globalStorage, this.workspaceStorage]) {
+			const firstOpen = storage.getBoolean(IS_NEW_KEY);
+			if (firstOpen === undefined) {
+				storage.set(IS_NEW_KEY, true);
+			} else if (firstOpen) {
+				storage.set(IS_NEW_KEY, false);
+			}
 		}
 	}
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {
-		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+		switch (scope) {
+			case StorageScope.APPLICATION:
+				return this.applicationStorage;
+			case StorageScope.GLOBAL:
+				return this.globalStorage;
+			default:
+				return this.workspaceStorage;
+		}
 	}
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
@@ -115,6 +154,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// On all other browsers, we keep the databases opened because
 		// we expect data to be written when the unload happens.
 		if (isSafari) {
+			this.applicationStorage?.close();
 			this.globalStorageDatabase?.close();
 			this.workspaceStorageDatabase?.close();
 		}
@@ -127,7 +167,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	async clear(): Promise<void> {
 
 		// Clear key/values
-		for (const scope of [StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
+		for (const scope of [StorageScope.APPLICATION, StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
 			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
 				for (const key of this.keys(scope, target)) {
 					this.remove(key, scope);
@@ -139,6 +179,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 		// Clear databases
 		await Promises.settled([
+			this.applicationStorageDatabase?.clear() ?? Promise.resolve(),
 			this.globalStorageDatabase?.clear() ?? Promise.resolve(),
 			this.workspaceStorageDatabase?.clear() ?? Promise.resolve()
 		]);
