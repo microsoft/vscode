@@ -8,8 +8,6 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { DiagnosticComputer, DiagnosticConfiguration, DiagnosticLevel, DiagnosticManager, DiagnosticOptions } from '../languageFeatures/diagnostics';
 import { MdLinkComputer } from '../languageFeatures/documentLinkProvider';
-import { MdReferencesProvider } from '../languageFeatures/references';
-import { githubSlugifier } from '../slugify';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
@@ -37,8 +35,7 @@ async function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: 
 function createDiagnosticsManager(workspaceContents: MdWorkspaceContents, configuration = new MemoryDiagnosticConfiguration({})) {
 	const engine = createNewMarkdownEngine();
 	const linkComputer = new MdLinkComputer(engine);
-	const referencesProvider = new MdReferencesProvider(linkComputer, workspaceContents, engine, githubSlugifier);
-	return new DiagnosticManager(engine, workspaceContents, new DiagnosticComputer(engine, workspaceContents, linkComputer), configuration, referencesProvider);
+	return new DiagnosticManager(new DiagnosticComputer(engine, workspaceContents, linkComputer), configuration);
 }
 
 function assertDiagnosticsEqual(actual: readonly vscode.Diagnostic[], expectedRanges: readonly vscode.Range[]) {
