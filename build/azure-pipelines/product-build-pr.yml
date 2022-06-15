@@ -41,21 +41,19 @@ stages:
             parameters:
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-  - stage: LinuxServerDependencies
-    dependsOn: []
-    pool: vscode-1es-vscode-linux-18.04
-    jobs:
-      - job: x64
-        container: centos7-devtoolset8-x64
-        variables:
-          VSCODE_ARCH: x64
-          NPM_ARCH: x64
-        steps:
-          - template: linux/product-build-linux-server.yml
-            parameters:
-              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
-
+  # - stage: LinuxServerDependencies
+  #   dependsOn: []
+  #   pool: vscode-1es-vscode-linux-18.04
+  #   jobs:
+  #     - job: x64
+  #       container: centos7-devtoolset8-x64
+  #       variables:
+  #         VSCODE_ARCH: x64
+  #         NPM_ARCH: x64
+  #       steps:
+  #         - template: linux/product-build-linux-server.yml
+  #           parameters:
+  #             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
   - stage: Windows
     dependsOn: []

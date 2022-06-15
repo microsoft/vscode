@@ -21,7 +21,7 @@ steps:
       addToPath: true
 
   - powershell: |
-      mkdir .build
+      New-Item -Path ".build" -ItemType Directory
       "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
       "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
@@ -91,6 +91,6 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       exec { yarn electron $(VSCODE_ARCH) }
-      exec { .\scripts\test.bat --build --tfs "Unit Tests" }
+      exec { .\scripts\test.bat --tfs "Unit Tests" }
     displayName: Run unit tests (Electron)
     timeoutInMinutes: 15
