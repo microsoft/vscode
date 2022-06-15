@@ -641,12 +641,6 @@ suite('SnippetParser', () => {
 		});
 	});
 
-	test('Snippets: make parser ignore `${0|choice|}`, #31599', function () {
-		assertTextAndMarker('${0|foo,bar|}', '${0|foo,bar|}', Text);
-		assertTextAndMarker('${1|foo,bar|}', 'foo', Placeholder);
-	});
-
-
 	test('Transform -> FormatString#resolve', function () {
 
 		// shorthand functions
