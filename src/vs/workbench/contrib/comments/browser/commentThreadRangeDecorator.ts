@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IRange } from 'vs/editor/common/core/range';
 import { CommentThread, CommentThreadCollapsibleState } from 'vs/editor/common/languages';
@@ -93,7 +93,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 		if (!model) {
 			return;
 		}
-		this.threadCollapseStateListeners.forEach(disposable => disposable.dispose());
+		dispose(this.threadCollapseStateListeners);
 		this.editor = editor;
 
 		const commentThreadRangeDecorations: CommentThreadRangeDecoration[] = [];
@@ -127,7 +127,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 	}
 
 	override dispose() {
-		this.threadCollapseStateListeners.forEach(disposable => disposable.dispose());
+		dispose(this.threadCollapseStateListeners);
 		this.currentThreadCollapseStateListener?.dispose();
 		super.dispose();
 	}
