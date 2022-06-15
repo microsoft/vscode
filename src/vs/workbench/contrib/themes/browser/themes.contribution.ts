@@ -576,14 +576,14 @@ registerAction2(class extends Action2 {
 	}
 });
 
-const TogglePreferredThemeCommandId = 'workbench.action.togglePreferredTheme';
+const toggleLightDarkThemesCommandId = 'workbench.action.toggleLightDarkThemes';
 
 registerAction2(class extends Action2 {
 
 	constructor() {
 		super({
-			id: TogglePreferredThemeCommandId,
-			title: { value: localize('togglePreferredTheme.label', "Toggle between Light/Dark Themes"), original: 'Toggle between Light/Dark Themes' },
+			id: toggleLightDarkThemesCommandId,
+			title: { value: localize('toggleLightDarkThemes.label', "Toggle between Light/Dark Themes"), original: 'Toggle between Light/Dark Themes' },
 			category: CATEGORIES.Preferences,
 			f1: true,
 		});
