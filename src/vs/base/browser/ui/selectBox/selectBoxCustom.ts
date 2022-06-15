@@ -32,6 +32,7 @@ interface ISelectListTemplateData {
 	detail: HTMLElement;
 	decoratorRight: HTMLElement;
 	disposables: IDisposable[];
+	isSelected: boolean;
 }
 
 class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectListTemplateData> {
@@ -69,6 +70,8 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 			// Make sure we do class removal from prior template rendering
 			data.root.classList.remove('option-disabled');
 		}
+
+		data.root.ariaSelected = element.isSelected ? 'true' : 'false';
 	}
 
 	disposeTemplate(templateData: ISelectListTemplateData): void {
@@ -306,6 +309,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.selectElement.selectedIndex = this.selected;
 		if (!!this.options[this.selected] && !!this.options[this.selected].text) {
 			this.selectElement.title = this.options[this.selected].text;
+			this.options.forEach(option => {
+				option.isSelected = false;
+			});
+			this.options[this.selected].isSelected = true;
 		}
 	}
 

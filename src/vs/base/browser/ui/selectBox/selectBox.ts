@@ -53,6 +53,7 @@ export interface ISelectOptionItem {
 	descriptionIsMarkdown?: boolean;
 	descriptionMarkdownActionHandler?: IContentActionHandler;
 	isDisabled?: boolean;
+	isSelected?: boolean;
 }
 
 export interface ISelectBoxStyles extends IListStyles {
