@@ -284,9 +284,11 @@ suite('SnippetParser', () => {
 	});
 
 	test('Parser, placeholder with choice; for $0 (#150745)', () => {
-		const input = '${0|one,two,three|}';
+		const p = new SnippetParser();
+		const snippet = p.parse('${0|one,two,three|}');
+		assertMarker(snippet, Placeholder);
 		const expected = [Placeholder, Text, Text, Text];
-		new SnippetParser().parse(input).walk(marker => {
+		snippet.walk(marker => {
 			assert.strictEqual(marker, expected.shift());
 			return true;
 		});
