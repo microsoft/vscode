@@ -1714,7 +1714,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.xterm.raw.options.disableStdin = false;
 				this._isExiting = false;
 			}
-			this.xterm.clearDecorations();
+			//TODO:@meganrogge does this break anything?
+			if (this.statusList.statuses.find(s => s.id === TerminalStatus.RelaunchNeeded)) {
+				this.xterm.clearDecorations();
+			}
 		}
 
 		// Dispose the environment info widget if it exists

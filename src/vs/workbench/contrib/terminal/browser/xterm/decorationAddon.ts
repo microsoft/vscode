@@ -240,6 +240,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		return decoration;
 	}
 
+	private _extractExitCode(command: ITerminalCommand): number | undefined {
+		const match = command.getOutput()?.match(/terminated with exit code: (.*)/);
+		return match ? Number.parseInt(match[1]) : undefined;
+	}
+
 	private _updateLayout(element?: HTMLElement): void {
 		if (!element) {
 			return;
@@ -329,10 +334,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				run: () => this._onDidRequestRunCommand.fire({ command, copyAsHtml: true })
 			});
 		}
-		actions.push({
-			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Rerun Command'), enabled: true,
-			run: () => this._onDidRequestRunCommand.fire({ command })
-		});
+		if (command.command !== '') {
+			actions.push({
+				class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Rerun Command'), enabled: true,
+				run: () => this._onDidRequestRunCommand.fire({ command })
+			});
+		}
 		actions.push({
 			class: 'how-does-this-work', tooltip: 'How does this work?', dispose: () => { }, id: 'terminal.howDoesThisWork', label: localize("terminal.howDoesThisWork", 'How does this work?'), enabled: true,
 			run: () => this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration')

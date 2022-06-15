@@ -53,7 +53,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 
-const taskShellIntegrationStartSequence = '\x1b]633;A\x07' + '\x1b]633;B\x07';
+const taskShellIntegrationStartSequence = '\x1b]633;P;Task=\x07' + '\x1b]633;A\x07' + '\x1b]633;B\x07';
+const taskShellIntegrationOutputSequence = '\x1b]633;C\x07';
+const taskShellIntegrationEndSequence = '\x1b]633;D;0\x07';
 
 interface ITaskExecutionResult {
 	summary: Promise<ITaskSummary>; terminal: ITerminalInstance | undefined; error: TaskError | undefined;
@@ -836,7 +838,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			// The process never got ready. Need to think how to handle this.
 		});
 		this._fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId, resolver.values));
-		terminal?.sendText('\x1b]633;C\x07', true);
 		const mapKey = task.getMapKey();
 		this._busyTasks[mapKey] = task;
 		this._fireTaskEvent(TaskEvent.create(TaskEventKind.Active, task));
@@ -896,7 +897,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				delete this._busyTasks[mapKey];
 			}
 			this._fireTaskEvent(TaskEvent.create(TaskEventKind.Inactive, task));
-			terminal?.sendText('\x1b]633;D;127', false);
 			this._fireTaskEvent(TaskEvent.create(TaskEventKind.End, task));
 			resolve({ exitCode: exitCode ?? undefined });
 		});
@@ -962,7 +962,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._logService.error('Task terminal process never got ready');
 		});
 		this._fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId));
-		terminal.sendText('\x1b]633;C\x07', true);
 		const onData = terminal.onLineData((line) => {
 			watchingProblemMatcher.processLine(line);
 			if (!delayer) {
@@ -1019,7 +1018,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						this._fireTaskEvent(TaskEvent.create(TaskEventKind.Inactive, task));
 					}
 					eventCounter = 0;
-					terminal?.sendText('\x1b]633;D;127\x07', false);
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.End, task));
 					toDispose.dispose();
 					resolve({ exitCode: exitCode ?? undefined });
@@ -1138,9 +1136,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(`Executing task in folder ${workspaceFolder.name}: ${commandLine}`, { excludeLeadingNewLine: true });
+					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(`Executing task in folder ${workspaceFolder.name}: ${commandLine}`, { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				} else {
-					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(`Executing task: ${commandLine}`, { excludeLeadingNewLine: true });
+					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(`Executing task: ${commandLine}`, { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				}
 			}
 		} else {
@@ -1266,7 +1264,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let command: CommandString | undefined;
 		let args: CommandString[] | undefined;
 		let launchConfigs: IShellLaunchConfig | undefined;
-
+		waitOnExit = waitOnExit + taskShellIntegrationEndSequence;
 		if (task.command.runtime === RuntimeType.CustomExecution) {
 			this._currentTask.shellLaunchConfig = launchConfigs = {
 				customPtyImplementation: (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService),
@@ -1326,7 +1324,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 			terminalToReuse.terminal.scrollToBottom();
 			await terminalToReuse.terminal.reuseTerminal(launchConfigs);
-			terminalToReuse.terminal?.sendText('\x1b]633;D;127\x07', false);
 
 			if (task.command.presentation && task.command.presentation.clear) {
 				terminalToReuse.terminal.clearBuffer();
