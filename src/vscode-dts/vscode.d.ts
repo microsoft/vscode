@@ -13771,6 +13771,11 @@ declare module 'vscode' {
 		placeholder: string;
 
 		/**
+		 * Controls whether the input box is enabled (default is `true`).
+		 */
+		enabled: boolean;
+
+		/**
 		 * Controls whether the input box is visible (default is `true`).
 		 */
 		visible: boolean;
