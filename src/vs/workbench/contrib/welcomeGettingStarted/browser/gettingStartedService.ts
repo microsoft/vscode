@@ -42,7 +42,7 @@ export const IWalkthroughsService = createDecorator<IWalkthroughsService>('walkt
 export const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
 export const walkthroughMetadataConfigurationKey = 'workbench.welcomePage.walkthroughMetadata';
-export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: string[]; manaullyOpened: boolean }>;
+export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: string[]; manaullyOpened: boolean; skipped: boolean }>;
 
 // List of extension ids to skip the walkthrough for
 export const skipWalkthroughOnInstallKey = 'workbench.welcomePage.skipWalkthroughOnInstall';
@@ -169,11 +169,12 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		this.tasExperimentService = tasExperimentService;
 
-		this.storageService.store(walkthroughMetadataConfigurationKey, '[]', StorageScope.GLOBAL, StorageTarget.USER);
+		//this.storageService.store(walkthroughMetadataConfigurationKey, '[]', StorageScope.GLOBAL, StorageTarget.USER);
 
 		// If the walkthrough was previously skipped on install, load it into the session installed extensions so it is auto opened on this startup
 		this.sessionInstalledExtensions = new Set(JSON.parse(this.storageService.get(skipWalkthroughOnInstallKey, StorageScope.GLOBAL, '[]')));
 		this.storageService.store(skipWalkthroughOnInstallKey, '[]', StorageScope.GLOBAL, StorageTarget.USER);
+
 		// Listen for changes on the storage service to rebuild the set of extension ids we should skip for this session
 		this._register(this.storageService.onDidChangeValue(e => {
 			if (e.key === skipWalkthroughOnInstallKey) {
@@ -321,12 +322,15 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		let sectionToOpen: string | undefined;
 		let sectionToOpenIndex = Math.min(); // '+Infinity';
+		// Whether to skip opening it even if it's a new install. Used to skip opening the walkthrough in special cases
+		const skipOpeningOnInstall = this.extensionsToSkipWalkthroughOnInstall.has(extension.identifier.value.toLowerCase());
 		await Promise.all(extension.contributes?.walkthroughs?.map(async (walkthrough, index) => {
 			const categoryID = extension.identifier.value + '#' + walkthrough.id;
 
-			const isNewlyInstalled = !this.metadata.get(categoryID);
+			const categoryMetadata = this.metadata.get(categoryID);
+			const isNewlyInstalled = !categoryMetadata || categoryMetadata.skipped;
 			if (isNewlyInstalled) {
-				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps?.map(s => s.id) ?? [], manaullyOpened: false });
+				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps?.map(s => s.id) ?? [], manaullyOpened: false, skipped: skipOpeningOnInstall });
 			}
 
 			const override = await Promise.race([
@@ -441,7 +445,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
 
-		const skipOpeningOnInstall = this.extensionsToSkipWalkthroughOnInstall.has(extension.identifier.value.toLowerCase());
 		if (!skipOpeningOnInstall && sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			type GettingStartedAutoOpenClassification = {
 				id: {

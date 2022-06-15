@@ -38,6 +38,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { skipWalkthroughOnInstallKey } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -108,6 +109,7 @@ registerAction2(class extends Action2 {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const storageService = accessor.get(IStorageService);
+		const productService = accessor.get(IProductService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const labelService = accessor.get(ILabelService);
 		const logService = accessor.get(ILogService);
@@ -277,9 +279,21 @@ registerAction2(class extends Action2 {
 			// actions
 
 			if (pick.id === 'install') {
-				await this._showKernelExtension(paneCompositeService, extensionWorkbenchService, storageService, notebook.viewType);
+				await this._showKernelExtension(
+					paneCompositeService,
+					extensionWorkbenchService,
+					storageService,
+					notebook.viewType
+				);
 			} else if (pick.id === 'installSuggested') {
-				await this._showKernelExtension(paneCompositeService, extensionWorkbenchService, storageService, notebook.viewType, suggestedExtensionId);
+				await this._showKernelExtension(
+					paneCompositeService,
+					extensionWorkbenchService,
+					storageService,
+					notebook.viewType,
+					suggestedExtensionId,
+					productService.quality !== 'stable'
+				);
 			} else if ('action' in pick) {
 				// selected explicilty, it should trigger the execution?
 				pick.action.runAction();
@@ -328,7 +342,8 @@ registerAction2(class extends Action2 {
 		extensionWorkbenchService: IExtensionsWorkbenchService,
 		storageService: IStorageService,
 		viewType: string,
-		extId?: string
+		extId?: string,
+		isInsiders?: boolean
 	) {
 		// If extension id is provided attempt to install the extension as the user has requested the suggested ones be installed
 		if (extId) {
@@ -338,9 +353,10 @@ registerAction2(class extends Action2 {
 			if (canInstall) {
 				// TODO @lramos15, possibly move this to be a static function of the GettingStartedService
 				const skippedWalkthroughs: string[] = JSON.parse(storageService.get(skipWalkthroughOnInstallKey, StorageScope.GLOBAL, '[]'));
-				skippedWalkthroughs.push(extId.toLowerCase());
+				// TODO @lramos15 possibly recursively resolve nested packs
+				skippedWalkthroughs.push(extId.toLowerCase(), ...extension.extensionPack);
 				storageService.store(skipWalkthroughOnInstallKey, JSON.stringify(skippedWalkthroughs), StorageScope.GLOBAL, StorageTarget.USER);
-				await extensionWorkbenchService.install(extension, { progressLocation: ProgressLocation.Notification });
+				await extensionWorkbenchService.install(extension, { progressLocation: ProgressLocation.Notification, installPreReleaseVersion: isInsiders ?? false });
 				// Add the extension to the skipped walkthroughs list so we don't auto open it. It will be auto opened next startup
 				return;
 			}
