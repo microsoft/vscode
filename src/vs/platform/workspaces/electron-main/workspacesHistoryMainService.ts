@@ -19,7 +19,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IGlobalStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { IApplicationStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
@@ -54,7 +54,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
 	) {
 		super();
 
@@ -217,13 +217,13 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private async getRecentlyOpenedFromStorage(): Promise<IRecentlyOpened> {
 
-		// Wait for global storage to be ready
-		await this.globalStorageMainService.whenReady;
+		// Wait for application storage to be ready
+		await this.applicationStorageMainService.whenReady;
 
 		let storedRecentlyOpened: object | undefined = undefined;
 
 		// First try with storage service
-		const storedRecentlyOpenedRaw = this.globalStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.GLOBAL);
+		const storedRecentlyOpenedRaw = this.applicationStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.APPLICATION);
 		if (typeof storedRecentlyOpenedRaw === 'string') {
 			try {
 				storedRecentlyOpened = JSON.parse(storedRecentlyOpenedRaw);
@@ -237,11 +237,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private async saveRecentlyOpened(recent: IRecentlyOpened): Promise<void> {
 
-		// Wait for global storage to be ready
-		await this.globalStorageMainService.whenReady;
+		// Wait for application storage to be ready
+		await this.applicationStorageMainService.whenReady;
 
-		// Store in global storage (but do not sync since this is mainly local paths)
-		this.globalStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Store in application storage (but do not sync since this is mainly local paths)
+		this.applicationStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	private location(recent: IRecent): URI {

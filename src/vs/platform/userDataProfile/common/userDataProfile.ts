@@ -17,6 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IUserDataProfile {
 	readonly id: string;
+	readonly isDefault: boolean;
 	readonly name: string;
 	readonly location: URI;
 	readonly globalStorageHome: URI;
@@ -53,6 +54,7 @@ export interface IUserDataProfilesService {
 function reviveProfile(profile: IUserDataProfile, scheme: string): IUserDataProfile {
 	return {
 		id: profile.id,
+		isDefault: profile.isDefault,
 		name: profile.name,
 		location: URI.revive(profile.location).with({ scheme }),
 		globalStorageHome: URI.revive(profile.globalStorageHome).with({ scheme }),
@@ -93,9 +95,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	createProfile(name: string | undefined): IUserDataProfile {
+		const isDefault = !name || name === UserDataProfilesService.DEFAULT_PROFILE_NAME;
 		const location = name && name !== UserDataProfilesService.DEFAULT_PROFILE_NAME ? joinPath(this.profilesHome, name) : this.environmentService.userRoamingDataHome;
 		return {
 			id: hash(location.toString()).toString(16),
+			isDefault,
 			name: name ?? UserDataProfilesService.DEFAULT_PROFILE_NAME,
 			location,
 			globalStorageHome: joinPath(location, 'globalStorage'),
