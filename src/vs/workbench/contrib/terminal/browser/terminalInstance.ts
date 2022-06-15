@@ -1723,7 +1723,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.xterm.raw.options.disableStdin = false;
 				this._isExiting = false;
 			}
-			//TODO:@meganrogge does this break anything?
 			if (reset) {
 				this.xterm.clearDecorations();
 			}
