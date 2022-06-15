@@ -19,11 +19,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -34,6 +34,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ProgressLocation } from 'vs/platform/progress/common/progress';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -107,6 +109,7 @@ registerAction2(class extends Action2 {
 		const labelService = accessor.get(ILabelService);
 		const logService = accessor.get(ILogService);
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 
 		let editor: INotebookEditor | undefined;
 		if (context !== undefined && 'notebookEditorId' in context) {
@@ -229,7 +232,20 @@ registerAction2(class extends Action2 {
 			});
 		}
 
+		let suggestedExtensionId: string | undefined;
 		if (!all.length && !sourceActions.length) {
+			const activeNotebookModel = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel;
+			if (activeNotebookModel) {
+				const language = this.getSuggestedLanguage(activeNotebookModel);
+				suggestedExtensionId = language ? this.getSuggestedKernelFromLanguage(activeNotebookModel.viewType, language) : undefined;
+			}
+			if (suggestedExtensionId) {
+				// there is no kernel, show the install from marketplace
+				quickPickItems.push({
+					id: 'installSuggested',
+					label: nls.localize('installSuggestedKernel', "Install suggested kernel from the marketplace"),
+				});
+			}
 			// there is no kernel, show the install from marketplace
 			quickPickItems.push({
 				id: 'install',
@@ -258,7 +274,9 @@ registerAction2(class extends Action2 {
 			// actions
 
 			if (pick.id === 'install') {
-				await this._showKernelExtension(paneCompositeService, notebook.viewType);
+				await this._showKernelExtension(paneCompositeService, extensionWorkbenchService, notebook.viewType);
+			} else if (pick.id === 'installSuggested') {
+				await this._showKernelExtension(paneCompositeService, extensionWorkbenchService, notebook.viewType, suggestedExtensionId);
 			} else if ('action' in pick) {
 				// selected explicilty, it should trigger the execution?
 				pick.action.runAction();
@@ -268,17 +286,61 @@ registerAction2(class extends Action2 {
 		return false;
 	}
 
-	private async _showKernelExtension(paneCompositePartService: IPaneCompositePartService, viewType: string) {
+	/**
+	 * Examine the most common language in the notebook
+	 * @param notebookTextModel The notebook text model
+	 * @returns What the suggested language is for the notebook. Used for kernal installing
+	 */
+	private getSuggestedLanguage(notebookTextModel: NotebookTextModel): string | undefined {
+		const metaData = notebookTextModel.metadata;
+		let suggestedKernelLanguage: string | undefined = (metaData.custom as any)?.metadata?.language_info?.name;
+		// TODO how do we suggest multi language notebooks?
+		if (!suggestedKernelLanguage) {
+			const cellLanguages = notebookTextModel.cells.map(cell => cell.language).filter(language => language !== 'markdown');
+			// Check if cell languages is all the same
+			if (cellLanguages.length > 1) {
+				const firstLanguage = cellLanguages[0];
+				if (cellLanguages.every(language => language === firstLanguage)) {
+					suggestedKernelLanguage = firstLanguage;
+				}
+			}
+		}
+		return suggestedKernelLanguage;
+	}
+
+	/**
+	 * Given a language and notebook view type suggest a kernel for installation
+	 * @param language The language to find a suggested kernel extension for
+	 * @returns An extension id if available, otherwise undefined
+	 */
+	private getSuggestedKernelFromLanguage(viewType: string, language: string): string | undefined {
+		if (language === 'python') {
+			return 'ms-python.python';
+		}
+		return undefined;
+	}
+
+	private async _showKernelExtension(
+		paneCompositePartService: IPaneCompositePartService,
+		extensionWorkbenchService: IExtensionsWorkbenchService,
+		viewType: string,
+		extId?: string
+	) {
+		// If extension id is provided attempt to install the extension as the user has requested the suggested ones be installed
+		if (extId) {
+			const extension = (await extensionWorkbenchService.getExtensions([{ id: extId }], CancellationToken.None))[0];
+			const canInstall = await extensionWorkbenchService.canInstall(extension);
+			// If we can install then install it, otherwise we will fall out into searching the viewlet
+			if (canInstall) {
+				await extensionWorkbenchService.install(extension, { progressLocation: ProgressLocation.Notification });
+				return;
+			}
+		}
+
 		const viewlet = await paneCompositePartService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-
-		const extId = KERNEL_EXTENSIONS.get(viewType);
-		if (extId) {
-			view?.search(`@id:${extId}`);
-		} else {
-			const pascalCased = viewType.split(/[^a-z0-9]/ig).map(uppercaseFirstLetter).join('');
-			view?.search(`@tag:notebookKernel${pascalCased}`);
-		}
+		const pascalCased = viewType.split(/[^a-z0-9]/ig).map(uppercaseFirstLetter).join('');
+		view?.search(`@tag:notebookKernel${pascalCased}`);
 	}
 });
 
