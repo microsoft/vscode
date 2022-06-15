@@ -11,6 +11,7 @@ export type MementoObject = { [key: string]: any };
 
 export class Memento {
 
+	private static readonly applicationMementos = new Map<string, ScopedMemento>();
 	private static readonly globalMementos = new Map<string, ScopedMemento>();
 	private static readonly workspaceMementos = new Map<string, ScopedMemento>();
 
@@ -23,53 +24,60 @@ export class Memento {
 	}
 
 	getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
+		switch (scope) {
 
-		// Scope by Workspace
-		if (scope === StorageScope.WORKSPACE) {
-			let workspaceMemento = Memento.workspaceMementos.get(this.id);
-			if (!workspaceMemento) {
-				workspaceMemento = new ScopedMemento(this.id, scope, target, this.storageService);
-				Memento.workspaceMementos.set(this.id, workspaceMemento);
+			// Scope by Workspace
+			case StorageScope.WORKSPACE: {
+				let workspaceMemento = Memento.workspaceMementos.get(this.id);
+				if (!workspaceMemento) {
+					workspaceMemento = new ScopedMemento(this.id, scope, target, this.storageService);
+					Memento.workspaceMementos.set(this.id, workspaceMemento);
+				}
+
+				return workspaceMemento.getMemento();
 			}
 
-			return workspaceMemento.getMemento();
-		}
+			// Scope Global
+			case StorageScope.GLOBAL: {
+				let globalMemento = Memento.globalMementos.get(this.id);
+				if (!globalMemento) {
+					globalMemento = new ScopedMemento(this.id, scope, target, this.storageService);
+					Memento.globalMementos.set(this.id, globalMemento);
+				}
 
-		// Scope Global
-		let globalMemento = Memento.globalMementos.get(this.id);
-		if (!globalMemento) {
-			globalMemento = new ScopedMemento(this.id, scope, target, this.storageService);
-			Memento.globalMementos.set(this.id, globalMemento);
-		}
+				return globalMemento.getMemento();
+			}
 
-		return globalMemento.getMemento();
+			// Scope Application
+			case StorageScope.APPLICATION: {
+				let applicationMemento = Memento.applicationMementos.get(this.id);
+				if (!applicationMemento) {
+					applicationMemento = new ScopedMemento(this.id, scope, target, this.storageService);
+					Memento.applicationMementos.set(this.id, applicationMemento);
+				}
+
+				return applicationMemento.getMemento();
+			}
+		}
 	}
 
 	saveMemento(): void {
-
-		// Workspace
-		const workspaceMemento = Memento.workspaceMementos.get(this.id);
-		if (workspaceMemento) {
-			workspaceMemento.save();
-		}
-
-		// Global
-		const globalMemento = Memento.globalMementos.get(this.id);
-		if (globalMemento) {
-			globalMemento.save();
-		}
+		Memento.workspaceMementos.get(this.id)?.save();
+		Memento.globalMementos.get(this.id)?.save();
+		Memento.applicationMementos.get(this.id)?.save();
 	}
 
 	static clear(scope: StorageScope): void {
-
-		// Workspace
-		if (scope === StorageScope.WORKSPACE) {
-			Memento.workspaceMementos.clear();
-		}
-
-		// Global
-		if (scope === StorageScope.GLOBAL) {
-			Memento.globalMementos.clear();
+		switch (scope) {
+			case StorageScope.WORKSPACE:
+				Memento.workspaceMementos.clear();
+				break;
+			case StorageScope.GLOBAL:
+				Memento.globalMementos.clear();
+				break;
+			case StorageScope.APPLICATION:
+				Memento.applicationMementos.clear();
+				break;
 		}
 	}
 }

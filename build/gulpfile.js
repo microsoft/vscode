@@ -19,8 +19,12 @@ const { compileExtensionsTask, watchExtensionsTask, compileExtensionMediaTask } 
 gulp.task(compileApiProposalNamesTask);
 gulp.task(watchApiProposalNamesTask);
 
+// Transpile only
+const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), compileTask('src', 'out', false, true)));
+gulp.task(transpileClientTask);
+
 // Fast compile for development time
-const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), compileApiProposalNamesTask, compileTask('src', 'out', false)));
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), compileApiProposalNamesTask, compileTask('src', 'out', false, false)));
 gulp.task(compileClientTask);
 
 const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), task.parallel(watchTask('out', false), watchApiProposalNamesTask)));

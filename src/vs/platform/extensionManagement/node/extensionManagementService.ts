@@ -432,23 +432,33 @@ class ExtensionsScanner extends Disposable {
 	}
 
 	private async removeOutdatedExtensions(): Promise<void> {
+		const systemExtensions = await this.extensionsScannerService.scanSystemExtensions({}); // System extensions
 		const extensions = await this.extensionsScannerService.scanUserExtensions({ includeAllVersions: true, includeUninstalled: true, includeInvalid: true }); // All user extensions
 		const toRemove: IScannedExtension[] = [];
 
 		// Outdated extensions
 		const targetPlatform = await this.extensionsScannerService.getTargetPlatform();
 		const byExtension = groupByExtension(extensions, e => e.identifier);
-		toRemove.push(...byExtension.map(p => p.sort((a, b) => {
-			const vcompare = semver.rcompare(a.manifest.version, b.manifest.version);
-			if (vcompare !== 0) {
-				return vcompare;
+		for (const extensions of byExtension) {
+			if (extensions.length > 1) {
+				toRemove.push(...extensions.sort((a, b) => {
+					const vcompare = semver.rcompare(a.manifest.version, b.manifest.version);
+					if (vcompare !== 0) {
+						return vcompare;
+					}
+					if (a.targetPlatform === targetPlatform) {
+						return -1;
+					}
+					return 1;
+				}).slice(1));
 			}
-			if (a.targetPlatform === targetPlatform) {
-				return -1;
+			if (extensions[0].type === ExtensionType.System) {
+				const systemExtension = systemExtensions.find(e => areSameExtensions(e.identifier, extensions[0].identifier));
+				if (!systemExtension || semver.gte(systemExtension.manifest.version, extensions[0].manifest.version)) {
+					toRemove.push(extensions[0]);
+				}
 			}
-			return 1;
-		}).slice(1)).flat());
-
+		}
 		await Promises.settled(toRemove.map(extension => this.removeExtension(extension, 'outdated')));
 	}
 

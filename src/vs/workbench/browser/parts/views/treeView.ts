@@ -1524,9 +1524,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 					const file = dataItem.getAsFile();
 					if (file) {
 						uris.push(URI.file(file.path));
-						if (dndController.supportsFileDataTransfers) {
-							treeDataTransfer.append(type, createFileDataTransferItemFromFile(file));
-						}
+						treeDataTransfer.append(type, createFileDataTransferItemFromFile(file));
 					}
 				}
 			}
