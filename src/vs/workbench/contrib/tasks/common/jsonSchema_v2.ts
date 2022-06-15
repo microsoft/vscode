@@ -117,7 +117,6 @@ const icon: IJSONSchema = {
 				'terminal.ansiCyan',
 				'terminal.ansiWhite'
 			],
-			default: null
 		},
 	}
 };
