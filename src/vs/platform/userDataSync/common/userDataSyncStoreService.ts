@@ -44,10 +44,10 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	get userDataSyncStore(): UserDataSyncStore | undefined { return this._userDataSyncStore; }
 
 	protected get userDataSyncStoreType(): UserDataSyncStoreType | undefined {
-		return this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType;
+		return this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.APPLICATION) as UserDataSyncStoreType;
 	}
 	protected set userDataSyncStoreType(type: UserDataSyncStoreType | undefined) {
-		this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
+		this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.APPLICATION, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
 	}
 
 	constructor(
@@ -57,7 +57,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	) {
 		super();
 		this.updateUserDataSyncStore();
-		this._register(Event.filter(storageService.onDidChangeValue, e => e.key === SYNC_SERVICE_URL_TYPE && e.scope === StorageScope.GLOBAL && this.userDataSyncStoreType !== this.userDataSyncStore?.type)(() => this.updateUserDataSyncStore()));
+		this._register(Event.filter(storageService.onDidChangeValue, e => e.key === SYNC_SERVICE_URL_TYPE && e.scope === StorageScope.APPLICATION && this.userDataSyncStoreType !== this.userDataSyncStore?.type)(() => this.updateUserDataSyncStore()));
 	}
 
 	protected updateUserDataSyncStore(): void {
@@ -115,16 +115,16 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 	) {
 		super(productService, configurationService, storageService);
 
-		const previousConfigurationSyncStore = this.storageService.get(SYNC_PREVIOUS_STORE, StorageScope.GLOBAL);
+		const previousConfigurationSyncStore = this.storageService.get(SYNC_PREVIOUS_STORE, StorageScope.APPLICATION);
 		if (previousConfigurationSyncStore) {
 			this.previousConfigurationSyncStore = JSON.parse(previousConfigurationSyncStore);
 		}
 
 		const syncStore = this.productService[CONFIGURATION_SYNC_STORE_KEY];
 		if (syncStore) {
-			this.storageService.store(SYNC_PREVIOUS_STORE, JSON.stringify(syncStore), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(SYNC_PREVIOUS_STORE, JSON.stringify(syncStore), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		} else {
-			this.storageService.remove(SYNC_PREVIOUS_STORE, StorageScope.GLOBAL);
+			this.storageService.remove(SYNC_PREVIOUS_STORE, StorageScope.APPLICATION);
 		}
 	}
 
@@ -202,7 +202,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 	}
 
 	private initDonotMakeRequestsUntil(): void {
-		const donotMakeRequestsUntil = this.storageService.getNumber(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.GLOBAL);
+		const donotMakeRequestsUntil = this.storageService.getNumber(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.APPLICATION);
 		if (donotMakeRequestsUntil && Date.now() < donotMakeRequestsUntil) {
 			this.setDonotMakeRequestsUntil(new Date(donotMakeRequestsUntil));
 		}
@@ -219,11 +219,11 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			}
 
 			if (this._donotMakeRequestsUntil) {
-				this.storageService.store(DONOT_MAKE_REQUESTS_UNTIL_KEY, this._donotMakeRequestsUntil.getTime(), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.storageService.store(DONOT_MAKE_REQUESTS_UNTIL_KEY, this._donotMakeRequestsUntil.getTime(), StorageScope.APPLICATION, StorageTarget.MACHINE);
 				this.resetDonotMakeRequestsUntilPromise = createCancelablePromise(token => timeout(this._donotMakeRequestsUntil!.getTime() - Date.now(), token).then(() => this.setDonotMakeRequestsUntil(undefined)));
 				this.resetDonotMakeRequestsUntilPromise.then(null, e => null /* ignore error */);
 			} else {
-				this.storageService.remove(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.GLOBAL);
+				this.storageService.remove(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.APPLICATION);
 			}
 
 			this._onDidChangeDonotMakeRequestsUntil.fire();
@@ -362,7 +362,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			}
 		}
 
-		const currentSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
+		const currentSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.APPLICATION);
 
 		if (currentSessionId && manifest && currentSessionId !== manifest.session) {
 			// Server session is different from client session so clear cached session.
@@ -376,7 +376,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		if (manifest) {
 			// update session
-			this.storageService.store(USER_SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(USER_SESSION_ID_KEY, manifest.session, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
 		return manifest;
@@ -397,8 +397,8 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 	}
 
 	private clearSession(): void {
-		this.storageService.remove(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
-		this.storageService.remove(MACHINE_SESSION_ID_KEY, StorageScope.GLOBAL);
+		this.storageService.remove(USER_SESSION_ID_KEY, StorageScope.APPLICATION);
+		this.storageService.remove(MACHINE_SESSION_ID_KEY, StorageScope.APPLICATION);
 	}
 
 	private async request(url: string, options: IRequestOptions, successCodes: number[], token: CancellationToken): Promise<IRequestContext> {
@@ -518,14 +518,14 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 	}
 
 	private addSessionHeaders(headers: IHeaders): void {
-		let machineSessionId = this.storageService.get(MACHINE_SESSION_ID_KEY, StorageScope.GLOBAL);
+		let machineSessionId = this.storageService.get(MACHINE_SESSION_ID_KEY, StorageScope.APPLICATION);
 		if (machineSessionId === undefined) {
 			machineSessionId = generateUuid();
-			this.storageService.store(MACHINE_SESSION_ID_KEY, machineSessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(MACHINE_SESSION_ID_KEY, machineSessionId, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 		headers['X-Machine-Session-Id'] = machineSessionId;
 
-		const userSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
+		const userSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.APPLICATION);
 		if (userSessionId !== undefined) {
 			headers['X-User-Session-Id'] = userSessionId;
 		}
