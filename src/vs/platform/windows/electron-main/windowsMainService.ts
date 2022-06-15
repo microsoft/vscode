@@ -1302,7 +1302,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			profiles: {
 				default: this.userDataProfilesService.defaultProfile,
-				current: options.workspace ? this.userDataProfilesService.getProfile(isWorkspaceIdentifier(options.workspace) ? options.workspace.configPath : options.workspace.uri) : this.userDataProfilesService.defaultProfile,
+				current: options.workspace ? this.userDataProfilesService.getProfile(options.workspace) : this.userDataProfilesService.defaultProfile,
 			},
 
 			homeDir: this.environmentMainService.userHome.fsPath,

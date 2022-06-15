@@ -73,8 +73,8 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		return this.profiles.profiles;
 	}
 
-	override getProfile(workspace: URI): IUserDataProfile {
-		return this.profiles.workspaces.get(workspace) ?? this.defaultProfile;
+	override getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile {
+		return this.profiles.workspaces.get(this.getWorkspace(workspaceIdentifier)) ?? this.defaultProfile;
 	}
 
 	override async createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
@@ -93,13 +93,17 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 
 	override async setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
 		profile = reviveProfile(profile, this.profilesHome.scheme);
-		const workspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier) ? workspaceIdentifier.uri : workspaceIdentifier.configPath;
+		const workspace = this.getWorkspace(workspaceIdentifier);
 		const storedWorkspaceInfos = this.storedWorskpaceInfos.filter(info => !this.uriIdentityService.extUri.isEqual(info.workspace, workspace));
 		if (!profile.isDefault) {
 			storedWorkspaceInfos.push({ workspace, profile: profile.location });
 		}
 		this.storedWorskpaceInfos = storedWorkspaceInfos;
 		return this.profiles.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+	}
+
+	private getWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier) {
+		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) ? workspaceIdentifier.uri : workspaceIdentifier.configPath;
 	}
 
 	override async removeProfile(profile: IUserDataProfile): Promise<void> {

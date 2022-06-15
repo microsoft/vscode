@@ -57,7 +57,7 @@ export interface IUserDataProfilesService {
 	newProfile(name: string, options?: ProfileOptions): IUserDataProfile;
 	createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
 	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
-	getProfile(workspace: URI): IUserDataProfile;
+	getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile;
 	getAllProfiles(): Promise<IUserDataProfile[]>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 }
@@ -123,6 +123,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	getAllProfiles(): Promise<IUserDataProfile[]> { throw new Error('Not implemented'); }
 	createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
 	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
-	getProfile(workspace: URI): IUserDataProfile { throw new Error('Not implemented'); }
+	getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile { throw new Error('Not implemented'); }
 	removeProfile(profile: IUserDataProfile): Promise<void> { throw new Error('Not implemented'); }
 }
