@@ -13,7 +13,7 @@ import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IReconnectConstants, TerminalIpcChannels, TerminalLogFiles } from 'vs/platform/terminal/common/terminal';
+import { IReconnectConstants, TerminalIpcChannels, TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
 import { HeartbeatService } from 'vs/platform/terminal/node/heartbeatService';
 import { PtyService } from 'vs/platform/terminal/node/ptyService';
 
@@ -27,7 +27,7 @@ const productService: IProductService = { _serviceBrand: undefined, ...product }
 const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 const logService = new LogService(new MultiplexLogService([
 	new ConsoleLogger(),
-	new SpdLogLogger(TerminalLogFiles.PtyHost, join(environmentService.logsPath, `${TerminalLogFiles.PtyHost}.log`), true, false, getLogLevel(environmentService))
+	new SpdLogLogger(TerminalLogConstants.FileName, join(environmentService.logsPath, `${TerminalLogConstants.FileName}.log`), true, false, getLogLevel(environmentService))
 ]));
 const logLevelChannel = new LogLevelChannel(logService);
 server.registerChannel(TerminalIpcChannels.Log, logLevelChannel);

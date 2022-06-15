@@ -17,7 +17,7 @@ import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalSt
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { registerLogChannel } from 'vs/workbench/services/output/common/output';
 import { join } from 'vs/base/common/path';
-import { TerminalLogFiles } from 'vs/platform/terminal/common/terminal';
+import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
 
 /**
  * The main contribution for the terminal contrib. This contains calls to other components necessary
@@ -82,7 +82,7 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 		});
 
 		// Register log channel
-		this._registerLogChannel('ptyHostLog', localize('ptyHost', "Pty Host"), URI.file(join(environmentService.logsPath, `${TerminalLogFiles.PtyHost}.log`)));
+		this._registerLogChannel('ptyHostLog', localize('ptyHost', "Pty Host"), URI.file(join(environmentService.logsPath, `${TerminalLogConstants.FileName}.log`)));
 	}
 
 	private _registerLogChannel(id: string, label: string, file: URI): void {
