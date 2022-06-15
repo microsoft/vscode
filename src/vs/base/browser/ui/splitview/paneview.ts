@@ -143,9 +143,7 @@ export abstract class Pane extends Disposable implements IView {
 			return false;
 		}
 
-		if (this.element) {
-			this.element.classList.toggle('expanded', expanded);
-		}
+		this.element?.classList.toggle('expanded', expanded);
 
 		this._expanded = !!expanded;
 		this.updateHeader();

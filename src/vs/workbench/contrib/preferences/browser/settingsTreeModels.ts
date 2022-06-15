@@ -808,9 +808,7 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		const localMatchKeys = new Set();
 		const localResult = this.rawSearchResults[SearchResultIdx.Local];
-		if (localResult) {
-			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
-		}
+		localResult?.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
 
 		const remoteResult = this.rawSearchResults[SearchResultIdx.Remote];
 		if (remoteResult) {

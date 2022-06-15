@@ -395,9 +395,7 @@ export class SearchView extends ViewPane {
 		}
 
 		// Enable highlights if there are searchresults
-		if (this.viewModel) {
-			this.viewModel.searchResult.toggleHighlights(visible);
-		}
+		this.viewModel?.searchResult.toggleHighlights(visible);
 	}
 
 	get searchAndReplaceWidget(): SearchWidget {

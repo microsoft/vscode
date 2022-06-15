@@ -1204,12 +1204,8 @@ export class IssueReporter extends Disposable {
 // helper functions
 
 function hide(el: Element | undefined | null) {
-	if (el) {
-		el.classList.add('hidden');
-	}
+	el?.classList.add('hidden');
 }
 function show(el: Element | undefined | null) {
-	if (el) {
-		el.classList.remove('hidden');
-	}
+	el?.classList.remove('hidden');
 }
