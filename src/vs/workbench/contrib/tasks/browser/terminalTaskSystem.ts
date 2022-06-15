@@ -1034,7 +1034,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 			let icon: URI | ThemeIcon | { light: URI; dark: URI } | undefined;
 			if (task.configurationProperties.icon) {
-				icon = ThemeIcon.fromId(task.configurationProperties.icon);
+				icon = ThemeIcon.fromId(task.configurationProperties.icon.id);
 			} else {
 				const taskGroupKind = task.configurationProperties.group ? GroupKind.to(task.configurationProperties.group) : undefined;
 				const kindId = typeof taskGroupKind === 'string' ? taskGroupKind : taskGroupKind?.kind;
@@ -1046,7 +1046,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				executable: defaultProfile.path,
 				args: defaultProfile.args,
 				env: { ...defaultProfile.env },
-				icon: task.configurationProperties.icon?.id ? ThemeIcon.fromId(task.configurationProperties.icon.id) : undefined,
+				icon,
 				color: task.configurationProperties.icon?.color || undefined,
 				waitOnExit
 			};
