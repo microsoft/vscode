@@ -39,18 +39,17 @@ export class GitEditor implements IIPCHandler {
 	}
 
 	getEnv(): { [key: string]: string } {
-		const env: { [key: string]: string } = {
-			VSCODE_GIT_EDITOR_NODE: process.execPath,
-			VSCODE_GIT_EDITOR_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
-			VSCODE_GIT_EDITOR_MAIN: path.join(__dirname, 'git-editor-main.js')
-		};
-
 		const config = workspace.getConfiguration('git');
 		if (config.get<boolean>('useEditorAsCommitInput')) {
-			env.GIT_EDITOR = `"${path.join(__dirname, this.ipc ? 'git-editor.sh' : 'git-editor-empty.sh')}"`;
+			return {
+				GIT_EDITOR: `"${path.join(__dirname, this.ipc ? 'git-editor.sh' : 'git-editor-empty.sh')}"`,
+				VSCODE_GIT_EDITOR_NODE: process.execPath,
+				VSCODE_GIT_EDITOR_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
+				VSCODE_GIT_EDITOR_MAIN: path.join(__dirname, 'git-editor-main.js')
+			};
 		}
 
-		return env;
+		return {};
 	}
 
 	dispose(): void {
