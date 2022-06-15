@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue } from '../../../../automation';
+import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue, TerminalCommandId } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
@@ -21,6 +21,7 @@ export function setup() {
 		});
 
 		after(async function () {
+			await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 			await settingsEditor.clearUserSettings();
 		});
 
