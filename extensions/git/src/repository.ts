@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, MarkdownString } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -1006,16 +1006,6 @@ export class Repository implements Disposable {
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
-		if (this.HEAD?.protected) {
-			const message = new MarkdownString('This branch is protected. [Hide]() [Don\'t show again]()');
-			message.isTrusted = true;
-
-			return {
-				message,
-				type: SourceControlInputBoxValidationType.Information
-			};
-		}
-
 		let tooManyChangesWarning: SourceControlInputBoxValidation | undefined;
 		if (this.isRepositoryHuge) {
 			tooManyChangesWarning = {
@@ -1960,7 +1950,6 @@ export class Repository implements Disposable {
 			if (HEAD.name) {
 				try {
 					HEAD = await this.repository.getBranch(HEAD.name);
-					HEAD.protected = this.isBranchProtected(HEAD.name ?? '');
 				} catch (err) {
 					// noop
 				}
@@ -2224,7 +2213,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	public isBranchProtected(name: string): boolean {
+	public isBranchProtected(name: string = this.HEAD?.name ?? ''): boolean {
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const branchProtection = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
 

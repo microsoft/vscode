@@ -1586,8 +1586,7 @@ export class CommandCenter {
 
 		// Branch protection
 		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
-
-		if (repository.HEAD?.protected && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
+		if (repository.isBranchProtected() && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
 			const commitToNewBranch = localize('commit to branch', "Commit to a New Branch");
 
 			let pick: string | undefined = commitToNewBranch;

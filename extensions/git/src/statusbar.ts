@@ -24,7 +24,8 @@ class CheckoutStatusBar {
 
 	get command(): Command | undefined {
 		const rebasing = !!this.repository.rebaseCommit;
-		const title = `$(git-branch) ${this.repository.headLabel}${rebasing ? ` (${localize('rebasing', 'Rebasing')})` : ''}${this.repository.HEAD?.protected ? ' $(lock)' : ''}`;
+		const isBranchProtected = this.repository.isBranchProtected();
+		const title = `$(git-branch) ${this.repository.headLabel}${rebasing ? ` (${localize('rebasing', 'Rebasing')})` : ''}${isBranchProtected ? ' $(lock)' : ''}`;
 
 		return {
 			command: 'git.checkout',
