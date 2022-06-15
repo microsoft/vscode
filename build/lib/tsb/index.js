@@ -76,6 +76,9 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
             if (!file.contents) {
                 return;
             }
+            if (!config.transpileOnlyIncludesDts && file.path.endsWith('.d.ts')) {
+                return;
+            }
             if (!transpiler.onOutfile) {
                 transpiler.onOutfile = file => this.queue(file);
             }

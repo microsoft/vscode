@@ -36,7 +36,7 @@ const _defaultOnError = (err: string) => console.log(JSON.stringify(err, null, 4
 export function create(
 	projectPath: string,
 	existingOptions: Partial<ts.CompilerOptions>,
-	config: { verbose?: boolean; transpileOnly?: boolean },
+	config: { verbose?: boolean; transpileOnly?: boolean; transpileOnlyIncludesDts?: boolean },
 	onError: (message: string) => void = _defaultOnError
 ): IncrementalCompiler {
 
@@ -103,6 +103,9 @@ export function create(
 				return;
 			}
 			if (!file.contents) {
+				return;
+			}
+			if (!config.transpileOnlyIncludesDts && file.path.endsWith('.d.ts')) {
 				return;
 			}
 

@@ -93,7 +93,7 @@ class TranspileWorker {
 
 				// check if output of a DTS-files isn't just "empty" and iff so
 				// skip this file
-				if (suffixLen === SuffixTypes.Dts && jsSrc === _defaultEmptyJsSrc) {
+				if (suffixLen === SuffixTypes.Dts && _isDefaultEmpty(jsSrc)) {
 					continue;
 				}
 
@@ -232,10 +232,9 @@ export class Transpiler {
 	}
 }
 
-
-const _defaultEmptyJsSrc = `"use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-//# sourceMappingURL=module.js.map`;
+function _isDefaultEmpty(src: string): boolean {
+	return src
+		.replace('"use strict";', '')
+		.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1')
+		.trim().length === 0;
+}
