@@ -11,6 +11,10 @@ parameters:
     type: boolean
 
 steps:
+  - checkout: self
+    fetchDepth: 1
+    retryCountOnTaskFailure: 3
+
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
