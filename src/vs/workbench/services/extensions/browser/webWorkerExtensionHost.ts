@@ -254,9 +254,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			return;
 		}
 		this._isTerminating = true;
-		if (this._protocol) {
-			this._protocol.send(createMessageOfType(MessageType.Terminate));
-		}
+		this._protocol?.send(createMessageOfType(MessageType.Terminate));
 		super.dispose();
 	}
 

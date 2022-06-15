@@ -35,19 +35,25 @@ function loaderConfig() {
 }
 exports.loaderConfig = loaderConfig;
 const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
+function loaderPlugin(src, base, amdModuleId) {
+    return (gulp
+        .src(src, { base })
+        .pipe(es.through(function (data) {
+        if (amdModuleId) {
+            let contents = data.contents.toString('utf8');
+            contents = contents.replace(/^define\(/m, `define("${amdModuleId}",`);
+            data.contents = Buffer.from(contents);
+        }
+        this.emit('data', data);
+    })));
+}
 function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
-    let sources = [
-        `${src}/vs/loader.js`
-    ];
+    let loaderStream = gulp.src(`${src}/vs/loader.js`, { base: `${src}` });
     if (bundleLoader) {
-        sources = sources.concat([
-            `${src}/vs/css.js`,
-            `${src}/vs/nls.js`
-        ]);
+        loaderStream = es.merge(loaderStream, loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'), loaderPlugin(`${src}/vs/nls.js`, `${src}`, 'vs/nls'));
     }
     let isFirst = true;
-    return (gulp
-        .src(sources, { base: `${src}` })
+    return (loaderStream
         .pipe(es.through(function (data) {
         if (isFirst) {
             isFirst = false;

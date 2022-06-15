@@ -215,14 +215,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!decoration) {
 			return undefined;
 		}
-
+		if (beforeCommandExecution) {
+			this._placeholderDecoration = decoration;
+		}
 		decoration.onRender(element => {
 			if (element.classList.contains(DecorationSelector.OverviewRuler)) {
 				return;
 			}
-			if (beforeCommandExecution && !this._placeholderDecoration) {
-				this._placeholderDecoration = decoration;
-			} else if (!this._decorations.get(decoration.marker.id)) {
+			if (!this._decorations.get(decoration.marker.id)) {
 				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
 				this._decorations.set(decoration.marker.id,
 					{
@@ -329,10 +329,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				run: () => this._onDidRequestRunCommand.fire({ command, copyAsHtml: true })
 			});
 		}
-		actions.push({
-			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Rerun Command'), enabled: true,
-			run: () => this._onDidRequestRunCommand.fire({ command })
-		});
+		if (command.command !== '') {
+			actions.push({
+				class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Rerun Command'), enabled: true,
+				run: () => this._onDidRequestRunCommand.fire({ command })
+			});
+		}
 		actions.push({
 			class: 'how-does-this-work', tooltip: 'How does this work?', dispose: () => { }, id: 'terminal.howDoesThisWork', label: localize("terminal.howDoesThisWork", 'How does this work?'), enabled: true,
 			run: () => this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration')

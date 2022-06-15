@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commandManager';
-import { MdReferencesProvider } from './references';
+import { MdReferencesComputer } from './references';
 
 const localize = nls.loadMessageBundle();
 
@@ -16,7 +16,7 @@ export class FindFileReferencesCommand implements Command {
 	public readonly id = 'markdown.findAllFileReferences';
 
 	constructor(
-		private readonly referencesProvider: MdReferencesProvider,
+		private readonly referencesComputer: MdReferencesComputer,
 	) { }
 
 	public async execute(resource?: vscode.Uri) {
@@ -33,7 +33,7 @@ export class FindFileReferencesCommand implements Command {
 			location: vscode.ProgressLocation.Window,
 			title: localize('progress.title', "Finding file references")
 		}, async (_progress, token) => {
-			const references = await this.referencesProvider.getAllReferencesToFile(resource!, token);
+			const references = await this.referencesComputer.getAllReferencesToFile(resource!, token);
 			const locations = references.map(ref => ref.location);
 
 			const config = vscode.workspace.getConfiguration('references');
@@ -49,6 +49,6 @@ export class FindFileReferencesCommand implements Command {
 	}
 }
 
-export function registerFindFileReferences(commandManager: CommandManager, referencesProvider: MdReferencesProvider): vscode.Disposable {
+export function registerFindFileReferences(commandManager: CommandManager, referencesProvider: MdReferencesComputer): vscode.Disposable {
 	return commandManager.register(new FindFileReferencesCommand(referencesProvider));
 }

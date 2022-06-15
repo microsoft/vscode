@@ -54,14 +54,14 @@ export class ReentrancyBarrier {
 }
 
 export function n<TTag extends string>(tag: TTag): never;
+export function n<TTag extends string, TId extends string>(
+	tag: TTag,
+	attributes: { $: TId }
+): Record<TId | 'root', TagToElement<TTag>>;
 export function n<TTag extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
 	children: T
 ): (ArrayToObj<T> & Record<'root', TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-export function n<TTag extends string, TId extends string>(
-	tag: TTag,
-	attributes: { $: TId }
-): Record<TId, TagToElement<TTag>>;
 export function n<TTag extends string, TId extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
 	attributes: { $: TId },
@@ -198,4 +198,12 @@ export function* join<TLeft, TRight>(
 		const equals = rightQueue.takeWhile(rightElement => CompareResult.isNeitherLessOrGreaterThan(compare(leftElement, rightElement)));
 		yield { left: leftElement, rights: equals || [] };
 	}
+}
+
+export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][number][] {
+	return ([] as any[]).concat(...arrays);
+}
+
+export function elementAtOrUndefined<T>(arr: T[], index: number): T | undefined {
+	return arr[index];
 }

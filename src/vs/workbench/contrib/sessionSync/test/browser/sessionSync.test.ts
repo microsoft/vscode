@@ -24,6 +24,8 @@ import * as assert from 'assert';
 import { ChangeType, FileType, ISessionSyncWorkbenchService } from 'vs/workbench/services/sessionSync/common/sessionSync';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -47,6 +49,7 @@ suite('Edit session sync', () => {
 		// Stub out all services
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(ISessionSyncWorkbenchService, new class extends mock<ISessionSyncWorkbenchService>() { });
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(ISCMService, SCMService);
@@ -97,6 +100,9 @@ suite('Edit session sync', () => {
 		const sandbox = sinon.createSandbox();
 		const readStub = sandbox.stub().returns(editSession);
 		instantiationService.stub(ISessionSyncWorkbenchService, 'read', readStub);
+
+		// Stub repositories
+		instantiationService.stub(ISCMService, '_repositories', new Map());
 
 		// Create root folder
 		await fileService.createFolder(folderUri);

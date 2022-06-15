@@ -171,13 +171,9 @@ export class SearchService extends Disposable implements ISearchService {
 
 	private getSchemesInQuery(query: ISearchQuery): Set<string> {
 		const schemes = new Set<string>();
-		if (query.folderQueries) {
-			query.folderQueries.forEach(fq => schemes.add(fq.folder.scheme));
-		}
+		query.folderQueries?.forEach(fq => schemes.add(fq.folder.scheme));
 
-		if (query.extraFileResources) {
-			query.extraFileResources.forEach(extraFile => schemes.add(extraFile.scheme));
-		}
+		query.extraFileResources?.forEach(extraFile => schemes.add(extraFile.scheme));
 
 		return schemes;
 	}

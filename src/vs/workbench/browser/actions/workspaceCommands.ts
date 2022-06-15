@@ -309,7 +309,42 @@ CommandsRegistry.registerCommand('_workbench.getRecentlyOpened', async function 
 });
 
 if (isWeb) {
-	CommandsRegistry.registerCommand('workbench.experimental.requestUsbDevice', async (_accessor: ServicesAccessor): Promise<void> => {
-		await (navigator as any).usb.requestDevice({ filters: [] });
+	interface UsbDeviceData {
+		readonly deviceClass: number;
+		readonly deviceProtocol: number;
+		readonly deviceSubclass: number;
+		readonly deviceVersionMajor: number;
+		readonly deviceVersionMinor: number;
+		readonly deviceVersionSubminor: number;
+		readonly manufacturerName?: string;
+		readonly productId: number;
+		readonly productName?: string;
+		readonly serialNumber?: string;
+		readonly usbVersionMajor: number;
+		readonly usbVersionMinor: number;
+		readonly usbVersionSubminor: number;
+		readonly vendorId: number;
+	}
+	CommandsRegistry.registerCommand('workbench.experimental.requestUsbDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<UsbDeviceData | undefined> => {
+		const device = await (navigator as any).usb.requestDevice({ filters: options?.filters ?? [] });
+		if (!device) {
+			return undefined;
+		}
+		return {
+			deviceClass: device.deviceClass,
+			deviceProtocol: device.deviceProtocol,
+			deviceSubclass: device.deviceSubclass,
+			deviceVersionMajor: device.deviceVersionMajor,
+			deviceVersionMinor: device.deviceVersionMinor,
+			deviceVersionSubminor: device.deviceVersionSubminor,
+			manufacturerName: device.manufacturerName,
+			productId: device.productId,
+			productName: device.productName,
+			serialNumber: device.serialNumber,
+			usbVersionMajor: device.usbVersionMajor,
+			usbVersionMinor: device.usbVersionMinor,
+			usbVersionSubminor: device.usbVersionSubminor,
+			vendorId: device.vendorId,
+		};
 	});
 }

@@ -16,7 +16,7 @@ import { ApplicationStorageMain, GlobalStorageMain, InMemoryStorageMain, IStorag
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-//#region Storage Main Service (intent: make global and workspace storage accessible to windows from main process)
+//#region Storage Main Service (intent: make application, global and workspace storage accessible to windows from main process)
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 

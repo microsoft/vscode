@@ -145,9 +145,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			this.setActiveChannel(channel);
 			this._onActiveOutputChannel.fire(channelId);
 			const outputView = this.viewsService.getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID);
-			if (outputView) {
-				outputView.showChannel(channel, true);
-			}
+			outputView?.showChannel(channel, true);
 		}
 	}
 

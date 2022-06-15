@@ -71,23 +71,30 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	}
 
 	/**
+	 * @param ref: A specific content ref to retrieve content for, if it exists.
+	 * If undefined, this method will return the latest saved edit session, if any.
 	 *
-	 * @returns An object representing the latest saved edit session state, if any.
+	 * @returns An object representing the requested or latest edit session state, if any.
 	 */
-	async read(): Promise<EditSession | undefined> {
+	async read(ref: string | undefined): Promise<EditSession | undefined> {
 		this.initialized = await this.waitAndInitialize();
 		if (!this.initialized) {
 			throw new Error('Please sign in to apply your latest edit session.');
 		}
 
-		// Pull latest session data from service
-		const sessionData = await this.storeClient?.read('editSessions', null);
-		if (!sessionData?.content) {
-			return;
+		let content: string | undefined | null;
+		try {
+			if (ref !== undefined) {
+				content = await this.storeClient?.resolveContent('editSessions', ref);
+			} else {
+				content = (await this.storeClient?.read('editSessions', null))?.content;
+			}
+		} catch (ex) {
+			this.logService.error(ex);
 		}
 
 		// TODO@joyceerhl Validate session data, check schema version
-		return JSON.parse(sessionData.content);
+		return (content !== undefined && content !== null) ? JSON.parse(content) : undefined;
 	}
 
 	/**

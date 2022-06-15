@@ -11,7 +11,7 @@ import { Disposable } from '../util/dispose';
 import { resolveDocumentLink } from '../util/openDocumentLink';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref } from './documentLinkProvider';
-import { MdHeaderReference, MdLinkReference, MdReference, MdReferencesProvider, tryFindMdDocumentForLink } from './references';
+import { MdHeaderReference, MdLinkReference, MdReference, MdReferencesComputer, tryFindMdDocumentForLink } from './references';
 
 const localize = nls.loadMessageBundle();
 
@@ -58,7 +58,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 	private readonly renameNotSupportedText = localize('invalidRenameLocation', "Rename not supported at location");
 
 	public constructor(
-		private readonly referencesProvider: MdReferencesProvider,
+		private readonly referencesComputer: MdReferencesComputer,
 		private readonly workspaceContents: MdWorkspaceContents,
 		private readonly slugifier: Slugifier,
 	) {
@@ -253,7 +253,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 			return this.cachedRefs;
 		}
 
-		const references = await this.referencesProvider.getAllReferencesAtPosition(document, position, token);
+		const references = await this.referencesComputer.getReferencesAtPosition(document, position, token);
 		const triggerRef = references.find(ref => ref.isTriggerLocation);
 		if (!triggerRef) {
 			return undefined;

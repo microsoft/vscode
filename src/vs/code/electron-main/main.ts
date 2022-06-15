@@ -68,6 +68,8 @@ import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/pol
 import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 /**
  * The main VS Code entry point.
@@ -170,6 +172,10 @@ class CodeMain {
 		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// URI Identity
+		const uriIdentityService = new UriIdentityService(fileService);
+		services.set(IUriIdentityService, uriIdentityService);
+
 		// Logger
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
@@ -178,7 +184,7 @@ class CodeMain {
 		services.set(IStateMainService, stateMainService);
 
 		// User Data Profiles
-		const userDataProfilesMainService = new UserDataProfilesMainService(stateMainService, environmentMainService, fileService, logService);
+		const userDataProfilesMainService = new UserDataProfilesMainService(stateMainService, uriIdentityService, environmentMainService, fileService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesMainService);
 
 		// Policy
@@ -244,10 +250,7 @@ class CodeMain {
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
 			// State service
-			stateMainService.init(),
-
-			// User Data Profiles Service
-			userDataProfilesMainService.init(),
+			stateMainService.init().then(() => userDataProfilesMainService.init()),
 
 			// Configuration service
 			configurationService.initialize()

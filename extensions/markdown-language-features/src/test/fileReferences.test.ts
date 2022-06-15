@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
-import { MdReference, MdReferencesProvider } from '../languageFeatures/references';
+import { MdLinkComputer } from '../languageFeatures/documentLinkProvider';
+import { MdReference, MdReferencesComputer } from '../languageFeatures/references';
 import { githubSlugifier } from '../slugify';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
@@ -19,9 +19,9 @@ import { joinLines, workspacePath } from './util';
 
 function getFileReferences(resource: vscode.Uri, workspaceContents: MdWorkspaceContents) {
 	const engine = createNewMarkdownEngine();
-	const linkProvider = new MdLinkProvider(engine);
-	const provider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
-	return provider.getAllReferencesToFile(resource, noopToken);
+	const linkComputer = new MdLinkComputer(engine);
+	const computer = new MdReferencesComputer(linkComputer, workspaceContents, engine, githubSlugifier);
+	return computer.getAllReferencesToFile(resource, noopToken);
 }
 
 function assertReferencesEqual(actualRefs: readonly MdReference[], ...expectedRefs: { uri: vscode.Uri; line: number }[]) {

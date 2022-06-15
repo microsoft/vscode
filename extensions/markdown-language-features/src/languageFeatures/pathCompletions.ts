@@ -9,7 +9,7 @@ import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import { SkinnyTextDocument } from '../workspaceContents';
-import { MdLinkProvider } from './documentLinkProvider';
+import { MdLinkComputer } from './documentLinkProvider';
 
 enum CompletionContextKind {
 	/** `[...](|)` */
@@ -81,14 +81,14 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 	public static register(
 		selector: vscode.DocumentSelector,
 		engine: MarkdownEngine,
-		linkProvider: MdLinkProvider,
+		linkComputer: MdLinkComputer,
 	): vscode.Disposable {
-		return vscode.languages.registerCompletionItemProvider(selector, new MdPathCompletionProvider(engine, linkProvider), '.', '/', '#');
+		return vscode.languages.registerCompletionItemProvider(selector, new MdPathCompletionProvider(engine, linkComputer), '.', '/', '#');
 	}
 
 	constructor(
 		private readonly engine: MarkdownEngine,
-		private readonly linkProvider: MdLinkProvider,
+		private readonly linkComputer: MdLinkComputer,
 	) { }
 
 	public async provideCompletionItems(document: SkinnyTextDocument, position: vscode.Position, _token: vscode.CancellationToken, _context: vscode.CompletionContext): Promise<vscode.CompletionItem[]> {
@@ -240,7 +240,7 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		const insertionRange = new vscode.Range(context.linkTextStartPosition, position);
 		const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 
-		const definitions = await this.linkProvider.getLinkDefinitions(document);
+		const definitions = await this.linkComputer.getLinkDefinitions(document);
 		for (const def of definitions) {
 			yield {
 				kind: vscode.CompletionItemKind.Reference,

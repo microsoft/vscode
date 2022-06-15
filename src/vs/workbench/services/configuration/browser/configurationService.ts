@@ -456,9 +456,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			if (this.restrictedSettings.workspace) {
 				keys.push(...this.restrictedSettings.workspace);
 			}
-			if (this.restrictedSettings.workspaceFolder) {
-				this.restrictedSettings.workspaceFolder.forEach((value) => keys.push(...value));
-			}
+			this.restrictedSettings.workspaceFolder?.forEach((value) => keys.push(...value));
 			keys = distinct(keys);
 			if (keys.length) {
 				this.triggerConfigurationChange({ keys, overrides: [] }, { data, workspace: this.workspace }, ConfigurationTarget.WORKSPACE);

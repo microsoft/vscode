@@ -776,9 +776,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		highlightCurrentMatch(index: number) {
 			const oldMatch = this.matches[this._findMatchIndex];
-			if (oldMatch) {
-				oldMatch.highlightResult?.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
-			}
+			oldMatch?.highlightResult?.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
 
 			const match = this.matches[index];
 			this._findMatchIndex = index;
