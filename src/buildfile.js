@@ -32,12 +32,14 @@ exports.base = [
 	{
 		name: 'vs/editor/common/services/editorSimpleWorker',
 		include: ['vs/base/common/worker/simpleWorker'],
+		exclude: ['vs/nls'],
 		prepend: ['vs/loader.js', 'vs/nls.js'],
 		append: ['vs/base/worker/workerMain'],
 		dest: 'vs/base/worker/workerMain.js'
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
+		exclude: ['vs/nls'],
 	}
 ];
 
