@@ -538,9 +538,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public async $acceptTerminalProcessId(id: number, processId: number): Promise<void> {
 		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			terminal._setProcessId(processId);
-		}
+		terminal?._setProcessId(processId);
 	}
 
 	public async $startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<ITerminalLaunchError | undefined> {
@@ -693,9 +691,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		this._terminalLinkCache.delete(terminalId);
 
 		const oldToken = this._terminalLinkCancellationSource.get(terminalId);
-		if (oldToken) {
-			oldToken.dispose(true);
-		}
+		oldToken?.dispose(true);
 		const cancellationSource = new CancellationTokenSource();
 		this._terminalLinkCancellationSource.set(terminalId, cancellationSource);
 
@@ -878,6 +874,10 @@ export class EnvironmentVariableCollection implements vscode.EnvironmentVariable
 
 	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
 		this.map.forEach((value, key) => callback.call(thisArg, key, value, this));
+	}
+
+	[Symbol.iterator](): IterableIterator<[variable: string, mutator: vscode.EnvironmentVariableMutator]> {
+		return this.map.entries();
 	}
 
 	delete(variable: string): void {

@@ -11,7 +11,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
+import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 
 const $ = DOM.$;
@@ -22,7 +22,7 @@ export interface ISettingOverrideClickEvent {
 }
 
 /**
- * Renders the indicators next to a setting, such as Sync Ignored, Also Modified In, etc.
+ * Renders the indicators next to a setting, such as "Also Modified In".
  */
 export class SettingsTreeIndicatorsLabel {
 	/**
@@ -34,7 +34,9 @@ export class SettingsTreeIndicatorsLabel {
 	private defaultOverrideIndicatorElement: HTMLElement;
 	private defaultOverrideIndicatorLabel: SimpleIconLabel;
 
-	constructor(container: HTMLElement) {
+	constructor(
+		container: HTMLElement,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService) {
 		this.labelElement = DOM.append(container, $('.misc-label'));
 		this.labelElement.style.display = 'inline';
 
@@ -53,7 +55,7 @@ export class SettingsTreeIndicatorsLabel {
 	private createSyncIgnoredElement(): HTMLElement {
 		const syncIgnoredElement = $('span.setting-item-ignored');
 		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
-		syncIgnoredLabel.text = `$(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')}`;
+		syncIgnoredLabel.text = '$(info) ' + localize('extensionSyncIgnoredLabel', 'Setting not synced');
 		syncIgnoredLabel.title = localize('syncIgnoredTitle', "Settings sync does not sync this setting");
 		return syncIgnoredElement;
 	}
@@ -76,7 +78,7 @@ export class SettingsTreeIndicatorsLabel {
 			DOM.append(this.labelElement, $('span', undefined, '('));
 			for (let i = 0; i < elementsToShow.length - 1; i++) {
 				DOM.append(this.labelElement, elementsToShow[i]);
-				DOM.append(this.labelElement, $('span.comma', undefined, ', '));
+				DOM.append(this.labelElement, $('span.comma', undefined, ' • '));
 			}
 			DOM.append(this.labelElement, elementsToShow[elementsToShow.length - 1]);
 			DOM.append(this.labelElement, $('span', undefined, ')'));
@@ -84,7 +86,8 @@ export class SettingsTreeIndicatorsLabel {
 	}
 
 	updateSyncIgnored(element: SettingsTreeSettingElement, ignoredSettings: string[]) {
-		this.syncIgnoredElement.style.display = ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
+		this.syncIgnoredElement.style.display = this.userDataSyncEnablementService.isEnabled()
+			&& ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
 		this.render();
 	}
 
@@ -133,7 +136,7 @@ export class SettingsTreeIndicatorsLabel {
 			}
 			if (sourceToDisplay) {
 				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay);
-				this.defaultOverrideIndicatorLabel.text = `$(replace) ${sourceToDisplay}`;
+				this.defaultOverrideIndicatorLabel.text = '$(info) ' + localize('defaultOverriddenLabel', "Default value changed");
 			}
 		}
 		this.render();
@@ -161,11 +164,14 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	// Add default override indicator text
 	if (element.defaultValueSource) {
 		const defaultValueSource = element.defaultValueSource;
+		let sourceToDisplay = '';
 		if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
-			const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
-			ariaLabelSections.push(localize('defaultOverriddenDetails', "Default setting value overridden by {0}", extensionSource));
+			sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
 		} else if (typeof defaultValueSource === 'string') {
-			ariaLabelSections.push(localize('defaultOverriddenDetails', "Default setting value overridden by {0}", defaultValueSource));
+			sourceToDisplay = defaultValueSource;
+		}
+		if (sourceToDisplay) {
+			ariaLabelSections.push(localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay));
 		}
 	}
 

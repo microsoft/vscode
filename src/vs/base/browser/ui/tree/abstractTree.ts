@@ -1453,9 +1453,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
 		});
 
-		if (this.typeFilterController) {
-			this.typeFilterController.updateOptions(this._options);
-		}
+		this.typeFilterController?.updateOptions(this._options);
 
 		this._onDidUpdateOptions.fire(this._options);
 

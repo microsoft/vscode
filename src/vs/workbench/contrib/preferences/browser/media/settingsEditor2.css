@@ -353,12 +353,12 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored .codicon,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-default-overridden .codicon {
-	vertical-align: text-top;
+	vertical-align: middle;
 	padding-left: 1px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-label .codicon {
-	vertical-align: text-top;
+	vertical-align: middle;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides a.modified-scope {

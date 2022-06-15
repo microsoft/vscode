@@ -130,9 +130,7 @@ export class ToolBar extends Disposable {
 
 	set context(context: unknown) {
 		this.actionBar.context = context;
-		if (this.toggleMenuActionViewItem) {
-			this.toggleMenuActionViewItem.setActionContext(context);
-		}
+		this.toggleMenuActionViewItem?.setActionContext(context);
 		for (const actionViewItem of this.submenuActionViewItems) {
 			actionViewItem.setActionContext(context);
 		}

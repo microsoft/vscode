@@ -30,8 +30,8 @@ export async function getServiceMachineId(environmentService: IEnvironmentServic
 			//noop
 		}
 	}
-	if (storageService) {
-		storageService.store('storage.serviceMachineId', uuid, StorageScope.APPLICATION, StorageTarget.MACHINE);
-	}
+
+	storageService?.store('storage.serviceMachineId', uuid, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
 	return uuid;
 }

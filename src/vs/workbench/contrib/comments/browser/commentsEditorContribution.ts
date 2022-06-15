@@ -858,9 +858,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	public closeWidget(): void {
-		if (this._commentWidgets) {
-			this._commentWidgets.forEach(widget => widget.hide());
-		}
+		this._commentWidgets?.forEach(widget => widget.hide());
 
 		this.editor.focus();
 		this.editor.revealRangeInCenter(this.editor.getSelection()!);

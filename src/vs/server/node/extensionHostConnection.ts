@@ -326,9 +326,7 @@ export class ExtensionHostConnection {
 			const namedPipeServer = net.createServer();
 			namedPipeServer.on('error', reject);
 			namedPipeServer.listen(pipeName, () => {
-				if (namedPipeServer) {
-					namedPipeServer.removeListener('error', reject);
-				}
+				namedPipeServer?.removeListener('error', reject);
 				resolve({ pipeName, namedPipeServer });
 			});
 		});

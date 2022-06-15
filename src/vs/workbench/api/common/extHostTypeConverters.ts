@@ -1777,6 +1777,7 @@ export namespace TestItem {
 				add: () => { },
 				delete: () => { },
 				forEach: () => { },
+				*[Symbol.iterator]() { },
 				get: () => undefined,
 				replace: () => { },
 				size: 0,
