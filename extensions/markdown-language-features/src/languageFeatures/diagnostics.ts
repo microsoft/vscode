@@ -136,7 +136,7 @@ class LinkWatcher extends Disposable {
 	 */
 	public readonly onDidChangeLinkedToFile = this._onDidChangeLinkedToFile.event;
 
-	private readonly _watchers = new Map</* link path */ string, {
+	private readonly _watchers = new ResourceMap<{
 		/**
 		 * Watcher for this link path
 		 */
@@ -145,7 +145,7 @@ class LinkWatcher extends Disposable {
 		/**
 		 * List of documents that reference the link
 		 */
-		readonly documents: Map</* document resource as string */ string, /* document resource*/ vscode.Uri>;
+		readonly documents: ResourceMap</* document resource*/ vscode.Uri>;
 	}>();
 
 	override dispose() {
@@ -168,21 +168,21 @@ class LinkWatcher extends Disposable {
 
 		// First decrement watcher counter for previous document state
 		for (const entry of this._watchers.values()) {
-			entry.documents.delete(document.toString());
+			entry.documents.delete(document);
 		}
 
 		// Then create/update watchers for new document state
 		for (const path of linkedToResource) {
-			let entry = this._watchers.get(path.toString());
+			let entry = this._watchers.get(path);
 			if (!entry) {
 				entry = {
 					watcher: this.startWatching(path),
-					documents: new Map(),
+					documents: new ResourceMap(),
 				};
-				this._watchers.set(path.toString(), entry);
+				this._watchers.set(path, entry);
 			}
 
-			entry.documents.set(document.toString(), document);
+			entry.documents.set(document, document);
 		}
 
 		// Finally clean up watchers for links that are no longer are referenced anywhere
@@ -209,7 +209,7 @@ class LinkWatcher extends Disposable {
 	}
 
 	private onLinkedResourceChanged(resource: vscode.Uri) {
-		const entry = this._watchers.get(resource.toString());
+		const entry = this._watchers.get(resource);
 		if (entry) {
 			this._onDidChangeLinkedToFile.fire(entry.documents.values());
 		}
