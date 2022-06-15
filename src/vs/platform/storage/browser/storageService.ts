@@ -66,8 +66,10 @@ export class BrowserStorageService extends AbstractStorageService {
 		promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService));
 		if (!this.userDataProfileService.currentProfile.isDefault) {
 
-			// Create global storage only if the current profile is not a
-			// default profie otherwise we use the application storage
+			// If we are in default profile, the global storage is
+			// actually the same as application storage. As such we
+			// avoid creating the storage library a second time on
+			// the same DB.
 
 			promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService));
 		}
