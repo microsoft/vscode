@@ -252,12 +252,10 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 	private _enabled: boolean = true;
 
 	get enabled(): boolean {
-		checkProposedApiEnabled(this._extension, 'scmInput');
 		return this._enabled;
 	}
 
 	set enabled(enabled: boolean) {
-		checkProposedApiEnabled(this._extension, 'scmInput');
 		enabled = !!enabled;
 
 		if (this._enabled === enabled) {

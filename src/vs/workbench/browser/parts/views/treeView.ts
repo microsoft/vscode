@@ -722,9 +722,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this._width = width;
 			const treeHeight = height - DOM.getTotalHeight(this.messageElement);
 			this.treeContainer.style.height = treeHeight + 'px';
-			if (this.tree) {
-				this.tree.layout(treeHeight, width);
-			}
+			this.tree?.layout(treeHeight, width);
 		}
 	}
 
@@ -780,9 +778,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	}
 
 	setSelection(items: ITreeItem[]): void {
-		if (this.tree) {
-			this.tree.setSelection(items);
-		}
+		this.tree?.setSelection(items);
 	}
 
 	setFocus(item: ITreeItem): void {
@@ -1528,9 +1524,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 					const file = dataItem.getAsFile();
 					if (file) {
 						uris.push(URI.file(file.path));
-						if (dndController.supportsFileDataTransfers) {
-							treeDataTransfer.append(type, createFileDataTransferItemFromFile(file));
-						}
+						treeDataTransfer.append(type, createFileDataTransferItemFromFile(file));
 					}
 				}
 			}

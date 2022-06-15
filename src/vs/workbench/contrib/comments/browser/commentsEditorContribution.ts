@@ -9,7 +9,7 @@ import { coalesce, findFirstInSorted } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/review';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -310,7 +310,7 @@ export class CommentController implements IEditorContribution {
 	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
-	private _editorDisposables: IDisposable[] | undefined;
+	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
 
 	constructor(
@@ -340,7 +340,7 @@ export class CommentController implements IEditorContribution {
 		this.globalToDispose.add(this._commentingRangeDecorator.onDidChangeDecorationsCount(count => {
 			if (count === 0) {
 				this.clearEditorListeners();
-			} else if (!this._editorDisposables) {
+			} else if (this._editorDisposables.length === 0) {
 				this.registerEditorListeners();
 			}
 		}));
@@ -376,8 +376,8 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private clearEditorListeners() {
-		this._editorDisposables?.forEach(disposable => disposable.dispose());
-		this._editorDisposables = undefined;
+		dispose(this._editorDisposables);
+		this._editorDisposables = [];
 	}
 
 	private onEditorMouseMove(e: IEditorMouseEvent): void {
@@ -556,7 +556,7 @@ export class CommentController implements IEditorContribution {
 
 		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		if (this._editorDisposables) {
+		if (this._editorDisposables.length) {
 			this.clearEditorListeners();
 			this.registerEditorListeners();
 		}
@@ -858,9 +858,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	public closeWidget(): void {
-		if (this._commentWidgets) {
-			this._commentWidgets.forEach(widget => widget.hide());
-		}
+		this._commentWidgets?.forEach(widget => widget.hide());
 
 		this.editor.focus();
 		this.editor.revealRangeInCenter(this.editor.getSelection()!);

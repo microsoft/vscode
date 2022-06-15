@@ -14,7 +14,6 @@ import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
-import { values } from 'vs/base/common/collections';
 import { productSchemaId } from 'vs/platform/product/common/productService';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
@@ -236,7 +235,7 @@ export const schema: IJSONSchema = {
 			items: {
 				type: 'string',
 				enum: Object.keys(allApiProposals),
-				markdownEnumDescriptions: values(allApiProposals)
+				markdownEnumDescriptions: Object.values(allApiProposals)
 			}
 		},
 		activationEvents: {
@@ -601,7 +600,7 @@ schemaRegistry.registerSchema(productSchemaId, {
 					items: {
 						type: 'string',
 						enum: Object.keys(allApiProposals),
-						markdownEnumDescriptions: values(allApiProposals)
+						markdownEnumDescriptions: Object.values(allApiProposals)
 					}
 				}]
 			}

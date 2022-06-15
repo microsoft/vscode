@@ -640,9 +640,7 @@ export class DefaultSettings extends Disposable {
 				settingsGroup.sections[settingsGroup.sections.length - 1].settings = configurationSettings;
 			}
 		}
-		if (config.allOf) {
-			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup, seenSettings));
-		}
+		config.allOf?.forEach(c => this.parseConfig(c, result, configurations, settingsGroup, seenSettings));
 		return result;
 	}
 

@@ -921,9 +921,7 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 	}
 
 	public override run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][]; disposeActionsOnHide: boolean }): Promise<any> {
-		if (this._actionViewItem) {
-			this._actionViewItem.showMenu(actionGroups, disposeActionsOnHide);
-		}
+		this._actionViewItem?.showMenu(actionGroups, disposeActionsOnHide);
 		return Promise.resolve();
 	}
 }

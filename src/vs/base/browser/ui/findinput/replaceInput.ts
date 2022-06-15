@@ -225,9 +225,7 @@ export class ReplaceInput extends Widget {
 
 		this.domNode.appendChild(controls);
 
-		if (parent) {
-			parent.appendChild(this.domNode);
-		}
+		parent?.appendChild(this.domNode);
 
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
@@ -361,9 +359,7 @@ export class ReplaceInput extends Widget {
 	}
 
 	public showMessage(message: InputBoxMessage): void {
-		if (this.inputBox) {
-			this.inputBox.showMessage(message);
-		}
+		this.inputBox?.showMessage(message);
 	}
 
 	public clearMessage(): void {

@@ -459,9 +459,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		if (changes.length) {
 			this._onDidChangeFile.fire(changes);
 
-			if (this.changesBroadcastChannel) {
-				this.changesBroadcastChannel.postChanges(changes);
-			}
+			this.changesBroadcastChannel?.postChanges(changes);
 		}
 	}
 

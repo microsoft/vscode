@@ -19,6 +19,8 @@ import { ResourceMap } from 'vs/base/common/map';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { performSnippetEdits } from 'vs/editor/contrib/snippet/browser/snippetController2';
 
 type ValidationResult = { canApply: true } | { canApply: false; reason: URI };
 
@@ -27,7 +29,7 @@ class ModelEditTask implements IDisposable {
 	readonly model: ITextModel;
 
 	private _expectedModelVersionId: number | undefined;
-	protected _edits: ISingleEditOperation[];
+	protected _edits: (ISingleEditOperation & { insertAsSnippet?: boolean })[];
 	protected _newEol: EndOfLineSequence | undefined;
 
 	constructor(private readonly _modelReference: IReference<IResolvedTextEditorModel>) {
@@ -75,7 +77,7 @@ class ModelEditTask implements IDisposable {
 		} else {
 			range = Range.lift(textEdit.range);
 		}
-		this._edits.push(EditOperation.replaceMove(range, textEdit.text));
+		this._edits.push({ ...EditOperation.replaceMove(range, textEdit.text), insertAsSnippet: textEdit.insertAsSnippet });
 	}
 
 	validate(): ValidationResult {
@@ -91,7 +93,9 @@ class ModelEditTask implements IDisposable {
 
 	apply(): void {
 		if (this._edits.length > 0) {
-			this._edits = this._edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+			this._edits = this._edits
+				.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range))
+				.map(edit => ({ ...edit, text: edit.text && SnippetParser.escape(edit.text) }));
 			this.model.pushEditOperations(null, this._edits, () => null);
 		}
 		if (this._newEol !== undefined) {
@@ -121,10 +125,19 @@ class EditorEditTask extends ModelEditTask {
 			super.apply();
 			return;
 		}
-
 		if (this._edits.length > 0) {
-			this._edits = this._edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-			this._editor.executeEdits('', this._edits);
+
+			const insertAsSnippet = this._edits.every(edit => edit.insertAsSnippet);
+			if (insertAsSnippet) {
+				// todo@jrieken what ABOUT EOL?
+				performSnippetEdits(this._editor, this._edits.map(edit => ({ range: Range.lift(edit.range!), snippet: edit.text! })));
+
+			} else {
+				this._edits = this._edits
+					.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range))
+					.map(edit => ({ ...edit, text: edit.text && SnippetParser.escape(edit.text) }));
+				this._editor.executeEdits('', this._edits);
+			}
 		}
 		if (this._newEol !== undefined) {
 			if (this._editor.hasModel()) {
@@ -193,7 +206,7 @@ export class BulkTextEdits {
 				let makeMinimal = false;
 				if (this._editor?.getModel()?.uri.toString() === ref.object.textEditorModel.uri.toString()) {
 					task = new EditorEditTask(ref, this._editor);
-					makeMinimal = true;
+					makeMinimal = true && false; // todo@jrieken HACK
 				} else {
 					task = new ModelEditTask(ref);
 				}

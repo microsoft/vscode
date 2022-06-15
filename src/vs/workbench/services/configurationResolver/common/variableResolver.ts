@@ -165,9 +165,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 			let resolvedValue = await this.evaluateSingleVariable(environment, match, variable, folderUri, commandValueMapping);
 
-			if (resolvedVariables) {
-				resolvedVariables.set(variable, resolvedValue);
-			}
+			resolvedVariables?.set(variable, resolvedValue);
 
 			if ((resolvedValue !== match) && types.isString(resolvedValue) && resolvedValue.match(AbstractVariableResolverService.VARIABLE_REGEXP)) {
 				resolvedValue = await this.resolveString(environment, folderUri, resolvedValue, commandValueMapping, resolvedVariables);

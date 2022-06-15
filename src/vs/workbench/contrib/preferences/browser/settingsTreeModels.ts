@@ -267,9 +267,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 				this.tags.add(MODIFIED_SETTING_TAG);
 			}
 
-			if (this.setting.tags) {
-				this.setting.tags.forEach(tag => this.tags!.add(tag));
-			}
+			this.setting.tags?.forEach(tag => this.tags!.add(tag));
 
 			if (this.setting.restricted) {
 				this.tags.add(REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG);
@@ -810,9 +808,7 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		const localMatchKeys = new Set();
 		const localResult = this.rawSearchResults[SearchResultIdx.Local];
-		if (localResult) {
-			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
-		}
+		localResult?.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
 
 		const remoteResult = this.rawSearchResults[SearchResultIdx.Remote];
 		if (remoteResult) {

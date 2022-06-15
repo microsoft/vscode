@@ -98,9 +98,7 @@ export class DefaultConfigurationExportHelper {
 				}
 			}
 
-			if (config.allOf) {
-				config.allOf.forEach(processConfig);
-			}
+			config.allOf?.forEach(processConfig);
 		};
 
 		configurations.forEach(processConfig);

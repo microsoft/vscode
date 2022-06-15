@@ -813,9 +813,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			throw new Error(`No renderer found for template id ${item.templateId}`);
 		}
 
-		if (renderer) {
-			renderer.renderElement(item.element, index, item.row.templateData, item.size);
-		}
+		renderer?.renderElement(item.element, index, item.row.templateData, item.size);
 
 		const uri = this.dnd.getDragURI(item.element);
 		item.dragStartDisposable.dispose();
@@ -1112,9 +1110,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				const item = this.items[index]!;
 				item.dropTarget = true;
 
-				if (item.row) {
-					item.row.domNode.classList.add('drop-target');
-				}
+				item.row?.domNode.classList.add('drop-target');
 			}
 
 			this.currentDragFeedbackDisposable = toDisposable(() => {
@@ -1122,9 +1118,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					const item = this.items[index]!;
 					item.dropTarget = false;
 
-					if (item.row) {
-						item.row.domNode.classList.remove('drop-target');
-					}
+					item.row?.domNode.classList.remove('drop-target');
 				}
 			});
 		}
