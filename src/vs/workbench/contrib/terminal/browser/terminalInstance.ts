@@ -1680,6 +1680,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 	}
 
+	public write(data: string): void {
+		this.xterm?.raw.write(data);
+	}
+
 	private _attachPressAnyKeyToCloseListener(xterm: XTermTerminal) {
 		if (xterm.textarea && !this._pressAnyKeyToCloseListener) {
 			this._pressAnyKeyToCloseListener = dom.addDisposableListener(xterm.textarea, 'keypress', (event: KeyboardEvent) => {

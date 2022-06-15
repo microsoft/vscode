@@ -240,11 +240,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		return decoration;
 	}
 
-	private _extractExitCode(command: ITerminalCommand): number | undefined {
-		const match = command.getOutput()?.match(/terminated with exit code: (.*)/);
-		return match ? Number.parseInt(match[1]) : undefined;
-	}
-
 	private _updateLayout(element?: HTMLElement): void {
 		if (!element) {
 			return;

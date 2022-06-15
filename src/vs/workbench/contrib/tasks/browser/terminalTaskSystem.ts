@@ -55,7 +55,6 @@ import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalSt
 
 const taskShellIntegrationStartSequence = '\x1b]633;P;Task=\x07' + '\x1b]633;A\x07' + '\x1b]633;B\x07';
 const taskShellIntegrationOutputSequence = '\x1b]633;C\x07';
-const taskShellIntegrationEndSequence = '\x1b]633;D;0\x07';
 
 interface ITaskExecutionResult {
 	summary: Promise<ITaskSummary>; terminal: ITerminalInstance | undefined; error: TaskError | undefined;
@@ -898,6 +897,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 			this._fireTaskEvent(TaskEvent.create(TaskEventKind.Inactive, task));
 			this._fireTaskEvent(TaskEvent.create(TaskEventKind.End, task));
+			terminal?.write(`\x1b]633;D;${exitCode}\x07`);
 			resolve({ exitCode: exitCode ?? undefined });
 		});
 	}
@@ -1020,6 +1020,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					eventCounter = 0;
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.End, task));
 					toDispose.dispose();
+					terminal?.write(`\x1b]633;D;${exitCode}\x07`);
 					resolve({ exitCode: exitCode ?? undefined });
 				});
 			}),
@@ -1264,7 +1265,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let command: CommandString | undefined;
 		let args: CommandString[] | undefined;
 		let launchConfigs: IShellLaunchConfig | undefined;
-		waitOnExit = waitOnExit + taskShellIntegrationEndSequence;
 		if (task.command.runtime === RuntimeType.CustomExecution) {
 			this._currentTask.shellLaunchConfig = launchConfigs = {
 				customPtyImplementation: (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService),

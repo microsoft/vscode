@@ -860,6 +860,11 @@ export interface ITerminalInstance {
 	 * Activates the most recent link of the given type.
 	 */
 	openRecentLink(type: 'localFile' | 'url'): Promise<void>;
+
+	/**
+	 * @param data to write to the terminal
+	 */
+	write(data: string): void;
 }
 
 export interface IXtermTerminal {
