@@ -27,6 +27,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
+	private cachedWindowControlHeight: number | undefined;
 
 	private getMacTitlebarSize() {
 		const osVersion = this.environmentService.os.release;
@@ -205,7 +206,19 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			if (!this.cachedWindowControlStyles ||
 				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
 				this.cachedWindowControlStyles.fgColor !== this.element.style.color) {
-				this.nativeHostService.updateTitleBarOverlay(this.element.style.backgroundColor, this.element.style.color);
+				this.nativeHostService.updateTitleBarOverlay({ backgroundColor: this.element.style.backgroundColor, foregroundColor: this.element.style.color });
+			}
+		}
+	}
+
+	override layout(width: number, height: number): void {
+		super.layout(width, height);
+
+		if (useWindowControlsOverlay(this.configurationService, this.environmentService)) {
+			const newHeight = Math.trunc(this.element.clientHeight * getZoomFactor());
+			if (newHeight !== this.cachedWindowControlHeight) {
+				this.cachedWindowControlHeight = newHeight;
+				this.nativeHostService.updateTitleBarOverlay({ height: newHeight });
 			}
 		}
 	}

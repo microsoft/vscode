@@ -228,7 +228,7 @@
 	text-align: center;
 	z-index: 3000;
 	-webkit-app-region: no-drag;
-	height: 30px;
+	height: 100%;
 	width: 138px;
 	zoom: calc(1 / var(--zoom-factor));
 }
@@ -246,11 +246,17 @@
 
 /* Window Control Icons */
 .monaco-workbench .part.titlebar>.window-controls-container>.window-icon {
-	display: inline-block;
-	line-height: 30px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
 	height: 100%;
 	width: 46px;
 	font-size: 16px;
+}
+
+.monaco-workbench .part.titlebar>.window-controls-container>.window-icon::before {
+	height: 16px;
+	line-height: 16px;
 }
 
 .monaco-workbench .part.titlebar>.window-controls-container>.window-icon:hover {
