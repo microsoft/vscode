@@ -18,9 +18,8 @@
 	"include": [
 		"typings/require.d.ts",
 		"typings/thenable.d.ts",
-		"vs/css.d.ts",
+		"vs/loader.d.ts",
 		"vs/monaco.d.ts",
-		"vs/nls.d.ts",
 		"vs/editor/*",
 		"vs/base/common/*",
 		"vs/base/browser/*",

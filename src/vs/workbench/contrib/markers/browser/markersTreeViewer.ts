@@ -37,7 +37,7 @@ import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/brow
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { applyCodeAction } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
+import { applyCodeAction, ApplyCodeActionReason } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -649,7 +649,7 @@ export class MarkerViewModel extends Disposable {
 			true,
 			() => {
 				return this.openFileAtMarker(this.marker)
-					.then(() => this.instantiationService.invokeFunction(applyCodeAction, item));
+					.then(() => this.instantiationService.invokeFunction(applyCodeAction, item, ApplyCodeActionReason.FromProblemsView));
 			}));
 	}
 

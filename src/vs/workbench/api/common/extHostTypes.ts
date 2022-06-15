@@ -549,6 +549,7 @@ export class TextEdit {
 
 	protected _range: Range;
 	protected _newText: string | null;
+	newText2?: string | SnippetString;
 	protected _newEol?: EndOfLine;
 
 	get range(): Range {
@@ -2427,15 +2428,8 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
-export enum DataTransferItemKind {
-	String = 1,
-	File = 2,
-}
-
 @es5ClassCompat
 export class DataTransferItem {
-
-	get kind(): DataTransferItemKind { return DataTransferItemKind.String; }
 
 	async asString(): Promise<string> {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
@@ -2473,9 +2467,11 @@ export class DataTransfer implements vscode.DataTransfer {
 		this.#items.set(mimeType, [value]);
 	}
 
-	forEach(callbackfn: (value: DataTransferItem, key: string) => void, thisArg?: unknown): void {
+	forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
 		for (const [mime, items] of this.#items) {
-			items.forEach(item => callbackfn(item, mime), thisArg);
+			for (const item of items) {
+				callbackfn.call(thisArg, item, mime, this);
+			}
 		}
 	}
 
