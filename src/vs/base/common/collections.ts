@@ -19,18 +19,15 @@ export type INumberDictionary<V> = Record<number, V>;
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
- * Iterates over each entry in the provided dictionary. The iterator allows
- * to remove elements and will stop when the callback returns {{false}}.
+ * Iterates over each entry in the provided dictionary. The iterator will stop when the callback returns `false`.
+ *
+ * @deprecated Use `Object.entries(x)` with a `for...of` loop.
  */
-export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, callback: (entry: { key: any; value: T }, remove: () => void) => any): void {
-	for (const key in from) {
-		if (hasOwnProperty.call(from, key)) {
-			const result = callback({ key: key, value: (from as any)[key] }, function () {
-				delete (from as any)[key];
-			});
-			if (result === false) {
-				return;
-			}
+export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, callback: (entry: { key: any; value: T }) => any): void {
+	for (const [key, value] of Object.entries(from)) {
+		const result = callback({ key, value });
+		if (result === false) {
+			return;
 		}
 	}
 }

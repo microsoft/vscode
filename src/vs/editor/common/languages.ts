@@ -1549,7 +1549,7 @@ export interface CommentThread<T = IRange> {
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeRange: Event<T>;
 	onDidChangeLabel: Event<string | undefined>;
-	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	onDidChangeState: Event<CommentThreadState | undefined>;
 	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;

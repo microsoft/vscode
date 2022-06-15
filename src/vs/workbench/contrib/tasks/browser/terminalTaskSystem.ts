@@ -52,6 +52,8 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import { GroupKind } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
+import { Codicon } from 'vs/base/common/codicons';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -1029,13 +1031,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				os,
 				remoteAuthority: this._environmentService.remoteAuthority
 			});
+			let icon: URI | ThemeIcon | { light: URI; dark: URI } | undefined;
+			if (task.configurationProperties.icon) {
+				icon = ThemeIcon.fromId(task.configurationProperties.icon);
+			} else {
+				const taskGroupKind = task.configurationProperties.group ? GroupKind.to(task.configurationProperties.group) : undefined;
+				const kindId = typeof taskGroupKind === 'string' ? taskGroupKind : taskGroupKind?.kind;
+				icon = kindId === 'test' ? ThemeIcon.fromId(Codicon.beaker.id) : defaultProfile.icon;
+			}
 			shellLaunchConfig = {
 				name: terminalName,
 				type,
 				executable: defaultProfile.path,
 				args: defaultProfile.args,
 				env: { ...defaultProfile.env },
-				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : defaultProfile.icon,
+				icon,
 				color: task.configurationProperties.color || defaultProfile.color,
 				waitOnExit
 			};
@@ -1112,9 +1122,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = formatMessageForTerminal(`Executing task in folder ${workspaceFolder.name}: ${commandLine}`, { excludeLeadingNewLine: true });
+					shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize({
+						key: 'task.executingInFolder',
+						comment: ['The workspace folder the task is running in', 'The task command line or label']
+					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, commandLine), { excludeLeadingNewLine: true });
 				} else {
-					shellLaunchConfig.initialText = formatMessageForTerminal(`Executing task: ${commandLine}`, { excludeLeadingNewLine: true });
+					shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize({
+						key: 'task.executing',
+						comment: ['The task command line or label']
+					}, 'Executing task: {0}', commandLine), { excludeLeadingNewLine: true });
 				}
 			}
 		} else {
@@ -1144,9 +1160,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					return args.join(' ');
 				};
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = formatMessageForTerminal(`Executing task in folder ${workspaceFolder.name}: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`, { excludeLeadingNewLine: true });
+					shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize({
+						key: 'task.executingInFolder',
+						comment: ['The workspace folder the task is running in', 'The task command line or label']
+					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true });
 				} else {
-					shellLaunchConfig.initialText = formatMessageForTerminal(`Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`, { excludeLeadingNewLine: true });
+					shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize({
+						key: 'task.executing',
+						comment: ['The task command line or label']
+					}, 'Executing task: {0}', `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true });
 				}
 			}
 		}
@@ -1246,7 +1268,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				customPtyImplementation: (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService),
 				waitOnExit,
 				name: this._createTerminalName(task),
-				initialText: task.command.presentation && task.command.presentation.echo ? formatMessageForTerminal(`Executing task: ${task._label}`, { excludeLeadingNewLine: true }) : undefined,
+				initialText: task.command.presentation && task.command.presentation.echo ? formatMessageForTerminal(nls.localize({
+					key: 'task.executing',
+					comment: ['The task command line or label']
+				}, 'Executing task: {0}', task._label), { excludeLeadingNewLine: true }) : undefined,
 				isFeatureTerminal: true,
 				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : undefined,
 				color: task.configurationProperties.color
