@@ -103,7 +103,6 @@ export interface ITaskDTO {
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;
 	runOptions?: IRunOptionsDTO;
-	icon?: { id: string; color?: string };
 }
 
 export interface ITaskSetDTO {
