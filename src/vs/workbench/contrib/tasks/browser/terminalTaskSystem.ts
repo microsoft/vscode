@@ -10,7 +10,7 @@ import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
 import * as resources from 'vs/base/common/resources';
-import { IStringDictionary, values } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -1217,7 +1217,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (group) {
 			// Try to find an existing terminal to split.
 			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
-			for (const terminal of values(this._terminals)) {
+			for (const terminal of Object.values(this._terminals)) {
 				if (terminal.group === group) {
 					this._logService.trace(`Found terminal to split for group ${group}`);
 					const originalInstance = terminal.terminal;
