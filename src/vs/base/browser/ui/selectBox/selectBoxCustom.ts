@@ -307,11 +307,13 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		this.selectElement.selectedIndex = this.selected;
+
+		this.options.forEach(option => {
+			option.isSelected = false;
+		});
+
 		if (!!this.options[this.selected] && !!this.options[this.selected].text) {
 			this.selectElement.title = this.options[this.selected].text;
-			this.options.forEach(option => {
-				option.isSelected = false;
-			});
 			this.options[this.selected].isSelected = true;
 		}
 	}
