@@ -97,12 +97,12 @@ suite('SnippetParser', () => {
 	function assertMarker(input: TextmateSnippet | Marker[] | string, ...ctors: Function[]) {
 		let marker: Marker[];
 		if (input instanceof TextmateSnippet) {
-			marker = input.children;
+			marker = [...input.children];
 		} else if (typeof input === 'string') {
 			const p = new SnippetParser();
 			marker = p.parse(input).children;
 		} else {
-			marker = input;
+			marker = [...input];
 		}
 		while (marker.length > 0) {
 			const m = marker.pop();
