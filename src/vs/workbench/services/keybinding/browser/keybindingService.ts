@@ -17,10 +17,9 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource, IKeybindingService, IKeybindingEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
+import { IKeyboardEvent, IUserFriendlyKeybinding, IKeybindingService, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, IExtensionKeybindingRule, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -52,6 +51,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { dirname } from 'vs/base/common/resources';
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -191,7 +191,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService private readonly hostService: IHostService,
 		@IExtensionService extensionService: IExtensionService,
@@ -213,29 +213,26 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 			dispatchConfig = newDispatchConfig;
 			this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
-			this.updateResolver({ source: KeybindingSource.Default });
+			this.updateResolver();
 		});
 
 		this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
 		this.keyboardLayoutService.onDidChangeKeyboardLayout(() => {
 			this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
-			this.updateResolver({ source: KeybindingSource.Default });
+			this.updateResolver();
 		});
 
 		this._cachedResolver = null;
 
-		this.userKeybindings = this._register(new UserKeybindings(environmentService.keybindingsResource, fileService, logService));
+		this.userKeybindings = this._register(new UserKeybindings(userDataProfilesService.currentProfile.keybindingsResource, fileService, logService));
 		this.userKeybindings.initialize().then(() => {
 			if (this.userKeybindings.keybindings.length) {
-				this.updateResolver({ source: KeybindingSource.User });
+				this.updateResolver();
 			}
 		});
 		this._register(this.userKeybindings.onDidChange(() => {
 			logService.debug('User keybindings changed');
-			this.updateResolver({
-				source: KeybindingSource.User,
-				keybindings: this.userKeybindings.keybindings
-			});
+			this.updateResolver();
 		}));
 
 		keybindingsExtPoint.setHandler((extensions) => {
@@ -246,7 +243,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 
 			KeybindingsRegistry.setExtensionKeybindings(keybindings);
-			this.updateResolver({ source: KeybindingSource.Default });
+			this.updateResolver();
 		});
 
 		this.updateSchema();
@@ -291,7 +288,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 			// update resolver which will bring back all unbound keyboard shortcuts
 			this._cachedResolver = null;
-			this._onDidUpdateKeybindings.fire({ source: KeybindingSource.User });
+			this._onDidUpdateKeybindings.fire();
 		}));
 	}
 
@@ -397,9 +394,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return this.userKeybindings.keybindings.length;
 	}
 
-	private updateResolver(event: IKeybindingEvent): void {
+	private updateResolver(): void {
 		this._cachedResolver = null;
-		this._onDidUpdateKeybindings.fire(event);
+		this._onDidUpdateKeybindings.fire();
 	}
 
 	protected _getResolver(): KeybindingResolver {

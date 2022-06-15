@@ -43,7 +43,7 @@ declare module 'vscode' {
 	/**
 	 * An operation applied on paste
 	 */
-	interface DocumentPasteEdit {
+	class DocumentPasteEdit {
 		/**
 		 * The text or snippet to insert at the pasted locations.
 		 */
@@ -53,6 +53,11 @@ declare module 'vscode' {
 		 * An optional additional edit to apply on paste.
 		 */
 		readonly additionalEdit?: WorkspaceEdit;
+
+		/**
+		 * @param insertText The text or snippet to insert at the pasted locations.
+		 */
+		constructor(insertText: string | SnippetString);
 	}
 
 	interface DocumentPasteProviderMetadata {

@@ -34,6 +34,7 @@ const editorEntryPoints = [
 	{
 		name: 'vs/base/common/worker/simpleWorker',
 		include: ['vs/editor/common/services/editorSimpleWorker'],
+		exclude: ['vs/nls'],
 		prepend: ['vs/loader.js'],
 		append: ['vs/base/worker/workerMain'],
 		dest: 'vs/base/worker/workerMain.js'
@@ -77,7 +78,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	});
 });
 
-const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true));
+const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, false));
 
 const optimizeEditorAMDTask = task.define('optimize-editor-amd', common.optimizeTask({
 	src: 'out-editor-build',
@@ -112,9 +113,6 @@ const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () =>
 			'vs/nls.ts',
 			'vs/nls.build.js',
 			'vs/nls.d.ts',
-			'vs/css.js',
-			'vs/css.build.js',
-			'vs/css.d.ts',
 			'vs/base/worker/workerMain.ts',
 		],
 		renames: {

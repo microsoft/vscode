@@ -447,10 +447,10 @@
             "experimental"
           ]
         },
-        "markdown.experimental.validate.headerLinks.enabled": {
+        "markdown.experimental.validate.fragmentLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.headerLinks.enabled.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.fragmentLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
@@ -466,6 +466,19 @@
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.enabled.description%",
           "default": "warning",
+          "enum": [
+            "ignore",
+            "warning",
+            "error"
+          ],
+          "tags": [
+            "experimental"
+          ]
+        },
+        "markdown.experimental.validate.fileLinks.markdownFragmentLinks": {
+          "type": "string",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.markdownFragmentLinks.description%",
           "enum": [
             "ignore",
             "warning",

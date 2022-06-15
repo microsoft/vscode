@@ -94,6 +94,16 @@ const detail: IJSONSchema = {
 	description: nls.localize('JsonSchema.tasks.detail', 'An optional description of a task that shows in the Run Task quick pick as a detail.')
 };
 
+const color: IJSONSchema = {
+	type: 'string',
+	description: nls.localize('JsonSchema.tasks.color', 'An optional color for the task icon')
+};
+
+const icon: IJSONSchema = {
+	type: 'string',
+	description: nls.localize('JsonSchema.tasks.icon', 'An optional icon for the task')
+};
+
 const presentation: IJSONSchema = {
 	type: 'object',
 	default: {
@@ -378,6 +388,8 @@ const taskConfiguration: IJSONSchema = {
 			default: false
 		},
 		presentation: Objects.deepClone(presentation),
+		color: Objects.deepClone(color),
+		icon: Objects.deepClone(icon),
 		options: options,
 		problemMatcher: {
 			$ref: '#/definitions/problemMatcherType',
@@ -455,6 +467,8 @@ taskDescriptionProperties.identifier = Objects.deepClone(identifier);
 taskDescriptionProperties.type = Objects.deepClone(taskType);
 taskDescriptionProperties.presentation = Objects.deepClone(presentation);
 taskDescriptionProperties.terminal = terminal;
+taskDescriptionProperties.color = color;
+taskDescriptionProperties.icon = icon;
 taskDescriptionProperties.group = Objects.deepClone(group);
 taskDescriptionProperties.runOptions = Objects.deepClone(runOptions);
 taskDescriptionProperties.detail = detail;

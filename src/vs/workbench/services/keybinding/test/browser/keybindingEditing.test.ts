@@ -28,6 +28,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -44,6 +45,7 @@ suite('KeybindingsEditing', () => {
 	let instantiationService: TestInstantiationService;
 	let fileService: IFileService;
 	let environmentService: IEnvironmentService;
+	let userDataProfilesService: IUserDataProfilesService;
 	let testObject: KeybindingsEditingService;
 
 	setup(async () => {
@@ -62,6 +64,8 @@ suite('KeybindingsEditing', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
+		userDataProfilesService = new UserDataProfilesService(undefined, undefined, environmentService, fileService, logService);
+
 		instantiationService = workbenchInstantiationService({
 			fileService: () => fileService,
 			configurationService: () => configService,
@@ -74,7 +78,7 @@ suite('KeybindingsEditing', () => {
 	teardown(() => disposables.clear());
 
 	test('errors cases - parse errors', async () => {
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
+		await fileService.writeFile(userDataProfilesService.currentProfile.keybindingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
 		try {
 			await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined);
 			assert.fail('Should fail with parse errors');
@@ -84,7 +88,7 @@ suite('KeybindingsEditing', () => {
 	});
 
 	test('errors cases - parse errors 2', async () => {
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString('[{"key": }]'));
+		await fileService.writeFile(userDataProfilesService.currentProfile.keybindingsResource, VSBuffer.fromString('[{"key": }]'));
 		try {
 			await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined);
 			assert.fail('Should fail with parse errors');
@@ -101,7 +105,7 @@ suite('KeybindingsEditing', () => {
 	});
 
 	test('errors cases - did not find an array', async () => {
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString('{"key": "alt+c", "command": "hello"}'));
+		await fileService.writeFile(userDataProfilesService.currentProfile.keybindingsResource, VSBuffer.fromString('{"key": "alt+c", "command": "hello"}'));
 		try {
 			await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined);
 			assert.fail('Should fail');
@@ -111,7 +115,7 @@ suite('KeybindingsEditing', () => {
 	});
 
 	test('edit a default keybinding to an empty file', async () => {
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(''));
+		await fileService.writeFile(userDataProfilesService.currentProfile.keybindingsResource, VSBuffer.fromString(''));
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
 		await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined);
 		assert.deepStrictEqual(await getUserKeybindings(), expected);
@@ -241,11 +245,11 @@ suite('KeybindingsEditing', () => {
 	});
 
 	async function writeToKeybindingsFile(...keybindings: IUserFriendlyKeybinding[]): Promise<void> {
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify(keybindings || [])));
+		await fileService.writeFile(userDataProfilesService.currentProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify(keybindings || [])));
 	}
 
 	async function getUserKeybindings(): Promise<IUserFriendlyKeybinding[]> {
-		return json.parse((await fileService.readFile(environmentService.keybindingsResource)).value.toString());
+		return json.parse((await fileService.readFile(userDataProfilesService.currentProfile.keybindingsResource)).value.toString());
 	}
 
 	function aResolvedKeybindingItem({ command, when, isDefault, firstPart, chordPart }: { command?: string; when?: string; isDefault?: boolean; firstPart?: { keyCode: KeyCode; modifiers?: Modifiers }; chordPart?: { keyCode: KeyCode; modifiers?: Modifiers } }): ResolvedKeybindingItem {

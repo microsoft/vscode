@@ -779,6 +779,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	configurationSnippets?: IJSONSchemaSnippet[];
 	variables?: { [key: string]: string };
 	when?: string;
+	deprecated?: string;
 	uiMessages?: { [key in DebuggerUiMessage]: string };
 }
 

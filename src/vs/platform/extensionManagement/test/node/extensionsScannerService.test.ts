@@ -8,6 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { AbstractExtensionsScannerService, IExtensionsScannerService, IScannedExtensionManifest, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionType, IExtensionManifest, MANIFEST_CACHE_FOLDER, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -23,6 +24,7 @@ const ROOT = URI.file('/ROOT');
 class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
 
 	constructor(
+		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService nativeEnvironmentService: INativeEnvironmentService,
@@ -33,7 +35,7 @@ class ExtensionsScannerService extends AbstractExtensionsScannerService implemen
 			URI.file(nativeEnvironmentService.extensionsPath),
 			joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
 			joinPath(ROOT, MANIFEST_CACHE_FOLDER),
-			fileService, logService, nativeEnvironmentService, productService);
+			extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService);
 	}
 
 	protected async getTranslations(language: string): Promise<Translations> {
@@ -64,6 +66,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			extensionsPath: userExtensionsLocation.fsPath,
 		});
 		instantiationService.stub(IProductService, { version: '1.66.0' });
+		instantiationService.stub(IExtensionsProfileScannerService, new ExtensionsProfileScannerService(fileService, logService));
 		await fileService.createFolder(systemExtensionsLocation);
 		await fileService.createFolder(userExtensionsLocation);
 	});

@@ -1638,34 +1638,34 @@ declare module 'vscode' {
 		 * true if this file system watcher has been created such that
 		 * it ignores creation file system events.
 		 */
-		ignoreCreateEvents: boolean;
+		readonly ignoreCreateEvents: boolean;
 
 		/**
 		 * true if this file system watcher has been created such that
 		 * it ignores change file system events.
 		 */
-		ignoreChangeEvents: boolean;
+		readonly ignoreChangeEvents: boolean;
 
 		/**
 		 * true if this file system watcher has been created such that
 		 * it ignores delete file system events.
 		 */
-		ignoreDeleteEvents: boolean;
+		readonly ignoreDeleteEvents: boolean;
 
 		/**
 		 * An event which fires on file/folder creation.
 		 */
-		onDidCreate: Event<Uri>;
+		readonly onDidCreate: Event<Uri>;
 
 		/**
 		 * An event which fires on file/folder change.
 		 */
-		onDidChange: Event<Uri>;
+		readonly onDidChange: Event<Uri>;
 
 		/**
 		 * An event which fires on file/folder deletion.
 		 */
-		onDidDelete: Event<Uri>;
+		readonly onDidDelete: Event<Uri>;
 	}
 
 	/**
@@ -10054,7 +10054,28 @@ declare module 'vscode' {
 		 * `true` if the {@link TreeView tree view} is visible otherwise `false`.
 		 */
 		readonly visible: boolean;
+	}
 
+	/**
+	 * A file associated with a {@linkcode DataTransferItem}.
+	 */
+	export interface DataTransferFile {
+		/**
+		 * The name of the file.
+		 */
+		readonly name: string;
+
+		/**
+		 * The full file path of the file.
+		 *
+		 * May be `undefined` on web.
+		 */
+		readonly uri?: Uri;
+
+		/**
+		 * The full file contents of the file.
+		 */
+		data(): Thenable<Uint8Array>;
 	}
 
 	/**
@@ -10067,6 +10088,16 @@ declare module 'vscode' {
 		 * If {@linkcode DataTransferItem.value} is an object, this returns the result of json stringifying {@linkcode DataTransferItem.value} value.
 		 */
 		asString(): Thenable<string>;
+
+		/**
+		 * Try getting the {@link DataTransferFile file} associated with this data transfer item.
+		 *
+		 * Note that the file object is only valid for the scope of the drag and drop operation.
+		 *
+		 * @returns The file for the data transfer or `undefined` if the item is either not a file or the
+		 * file data cannot be accessed.
+		 */
+		asFile(): DataTransferFile | undefined;
 
 		/**
 		 * Custom data stored on this item.
@@ -10114,7 +10145,7 @@ declare module 'vscode' {
 		 * @param callbackfn Callback for iteration through the data transfer items.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callbackfn: (value: DataTransferItem, key: string) => void, thisArg?: unknown): void;
+		forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: any): void;
 	}
 
 	/**
@@ -13771,6 +13802,11 @@ declare module 'vscode' {
 		placeholder: string;
 
 		/**
+		 * Controls whether the input box is enabled (default is `true`).
+		 */
+		enabled: boolean;
+
+		/**
 		 * Controls whether the input box is visible (default is `true`).
 		 */
 		visible: boolean;
@@ -15663,7 +15699,7 @@ declare module 'vscode' {
 		 * @param callback Function to execute for each entry.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: unknown): void;
+		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: any): void;
 
 		/**
 		 * Adds the test item to the children. If an item with the same ID already

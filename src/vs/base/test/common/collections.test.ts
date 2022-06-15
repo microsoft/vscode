@@ -24,9 +24,6 @@ suite('Collections', () => {
 
 		collections.forEach(dict, () => false);
 
-		collections.forEach(dict, (x, remove) => remove());
-		assert.strictEqual(dict['toString'], undefined);
-
 		// don't iterate over properties that are not on the object itself
 		const test = Object.create({ 'derived': true });
 		collections.forEach(test, () => assert(false));

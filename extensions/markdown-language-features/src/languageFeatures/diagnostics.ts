@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as picomatch from 'picomatch';
+import { CommandManager } from '../commandManager';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { Delayer } from '../util/async';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { Limiter } from '../util/limiter';
-import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinkProvider';
-import { tryFindMdDocumentForLink } from './references';
-import { CommandManager } from '../commandManager';
 import { ResourceMap } from '../util/resourceMap';
+import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
+import { InternalHref, LinkDefinitionSet, MdLink, MdLinkComputer, MdLinkSource } from './documentLinkProvider';
+import { tryFindMdDocumentForLink } from './references';
 
 const localize = nls.loadMessageBundle();
 
@@ -37,17 +37,19 @@ export enum DiagnosticLevel {
 
 export interface DiagnosticOptions {
 	readonly enabled: boolean;
-	readonly validateReferences: DiagnosticLevel;
-	readonly validateOwnHeaders: DiagnosticLevel;
-	readonly validateFilePaths: DiagnosticLevel;
+	readonly validateReferences: DiagnosticLevel | undefined;
+	readonly validateFragmentLinks: DiagnosticLevel | undefined;
+	readonly validateFileLinks: DiagnosticLevel | undefined;
+	readonly validateMarkdownFileLinkFragments: DiagnosticLevel | undefined;
 	readonly ignoreLinks: readonly string[];
 }
 
-function toSeverity(level: DiagnosticLevel): vscode.DiagnosticSeverity | undefined {
+function toSeverity(level: DiagnosticLevel | undefined): vscode.DiagnosticSeverity | undefined {
 	switch (level) {
 		case DiagnosticLevel.error: return vscode.DiagnosticSeverity.Error;
 		case DiagnosticLevel.warning: return vscode.DiagnosticSeverity.Warning;
 		case DiagnosticLevel.ignore: return undefined;
+		case undefined: return undefined;
 	}
 }
 
@@ -63,8 +65,9 @@ class VSCodeDiagnosticConfiguration extends Disposable implements DiagnosticConf
 			if (
 				e.affectsConfiguration('markdown.experimental.validate.enabled')
 				|| e.affectsConfiguration('markdown.experimental.validate.referenceLinks.enabled')
-				|| e.affectsConfiguration('markdown.experimental.validate.headerLinks.enabled')
+				|| e.affectsConfiguration('markdown.experimental.validate.fragmentLinks.enabled')
 				|| e.affectsConfiguration('markdown.experimental.validate.fileLinks.enabled')
+				|| e.affectsConfiguration('markdown.experimental.validate.fileLinks.markdownFragmentLinks')
 				|| e.affectsConfiguration('markdown.experimental.validate.ignoreLinks')
 			) {
 				this._onDidChange.fire();
@@ -74,11 +77,13 @@ class VSCodeDiagnosticConfiguration extends Disposable implements DiagnosticConf
 
 	public getOptions(resource: vscode.Uri): DiagnosticOptions {
 		const config = vscode.workspace.getConfiguration('markdown', resource);
+		const validateFragmentLinks = config.get<DiagnosticLevel>('experimental.validate.fragmentLinks.enabled');
 		return {
 			enabled: config.get<boolean>('experimental.validate.enabled', false),
-			validateReferences: config.get<DiagnosticLevel>('experimental.validate.referenceLinks.enabled', DiagnosticLevel.ignore),
-			validateOwnHeaders: config.get<DiagnosticLevel>('experimental.validate.headerLinks.enabled', DiagnosticLevel.ignore),
-			validateFilePaths: config.get<DiagnosticLevel>('experimental.validate.fileLinks.enabled', DiagnosticLevel.ignore),
+			validateReferences: config.get<DiagnosticLevel>('experimental.validate.referenceLinks.enabled'),
+			validateFragmentLinks,
+			validateFileLinks: config.get<DiagnosticLevel>('experimental.validate.fileLinks.enabled'),
+			validateMarkdownFileLinkFragments: config.get<DiagnosticLevel | undefined>('markdown.experimental.validate.fileLinks.markdownFragmentLinks', validateFragmentLinks),
 			ignoreLinks: config.get('experimental.validate.ignoreLinks', []),
 		};
 	}
@@ -294,7 +299,7 @@ export class DiagnosticManager extends Disposable {
 			if (doc) {
 				this.inFlightDiagnostics.trigger(doc.uri, async (token) => {
 					const state = await this.recomputeDiagnosticState(doc, token);
-					this.linkWatcher.updateLinksForDocument(doc.uri, state.config.enabled && state.config.validateFilePaths ? state.links : []);
+					this.linkWatcher.updateLinksForDocument(doc.uri, state.config.enabled && state.config.validateFileLinks ? state.links : []);
 					this.collection.set(doc.uri, state.diagnostics);
 				});
 			}
@@ -335,21 +340,17 @@ export class DiagnosticManager extends Disposable {
 	}
 }
 
-interface FileLinksData {
-	readonly path: vscode.Uri;
-
-	readonly links: Array<{
-		readonly source: MdLinkSource;
-		readonly fragment: string;
-	}>;
-}
-
 /**
  * Map of file paths to markdown links to that file.
  */
 class FileLinkMap {
 
-	private readonly _filesToLinksMap = new ResourceMap<FileLinksData>();
+	private readonly _filesToLinksMap = new ResourceMap<{
+		readonly outgoingLinks: Array<{
+			readonly source: MdLinkSource;
+			readonly fragment: string;
+		}>;
+	}>();
 
 	constructor(links: Iterable<MdLink>) {
 		for (const link of links) {
@@ -360,9 +361,9 @@ class FileLinkMap {
 			const existingFileEntry = this._filesToLinksMap.get(link.href.path);
 			const linkData = { source: link.source, fragment: link.href.fragment };
 			if (existingFileEntry) {
-				existingFileEntry.links.push(linkData);
+				existingFileEntry.outgoingLinks.push(linkData);
 			} else {
-				this._filesToLinksMap.set(link.href.path, { path: link.href.path, links: [linkData] });
+				this._filesToLinksMap.set(link.href.path, { outgoingLinks: [linkData] });
 			}
 		}
 	}
@@ -371,8 +372,8 @@ class FileLinkMap {
 		return this._filesToLinksMap.size;
 	}
 
-	public entries(): Iterable<FileLinksData> {
-		return this._filesToLinksMap.values();
+	public entries() {
+		return this._filesToLinksMap.entries();
 	}
 }
 
@@ -381,11 +382,11 @@ export class DiagnosticComputer {
 	constructor(
 		private readonly engine: MarkdownEngine,
 		private readonly workspaceContents: MdWorkspaceContents,
-		private readonly linkProvider: MdLinkProvider,
+		private readonly linkComputer: MdLinkComputer,
 	) { }
 
 	public async getDiagnostics(doc: SkinnyTextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<{ readonly diagnostics: vscode.Diagnostic[]; readonly links: MdLink[] }> {
-		const links = await this.linkProvider.getAllLinks(doc, token);
+		const links = await this.linkComputer.getAllLinks(doc, token);
 		if (token.isCancellationRequested) {
 			return { links, diagnostics: [] };
 		}
@@ -395,13 +396,13 @@ export class DiagnosticComputer {
 			diagnostics: (await Promise.all([
 				this.validateFileLinks(doc, options, links, token),
 				Array.from(this.validateReferenceLinks(options, links)),
-				this.validateOwnHeaderLinks(doc, options, links, token),
+				this.validateFragmentLinks(doc, options, links, token),
 			])).flat()
 		};
 	}
 
-	private async validateOwnHeaderLinks(doc: SkinnyTextDocument, options: DiagnosticOptions, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
-		const severity = toSeverity(options.validateOwnHeaders);
+	private async validateFragmentLinks(doc: SkinnyTextDocument, options: DiagnosticOptions, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+		const severity = toSeverity(options.validateFragmentLinks);
 		if (typeof severity === 'undefined') {
 			return [];
 		}
@@ -449,10 +450,11 @@ export class DiagnosticComputer {
 	}
 
 	private async validateFileLinks(doc: SkinnyTextDocument, options: DiagnosticOptions, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
-		const severity = toSeverity(options.validateFilePaths);
-		if (typeof severity === 'undefined') {
+		const pathErrorSeverity = toSeverity(options.validateFileLinks);
+		if (typeof pathErrorSeverity === 'undefined') {
 			return [];
 		}
+		const fragmentErrorSeverity = toSeverity(typeof options.validateMarkdownFileLinkFragments === 'undefined' ? options.validateFragmentLinks : options.validateMarkdownFileLinkFragments);
 
 		const linkSet = new FileLinkMap(links);
 		if (linkSet.size === 0) {
@@ -463,7 +465,7 @@ export class DiagnosticComputer {
 
 		const diagnostics: vscode.Diagnostic[] = [];
 		await Promise.all(
-			Array.from(linkSet.entries()).map(({ path, links }) => {
+			Array.from(linkSet.entries()).map(([path, { outgoingLinks: links }]) => {
 				return limiter.queue(async () => {
 					if (token.isCancellationRequested) {
 						return;
@@ -479,10 +481,10 @@ export class DiagnosticComputer {
 						const msg = localize('invalidPathLink', 'File does not exist at path: {0}', path.fsPath);
 						for (const link of links) {
 							if (!this.isIgnoredLink(options, link.source.pathText)) {
-								diagnostics.push(new LinkDoesNotExistDiagnostic(link.source.hrefRange, msg, severity, link.source.pathText));
+								diagnostics.push(new LinkDoesNotExistDiagnostic(link.source.hrefRange, msg, pathErrorSeverity, link.source.pathText));
 							}
 						}
-					} else if (hrefDoc) {
+					} else if (hrefDoc && typeof fragmentErrorSeverity !== 'undefined') {
 						// Validate each of the links to headers in the file
 						const fragmentLinks = links.filter(x => x.fragment);
 						if (fragmentLinks.length) {
@@ -490,7 +492,8 @@ export class DiagnosticComputer {
 							for (const link of fragmentLinks) {
 								if (!toc.lookup(link.fragment) && !this.isIgnoredLink(options, link.source.pathText) && !this.isIgnoredLink(options, link.source.text)) {
 									const msg = localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', link.fragment);
-									diagnostics.push(new LinkDoesNotExistDiagnostic(link.source.hrefRange, msg, severity, link.source.text));
+									const range = link.source.fragmentRange?.with({ start: link.source.fragmentRange.start.translate(0, -1) }) ?? link.source.hrefRange;
+									diagnostics.push(new LinkDoesNotExistDiagnostic(range, msg, fragmentErrorSeverity, link.source.text));
 								}
 							}
 						}
@@ -556,11 +559,11 @@ export function register(
 	selector: vscode.DocumentSelector,
 	engine: MarkdownEngine,
 	workspaceContents: MdWorkspaceContents,
-	linkProvider: MdLinkProvider,
+	linkComputer: MdLinkComputer,
 	commandManager: CommandManager,
 ): vscode.Disposable {
 	const configuration = new VSCodeDiagnosticConfiguration();
-	const manager = new DiagnosticManager(new DiagnosticComputer(engine, workspaceContents, linkProvider), configuration);
+	const manager = new DiagnosticManager(new DiagnosticComputer(engine, workspaceContents, linkComputer), configuration);
 	return vscode.Disposable.from(
 		configuration,
 		manager,

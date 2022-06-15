@@ -31,6 +31,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 const findWidgetSelector = '.simple-find-part-wrapper';
 
@@ -68,7 +69,8 @@ export class TerminalEditor extends EditorPane {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService
+		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
+		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService
 	) {
 		super(terminalEditorId, telemetryService, themeService, storageService);
 		this._findState = new FindReplaceState();
@@ -86,7 +88,7 @@ export class TerminalEditor extends EditorPane {
 		if (this._lastDimension) {
 			this.layout(this._lastDimension);
 		}
-		this._editorInput.terminalInstance?.setVisible(this.isVisible());
+		this._editorInput.terminalInstance?.setVisible(this.isVisible() && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART));
 		if (this._editorInput.terminalInstance) {
 			// since the editor does not monitor focus changes, for ex. between the terminal
 			// panel and the editors, this is needed so that the active instance gets set
@@ -208,7 +210,7 @@ export class TerminalEditor extends EditorPane {
 
 	override setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible, group);
-		return this._editorInput?.terminalInstance?.setVisible(visible);
+		this._editorInput?.terminalInstance?.setVisible(visible && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART));
 	}
 
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {

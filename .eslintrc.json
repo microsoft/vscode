@@ -227,6 +227,8 @@
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
 							"applicationinsights",
+							"@microsoft/1ds-core-js",
+							"@microsoft/1ds-post-js",
 							"assert",
 							"child_process",
 							"console",
@@ -575,7 +577,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/vs/{css.d.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
 						"restrictions": []
 					},
 					{

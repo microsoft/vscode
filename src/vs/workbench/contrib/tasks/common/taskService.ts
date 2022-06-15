@@ -36,6 +36,8 @@ export interface ICustomizationProperties {
 	group?: string | { kind?: string; isDefault?: boolean };
 	problemMatcher?: string | string[];
 	isBackground?: boolean;
+	color?: string;
+	icon?: string;
 }
 
 export interface ITaskFilter {

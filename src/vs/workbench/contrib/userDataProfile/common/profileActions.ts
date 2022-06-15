@@ -14,7 +14,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IProfile, isProfile, IWorkbenchProfileService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/services/profiles/common/profile';
+import { IUserDataProfileTemplate, isProfile, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 registerAction2(class ExportProfileAction extends Action2 {
@@ -33,7 +33,7 @@ registerAction2(class ExportProfileAction extends Action2 {
 	async run(accessor: ServicesAccessor) {
 		const textFileService = accessor.get(ITextFileService);
 		const fileDialogService = accessor.get(IFileDialogService);
-		const profileService = accessor.get(IWorkbenchProfileService);
+		const profileService = accessor.get(IUserDataProfileWorkbenchService);
 		const notificationService = accessor.get(INotificationService);
 
 		const profileLocation = await fileDialogService.showSaveDialog({
@@ -71,7 +71,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const fileService = accessor.get(IFileService);
 		const requestService = accessor.get(IRequestService);
-		const profileService = accessor.get(IWorkbenchProfileService);
+		const profileService = accessor.get(IUserDataProfileWorkbenchService);
 		const dialogService = accessor.get(IDialogService);
 
 		if (!(await dialogService.confirm({
@@ -105,7 +105,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		quickPick.show();
 	}
 
-	private async getProfileFromFileSystem(fileDialogService: IFileDialogService, fileService: IFileService): Promise<IProfile | null> {
+	private async getProfileFromFileSystem(fileDialogService: IFileDialogService, fileService: IFileService): Promise<IUserDataProfileTemplate | null> {
 		const profileLocation = await fileDialogService.showOpenDialog({
 			canSelectFolders: false,
 			canSelectFiles: true,
@@ -121,7 +121,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		return isProfile(parsed) ? parsed : null;
 	}
 
-	private async getProfileFromURL(url: string, requestService: IRequestService): Promise<IProfile | null> {
+	private async getProfileFromURL(url: string, requestService: IRequestService): Promise<IUserDataProfileTemplate | null> {
 		const options = { type: 'GET', url };
 		const context = await requestService.request(options, CancellationToken.None);
 		if (context.res.statusCode === 200) {
