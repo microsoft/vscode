@@ -35,6 +35,7 @@ import { rangeStartsWith } from 'vs/editor/contrib/inlineCompletions/browser/sug
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionToGhostText';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 suite('Suggest Widget Model', () => {
 	test('rangeStartsWith', () => {
@@ -177,6 +178,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 				}],
 				[ILabelService, new class extends mock<ILabelService>() { }],
 				[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+				[IProductService, new class extends mock<IProductService>() { }],
 			);
 
 			if (options.provider) {

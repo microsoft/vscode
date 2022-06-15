@@ -13,7 +13,7 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
+import { escapeDoubleQuotes, IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -32,6 +32,7 @@ export interface MarkedOptions extends marked.MarkedOptions {
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
 	readonly asyncRenderCallback?: () => void;
+	readonly productUrlProtocol?: string;
 }
 
 /**
@@ -237,7 +238,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	const htmlParser = new DOMParser();
-	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string, 'text/html');
+	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, productUrlProtocol: options.productUrlProtocol }, renderedMarkdown) as unknown as string, 'text/html');
 
 	markdownHtmlDoc.body.querySelectorAll('img')
 		.forEach(img => {
@@ -312,11 +313,12 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 		return resolvePath(dirname(baseUri), href).toString();
 	}
 }
+interface SanitizerConfiguration {
+	readonly isTrusted?: boolean;
+	readonly productUrlProtocol?: string;
+}
 
-function sanitizeRenderedMarkdown(
-	options: { isTrusted?: boolean },
-	renderedMarkdown: string,
-): TrustedHTML {
+function sanitizeRenderedMarkdown(options: SanitizerConfiguration, renderedMarkdown: string): TrustedHTML {
 	const { config, allowedSchemes } = getSanitizerOptions(options);
 	dompurify.addHook('uponSanitizeAttribute', (element, e) => {
 		if (e.attrName === 'style' || e.attrName === 'class') {
@@ -344,7 +346,8 @@ function sanitizeRenderedMarkdown(
 	}
 }
 
-function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { config: dompurify.Config; allowedSchemes: string[] } {
+
+function getSanitizerOptions(options: SanitizerConfiguration): { config: dompurify.Config; allowedSchemes: string[] } {
 	const allowedSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -358,6 +361,9 @@ function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { confi
 
 	if (options.isTrusted) {
 		allowedSchemes.push(Schemas.command);
+		if (options.productUrlProtocol) {
+			allowedSchemes.push(options.productUrlProtocol);
+		}
 	}
 
 	return {

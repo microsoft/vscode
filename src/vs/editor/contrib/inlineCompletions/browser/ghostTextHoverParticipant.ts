@@ -10,7 +10,6 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/mar
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 import * as nls from 'vs/nls';
@@ -18,9 +17,9 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
 import { Command } from 'vs/editor/common/languages';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
@@ -52,11 +51,10 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) { }
 
@@ -164,7 +162,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		const $ = dom.$;
 		const markdownHoverElement = $('div.hover-row.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-		const renderer = disposableStore.add(new MarkdownRenderer({ editor: this._editor }, this._languageService, this._openerService));
+		const renderer = disposableStore.add(this._instantiationService.createInstance(MarkdownRenderer, { editor: this._editor }));
 		const render = (code: string) => {
 			disposableStore.add(renderer.onDidRenderAsync(() => {
 				hoverContentsElement.className = 'hover-contents code-hover-contents';

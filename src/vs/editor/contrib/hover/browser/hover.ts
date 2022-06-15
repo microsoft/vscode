@@ -12,7 +12,6 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import { HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
@@ -22,7 +21,6 @@ import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibi
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, editorHoverForeground, editorHoverHighlight, editorHoverStatusBarBackground, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
@@ -50,8 +48,6 @@ export class ModesHoverController implements IEditorContribution {
 
 	constructor(private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		this._isMouseDown = false;
@@ -180,7 +176,7 @@ export class ModesHoverController implements IEditorContribution {
 		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position) {
 			this._contentWidget?.hide();
 			if (!this._glyphWidget) {
-				this._glyphWidget = new MarginHoverWidget(this._editor, this._languageService, this._openerService);
+				this._glyphWidget = this._instantiationService.createInstance(MarginHoverWidget, this._editor);
 			}
 			this._glyphWidget.startShowingAt(target.position.lineNumber);
 			return;

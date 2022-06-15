@@ -16,8 +16,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { URI } from 'vs/base/common/uri';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IRange } from 'vs/editor/common/core/range';
 
@@ -50,8 +48,6 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		private _scopedInstatiationService: IInstantiationService,
 		private _parentCommentThreadWidget: ICommentThreadWidget,
 		@ICommentService private commentService: ICommentService,
-		@IOpenerService private openerService: IOpenerService,
-		@ILanguageService private languageService: ILanguageService,
 	) {
 		super();
 
@@ -60,7 +56,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this.commentService.setActiveCommentThread(this._commentThread);
 		}));
 
-		this._markdownRenderer = this._register(new MarkdownRenderer(this._options, this.languageService, this.openerService));
+		this._markdownRenderer = this._register(_scopedInstatiationService.createInstance(MarkdownRenderer, this._options));
 	}
 
 	focus() {

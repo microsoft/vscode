@@ -20,7 +20,6 @@ import { IModelDecoration, IModelDeltaDecoration, ITextModel, TrackedRangeSticki
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { isModelDecorationInComment, isModelDecorationInString, isModelDecorationVisible } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { MarkdownHover, renderMarkdownHovers } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
@@ -28,7 +27,6 @@ import { BannerController } from 'vs/editor/contrib/unicodeHighlighter/browser/b
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -411,10 +409,8 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-	) {
-	}
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) { }
 
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
@@ -489,7 +485,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IDisposable {
-		return renderMarkdownHovers(context, hoverParts, this._editor, this._languageService, this._openerService);
+		return renderMarkdownHovers(this._instantiationService, context, hoverParts, this._editor);
 	}
 }
 

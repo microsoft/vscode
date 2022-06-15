@@ -16,14 +16,13 @@ import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { editorHoverBackground, editorHoverBorder, editorHoverForeground, listHighlightForeground, registerColor, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
@@ -61,12 +60,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	constructor(
 		private readonly editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IOpenerService openerService: IOpenerService,
-		@ILanguageService languageService: ILanguageService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
-		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, languageService, openerService));
+		this.markdownRenderer = this._register(instantiationService.createInstance(MarkdownRenderer, { editor }));
 		this.model = this._register(new ParameterHintsModel(editor, languageFeaturesService.signatureHelpProvider));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);

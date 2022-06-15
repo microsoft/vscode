@@ -14,13 +14,12 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { getHover } from 'vs/editor/contrib/hover/browser/getHover';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const $ = dom.$;
 
@@ -48,9 +47,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IOpenerService private readonly _openerService: IOpenerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageFeaturesService protected readonly _languageFeaturesService: ILanguageFeaturesService,
 	) { }
 
@@ -118,18 +116,16 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IDisposable {
-		return renderMarkdownHovers(context, hoverParts, this._editor, this._languageService, this._openerService);
+		return renderMarkdownHovers(this._instantiationService, context, hoverParts, this._editor);
 	}
 }
 
 export function renderMarkdownHovers(
+	instantiationService: IInstantiationService,
 	context: IEditorHoverRenderContext,
 	hoverParts: MarkdownHover[],
 	editor: ICodeEditor,
-	languageService: ILanguageService,
-	openerService: IOpenerService,
 ): IDisposable {
-
 	// Sort hover parts to keep them stable since they might come in async, out-of-order
 	hoverParts.sort((a, b) => a.ordinal - b.ordinal);
 
@@ -141,7 +137,7 @@ export function renderMarkdownHovers(
 			}
 			const markdownHoverElement = $('div.hover-row.markdown-hover');
 			const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-			const renderer = disposables.add(new MarkdownRenderer({ editor }, languageService, openerService));
+			const renderer = disposables.add(instantiationService.createInstance(MarkdownRenderer, { editor }));
 			disposables.add(renderer.onDidRenderAsync(() => {
 				hoverContentsElement.className = 'hover-contents code-hover-contents';
 				context.onContentsChanged();
