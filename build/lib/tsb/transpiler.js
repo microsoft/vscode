@@ -146,13 +146,21 @@ class Transpiler {
         this._workerPool.length = 0;
     }
     transpile(file) {
+        if (this._cmdLine.options.noEmit) {
+            // not doing ANYTHING here
+            return;
+        }
         const newLen = this._queue.push(file);
         if (newLen > Transpiler.P ** 2) {
             this._consumeQueue();
         }
     }
     _consumeQueue() {
-        // LAZYily create worker
+        if (this._queue.length === 0) {
+            // no work...
+            return;
+        }
+        // kinda LAZYily create workers
         if (this._workerPool.length === 0) {
             for (let i = 0; i < Transpiler.P; i++) {
                 this._workerPool.push(new TranspileWorker(file => this._tsApiInternalOutfileName.getForInfile(file)));
