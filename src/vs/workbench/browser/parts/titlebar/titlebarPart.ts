@@ -46,8 +46,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	get minimumHeight(): number {
-		const ccPadding = this.isCommandCenterVisible ? 5 : 0;
-		return (30 + ccPadding) / (this.currentMenubarVisibility === 'hidden' || getZoomFactor() < 1 ? getZoomFactor() : 1);
+		const value = this.isCommandCenterVisible ? 35 : 30;
+		return value / (this.currentMenubarVisibility === 'hidden' || getZoomFactor() < 1 ? getZoomFactor() : 1);
 	}
 	get maximumHeight(): number { return this.minimumHeight; }
 
