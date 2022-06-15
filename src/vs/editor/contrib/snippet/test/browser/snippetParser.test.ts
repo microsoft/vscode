@@ -283,6 +283,15 @@ suite('SnippetParser', () => {
 		});
 	});
 
+	test('Parser, placeholder with choice; for $0 (#150745)', () => {
+		const input = '${0|one,two,three|}';
+		const expected = [Placeholder, Text, Text, Text];
+		new SnippetParser().parse(input).walk(marker => {
+			assert.strictEqual(marker, expected.shift());
+			return true;
+		});
+	});
+
 	test('Snippet choices: unable to escape comma and pipe, #31521', function () {
 		assertTextAndMarker('console.log(${1|not\\, not, five, 5, 1   23|});', 'console.log(not, not);', Text, Placeholder, Text);
 	});
