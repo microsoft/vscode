@@ -711,7 +711,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
 			// Prepare include list created from negate pattern (same as in .gitignore) in files.exclude
-			let includesConfig: glob.IExpression = Object.create(null);
+			const includesConfig: glob.IExpression = Object.create(null);
 			for (const key in excludesConfig) {
 				if (key.length > 1 && key[0] === '!') {
 					// populate include list from negated excludes
