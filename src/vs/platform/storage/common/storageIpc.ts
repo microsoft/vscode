@@ -5,9 +5,10 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { UriDto } from 'vs/base/common/types';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
-import { IUserDataProfileDto, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export type Key = string;
@@ -21,7 +22,7 @@ export interface IBaseSerializableStorageRequest {
 	 * workspace is provided. Can be undefined to denote
 	 * application scope.
 	 */
-	readonly profile: IUserDataProfileDto | undefined;
+	readonly profile: UriDto<IUserDataProfile> | undefined;
 
 	/**
 	 * Workspace to correlate storage. Can be undefined to
@@ -46,7 +47,7 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 
 	constructor(
 		protected channel: IChannel,
-		protected profile: IUserDataProfileDto | undefined,
+		protected profile: UriDto<IUserDataProfile> | undefined,
 		protected workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined
 	) {
 		super();
@@ -81,7 +82,7 @@ abstract class BaseProfileAwareStorageDatabaseClient extends BaseStorageDatabase
 	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
 	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
 
-	constructor(channel: IChannel, profile: IUserDataProfileDto | undefined) {
+	constructor(channel: IChannel, profile: UriDto<IUserDataProfile> | undefined) {
 		super(channel, profile, undefined);
 
 		this.registerListeners();
@@ -119,7 +120,7 @@ class ApplicationStorageDatabaseClient extends BaseProfileAwareStorageDatabaseCl
 
 class GlobalStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient {
 
-	constructor(channel: IChannel, profile: IUserDataProfileDto) {
+	constructor(channel: IChannel, profile: UriDto<IUserDataProfile>) {
 		super(channel, profile);
 	}
 
