@@ -13,19 +13,28 @@ const node_os_1 = require("node:os");
 function transpile(tsSrc, options) {
     const isAmd = /\n(import|export)/m.test(tsSrc);
     if (!isAmd) {
-        options.compilerOptions.module = ts.ModuleKind.None;
+        // enforce NONE module-system for not-amd cases
+        options = { ...options, ...{ compilerOptions: { ...options.compilerOptions, module: ts.ModuleKind.None } } };
     }
     const out = ts.transpileModule(tsSrc, options);
     return {
         jsSrc: out.outputText,
-        diag: out.diagnostics && out.diagnostics.length > 0 ? out.diagnostics : undefined
+        diag: out.diagnostics ?? []
     };
 }
 if (!threads.isMainThread) {
     // WORKER
     threads.parentPort?.addListener('message', (req) => {
-        const out = transpile(req.tsSrc, req.options);
-        threads.parentPort.postMessage(out);
+        const res = {
+            jsSrcs: [],
+            diagnostics: []
+        };
+        for (const tsSrc of req.tsSrcs) {
+            const out = transpile(tsSrc, req.options);
+            res.jsSrcs.push(out.jsSrc);
+            res.diagnostics.push(out.diag);
+        }
+        threads.parentPort.postMessage(res);
     });
 }
 class TranspileWorker {
@@ -33,27 +42,40 @@ class TranspileWorker {
         this.id = TranspileWorker.pool++;
         this._worker = new threads.Worker(__filename);
         this._durations = [];
-        this._worker.addListener('message', (value) => {
+        this._worker.addListener('message', (res) => {
             if (!this._pending) {
                 console.error('RECEIVING data WITHOUT request');
                 return;
             }
-            const [resolve, reject, file, options, t1] = this._pending;
-            if (value.diagnostics && value.diagnostics.length > 0) {
-                reject(value.diagnostics);
-                return;
+            const [resolve, reject, files, options, t1] = this._pending;
+            const outFiles = [];
+            const diag = [];
+            for (let i = 0; i < res.jsSrcs.length; i++) {
+                // inputs and outputs are aligned across the arrays
+                const file = files[i];
+                const jsSrc = res.jsSrcs[i];
+                const diag = res.diagnostics[i];
+                if (diag.length > 0) {
+                    diag.push(...diag);
+                    continue;
+                }
+                const outBase = options.compilerOptions.outDir ?? file.base;
+                const outRelative = (0, path_1.relative)(options.compilerOptions.rootDir, file.path);
+                const outPath = (0, path_1.join)(outBase, outRelative.replace(/\.ts$/, '.js'));
+                outFiles.push(new Vinyl({
+                    path: outPath,
+                    base: outBase ?? file.base,
+                    contents: Buffer.from(jsSrc),
+                }));
             }
-            const outBase = options.compilerOptions.outDir;
-            const outRelative = (0, path_1.relative)(options.compilerOptions.rootDir, file.path);
-            const outPath = (0, path_1.join)(outBase, outRelative.replace(/\.ts$/, '.js'));
-            const outFile = new Vinyl({
-                path: outPath,
-                base: outBase,
-                contents: Buffer.from(value.jsSrc),
-            });
             this._pending = undefined;
             this._durations.push(Date.now() - t1);
-            resolve(outFile);
+            if (diag.length > 0) {
+                reject(diag);
+            }
+            else {
+                resolve(outFiles);
+            }
         });
     }
     terminate() {
@@ -63,41 +85,46 @@ class TranspileWorker {
     get isBusy() {
         return this._pending !== undefined;
     }
-    next(file, options) {
+    next(files, options) {
         if (this._pending !== undefined) {
             throw new Error('BUSY');
         }
         return new Promise((resolve, reject) => {
-            this._pending = [resolve, reject, file, options, Date.now()];
-            const req = { tsSrc: String(file.contents), options };
+            this._pending = [resolve, reject, files, options, Date.now()];
+            const req = {
+                options,
+                tsSrcs: files.map(file => String(file.contents))
+            };
             this._worker.postMessage(req);
         });
     }
 }
 TranspileWorker.pool = 1;
 class Transpiler {
-    constructor(logFn, options) {
-        this.logFn = logFn;
-        this.options = options;
-        // private _worker: TranspileWorker[] = [];
-        this._queue = [];
+    constructor(logFn, _onError, _options) {
+        this._onError = _onError;
+        this._options = _options;
         this._workerPool = [];
+        this._queue = [];
         this._allJobs = [];
         logFn('Transpile', `will use ${Transpiler.P} transpile worker`);
     }
     async join() {
         // wait for all penindg jobs
+        this._consumeQueue();
         await Promise.allSettled(this._allJobs);
         this._allJobs.length = 0;
         // terminate all worker
         this._workerPool.forEach(w => w.terminate());
         this._workerPool.length = 0;
     }
-    transpile(file, out, onError) {
-        const len = this._queue.push(file);
-        if (len < 2 * Transpiler.P) {
-            return;
+    transpile(file) {
+        const newLen = this._queue.push(file);
+        if (newLen > Transpiler.P ** 2) {
+            this._consumeQueue();
         }
+    }
+    _consumeQueue() {
         // LAZYily create worker
         if (this._workerPool.length === 0) {
             for (let i = 0; i < Transpiler.P; i++) {
@@ -115,18 +142,21 @@ class Transpiler {
             }
             const job = new Promise(resolve => {
                 const consume = () => {
-                    const inFile = this._queue.pop();
-                    if (!inFile) {
+                    const files = this._queue.splice(0, Transpiler.P);
+                    if (files.length === 0) {
                         // DONE
                         resolve(undefined);
                         return;
                     }
                     // work on the NEXT file
-                    worker.next(inFile, this.options).then(outFile => {
-                        out(outFile);
+                    // const [inFile, outFn] = req;
+                    worker.next(files, this._options).then(outFiles => {
+                        if (this.onOutfile) {
+                            outFiles.map(this.onOutfile, this);
+                        }
                         consume();
                     }).catch(err => {
-                        onError(err);
+                        this._onError(err);
                     });
                 };
                 consume();
@@ -136,4 +166,4 @@ class Transpiler {
     }
 }
 exports.Transpiler = Transpiler;
-Transpiler.P = (0, node_os_1.cpus)().length * .5;
+Transpiler.P = Math.floor((0, node_os_1.cpus)().length * .5);

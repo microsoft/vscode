@@ -76,16 +76,25 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
             if (!file.contents || file.path.endsWith('.d.ts')) {
                 return;
             }
-            transpiler.transpile(file, file => this.queue(file), printDiagnostic);
+            if (!transpiler.onOutfile) {
+                transpiler.onOutfile = file => this.queue(file);
+            }
+            transpiler.transpile(file);
         }, function () {
             transpiler.join().then(() => {
                 this.queue(null);
+                transpiler.onOutfile = undefined;
             });
         });
     }
     let result;
     if (config.transpileOnly) {
-        const transpiler = new transpiler_1.Transpiler(logFn, { compilerOptions: cmdLine.options });
+        const transpiler = new transpiler_1.Transpiler(logFn, printDiagnostic, {
+            compilerOptions: {
+                rootDir: cmdLine.options.rootDir ?? (0, path_1.dirname)(projectPath),
+                ...cmdLine.options
+            },
+        });
         result = (() => createTranspileStream(transpiler));
     }
     else {

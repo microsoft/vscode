@@ -106,15 +106,16 @@ export function create(
 				return;
 			}
 
-			transpiler.transpile(
-				file,
-				file => this.queue(file),
-				printDiagnostic
-			);
+			if (!transpiler.onOutfile) {
+				transpiler.onOutfile = file => this.queue(file);
+			}
+
+			transpiler.transpile(file);
 
 		}, function (this: { queue(a: any): void }) {
 			transpiler.join().then(() => {
 				this.queue(null);
+				transpiler.onOutfile = undefined;
 			});
 		});
 	}
@@ -122,7 +123,12 @@ export function create(
 
 	let result: IncrementalCompiler;
 	if (config.transpileOnly) {
-		const transpiler = new Transpiler(logFn, { compilerOptions: cmdLine.options });
+		const transpiler = new Transpiler(logFn, printDiagnostic, {
+			compilerOptions: {
+				rootDir: cmdLine.options.rootDir ?? dirname(projectPath),
+				...cmdLine.options
+			},
+		});
 		result = <any>(() => createTranspileStream(transpiler));
 	} else {
 		const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
