@@ -5,6 +5,7 @@
 
 import { window, InputBoxOptions, Uri, Disposable, workspace } from 'vscode';
 import { IDisposable, EmptyDisposable, toDisposable } from './util';
+import * as path from 'path';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
 import { CredentialsProvider, Credentials } from './api/git';
 
@@ -14,7 +15,7 @@ export class Askpass implements IIPCHandler {
 	private cache = new Map<string, Credentials>();
 	private credentialsProviders = new Set<CredentialsProvider>();
 
-	constructor(ipc?: IIPCServer) {
+	constructor(private ipc?: IIPCServer) {
 		if (ipc) {
 			this.disposable = ipc.registerHandler('askpass', this);
 		}
@@ -60,6 +61,21 @@ export class Askpass implements IIPCHandler {
 		};
 
 		return await window.showInputBox(options) || '';
+	}
+
+	getEnv(): { [key: string]: string } {
+		const env: { [key: string]: string } = {
+			VSCODE_GIT_ASKPASS_NODE: process.execPath,
+			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
+			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js')
+		};
+
+		const config = workspace.getConfiguration('git');
+		if (config.get<boolean>('useIntegratedAskPass')) {
+			env.GIT_ASKPASS = path.join(__dirname, this.ipc ? 'askpass.sh' : 'askpass-empty.sh');
+		}
+
+		return env;
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {

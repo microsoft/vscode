@@ -3,52 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import { ExtensionContext, workspace } from 'vscode';
-import { IIPCServer } from './ipc/ipcServer';
 import { filterEvent, IDisposable } from './util';
 
-export class EnvironmentManager implements IDisposable {
+export class TerminalEnvironmentManager {
 
-	private readonly env: { [key: string]: string };
 	private readonly disposable: IDisposable;
 
-	constructor(private readonly context: ExtensionContext, ipc?: IIPCServer) {
-		this.env = {
-			...ipc?.getEnv(),
-			// VSCODE_GIT_ASKPASS
-			VSCODE_GIT_ASKPASS_NODE: process.execPath,
-			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
-			// VSCODE_GIT_EDITOR
-			VSCODE_GIT_EDITOR_NODE: process.execPath,
-			VSCODE_GIT_EDITOR_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
-		};
-
-		const config = workspace.getConfiguration('git');
-
-		if (config.get<boolean>('useIntegratedAskPass')) {
-			this.env.GIT_ASKPASS = path.join(__dirname, ipc ? 'askpass.sh' : 'askpass-empty.sh');
-		}
-		if (config.get<boolean>('useEditorAsCommitInput')) {
-			this.env.GIT_EDITOR = `"${path.join(__dirname, ipc ? 'git-editor.sh' : 'git-editor-empty.sh')}"`;
-		}
-
+	constructor(private readonly context: ExtensionContext, private readonly env: { [key: string]: string }) {
 		this.disposable = filterEvent(workspace.onDidChangeConfiguration, e =>
 			e.affectsConfiguration('git.enabled') ||
 			e.affectsConfiguration('git.terminalAuthentication') ||
 			e.affectsConfiguration('git.terminalGitEditor')
-		)(this.refreshTerminalEnv, this);
+		)(this.refresh, this);
 
-		this.refreshTerminalEnv();
+		this.refresh();
 	}
 
-	public getEnv(): { [key: string]: string } {
-		return this.env;
-	}
-
-	private refreshTerminalEnv(): void {
+	private refresh(): void {
 		this.context.environmentVariableCollection.clear();
-		const config = workspace.getConfiguration('git');
+		const config = workspace.getConfiguration('git', null);
 
 		if (!config.get<boolean>('enabled', true)) {
 			return;
