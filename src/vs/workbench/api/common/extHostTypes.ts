@@ -549,6 +549,7 @@ export class TextEdit {
 
 	protected _range: Range;
 	protected _newText: string | null;
+	newText2?: string | SnippetString;
 	protected _newEol?: EndOfLine;
 
 	get range(): Range {
