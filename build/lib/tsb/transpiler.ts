@@ -6,7 +6,6 @@
 import * as ts from 'typescript';
 import * as threads from 'node:worker_threads';
 import * as Vinyl from 'vinyl';
-import { join, relative } from 'path';
 import { cpus } from 'node:os';
 
 interface TranspileReq {
@@ -56,10 +55,10 @@ class TranspileWorker {
 	readonly id = TranspileWorker.pool++;
 
 	private _worker = new threads.Worker(__filename);
-	private _pending?: [resolve: Function, reject: Function, file: Vinyl[], options: TranspilerOptions, t1: number];
+	private _pending?: [resolve: Function, reject: Function, file: Vinyl[], options: ts.TranspileOptions, t1: number];
 	private _durations: number[] = [];
 
-	constructor() {
+	constructor(outFileFn: (fileName: string) => string) {
 
 		this._worker.addListener('message', (res: TranspileRes) => {
 			if (!this._pending) {
@@ -97,12 +96,12 @@ class TranspileWorker {
 					continue;
 				}
 
-				const outBase = options.compilerOptions.outDir ?? file.base;
-				const outRelative = relative(options.compilerOptions.rootDir, file.path);
-				const outPath = join(outBase, outRelative.slice(0, -suffixLen) + '.js');
+				const outBase = options.compilerOptions?.outDir ?? file.base;
+				const outPath = outFileFn(file.path);
+
 				outFiles.push(new Vinyl({
 					path: outPath,
-					base: outBase ?? file.base,
+					base: outBase,
 					contents: Buffer.from(jsSrc),
 				}));
 			}
@@ -127,7 +126,7 @@ class TranspileWorker {
 		return this._pending !== undefined;
 	}
 
-	next(files: Vinyl[], options: TranspilerOptions) {
+	next(files: Vinyl[], options: ts.TranspileOptions) {
 		if (this._pending !== undefined) {
 			throw new Error('BUSY');
 		}
@@ -143,8 +142,6 @@ class TranspileWorker {
 }
 
 
-export type TranspilerOptions = ts.TranspileOptions & { compilerOptions: { rootDir: string } };
-
 export class Transpiler {
 
 	static P = Math.floor(cpus().length * .5);
@@ -158,7 +155,7 @@ export class Transpiler {
 	constructor(
 		logFn: (topic: string, message: string) => void,
 		private readonly _onError: (err: any) => void,
-		private readonly _options: TranspilerOptions,
+		private readonly _cmdLine: ts.ParsedCommandLine
 	) {
 		logFn('Transpile', `will use ${Transpiler.P} transpile worker`);
 	}
@@ -187,7 +184,7 @@ export class Transpiler {
 		// LAZYily create worker
 		if (this._workerPool.length === 0) {
 			for (let i = 0; i < Transpiler.P; i++) {
-				this._workerPool.push(new TranspileWorker());
+				this._workerPool.push(new TranspileWorker(file => this._tsApiInternalOutfileName.getForInfile(file)));
 			}
 		}
 
@@ -214,7 +211,7 @@ export class Transpiler {
 					}
 					// work on the NEXT file
 					// const [inFile, outFn] = req;
-					worker.next(files, this._options).then(outFiles => {
+					worker.next(files, { compilerOptions: this._cmdLine.options }).then(outFiles => {
 						if (this.onOutfile) {
 							outFiles.map(this.onOutfile, this);
 						}
@@ -230,6 +227,35 @@ export class Transpiler {
 			this._allJobs.push(job);
 		}
 	}
+
+	private _tsApiInternalOutfileName = new class {
+
+		getForInfile: (file: string) => string;
+
+		constructor(parsedCmd: ts.ParsedCommandLine) {
+
+			type InternalTsHost = {
+				getCompilerOptions(): ts.CompilerOptions;
+				getCurrentDirectory(): string;
+				getCommonSourceDirectory(): string;
+				getCanonicalFileName(file: string): string;
+			};
+			type InternalTsApi = { getOwnEmitOutputFilePath(fileName: string, host: InternalTsHost, extension: string): string } & typeof ts;
+
+			const host = ts.createCompilerHost(parsedCmd.options);
+			const program = ts.createProgram({ options: parsedCmd.options, rootNames: parsedCmd.fileNames, host });
+			const emitHost: InternalTsHost = {
+				getCompilerOptions: () => parsedCmd.options,
+				getCurrentDirectory: () => host.getCurrentDirectory(),
+				getCanonicalFileName: file => host.getCanonicalFileName(file),
+				getCommonSourceDirectory: () => (<any>program).getCommonSourceDirectory()
+			};
+
+			this.getForInfile = file => {
+				return (<InternalTsApi>ts).getOwnEmitOutputFilePath(file, emitHost, '.js');
+			};
+		}
+	}(this._cmdLine);
 }
 
 function _isDefaultEmpty(src: string): boolean {

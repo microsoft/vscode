@@ -8,7 +8,6 @@ exports.Transpiler = void 0;
 const ts = require("typescript");
 const threads = require("node:worker_threads");
 const Vinyl = require("vinyl");
-const path_1 = require("path");
 const node_os_1 = require("node:os");
 function transpile(tsSrc, options) {
     const isAmd = /\n(import|export)/m.test(tsSrc);
@@ -38,7 +37,7 @@ if (!threads.isMainThread) {
     });
 }
 class TranspileWorker {
-    constructor() {
+    constructor(outFileFn) {
         this.id = TranspileWorker.pool++;
         this._worker = new threads.Worker(__filename);
         this._durations = [];
@@ -73,12 +72,11 @@ class TranspileWorker {
                 if (suffixLen === 5 /* SuffixTypes.Dts */ && _isDefaultEmpty(jsSrc)) {
                     continue;
                 }
-                const outBase = options.compilerOptions.outDir ?? file.base;
-                const outRelative = (0, path_1.relative)(options.compilerOptions.rootDir, file.path);
-                const outPath = (0, path_1.join)(outBase, outRelative.slice(0, -suffixLen) + '.js');
+                const outBase = options.compilerOptions?.outDir ?? file.base;
+                const outPath = outFileFn(file.path);
                 outFiles.push(new Vinyl({
                     path: outPath,
-                    base: outBase ?? file.base,
+                    base: outBase,
                     contents: Buffer.from(jsSrc),
                 }));
             }
@@ -115,12 +113,27 @@ class TranspileWorker {
 }
 TranspileWorker.pool = 1;
 class Transpiler {
-    constructor(logFn, _onError, _options) {
+    constructor(logFn, _onError, _cmdLine) {
         this._onError = _onError;
-        this._options = _options;
+        this._cmdLine = _cmdLine;
         this._workerPool = [];
         this._queue = [];
         this._allJobs = [];
+        this._tsApiInternalOutfileName = new class {
+            constructor(parsedCmd) {
+                const host = ts.createCompilerHost(parsedCmd.options);
+                const program = ts.createProgram({ options: parsedCmd.options, rootNames: parsedCmd.fileNames, host });
+                const emitHost = {
+                    getCompilerOptions: () => parsedCmd.options,
+                    getCurrentDirectory: () => host.getCurrentDirectory(),
+                    getCanonicalFileName: file => host.getCanonicalFileName(file),
+                    getCommonSourceDirectory: () => program.getCommonSourceDirectory()
+                };
+                this.getForInfile = file => {
+                    return ts.getOwnEmitOutputFilePath(file, emitHost, '.js');
+                };
+            }
+        }(this._cmdLine);
         logFn('Transpile', `will use ${Transpiler.P} transpile worker`);
     }
     async join() {
@@ -142,7 +155,7 @@ class Transpiler {
         // LAZYily create worker
         if (this._workerPool.length === 0) {
             for (let i = 0; i < Transpiler.P; i++) {
-                this._workerPool.push(new TranspileWorker());
+                this._workerPool.push(new TranspileWorker(file => this._tsApiInternalOutfileName.getForInfile(file)));
             }
         }
         const freeWorker = this._workerPool.filter(w => !w.isBusy);
@@ -164,7 +177,7 @@ class Transpiler {
                     }
                     // work on the NEXT file
                     // const [inFile, outFn] = req;
-                    worker.next(files, this._options).then(outFiles => {
+                    worker.next(files, { compilerOptions: this._cmdLine.options }).then(outFiles => {
                         if (this.onOutfile) {
                             outFiles.map(this.onOutfile, this);
                         }

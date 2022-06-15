@@ -92,12 +92,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     }
     let result;
     if (config.transpileOnly) {
-        const transpiler = new transpiler_1.Transpiler(logFn, printDiagnostic, {
-            compilerOptions: {
-                rootDir: cmdLine.options.rootDir ?? (0, path_1.dirname)(projectPath),
-                ...cmdLine.options
-            },
-        });
+        const transpiler = new transpiler_1.Transpiler(logFn, printDiagnostic, cmdLine);
         result = (() => createTranspileStream(transpiler));
     }
     else {

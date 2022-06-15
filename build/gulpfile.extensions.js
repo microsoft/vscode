@@ -110,10 +110,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
 
-		if (transpileOnly) {
-			overrideOptions.rootDir = path.join(root, 'src');
-		}
-
 		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly }, err => reporter(err.toString()));
 
 		const pipeline = function () {
