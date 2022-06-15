@@ -53,7 +53,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 
-const taskShellIntegrationStartSequence = '\x1b]633;P;Task=\x07' + '\x1b]633;A\x07' + '\x1b]633;B\x07';
+const taskShellIntegrationStartSequence = '\x1b]633;A\x07' + '\x1b]633;P;Task=\x07' + '\x1b]633;B\x07';
 const taskShellIntegrationOutputSequence = '\x1b]633;C\x07';
 
 interface ITaskExecutionResult {

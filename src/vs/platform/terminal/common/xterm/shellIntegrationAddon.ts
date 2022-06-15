@@ -244,6 +244,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 						if (commandDetection) {
 							commandDetection.disableCommandStorage();
+							this._logService.debug('#disableCommandStorage');
 						}
 					}
 				}
