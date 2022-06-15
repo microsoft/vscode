@@ -73,7 +73,7 @@ export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): s
 
 	// macOS/Linux: tildify with provided user home directory
 	if (os !== OperatingSystem.Windows && tildifier?.userHome) {
-		let userHome = tildifier.userHome.fsPath;
+		const userHome = tildifier.userHome.fsPath;
 
 		// This is a bit of a hack, but in order to figure out if the
 		// resource is in the user home, we need to make sure to convert it
@@ -217,7 +217,7 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 	// for every path
 	let match = false;
 	for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
-		let originalPath = paths[pathIndex];
+		const originalPath = paths[pathIndex];
 
 		if (originalPath === '') {
 			shortenedPaths[pathIndex] = `.${pathSeparator}`;

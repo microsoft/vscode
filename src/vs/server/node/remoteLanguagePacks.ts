@@ -23,7 +23,7 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 			// console.log(`==> MetaData or commit unknown. Using default language.`);
 			return Promise.resolve({ locale: 'en', availableLanguages: {} });
 		}
-		let key = `${language}||${userDataPath}`;
+		const key = `${language}||${userDataPath}`;
 		let result = _cache.get(key);
 		if (!result) {
 			result = lp.getNLSConfiguration(product.commit, userDataPath, metaData, language).then(value => {
@@ -40,7 +40,7 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 
 export namespace InternalNLSConfiguration {
 	export function is(value: lp.NLSConfiguration): value is lp.InternalNLSConfiguration {
-		let candidate: lp.InternalNLSConfiguration = value as lp.InternalNLSConfiguration;
+		const candidate: lp.InternalNLSConfiguration = value as lp.InternalNLSConfiguration;
 		return candidate && typeof candidate._languagePackId === 'string';
 	}
 }

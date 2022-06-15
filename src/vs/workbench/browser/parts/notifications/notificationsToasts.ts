@@ -525,7 +525,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private computeMaxDimensions(): Dimension {
-		let maxWidth = NotificationsToasts.MAX_WIDTH;
+		const maxWidth = NotificationsToasts.MAX_WIDTH;
 
 		let availableWidth = maxWidth;
 		let availableHeight: number | undefined;

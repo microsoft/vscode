@@ -33,8 +33,25 @@
 	cursor: pointer;
 }
 
-.merge-base-range-projection {
-	background-color: rgb(170 175 170 / 15%);
+
+.merge-editor-modified-base-range-input1 {
+	background-color: var(--vscode-mergeEditor-modifiedBaseRange-input1);
+}
+
+.merge-editor-diff-input1 {
+	background-color: var(--vscode-mergeEditor-diff-input1);
+}
+
+.merge-editor-modified-base-range-input2 {
+	background-color: var(--vscode-mergeEditor-modifiedBaseRange-input2);
+}
+
+.merge-editor-diff-input2 {
+	background-color: var(--vscode-mergeEditor-diff-input2);
+}
+
+.merge-editor-modified-base-range-combination {
+	background-color: var(--vscode-mergeEditor-modifiedBaseRange-combination);
 }
 
 .gutter-item {

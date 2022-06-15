@@ -88,7 +88,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	}
 
 	static createOptionItems(views: IViewDescriptor[], contextKeyService: IContextKeyService): IRemoteSelectItem[] {
-		let options: IRemoteSelectItem[] = [];
+		const options: IRemoteSelectItem[] = [];
 		views.forEach(view => {
 			if (view.group && view.group.startsWith('targets') && view.remoteAuthority && (!view.when || contextKeyService.contextMatchesRules(view.when))) {
 				options.push({ text: view.name, authority: isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority] });

@@ -5,16 +5,12 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/150268
+	// https://github.com/microsoft/vscode/issues/145374
 
-	/**
-	 * Represents the input box in the Source Control viewlet.
-	 */
-	export interface SourceControlInputBox {
+	export interface TextEdit {
 
-		/**
-		 * Controls whether the input box is enabled (default is `true`).
-		 */
-		enabled: boolean;
+		// will be merged with newText
+		// will NOT be supported everywhere, only: `workspace.applyEdit`
+		newText2?: string | SnippetString;
 	}
 }

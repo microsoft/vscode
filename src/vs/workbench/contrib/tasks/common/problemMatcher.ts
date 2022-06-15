@@ -188,7 +188,7 @@ export interface IHandleResult {
 
 
 export async function getResource(filename: string, matcher: ProblemMatcher, fileService?: IFileService): Promise<URI> {
-	let kind = matcher.fileLocation;
+	const kind = matcher.fileLocation;
 	let fullPath: string | undefined;
 	if (kind === FileLocationKind.Absolute) {
 		fullPath = filename;
@@ -235,7 +235,7 @@ export interface ILineMatcher {
 }
 
 export function createLineMatcher(matcher: ProblemMatcher, fileService?: IFileService): ILineMatcher {
-	let pattern = matcher.pattern;
+	const pattern = matcher.pattern;
 	if (Types.isArray(pattern)) {
 		return new MultiLineMatcher(matcher, fileService);
 	} else {
@@ -310,9 +310,9 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 
 	protected getMarkerMatch(data: IProblemData): IProblemMatch | undefined {
 		try {
-			let location = this.getLocation(data);
+			const location = this.getLocation(data);
 			if (data.file && location && data.message) {
-				let marker: IMarkerData = {
+				const marker: IMarkerData = {
 					severity: this.getSeverity(data),
 					startLineNumber: location.startLineNumber,
 					startColumn: location.startCharacter,
@@ -352,10 +352,10 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 		if (!data.line) {
 			return null;
 		}
-		let startLine = parseInt(data.line);
-		let startColumn = data.character ? parseInt(data.character) : undefined;
-		let endLine = data.endLine ? parseInt(data.endLine) : undefined;
-		let endColumn = data.endCharacter ? parseInt(data.endCharacter) : undefined;
+		const startLine = parseInt(data.line);
+		const startColumn = data.character ? parseInt(data.character) : undefined;
+		const endLine = data.endLine ? parseInt(data.endLine) : undefined;
+		const endColumn = data.endCharacter ? parseInt(data.endCharacter) : undefined;
 		return this.createLocation(startLine, startColumn, endLine, endColumn);
 	}
 
@@ -363,9 +363,9 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 		if (!value || !value.match(/(\d+|\d+,\d+|\d+,\d+,\d+,\d+)/)) {
 			return null;
 		}
-		let parts = value.split(',');
-		let startLine = parseInt(parts[0]);
-		let startColumn = parts.length > 1 ? parseInt(parts[1]) : undefined;
+		const parts = value.split(',');
+		const startLine = parseInt(parts[0]);
+		const startColumn = parts.length > 1 ? parseInt(parts[1]) : undefined;
 		if (parts.length > 3) {
 			return this.createLocation(startLine, startColumn, parseInt(parts[2]), parseInt(parts[3]));
 		} else {
@@ -386,7 +386,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	private getSeverity(data: IProblemData): MarkerSeverity {
 		let result: Severity | null = null;
 		if (data.severity) {
-			let value = data.severity;
+			const value = data.severity;
 			if (value) {
 				result = Severity.fromValue(value);
 				if (result === Severity.Ignore) {
@@ -426,14 +426,14 @@ class SingleLineMatcher extends AbstractLineMatcher {
 
 	public override handle(lines: string[], start: number = 0): IHandleResult {
 		Assert.ok(lines.length - start === 1);
-		let data: IProblemData = Object.create(null);
+		const data: IProblemData = Object.create(null);
 		if (this.pattern.kind !== undefined) {
 			data.kind = this.pattern.kind;
 		}
-		let matches = this.pattern.regexp.exec(lines[start]);
+		const matches = this.pattern.regexp.exec(lines[start]);
 		if (matches) {
 			this.fillProblemData(data, this.pattern, matches);
-			let match = this.getMarkerMatch(data);
+			const match = this.getMarkerMatch(data);
 			if (match) {
 				return { match: match, continue: false };
 			}
@@ -466,8 +466,8 @@ class MultiLineMatcher extends AbstractLineMatcher {
 		let data = this.data!;
 		data.kind = this.patterns[0].kind;
 		for (let i = 0; i < this.patterns.length; i++) {
-			let pattern = this.patterns[i];
-			let matches = pattern.regexp.exec(lines[i + start]);
+			const pattern = this.patterns[i];
+			const matches = pattern.regexp.exec(lines[i + start]);
 			if (!matches) {
 				return { match: null, continue: false };
 			} else {
@@ -478,7 +478,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 				this.fillProblemData(data, pattern, matches);
 			}
 		}
-		let loop = !!this.patterns[this.patterns.length - 1].loop;
+		const loop = !!this.patterns[this.patterns.length - 1].loop;
 		if (!loop) {
 			this.data = undefined;
 		}
@@ -487,14 +487,14 @@ class MultiLineMatcher extends AbstractLineMatcher {
 	}
 
 	public override next(line: string): IProblemMatch | null {
-		let pattern = this.patterns[this.patterns.length - 1];
+		const pattern = this.patterns[this.patterns.length - 1];
 		Assert.ok(pattern.loop === true && this.data !== null);
-		let matches = pattern.regexp.exec(line);
+		const matches = pattern.regexp.exec(line);
 		if (!matches) {
 			this.data = undefined;
 			return null;
 		}
-		let data = Objects.deepClone(this.data);
+		const data = Objects.deepClone(this.data);
 		let problemMatch: IProblemMatch | undefined;
 		if (this.fillProblemData(data, pattern, matches)) {
 			problemMatch = this.getMarkerMatch(data);
@@ -601,7 +601,7 @@ export namespace Config {
 
 	export namespace CheckedProblemPattern {
 		export function is(value: any): value is ICheckedProblemPattern {
-			let candidate: IProblemPattern = value as IProblemPattern;
+			const candidate: IProblemPattern = value as IProblemPattern;
 			return candidate && Types.isString(candidate.regexp);
 		}
 	}
@@ -620,7 +620,7 @@ export namespace Config {
 
 	export namespace NamedProblemPattern {
 		export function is(value: any): value is INamedProblemPattern {
-			let candidate: INamedProblemPattern = value as INamedProblemPattern;
+			const candidate: INamedProblemPattern = value as INamedProblemPattern;
 			return candidate && Types.isString(candidate.name);
 		}
 	}
@@ -635,7 +635,7 @@ export namespace Config {
 
 	export namespace NamedCheckedProblemPattern {
 		export function is(value: any): value is INamedCheckedProblemPattern {
-			let candidate: INamedProblemPattern = value as INamedProblemPattern;
+			const candidate: INamedProblemPattern = value as INamedProblemPattern;
 			return candidate && NamedProblemPattern.is(candidate) && Types.isString(candidate.regexp);
 		}
 	}
@@ -683,7 +683,7 @@ export namespace Config {
 
 	export namespace NamedMultiLineCheckedProblemPattern {
 		export function is(value: any): value is INamedMultiLineCheckedProblemPattern {
-			let candidate = value as INamedMultiLineCheckedProblemPattern;
+			const candidate = value as INamedMultiLineCheckedProblemPattern;
 			return candidate && Types.isString(candidate.name) && Types.isArray(candidate.patterns) && MultiLineCheckedProblemPattern.is(candidate.patterns);
 		}
 	}
@@ -860,7 +860,7 @@ export class ProblemPatternParser extends Parser {
 		} else if (Config.MultiLineCheckedProblemPattern.is(value)) {
 			return this.createMultiLineProblemPattern(value);
 		} else if (Config.NamedCheckedProblemPattern.is(value)) {
-			let result = this.createSingleProblemPattern(value) as INamedProblemPattern;
+			const result = this.createSingleProblemPattern(value) as INamedProblemPattern;
 			result.name = value.name;
 			return result;
 		} else if (Config.CheckedProblemPattern.is(value)) {
@@ -872,7 +872,7 @@ export class ProblemPatternParser extends Parser {
 	}
 
 	private createSingleProblemPattern(value: Config.ICheckedProblemPattern): IProblemPattern | null {
-		let result = this.doCreateSingleProblemPattern(value, true);
+		const result = this.doCreateSingleProblemPattern(value, true);
 		if (result === undefined) {
 			return null;
 		} else if (result.kind === undefined) {
@@ -886,7 +886,7 @@ export class ProblemPatternParser extends Parser {
 		if (!validPatterns) {
 			return null;
 		}
-		let result = {
+		const result = {
 			name: value.name,
 			label: value.label ? value.label : value.name,
 			patterns: validPatterns
@@ -895,9 +895,9 @@ export class ProblemPatternParser extends Parser {
 	}
 
 	private createMultiLineProblemPattern(values: Config.MultiLineCheckedProblemPattern): MultiLineProblemPattern | null {
-		let result: MultiLineProblemPattern = [];
+		const result: MultiLineProblemPattern = [];
 		for (let i = 0; i < values.length; i++) {
-			let pattern = this.doCreateSingleProblemPattern(values[i], false);
+			const pattern = this.doCreateSingleProblemPattern(values[i], false);
 			if (pattern === undefined) {
 				return null;
 			}
@@ -945,13 +945,13 @@ export class ProblemPatternParser extends Parser {
 		}
 		if (setDefaults) {
 			if (result.location || result.kind === ProblemLocationKind.File) {
-				let defaultValue: Partial<IProblemPattern> = {
+				const defaultValue: Partial<IProblemPattern> = {
 					file: 1,
 					message: 0
 				};
 				result = Objects.mixin(result, defaultValue, false);
 			} else {
-				let defaultValue: Partial<IProblemPattern> = {
+				const defaultValue: Partial<IProblemPattern> = {
 					file: 1,
 					line: 2,
 					character: 3,
@@ -965,7 +965,7 @@ export class ProblemPatternParser extends Parser {
 
 	private validateProblemPattern(values: IProblemPattern[]): boolean {
 		let file: boolean = false, message: boolean = false, location: boolean = false, line: boolean = false;
-		let locationKind = (values[0].kind === undefined) ? ProblemLocationKind.Location : values[0].kind;
+		const locationKind = (values[0].kind === undefined) ? ProblemLocationKind.Location : values[0].kind;
 
 		values.forEach((pattern, i) => {
 			if (i !== 0 && pattern.kind) {
@@ -1152,19 +1152,19 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 				// We get all statically know extension during startup in one batch
 				try {
 					delta.removed.forEach(extension => {
-						let problemPatterns = extension.value as Config.NamedProblemPatterns;
-						for (let pattern of problemPatterns) {
+						const problemPatterns = extension.value as Config.NamedProblemPatterns;
+						for (const pattern of problemPatterns) {
 							if (this.patterns[pattern.name]) {
 								delete this.patterns[pattern.name];
 							}
 						}
 					});
 					delta.added.forEach(extension => {
-						let problemPatterns = extension.value as Config.NamedProblemPatterns;
-						let parser = new ProblemPatternParser(new ExtensionRegistryReporter(extension.collector));
-						for (let pattern of problemPatterns) {
+						const problemPatterns = extension.value as Config.NamedProblemPatterns;
+						const parser = new ProblemPatternParser(new ExtensionRegistryReporter(extension.collector));
+						for (const pattern of problemPatterns) {
 							if (Config.NamedMultiLineCheckedProblemPattern.is(pattern)) {
-								let result = parser.parse(pattern);
+								const result = parser.parse(pattern);
 								if (parser.problemReporter.status.state < ValidationState.Error) {
 									this.add(result.name, result.patterns);
 								} else {
@@ -1173,7 +1173,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 								}
 							}
 							else if (Config.NamedProblemPattern.is(pattern)) {
-								let result = parser.parse(pattern);
+								const result = parser.parse(pattern);
 								if (parser.problemReporter.status.state < ValidationState.Error) {
 									this.add(pattern.name, result);
 								} else {
@@ -1328,7 +1328,7 @@ export class ProblemMatcherParser extends Parser {
 	}
 
 	public parse(json: Config.ProblemMatcher): ProblemMatcher | undefined {
-		let result = this.createProblemMatcher(json);
+		const result = this.createProblemMatcher(json);
 		if (!this.checkProblemMatcherValid(json, result)) {
 			return undefined;
 		}
@@ -1360,8 +1360,8 @@ export class ProblemMatcherParser extends Parser {
 	private createProblemMatcher(description: Config.ProblemMatcher): ProblemMatcher | null {
 		let result: ProblemMatcher | null = null;
 
-		let owner = Types.isString(description.owner) ? description.owner : UUID.generateUuid();
-		let source = Types.isString(description.source) ? description.source : undefined;
+		const owner = Types.isString(description.owner) ? description.owner : UUID.generateUuid();
+		const source = Types.isString(description.source) ? description.source : undefined;
 		let applyTo = Types.isString(description.applyTo) ? ApplyToKind.fromString(description.applyTo) : ApplyToKind.allDocuments;
 		if (!applyTo) {
 			applyTo = ApplyToKind.allDocuments;
@@ -1382,7 +1382,7 @@ export class ProblemMatcherParser extends Parser {
 				}
 			}
 		} else if (Types.isStringArray(description.fileLocation)) {
-			let values = <string[]>description.fileLocation;
+			const values = <string[]>description.fileLocation;
 			if (values.length > 0) {
 				kind = FileLocationKind.fromString(values[0]);
 				if (values.length === 1 && kind === FileLocationKind.Absolute) {
@@ -1394,7 +1394,7 @@ export class ProblemMatcherParser extends Parser {
 			}
 		}
 
-		let pattern = description.pattern ? this.createProblemPattern(description.pattern) : undefined;
+		const pattern = description.pattern ? this.createProblemPattern(description.pattern) : undefined;
 
 		let severity = description.severity ? Severity.fromValue(description.severity) : undefined;
 		if (severity === Severity.Ignore) {
@@ -1403,9 +1403,9 @@ export class ProblemMatcherParser extends Parser {
 		}
 
 		if (Types.isString(description.base)) {
-			let variableName = <string>description.base;
+			const variableName = <string>description.base;
 			if (variableName.length > 1 && variableName[0] === '$') {
-				let base = ProblemMatcherRegistry.get(variableName.substring(1));
+				const base = ProblemMatcherRegistry.get(variableName.substring(1));
 				if (base) {
 					result = Objects.deepClone(base);
 					if (description.owner !== undefined && owner !== undefined) {
@@ -1455,9 +1455,9 @@ export class ProblemMatcherParser extends Parser {
 
 	private createProblemPattern(value: string | Config.IProblemPattern | Config.MultiLineProblemPattern): IProblemPattern | IProblemPattern[] | null {
 		if (Types.isString(value)) {
-			let variableName: string = <string>value;
+			const variableName: string = <string>value;
 			if (variableName.length > 1 && variableName[0] === '$') {
-				let result = ProblemPatternRegistry.get(variableName.substring(1));
+				const result = ProblemPatternRegistry.get(variableName.substring(1));
 				if (!result) {
 					this.error(localize('ProblemMatcherParser.noDefinedPatter', 'Error: the pattern with the identifier {0} doesn\'t exist.', variableName));
 				}
@@ -1470,7 +1470,7 @@ export class ProblemMatcherParser extends Parser {
 				}
 			}
 		} else if (value) {
-			let problemPatternParser = new ProblemPatternParser(this.problemReporter);
+			const problemPatternParser = new ProblemPatternParser(this.problemReporter);
 			if (Array.isArray(value)) {
 				return problemPatternParser.parse(value);
 			} else {
@@ -1481,8 +1481,8 @@ export class ProblemMatcherParser extends Parser {
 	}
 
 	private addWatchingMatcher(external: Config.ProblemMatcher, internal: ProblemMatcher): void {
-		let oldBegins = this.createRegularExpression(external.watchedTaskBeginsRegExp);
-		let oldEnds = this.createRegularExpression(external.watchedTaskEndsRegExp);
+		const oldBegins = this.createRegularExpression(external.watchedTaskBeginsRegExp);
+		const oldEnds = this.createRegularExpression(external.watchedTaskEndsRegExp);
 		if (oldBegins && oldEnds) {
 			internal.watching = {
 				activeOnStart: false,
@@ -1491,12 +1491,12 @@ export class ProblemMatcherParser extends Parser {
 			};
 			return;
 		}
-		let backgroundMonitor = external.background || external.watching;
+		const backgroundMonitor = external.background || external.watching;
 		if (Types.isUndefinedOrNull(backgroundMonitor)) {
 			return;
 		}
-		let begins: IWatchingPattern | null = this.createWatchingPattern(backgroundMonitor.beginsPattern);
-		let ends: IWatchingPattern | null = this.createWatchingPattern(backgroundMonitor.endsPattern);
+		const begins: IWatchingPattern | null = this.createWatchingPattern(backgroundMonitor.beginsPattern);
+		const ends: IWatchingPattern | null = this.createWatchingPattern(backgroundMonitor.endsPattern);
 		if (begins && ends) {
 			internal.watching = {
 				activeOnStart: Types.isBoolean(backgroundMonitor.activeOnStart) ? backgroundMonitor.activeOnStart : false,
@@ -1735,18 +1735,18 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			problemMatchersExtPoint.setHandler((extensions, delta) => {
 				try {
 					delta.removed.forEach(extension => {
-						let problemMatchers = extension.value;
-						for (let matcher of problemMatchers) {
+						const problemMatchers = extension.value;
+						for (const matcher of problemMatchers) {
 							if (this.matchers[matcher.name]) {
 								delete this.matchers[matcher.name];
 							}
 						}
 					});
 					delta.added.forEach(extension => {
-						let problemMatchers = extension.value;
-						let parser = new ProblemMatcherParser(new ExtensionRegistryReporter(extension.collector));
-						for (let matcher of problemMatchers) {
-							let result = parser.parse(matcher);
+						const problemMatchers = extension.value;
+						const parser = new ProblemMatcherParser(new ExtensionRegistryReporter(extension.collector));
+						for (const matcher of problemMatchers) {
+							const result = parser.parse(matcher);
 							if (result && isNamedProblemMatcher(result)) {
 								this.add(result);
 							}
@@ -1757,7 +1757,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 					}
 				} catch (error) {
 				}
-				let matcher = this.get('tsc-watch');
+				const matcher = this.get('tsc-watch');
 				if (matcher) {
 					(<any>matcher).tscWatch = true;
 				}

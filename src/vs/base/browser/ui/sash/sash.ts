@@ -17,7 +17,7 @@ import 'vs/css!./sash';
  * Allow the sashes to be visible at runtime.
  * @remark Use for development purposes only.
  */
-let DEBUG = false;
+const DEBUG = false;
 // DEBUG = Boolean("true"); // done "weirdly" so that a lint warning prevents you from pushing this
 
 /**

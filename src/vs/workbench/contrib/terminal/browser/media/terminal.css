@@ -39,7 +39,7 @@
 
 .monaco-workbench .editor-instance .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
-	display: none;
+	display: block;
 	height: 100%;
 	box-sizing: border-box;
 }
@@ -111,11 +111,6 @@
 .xterm.enable-mouse-events .xterm-screen  { cursor: default; }
 .xterm.xterm-cursor-pointer .xterm-screen { cursor: pointer; }
 .xterm.column-select.focus .xterm-screen  { cursor: crosshair; }
-
-.monaco-workbench .editor-instance .terminal-wrapper.active,
-.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.active {
-	display: block;
-}
 
 .monaco-workbench .editor-instance .xterm {
 	padding-left: 20px !important;

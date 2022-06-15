@@ -30,16 +30,21 @@ declare module 'vscode' {
 	/**
 	 * An edit operation applied on drop.
 	 */
-	export interface DocumentDropEdit {
+	export class DocumentDropEdit {
 		/**
 		 * The text or snippet to insert at the drop location.
 		 */
-		readonly insertText: string | SnippetString;
+		insertText: string | SnippetString;
 
 		/**
 		 * An optional additional edit to apply on drop.
 		 */
-		readonly additionalEdit?: WorkspaceEdit;
+		additionalEdit?: WorkspaceEdit;
+
+		/**
+		 * @param insertText The text or snippet to insert at the drop location.
+		 */
+		constructor(insertText: string | SnippetString);
 	}
 
 	export namespace languages {

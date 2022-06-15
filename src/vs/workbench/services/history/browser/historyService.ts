@@ -1360,7 +1360,7 @@ export class EditorNavigationStack extends Disposable {
 			return;
 		}
 
-		let entryLabels: string[] = [];
+		const entryLabels: string[] = [];
 		for (const entry of this.stack) {
 			if (typeof entry.selection?.log === 'function') {
 				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString()}, selection: ${entry.selection.log()}`);
@@ -1574,7 +1574,7 @@ ${entryLabels.join('\n')}
 		const newStackEntry: IEditorNavigationStackEntry = { groupId, editor, selection };
 
 		// Replace at current position
-		let removedEntries: IEditorNavigationStackEntry[] = [];
+		const removedEntries: IEditorNavigationStackEntry[] = [];
 		if (replace) {
 			if (this.current) {
 				removedEntries.push(this.current);

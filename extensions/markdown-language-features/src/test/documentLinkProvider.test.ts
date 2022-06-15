@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
+import { MdLinkComputer, MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
@@ -17,7 +17,8 @@ const testFile = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 
 
 function getLinksForFile(fileContents: string) {
 	const doc = new InMemoryDocument(testFile, fileContents);
-	const provider = new MdLinkProvider(createNewMarkdownEngine());
+	const linkComputer = new MdLinkComputer(createNewMarkdownEngine());
+	const provider = new MdLinkProvider(linkComputer);
 	return provider.provideDocumentLinks(doc, noopToken);
 }
 
@@ -97,6 +98,21 @@ suite('markdown.DocumentLinkProvider', () => {
 			const links = await getLinksForFile('[A link](http://ThisUrlhasParens/A_link(in_parens))');
 			assertLinksEqual(links, [
 				new vscode.Range(0, 9, 0, 50)
+			]);
+		}
+	});
+
+	test('Should ignore texts in brackets inside link title (#150921)', async () => {
+		{
+			const links = await getLinksForFile('[some [inner bracket pairs] in title](<link>)');
+			assertLinksEqual(links, [
+				new vscode.Range(0, 39, 0, 43),
+			]);
+		}
+		{
+			const links = await getLinksForFile('[some [inner bracket pairs] in title](link)');
+			assertLinksEqual(links, [
+				new vscode.Range(0, 38, 0, 42)
 			]);
 		}
 	});

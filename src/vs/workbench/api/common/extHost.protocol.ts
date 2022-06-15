@@ -958,10 +958,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$tryShowNotebookDocument(uriComponents: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
-	$registerNotebookEditorDecorationType(key: string, options: notebookCommon.INotebookDecorationRenderOptions): void;
-	$removeNotebookEditorDecorationType(key: string): void;
 	$trySetSelections(id: string, range: ICellRange[]): void;
-	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
 	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperationDto[]): Promise<boolean>;
 }
 
@@ -999,6 +996,7 @@ export interface INotebookProxyKernelDto {
 
 export interface ICellExecuteOutputEditDto {
 	editType: CellExecutionUpdateType.Output;
+	cellHandle: number;
 	append?: boolean;
 	outputs: NotebookOutputDto[];
 }
@@ -1604,7 +1602,7 @@ export interface IWorkspaceFileEditDto {
 export interface IWorkspaceTextEditDto {
 	_type: WorkspaceEditType.Text;
 	resource: UriComponents;
-	edit: languages.TextEdit;
+	edit: languages.TextEdit & { insertAsSnippet?: boolean };
 	modelVersionId?: number;
 	metadata?: IWorkspaceEditEntryMetadataDto;
 }

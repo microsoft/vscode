@@ -110,7 +110,7 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 
 	renderTemplate(container: HTMLElement): CallRenderingTemplate {
 		container.classList.add('callhierarchy-element');
-		let icon = document.createElement('div');
+		const icon = document.createElement('div');
 		container.appendChild(icon);
 		const label = new IconLabel(container, { supportHighlights: true });
 		return new CallRenderingTemplate(icon, label);

@@ -205,7 +205,7 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	disposeCommentThread(owner: string, threadId: string) {
-		let controller = this.getCommentController(owner);
+		const controller = this.getCommentController(owner);
 		if (controller) {
 			controller.deleteCommentThreadMain(threadId);
 		}
@@ -216,7 +216,7 @@ export class CommentService extends Disposable implements ICommentService {
 			return this._commentMenus.get(owner)!;
 		}
 
-		let menu = this.instantiationService.createInstance(CommentMenus);
+		const menu = this.instantiationService.createInstance(CommentMenus);
 		this._commentMenus.set(owner, menu);
 		return menu;
 	}
@@ -256,7 +256,7 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	async getDocumentComments(resource: URI): Promise<(ICommentInfo | null)[]> {
-		let commentControlResult: Promise<ICommentInfo | null>[] = [];
+		const commentControlResult: Promise<ICommentInfo | null>[] = [];
 
 		this._commentControls.forEach(control => {
 			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None)
@@ -269,7 +269,7 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	async getNotebookComments(resource: URI): Promise<(INotebookCommentInfo | null)[]> {
-		let commentControlResult: Promise<INotebookCommentInfo | null>[] = [];
+		const commentControlResult: Promise<INotebookCommentInfo | null>[] = [];
 
 		this._commentControls.forEach(control => {
 			commentControlResult.push(control.getNotebookComments(resource, CancellationToken.None)
@@ -282,13 +282,13 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	async getCommentingRanges(resource: URI): Promise<IRange[]> {
-		let commentControlResult: Promise<IRange[]>[] = [];
+		const commentControlResult: Promise<IRange[]>[] = [];
 
 		this._commentControls.forEach(control => {
 			commentControlResult.push(control.getCommentingRanges(resource, CancellationToken.None));
 		});
 
-		let ret = await Promise.all(commentControlResult);
+		const ret = await Promise.all(commentControlResult);
 		return ret.reduce((prev, curr) => { prev.push(...curr); return prev; }, []);
 	}
 }

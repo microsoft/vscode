@@ -58,14 +58,14 @@ namespace Configuration {
 		if (!value) {
 			return undefined;
 		}
-		let taskType = Types.isString(value.type) ? value.type : undefined;
+		const taskType = Types.isString(value.type) ? value.type : undefined;
 		if (!taskType || taskType.length === 0) {
 			messageCollector.error(nls.localize('TaskTypeConfiguration.noType', 'The task type configuration is missing the required \'taskType\' property'));
 			return undefined;
 		}
-		let required: string[] = [];
+		const required: string[] = [];
 		if (Array.isArray(value.required)) {
-			for (let element of value.required) {
+			for (const element of value.required) {
 				if (Types.isString(element)) {
 					required.push(element);
 				}
@@ -113,18 +113,18 @@ export class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 			taskDefinitionsExtPoint.setHandler((extensions, delta) => {
 				this._schema = undefined;
 				try {
-					for (let extension of delta.removed) {
-						let taskTypes = extension.value;
-						for (let taskType of taskTypes) {
+					for (const extension of delta.removed) {
+						const taskTypes = extension.value;
+						for (const taskType of taskTypes) {
 							if (this.taskTypes && taskType.type && this.taskTypes[taskType.type]) {
 								delete this.taskTypes[taskType.type];
 							}
 						}
 					}
-					for (let extension of delta.added) {
-						let taskTypes = extension.value;
-						for (let taskType of taskTypes) {
-							let type = Configuration.from(taskType, extension.description.identifier, extension.collector);
+					for (const extension of delta.added) {
+						const taskTypes = extension.value;
+						for (const taskType of taskTypes) {
+							const type = Configuration.from(taskType, extension.description.identifier, extension.collector);
 							if (type) {
 								this.taskTypes[type.taskType] = type;
 							}
@@ -154,9 +154,9 @@ export class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
 	public getJsonSchema(): IJSONSchema {
 		if (this._schema === undefined) {
-			let schemas: IJSONSchema[] = [];
-			for (let definition of this.all()) {
-				let schema: IJSONSchema = {
+			const schemas: IJSONSchema[] = [];
+			for (const definition of this.all()) {
+				const schema: IJSONSchema = {
 					type: 'object',
 					additionalProperties: false
 				};

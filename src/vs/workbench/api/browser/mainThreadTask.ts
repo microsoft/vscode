@@ -318,6 +318,8 @@ namespace TaskDTO {
 			isBackground: task.configurationProperties.isBackground,
 			problemMatchers: [],
 			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
+			icon: task.configurationProperties.icon,
+			color: task.configurationProperties.color,
 			runOptions: RunOptionsDTO.from(task.runOptions),
 		};
 		result.group = TaskGroupDTO.from(task.configurationProperties.group);
@@ -333,7 +335,7 @@ namespace TaskDTO {
 			}
 		}
 		if (task.configurationProperties.problemMatchers) {
-			for (let matcher of task.configurationProperties.problemMatchers) {
+			for (const matcher of task.configurationProperties.problemMatchers) {
 				if (Types.isString(matcher)) {
 					result.problemMatchers.push(matcher);
 				}
@@ -382,7 +384,9 @@ namespace TaskDTO {
 				group: task.group,
 				isBackground: !!task.isBackground,
 				problemMatchers: task.problemMatchers.slice(),
-				detail: task.detail
+				detail: task.detail,
+				color: task.color,
+				icon: task.icon
 			}
 		);
 		return result;
@@ -456,7 +460,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 
 	$createTaskId(taskDTO: ITaskDTO): Promise<string> {
 		return new Promise((resolve, reject) => {
-			let task = TaskDTO.to(taskDTO, this._workspaceContextServer, true);
+			const task = TaskDTO.to(taskDTO, this._workspaceContextServer, true);
 			if (task) {
 				resolve(task._id);
 			} else {
@@ -470,7 +474,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 			provideTasks: (validTypes: IStringDictionary<boolean>) => {
 				return Promise.resolve(this._proxy.$provideTasks(handle, validTypes)).then((value) => {
 					const tasks: Task[] = [];
-					for (let dto of value.tasks) {
+					for (const dto of value.tasks) {
 						const task = TaskDTO.to(dto, this._workspaceContextServer, true);
 						if (task) {
 							tasks.push(task);
@@ -517,7 +521,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $fetchTasks(filter?: ITaskFilterDTO): Promise<ITaskDTO[]> {
 		return this._taskService.tasks(TaskFilterDTO.to(filter)).then((tasks) => {
 			const result: ITaskDTO[] = [];
-			for (let task of tasks) {
+			for (const task of tasks) {
 				const item = TaskDTO.from(task);
 				if (item) {
 					result.push(item);
@@ -617,7 +621,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $customExecutionComplete(id: string, result?: number): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
-				for (let task of tasks) {
+				for (const task of tasks) {
 					if (id === task._id) {
 						this._taskService.extensionCallbackTaskComplete(task, result).then((value) => {
 							resolve(undefined);
@@ -635,7 +639,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $terminateTask(id: string): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
-				for (let task of tasks) {
+				for (const task of tasks) {
 					if (id === task._id) {
 						this._taskService.terminate(task).then((value) => {
 							resolve(undefined);

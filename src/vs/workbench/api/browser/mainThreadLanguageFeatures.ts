@@ -50,7 +50,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 		if (this._languageService) {
 			const updateAllWordDefinitions = () => {
-				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
+				const wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
 				for (const languageId of _languageService.getRegisteredLanguageIds()) {
 					const wordDefinition = this._languageConfigurationService.getLanguageConfiguration(languageId).getWordDefinition();
 					wordDefinitionDtos.push({
@@ -555,7 +555,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 						return suggestion;
 					}
 
-					let newSuggestion = MainThreadLanguageFeatures._inflateSuggestDto(suggestion.range, result);
+					const newSuggestion = MainThreadLanguageFeatures._inflateSuggestDto(suggestion.range, result);
 					return mixin(suggestion, newSuggestion, true);
 				});
 			};

@@ -1382,7 +1382,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
 		if (!enable) {
 			for (const extension of extensions) {
-				let dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local);
+				const dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local);
 				if (dependents.length) {
 					return new Promise<void>((resolve, reject) => {
 						this.notificationService.prompt(Severity.Error, this.getDependentsErrorMessage(extension, allExtensions, dependents), [
@@ -1456,7 +1456,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private getDependentsErrorMessage(extension: IExtension, allDisabledExtensions: IExtension[], dependents: IExtension[]): string {
 		for (const e of [extension, ...allDisabledExtensions]) {
-			let dependentsOfTheExtension = dependents.filter(d => d.dependencies.some(id => areSameExtensions({ id }, e.identifier)));
+			const dependentsOfTheExtension = dependents.filter(d => d.dependencies.some(id => areSameExtensions({ id }, e.identifier)));
 			if (dependentsOfTheExtension.length) {
 				return this.getErrorMessageForDisablingAnExtensionWithDependents(e, dependentsOfTheExtension);
 			}
@@ -1519,9 +1519,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				this.progressService.withProgress({ location: ProgressLocation.Extensions }, () => new Promise(resolve => this._activityCallBack = resolve));
 			}
 		} else {
-			if (this._activityCallBack) {
-				this._activityCallBack();
-			}
+			this._activityCallBack?.();
 			this._activityCallBack = null;
 		}
 	}

@@ -55,6 +55,7 @@ export function setup() {
 		it('should update icon of the tab in the tabs list', async () => {
 			await terminal.createTerminal();
 			await terminal.runCommand(TerminalCommandId.Split);
+			await terminal.waitForTerminalText(lines => lines.some(line => line.length > 0), undefined, 1);
 			const icon = 'symbol-method';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
 			await terminal.assertTerminalGroups([[{}, { icon }]]);

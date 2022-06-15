@@ -9,9 +9,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
 
-export class EditorGutter<
-	T extends IGutterItemInfo = IGutterItemInfo
-> extends Disposable {
+export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
 	private readonly scrollTop = observableFromEvent(
 		this._editor.onDidScrollChange,
 		(e) => this._editor.getScrollTop()

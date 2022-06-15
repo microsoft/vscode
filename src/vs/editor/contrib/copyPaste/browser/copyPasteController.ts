@@ -34,9 +34,7 @@ const defaultPasteEditProvider = new class implements DocumentPasteEditProvider 
 		const textDataTransfer = dataTransfer.get(Mimes.text) ?? dataTransfer.get('text');
 		if (textDataTransfer) {
 			const text = await textDataTransfer.asString();
-			return {
-				insertText: text
-			};
+			return { insertText: text };
 		}
 
 		return undefined;
@@ -53,7 +51,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 	private readonly _editor: ICodeEditor;
 
-	private _currentClipboardItem: undefined | {
+	private _currentClipboardItem?: {
 		readonly handle: string;
 		readonly dataTransferPromise: CancelablePromise<VSDataTransfer>;
 	};
@@ -70,131 +68,138 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._editor = editor;
 
 		const container = editor.getContainerDomNode();
-
-		this._register(addDisposableListener(container, 'copy', (e: ClipboardEvent) => {
-			if (!e.clipboardData) {
-				return;
-			}
-
-			const model = editor.getModel();
-			const selections = this._editor.getSelections();
-			if (!model || !selections?.length) {
-				return;
-			}
-
-			if (!this.arePasteActionsEnabled(model)) {
-				return;
-			}
-
-			const providers = this._languageFeaturesService.documentPasteEditProvider.ordered(model).filter(x => !!x.prepareDocumentPaste);
-			if (!providers.length) {
-				return;
-			}
-
-			const dataTransfer = toVSDataTransfer(e.clipboardData);
-
-			// Save off a handle pointing to data that VS Code maintains.
-			const handle = generateUuid();
-			e.clipboardData.setData(vscodeClipboardMime, handle);
-
-			const promise = createCancelablePromise(async token => {
-				const results = await Promise.all(providers.map(provider => {
-					return provider.prepareDocumentPaste!(model, selections, dataTransfer, token);
-				}));
-
-				for (const result of results) {
-					result?.forEach((value, key) => {
-						dataTransfer.replace(key, value);
-					});
-				}
-
-				return dataTransfer;
-			});
-
-			this._currentClipboardItem?.dataTransferPromise.cancel();
-			this._currentClipboardItem = { handle: handle, dataTransferPromise: promise };
-		}));
-
-		this._register(addDisposableListener(container, 'paste', async (e: ClipboardEvent) => {
-			const selections = this._editor.getSelections();
-			if (!e.clipboardData || !selections?.length || !editor.hasModel()) {
-				return;
-			}
-
-			const model = editor.getModel();
-			if (!this.arePasteActionsEnabled(model)) {
-				return;
-			}
-
-			const handle = e.clipboardData?.getData(vscodeClipboardMime);
-			if (typeof handle !== 'string') {
-				return;
-			}
-
-			const providers = this._languageFeaturesService.documentPasteEditProvider.ordered(model);
-			if (!providers.length) {
-				return;
-			}
-
-			e.preventDefault();
-			e.stopImmediatePropagation();
-
-			const originalDocVersion = model.getVersionId();
-			const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection);
-
-			try {
-				const dataTransfer = toVSDataTransfer(e.clipboardData);
-
-				if (handle && this._currentClipboardItem?.handle === handle) {
-					const toMergeDataTransfer = await this._currentClipboardItem.dataTransferPromise;
-					toMergeDataTransfer.forEach((value, key) => {
-						dataTransfer.replace(key, value);
-					});
-				}
-
-				if (!dataTransfer.has(Mimes.uriList)) {
-					const resources = await this._clipboardService.readResources();
-					if (resources.length) {
-						const value = resources.join('\n');
-						dataTransfer.append(Mimes.uriList, createStringDataTransferItem(value));
-					}
-				}
-
-				dataTransfer.delete(vscodeClipboardMime);
-
-				for (const provider of [...providers, defaultPasteEditProvider]) {
-					if (!provider.pasteMimeTypes.some(type => {
-						if (type.toLowerCase() === DataTransfers.FILES.toLowerCase()) {
-							return [...dataTransfer.values()].some(item => item.asFile());
-						}
-						return dataTransfer.has(type);
-					})) {
-						continue;
-					}
-
-					const edit = await provider.provideDocumentPasteEdits(model, selections, dataTransfer, tokenSource.token);
-					if (originalDocVersion !== model.getVersionId()) {
-						return;
-					}
-
-					if (edit) {
-						performSnippetEdit(editor, typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet, selections);
-
-						if (edit.additionalEdit) {
-							await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor });
-						}
-						return;
-					}
-				}
-			} finally {
-				tokenSource.dispose();
-			}
-		}, true));
+		this._register(addDisposableListener(container, 'copy', e => this.handleCopy(e)));
+		this._register(addDisposableListener(container, 'cut', e => this.handleCopy(e)));
+		this._register(addDisposableListener(container, 'paste', e => this.handlePaste(e), true));
 	}
 
-	public arePasteActionsEnabled(model: ITextModel): boolean {
+	private arePasteActionsEnabled(model: ITextModel): boolean {
 		return this._configurationService.getValue('editor.experimental.pasteActions.enabled', {
 			resource: model.uri
 		});
+	}
+
+	private handleCopy(e: ClipboardEvent) {
+		if (!e.clipboardData || !this._editor.hasTextFocus()) {
+			return;
+		}
+
+		const model = this._editor.getModel();
+		const selections = this._editor.getSelections();
+		if (!model || !selections?.length) {
+			return;
+		}
+
+		if (!this.arePasteActionsEnabled(model)) {
+			return;
+		}
+
+		const providers = this._languageFeaturesService.documentPasteEditProvider.ordered(model).filter(x => !!x.prepareDocumentPaste);
+		if (!providers.length) {
+			return;
+		}
+
+		const dataTransfer = toVSDataTransfer(e.clipboardData);
+
+		// Save off a handle pointing to data that VS Code maintains.
+		const handle = generateUuid();
+		e.clipboardData.setData(vscodeClipboardMime, handle);
+
+		const promise = createCancelablePromise(async token => {
+			const results = await Promise.all(providers.map(provider => {
+				return provider.prepareDocumentPaste!(model, selections, dataTransfer, token);
+			}));
+
+			for (const result of results) {
+				result?.forEach((value, key) => {
+					dataTransfer.replace(key, value);
+				});
+			}
+
+			return dataTransfer;
+		});
+
+		this._currentClipboardItem?.dataTransferPromise.cancel();
+		this._currentClipboardItem = { handle: handle, dataTransferPromise: promise };
+	}
+
+	private async handlePaste(e: ClipboardEvent) {
+		if (!e.clipboardData || !this._editor.hasTextFocus()) {
+			return;
+		}
+
+		const selections = this._editor.getSelections();
+		if (!selections?.length || !this._editor.hasModel()) {
+			return;
+		}
+
+		const model = this._editor.getModel();
+		if (!this.arePasteActionsEnabled(model)) {
+			return;
+		}
+
+		const handle = e.clipboardData?.getData(vscodeClipboardMime);
+		if (typeof handle !== 'string') {
+			return;
+		}
+
+		const providers = this._languageFeaturesService.documentPasteEditProvider.ordered(model);
+		if (!providers.length) {
+			return;
+		}
+
+		e.preventDefault();
+		e.stopImmediatePropagation();
+
+		const originalDocVersion = model.getVersionId();
+		const tokenSource = new EditorStateCancellationTokenSource(this._editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection);
+
+		try {
+			const dataTransfer = toVSDataTransfer(e.clipboardData);
+
+			if (handle && this._currentClipboardItem?.handle === handle) {
+				const toMergeDataTransfer = await this._currentClipboardItem.dataTransferPromise;
+				toMergeDataTransfer.forEach((value, key) => {
+					dataTransfer.replace(key, value);
+				});
+			}
+
+			if (!dataTransfer.has(Mimes.uriList)) {
+				const resources = await this._clipboardService.readResources();
+				if (resources.length) {
+					const value = resources.join('\n');
+					dataTransfer.append(Mimes.uriList, createStringDataTransferItem(value));
+				}
+			}
+
+			dataTransfer.delete(vscodeClipboardMime);
+
+			for (const provider of [...providers, defaultPasteEditProvider]) {
+				if (!provider.pasteMimeTypes.some(type => {
+					if (type.toLowerCase() === DataTransfers.FILES.toLowerCase()) {
+						return [...dataTransfer.values()].some(item => item.asFile());
+					}
+					return dataTransfer.has(type);
+				})) {
+					continue;
+				}
+
+				const edit = await provider.provideDocumentPasteEdits(model, selections, dataTransfer, tokenSource.token);
+				if (originalDocVersion !== model.getVersionId()) {
+					return;
+				}
+
+				if (edit) {
+					performSnippetEdit(this._editor, typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet, selections);
+
+					if (edit.additionalEdit) {
+						await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor: this._editor });
+					}
+					return;
+				}
+			}
+		} finally {
+			tokenSource.dispose();
+		}
 	}
 }

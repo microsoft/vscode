@@ -483,7 +483,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			return Promise.resolve(ExperimentState.NoRun);
 		}
 
-		const isNewUser = !this.storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL);
+		const isNewUser = !this.storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION);
 		if ((condition.newUser === true && !isNewUser)
 			|| (condition.newUser === false && isNewUser)) {
 			return Promise.resolve(ExperimentState.NoRun);

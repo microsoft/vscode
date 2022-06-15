@@ -27,6 +27,7 @@ import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, getEnablementKey, IGlobalState, IRemoteUserData, IStorageValue, ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, SYNC_SERVICE_URL_TYPE, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreType, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
@@ -68,6 +69,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/globalState.json` });
 	protected readonly version: number = GLOBAL_STATE_DATA_VERSION;
 	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'globalState.json');
+	private readonly baseResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' });
 	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
 	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
@@ -123,9 +125,12 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			remoteChange: remote !== null ? Change.Modified : Change.None,
 		};
 
+		const localContent = stringify(localGlobalState, false);
 		return [{
+			baseResource: this.baseResource,
+			baseContent: lastSyncGlobalState ? stringify(lastSyncGlobalState, false) : localContent,
 			localResource: this.localResource,
-			localContent: stringify(localGlobalState, false),
+			localContent,
 			localUserData: localGlobalState,
 			remoteResource: this.remoteResource,
 			remoteContent: remoteGlobalState ? stringify(remoteGlobalState, false) : null,
@@ -206,8 +211,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [IGlobalStateResourcePreview, IGlobalStateResourceMergeResult][], force: boolean): Promise<void> {
-		let { localUserData } = resourcePreviews[0][0];
-		let { local, remote, localChange, remoteChange } = resourcePreviews[0][1];
+		const { localUserData } = resourcePreviews[0][0];
+		const { local, remote, localChange, remoteChange } = resourcePreviews[0][1];
 
 		if (localChange === Change.None && remoteChange === Change.None) {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing ui state.`);
@@ -247,7 +252,11 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			return stringify(localGlobalState, true);
 		}
 
-		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
+		if (this.extUri.isEqual(this.remoteResource, uri)
+			|| this.extUri.isEqual(this.baseResource, uri)
+			|| this.extUri.isEqual(this.localResource, uri)
+			|| this.extUri.isEqual(this.acceptedResource, uri)
+		) {
 			const content = await this.resolvePreviewContent(uri);
 			return content ? stringify(JSON.parse(content), true) : content;
 		}
@@ -387,11 +396,12 @@ export class GlobalStateInitializer extends AbstractInitializer {
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IFileService fileService: IFileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.GlobalState, environmentService, logService, fileService, uriIdentityService);
+		super(SyncResource.GlobalState, userDataProfilesService, environmentService, logService, fileService, uriIdentityService);
 	}
 
 	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {

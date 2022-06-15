@@ -544,6 +544,8 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 		super({
 			id: REVEAL_RUNNING_CELL,
 			title: localize('revealRunningCell', "Go To Running Cell"),
+			tooltip: localize('revealRunningCell', "Go To Running Cell"),
+			shortTitle: localize('revealRunningCellShort', "Go To"),
 			precondition: NOTEBOOK_HAS_RUNNING_CELL,
 			menu: [
 				{
@@ -587,7 +589,7 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 		if (executingCells[0]) {
 			const cell = context.notebookEditor.getCellByHandle(executingCells[0].cellHandle);
 			if (cell) {
-				context.notebookEditor.revealInCenter(cell);
+				context.notebookEditor.focusNotebookCell(cell, 'container');
 			}
 		}
 	}
