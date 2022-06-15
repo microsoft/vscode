@@ -449,6 +449,12 @@ export class MarkersView extends ViewPane implements IMarkersView {
 			this.filter.options,
 			{
 				accessibilityProvider: this.widgetAccessibilityProvider,
+				dnd: this.instantiationService.createInstance(ResourceListDnDHandler, (element) => {
+					if (element instanceof MarkerTableItem) {
+						return withSelection(element.resource, element.range);
+					}
+					return null;
+				}),
 				horizontalScrolling: false,
 				identityProvider: this.widgetIdentityProvider,
 				multipleSelectionSupport: true,
@@ -1007,6 +1013,8 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 				} else {
 					this.setFocus([this.findMarkerNode(selection[0])]);
 				}
+
+				this.reveal(this.findMarkerNode(selection[0]));
 			} else if (this.getSelection().length === 0) {
 				const firstVisibleElement = this.firstVisibleElement;
 				const marker = firstVisibleElement ?
@@ -1015,8 +1023,9 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 					: undefined;
 
 				if (marker) {
-					this.setFocus([marker]);
 					this.setSelection([marker]);
+					this.setFocus([marker]);
+					this.reveal(marker);
 				}
 			}
 		}

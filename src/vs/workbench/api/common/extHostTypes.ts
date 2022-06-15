@@ -2473,9 +2473,11 @@ export class DataTransfer {
 		this.#items.set(mimeType, [value]);
 	}
 
-	forEach(callbackfn: (value: DataTransferItem, key: string) => void, thisArg?: unknown): void {
+	forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
 		for (const [mime, items] of this.#items) {
-			items.forEach(item => callbackfn(item, mime), thisArg);
+			for (const item of items) {
+				callbackfn.call(thisArg, item, mime, this);
+			}
 		}
 	}
 }

@@ -220,10 +220,6 @@
 
 /* Table */
 
-.markers-panel .markers-table-container {
-	margin-top: 8px;
-}
-
 .markers-panel .markers-table-container .monaco-table .monaco-table-th {
 	display: flex;
 	font-weight: 600;
