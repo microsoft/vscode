@@ -330,10 +330,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		return scannedExtensions.map(e => toExtensionDescription(e, false)).filter(ext => {
 			// TODO: remove this once whe decoupled gitpod extensions from gp-code
 			const ignoreExtensions = [
-				'vscode.github-authentication',
 				'gitpod.gitpod-shared',
-				'gitpod.gitpod-remote-ssh',
-				'gitpod.gitpod-desktop'
+				'gitpod.gitpod-remote-ssh'
 			];
 			return !ignoreExtensions.includes(ext.identifier.value.toLowerCase());
 		});

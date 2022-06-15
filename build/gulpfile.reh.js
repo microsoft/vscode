@@ -396,12 +396,61 @@ function tweakProductForServerWeb(product) {
 			));
 			gulp.task(serverTaskCI);
 
+			/**
+			 * This dummy extension is a mock the for built-in extension called `github-authentication`.
+			 * In Gitpod we don't use the built-in extension (it's implemented inside gitpod-web extension)
+			 * but if this one is missing, it breaks the GitHub Authentication for extensions that depend
+			 * explicitly on `github-authentication` like `github.vscode-pull-request-github`
+			 */
+			const createDummyGitHubAuthExtensionTask = task.define('createDummyGitHubAuthExtensionTask', (done) => {
+				const dir = path.join(BUILD_ROOT, destinationFolderName, 'extensions', 'github-authentication');
+
+				if (!fs.existsSync(dir)) {
+					fs.mkdirSync(dir, { recursive: true });
+				}
+
+				const packageJsonContent = {
+					name: 'github-authentication',
+					displayName: 'GitHub Authentication',
+					description: 'Gitpod Override', // TODO: change
+					publisher: 'vscode',
+					license: 'MIT',
+					version: '0.0.2',
+					engines: {
+						vscode: '^1.41.0',
+					},
+					categories: ['Other'],
+					api: 'none',
+					extensionKind: ['ui', 'workspace'],
+					activationEvents: [
+						'onAuthenticationRequest:github',
+					],
+					capabilities: {
+						virtualWorkspaces: true,
+						untrustedWorkspaces: {
+							supported: true,
+						},
+					},
+					main: './extension.js',
+				};
+
+				const extensionJsContent = `module.exports = function activate() {}`;
+
+				fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(packageJsonContent, null, 2));
+				fs.writeFileSync(path.join(dir, 'extension.js'), extensionJsContent);
+
+				done();
+			});
+
+			gulp.task(createDummyGitHubAuthExtensionTask);
+
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				compileBuildTask,
 				compileExtensionsBuildTask,
 				compileExtensionMediaBuildTask,
 				minified ? minifyTask : optimizeTask,
-				serverTaskCI
+				serverTaskCI,
+				createDummyGitHubAuthExtensionTask
 			));
 			gulp.task(serverTask);
 		});
