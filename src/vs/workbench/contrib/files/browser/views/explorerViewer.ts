@@ -604,6 +604,7 @@ interface CachedParsedExpression {
  */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
+	private visibleExpressionPerRoot = new Map<string, CachedParsedExpression>();
 	private editorsAffectingFilter = new Set<EditorInput>();
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
@@ -709,7 +710,22 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
+			// Prepare include list created from negate pattern (same as in .gitignore) in files.exclude
+			let includesConfig: glob.IExpression = Object.create(null);
+			for (const key in excludesConfig) {
+				if (key.length > 1 && key[0] === '!') {
+					// populate include list from negated excludes
+					includesConfig[key.substring(1)] = excludesConfig[key];
+					delete excludesConfigCopy[key];
+				} else if (key.length > 2 && key[0] === '\\' && key[1] === '!') {
+					// update exclude list if `!` negate character is escaped with backslash
+					excludesConfigCopy[key.substring(1)] = excludesConfig[key];
+					delete excludesConfigCopy[key];
+				}
+			}
+
 			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
+			this.visibleExpressionPerRoot.set(folder.uri.toString(), { original: includesConfig, parsed: glob.parse(includesConfig) });
 		});
 
 		if (shouldFire || updatedGitIgnoreSetting) {
@@ -782,12 +798,14 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
 		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)));
+		const includesCached = this.visibleExpressionPerRoot.get(stat.root.resource.toString());
+		const globIncludesCached = includesCached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)));
 		// Small optimization to only traverse gitIgnore if the globMatch from fileExclude returned nothing
 		const ignoreFile = globMatch ? undefined : this.ignoreTreesPerRoot.get(stat.root.resource.toString())?.findSubstr(stat.resource);
 		const isIncludedInTraversal = ignoreFile?.isPathIncludedInTraversal(stat.resource.path, stat.isDirectory);
 		// Doing !undefined returns true and we want it to be false when undefined because that means it's not included in the ignore file
 		const isIgnoredByIgnoreFile = isIncludedInTraversal === undefined ? false : !isIncludedInTraversal;
-		if (isIgnoredByIgnoreFile || globMatch || stat.parent?.isExcluded) {
+		if (isIgnoredByIgnoreFile || (globMatch && !globIncludesCached) || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
 			const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
