@@ -1724,7 +1724,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._isExiting = false;
 			}
 			//TODO:@meganrogge does this break anything?
-			if (this.statusList.statuses.find(s => s.id === TerminalStatus.RelaunchNeeded)) {
+			if (reset) {
 				this.xterm.clearDecorations();
 			}
 		}
