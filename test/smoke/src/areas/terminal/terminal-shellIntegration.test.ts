@@ -28,38 +28,39 @@ export function setup() {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, process.platform === 'win32' ? 'PowerShell' : 'bash');
 		}
 
-		// TODO: These are currently flaky https://github.com/microsoft/vscode/issues/150478
-		describe.skip('Shell integration', function () {
-			describe('Decorations', function () {
-				describe('Should show default icons', function () {
-					it('Placeholder', async () => {
-						await createShellIntegrationProfile();
-						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+		for (let i = 0; i < 100; i++) {
+			describe(`Shell integration ${i}`, function () {
+				describe('Decorations', function () {
+					describe('Should show default icons', function () {
+						it('Placeholder', async () => {
+							await createShellIntegrationProfile();
+							await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+						});
+						it('Success', async () => {
+							await createShellIntegrationProfile();
+							await terminal.runCommandInTerminal(`ls`);
+							await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
+						});
+						it('Error', async () => {
+							await createShellIntegrationProfile();
+							await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+							await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
+						});
 					});
-					it('Success', async () => {
-						await createShellIntegrationProfile();
-						await terminal.runCommandInTerminal(`ls`);
-						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
-					});
-					it('Error', async () => {
-						await createShellIntegrationProfile();
-						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
-						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
-					});
-				});
-				describe('Custom configuration', function () {
-					it('Should update and show custom icons', async () => {
-						await createShellIntegrationProfile();
-						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
-						await terminal.runCommandInTerminal(`ls`);
-						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
-						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
-						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
-						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
-						await terminal.assertCommandDecorations(undefined, { updatedIcon: "zap", count: 3 });
+					describe('Custom configuration', function () {
+						it('Should update and show custom icons', async () => {
+							await createShellIntegrationProfile();
+							await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+							await terminal.runCommandInTerminal(`ls`);
+							await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+							await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
+							await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
+							await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
+							await terminal.assertCommandDecorations(undefined, { updatedIcon: "zap", count: 3 });
+						});
 					});
 				});
 			});
-		});
+		}
 	});
 }
