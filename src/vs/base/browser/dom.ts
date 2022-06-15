@@ -1685,18 +1685,6 @@ export function getCookieValue(name: string): string | undefined {
 	return match ? match.pop() : undefined;
 }
 
-export const enum ZIndex {
-	SASH = 35,
-	SuggestWidget = 40,
-	Hover = 50,
-	DragImage = 1000,
-	MenubarMenuItemsHolder = 2000, // quick-input-widget
-	ContextView = 2500,
-	ModalDialog = 2600,
-	PaneDropOverlay = 10000
-}
-
-
 export interface IDragAndDropObserverCallbacks {
 	readonly onDragEnter: (e: DragEvent) => void;
 	readonly onDragLeave: (e: DragEvent) => void;
