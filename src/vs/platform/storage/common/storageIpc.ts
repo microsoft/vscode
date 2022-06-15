@@ -24,8 +24,8 @@ export interface IBaseSerializableStorageRequest {
 	readonly profile: IUserDataProfileDto | undefined;
 
 	/**
-	 * Workspace to correlate storage. Can be undefined to denote
-	 * application or global scope depending on profile.
+	 * Workspace to correlate storage. Can be undefined to
+	 * denote application or global scope depending on profile.
 	 */
 	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
 }

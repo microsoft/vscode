@@ -31,7 +31,7 @@ export enum WillSaveStateReason {
 }
 
 export interface IWillSaveStateEvent {
-	reason: WillSaveStateReason;
+	readonly reason: WillSaveStateReason;
 }
 
 export interface IStorageService {
@@ -522,12 +522,15 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	async logStorage(): Promise<void> {
+		const applicationItems = this.getStorage(StorageScope.APPLICATION)?.items ?? new Map<string, string>();
 		const globalItems = this.getStorage(StorageScope.GLOBAL)?.items ?? new Map<string, string>();
 		const workspaceItems = this.getStorage(StorageScope.WORKSPACE)?.items ?? new Map<string, string>();
 
 		return logStorage(
+			applicationItems,
 			globalItems,
 			workspaceItems,
+			this.getLogDetails(StorageScope.APPLICATION) ?? '',
 			this.getLogDetails(StorageScope.GLOBAL) ?? '',
 			this.getLogDetails(StorageScope.WORKSPACE) ?? ''
 		);
@@ -553,9 +556,9 @@ export class InMemoryStorageService extends AbstractStorageService {
 	constructor() {
 		super();
 
-		this._register(this.applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
-		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
+		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		this._register(this.applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
 	}
 
 	protected getStorage(scope: StorageScope): IStorage {
@@ -587,7 +590,7 @@ export class InMemoryStorageService extends AbstractStorageService {
 	}
 }
 
-export async function logStorage(global: Map<string, string>, workspace: Map<string, string>, globalPath: string, workspacePath: string): Promise<void> {
+export async function logStorage(application: Map<string, string>, global: Map<string, string>, workspace: Map<string, string>, applicationPath: string, globalPath: string, workspacePath: string): Promise<void> {
 	const safeParse = (value: string) => {
 		try {
 			return JSON.parse(value);
@@ -595,6 +598,13 @@ export async function logStorage(global: Map<string, string>, workspace: Map<str
 			return value;
 		}
 	};
+
+	const applicationItems = new Map<string, string>();
+	const applicationItemsParsed = new Map<string, string>();
+	application.forEach((value, key) => {
+		applicationItems.set(key, value);
+		applicationItemsParsed.set(key, safeParse(value));
+	});
 
 	const globalItems = new Map<string, string>();
 	const globalItemsParsed = new Map<string, string>();
@@ -610,15 +620,31 @@ export async function logStorage(global: Map<string, string>, workspace: Map<str
 		workspaceItemsParsed.set(key, safeParse(value));
 	});
 
-	console.group(`Storage: Global (path: ${globalPath})`);
-	const globalValues: { key: string; value: string }[] = [];
-	globalItems.forEach((value, key) => {
-		globalValues.push({ key, value });
+	if (applicationPath !== globalPath) {
+		console.group(`Storage: Application (path: ${applicationPath})`);
+	} else {
+		console.group(`Storage: Application & Global (path: ${applicationPath}, default profile)`);
+	}
+	const applicationValues: { key: string; value: string }[] = [];
+	applicationItems.forEach((value, key) => {
+		applicationValues.push({ key, value });
 	});
-	console.table(globalValues);
+	console.table(applicationValues);
 	console.groupEnd();
 
-	console.log(globalItemsParsed);
+	console.log(applicationItemsParsed);
+
+	if (applicationPath !== globalPath) {
+		console.group(`Storage: Global (path: ${globalPath}, profile specific)`);
+		const globalValues: { key: string; value: string }[] = [];
+		globalItems.forEach((value, key) => {
+			globalValues.push({ key, value });
+		});
+		console.table(globalValues);
+		console.groupEnd();
+
+		console.log(globalItemsParsed);
+	}
 
 	console.group(`Storage: Workspace (path: ${workspacePath})`);
 	const workspaceValues: { key: string; value: string }[] = [];
