@@ -677,6 +677,18 @@ export function compareBy<TItem, TCompareBy>(selector: (item: TItem) => TCompare
 	return (a, b) => comparator(selector(a), selector(b));
 }
 
+export function tieBreakComparators<TItem>(...comparators: Comparator<TItem>[]): Comparator<TItem> {
+	return (item1, item2) => {
+		for (const comparator of comparators) {
+			const result = comparator(item1, item2);
+			if (!CompareResult.isNeitherLessOrGreaterThan(result)) {
+				return result;
+			}
+		}
+		return CompareResult.neitherLessOrGreaterThan;
+	};
+}
+
 /**
  * The natural order on numbers.
 */
