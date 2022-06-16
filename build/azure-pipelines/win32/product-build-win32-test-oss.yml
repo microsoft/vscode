@@ -138,3 +138,16 @@ steps:
           compile-extension:vscode-test-resolver `
         }
       displayName: Build integration tests
+
+    - powershell: |
+        $ErrorActionPreference = "Stop"
+        exec { .\scripts\test-integration.bat --tfs "Integration Tests" }
+      displayName: Run integration tests (Electron)
+      timeoutInMinutes: 20
+
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { .\scripts\test-web-integration.bat --browser firefox }
+      displayName: Run integration tests (Browser, Firefox)
+      timeoutInMinutes: 20
