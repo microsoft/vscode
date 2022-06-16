@@ -140,6 +140,7 @@ steps:
       displayName: Build integration tests
 
     - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { .\scripts\test-integration.bat --tfs "Integration Tests" }
       displayName: Run integration tests (Electron)
