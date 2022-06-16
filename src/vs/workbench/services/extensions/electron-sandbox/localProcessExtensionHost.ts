@@ -44,6 +44,7 @@ import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { generateUuid } from 'vs/base/common/uuid';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -150,6 +151,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 		@IProductService private readonly _productService: IProductService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IExtensionHostStarter protected readonly _extensionHostStarter: IExtensionHostStarter,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
