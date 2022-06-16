@@ -25,10 +25,7 @@ export interface ISettingOverrideClickEvent {
  * Renders the indicators next to a setting, such as "Also Modified In".
  */
 export class SettingsTreeIndicatorsLabel {
-	/**
-	 * This element wraps around the other elements.
-	 */
-	private labelElement: HTMLElement;
+	private indicatorsContainerElement: HTMLElement;
 	private scopeOverridesElement: HTMLElement;
 	private syncIgnoredElement: HTMLElement;
 	private defaultOverrideIndicatorElement: HTMLElement;
@@ -37,8 +34,8 @@ export class SettingsTreeIndicatorsLabel {
 	constructor(
 		container: HTMLElement,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService) {
-		this.labelElement = DOM.append(container, $('.misc-label'));
-		this.labelElement.style.display = 'inline';
+		this.indicatorsContainerElement = DOM.append(container, $('.misc-label'));
+		this.indicatorsContainerElement.style.display = 'inline';
 
 		this.scopeOverridesElement = this.createScopeOverridesElement();
 		this.syncIgnoredElement = this.createSyncIgnoredElement();
@@ -71,17 +68,17 @@ export class SettingsTreeIndicatorsLabel {
 			return element.style.display !== 'none';
 		});
 
-		this.labelElement.innerText = '';
-		this.labelElement.style.display = 'none';
+		this.indicatorsContainerElement.innerText = '';
+		this.indicatorsContainerElement.style.display = 'none';
 		if (elementsToShow.length) {
-			this.labelElement.style.display = 'inline';
-			DOM.append(this.labelElement, $('span', undefined, '('));
+			this.indicatorsContainerElement.style.display = 'inline';
+			DOM.append(this.indicatorsContainerElement, $('span', undefined, '('));
 			for (let i = 0; i < elementsToShow.length - 1; i++) {
-				DOM.append(this.labelElement, elementsToShow[i]);
-				DOM.append(this.labelElement, $('span.comma', undefined, ' • '));
+				DOM.append(this.indicatorsContainerElement, elementsToShow[i]);
+				DOM.append(this.indicatorsContainerElement, $('span.comma', undefined, ' • '));
 			}
-			DOM.append(this.labelElement, elementsToShow[elementsToShow.length - 1]);
-			DOM.append(this.labelElement, $('span', undefined, ')'));
+			DOM.append(this.indicatorsContainerElement, elementsToShow[elementsToShow.length - 1]);
+			DOM.append(this.indicatorsContainerElement, $('span', undefined, ')'));
 		}
 	}
 
