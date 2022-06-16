@@ -22,8 +22,6 @@ export function toVSDataTransfer(dataTransfer: DataTransfer) {
 			const file = item.getAsFile();
 			if (file) {
 				vsDataTransfer.append(type, createFileDataTransferItemFromFile(file));
-			} else {
-
 			}
 		}
 	}
@@ -53,7 +51,7 @@ export function addExternalEditorsDropData(dataTransfer: VSDataTransfer, dragEve
 		for (const item of dragEvent.dataTransfer?.items) {
 			const file = item.getAsFile();
 			if (file) {
-				editorData.push((file as FileAdditionalNativeProperties).path || file.name);
+				editorData.push((file as FileAdditionalNativeProperties).path ? URI.file((file as FileAdditionalNativeProperties).path!).toString() : file.name);
 			}
 		}
 

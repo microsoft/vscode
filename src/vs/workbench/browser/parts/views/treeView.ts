@@ -1494,39 +1494,21 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			willDropUuid = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype)![0].identifier;
 		}
 
-		await Promise.all([...originalEvent.dataTransfer.items].map(async dataItem => {
-			const type = dataItem.type;
-			const kind = dataItem.kind;
-			const convertedType = this.convertKnownMimes(type, kind).type;
-			if ((INTERNAL_MIME_TYPES.indexOf(convertedType) < 0)
-				&& (convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0)) {
-				if (dataItem.kind === 'string') {
-					await new Promise<void>(resolve =>
-						dataItem.getAsString(dataValue => {
-							if (convertedType === this.treeMimeType) {
-								treeSourceInfo = JSON.parse(dataValue);
-							}
-							if (dataValue) {
-								const converted = this.convertKnownMimes(type, kind, dataValue);
-								treeDataTransfer.append(converted.type, createStringDataTransferItem(converted.value + ''));
-							}
-							resolve();
-						}));
-				} else if (dataItem.kind === 'file') {
-					const file = dataItem.getAsFile();
-					if (file) {
-						uris.push(URI.file(file.path));
-						if (dndController.supportsFileDataTransfers) {
-							treeDataTransfer.append(type, createFileDataTransferItemFromFile(file));
-						}
+		const originalDataTransfer = toVSDataTransfer(originalEvent.dataTransfer);
+		addExternalEditorsDropData(originalDataTransfer, originalEvent);
+
+		const outDataTransfer = new VSDataTransfer();
+		for (const [type, item] of originalDataTransfer.entries()) {
+			if (type === this.treeMimeType || dndController.dropMimeTypes.indexOf(type) >= 0) {
+				outDataTransfer.append(type, item);
+				if (type === this.treeMimeType) {
+					try {
+						treeSourceInfo = JSON.parse(await item.asString());
+					} catch {
+						// noop
 					}
 				}
 			}
-		}));
-
-		// Check if there are uris to add and add them
-		if (uris.length) {
-			treeDataTransfer.replace(Mimes.uriList, createStringDataTransferItem(uris.map(uri => uri.toString()).join('\n')));
 		}
 
 		const additionalDataTransfer = await this.treeViewsDragAndDropService.removeDragOperationTransfer(willDropUuid);
