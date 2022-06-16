@@ -54,20 +54,27 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 	private readonly _onDidChange = new vscode.EventEmitter<void>();
 	public readonly onDidChange = this._onDidChange.event;
 
-	constructor(
-		private readonly _options: Partial<DiagnosticOptions>,
-	) { }
+	private _options: Partial<DiagnosticOptions>;
 
-	getOptions(_resource: vscode.Uri): DiagnosticOptions {
+	constructor(options: Partial<DiagnosticOptions>) {
+		this._options = options;
+	}
+
+	public getOptions(_resource: vscode.Uri): DiagnosticOptions {
 		return {
 			...defaultDiagnosticsOptions,
 			...this._options,
 		};
 	}
+
+	public update(newOptions: Partial<DiagnosticOptions>) {
+		this._options = newOptions;
+		this._onDidChange.fire();
+	}
 }
 
 class MemoryDiagnosticReporter extends DiagnosticReporter {
-	public readonly diagnostics = new ResourceMap<readonly vscode.Diagnostic[]>();
+	private readonly diagnostics = new ResourceMap<readonly vscode.Diagnostic[]>();
 
 	override dispose(): void {
 		super.clear();
@@ -83,9 +90,12 @@ class MemoryDiagnosticReporter extends DiagnosticReporter {
 		this.diagnostics.set(uri, diagnostics);
 	}
 
-	override delete(uri: vscode.Uri): void {
-		super.delete(uri);
+	delete(uri: vscode.Uri): void {
 		this.diagnostics.delete(uri);
+	}
+
+	get(uri: vscode.Uri): readonly vscode.Diagnostic[] {
+		return orderDiagnosticsByRange(this.diagnostics.get(uri) ?? []);
 	}
 }
 
@@ -434,6 +444,50 @@ suite('Markdown: Diagnostics manager', () => {
 		return manager;
 	}
 
+	test('Changing enable/disable should recompute diagnostics', async () => {
+		const doc1Uri = workspacePath('doc1.md');
+		const doc2Uri = workspacePath('doc2.md');
+		const workspace = new InMemoryWorkspaceMarkdownDocuments([
+			new InMemoryDocument(doc1Uri, joinLines(
+				`[text](#no-such-1)`,
+			)),
+			new InMemoryDocument(doc2Uri, joinLines(
+				`[text](#no-such-2)`,
+			))
+		]);
+
+		const reporter = new MemoryDiagnosticReporter();
+		const config = new MemoryDiagnosticConfiguration({ enabled: true });
+
+		const manager = createDiagnosticsManager(workspace, config, reporter);
+		await manager.ready;
+
+		// Check initial state (Enabled)
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
+			new vscode.Range(0, 7, 0, 17),
+		]);
+		assertDiagnosticsEqual(reporter.get(doc2Uri), [
+			new vscode.Range(0, 7, 0, 17),
+		]);
+
+		// Disable
+		config.update({ enabled: false });
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), []);
+		assertDiagnosticsEqual(reporter.get(doc2Uri), []);
+
+		// Enable
+		config.update({ enabled: true });
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
+			new vscode.Range(0, 7, 0, 17),
+		]);
+		assertDiagnosticsEqual(reporter.get(doc2Uri), [
+			new vscode.Range(0, 7, 0, 17),
+		]);
+	});
+
 	test('Should revalidate linked files when header changes', async () => {
 		const doc1Uri = workspacePath('doc1.md');
 		const doc1 = new InMemoryDocument(doc1Uri, joinLines(
@@ -454,11 +508,11 @@ suite('Markdown: Diagnostics manager', () => {
 		await manager.ready;
 
 		// Check initial state
-		await reporter.waitAllPending();
-		assertDiagnosticsEqual(reporter.diagnostics.get(doc1Uri)!, [
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
 			new vscode.Range(0, 7, 0, 15),
 		]);
-		assertDiagnosticsEqual(reporter.diagnostics.get(doc2Uri)!, [
+		assertDiagnosticsEqual(reporter.get(doc2Uri), [
 			new vscode.Range(2, 7, 2, 17),
 		]);
 
@@ -468,12 +522,12 @@ suite('Markdown: Diagnostics manager', () => {
 			`[text](#new-header)`,
 			`[text](#no-such-2)`,
 		)));
-		await reporter.waitAllPending();
-		assertDiagnosticsEqual(orderDiagnosticsByRange(reporter.diagnostics.get(doc1Uri)!), [
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
 			new vscode.Range(0, 7, 0, 15),
 			new vscode.Range(1, 15, 1, 22),
 		]);
-		assertDiagnosticsEqual(reporter.diagnostics.get(doc2Uri)!, [
+		assertDiagnosticsEqual(reporter.get(doc2Uri), [
 			new vscode.Range(2, 7, 2, 17),
 		]);
 
@@ -483,11 +537,11 @@ suite('Markdown: Diagnostics manager', () => {
 			`[text](#header)`,
 			`[text](#no-such-2)`,
 		)));
-		await reporter.waitAllPending();
-		assertDiagnosticsEqual(orderDiagnosticsByRange(reporter.diagnostics.get(doc1Uri)!), [
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
 			new vscode.Range(0, 7, 0, 15)
 		]);
-		assertDiagnosticsEqual(reporter.diagnostics.get(doc2Uri)!, [
+		assertDiagnosticsEqual(reporter.get(doc2Uri), [
 			new vscode.Range(2, 7, 2, 17),
 		]);
 	});
