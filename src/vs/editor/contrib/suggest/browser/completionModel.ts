@@ -41,7 +41,7 @@ export class CompletionModel {
 	private readonly _wordDistance: WordDistance;
 	private readonly _options: InternalSuggestOptions;
 	private readonly _snippetCompareFn = CompletionModel._compareCompletionItems;
-	private _fuzzyScoreOptions: FuzzyScoreOptions;
+	private readonly _fuzzyScoreOptions: FuzzyScoreOptions;
 
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
