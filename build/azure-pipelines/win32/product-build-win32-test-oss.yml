@@ -146,9 +146,44 @@ steps:
       displayName: Run integration tests (Electron)
       timeoutInMinutes: 20
 
+    # - powershell: |
+    #     . build/azure-pipelines/win32/exec.ps1
+    #     $ErrorActionPreference = "Stop"
+    #     exec { .\scripts\test-web-integration.bat --browser firefox }
+    #   displayName: Run integration tests (Browser, Firefox)
+    #   timeoutInMinutes: 20
+
+  - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
+    - script: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { yarn --cwd test/smoke compile }
+      displayName: Compile smoke tests
+
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        exec {.\build\azure-pipelines\win32\listprocesses.bat }
+      displayName: Diagnostics before smoke test run
+      continueOnError: true
+      condition: succeededOrFailed()
+
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { .\scripts\test-web-integration.bat --browser firefox }
-      displayName: Run integration tests (Browser, Firefox)
+        exec { yarn smoketest-no-compile --tracing }
+      displayName: Run smoke tests (Electron)
       timeoutInMinutes: 20
+
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        exec {.\build\azure-pipelines\win32\listprocesses.bat }
+      displayName: Diagnostics after smoke test run
+      continueOnError: true
+      condition: succeededOrFailed()
+
+  - task: PublishTestResults@2
+    displayName: Publish Tests Results
+    inputs:
+      testResultsFiles: "*-results.xml"
+      searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
+    condition: succeededOrFailed()
