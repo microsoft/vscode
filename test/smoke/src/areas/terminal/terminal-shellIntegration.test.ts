@@ -38,12 +38,12 @@ export function setup() {
 					});
 					it('Success', async () => {
 						await createShellIntegrationProfile();
-						await terminal.runCommandInTerminal(`ls`);
+						await terminal.runCommandInTerminal(`echo "Success"`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
 					});
 					it('Error', async () => {
 						await createShellIntegrationProfile();
-						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await terminal.runCommandInTerminal(`echo "Error"`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
 					});
 				});
@@ -51,8 +51,8 @@ export function setup() {
 					it('Should update and show custom icons', async () => {
 						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
-						await terminal.runCommandInTerminal(`ls`);
-						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await terminal.runCommandInTerminal(`echo "Success"`);
+						await terminal.runCommandInTerminal(`echo "Error"`);
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
