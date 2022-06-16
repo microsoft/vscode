@@ -57,12 +57,12 @@ stages:
   #           parameters:
   #             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-  - stage: Windows
+  - stage: Test
     dependsOn: []
-    pool: vscode-1es-vscode-windows-2019
     jobs:
       - job: WindowsUnitTests
-        displayName: Unit Tests
+        displayName: Windows (Unit Tests)
+        pool: vscode-1es-vscode-windows-2019
         timeoutInMinutes: 60
         variables:
           VSCODE_ARCH: x64
@@ -75,7 +75,8 @@ stages:
               VSCODE_RUN_INTEGRATION_TESTS: false
               VSCODE_RUN_SMOKE_TESTS: false
       - job: WindowsIntegrationTests
-        displayName: Integration Tests
+        displayName: Windows (Integration Tests)
+        pool: vscode-1es-vscode-windows-2019
         timeoutInMinutes: 60
         variables:
           VSCODE_ARCH: x64
@@ -88,7 +89,8 @@ stages:
               VSCODE_RUN_INTEGRATION_TESTS: true
               VSCODE_RUN_SMOKE_TESTS: false
       - job: WindowsSmokeTests
-        displayName: Smoke Tests
+        displayName: Windows (Smoke Tests)
+        pool: vscode-1es-vscode-windows-2019
         timeoutInMinutes: 60
         variables:
           VSCODE_ARCH: x64

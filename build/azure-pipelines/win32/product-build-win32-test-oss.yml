@@ -154,7 +154,7 @@ steps:
     #   timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
-    - script: |
+    - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { yarn --cwd test/smoke compile }
