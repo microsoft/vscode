@@ -347,4 +347,26 @@ if (isWeb) {
 			vendorId: device.vendorId,
 		};
 	});
+
+	interface HidDeviceData {
+		readonly opened: boolean;
+		readonly vendorId: number;
+		readonly productId: number;
+		readonly productName: string;
+		readonly collections: [];
+	}
+	CommandsRegistry.registerCommand('workbench.experimental.requestHidDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<HidDeviceData | undefined> => {
+		const devices = await (navigator as any).hid.requestDevice({ filters: options?.filters ?? [] });
+		if (!devices.length) {
+			return undefined;
+		}
+		const device = devices[0];
+		return {
+			opened: device.opened,
+			vendorId: device.vendorId,
+			productId: device.productId,
+			productName: device.productName,
+			collections: device.collections
+		};
+	});
 }
