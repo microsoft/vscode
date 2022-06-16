@@ -456,7 +456,7 @@ export class DiagnosticComputer {
 
 	public async getDiagnostics(doc: SkinnyTextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<{ readonly diagnostics: vscode.Diagnostic[]; readonly links: MdLink[] }> {
 		const links = await this.linkComputer.getAllLinks(doc, token);
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || !options.enabled) {
 			return { links, diagnostics: [] };
 		}
 
