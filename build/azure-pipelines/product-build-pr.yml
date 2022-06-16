@@ -105,7 +105,7 @@ stages:
       - job: Linuxx64UnitTest
         displayName: Linux (Unit Tests)
         pool: vscode-1es-vscode-linux-18.04
-        container: vscode-bionic-x64
+        # container: vscode-bionic-x64
         timeoutInMinutes: 60
         variables:
           VSCODE_ARCH: x64
@@ -122,7 +122,7 @@ stages:
       - job: Linuxx64IntegrationTest
         displayName: Linux (Integration Tests)
         pool: vscode-1es-vscode-linux-18.04
-        container: vscode-bionic-x64
+        # container: vscode-bionic-x64
         timeoutInMinutes: 60
         variables:
           VSCODE_ARCH: x64
@@ -139,7 +139,7 @@ stages:
       - job: Linuxx64SmokeTest
         displayName: Linux (Smoke Tests)
         pool: vscode-1es-vscode-linux-18.04
-        container: vscode-bionic-x64
+        # container: vscode-bionic-x64
         timeoutInMinutes: 60
         variables:
           VSCODE_ARCH: x64
