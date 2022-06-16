@@ -331,7 +331,7 @@
 							"vs/base/~",
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
-							"tas-client-umd" // node module allowed even in /common/,
+							"tas-client-umd" // node module allowed even in /common/
 						]
 					},
 					{
