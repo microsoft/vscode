@@ -178,8 +178,7 @@ function loadTests(opts) {
 
 		suite('Tests are using suiteSetup and setup correctly', () => {
 			test('assertCleanState - check that registries are clean at the start of test running', () => {
-				fail('Testing...');
-				// assertCleanState();
+				assertCleanState();
 			});
 		});
 
