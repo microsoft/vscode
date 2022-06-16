@@ -157,7 +157,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		}
 
 		// Clear our associated global storage data
-		this.globalStorageDisposables.dispose();
+		this.globalStorageDisposables.clear();
 		this.globalStorage = undefined;
 		this.globalStorageDatabase = undefined;
 
