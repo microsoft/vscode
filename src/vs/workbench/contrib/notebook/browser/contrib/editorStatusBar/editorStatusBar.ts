@@ -36,7 +36,6 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Codicon } from 'vs/base/common/codicons';
 
@@ -108,7 +107,6 @@ registerAction2(class extends Action2 {
 	): Promise<boolean> {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
-		const storageService = accessor.get(IStorageService);
 		const productService = accessor.get(IProductService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const labelService = accessor.get(ILabelService);
@@ -283,7 +281,6 @@ registerAction2(class extends Action2 {
 				await this._showKernelExtension(
 					paneCompositeService,
 					extensionWorkbenchService,
-					storageService,
 					notebook.viewType
 				);
 				// suggestedExtension must be defined for this option to be shown, but still check to make TS happy
@@ -291,7 +288,6 @@ registerAction2(class extends Action2 {
 				await this._showKernelExtension(
 					paneCompositeService,
 					extensionWorkbenchService,
-					storageService,
 					notebook.viewType,
 					suggestedExtension.extensionId,
 					productService.quality !== 'stable'
@@ -340,7 +336,6 @@ registerAction2(class extends Action2 {
 	private async _showKernelExtension(
 		paneCompositePartService: IPaneCompositePartService,
 		extensionWorkbenchService: IExtensionsWorkbenchService,
-		storageService: IStorageService,
 		viewType: string,
 		extId?: string,
 		isInsiders?: boolean
@@ -351,13 +346,7 @@ registerAction2(class extends Action2 {
 			const canInstall = await extensionWorkbenchService.canInstall(extension);
 			// If we can install then install it, otherwise we will fall out into searching the viewlet
 			if (canInstall) {
-				// TODO @lramos15, possibly move this to be a static function of the GettingStartedService
-				// const skippedWalkthroughs: string[] = JSON.parse(storageService.get(skipWalkthroughOnInstallKey, StorageScope.GLOBAL, '[]'));
-				// TODO @lramos15 possibly recursively resolve nested packs
-				// skippedWalkthroughs.push(extId.toLowerCase(), ...extension.extensionPack);
-				// storageService.store(skipWalkthroughOnInstallKey, JSON.stringify(skippedWalkthroughs), StorageScope.GLOBAL, StorageTarget.USER);
 				await extensionWorkbenchService.install(extension, { progressLocation: ProgressLocation.Notification, installPreReleaseVersion: isInsiders ?? false });
-				// Add the extension to the skipped walkthroughs list so we don't auto open it. It will be auto opened next startup
 				return;
 			}
 		}
