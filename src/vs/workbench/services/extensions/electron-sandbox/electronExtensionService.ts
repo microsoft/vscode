@@ -594,6 +594,12 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		// Dispose everything associated with the extension host
 		this.stopExtensionHosts();
 
+		// Dispose the management connection to avoid reconnecting after the extension host exits
+		const connection = this._remoteAgentService.getConnection();
+		if (connection) {
+			connection.dispose();
+		}
+
 		if (this._isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code
 			this._nativeHostService.exit(code);
