@@ -18,7 +18,7 @@ import { ResourceMap } from '../util/resourceMap';
 import { MdTableOfContentsWatcher } from '../test/tableOfContentsWatcher';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref, LinkDefinitionSet, MdLink, MdLinkComputer, MdLinkSource } from './documentLinkProvider';
-import { MdReferencesProvider, tryFindMdDocumentForLink } from './references';
+import { MdReferencesComputer, tryFindMdDocumentForLink } from './references';
 
 const localize = nls.loadMessageBundle();
 
@@ -311,7 +311,7 @@ export class DiagnosticManager extends Disposable {
 		private readonly computer: DiagnosticComputer,
 		private readonly configuration: DiagnosticConfiguration,
 		private readonly reporter: DiagnosticReporter,
-		private readonly referencesProvider: MdReferencesProvider,
+		private readonly referencesComputer: MdReferencesComputer,
 		delay = 300,
 	) {
 		super();
@@ -350,7 +350,7 @@ export class DiagnosticManager extends Disposable {
 		this._register(this.tableOfContentsWatcher.onTocChanged(async e => {
 			// When the toc of a document changes, revalidate every file that linked to it too
 			const triggered = new ResourceMap<void>();
-			for (const ref of await this.referencesProvider.getAllReferencesToFile(e.uri, noopToken)) {
+			for (const ref of await this.referencesComputer.getAllReferencesToFile(e.uri, noopToken)) {
 				const file = ref.location.uri;
 				if (!triggered.has(file)) {
 					this.triggerDiagnostics(file);
@@ -627,7 +627,7 @@ export function register(
 	workspaceContents: MdWorkspaceContents,
 	linkComputer: MdLinkComputer,
 	commandManager: CommandManager,
-	referenceProvider: MdReferencesProvider,
+	referenceComputer: MdReferencesComputer,
 ): vscode.Disposable {
 	const configuration = new VSCodeDiagnosticConfiguration();
 	const manager = new DiagnosticManager(
@@ -636,7 +636,7 @@ export function register(
 		new DiagnosticComputer(engine, workspaceContents, linkComputer),
 		configuration,
 		new DiagnosticCollectionReporter(),
-		referenceProvider);
+		referenceComputer);
 	return vscode.Disposable.from(
 		configuration,
 		manager,
