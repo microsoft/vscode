@@ -130,7 +130,7 @@ export const testingConfiguation: IConfigurationNode = {
 			description: localize('testing.openTesting', "Controls when the testing view should open.")
 		},
 		[TestingConfigKeys.AlwaysRevealTestOnStateChange]: {
-			description: localize('testing.alwaysRevealTestOnStateChange', "Always reveal the test in the tree view when its state has changed"),
+			markdownDescription: localize('testing.alwaysRevealTestOnStateChange', "Always reveal the executed test when `#testing.followRunningTest#` is on. If this setting is turned off, only failed tests will be revealed."),
 			type: 'boolean',
 			default: false,
 		},
