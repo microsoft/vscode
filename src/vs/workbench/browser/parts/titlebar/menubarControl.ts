@@ -505,6 +505,7 @@ export class CustomMenubarControl extends MenubarControl {
 					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title,
 					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title {
 						outline-color: ${menubarSelectedBorderColor};
+						outline-offset: -1px;
 					}
 				`);
 			}
