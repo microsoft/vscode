@@ -347,4 +347,20 @@ if (isWeb) {
 			vendorId: device.vendorId,
 		};
 	});
+
+	interface SerialPortInfoData {
+		readonly usbVendorId?: number | undefined;
+		readonly usbProductId?: number | undefined;
+	}
+	CommandsRegistry.registerCommand('workbench.experimental.requestSerialPort', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<SerialPortInfoData | undefined> => {
+		const port = await (navigator as any).serial.requestPort({ filters: options?.filters ?? [] });
+		if (!port) {
+			return undefined;
+		}
+		const info = port.getInfo();
+		return {
+			usbVendorId: info.usbVendorId,
+			usbProductId: info.usbProductId
+		};
+	});
 }
