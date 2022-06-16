@@ -910,7 +910,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					eventCounter = 0;
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.End, task));
 					toDispose.dispose();
-					terminal?.write(`\x1b]633;D;${exitCode}\x07`);
 					resolve({ exitCode: exitCode ?? undefined });
 				});
 			});
@@ -993,7 +992,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.Inactive, task));
 					this._fireTaskEvent(TaskEvent.create(TaskEventKind.End, task));
-					terminal?.write(`\x1b]633;D;${exitCode}\x07`);
 					resolve({ exitCode: exitCode ?? undefined });
 				});
 			});
@@ -1016,7 +1014,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return needsFolderQualification ? task.getQualifiedLabel() : (task.configurationProperties.name || '');
 	}
 
-	private async _createShellLaunchConfig(task: CustomTask | ContributedTask, workspaceFolder: IWorkspaceFolder | undefined, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): Promise<IShellLaunchConfig | undefined> {
+	private async _createShellLaunchConfig(task: CustomTask | ContributedTask, workspaceFolder: IWorkspaceFolder | undefined, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string | ((exitCode: number) => string)): Promise<IShellLaunchConfig | undefined> {
 		let shellLaunchConfig: IShellLaunchConfig;
 		const isShellCommand = task.command.runtime === RuntimeType.Shell;
 		const needsFolderQualification = this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
@@ -1245,7 +1243,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const options = await this._resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
 
-		let waitOnExit: boolean | string = false;
+		let waitOnExit: boolean | string | ((exitCode: number) => string) = false;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
 		}
@@ -1253,9 +1251,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if ((presentationOptions.close === undefined) || (presentationOptions.close === false)) {
 			if ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground || (presentationOptions.close === false)) {
 				if (presentationOptions.panel === PanelKind.New) {
-					waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
+					waitOnExit = taskShellIntegrationWaitOnExitSequence(nls.localize('closeTerminal', 'Press any key to close the terminal.'));
 				} else if (presentationOptions.showReuseMessage) {
-					waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
+					waitOnExit = taskShellIntegrationWaitOnExitSequence(nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.'));
 				} else {
 					waitOnExit = true;
 				}
@@ -1706,4 +1704,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const outputChannel = this._outputService.getChannel(this._outputChannelId);
 		outputChannel?.append(output);
 	}
+}
+
+function taskShellIntegrationWaitOnExitSequence(message: string): (exitCode: number) => string {
+	return (exitCode) => {
+		return `\x1b]633;D;${exitCode}\x07${message}`;
+	};
 }

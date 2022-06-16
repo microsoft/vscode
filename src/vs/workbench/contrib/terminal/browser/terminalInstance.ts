@@ -1626,8 +1626,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (exitMessage) {
 					xterm.raw.write(formatMessageForTerminal(exitMessage));
 				}
-				if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
-					xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit, { excludeLeadingNewLine: true }));
+				switch (typeof this._shellLaunchConfig.waitOnExit) {
+					case 'string':
+						xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit, { excludeLeadingNewLine: true }));
+						break;
+					case 'function':
+						if (this.exitCode !== undefined) {
+							xterm.raw.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit(this.exitCode), { excludeLeadingNewLine: true }));
+						}
+						break;
 				}
 				// Disable all input if the terminal is exiting and listen for next keypress
 				xterm.raw.options.disableStdin = true;
@@ -1683,10 +1690,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}, 20);
 		});
-	}
-
-	public write(data: string): void {
-		this.xterm?.raw.write(data);
 	}
 
 	private _attachPressAnyKeyToCloseListener(xterm: XTermTerminal) {
