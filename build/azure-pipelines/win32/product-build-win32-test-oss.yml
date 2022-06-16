@@ -97,6 +97,7 @@ steps:
       exec { yarn electron $(VSCODE_ARCH) }
       exec { .\scripts\test.bat --tfs "Unit Tests" }
     displayName: Run unit tests (Electron)
+    continueOnError: true
     timeoutInMinutes: 15
 
   - powershell: |
@@ -104,6 +105,7 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { yarn test-node }
     displayName: Run unit tests (node.js)
+    continueOnError: true
     timeoutInMinutes: 15
 
   - powershell: |
@@ -111,4 +113,5 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { node test/unit/browser/index.js --sequential --browser chromium --browser firefox --tfs "Browser Unit Tests" }
     displayName: Run unit tests (Browser, Chromium & Firefox)
+    continueOnError: true
     timeoutInMinutes: 20
