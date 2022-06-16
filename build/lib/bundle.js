@@ -42,14 +42,20 @@ function bundle(entryPoints, config, callback) {
     if (!config.paths['vs/css']) {
         config.paths['vs/css'] = 'out-build/vs/css.build';
     }
+    config.buildForceInvokeFactory = config.buildForceInvokeFactory || {};
+    config.buildForceInvokeFactory['vs/nls'] = true;
+    config.buildForceInvokeFactory['vs/css'] = true;
     loader.config(config);
     loader(['require'], (localRequire) => {
-        const resolvePath = (path) => {
-            const r = localRequire.toUrl(path);
-            if (!/\.js/.test(r)) {
-                return r + '.js';
+        const resolvePath = (entry) => {
+            let r = localRequire.toUrl(entry.path);
+            if (!r.endsWith('.js')) {
+                r += '.js';
             }
-            return r;
+            // avoid packaging the build version of plugins:
+            r = r.replace('vs/nls.build.js', 'vs/nls.js');
+            r = r.replace('vs/css.build.js', 'vs/css.js');
+            return { path: r, amdModuleId: entry.amdModuleId };
         };
         for (const moduleId in entryPointsMap) {
             const entryPoint = entryPointsMap[moduleId];
@@ -330,10 +336,13 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, 
             plugin.writeFile(pluginName, entryPoint, req, write, {});
         }
     });
-    const toIFile = (path) => {
-        const contents = readFileAndRemoveBOM(path);
+    const toIFile = (entry) => {
+        let contents = readFileAndRemoveBOM(entry.path);
+        if (entry.amdModuleId) {
+            contents = contents.replace(/^define\(/m, `define("${entry.amdModuleId}",`);
+        }
         return {
-            path: path,
+            path: entry.path,
             contents: contents
         };
     };

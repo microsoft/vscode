@@ -15,7 +15,7 @@ import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferences } from './languageFeatures/fileReferences';
 import { MdFoldingProvider } from './languageFeatures/foldingProvider';
 import { MdPathCompletionProvider } from './languageFeatures/pathCompletions';
-import { MdReferencesProvider } from './languageFeatures/references';
+import { MdReferencesComputer, registerReferencesProvider } from './languageFeatures/references';
 import { MdRenameProvider } from './languageFeatures/rename';
 import { MdSmartSelect } from './languageFeatures/smartSelect';
 import { MdWorkspaceSymbolProvider } from './languageFeatures/workspaceSymbolProvider';
@@ -66,22 +66,22 @@ function registerMarkdownLanguageFeatures(
 	const linkComputer = new MdLinkComputer(engine);
 	const workspaceContents = new VsCodeMdWorkspaceContents();
 
-	const referencesProvider = new MdReferencesProvider(linkComputer, workspaceContents, engine, githubSlugifier);
+	const referencesComputer = new MdReferencesComputer(linkComputer, workspaceContents, engine, githubSlugifier);
 	return vscode.Disposable.from(
 		workspaceContents,
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
 		vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine)),
 		vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine)),
 		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, workspaceContents)),
-		vscode.languages.registerReferenceProvider(selector, referencesProvider),
-		vscode.languages.registerRenameProvider(selector, new MdRenameProvider(referencesProvider, workspaceContents, githubSlugifier)),
-		vscode.languages.registerDefinitionProvider(selector, new MdDefinitionProvider(referencesProvider)),
+		vscode.languages.registerRenameProvider(selector, new MdRenameProvider(referencesComputer, workspaceContents, githubSlugifier)),
+		vscode.languages.registerDefinitionProvider(selector, new MdDefinitionProvider(referencesComputer)),
 		MdPathCompletionProvider.register(selector, engine, linkComputer),
 		registerDocumentLinkProvider(selector, linkComputer),
-		registerDiagnostics(selector, engine, workspaceContents, linkComputer, commandManager),
+		registerDiagnostics(selector, engine, workspaceContents, linkComputer, commandManager, referencesComputer),
 		registerDropIntoEditor(selector),
+		registerReferencesProvider(selector, referencesComputer),
 		registerPasteProvider(selector),
-		registerFindFileReferences(commandManager, referencesProvider),
+		registerFindFileReferences(commandManager, referencesComputer),
 	);
 }
 

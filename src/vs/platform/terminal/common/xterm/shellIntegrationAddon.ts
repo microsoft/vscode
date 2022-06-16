@@ -238,6 +238,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
 						return true;
 					}
+					case 'Task': {
+						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
+					}
 				}
 			}
 		}
