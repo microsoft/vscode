@@ -13,10 +13,13 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { autorunHandleChanges, derivedObservable, derivedObservableWithCache, IObservable, ITransaction, keepAlive, ObservableValue, transaction, waitForState } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/diffComputer';
-import { LineRangeEdit, LineRange, ModifiedBaseRange, ModifiedBaseRangeState, RangeEdit, DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model';
-import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'vs/workbench/contrib/mergeEditor/browser/textModelDiffs';
+import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { DetailedLineRangeMapping, DocumentMapping, LineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
+import { LineRangeEdit, RangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/editing';
+import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
+import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'vs/workbench/contrib/mergeEditor/browser/model/textModelDiffs';
 import { concatArrays, leftJoin, elementAtOrUndefined } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { ModifiedBaseRange, ModifiedBaseRangeState } from './modifiedBaseRange';
 
 export const enum MergeEditorModelState {
 	initializing = 1,
@@ -73,6 +76,40 @@ export class MergeEditorModel extends EditorModel {
 			return map;
 		});
 
+	public readonly input1ResultMapping = derivedObservable('input1ResultMapping', reader => {
+		const resultDiffs = this.resultDiffs.read(reader);
+		const modifiedBaseRanges = DocumentMapping.betweenOutputs(this.input1LinesDiffs.read(reader), resultDiffs, this.input1.getLineCount());
+
+		return new DocumentMapping(
+			modifiedBaseRanges.lineRangeMappings.map((m) =>
+				m.inputRange.isEmpty || m.outputRange.isEmpty
+					? new LineRangeMapping(
+						m.inputRange.deltaStart(-1),
+						m.outputRange.deltaStart(-1)
+					)
+					: m
+			),
+			modifiedBaseRanges.inputLineCount
+		);
+	});
+
+	public readonly input2ResultMapping = derivedObservable('input2ResultMapping', reader => {
+		const resultDiffs = this.resultDiffs.read(reader);
+		const modifiedBaseRanges = DocumentMapping.betweenOutputs(this.input2LinesDiffs.read(reader), resultDiffs, this.input2.getLineCount());
+
+		return new DocumentMapping(
+			modifiedBaseRanges.lineRangeMappings.map((m) =>
+				m.inputRange.isEmpty || m.outputRange.isEmpty
+					? new LineRangeMapping(
+						m.inputRange.deltaStart(-1),
+						m.outputRange.deltaStart(-1)
+					)
+					: m
+			),
+			modifiedBaseRanges.inputLineCount
+		);
+	});
+
 	constructor(
 		readonly base: ITextModel,
 		readonly input1: ITextModel,
@@ -87,6 +124,8 @@ export class MergeEditorModel extends EditorModel {
 		super();
 
 		this._register(keepAlive(this.modifiedBaseRangeStateStores));
+		this._register(keepAlive(this.input1ResultMapping));
+		this._register(keepAlive(this.input2ResultMapping));
 
 		this._register(
 			autorunHandleChanges(

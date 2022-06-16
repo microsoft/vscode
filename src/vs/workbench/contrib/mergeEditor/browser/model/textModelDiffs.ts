@@ -8,7 +8,9 @@ import { BugIndicatingError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { LineRangeEdit, LineRange, DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model';
+import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
+import { LineRangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/editing';
+import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { IDiffComputer } from './diffComputer';
 
