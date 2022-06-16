@@ -5,6 +5,7 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/languages';
+import { CodeMenuOpenedFrom } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -121,10 +122,9 @@ export interface CodeActionTrigger {
 	readonly context?: {
 		readonly notAvailableMessage: string;
 		readonly position: Position;
-		readonly triggerAction?: string;
 	};
 	readonly preview?: boolean;
-	readonly triggerAction?: string;
+	readonly triggerAction?: CodeMenuOpenedFrom;
 }
 
 export class CodeActionCommandArgs {
