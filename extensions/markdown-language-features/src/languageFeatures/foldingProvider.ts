@@ -111,3 +111,10 @@ const isFoldableToken = (token: Token): token is MarkdownItTokenWithMap => {
 			return false;
 	}
 };
+
+export function registerFoldingSupport(
+	selector: vscode.DocumentSelector,
+	engine: MarkdownEngine,
+): vscode.Disposable {
+	return vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine));
+}

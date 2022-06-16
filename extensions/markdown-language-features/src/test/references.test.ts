@@ -6,9 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkComputer } from '../languageFeatures/documentLinkProvider';
-import { MdReferencesComputer, MdVsCodeReferencesProvider } from '../languageFeatures/references';
-import { githubSlugifier } from '../slugify';
+import { MdReferencesProvider, MdVsCodeReferencesProvider } from '../languageFeatures/references';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
@@ -19,8 +17,7 @@ import { joinLines, workspacePath } from './util';
 
 function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspaceContents: MdWorkspaceContents) {
 	const engine = createNewMarkdownEngine();
-	const linkComputer = new MdLinkComputer(engine);
-	const computer = new MdReferencesComputer(linkComputer, workspaceContents, engine, githubSlugifier);
+	const computer = new MdReferencesProvider(engine, workspaceContents);
 	const provider = new MdVsCodeReferencesProvider(computer);
 	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
 }

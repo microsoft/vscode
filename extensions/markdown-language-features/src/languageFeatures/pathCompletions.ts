@@ -9,7 +9,7 @@ import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import { SkinnyTextDocument } from '../workspaceContents';
-import { MdLinkComputer } from './documentLinkProvider';
+import { MdLinkProvider } from './documentLinkProvider';
 
 enum CompletionContextKind {
 	/** `[...](|)` */
@@ -76,19 +76,14 @@ function tryDecodeUriComponent(str: string): string {
 	}
 }
 
-export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
-
-	public static register(
-		selector: vscode.DocumentSelector,
-		engine: MarkdownEngine,
-		linkComputer: MdLinkComputer,
-	): vscode.Disposable {
-		return vscode.languages.registerCompletionItemProvider(selector, new MdPathCompletionProvider(engine, linkComputer), '.', '/', '#');
-	}
+/**
+ * Adds path completions in markdown files by implementing {@link vscode.CompletionItemProvider}.
+ */
+export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProvider {
 
 	constructor(
 		private readonly engine: MarkdownEngine,
-		private readonly linkComputer: MdLinkComputer,
+		private readonly linkProvider: MdLinkProvider,
 	) { }
 
 	public async provideCompletionItems(document: SkinnyTextDocument, position: vscode.Position, _token: vscode.CancellationToken, _context: vscode.CompletionContext): Promise<vscode.CompletionItem[]> {
@@ -240,8 +235,8 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		const insertionRange = new vscode.Range(context.linkTextStartPosition, position);
 		const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 
-		const definitions = await this.linkComputer.getLinkDefinitions(document);
-		for (const def of definitions) {
+		const { definitions } = await this.linkProvider.getLinks(document);
+		for (const [_, def] of definitions) {
 			yield {
 				kind: vscode.CompletionItemKind.Reference,
 				label: def.ref.text,
@@ -350,4 +345,12 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 
 		return document.uri;
 	}
+}
+
+export function registerPathCompletionSupport(
+	selector: vscode.DocumentSelector,
+	engine: MarkdownEngine,
+	linkProvider: MdLinkProvider,
+): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider(selector, new MdVsCodePathCompletionProvider(engine, linkProvider), '.', '/', '#');
 }
