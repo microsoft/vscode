@@ -394,7 +394,7 @@ export class DiagnosticComputer {
 		return {
 			links,
 			diagnostics: (await Promise.all([
-				this.validateFileLinks(doc, options, links, token),
+				this.validateFileLinks(options, links, token),
 				Array.from(this.validateReferenceLinks(options, links)),
 				this.validateFragmentLinks(doc, options, links, token),
 			])).flat()
@@ -415,6 +415,7 @@ export class DiagnosticComputer {
 		const diagnostics: vscode.Diagnostic[] = [];
 		for (const link of links) {
 			if (link.href.kind === 'internal'
+				&& link.source.text.startsWith('#')
 				&& link.href.path.toString() === doc.uri.toString()
 				&& link.href.fragment
 				&& !toc.lookup(link.href.fragment)
@@ -449,14 +450,15 @@ export class DiagnosticComputer {
 		}
 	}
 
-	private async validateFileLinks(doc: SkinnyTextDocument, options: DiagnosticOptions, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+	private async validateFileLinks(options: DiagnosticOptions, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
 		const pathErrorSeverity = toSeverity(options.validateFileLinks);
 		if (typeof pathErrorSeverity === 'undefined') {
 			return [];
 		}
 		const fragmentErrorSeverity = toSeverity(typeof options.validateMarkdownFileLinkFragments === 'undefined' ? options.validateFragmentLinks : options.validateMarkdownFileLinkFragments);
 
-		const linkSet = new FileLinkMap(links);
+		// We've already validated our own fragment links in `validateOwnHeaderLinks`
+		const linkSet = new FileLinkMap(links.filter(link => !link.source.text.startsWith('#')));
 		if (linkSet.size === 0) {
 			return [];
 		}
@@ -472,11 +474,6 @@ export class DiagnosticComputer {
 					}
 
 					const hrefDoc = await tryFindMdDocumentForLink({ kind: 'internal', path: path, fragment: '' }, this.workspaceContents);
-					if (hrefDoc && hrefDoc.uri.toString() === doc.uri.toString()) {
-						// We've already validated our own links in `validateOwnHeaderLinks`
-						return;
-					}
-
 					if (!hrefDoc && !await this.workspaceContents.pathExists(path)) {
 						const msg = localize('invalidPathLink', 'File does not exist at path: {0}', path.fsPath);
 						for (const link of links) {
