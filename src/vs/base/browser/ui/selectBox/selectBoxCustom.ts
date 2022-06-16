@@ -287,6 +287,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		// Mirror options in drop-down
 		// Populate select list for non-native select mode
 		this.selectList?.splice(0, this.selectList.length, this.options);
+		this.selectList?.setSelection([this.selected]);
 	}
 
 	public select(index: number): void {
