@@ -10,7 +10,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ./build/update-grammars.js"
+    "update-grammar": "node ./build/update-grammars.mjs"
   },
   "contributes": {
     "languages": [
@@ -50,6 +50,12 @@
           "jsconfig.*.json",
           "tsconfig-*.json",
           "jsconfig-*.json"
+        ]
+      },
+      {
+        "id": "json",
+        "filenames": [
+          "tsconfig.tsbuildinfo"
         ]
       }
     ],

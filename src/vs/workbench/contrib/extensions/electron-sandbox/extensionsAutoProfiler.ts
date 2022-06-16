@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService, IResponsiveStateChangeEvent, IExtensionHostProfile, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IResponsiveStateChangeEvent, IExtensionHostProfile, ProfileSession, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -46,8 +46,11 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 	}
 
 	private async _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): Promise<void> {
+		if (event.extensionHostKind !== ExtensionHostKind.LocalProcess) {
+			return;
+		}
 
-		const port = await this._extensionService.getInspectPort(true);
+		const port = await this._extensionService.getInspectPort(event.extensionHostId, true);
 
 		if (!port) {
 			return;
@@ -108,8 +111,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 		let data: NamedSlice[] = [];
 		for (let i = 0; i < profile.ids.length; i++) {
-			let id = profile.ids[i];
-			let total = profile.deltas[i];
+			const id = profile.ids[i];
+			const total = profile.deltas[i];
 			data.push({ id, total, percentage: 0 });
 		}
 
@@ -152,15 +155,17 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile.data)));
 		this._logService.warn(`UNRESPONSIVE extension host: '${top.id}' took ${top.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
 
-
-		/* __GDPR__
-			"exthostunresponsive" : {
-				"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-			}
-		*/
-		this._telemetryService.publicLog('exthostunresponsive', {
+		type UnresponsiveData = {
+			duration: number;
+			data: NamedSlice[];
+		};
+		type UnresponsiveDataClassification = {
+			owner: 'jrieken';
+			comment: 'Profiling data that was collected while the extension host was unresponsive';
+			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration for which the extension host was unresponsive' };
+			data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Extensions ids and core parts that were active while the extension host was froozen' };
+		};
+		this._telemetryService.publicLog2<UnresponsiveData, UnresponsiveDataClassification>('exthostunresponsive', {
 			duration,
 			data,
 		});

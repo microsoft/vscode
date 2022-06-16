@@ -26,6 +26,8 @@ export interface IRPCProtocol {
 	 * Wait for the write buffer (if applicable) to become empty.
 	 */
 	drain(): Promise<void>;
+
+	dispose(): void;
 }
 
 export class ProxyIdentifier<T> {

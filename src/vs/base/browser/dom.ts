@@ -73,6 +73,9 @@ export interface IAddStandardDisposableListenerSignature {
 	(node: HTMLElement, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'pointerdown', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'pointermove', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'pointerup', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 }
 function _wrapAsStandardMouseEvent(handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
@@ -85,7 +88,7 @@ function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e:
 		return handler(new StandardKeyboardEvent(e));
 	};
 }
-export let addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export const addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	let wrapHandler = handler;
 
 	if (type === 'click' || type === 'mousedown') {
@@ -97,14 +100,14 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
-export let addStandardDisposableGenericMouseDownListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+export const addStandardDisposableGenericMouseDownListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	const wrapHandler = _wrapAsStandardMouseEvent(handler);
 
 	return addDisposableGenericMouseDownListener(node, wrapHandler, useCapture);
 };
 
-export let addStandardDisposableGenericMouseUpListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+export const addStandardDisposableGenericMouseUpListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	const wrapHandler = _wrapAsStandardMouseEvent(handler);
 
 	return addDisposableGenericMouseUpListener(node, wrapHandler, useCapture);
 };
@@ -255,7 +258,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	 */
 	let inAnimationFrameRunner = false;
 
-	let animationFrameRunner = () => {
+	const animationFrameRunner = () => {
 		animFrameRequested = false;
 
 		CURRENT_QUEUE = NEXT_QUEUE;
@@ -264,14 +267,14 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner = true;
 		while (CURRENT_QUEUE.length > 0) {
 			CURRENT_QUEUE.sort(AnimationFrameQueueItem.sort);
-			let top = CURRENT_QUEUE.shift()!;
+			const top = CURRENT_QUEUE.shift()!;
 			top.execute();
 		}
 		inAnimationFrameRunner = false;
 	};
 
 	scheduleAtNextAnimationFrame = (runner: () => void, priority: number = 0) => {
-		let item = new AnimationFrameQueueItem(runner, priority);
+		const item = new AnimationFrameQueueItem(runner, priority);
 		NEXT_QUEUE.push(item);
 
 		if (!animFrameRequested) {
@@ -284,7 +287,7 @@ class AnimationFrameQueueItem implements IDisposable {
 
 	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, priority?: number) => {
 		if (inAnimationFrameRunner) {
-			let item = new AnimationFrameQueueItem(runner, priority);
+			const item = new AnimationFrameQueueItem(runner, priority);
 			CURRENT_QUEUE!.push(item);
 			return item;
 		} else {
@@ -320,9 +323,9 @@ class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 
 		let lastEvent: R | null = null;
 		let lastHandlerTime = 0;
-		let timeout = this._register(new TimeoutTimer());
+		const timeout = this._register(new TimeoutTimer());
 
-		let invokeHandler = () => {
+		const invokeHandler = () => {
 			lastHandlerTime = (new Date()).getTime();
 			handler(<R>lastEvent);
 			lastEvent = null;
@@ -331,7 +334,7 @@ class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 		this._register(addDisposableListener(node, type, (e) => {
 
 			lastEvent = eventMerger(lastEvent, e);
-			let elapsedTime = (new Date()).getTime() - lastHandlerTime;
+			const elapsedTime = (new Date()).getTime() - lastHandlerTime;
 
 			if (elapsedTime >= minimumTimeMs) {
 				timeout.cancel();
@@ -389,7 +392,7 @@ class SizeUtils {
 	}
 
 	private static getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
-		let computedStyle: CSSStyleDeclaration = getComputedStyle(element);
+		const computedStyle: CSSStyleDeclaration = getComputedStyle(element);
 		let value = '0';
 		if (computedStyle) {
 			if (computedStyle.getPropertyValue) {
@@ -565,13 +568,31 @@ export function position(element: HTMLElement, top: number, right?: number, bott
  * Returns the position of a dom node relative to the entire page.
  */
 export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
-	let bb = domNode.getBoundingClientRect();
+	const bb = domNode.getBoundingClientRect();
 	return {
 		left: bb.left + StandardWindow.scrollX,
 		top: bb.top + StandardWindow.scrollY,
 		width: bb.width,
 		height: bb.height
 	};
+}
+
+/**
+ * Returns the effective zoom on a given element before window zoom level is applied
+ */
+export function getDomNodeZoomLevel(domNode: HTMLElement): number {
+	let testElement: HTMLElement | null = domNode;
+	let zoom = 1.0;
+	do {
+		const elementZoomLevel = (getComputedStyle(testElement) as any).zoom;
+		if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
+			zoom *= elementZoomLevel;
+		}
+
+		testElement = testElement.parentElement;
+	} while (testElement !== null && testElement !== document.documentElement);
+
+	return zoom;
 }
 
 export interface IStandardWindow {
@@ -602,33 +623,33 @@ export const StandardWindow: IStandardWindow = new class implements IStandardWin
 // Adapted from WinJS
 // Gets the width of the element, including margins.
 export function getTotalWidth(element: HTMLElement): number {
-	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
+	const margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
 	return element.offsetWidth + margin;
 }
 
 export function getContentWidth(element: HTMLElement): number {
-	let border = SizeUtils.getBorderLeftWidth(element) + SizeUtils.getBorderRightWidth(element);
-	let padding = SizeUtils.getPaddingLeft(element) + SizeUtils.getPaddingRight(element);
+	const border = SizeUtils.getBorderLeftWidth(element) + SizeUtils.getBorderRightWidth(element);
+	const padding = SizeUtils.getPaddingLeft(element) + SizeUtils.getPaddingRight(element);
 	return element.offsetWidth - border - padding;
 }
 
 export function getTotalScrollWidth(element: HTMLElement): number {
-	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
+	const margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
 	return element.scrollWidth + margin;
 }
 
 // Adapted from WinJS
 // Gets the height of the content of the specified element. The content height does not include borders or padding.
 export function getContentHeight(element: HTMLElement): number {
-	let border = SizeUtils.getBorderTopWidth(element) + SizeUtils.getBorderBottomWidth(element);
-	let padding = SizeUtils.getPaddingTop(element) + SizeUtils.getPaddingBottom(element);
+	const border = SizeUtils.getBorderTopWidth(element) + SizeUtils.getBorderBottomWidth(element);
+	const padding = SizeUtils.getPaddingTop(element) + SizeUtils.getPaddingBottom(element);
 	return element.offsetHeight - border - padding;
 }
 
 // Adapted from WinJS
 // Gets the height of the element, including its margins.
 export function getTotalHeight(element: HTMLElement): number {
-	let margin = SizeUtils.getMarginTop(element) + SizeUtils.getMarginBottom(element);
+	const margin = SizeUtils.getMarginTop(element) + SizeUtils.getMarginBottom(element);
 	return element.offsetHeight + margin;
 }
 
@@ -638,16 +659,16 @@ function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
 		return 0;
 	}
 
-	let elementPosition = getTopLeftOffset(element);
-	let parentPosition = getTopLeftOffset(parent);
+	const elementPosition = getTopLeftOffset(element);
+	const parentPosition = getTopLeftOffset(parent);
 	return elementPosition.left - parentPosition.left;
 }
 
 export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[]): number {
-	let childWidths = children.map((child) => {
+	const childWidths = children.map((child) => {
 		return Math.max(getTotalScrollWidth(child), getTotalWidth(child)) + getRelativeLeft(child, parent) || 0;
 	});
-	let maxWidth = Math.max(...childWidths);
+	const maxWidth = Math.max(...childWidths);
 	return maxWidth;
 }
 
@@ -766,7 +787,7 @@ export function getActiveElement(): Element | null {
 }
 
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
-	let style = document.createElement('style');
+	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
 	container.appendChild(style);
@@ -774,7 +795,7 @@ export function createStyleSheet(container: HTMLElement = document.getElementsBy
 }
 
 export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
-	let meta = document.createElement('meta');
+	const meta = document.createElement('meta');
 	container.appendChild(meta);
 	return meta;
 }
@@ -812,10 +833,10 @@ export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLSt
 		return;
 	}
 
-	let rules = getDynamicStyleSheetRules(style);
-	let toDelete: number[] = [];
+	const rules = getDynamicStyleSheetRules(style);
+	const toDelete: number[] = [];
 	for (let i = 0; i < rules.length; i++) {
-		let rule = rules[i];
+		const rule = rules[i];
 		if (rule.selectorText.indexOf(ruleName) !== -1) {
 			toDelete.push(i);
 		}
@@ -925,7 +946,7 @@ export interface IFocusTracker extends Disposable {
 }
 
 export function saveParentsScrollTop(node: Element): number[] {
-	let r: number[] = [];
+	const r: number[] = [];
 	for (let i = 0; node && node.nodeType === node.ELEMENT_NODE; i++) {
 		r[i] = node.scrollTop;
 		node = <Element>node.parentNode;
@@ -985,7 +1006,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 		};
 
 		this._refreshStateHandler = () => {
-			let currentNodeHasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
+			const currentNodeHasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
 			if (currentNodeHasFocus !== hasFocus) {
 				if (hasFocus) {
 					onBlur();
@@ -1045,7 +1066,7 @@ export enum Namespace {
 }
 
 function _$<T extends Element>(namespace: Namespace, description: string, attrs?: { [key: string]: any }, ...children: Array<Node | string>): T {
-	let match = SELECTOR_REGEX.exec(description);
+	const match = SELECTOR_REGEX.exec(description);
 
 	if (!match) {
 		throw new Error('Bad use of emmet');
@@ -1053,7 +1074,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 
 	attrs = { ...(attrs || {}) };
 
-	let tagName = match[1] || 'div';
+	const tagName = match[1] || 'div';
 	let result: T;
 
 	if (namespace !== Namespace.HTML) {
@@ -1120,14 +1141,14 @@ export function join(nodes: Node[], separator: Node | string): Node[] {
 }
 
 export function show(...elements: HTMLElement[]): void {
-	for (let element of elements) {
+	for (const element of elements) {
 		element.style.display = '';
 		element.removeAttribute('aria-hidden');
 	}
 }
 
 export function hide(...elements: HTMLElement[]): void {
-	for (let element of elements) {
+	for (const element of elements) {
 		element.style.display = 'none';
 		element.setAttribute('aria-hidden', 'true');
 	}
@@ -1155,7 +1176,7 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	// typically never want that, rather put focus to the closest element
 	// in the hierarchy of the parent DOM nodes.
 	if (document.activeElement === node) {
-		let parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
+		const parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
 		if (parentFocusable) {
 			parentFocusable.focus();
 		}
@@ -1286,7 +1307,7 @@ RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? '
 /**
  * returns url('...')
  */
-export function asCSSUrl(uri: URI): string {
+export function asCSSUrl(uri: URI | null | undefined): string {
 	if (!uri) {
 		return `url('')`;
 	}
@@ -1415,6 +1436,49 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 // -- sanitize and trusted html
 
 /**
+ * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
+ * attributes are valid.
+ */
+export function hookDomPurifyHrefAndSrcSanitizer(allowedProtocols: readonly string[], allowDataImages = false): IDisposable {
+	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
+
+	// build an anchor to map URLs to
+	const anchor = document.createElement('a');
+
+	dompurify.addHook('afterSanitizeAttributes', (node) => {
+		// check all href/src attributes for validity
+		for (const attr of ['href', 'src']) {
+			if (node.hasAttribute(attr)) {
+				const attrValue = node.getAttribute(attr) as string;
+				if (attr === 'href' && attrValue.startsWith('#')) {
+					// Allow fragment links
+					continue;
+				}
+
+				anchor.href = attrValue;
+				if (!allowedProtocols.includes(anchor.protocol.replace(/:$/, ''))) {
+					if (allowDataImages && attr === 'src' && anchor.href.startsWith('data:')) {
+						continue;
+					}
+
+					node.removeAttribute(attr);
+				}
+			}
+		}
+	});
+
+	return toDisposable(() => {
+		dompurify.removeHook('afterSanitizeAttributes');
+	});
+}
+
+const defaultSafeProtocols = [
+	Schemas.http,
+	Schemas.https,
+	Schemas.command,
+];
+
+/**
  * Sanitizes the given `value` and reset the given `node` with it.
  */
 export function safeInnerHtml(node: HTMLElement, value: string): void {
@@ -1425,29 +1489,12 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 		RETURN_DOM_FRAGMENT: false,
 	};
 
-	const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
-
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// build an anchor to map URLs to
-		const anchor = document.createElement('a');
-
-		// check all href/src attributes for validity
-		for (const attr in ['href', 'src']) {
-			if (node.hasAttribute(attr)) {
-				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedProtocols.includes(anchor.protocol)) {
-					node.removeAttribute(attr);
-				}
-			}
-		}
-	});
-
+	const hook = hookDomPurifyHrefAndSrcSanitizer(defaultSafeProtocols);
 	try {
 		const html = dompurify.sanitize(value, { ...options, RETURN_TRUSTED_TYPE: true });
 		node.innerHTML = html as unknown as string;
 	} finally {
-		dompurify.removeHook('afterSanitizeAttributes');
+		hook.dispose();
 	}
 }
 
@@ -1638,18 +1685,79 @@ export function getCookieValue(name: string): string | undefined {
 	return match ? match.pop() : undefined;
 }
 
-export function addMatchMediaChangeListener(query: string, callback: () => void): void {
-	const mediaQueryList = window.matchMedia(query);
-	mediaQueryList.addEventListener('change', callback);
+export interface IDragAndDropObserverCallbacks {
+	readonly onDragEnter: (e: DragEvent) => void;
+	readonly onDragLeave: (e: DragEvent) => void;
+	readonly onDrop: (e: DragEvent) => void;
+	readonly onDragEnd: (e: DragEvent) => void;
+	readonly onDragOver?: (e: DragEvent, dragDuration: number) => void;
 }
 
-export const enum ZIndex {
-	SASH = 35,
-	SuggestWidget = 40,
-	Hover = 50,
-	DragImage = 1000,
-	MenubarMenuItemsHolder = 2000, // quick-input-widget
-	ContextView = 2500,
-	ModalDialog = 2600,
-	PaneDropOverlay = 10000
+export class DragAndDropObserver extends Disposable {
+
+	// A helper to fix issues with repeated DRAG_ENTER / DRAG_LEAVE
+	// calls see https://github.com/microsoft/vscode/issues/14470
+	// when the element has child elements where the events are fired
+	// repeadedly.
+	private counter: number = 0;
+
+	// Allows to measure the duration of the drag operation.
+	private dragStartTime = 0;
+
+	constructor(private readonly element: HTMLElement, private readonly callbacks: IDragAndDropObserverCallbacks) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(addDisposableListener(this.element, EventType.DRAG_ENTER, (e: DragEvent) => {
+			this.counter++;
+			this.dragStartTime = e.timeStamp;
+
+			this.callbacks.onDragEnter(e);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
+			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
+			this.callbacks.onDragOver?.(e, e.timeStamp - this.dragStartTime);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_LEAVE, (e: DragEvent) => {
+			this.counter--;
+
+			if (this.counter === 0) {
+				this.dragStartTime = 0;
+
+				this.callbacks.onDragLeave(e);
+			}
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
+			this.counter = 0;
+			this.dragStartTime = 0;
+
+			this.callbacks.onDragEnd(e);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
+			this.counter = 0;
+			this.dragStartTime = 0;
+
+			this.callbacks.onDrop(e);
+		}));
+	}
+}
+
+export function computeClippingRect(elementOrRect: HTMLElement | DOMRectReadOnly, clipper: HTMLElement) {
+	const frameRect = (elementOrRect instanceof HTMLElement ? elementOrRect.getBoundingClientRect() : elementOrRect);
+	const rootRect = clipper.getBoundingClientRect();
+
+	const top = Math.max(rootRect.top - frameRect.top, 0);
+	const right = Math.max(frameRect.width - (frameRect.right - rootRect.right), 0);
+	const bottom = Math.max(frameRect.height - (frameRect.bottom - rootRect.bottom), 0);
+	const left = Math.max(rootRect.left - frameRect.left, 0);
+
+	return { top, right, bottom, left };
 }

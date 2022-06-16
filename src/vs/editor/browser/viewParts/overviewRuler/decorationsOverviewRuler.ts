@@ -30,7 +30,7 @@ class Settings {
 	public readonly hideCursor: boolean;
 	public readonly cursorColor: string | null;
 
-	public readonly themeType: 'light' | 'dark' | 'hc';
+	public readonly themeType: 'light' | 'dark' | 'hcLight' | 'hcDark';
 	public readonly backgroundColor: string | null;
 
 	public readonly top: number;
@@ -62,9 +62,15 @@ class Settings {
 		const minimapOpts = options.get(EditorOption.minimap);
 		const minimapEnabled = minimapOpts.enabled;
 		const minimapSide = minimapOpts.side;
-		const backgroundColor = minimapEnabled
-			? theme.getColor(editorOverviewRulerBackground) || TokenizationRegistry.getDefaultBackground()
-			: null;
+		const themeColor = theme.getColor(editorOverviewRulerBackground);
+		const defaultBackground = TokenizationRegistry.getDefaultBackground();
+		let backgroundColor: Color | null = null;
+
+		if (themeColor !== undefined) {
+			backgroundColor = themeColor;
+		} else if (minimapEnabled) {
+			backgroundColor = defaultBackground;
+		}
 
 		if (backgroundColor === null || minimapSide === 'left') {
 			this.backgroundColor = null;

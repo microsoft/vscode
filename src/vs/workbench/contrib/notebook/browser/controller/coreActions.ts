@@ -10,14 +10,13 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, cellRangeToViewCells } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { flatten } from 'vs/base/common/arrays';
 import { TypeConstraint } from 'vs/base/common/types';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
@@ -43,8 +42,7 @@ export const enum CellToolbarOrder {
 export const enum CellOverflowToolbarGroups {
 	Copy = '1_copy',
 	Insert = '2_insert',
-	Edit = '3_edit',
-	Collapse = '4_collapse',
+	Edit = '3_edit'
 }
 
 export interface INotebookActionContext {
@@ -278,7 +276,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 	abstract override runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
 }
 
-export const executeNotebookCondition = ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0);
+export const executeNotebookCondition = ContextKeyExpr.or(ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0), ContextKeyExpr.greater(NOTEBOOK_KERNEL_SOURCE_COUNT.key, 0));
 
 interface IMultiCellArgs {
 	ranges: ICellRange[];
@@ -335,7 +333,7 @@ export function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args:
 		}
 
 		const ranges = firstArg.ranges;
-		const selectedCells = flatten(ranges.map(range => editor.getCellsInRange(range).slice(0)));
+		const selectedCells = ranges.map(range => editor.getCellsInRange(range).slice(0)).flat();
 		const autoReveal = firstArg.autoReveal;
 		return {
 			ui: false,

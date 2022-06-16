@@ -96,10 +96,10 @@ export class VariablesView extends ViewPane {
 			const viewState = this.savedViewState.get(stackFrame.getId());
 			await this.tree.setInput(stackFrame, viewState);
 
-			// Automatically expand the first scope if it is not expensive and if all scopes are collapsed
+			// Automatically expand the first non-expensive scope
 			const scopes = await stackFrame.getScopes();
 			const toExpand = scopes.find(s => !s.expensive);
-			if (toExpand && (scopes.every(s => this.tree.isCollapsed(s)) || !this.autoExpandedScopes.has(toExpand.getId()))) {
+			if (toExpand) {
 				this.autoExpandedScopes.add(toExpand.getId());
 				await this.tree.expand(toExpand);
 			}
@@ -170,9 +170,10 @@ export class VariablesView extends ViewPane {
 				horizontalScrolling = undefined;
 			}
 		}));
-		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(e => {
+		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
 			if (e instanceof Variable) {
-				this.tree.updateChildren(e, false, true);
+				await this.tree.updateChildren(e, false, true);
+				await this.tree.expand(e);
 			}
 		}));
 		this._register(this.debugService.onDidEndSession(() => {
@@ -196,7 +197,7 @@ export class VariablesView extends ViewPane {
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
 		const session = this.debugService.getViewModel().focusedSession;
-		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable && !e.element.presentationHint?.attributes?.includes('readOnly')) {
+		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable && !e.element.presentationHint?.attributes?.includes('readOnly') && !e.element.presentationHint?.lazy) {
 			this.debugService.getViewModel().setSelectedExpression(e.element, false);
 		}
 	}
@@ -279,7 +280,7 @@ function getContextForVariableMenu(parentContext: IContextKeyService, variable: 
 		[CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT.key, variable.variableMenuContext || ''],
 		[CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.key, !!variable.evaluateName],
 		[CONTEXT_CAN_VIEW_MEMORY.key, !!session?.capabilities.supportsReadMemoryRequest && variable.memoryReference !== undefined],
-		[CONTEXT_VARIABLE_IS_READONLY.key, !!variable.presentationHint?.attributes?.includes('readOnly')],
+		[CONTEXT_VARIABLE_IS_READONLY.key, !!variable.presentationHint?.attributes?.includes('readOnly') || variable.presentationHint?.lazy],
 		...additionalContext,
 	];
 
@@ -540,6 +541,7 @@ CommandsRegistry.registerCommand({
 		if (ext || await tryInstallHexEditor(notifications, progressService, extensionService, commandService)) {
 			/* __GDPR__
 				"debug/didViewMemory" : {
+					"owner": "connor4312",
 					"debugType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/

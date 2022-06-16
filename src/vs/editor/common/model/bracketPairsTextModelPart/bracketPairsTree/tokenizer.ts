@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { NotSupportedError } from 'vs/base/common/errors';
-import { StandardTokenType, TokenMetadata } from 'vs/editor/common/languages';
+import { StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { BracketAstNode, TextAstNode } from './ast';
 import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';
@@ -54,7 +54,10 @@ export interface ITokenizerSource {
 	getValue(): string;
 	getLineCount(): number;
 	getLineLength(lineNumber: number): number;
-	getLineTokens(lineNumber: number): IViewLineTokens;
+
+	tokenization: {
+		getLineTokens(lineNumber: number): IViewLineTokens;
+	};
 }
 
 export class TextBufferTokenizer implements Tokenizer {
@@ -166,7 +169,7 @@ class NonPeekableTextBufferTokenizer {
 		}
 
 		if (this.line === null) {
-			this.lineTokens = this.textModel.getLineTokens(this.lineIdx + 1);
+			this.lineTokens = this.textModel.tokenization.getLineTokens(this.lineIdx + 1);
 			this.line = this.lineTokens.getLineContent();
 			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
 		}
@@ -192,10 +195,11 @@ class NonPeekableTextBufferTokenizer {
 				}
 
 				const isOther = TokenMetadata.getTokenType(tokenMetadata) === StandardTokenType.Other;
+				const containsBracketType = TokenMetadata.containsBalancedBrackets(tokenMetadata);
 
 				const endOffset = lineTokens.getEndOffset(this.lineTokenOffset);
 				// Is there a bracket token next? Only consume text.
-				if (isOther && endOffset !== this.lineCharOffset) {
+				if (containsBracketType && isOther && this.lineCharOffset < endOffset) {
 					const languageId = lineTokens.getLanguageId(this.lineTokenOffset);
 					const text = this.line.substring(this.lineCharOffset, endOffset);
 
@@ -238,7 +242,7 @@ class NonPeekableTextBufferTokenizer {
 					break;
 				}
 				this.lineIdx++;
-				this.lineTokens = this.textModel.getLineTokens(this.lineIdx + 1);
+				this.lineTokens = this.textModel.tokenization.getLineTokens(this.lineIdx + 1);
 				this.lineTokenOffset = 0;
 				this.line = this.lineTokens.getLineContent();
 				this.lineCharOffset = 0;
@@ -276,7 +280,7 @@ export class FastTokenizer implements Tokenizer {
 
 	constructor(private readonly text: string, brackets: BracketTokens) {
 		const regExpStr = brackets.getRegExpStr();
-		const regexp = regExpStr ? new RegExp(brackets.getRegExpStr() + '|\n', 'g') : null;
+		const regexp = regExpStr ? new RegExp(regExpStr + '|\n', 'gi') : null;
 
 		const tokens: Token[] = [];
 

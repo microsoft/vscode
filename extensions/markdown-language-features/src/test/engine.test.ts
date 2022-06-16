@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 
 
 const testFileName = vscode.Uri.file('test.md');

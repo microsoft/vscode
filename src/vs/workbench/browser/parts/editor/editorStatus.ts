@@ -10,7 +10,7 @@ import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { Action, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
@@ -733,7 +733,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private onLanguageChange(editorWidget: ICodeEditor | undefined, editorInput: EditorInput | undefined): void {
-		let info: StateDelta = { type: 'languageId', languageId: undefined };
+		const info: StateDelta = { type: 'languageId', languageId: undefined };
 
 		// We only support text based editors
 		if (editorWidget && editorInput && toEditorWithLanguageSupport(editorInput)) {
@@ -837,7 +837,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			if (info.selections.length === 1) {
 				const editorPosition = editorWidget.getPosition();
 
-				let selectionClone = new Selection(
+				const selectionClone = new Selection(
 					info.selections[0].selectionStartLineNumber,
 					info.selections[0].selectionStartColumn,
 					info.selections[0].positionLineNumber,
@@ -1202,7 +1202,7 @@ export class ChangeLanguageAction extends Action {
 						if (resource) {
 							// Detect languages since we are in an untitled file
 							let languageId: string | undefined = withNullAsUndefined(this.languageService.guessLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
-							if (!languageId) {
+							if (!languageId || languageId === 'unknown') {
 								detectedLanguage = await this.languageDetectionService.detectLanguage(resource);
 								languageId = detectedLanguage;
 							}
@@ -1222,9 +1222,13 @@ export class ChangeLanguageAction extends Action {
 							if (detectedLanguageId === currentLanguageId && currentLanguageId !== chosenLanguageId) {
 								// If they didn't choose the detected language (which should also be the active language if automatic detection is enabled)
 								// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
+								// Keep track of what model was preferred and length of input to help track down potential differences between the result quality across models and content size.
+								const modelPreference = this.configurationService.getValue<boolean>('workbench.editor.preferHistoryBasedLanguageDetection') ? 'history' : 'classic';
 								this.telemetryService.publicLog2<IAutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>(AutomaticLanguageDetectionLikelyWrongId, {
 									currentLanguageId: currentLanguageName ?? 'unknown',
-									nextLanguageId: pick.label
+									nextLanguageId: pick.label,
+									lineCount: textModel?.getLineCount() ?? -1,
+									modelPreference,
 								});
 							}
 						});
@@ -1234,14 +1238,40 @@ export class ChangeLanguageAction extends Action {
 				// Change language
 				if (typeof languageSelection !== 'undefined') {
 					languageSupport.setLanguageId(languageSelection.languageId);
+
+					if (resource?.scheme === Schemas.untitled) {
+						type SetUntitledDocumentLanguageEvent = { to: string; from: string; modelPreference: string };
+						type SetUntitledDocumentLanguageClassification = {
+							to: {
+								classification: 'SystemMetaData';
+								purpose: 'FeatureInsight';
+								owner: 'JacksonKearl';
+								comment: 'Help understand effectiveness of automatic language detection';
+							};
+							from: {
+								classification: 'SystemMetaData';
+								purpose: 'FeatureInsight';
+								owner: 'JacksonKearl';
+								comment: 'Help understand effectiveness of automatic language detection';
+							};
+							modelPreference: {
+								classification: 'SystemMetaData';
+								purpose: 'FeatureInsight';
+								owner: 'JacksonKearl';
+								comment: 'Help understand effectiveness of automatic language detection';
+							};
+						};
+						const modelPreference = this.configurationService.getValue<boolean>('workbench.editor.preferHistoryBasedLanguageDetection') ? 'history' : 'classic';
+						this.telemetryService.publicLog2<SetUntitledDocumentLanguageEvent, SetUntitledDocumentLanguageClassification>('setUntitledDocumentLanguage', {
+							to: languageSelection.languageId,
+							from: currentLanguageId ?? 'none',
+							modelPreference,
+						});
+					}
 				}
 			}
 
 			activeTextEditorControl.focus();
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-				id: ChangeLanguageAction.ID,
-				from: data?.from || 'quick open'
-			});
 		}
 	}
 
@@ -1476,7 +1506,7 @@ export class ChangeEncodingAction extends Action {
 		}
 
 		const activeEncodingSupport = toEditorWithEncodingSupport(this.editorService.activeEditorPane.input);
-		if (typeof encoding.id !== 'undefined' && activeEncodingSupport && activeEncodingSupport.getEncoding() !== encoding.id) {
+		if (typeof encoding.id !== 'undefined' && activeEncodingSupport) {
 			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 		}
 

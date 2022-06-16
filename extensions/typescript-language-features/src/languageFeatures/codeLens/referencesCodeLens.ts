@@ -63,8 +63,8 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 	protected extractSymbol(
 		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
-		parent: Proto.NavigationTree | null
-	): vscode.Range | null {
+		parent: Proto.NavigationTree | undefined
+	): vscode.Range | undefined {
 		if (parent && parent.kind === PConst.Kind.enum) {
 			return getSymbolRange(document, item);
 		}
@@ -108,7 +108,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 				if (parent &&
 					typeConverters.Position.fromLocation(parent.spans[0].start).isEqual(typeConverters.Position.fromLocation(item.spans[0].start))
 				) {
-					return null;
+					return undefined;
 				}
 
 				// Only show if parent is a class type object (not a literal)
@@ -121,7 +121,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 				break;
 		}
 
-		return null;
+		return undefined;
 	}
 }
 

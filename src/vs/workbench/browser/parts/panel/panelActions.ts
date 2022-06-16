@@ -26,12 +26,13 @@ import { ICommandActionTitle } from 'vs/platform/action/common/action';
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
 const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
-const panelIcon = registerIcon('panel-layout-icon', Codicon.layoutPanel, localize('togglePanelIcon', 'Icon to toggle the panel.'));
+const panelIcon = registerIcon('panel-layout-icon', Codicon.layoutPanel, localize('togglePanelOffIcon', 'Icon to toggle the panel off when it is on.'));
+const panelOffIcon = registerIcon('panel-layout-icon-off', Codicon.layoutPanelOff, localize('togglePanelOnIcon', 'Icon to toggle the panel on when it is off.'));
 
 export class TogglePanelAction extends Action {
 
 	static readonly ID = 'workbench.action.togglePanel';
-	static readonly LABEL = localize('togglePanel', "Toggle Panel");
+	static readonly LABEL = localize('togglePanelVisibility', "Toggle Panel Visibility");
 
 	constructor(
 		id: string,
@@ -68,7 +69,7 @@ class FocusPanelAction extends Action {
 		}
 
 		// Focus into active panel
-		let panel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
+		const panel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		if (panel) {
 			panel.focus();
 		}
@@ -323,7 +324,7 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 }
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KeyJ }), 'View: Toggle Panel', CATEGORIES.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KeyJ }), 'View: Toggle Panel Visibility', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPanelAction), 'View: Focus into Panel', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousPanelViewAction), 'View: Previous Panel View', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NextPanelViewAction), 'View: Next Panel View', CATEGORIES.View.value);
@@ -396,7 +397,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closeAuxiliaryBar',
-			title: { value: localize('closeSidePanel', "Close Side Panel"), original: 'Close Side Panel' },
+			title: { value: localize('closeSecondarySideBar', "Close Secondary Side Bar"), original: 'Close Secondary Side Bar' },
 			category: CATEGORIES.View,
 			icon: closeIcon,
 			menu: [{
@@ -444,10 +445,10 @@ MenuRegistry.appendMenuItems([
 			command: {
 				id: TogglePanelAction.ID,
 				title: localize('togglePanel', "Toggle Panel"),
-				icon: panelIcon,
-				toggled: PanelVisibleContext
+				icon: panelOffIcon,
+				toggled: { condition: PanelVisibleContext, icon: panelIcon }
 			},
-			when: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both')),
+			when: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
 			order: 1
 		}
 	}, {
@@ -490,42 +491,68 @@ class MoveViewsBetweenPanelsAction extends Action2 {
 	}
 }
 
-// --- Move Panel Views To Side Panel
+// --- Move Panel Views To Secondary Side Bar
 
-export class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
+class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
 	static readonly ID = 'workbench.action.movePanelToSidePanel';
 	constructor() {
 		super(ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar, {
 			id: MovePanelToSidePanelAction.ID,
 			title: {
-				value: localize('movePanelToSidePanel', "Move Panel Views To Side Panel"),
-				original: 'Move Panel Views To Side Panel'
+				value: localize('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
+				original: 'Move Panel Views To Secondary Side Bar'
 			},
 			category: CATEGORIES.View,
-			f1: true,
-			menu: [{
-				id: MenuId.ViewContainerTitleContext,
-				group: '3_workbench_layout_move',
-				order: 0,
-				when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Panel)),
-			}]
+			f1: false
+		});
+	}
+}
+
+export class MovePanelToSecondarySideBarAction extends MoveViewsBetweenPanelsAction {
+	static readonly ID = 'workbench.action.movePanelToSecondarySideBar';
+	constructor() {
+		super(ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar, {
+			id: MovePanelToSecondarySideBarAction.ID,
+			title: {
+				value: localize('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
+				original: 'Move Panel Views To Secondary Side Bar'
+			},
+			category: CATEGORIES.View,
+			f1: true
 		});
 	}
 }
 
 registerAction2(MovePanelToSidePanelAction);
+registerAction2(MovePanelToSecondarySideBarAction);
 
-// --- Move Panel Views To Side Panel
+// --- Move Secondary Side Bar Views To Panel
 
-export class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
+class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
 	static readonly ID = 'workbench.action.moveSidePanelToPanel';
 
 	constructor() {
 		super(ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel, {
 			id: MoveSidePanelToPanelAction.ID,
 			title: {
-				value: localize('moveSidePanelToPanel', "Move Side Panel Views To Panel"),
-				original: 'Move Side Panel Views To Panel'
+				value: localize('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
+				original: 'Move Secondary Side Bar Views To Panel'
+			},
+			category: CATEGORIES.View,
+			f1: false
+		});
+	}
+}
+
+export class MoveSecondarySideBarToPanelAction extends MoveViewsBetweenPanelsAction {
+	static readonly ID = 'workbench.action.moveSecondarySideBarToPanel';
+
+	constructor() {
+		super(ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel, {
+			id: MoveSecondarySideBarToPanelAction.ID,
+			title: {
+				value: localize('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
+				original: 'Move Secondary Side Bar Views To Panel'
 			},
 			category: CATEGORIES.View,
 			f1: true
@@ -533,3 +560,4 @@ export class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
 	}
 }
 registerAction2(MoveSidePanelToPanelAction);
+registerAction2(MoveSecondarySideBarToPanelAction);

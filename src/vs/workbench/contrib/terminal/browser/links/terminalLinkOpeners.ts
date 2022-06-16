@@ -17,7 +17,7 @@ import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/t
 import { osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ILineColumnInfo } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { getLocalLinkRegex, lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMatchIndex, winLineAndColumnMatchIndex } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -52,12 +52,27 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	 * @param link Url link which may contain line and column number.
 	 */
 	extractLineColumnInfo(link: string): ILineColumnInfo {
-		const matches: string[] | null = getLocalLinkRegex(this._os).exec(link);
 		const lineColumnInfo: ILineColumnInfo = {
 			lineNumber: 1,
 			columnNumber: 1
 		};
 
+		// The local link regex only works for non file:// links, check these for a simple
+		// `:line:col` suffix
+		if (link.startsWith('file://')) {
+			const simpleMatches = link.match(/:(\d+)(:(\d+))?$/);
+			if (simpleMatches) {
+				if (simpleMatches[1] !== undefined) {
+					lineColumnInfo.lineNumber = parseInt(simpleMatches[1]);
+				}
+				if (simpleMatches[3] !== undefined) {
+					lineColumnInfo.columnNumber = parseInt(simpleMatches[3]);
+				}
+			}
+			return lineColumnInfo;
+		}
+
+		const matches: string[] | null = getLocalLinkRegex(this._os).exec(link);
 		if (!matches) {
 			return lineColumnInfo;
 		}
@@ -110,6 +125,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
+		private readonly _initialCwd: Promise<string>,
 		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
 		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
 		private readonly _os: OperatingSystem,
@@ -148,7 +164,8 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 			if (result) {
 				const { uri, isDirectory } = result;
 				const linkToOpen = {
-					text: matchLink,
+					// Use the absolute URI's path here so the optional line/col get detected
+					text: result.uri.fsPath + (matchLink.match(/:\d+(:\d+)?$/)?.[0] || ''),
 					uri,
 					bufferRange: link.bufferRange,
 					type: link.type
@@ -166,10 +183,21 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	private async _getExactMatch(sanitizedLink: string): Promise<IResourceMatch | undefined> {
+		// Make the link relative to the cwd if it isn't absolute
+		const pathModule = osPathModule(this._os);
+		const isAbsolute = pathModule.isAbsolute(sanitizedLink);
+		let absolutePath: string | undefined = isAbsolute ? sanitizedLink : undefined;
+		const initialCwd = await this._initialCwd;
+		if (!isAbsolute && initialCwd.length > 0) {
+			absolutePath = pathModule.join(initialCwd, sanitizedLink);
+		}
+
+		// Try open as an absolute link
 		let resourceMatch: IResourceMatch | undefined;
-		if (osPathModule(this._os).isAbsolute(sanitizedLink)) {
+		if (absolutePath) {
+			const slashNormalizedPath = this._os === OperatingSystem.Windows ? absolutePath.replace(/\\/g, '/') : absolutePath;
 			const scheme = this._workbenchEnvironmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
-			const uri = URI.from({ scheme, path: sanitizedLink });
+			const uri = URI.from({ scheme, path: slashNormalizedPath });
 			try {
 				const fileStat = await this._fileService.stat(uri);
 				resourceMatch = { uri, isDirectory: fileStat.isDirectory };
@@ -177,6 +205,8 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 				// File or dir doesn't exist, continue on
 			}
 		}
+
+		// Search the workspace if an exact match based on the absolute path was not found
 		if (!resourceMatch) {
 			const results = await this._searchService.fileSearch(
 				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
@@ -194,7 +224,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 }
 
 interface IResourceMatch {
-	uri: URI | undefined;
+	uri: URI;
 	isDirectory?: boolean;
 }
 
@@ -209,7 +239,9 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		if (!link.uri) {
 			throw new Error('Tried to open a url without a resolved URI');
 		}
-		this._openerService.open(link.uri || URI.parse(link.text), {
+		// It's important to use the raw string value here to avoid converting pre-encoded values
+		// from the URL like `%2B` -> `+`.
+		this._openerService.open(link.text, {
 			allowTunneling: this._isRemote,
 			allowContributedOpeners: true,
 		});

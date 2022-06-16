@@ -213,10 +213,10 @@ export abstract class SymbolNavigationAction extends EditorAction {
 
 		if (highlight) {
 			const modelNow = targetEditor.getModel();
-			const ids = targetEditor.deltaDecorations([], [{ range, options: { description: 'symbol-navigate-action-highlight', className: 'symbolHighlight' } }]);
+			const decorations = targetEditor.createDecorationsCollection([{ range, options: { description: 'symbol-navigate-action-highlight', className: 'symbolHighlight' } }]);
 			setTimeout(() => {
 				if (targetEditor.getModel() === modelNow) {
-					targetEditor.deltaDecorations(ids, []);
+					decorations.clear();
 				}
 			}, 350);
 		}
@@ -257,7 +257,7 @@ export class DefinitionAction extends SymbolNavigationAction {
 	}
 }
 
-const goToDefinitionKb = isWeb && !isStandalone
+const goToDefinitionKb = isWeb && !isStandalone()
 	? KeyMod.CtrlCmd | KeyCode.F12
 	: KeyCode.F12;
 

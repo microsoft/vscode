@@ -51,9 +51,9 @@ export class Logger {
 
 	private now(): string {
 		const now = new Date();
-		return padLeft(now.getUTCHours() + '', 2, '0')
-			+ ':' + padLeft(now.getMinutes() + '', 2, '0')
-			+ ':' + padLeft(now.getUTCSeconds() + '', 2, '0') + '.' + now.getMilliseconds();
+		return String(now.getUTCHours()).padStart(2, '0')
+			+ ':' + String(now.getMinutes()).padStart(2, '0')
+			+ ':' + String(now.getUTCSeconds()).padStart(2, '0') + '.' + now.getMilliseconds();
 	}
 
 	public updateConfiguration() {
@@ -80,8 +80,4 @@ export class Logger {
 		}
 		return JSON.stringify(data, undefined, 2);
 	}
-}
-
-function padLeft(s: string, n: number, pad = ' ') {
-	return pad.repeat(Math.max(0, n - s.length)) + s;
 }

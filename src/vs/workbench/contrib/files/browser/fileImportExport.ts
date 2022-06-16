@@ -14,13 +14,13 @@ import { IFilesConfiguration, UndoConfirmLevel, VIEW_ID } from 'vs/workbench/con
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Limiter, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
-import { basename, joinPath } from 'vs/base/common/resources';
+import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
+import { extractEditorsDropData } from 'vs/platform/dnd/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { isWeb } from 'vs/base/common/platform';
 import { triggerDownload } from 'vs/base/browser/dom';
@@ -34,6 +34,8 @@ import { coalesce } from 'vs/base/common/arrays';
 import { canceled } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 //#region Browser File Upload (drag and drop, input element)
 
@@ -397,6 +399,7 @@ export class ExternalFileImport {
 		@IEditorService private readonly editorService: IEditorService,
 		@IProgressService private readonly progressService: IProgressService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
@@ -424,7 +427,7 @@ export class ExternalFileImport {
 	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
 
 		// Activate all providers for the resources dropped
-		const candidateFiles = coalesce(extractEditorsDropData(source).map(editor => editor.resource));
+		const candidateFiles = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsDropData(accessor, source))).map(editor => editor.resource));
 		await Promise.all(candidateFiles.map(resource => this.fileService.activateProvider(resource.scheme)));
 
 		// Check for dropped external files to be folders
@@ -535,11 +538,11 @@ export class ExternalFileImport {
 			const undoLevel = this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 			await this.explorerService.applyBulkEdit(resourceFileEdits, {
 				undoLabel: resourcesFiltered.length === 1 ?
-					localize('importFile', "Import {0}", basename(resourcesFiltered[0])) :
-					localize('importnFile', "Import {0} resources", resourcesFiltered.length),
+					localize({ comment: ['substitution will be the name of the file that was imported'], key: 'importFile' }, "Import {0}", basename(resourcesFiltered[0])) :
+					localize({ comment: ['substitution will be the number of files that were imported'], key: 'importnFile' }, "Import {0} resources", resourcesFiltered.length),
 				progressLabel: resourcesFiltered.length === 1 ?
-					localize('copyingFile', "Copying {0}", basename(resourcesFiltered[0])) :
-					localize('copyingnFile', "Copying {0} resources", resourcesFiltered.length),
+					localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0])) :
+					localize({ comment: ['substitution will be the number of files that were copied'], key: 'copyingnFile' }, "Copying {0} resources", resourcesFiltered.length),
 				progressLocation: ProgressLocation.Window,
 				confirmBeforeUndo: undoLevel === UndoConfirmLevel.Verbose || undoLevel === UndoConfirmLevel.Default,
 			});
@@ -572,12 +575,15 @@ interface IDownloadOperation {
 
 export class FileDownload {
 
+	private static readonly LAST_USED_DOWNLOAD_PATH_STORAGE_KEY = 'workbench.explorer.downloadPath';
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IProgressService private readonly progressService: IProgressService,
 		@ILogService private readonly logService: ILogService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 	}
 
@@ -789,12 +795,18 @@ export class FileDownload {
 	private async doDownloadNative(explorerItem: ExplorerItem, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
 		progress.report({ message: explorerItem.name });
 
-		const defaultUri = joinPath(
-			explorerItem.isDirectory ?
-				await this.fileDialogService.defaultFolderPath(Schemas.file) :
-				await this.fileDialogService.defaultFilePath(Schemas.file),
-			explorerItem.name
-		);
+		let defaultUri: URI;
+		const lastUsedDownloadPath = this.storageService.get(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, StorageScope.GLOBAL);
+		if (lastUsedDownloadPath) {
+			defaultUri = joinPath(URI.file(lastUsedDownloadPath), explorerItem.name);
+		} else {
+			defaultUri = joinPath(
+				explorerItem.isDirectory ?
+					await this.fileDialogService.defaultFolderPath(Schemas.file) :
+					await this.fileDialogService.defaultFilePath(Schemas.file),
+				explorerItem.name
+			);
+		}
 
 		const destination = await this.fileDialogService.showSaveDialog({
 			availableFileSystems: [Schemas.file],
@@ -804,6 +816,11 @@ export class FileDownload {
 		});
 
 		if (destination) {
+
+			// Remember as last used download folder
+			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.GLOBAL, StorageTarget.MACHINE);
+
+			// Perform download
 			await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
 				undoLabel: localize('downloadBulkEdit', "Download {0}", explorerItem.name),
 				progressLabel: localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),

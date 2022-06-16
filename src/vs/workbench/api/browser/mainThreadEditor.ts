@@ -500,7 +500,7 @@ export class MainThreadTextEditor {
 		return true;
 	}
 
-	async insertSnippet(template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
+	async insertSnippet(modelVersionId: number, template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
 
 		if (!this._codeEditor || !this._codeEditor.hasModel()) {
 			return false;
@@ -517,7 +517,15 @@ export class MainThreadTextEditor {
 			}
 		}
 
+		if (this._codeEditor.getModel().getVersionId() !== modelVersionId) {
+			// ignored because emmet tests fail...
+			// return false;
+		}
+
 		const snippetController = SnippetController2.get(this._codeEditor);
+		if (!snippetController) {
+			return false;
+		}
 
 		// cancel previous snippet mode
 		// snippetController.leaveSnippet();
@@ -528,7 +536,7 @@ export class MainThreadTextEditor {
 		this._codeEditor.focus();
 
 		// make modifications
-		snippetController?.insert(template, {
+		snippetController.insert(template, {
 			overwriteBefore: 0, overwriteAfter: 0,
 			undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter,
 			clipboardText

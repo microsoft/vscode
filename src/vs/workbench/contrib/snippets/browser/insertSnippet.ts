@@ -112,7 +112,7 @@ class InsertSnippetAction extends EditorAction {
 				}
 				languageId = langId;
 			} else {
-				editor.getModel().tokenizeIfCheap(lineNumber);
+				editor.getModel().tokenization.tokenizeIfCheap(lineNumber);
 				languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
 
 				// validate the `languageId` to ensure this is a user

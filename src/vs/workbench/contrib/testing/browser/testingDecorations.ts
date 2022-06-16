@@ -40,7 +40,7 @@ import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/work
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -49,6 +49,7 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
 
@@ -437,9 +438,8 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	}
 
 	let computedState = TestResultState.Unset;
-	let hoverMessageParts: string[] = [];
+	const hoverMessageParts: string[] = [];
 	let testIdWithMessages: string | undefined;
-	let retired = false;
 	for (let i = 0; i < tests.length; i++) {
 		const test = tests[i];
 		const resultItem = states[i];
@@ -448,7 +448,6 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 			hoverMessageParts.push(labelForTestInState(test.item.label, state));
 		}
 		computedState = maxPriority(computedState, state);
-		retired = retired || !!resultItem?.retired;
 		if (!testIdWithMessages && resultItem?.tasks.some(t => t.messages.length)) {
 			testIdWithMessages = test.item.extId;
 		}
@@ -461,10 +460,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 
 	let hoverMessage: IMarkdownString | undefined;
 
-	let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
-	if (retired) {
-		glyphMarginClassName += ' retired';
-	}
+	const glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
 
 	return {
 		range: firstLineRange(range),
@@ -823,7 +819,7 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		const testSubmenus = this.tests.map(({ test, resultItem }) => {
 			const actions = this.getTestContextMenuActions(test, resultItem);
 			disposable.add(actions);
-			return new SubmenuAction(test.item.extId, test.item.label, actions.object);
+			return new SubmenuAction(test.item.extId, stripIcons(test.item.label), actions.object);
 		});
 
 		return { object: Separator.join(allActions, testSubmenus), dispose: () => disposable.dispose() };
@@ -853,7 +849,7 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 	}
 }
 
-const lineBreakRe = /\r?\n\s*/;
+const lineBreakRe = /\r?\n\s*/g;
 
 class TestMessageDecoration implements ITestDecoration {
 	public static readonly inlineClassName = 'test-message-inline-content';

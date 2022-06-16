@@ -216,7 +216,7 @@ pre code {
 }
 
 .vscode-high-contrast pre {
-	background-color: rgb(0, 0, 0);
+	background-color: var(--vscode-textCodeBlock-background);
 }
 
 .vscode-high-contrast h1 {

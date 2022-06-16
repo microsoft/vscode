@@ -1083,7 +1083,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
+					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1105,7 +1105,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
+					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1127,7 +1127,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow,
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1149,7 +1149,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow },
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1903,15 +1903,17 @@ export function registerTerminalActions() {
 			if (!selectedInstances) {
 				return;
 			}
+			const listService = accessor.get(IListService);
 			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const disposePromises: Promise<void>[] = [];
 			for (const instance of selectedInstances) {
 				disposePromises.push(terminalService.safeDisposeTerminal(instance));
 			}
 			await Promise.all(disposePromises);
 			if (terminalService.instances.length > 0) {
-				accessor.get(ITerminalGroupService).focusTabs();
-				focusNext(accessor);
+				terminalGroupService.focusTabs();
+				listService.lastFocusedList?.focusNext();
 			}
 		}
 	});
@@ -2113,6 +2115,20 @@ export function registerTerminalActions() {
 				await accessor.get(ITerminalService).activeInstance?.copySelection();
 			}
 		});
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: TerminalCommandId.CopySelectionAsHtml,
+					title: { value: localize('workbench.action.terminal.copySelectionAsHtml', "Copy Selection as HTML"), original: 'Copy Selection as HTML' },
+					f1: true,
+					category,
+					precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.textSelected)
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				await accessor.get(ITerminalService).activeInstance?.copySelection(true);
+			}
+		});
 	}
 
 	if (BrowserFeatures.clipboard.readText) {
@@ -2241,11 +2257,6 @@ function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] |
 		instances.push(terminalService.getInstanceFromIndex(selection) as ITerminalInstance);
 	}
 	return instances;
-}
-
-function focusNext(accessor: ServicesAccessor): void {
-	const listService = accessor.get(IListService);
-	listService.lastFocusedList?.focusNext();
 }
 
 export function validateTerminalName(name: string): { content: string; severity: Severity } | null {

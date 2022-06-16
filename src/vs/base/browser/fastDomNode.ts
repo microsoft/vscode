@@ -5,21 +5,21 @@
 
 export class FastDomNode<T extends HTMLElement> {
 
-	private _maxWidth: number = -1;
-	private _width: number = -1;
-	private _height: number = -1;
-	private _top: number = -1;
-	private _left: number = -1;
-	private _bottom: number = -1;
-	private _right: number = -1;
+	private _maxWidth: string = '';
+	private _width: string = '';
+	private _height: string = '';
+	private _top: string = '';
+	private _left: string = '';
+	private _bottom: string = '';
+	private _right: string = '';
 	private _fontFamily: string = '';
 	private _fontWeight: string = '';
-	private _fontSize: number = -1;
+	private _fontSize: string = '';
 	private _fontStyle: string = '';
 	private _fontFeatureSettings: string = '';
 	private _textDecoration: string = '';
-	private _lineHeight: number = -1;
-	private _letterSpacing: number = -100;
+	private _lineHeight: string = '';
+	private _letterSpacing: string = '';
 	private _className: string = '';
 	private _display: string = '';
 	private _position: string = '';
@@ -34,68 +34,67 @@ export class FastDomNode<T extends HTMLElement> {
 		public readonly domNode: T
 	) { }
 
-	public setMaxWidth(maxWidth: number): void {
+	public setMaxWidth(_maxWidth: number | string): void {
+		const maxWidth = numberAsPixels(_maxWidth);
 		if (this._maxWidth === maxWidth) {
 			return;
 		}
 		this._maxWidth = maxWidth;
-		this.domNode.style.maxWidth = this._maxWidth + 'px';
+		this.domNode.style.maxWidth = this._maxWidth;
 	}
 
-	public setWidth(width: number): void {
+	public setWidth(_width: number | string): void {
+		const width = numberAsPixels(_width);
 		if (this._width === width) {
 			return;
 		}
 		this._width = width;
-		this.domNode.style.width = this._width + 'px';
+		this.domNode.style.width = this._width;
 	}
 
-	public setHeight(height: number): void {
+	public setHeight(_height: number | string): void {
+		const height = numberAsPixels(_height);
 		if (this._height === height) {
 			return;
 		}
 		this._height = height;
-		this.domNode.style.height = this._height + 'px';
+		this.domNode.style.height = this._height;
 	}
 
-	public setTop(top: number): void {
+	public setTop(_top: number | string): void {
+		const top = numberAsPixels(_top);
 		if (this._top === top) {
 			return;
 		}
 		this._top = top;
-		this.domNode.style.top = this._top + 'px';
+		this.domNode.style.top = this._top;
 	}
 
-	public unsetTop(): void {
-		if (this._top === -1) {
-			return;
-		}
-		this._top = -1;
-		this.domNode.style.top = '';
-	}
-
-	public setLeft(left: number): void {
+	public setLeft(_left: number | string): void {
+		const left = numberAsPixels(_left);
 		if (this._left === left) {
 			return;
 		}
 		this._left = left;
-		this.domNode.style.left = this._left + 'px';
+		this.domNode.style.left = this._left;
 	}
 
-	public setBottom(bottom: number): void {
+	public setBottom(_bottom: number | string): void {
+		const bottom = numberAsPixels(_bottom);
 		if (this._bottom === bottom) {
 			return;
 		}
 		this._bottom = bottom;
-		this.domNode.style.bottom = this._bottom + 'px';
+		this.domNode.style.bottom = this._bottom;
 	}
 
-	public setRight(right: number): void {
+	public setRight(_right: number | string): void {
+		const right = numberAsPixels(_right);
 		if (this._right === right) {
 			return;
 		}
 		this._right = right;
-		this.domNode.style.right = this._right + 'px';
+		this.domNode.style.right = this._right;
 	}
 
 	public setFontFamily(fontFamily: string): void {
@@ -114,12 +113,13 @@ export class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.fontWeight = this._fontWeight;
 	}
 
-	public setFontSize(fontSize: number): void {
+	public setFontSize(_fontSize: number | string): void {
+		const fontSize = numberAsPixels(_fontSize);
 		if (this._fontSize === fontSize) {
 			return;
 		}
 		this._fontSize = fontSize;
-		this.domNode.style.fontSize = this._fontSize + 'px';
+		this.domNode.style.fontSize = this._fontSize;
 	}
 
 	public setFontStyle(fontStyle: string): void {
@@ -146,20 +146,22 @@ export class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.textDecoration = this._textDecoration;
 	}
 
-	public setLineHeight(lineHeight: number): void {
+	public setLineHeight(_lineHeight: number | string): void {
+		const lineHeight = numberAsPixels(_lineHeight);
 		if (this._lineHeight === lineHeight) {
 			return;
 		}
 		this._lineHeight = lineHeight;
-		this.domNode.style.lineHeight = this._lineHeight + 'px';
+		this.domNode.style.lineHeight = this._lineHeight;
 	}
 
-	public setLetterSpacing(letterSpacing: number): void {
+	public setLetterSpacing(_letterSpacing: number | string): void {
+		const letterSpacing = numberAsPixels(_letterSpacing);
 		if (this._letterSpacing === letterSpacing) {
 			return;
 		}
 		this._letterSpacing = letterSpacing;
-		this.domNode.style.letterSpacing = this._letterSpacing + 'px';
+		this.domNode.style.letterSpacing = this._letterSpacing;
 	}
 
 	public setClassName(className: string): void {
@@ -254,6 +256,10 @@ export class FastDomNode<T extends HTMLElement> {
 	public removeChild(child: FastDomNode<T>): void {
 		this.domNode.removeChild(child.domNode);
 	}
+}
+
+function numberAsPixels(value: number | string): string {
+	return (typeof value === 'number' ? `${value}px` : value);
 }
 
 export function createFastDomNode<T extends HTMLElement>(domNode: T): FastDomNode<T> {

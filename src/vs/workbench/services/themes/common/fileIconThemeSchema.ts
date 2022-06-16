@@ -203,6 +203,9 @@ const schema: IJSONSchema = {
 		folderNames: {
 			$ref: '#/definitions/folderNames'
 		},
+		folderNamesExpanded: {
+			$ref: '#/definitions/folderNamesExpanded'
+		},
 		fileExtensions: {
 			$ref: '#/definitions/fileExtensions'
 		},
@@ -232,6 +235,6 @@ const schema: IJSONSchema = {
 };
 
 export function registerFileIconThemeSchemas() {
-	let schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+	const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	schemaRegistry.registerSchema(schemaId, schema);
 }

@@ -19,7 +19,7 @@ import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneT
 import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyValue, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -144,7 +144,7 @@ export interface IGlobalEditorOptions {
 	maxTokenizationLineLength?: number;
 	/**
 	 * Theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -177,7 +177,7 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	language?: string;
 	/**
 	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -208,7 +208,7 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorConstructionOptions {
 	/**
 	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -224,13 +224,13 @@ export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorCon
 export interface IStandaloneCodeEditor extends ICodeEditor {
 	updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void;
 	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+	createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
 	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+	createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 
 	getOriginalEditor(): IStandaloneCodeEditor;
@@ -301,7 +301,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		return commandId;
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T> {
 		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
@@ -548,7 +548,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return this.getModifiedEditor().addCommand(keybinding, handler, context);
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T> {
 		return this.getModifiedEditor().createContextKey(key, defaultValue);
 	}
 

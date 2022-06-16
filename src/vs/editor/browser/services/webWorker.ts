@@ -13,7 +13,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
-export function createWebWorker<T>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
+export function createWebWorker<T extends object>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
 	return new MonacoWebWorkerImpl<T>(modelService, languageConfigurationService, opts);
 }
 
@@ -61,7 +61,7 @@ export interface IWebWorkerOptions {
 	keepIdleModels?: boolean;
 }
 
-class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWorker<T> {
+class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implements MonacoWebWorker<T> {
 
 	private readonly _foreignModuleId: string;
 	private readonly _foreignModuleHost: { [method: string]: Function } | null;

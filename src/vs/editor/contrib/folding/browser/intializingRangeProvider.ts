@@ -19,7 +19,7 @@ export class InitializingRangeProvider implements RangeProvider {
 
 	constructor(private readonly editorModel: ITextModel, initialRanges: ILineRange[], onTimeout: () => void, timeoutTime: number) {
 		if (initialRanges.length) {
-			let toDecorationRange = (range: ILineRange): IModelDeltaDecoration => {
+			const toDecorationRange = (range: ILineRange): IModelDeltaDecoration => {
 				return {
 					range: {
 						startLineNumber: range.startLineNumber,
@@ -50,10 +50,10 @@ export class InitializingRangeProvider implements RangeProvider {
 	}
 
 	compute(cancelationToken: CancellationToken): Promise<FoldingRegions> {
-		let foldingRangeData: IFoldingRangeData[] = [];
+		const foldingRangeData: IFoldingRangeData[] = [];
 		if (this.decorationIds) {
-			for (let id of this.decorationIds) {
-				let range = this.editorModel.getDecorationRange(id);
+			for (const id of this.decorationIds) {
+				const range = this.editorModel.getDecorationRange(id);
 				if (range) {
 					foldingRangeData.push({ start: range.startLineNumber, end: range.endLineNumber, rank: 1 });
 				}

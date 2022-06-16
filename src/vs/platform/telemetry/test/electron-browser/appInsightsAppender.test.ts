@@ -29,7 +29,7 @@ class AppInsightsMock extends TelemetryClient {
 suite('AIAdapter', () => {
 	let appInsightsMock: AppInsightsMock;
 	let adapter: AppInsightsAppender;
-	let prefix = 'prefix';
+	const prefix = 'prefix';
 
 
 	setup(() => {
@@ -53,7 +53,7 @@ suite('AIAdapter', () => {
 		adapter.log('testEvent');
 
 		assert.strictEqual(appInsightsMock.events.length, 1);
-		let [first] = appInsightsMock.events;
+		const [first] = appInsightsMock.events;
 		assert.strictEqual(first.name, `${prefix}/testEvent`);
 		assert.strictEqual(first.properties!['first'], '1st');
 		assert.strictEqual(first.measurements!['second'], 2);
@@ -73,21 +73,21 @@ suite('AIAdapter', () => {
 		}
 		assert(reallyLongPropertyValue.length > 8192);
 
-		let data = Object.create(null);
+		const data = Object.create(null);
 		data[reallyLongPropertyName] = '1234';
 		data['reallyLongPropertyValue'] = reallyLongPropertyValue;
 		adapter.log('testEvent', data);
 
 		assert.strictEqual(appInsightsMock.events.length, 1);
 
-		for (let prop in appInsightsMock.events[0].properties!) {
+		for (const prop in appInsightsMock.events[0].properties!) {
 			assert(prop.length < 150);
 			assert(appInsightsMock.events[0].properties![prop].length < 8192);
 		}
 	});
 
 	test('Different data types', () => {
-		let date = new Date();
+		const date = new Date();
 		adapter.log('testEvent', { favoriteDate: date, likeRed: false, likeBlue: true, favoriteNumber: 1, favoriteColor: 'blue', favoriteCars: ['bmw', 'audi', 'ford'] });
 
 		assert.strictEqual(appInsightsMock.events.length, 1);

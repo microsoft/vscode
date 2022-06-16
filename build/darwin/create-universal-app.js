@@ -33,12 +33,13 @@ async function main() {
             'CodeResources',
             'fsevents.node',
             'Info.plist',
+            'MainMenu.nib',
             '.npmrc'
         ],
         outAppPath,
         force: true
     });
-    let productJson = await fs.readJson(productJsonPath);
+    const productJson = await fs.readJson(productJsonPath);
     Object.assign(productJson, {
         darwinUniversalAssetId: 'darwin-universal'
     });

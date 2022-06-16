@@ -9,7 +9,7 @@ import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/expl
 import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { ByLocationTestItemElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { NodeRenderDirective } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
-import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 

@@ -5,11 +5,19 @@
 
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
-import { consumeReadable, consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, prefixedReadable, prefixedStream, Readable, ReadableStream, toReadable, toStream, transform } from 'vs/base/common/stream';
+import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
+import { consumeReadable, consumeStream, isReadable, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, prefixedReadable, prefixedStream, Readable, ReadableStream, toReadable, toStream, transform } from 'vs/base/common/stream';
 
 suite('Stream', () => {
 
+	test('isReadable', () => {
+		assert.ok(!isReadable(undefined));
+		assert.ok(!isReadable(Object.create(null)));
+		assert.ok(isReadable(bufferToReadable(VSBuffer.fromString(''))));
+	});
+
 	test('isReadableStream', () => {
+		assert.ok(!isReadableStream(undefined));
 		assert.ok(!isReadableStream(Object.create(null)));
 		assert.ok(isReadableStream(newWriteableStream(d => d)));
 	});
@@ -147,10 +155,10 @@ suite('Stream', () => {
 		res = stream.write('3');
 		assert.ok(!res);
 
-		let promise1 = stream.write('4');
+		const promise1 = stream.write('4');
 		assert.ok(promise1 instanceof Promise);
 
-		let promise2 = stream.write('5');
+		const promise2 = stream.write('5');
 		assert.ok(promise2 instanceof Promise);
 
 		let drained1 = false;

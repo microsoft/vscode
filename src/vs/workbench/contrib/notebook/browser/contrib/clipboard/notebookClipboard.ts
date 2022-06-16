@@ -27,7 +27,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -131,7 +131,7 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 			kind: SelectionStateType.Index,
 			focus: { start: newFocusIndex, end: newFocusIndex + 1 },
 			selections: [{ start: newFocusIndex, end: newFocusIndex + pasteCells.items.length }]
-		}), undefined);
+		}), undefined, true);
 	} else {
 		if (editor.getLength() !== 0) {
 			return false;
@@ -148,7 +148,7 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 			kind: SelectionStateType.Index,
 			focus: { start: 0, end: 1 },
 			selections: [{ start: 1, end: pasteCells.items.length + 1 }]
-		}), undefined);
+		}), undefined, true);
 	}
 
 	return true;
@@ -285,15 +285,15 @@ export class NotebookClipboardContribution extends Disposable {
 		}
 
 		if (PasteAction) {
-			PasteAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
+			this._register(PasteAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
 				return this.runPasteAction(accessor);
-			});
+			}));
 		}
 
 		if (CutAction) {
-			CutAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
+			this._register(CutAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
 				return this.runCutAction(accessor);
-			});
+			}));
 		}
 	}
 

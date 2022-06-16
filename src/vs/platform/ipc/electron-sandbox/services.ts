@@ -11,7 +11,7 @@ import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/co
 type ChannelClientCtor<T> = { new(channel: IChannel): T };
 type Remote = { getChannel(channelName: string): IChannel };
 
-abstract class RemoteServiceStub<T> {
+abstract class RemoteServiceStub<T extends object> {
 	constructor(
 		channelName: string,
 		options: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions | undefined,
@@ -55,7 +55,7 @@ export interface IMainProcessService {
 	registerChannel(channelName: string, channel: IServerChannel<string>): void;
 }
 
-class MainProcessRemoteServiceStub<T> extends RemoteServiceStub<T> {
+class MainProcessRemoteServiceStub<T extends object> extends RemoteServiceStub<T> {
 	constructor(channelName: string, options: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions | undefined, @IMainProcessService ipcService: IMainProcessService) {
 		super(channelName, options, ipcService);
 	}
@@ -81,7 +81,7 @@ export interface ISharedProcessService {
 	notifyRestored(): void;
 }
 
-class SharedProcessRemoteServiceStub<T> extends RemoteServiceStub<T> {
+class SharedProcessRemoteServiceStub<T extends object> extends RemoteServiceStub<T> {
 	constructor(channelName: string, options: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions | undefined, @ISharedProcessService ipcService: ISharedProcessService) {
 		super(channelName, options, ipcService);
 	}

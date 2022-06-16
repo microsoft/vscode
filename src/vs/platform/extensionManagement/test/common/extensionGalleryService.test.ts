@@ -13,7 +13,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRawGalleryExtensionVersion, sortExtensionVersions } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
@@ -23,6 +22,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;

@@ -55,7 +55,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 
 		const results: boolean[] = [];
 		try {
-			for (let listener of [...this._callbacks]) { // copy to prevent concurrent modifications
+			for (const listener of [...this._callbacks]) { // copy to prevent concurrent modifications
 				if (didTimeout) {
 					// timeout - no more listeners
 					break;
@@ -106,7 +106,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		const { document, reason } = stubEvent;
 		const { version } = document;
 
-		const event = Object.freeze(<vscode.TextDocumentWillSaveEvent>{
+		const event = Object.freeze<vscode.TextDocumentWillSaveEvent>({
 			document,
 			reason,
 			waitUntil(p: Promise<any | vscode.TextEdit[]>) {

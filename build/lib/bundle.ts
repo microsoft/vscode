@@ -15,7 +15,7 @@ interface IPosition {
 interface IBuildModuleInfo {
 	id: string;
 	path: string;
-	defineLocation: IPosition;
+	defineLocation: IPosition | null;
 	dependencies: string[];
 	shim: string;
 	exports: any;
@@ -109,10 +109,10 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	const allMentionedModulesMap: { [modules: string]: boolean } = {};
 	entryPoints.forEach((module: IEntryPoint) => {
 		allMentionedModulesMap[module.name] = true;
-		(module.include || []).forEach(function (includedModule) {
+		module.include?.forEach(function (includedModule) {
 			allMentionedModulesMap[includedModule] = true;
 		});
-		(module.exclude || []).forEach(function (excludedModule) {
+		module.exclude?.forEach(function (excludedModule) {
 			allMentionedModulesMap[excludedModule] = true;
 		});
 	});
@@ -444,8 +444,16 @@ function emitEntryPoint(
 
 		if (module.shim) {
 			mainResult.sources.push(emitShimmedModule(c, deps[c], module.shim, module.path, contents));
-		} else {
+		} else if (module.defineLocation) {
 			mainResult.sources.push(emitNamedModule(c, module.defineLocation, module.path, contents));
+		} else {
+			const moduleCopy = {
+				id: module.id,
+				path: module.path,
+				defineLocation: module.defineLocation,
+				dependencies: module.dependencies
+			};
+			throw new Error(`Cannot bundle module '${module.id}' for entry point '${entryPoint}' because it has no shim and it lacks a defineLocation: ${JSON.stringify(moduleCopy)}`);
 		}
 	});
 

@@ -5,18 +5,15 @@
 
 'use strict';
 
-import * as path from 'path';
 import * as es from 'event-stream';
 import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
-import * as util from '../lib/util';
 import * as merge from 'gulp-merge-json';
 import * as gzip from 'gulp-gzip';
 import { ClientSecretCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
-const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 
 interface NlsMetadata {
@@ -37,7 +34,6 @@ function main(): Promise<void> {
 				fileName: 'combined.nls.metadata.json',
 				jsonSpace: '',
 				edit: (parsedJson, file) => {
-					let key;
 					if (file.base === 'out-vscode-web-min') {
 						return { vscode: parsedJson };
 					}
@@ -85,7 +81,7 @@ function main(): Promise<void> {
 							break;
 						}
 					}
-					key = 'vscode.' + file.relative.split('/')[0];
+					const key = 'vscode.' + file.relative.split('/')[0];
 					return { [key]: parsedJson };
 				},
 			}))
@@ -116,4 +112,3 @@ main().catch(err => {
 	console.error(err);
 	process.exit(1);
 });
-

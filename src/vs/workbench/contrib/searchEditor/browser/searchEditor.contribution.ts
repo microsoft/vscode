@@ -121,7 +121,7 @@ class SearchEditorInputSerializer implements IEditorSerializer {
 
 		const config = input.tryReadConfigSync();
 		const dirty = input.isDirty();
-		const matchRanges = input.getMatchRanges();
+		const matchRanges = dirty ? input.getMatchRanges() : [];
 		const backingUri = input.backingUri;
 
 		return JSON.stringify({ modelUri, dirty, config, name: input.getName(), matchRanges, backingUri: backingUri?.toString() } as SerializedSearchEditor);

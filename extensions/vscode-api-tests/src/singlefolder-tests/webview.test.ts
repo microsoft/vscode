@@ -212,7 +212,7 @@ suite('vscode API - webview', () => {
 		assert.strictEqual(Math.round(secondResponse.value), 100);
 	});
 
-	test('webviews with retainContextWhenHidden should be able to recive messages while hidden', async () => {
+	test.skip('webviews with retainContextWhenHidden should be able to recive messages while hidden', async () => { // TODO@mjbvz https://github.com/microsoft/vscode/issues/139960
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMessage(webview);
 

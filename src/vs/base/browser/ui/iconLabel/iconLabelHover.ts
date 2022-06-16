@@ -187,7 +187,12 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		};
 		if (hoverDelegate.placement === undefined || hoverDelegate.placement === 'mouse') {
 			// track the mouse position
-			const onMouseMove = (e: MouseEvent) => target.x = e.x + 10;
+			const onMouseMove = (e: MouseEvent) => {
+				target.x = e.x + 10;
+				if ((e.target instanceof HTMLElement) && e.target.classList.contains('action-label')) {
+					hideHover(true, true);
+				}
+			};
 			toDispose.add(dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_MOVE, onMouseMove, true));
 		}
 		toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));

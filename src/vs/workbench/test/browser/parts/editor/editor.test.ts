@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, EditorInputWithOptions, isEditorInputWithOptions, isEditorInput, EditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IResourceSideBySideEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, EditorInputWithOptions, isEditorInputWithOptions, isEditorInput, EditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IResourceSideBySideEditorInput, isTextEditorViewState } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,6 +20,8 @@ import { EditorService } from 'vs/workbench/services/editor/browser/editorServic
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
 
 suite('Workbench editor utils', () => {
 
@@ -362,6 +364,30 @@ suite('Workbench editor utils', () => {
 		assert.strictEqual(isEditorInput(editorInputWithOptionsAndGroup), false);
 		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptionsAndGroup), true);
 		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptionsAndGroup), true);
+	});
+
+	test('isTextEditorViewState', () => {
+		assert.strictEqual(isTextEditorViewState(undefined), false);
+		assert.strictEqual(isTextEditorViewState({}), false);
+
+		const codeEditorViewState: ICodeEditorViewState = {
+			contributionsState: {},
+			cursorState: [],
+			viewState: {
+				scrollLeft: 0,
+				firstPosition: new Position(1, 1),
+				firstPositionDeltaTop: 1
+			}
+		};
+
+		assert.strictEqual(isTextEditorViewState(codeEditorViewState), true);
+
+		const diffEditorViewState: IDiffEditorViewState = {
+			original: codeEditorViewState,
+			modified: codeEditorViewState
+		};
+
+		assert.strictEqual(isTextEditorViewState(diffEditorViewState), true);
 	});
 
 	test('whenEditorClosed (single editor)', async function () {

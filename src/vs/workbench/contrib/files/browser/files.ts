@@ -56,11 +56,12 @@ export interface IExplorerView {
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
 	isItemVisible(item: ExplorerItem): boolean;
+	isItemCollapsed(item: ExplorerItem): boolean;
 	hasFocus(): boolean;
 }
 
 function getFocus(listService: IListService): unknown | undefined {
-	let list = listService.lastFocusedList;
+	const list = listService.lastFocusedList;
 	if (list?.getHTMLElement() === document.activeElement) {
 		let focus: unknown;
 		if (list instanceof List) {

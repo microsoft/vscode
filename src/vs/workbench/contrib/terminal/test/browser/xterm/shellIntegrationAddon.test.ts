@@ -7,8 +7,8 @@ import { Terminal } from 'xterm';
 import { strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 import * as sinon from 'sinon';
-import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 
@@ -48,7 +48,7 @@ suite('ShellIntegrationAddon', () => {
 		});
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(ILogService, NullLogService);
-		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon);
+		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, undefined, undefined);
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});

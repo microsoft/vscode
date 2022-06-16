@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { Gesture } from 'vs/base/browser/touch';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
@@ -107,13 +106,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				return;
 			}
 			// mouse enters lightbulb while the primary/left button
-			// is being pressed -> hide the lightbulb and block future
-			// showings until mouse is released
+			// is being pressed -> hide the lightbulb
 			this.hide();
-			const monitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
-			monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, () => { }, () => {
-				monitor.dispose();
-			});
 		}));
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			// hide when told to do so

@@ -45,9 +45,9 @@ export class ResourceEdit {
 export class ResourceTextEdit extends ResourceEdit {
 	constructor(
 		readonly resource: URI,
-		readonly textEdit: TextEdit,
+		readonly textEdit: TextEdit & { insertAsSnippet?: boolean },
 		readonly versionId?: number,
-		metadata?: WorkspaceEditMetadata
+		metadata?: WorkspaceEditMetadata,
 	) {
 		super(metadata);
 	}
@@ -70,10 +70,12 @@ export interface IBulkEditOptions {
 	token?: CancellationToken;
 	showPreview?: boolean;
 	label?: string;
+	code?: string;
 	quotableLabel?: string;
 	undoRedoSource?: UndoRedoSource;
 	undoRedoGroupId?: number;
 	confirmBeforeUndo?: boolean;
+	respectAutoSaveConfig?: boolean;
 }
 
 export interface IBulkEditResult {

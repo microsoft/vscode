@@ -213,6 +213,7 @@ function getExtraEditorClassName(): string {
 	if (browser.isSafari) {
 		// See https://github.com/microsoft/vscode/issues/108822
 		extra += 'no-minimap-shadow ';
+		extra += 'enable-user-select ';
 	}
 	if (platform.isMacintosh) {
 		extra += 'mac ';
@@ -284,7 +285,7 @@ class EditorOptionsUtil {
 		if (Array.isArray(a) || Array.isArray(b)) {
 			return (Array.isArray(a) && Array.isArray(b) ? arrays.equals(a, b) : false);
 		}
-		if (Object.keys(a).length !== Object.keys(b).length) {
+		if (Object.keys(a as unknown as object).length !== Object.keys(b as unknown as object).length) {
 			return false;
 		}
 		for (const key in a) {

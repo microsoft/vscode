@@ -10,11 +10,11 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { normalize } from 'vs/base/common/path';
+import { basename, extname, normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -110,7 +110,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	//#region File Reading/Writing
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer, {
 			// Set a highWaterMark to prevent the stream
 			// for file upload to produce large buffers
@@ -189,7 +189,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		}
 	}
 
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		try {
 			let handle = await this.getFileHandle(resource);
 
@@ -245,7 +245,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		}
 	}
 
-	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		try {
 			const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
 			if (!parent) {
@@ -258,14 +258,14 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		}
 	}
 
-	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		try {
 			if (this.extUri.isEqual(from, to)) {
 				return; // no-op if the paths are the same
 			}
 
 			// Implement file rename by write + delete
-			let fileHandle = await this.getFileHandle(from);
+			const fileHandle = await this.getFileHandle(from);
 			if (fileHandle) {
 				const file = await fileHandle.getFile();
 				const contents = new Uint8Array(await file.arrayBuffer());
@@ -314,11 +314,14 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		let handleId = `/${handle.name}`;
 
 		// Compute a valid handle ID in case this exists already
-		if (map.has(handleId)) {
-			let handleIdCounter = 2;
+		if (map.has(handleId) && !await map.get(handleId)?.isSameEntry(handle)) {
+			const fileExt = extname(handle.name);
+			const fileName = basename(handle.name, fileExt);
+
+			let handleIdCounter = 1;
 			do {
-				handleId = `/${handle.name}-${handleIdCounter++}`;
-			} while (map.has(handleId));
+				handleId = `/${fileName}-${handleIdCounter++}${fileExt}`;
+			} while (map.has(handleId) && !await map.get(handleId)?.isSameEntry(handle));
 		}
 
 		map.set(handleId, handle);
@@ -379,7 +382,12 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 			return handle;
 		}
 
-		const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
+		const parentUri = this.extUri.dirname(resource);
+		if (this.extUri.isEqual(parentUri, resource)) {
+			return undefined; // return when root is reached to prevent infinite recursion
+		}
+
+		const parent = await this.getDirectoryHandle(parentUri);
 
 		try {
 			return await parent?.getDirectoryHandle(extUri.basename(resource));

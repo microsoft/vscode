@@ -48,14 +48,10 @@ export interface IPrivateBreakpointWidgetService {
 }
 const DECORATION_KEY = 'breakpointwidgetdecoration';
 
-function isCurlyBracketOpen(input: IActiveCodeEditor): boolean {
+function isPositionInCurlyBracketBlock(input: IActiveCodeEditor): boolean {
 	const model = input.getModel();
-	const prevBracket = model.bracketPairs.findPrevBracket(input.getPosition());
-	if (prevBracket && prevBracket.isOpen) {
-		return true;
-	}
-
-	return false;
+	const bracketPairs = model.bracketPairs.getBracketPairsInRange(Range.fromPositions(input.getPosition()));
+	return bracketPairs.some(p => p.openingBracketInfo.bracketText === '{');
 }
 
 function createDecorations(theme: IColorTheme, placeHolder: string): IDecorationOptions[] {
@@ -251,7 +247,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				let suggestionsPromise: Promise<CompletionList>;
 				const underlyingModel = this.editor.getModel();
-				if (underlyingModel && (this.context === Context.CONDITION || (this.context === Context.LOG_MESSAGE && isCurlyBracketOpen(this.input)))) {
+				if (underlyingModel && (this.context === Context.CONDITION || (this.context === Context.LOG_MESSAGE && isPositionInCurlyBracketBlock(this.input)))) {
 					suggestionsPromise = provideSuggestionItems(this.languageFeaturesService.completionProvider, underlyingModel, new Position(this.lineNumber, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)), _context, token).then(suggestions => {
 
 						let overwriteBefore = 0;

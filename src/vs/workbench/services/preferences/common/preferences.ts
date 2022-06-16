@@ -34,7 +34,8 @@ export enum SettingValueType {
 	NullableInteger = 'nullable-integer',
 	NullableNumber = 'nullable-number',
 	Object = 'object',
-	BooleanObject = 'boolean-object'
+	BooleanObject = 'boolean-object',
+	LanguageTag = 'language-tag'
 }
 
 export interface ISettingsGroup {
@@ -86,7 +87,10 @@ export interface ISetting {
 	enumItemLabels?: string[];
 	allKeysAreBoolean?: boolean;
 	editPresentation?: EditPresentationTypes;
-	defaultValueSource?: string | IExtensionInfo;
+	nonLanguageSpecificDefaultValueSource?: string | IExtensionInfo;
+	isLanguageTagSetting?: boolean;
+	categoryOrder?: number;
+	categoryLabel?: string;
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -235,6 +239,7 @@ export interface IPreferencesService {
 	openFolderSettings(options: IOpenSettingsOptions & { folderUri: IOpenSettingsOptions['folderUri'] }): Promise<IEditorPane | undefined>;
 	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
+	openLanguageSpecificSettings(languageId: string, options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;
 
 	createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): EditorInput;

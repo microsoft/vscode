@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction, MovePanelToSidePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -45,6 +45,7 @@ import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/bro
 import { IPartOptions } from 'vs/workbench/browser/part';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 
 interface ICachedPanel {
 	id: string;
@@ -208,6 +209,12 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		// Global Panel Actions
 		this.globalActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, partId === Parts.PANEL_PART ? MenuId.PanelTitle : MenuId.AuxiliaryBarTitle, undefined, undefined));
 		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
+
+		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
+			.registerKeys([{
+				key: this.pinnedPanelsKey,
+				description: localize('pinned view containers', "Panel entries visibility customizations")
+			}]);
 	}
 
 	protected abstract getActivityHoverOptions(): IActivityHoverOptions;
@@ -370,6 +377,16 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		if (viewContainerModel.activeViewDescriptors.length) {
 			contextKey.set(true);
 			this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
+
+			if (this.layoutService.isRestored() && this.layoutService.isVisible(this.partId)) {
+				const activeComposite = this.getActiveComposite();
+				if (activeComposite === undefined || activeComposite.getId() === viewContainer.id) {
+					this.compositeBar.activateComposite(viewContainer.id);
+				}
+			}
+
+			this.layoutCompositeBar();
+			this.layoutEmptyMessage();
 		} else if (viewContainer.hideIfEmpty) {
 			contextKey.set(false);
 			this.hideComposite(viewContainer.id);
@@ -400,7 +417,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		this._register(this.onDidPaneCompositeClose(this.onPanelClose, this));
 
 		// Extension registration
-		let disposables = this._register(new DisposableStore());
+		const disposables = this._register(new DisposableStore());
 		this._register(this.extensionService.onDidRegisterExtensions(() => {
 			disposables.clear();
 			this.onDidRegisterExtensions();
@@ -493,7 +510,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 		const messageElement = document.createElement('div');
 		messageElement.classList.add('empty-panel-message');
-		messageElement.innerText = localize('panel.emptyMessage', "Drag a view into the panel to display.");
+		messageElement.innerText = localize('panel.emptyMessage', "Drag a view here to display.");
 
 		this.emptyPanelMessageElement.appendChild(messageElement);
 		contentArea.appendChild(this.emptyPanelMessageElement);
@@ -700,9 +717,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 	private emptyPanelMessageElement: HTMLElement | undefined;
 	private layoutEmptyMessage(): void {
-		if (this.emptyPanelMessageElement) {
-			this.emptyPanelMessageElement.classList.toggle('visible', this.compositeBar.getVisibleComposites().length === 0);
-		}
+		this.emptyPanelMessageElement?.classList.toggle('visible', this.compositeBar.getVisibleComposites().length === 0);
 	}
 
 	private getViewContainer(id: string): ViewContainer | undefined {
@@ -714,9 +729,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		const primaryActions = this.globalActions.getPrimaryActions();
 		const secondaryActions = this.globalActions.getSecondaryActions();
 
-		if (this.globalToolBar) {
-			this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
-		}
+		this.globalToolBar?.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction } {
@@ -965,7 +978,6 @@ export class PanelPart extends BasePanelPart {
 
 		actions.push(...[
 			new Separator(),
-			toAction({ id: MovePanelToSidePanelAction.ID, label: localize('moveToSidePanel', "Move Views to Side Panel"), run: () => this.instantiationService.invokeFunction(accessor => new MovePanelToSidePanelAction().run(accessor)) }),
 			...PositionPanelActionConfigs
 				// show the contextual menu item if it is not in that position
 				.filter(({ when }) => this.contextKeyService.contextMatchesRules(when))

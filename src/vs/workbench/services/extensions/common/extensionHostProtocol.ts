@@ -10,15 +10,21 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 
+export interface IExtensionDescriptionDelta {
+	readonly toRemove: ExtensionIdentifier[];
+	readonly toAdd: IExtensionDescription[];
+	readonly myToRemove: ExtensionIdentifier[];
+	readonly myToAdd: ExtensionIdentifier[];
+}
+
 export interface IExtensionHostInitData {
 	version: string;
 	commit?: string;
 	parentPid: number;
 	environment: IEnvironment;
 	workspace?: IStaticWorkspaceData | null;
-	resolvedExtensions: ExtensionIdentifier[];
-	hostExtensions: ExtensionIdentifier[];
-	extensions: IExtensionDescription[];
+	allExtensions: IExtensionDescription[];
+	myExtensions: ExtensionIdentifier[];
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
 	logsLocation: URI;

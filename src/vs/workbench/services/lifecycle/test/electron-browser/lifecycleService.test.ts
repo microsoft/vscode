@@ -132,7 +132,7 @@ suite('Lifecycleservice', function () {
 				joinCalled = true;
 
 				resolve();
-			}), 'test');
+			}), { id: 'test', label: 'test' });
 		});
 
 		await lifecycleService.handleWillShutdown(ShutdownReason.QUIT);
@@ -148,7 +148,7 @@ suite('Lifecycleservice', function () {
 				joinCalled = true;
 
 				reject(new Error('Fail'));
-			}), 'test');
+			}), { id: 'test', label: 'test' });
 		});
 
 		await lifecycleService.handleWillShutdown(ShutdownReason.QUIT);

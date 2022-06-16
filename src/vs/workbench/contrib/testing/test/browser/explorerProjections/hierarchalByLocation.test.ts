@@ -7,11 +7,11 @@ import * as assert from 'assert';
 import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 import { Emitter } from 'vs/base/common/event';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
-import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
+import { TestTestItem } from 'vs/workbench/contrib/testing/test/common/testStubs';
 
 class TestHierarchicalByLocationProjection extends HierarchicalByLocationProjection {
 }
@@ -55,10 +55,10 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		harness.flush();
 		harness.pushDiff({
 			op: TestDiffOpType.Add,
-			item: { controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c', 'c', undefined)) },
+			item: { controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: new TestTestItem('ctrl2', 'c', 'c').toTestItem() },
 		}, {
 			op: TestDiffOpType.Add,
-			item: { controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c-a', 'ca', undefined)) },
+			item: { controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: new TestTestItem('ctrl2', 'c-a', 'ca').toTestItem() },
 		});
 
 		assert.deepStrictEqual(harness.flush(), [
@@ -76,7 +76,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			{ e: 'b' }
 		]);
 
-		harness.c.root.children.get('id-a')!.children.add(new TestItemImpl('ctrlId', 'ac', 'ac', undefined));
+		harness.c.root.children.get('id-a')!.children.add(new TestTestItem('ctrlId', 'ac', 'ac'));
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'ac' }] },
@@ -119,7 +119,6 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			},
 			parent: 'id-root',
 			tasks: [],
-			retired: false,
 			ownComputedState: state,
 			computedState: state,
 			expand: 0,

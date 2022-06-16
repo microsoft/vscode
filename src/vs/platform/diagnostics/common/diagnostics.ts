@@ -92,3 +92,34 @@ export interface IWorkspaceInformation extends IWorkspace {
 export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {
 	return !!x.hostName && !!x.errorMessage;
 }
+
+export class NullDiagnosticsService implements IDiagnosticsService {
+	_serviceBrand: undefined;
+
+	async getPerformanceInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo> {
+		return {};
+	}
+
+	async getSystemInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo> {
+		return {
+			processArgs: 'nullProcessArgs',
+			gpuStatus: 'nullGpuStatus',
+			screenReader: 'nullScreenReader',
+			remoteData: [],
+			os: 'nullOs',
+			memory: 'nullMemory',
+			vmHint: 'nullVmHint',
+		};
+	}
+
+	async getDiagnostics(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string> {
+		return '';
+	}
+
+	async getWorkspaceFileExtensions(workspace: IWorkspace): Promise<{ extensions: string[] }> {
+		return { extensions: [] };
+	}
+
+	async reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void> { }
+
+}

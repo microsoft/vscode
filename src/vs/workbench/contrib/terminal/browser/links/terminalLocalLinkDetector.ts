@@ -9,7 +9,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkDetector, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IBufferLine, Terminal } from 'xterm';
 
 const enum Constants {
@@ -66,6 +66,12 @@ export const lineAndColumnClauseGroupCount = 6;
 
 export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	static id = 'local';
+
+	// This was chosen as a reasonable maximum line length given the tradeoff between performance
+	// and how likely it is to encounter such a large line length. Some useful reference points:
+	// - Window old max length: 260 ($MAX_PATH)
+	// - Linux max length: 4096 ($PATH_MAX)
+	readonly maxLinkLength = 500;
 
 	constructor(
 		readonly xterm: Terminal,

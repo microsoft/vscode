@@ -16,7 +16,7 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { CursorMoveCommands } from 'vs/editor/common/cursor/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -173,7 +173,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		}
 
 		for (let i = selection.startLineNumber; i < selection.endLineNumber; i++) {
-			let currentLineMaxColumn = model.getLineMaxColumn(i);
+			const currentLineMaxColumn = model.getLineMaxColumn(i);
 			result.push(new Selection(i, currentLineMaxColumn, i, currentLineMaxColumn));
 		}
 		if (selection.endColumn > 1) {
@@ -190,7 +190,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		const selections = editor.getSelections();
 		const viewModel = editor._getViewModel();
 		const previousCursorState = viewModel.getCursorStates();
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		selections.forEach((sel) => this.getCursorsForSelection(sel, model, newSelections));
 
 		if (newSelections.length > 0) {
@@ -219,7 +219,7 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 		const selections = editor.getSelections();
 		const lineCount = editor.getModel().getLineCount();
 
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		for (let i = selections[0].startLineNumber; i <= lineCount; i++) {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
@@ -251,7 +251,7 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 
 		const selections = editor.getSelections();
 
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		for (let i = selections[0].startLineNumber; i >= 1; i--) {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
@@ -438,14 +438,18 @@ export class MultiCursorSession {
 		return new Selection(previousMatch.range.startLineNumber, previousMatch.range.startColumn, previousMatch.range.endLineNumber, previousMatch.range.endColumn);
 	}
 
-	public selectAll(): FindMatch[] {
+	public selectAll(searchScope: Range[] | null): FindMatch[] {
 		if (!this._editor.hasModel()) {
 			return [];
 		}
 
 		this.findController.highlightFindOptions();
 
-		return this._editor.getModel().findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		const editorModel = this._editor.getModel();
+		if (searchScope) {
+			return editorModel.findMatches(this.searchText, searchScope, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		}
+		return editorModel.findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 	}
 }
 
@@ -566,7 +570,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				const selectionsContainSameText = modelRangesContainSameText(this._editor.getModel(), allSelections, matchCase);
 				if (!selectionsContainSameText) {
 					const model = this._editor.getModel();
-					let resultingSelections: Selection[] = [];
+					const resultingSelections: Selection[] = [];
 					for (let i = 0, len = allSelections.length; i < len; i++) {
 						resultingSelections[i] = this._expandEmptyToWord(model, allSelections[i]);
 					}
@@ -617,9 +621,12 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search string is non-empty
 		// - and we're searching for a regex
 		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
-
-			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
-
+			const editorModel = this._editor.getModel();
+			if (findState.searchScope) {
+				matches = editorModel.findMatches(findState.searchString, findState.searchScope, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+			} else {
+				matches = editorModel.findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+			}
 		} else {
 
 			this._beginSessionIfNeeded(findController);
@@ -627,20 +634,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				return;
 			}
 
-			matches = this._session.selectAll();
-		}
-
-		if (findState.searchScope) {
-			const states = findState.searchScope;
-			let inSelection: FindMatch[] | null = [];
-			matches.forEach((match) => {
-				states.forEach((state) => {
-					if (match.range.endLineNumber <= state.endLineNumber && match.range.startLineNumber >= state.startLineNumber) {
-						inSelection!.push(match);
-					}
-				});
-			});
-			matches = inSelection;
+			matches = this._session.selectAll(findState.searchScope);
 		}
 
 		if (matches.length > 0) {
@@ -852,7 +846,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
-	private decorations: string[];
+	private readonly _decorations: IEditorDecorationsCollection;
 	private readonly updateSoon: RunOnceScheduler;
 	private state: SelectionHighlighterState | null;
 
@@ -863,7 +857,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		super();
 		this.editor = editor;
 		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
-		this.decorations = [];
+		this._decorations = editor.createDecorationsCollection();
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.state = null;
 
@@ -992,7 +986,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.state = newState;
 
 		if (!this.state) {
-			this.decorations = this.editor.deltaDecorations(this.decorations, []);
+			this._decorations.clear();
 			return;
 		}
 
@@ -1048,7 +1042,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			};
 		});
 
-		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
+		this._decorations.set(decorations);
 	}
 
 	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
@@ -1097,6 +1091,84 @@ function getValueInRange(model: ITextModel, range: Range, toLowerCase: boolean):
 	return (toLowerCase ? text.toLowerCase() : text);
 }
 
+export class FocusNextCursor extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.focusNextCursor',
+			label: nls.localize('mutlicursor.focusNextCursor', "Focus Next Cursor"),
+			description: {
+				description: nls.localize('mutlicursor.focusNextCursor.description', "Focuses the next cursor"),
+				args: [],
+			},
+			alias: 'Focus Next Cursor',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const viewModel = editor._getViewModel();
+
+		if (viewModel.cursorConfig.readOnly) {
+			return;
+		}
+
+		viewModel.model.pushStackElement();
+		const previousCursorState = Array.from(viewModel.getCursorStates());
+		const firstCursor = previousCursorState.shift();
+		if (!firstCursor) {
+			return;
+		}
+		previousCursorState.push(firstCursor);
+
+		viewModel.setCursorStates(args.source, CursorChangeReason.Explicit, previousCursorState);
+		viewModel.revealPrimaryCursor(args.source, true);
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
+	}
+}
+
+export class FocusPreviousCursor extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.focusPreviousCursor',
+			label: nls.localize('mutlicursor.focusPreviousCursor', "Focus Previous Cursor"),
+			description: {
+				description: nls.localize('mutlicursor.focusPreviousCursor.description', "Focuses the previous cursor"),
+				args: [],
+			},
+			alias: 'Focus Previous Cursor',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const viewModel = editor._getViewModel();
+
+		if (viewModel.cursorConfig.readOnly) {
+			return;
+		}
+
+		viewModel.model.pushStackElement();
+		const previousCursorState = Array.from(viewModel.getCursorStates());
+		const firstCursor = previousCursorState.pop();
+		if (!firstCursor) {
+			return;
+		}
+		previousCursorState.unshift(firstCursor);
+
+		viewModel.setCursorStates(args.source, CursorChangeReason.Explicit, previousCursorState);
+		viewModel.revealPrimaryCursor(args.source, true);
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
+	}
+}
+
 registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
 registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter);
 
@@ -1111,3 +1183,5 @@ registerEditorAction(SelectHighlightsAction);
 registerEditorAction(CompatChangeAll);
 registerEditorAction(InsertCursorAtEndOfLineSelected);
 registerEditorAction(InsertCursorAtTopOfLineSelected);
+registerEditorAction(FocusNextCursor);
+registerEditorAction(FocusPreviousCursor);

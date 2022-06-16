@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MarkdownString, NotebookCellOutputItem, NotebookData } from 'vs/workbench/api/common/extHostTypeConverters';
+import { MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
 import { forEach } from 'vs/base/common/collections';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 suite('ExtHostTypeConverter', function () {
 	function size<T>(from: Record<any, any>): number {
 		let count = 0;
-		for (let key in from) {
+		for (const key in from) {
 			if (Object.prototype.hasOwnProperty.call(from, key)) {
 				count += 1;
 			}
@@ -71,7 +71,7 @@ suite('ExtHostTypeConverter', function () {
 
 	test('NPM script explorer running a script from the hover does not work #65561', function () {
 
-		let data = MarkdownString.from('*hello* [click](command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2Ffoo%2Fbaz.ex%22%2C%22path%22%3A%22%2Fc%3A%2Ffoo%2Fbaz.ex%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22dev%22%7D)');
+		const data = MarkdownString.from('*hello* [click](command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2Ffoo%2Fbaz.ex%22%2C%22path%22%3A%22%2Fc%3A%2Ffoo%2Fbaz.ex%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22dev%22%7D)');
 		// assert that both uri get extracted but that the latter is only decoded once...
 		assert.strictEqual(size(data.uris!), 2);
 		forEach(data.uris!, entry => {
@@ -110,5 +110,17 @@ suite('ExtHostTypeConverter', function () {
 
 		assert.strictEqual(item2.mime, item.mime);
 		assert.deepStrictEqual(Array.from(item2.data), Array.from(item.data));
+	});
+
+	test('LanguageSelector', function () {
+		const out = LanguageSelector.from({ language: 'bat', notebookType: 'xxx' });
+		assert.ok(typeof out === 'object');
+		assert.deepStrictEqual(out, {
+			language: 'bat',
+			notebookType: 'xxx',
+			scheme: undefined,
+			pattern: undefined,
+			exclusive: undefined,
+		});
 	});
 });

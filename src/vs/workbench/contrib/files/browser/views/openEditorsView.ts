@@ -30,16 +30,16 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { ResourcesDropHandler, fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
+import { ResourcesDropHandler, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
 import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { isWeb } from 'vs/base/common/platform';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -60,6 +60,7 @@ const $ = dom.$;
 export class OpenEditorsView extends ViewPane {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
+	private static readonly DEFAULT_MIN_VISIBLE_OPEN_EDITORS = 0;
 	static readonly ID = 'workbench.explorer.openEditorsView';
 	static readonly NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
@@ -319,9 +320,7 @@ export class OpenEditorsView extends ViewPane {
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		if (this.list) {
-			this.list.layout(height, width);
-		}
+		this.list?.layout(height, width);
 	}
 
 	private get showGroups(): boolean {
@@ -452,7 +451,7 @@ export class OpenEditorsView extends ViewPane {
 			}
 		}
 
-		let dirty = this.workingCopyService.dirtyCount;
+		const dirty = this.workingCopyService.dirtyCount;
 		if (dirty === 0) {
 			this.dirtyCountElement.classList.add('hidden');
 		} else {
@@ -467,12 +466,17 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	private getMaxExpandedBodySize(): number {
+		let minVisibleOpenEditors = this.configurationService.getValue<number>('explorer.openEditors.minVisible');
+		// If it's not a number setting it to 0 will result in dynamic resizing.
+		if (typeof minVisibleOpenEditors !== 'number') {
+			minVisibleOpenEditors = OpenEditorsView.DEFAULT_MIN_VISIBLE_OPEN_EDITORS;
+		}
 		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
 		if (containerModel.visibleViewDescriptors.length <= 1) {
 			return Number.POSITIVE_INFINITY;
 		}
 
-		return this.elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
+		return (Math.max(this.elementCount, minVisibleOpenEditors)) * OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 
 	private getMinExpandedBodySize(): number {
@@ -494,8 +498,8 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	override getOptimalWidth(): number {
-		let parentNode = this.list.getHTMLElement();
-		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+		const parentNode = this.list.getHTMLElement();
+		const childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
 		return dom.getLargestChildWidth(parentNode, childNodes);
 	}
@@ -695,10 +699,6 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 	onDragOver(data: IDragAndDropData, _targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		if (data instanceof NativeDragAndDropData) {
-			if (isWeb) {
-				return false; // dropping files into editor is unsupported on web
-			}
-
 			return containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES);
 		}
 

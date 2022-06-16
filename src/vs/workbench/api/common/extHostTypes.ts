@@ -97,7 +97,7 @@ export class Position {
 		if (other instanceof Position) {
 			return true;
 		}
-		let { line, character } = <Position>other;
+		const { line, character } = <Position>other;
 		if (typeof line === 'number' && typeof character === 'number') {
 			return true;
 		}
@@ -549,6 +549,7 @@ export class TextEdit {
 
 	protected _range: Range;
 	protected _newText: string | null;
+	newText2?: string | SnippetString;
 	protected _newEol?: EndOfLine;
 
 	get range(): Range {
@@ -595,6 +596,55 @@ export class TextEdit {
 			newText: this.newText,
 			newEol: this._newEol
 		};
+	}
+}
+
+@es5ClassCompat
+export class NotebookEdit implements vscode.NotebookEdit {
+
+	static isNotebookCellEdit(thing: any): thing is NotebookEdit {
+		if (thing instanceof NotebookEdit) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return NotebookRange.isNotebookRange((<NotebookEdit>thing))
+			&& Array.isArray((<NotebookEdit>thing).newCells);
+	}
+
+	static replaceCells(range: NotebookRange, newCells: NotebookCellData[]): NotebookEdit {
+		return new NotebookEdit(range, newCells);
+	}
+
+	static insertCells(index: number, newCells: vscode.NotebookCellData[]): vscode.NotebookEdit {
+		return new NotebookEdit(new NotebookRange(index, index), newCells);
+	}
+
+	static deleteCells(range: NotebookRange): NotebookEdit {
+		return new NotebookEdit(range, []);
+	}
+
+	static updateCellMetadata(index: number, newMetadata: { [key: string]: any }): NotebookEdit {
+		const edit = new NotebookEdit(new NotebookRange(index, index), []);
+		edit.newCellMetadata = newMetadata;
+		return edit;
+	}
+
+	static updateNotebookMetadata(newMetadata: { [key: string]: any }): NotebookEdit {
+		const edit = new NotebookEdit(new NotebookRange(0, 0), []);
+		edit.newNotebookMetadata = newMetadata;
+		return edit;
+	}
+
+	range: NotebookRange;
+	newCells: NotebookCellData[];
+	newCellMetadata?: { [key: string]: any };
+	newNotebookMetadata?: { [key: string]: any };
+
+	constructor(range: NotebookRange, newCells: NotebookCellData[]) {
+		this.range = range;
+		this.newCells = newCells;
 	}
 }
 
@@ -730,7 +780,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return this._edits.some(edit => edit._type === FileEditType.Text && edit.uri.toString() === uri.toString());
 	}
 
-	set(uri: URI, edits: TextEdit[]): void {
+	set(uri: URI, edits: TextEdit[] | unknown): void {
 		if (!edits) {
 			// remove all text edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
@@ -742,9 +792,19 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			coalesceInPlace(this._edits);
 		} else {
 			// append edit to the end
-			for (const edit of edits) {
+			for (const edit of edits as TextEdit[] | NotebookEdit[]) {
 				if (edit) {
-					this._edits.push({ _type: FileEditType.Text, uri, edit });
+					if (NotebookEdit.isNotebookCellEdit(edit)) {
+						if (edit.newCellMetadata) {
+							this.replaceNotebookCellMetadata(uri, edit.range.start, edit.newCellMetadata);
+						} else if (edit.newNotebookMetadata) {
+							this.replaceNotebookMetadata(uri, edit.newNotebookMetadata);
+						} else {
+							this.replaceNotebookCells(uri, edit.range, edit.newCells);
+						}
+					} else {
+						this._edits.push({ _type: FileEditType.Text, uri, edit });
+					}
 				}
 			}
 		}
@@ -752,7 +812,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	get(uri: URI): TextEdit[] {
 		const res: TextEdit[] = [];
-		for (let candidate of this._edits) {
+		for (const candidate of this._edits) {
 			if (candidate._type === FileEditType.Text && candidate.uri.toString() === uri.toString()) {
 				res.push(candidate.edit);
 			}
@@ -762,7 +822,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	entries(): [URI, TextEdit[]][] {
 		const textEdits = new ResourceMap<[URI, TextEdit[]]>();
-		for (let candidate of this._edits) {
+		for (const candidate of this._edits) {
 			if (candidate._type === FileEditType.Text) {
 				let textEdit = textEdits.get(candidate.uri);
 				if (!textEdit) {
@@ -1150,9 +1210,7 @@ export class DocumentSymbol {
 		if (!candidate.range.contains(candidate.selectionRange)) {
 			throw new Error('selectionRange must be contained in fullRange');
 		}
-		if (candidate.children) {
-			candidate.children.forEach(DocumentSymbol.validate);
-		}
+		candidate.children?.forEach(DocumentSymbol.validate);
 	}
 
 	name: string;
@@ -1467,10 +1525,10 @@ export class InlayHint implements vscode.InlayHint {
 	label: string | InlayHintLabelPart[];
 	tooltip?: string | vscode.MarkdownString;
 	position: Position;
+	textEdits?: TextEdit[];
 	kind?: vscode.InlayHintKind;
 	paddingLeft?: boolean;
 	paddingRight?: boolean;
-	command?: vscode.Command;
 
 	constructor(position: Position, label: string | InlayHintLabelPart[], kind?: vscode.InlayHintKind) {
 		this.position = position;
@@ -1583,13 +1641,9 @@ export class CompletionList {
 
 @es5ClassCompat
 export class InlineSuggestion implements vscode.InlineCompletionItem {
-	insertText?: string;
 
-	/**
-	 * @deprecated Use `insertText` instead. Will be removed eventually.
-	*/
-	text?: string;
-
+	filterText?: string;
+	insertText: string;
 	range?: Range;
 	command?: vscode.Command;
 
@@ -1600,15 +1654,39 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 	}
 }
 
-/**
- * @deprecated Return an array of inline completion items directly. Will be removed eventually.
-*/
 @es5ClassCompat
-export class InlineSuggestions implements vscode.InlineCompletionList {
-	items: vscode.InlineCompletionItem[];
+export class InlineSuggestionList implements vscode.InlineCompletionList {
+	items: vscode.InlineCompletionItemNew[];
 
-	constructor(items: vscode.InlineCompletionItem[]) {
+	commands: vscode.Command[] | undefined = undefined;
+
+	constructor(items: vscode.InlineCompletionItemNew[]) {
 		this.items = items;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
+	insertText: string;
+	range?: Range;
+	command?: vscode.Command;
+
+	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+		this.insertText = insertText;
+		this.range = range;
+		this.command = command;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
+	items: vscode.InlineCompletionItemNew[];
+
+	commands: vscode.Command[] | undefined;
+
+	constructor(items: vscode.InlineCompletionItemNew[], commands?: vscode.Command[]) {
+		this.items = items;
+		this.commands = commands;
 	}
 }
 
@@ -1804,7 +1882,7 @@ export class TerminalProfile implements vscode.TerminalProfile {
 		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
 	) {
 		if (typeof options !== 'object') {
-			illegalArgument('options');
+			throw illegalArgument('options');
 		}
 	}
 }
@@ -1940,7 +2018,7 @@ export class ProcessExecution implements vscode.ProcessExecution {
 			props.push(this._process);
 		}
 		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
+			for (const arg of this._args) {
 				props.push(arg);
 			}
 		}
@@ -2026,7 +2104,7 @@ export class ShellExecution implements vscode.ShellExecution {
 			props.push(typeof this._command === 'string' ? this._command : this._command.value);
 		}
 		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
+			for (const arg of this._args) {
 				props.push(typeof arg === 'string' ? arg : arg.value);
 			}
 		}
@@ -2349,28 +2427,82 @@ export enum TreeItemCollapsibleState {
 }
 
 @es5ClassCompat
-export class TreeDataTransferItem {
+export class DataTransferItem {
+
 	async asString(): Promise<string> {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
+	}
+
+	asFile(): undefined | vscode.DataTransferFile {
+		return undefined;
 	}
 
 	constructor(public readonly value: any) { }
 }
 
 @es5ClassCompat
-export class TreeDataTransfer<T extends TreeDataTransferItem = TreeDataTransferItem> {
-	private readonly _items: Map<string, T> = new Map();
-	get(mimeType: string): T | undefined {
-		return this._items.get(mimeType);
+export class DataTransfer implements vscode.DataTransfer {
+	#items = new Map<string, DataTransferItem[]>();
+
+	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
+		for (const [mime, item] of init ?? []) {
+			const existing = this.#items.get(mime);
+			if (existing) {
+				existing.push(item);
+			} else {
+				this.#items.set(mime, [item]);
+			}
+		}
 	}
-	set(mimeType: string, value: T): void {
-		this._items.set(mimeType, value);
+
+	get(mimeType: string): DataTransferItem | undefined {
+		return this.#items.get(mimeType)?.[0];
 	}
-	forEach(callbackfn: (value: T, key: string) => void): void {
-		this._items.forEach(callbackfn);
+
+	set(mimeType: string, value: DataTransferItem): void {
+		// This intentionally overwrites all entries for a given mimetype.
+		// This is similar to how the DOM DataTransfer type works
+		this.#items.set(mimeType, [value]);
+	}
+
+	forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
+		for (const [mime, items] of this.#items) {
+			for (const item of items) {
+				callbackfn.call(thisArg, item, mime, this);
+			}
+		}
+	}
+
+	*[Symbol.iterator](): IterableIterator<[mimeType: string, item: vscode.DataTransferItem]> {
+		for (const [mime, items] of this.#items) {
+			for (const item of items) {
+				yield [mime, item];
+			}
+		}
 	}
 }
 
+@es5ClassCompat
+export class DocumentDropEdit {
+	insertText: string | SnippetString;
+
+	additionalEdit?: WorkspaceEdit;
+
+	constructor(insertText: string | SnippetString) {
+		this.insertText = insertText;
+	}
+}
+
+@es5ClassCompat
+export class DocumentPasteEdit {
+	insertText: string | SnippetString;
+
+	additionalEdit?: WorkspaceEdit;
+
+	constructor(insertText: string | SnippetString) {
+		this.insertText = insertText;
+	}
+}
 
 @es5ClassCompat
 export class ThemeIcon {
@@ -2583,8 +2715,13 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 }
 
 export enum InlineCompletionTriggerKind {
-	Automatic = 0,
-	Explicit = 1,
+	Invoke = 0,
+	Automatic = 1,
+}
+
+export enum InlineCompletionTriggerKindNew {
+	Invoke = 0,
+	Automatic = 1,
 }
 
 @es5ClassCompat
@@ -2881,7 +3018,7 @@ export class SemanticTokensBuilder {
 	}
 
 	private static _sortAndDeltaEncode(data: number[]): Uint32Array {
-		let pos: number[] = [];
+		const pos: number[] = [];
 		const tokenCount = (data.length / 5) | 0;
 		for (let i = 0; i < tokenCount; i++) {
 			pos[i] = i;
@@ -2995,6 +3132,12 @@ export enum QuickPickItemKind {
 	Default = 0,
 }
 
+export enum InputBoxValidationSeverity {
+	Info = 1,
+	Warning = 2,
+	Error = 3
+}
+
 export enum ExtensionKind {
 	UI = 1,
 	Workspace = 2
@@ -3041,7 +3184,8 @@ export class ColorTheme implements vscode.ColorTheme {
 export enum ColorThemeKind {
 	Light = 1,
 	Dark = 2,
-	HighContrast = 3
+	HighContrast = 3,
+	HighContrastLight = 4
 }
 
 //#endregion Theming
@@ -3204,7 +3348,7 @@ export class NotebookCellOutputItem {
 		return new NotebookCellOutputItem(bytes, mime);
 	}
 
-	static json(value: any, mime: string = 'application/json'): NotebookCellOutputItem {
+	static json(value: any, mime: string = 'text/x-json'): NotebookCellOutputItem {
 		const rawStr = JSON.stringify(value, undefined, '\t');
 		return NotebookCellOutputItem.text(rawStr, mime);
 	}
@@ -3567,3 +3711,34 @@ export class TypeHierarchyItem {
 		this.selectionRange = selectionRange;
 	}
 }
+
+//#region Tab Inputs
+
+export class TextTabInput {
+	constructor(readonly uri: URI) { }
+}
+
+export class TextDiffTabInput {
+	constructor(readonly original: URI, readonly modified: URI) { }
+}
+
+export class CustomEditorTabInput {
+	constructor(readonly uri: URI, readonly viewType: string) { }
+}
+
+export class WebviewEditorTabInput {
+	constructor(readonly viewType: string) { }
+}
+
+export class NotebookEditorTabInput {
+	constructor(readonly uri: URI, readonly notebookType: string) { }
+}
+
+export class NotebookDiffEditorTabInput {
+	constructor(readonly original: URI, readonly modified: URI, readonly notebookType: string) { }
+}
+
+export class TerminalEditorTabInput {
+	constructor() { }
+}
+//#endregion

@@ -11,11 +11,17 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class NativeStorageService extends AbstractStorageService {
 
+	// Application Storage is readonly and shared across
+	// windows and profiles.
+	private readonly applicationStorage: IStorage;
+
 	// Global Storage is readonly and shared across windows
+	// under the same profile.
 	private readonly globalStorage: IStorage;
 
 	// Workspace Storage is scoped to a window but can change
@@ -27,18 +33,40 @@ export class NativeStorageService extends AbstractStorageService {
 	constructor(
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
 		private readonly mainProcessService: IMainProcessService,
-		private readonly environmentService: IEnvironmentService
+		private readonly userDataProfilesService: IUserDataProfilesService,
+		private readonly environmentService: IEnvironmentService,
 	) {
 		super();
 
+		this.applicationStorage = this.createApplicationStorage();
 		this.globalStorage = this.createGlobalStorage();
 		this.workspaceStorage = this.createWorkspaceStorage(workspace);
 	}
 
-	private createGlobalStorage(): IStorage {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), undefined);
+	private createApplicationStorage(): IStorage {
+		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, undefined);
+		const applicationStorage = new Storage(storageDataBaseClient.applicationStorage);
 
-		const globalStorage = new Storage(storageDataBaseClient.globalStorage);
+		this._register(applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
+
+		return applicationStorage;
+	}
+
+	private createGlobalStorage(): IStorage {
+		let globalStorage: IStorage;
+
+		if (this.userDataProfilesService.currentProfile.isDefault) {
+
+			// If we are in default profile, the global storage is
+			// actually the same as application storage. As such we
+			// avoid creating the storage library a second time on
+			// the same DB.
+
+			globalStorage = this.applicationStorage;
+		} else {
+			const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, undefined);
+			globalStorage = new Storage(storageDataBaseClient.globalStorage);
+		}
 
 		this._register(globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 
@@ -48,7 +76,7 @@ export class NativeStorageService extends AbstractStorageService {
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorage;
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined;
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), workspace);
+		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, workspace);
 
 		if (storageDataBaseClient.workspaceStorage) {
 			const workspaceStorage = new Storage(storageDataBaseClient.workspaceStorage);
@@ -69,17 +97,32 @@ export class NativeStorageService extends AbstractStorageService {
 
 		// Init all storage locations
 		await Promises.settled([
+			this.applicationStorage.init(),
 			this.globalStorage.init(),
 			this.workspaceStorage?.init() ?? Promise.resolve()
 		]);
 	}
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {
-		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+		switch (scope) {
+			case StorageScope.APPLICATION:
+				return this.applicationStorage;
+			case StorageScope.GLOBAL:
+				return this.globalStorage;
+			default:
+				return this.workspaceStorage;
+		}
 	}
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
-		return scope === StorageScope.GLOBAL ? this.environmentService.globalStorageHome.fsPath : this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
+		switch (scope) {
+			case StorageScope.APPLICATION:
+				return this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath;
+			case StorageScope.GLOBAL:
+				return this.userDataProfilesService.currentProfile.globalStorageHome.fsPath;
+			default:
+				return this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
+		}
 	}
 
 	async close(): Promise<void> {
@@ -92,6 +135,7 @@ export class NativeStorageService extends AbstractStorageService {
 
 		// Do it
 		await Promises.settled([
+			this.applicationStorage.close(),
 			this.globalStorage.close(),
 			this.workspaceStorage?.close() ?? Promise.resolve()
 		]);

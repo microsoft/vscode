@@ -4,23 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { addMatchMediaChangeListener } from 'vs/base/browser/browser';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
-import { FontStyle, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/languages';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { FontStyle, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
+import { hc_black, hc_light, vs, vs_dark } from 'vs/editor/standalone/common/themes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { ColorScheme, isDark } from 'vs/platform/theme/common/theme';
 import { getIconsStyleSheet, UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
 const HC_BLACK_THEME_NAME = 'hc-black';
+const HC_LIGHT_THEME_NAME = 'hc-light';
 
 const colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
@@ -72,12 +75,12 @@ class StandaloneTheme implements IStandaloneTheme {
 	private getColors(): Map<string, Color> {
 		if (!this.colors) {
 			const colors = new Map<string, Color>();
-			for (let id in this.themeData.colors) {
+			for (const id in this.themeData.colors) {
 				colors.set(id, Color.fromHex(this.themeData.colors[id]));
 			}
 			if (this.themeData.inherit) {
 				const baseData = getBuiltinRules(this.themeData.base);
-				for (let id in baseData.colors) {
+				for (const id in baseData.colors) {
 					if (!colors.has(id)) {
 						colors.set(id, Color.fromHex(baseData.colors[id]));
 					}
@@ -116,7 +119,8 @@ class StandaloneTheme implements IStandaloneTheme {
 	public get type(): ColorScheme {
 		switch (this.base) {
 			case VS_THEME_NAME: return ColorScheme.LIGHT;
-			case HC_BLACK_THEME_NAME: return ColorScheme.HIGH_CONTRAST;
+			case HC_BLACK_THEME_NAME: return ColorScheme.HIGH_CONTRAST_DARK;
+			case HC_LIGHT_THEME_NAME: return ColorScheme.HIGH_CONTRAST_LIGHT;
 			default: return ColorScheme.DARK;
 		}
 	}
@@ -181,6 +185,7 @@ function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {
 		themeName === VS_THEME_NAME
 		|| themeName === VS_DARK_THEME_NAME
 		|| themeName === HC_BLACK_THEME_NAME
+		|| themeName === HC_LIGHT_THEME_NAME
 	);
 }
 
@@ -192,6 +197,8 @@ function getBuiltinRules(builtinTheme: BuiltinTheme): IStandaloneThemeData {
 			return vs_dark;
 		case HC_BLACK_THEME_NAME:
 			return hc_black;
+		case HC_LIGHT_THEME_NAME:
+			return hc_light;
 	}
 }
 
@@ -236,6 +243,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
+		this._knownThemes.set(HC_LIGHT_THEME_NAME, newBuiltInTheme(HC_LIGHT_THEME_NAME));
 
 		const iconsStyleSheet = getIconsStyleSheet(this);
 
@@ -252,7 +260,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 			this._updateCSS();
 		});
 
-		dom.addMatchMediaChangeListener('(forced-colors: active)', () => {
+		addMatchMediaChangeListener('(forced-colors: active)', () => {
 			this._updateActualTheme();
 		});
 	}
@@ -333,10 +341,18 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._updateActualTheme();
 	}
 
+	private getHighContrastTheme() {
+		if (isDark(this._desiredTheme.type)) {
+			return HC_BLACK_THEME_NAME;
+		} else {
+			return HC_LIGHT_THEME_NAME;
+		}
+	}
+
 	private _updateActualTheme(): void {
 		const theme = (
 			this._autoDetectHighContrast && window.matchMedia(`(forced-colors: active)`).matches
-				? this._knownThemes.get(HC_BLACK_THEME_NAME)!
+				? this._knownThemes.get(this.getHighContrastTheme())!
 				: this._desiredTheme
 		);
 		if (this._theme === theme) {

@@ -21,7 +21,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
+import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDispose: Event<void>;

@@ -17,8 +17,8 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 import { ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
 import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
-import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Schemas } from 'vs/base/common/network';
 
 function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {

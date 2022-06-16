@@ -34,6 +34,7 @@ import { isUndefined } from 'vs/base/common/types';
 import { isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Schemas } from 'vs/base/common/network';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -285,14 +286,16 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 						// Same Window: open via editor service in current window
 						if (this.shouldReuse(options, true /* file */)) {
-							let openables: IPathData[] = [];
+							let openables: IPathData<ITextEditorOptions>[] = [];
 
 							// Support: --goto parameter to open on line/col
 							if (options?.gotoLineMode) {
 								const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
 								openables = [{
 									fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
-									selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+									options: {
+										selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+									}
 								}];
 							} else {
 								openables = [openable];

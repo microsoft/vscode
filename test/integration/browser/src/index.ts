@@ -65,7 +65,7 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","93a2a2fa12dd3ae0629eec01c05a28cb60ac1c4b"],["skipWelcome","true"]]`;
+	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","3c8520fab514b9f56070214496b26ff68d1b1cb5"],["skipWelcome","true"]]`;
 
 	if (path.extname(testWorkspacePath) === '.code-workspace') {
 		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
@@ -125,7 +125,7 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const root = path.join(__dirname, '..', '..', '..', '..');
 	const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
-	const serverArgs = ['--driver', 'web', '--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms'];
+	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
@@ -149,7 +149,7 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 
 	const stdio: cp.StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
 
-	let serverProcess = cp.spawn(
+	const serverProcess = cp.spawn(
 		serverLocation,
 		serverArgs,
 		{ env, stdio }

@@ -167,7 +167,7 @@ registerSingleton(IExtensionBisectService, ExtensionBisectService, true);
 
 class ExtensionBisectUi {
 
-	static ctxIsBisectActive = new RawContextKey('isExtensionBisectActive', false);
+	static ctxIsBisectActive = new RawContextKey<boolean>('isExtensionBisectActive', false);
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -226,7 +226,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ViewContainerTitle,
 				when: ContextKeyExpr.equals('viewContainer', 'workbench.view.extensions'),
 				group: '2_enablement',
-				order: 3
+				order: 4
 			}
 		});
 	}

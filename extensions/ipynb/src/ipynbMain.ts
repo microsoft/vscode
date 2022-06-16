@@ -39,7 +39,11 @@ export function activate(context: vscode.ExtensionContext) {
 
 	vscode.languages.registerCodeLensProvider({ pattern: '**/*.ipynb' }, {
 		provideCodeLenses: (document) => {
-			if (document.uri.scheme === 'vscode-notebook-cell') {
+			if (
+				document.uri.scheme === 'vscode-notebook-cell' ||
+				document.uri.scheme === 'vscode-notebook-cell-metadata' ||
+				document.uri.scheme === 'vscode-notebook-cell-output'
+			) {
 				return [];
 			}
 			const codelens = new vscode.CodeLens(new vscode.Range(0, 0, 0, 0), { title: 'Open in Notebook Editor', command: 'ipynb.openIpynbInNotebookEditor', arguments: [document.uri] });
@@ -90,7 +94,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookMetadata(resource, {
+			edit.set(resource, [vscode.NotebookEdit.updateNotebookMetadata({
 				...document.metadata,
 				custom: {
 					...(document.metadata.custom ?? {}),
@@ -99,7 +103,7 @@ export function activate(context: vscode.ExtensionContext) {
 						...metadata
 					},
 				}
-			});
+			})]);
 			return vscode.workspace.applyEdit(edit);
 		},
 	};

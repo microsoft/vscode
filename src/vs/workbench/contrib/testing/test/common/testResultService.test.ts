@@ -9,14 +9,13 @@ import { bufferToStream, newWriteableBufferStream, VSBuffer } from 'vs/base/comm
 import { Lazy } from 'vs/base/common/lazy';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { Convert, getInitializedMainTestCollection, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
+import { getInitializedMainTestCollection, testStubs, TestTestCollection } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export const emptyOutputController = () => new LiveOutputController(
@@ -32,7 +31,7 @@ suite('Workbench - Test Results Service', () => {
 
 	let r: TestLiveTestResult;
 	let changed = new Set<TestResultItemChange>();
-	let tests: SingleUseTestCollection;
+	let tests: TestTestCollection;
 
 	const defaultOpts = (testIds: string[]): ResolvedTestRunRequest => ({
 		targets: [{
@@ -72,16 +71,15 @@ suite('Workbench - Test Results Service', () => {
 			throw new Error('timed out while expanding, diff: ' + JSON.stringify(tests.collectDiff()));
 		}
 
-
 		r.addTestChainToRun('ctrlId', [
-			Convert.TestItem.from(tests.root),
-			Convert.TestItem.from(tests.root.children.get('id-a') as TestItemImpl),
-			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-aa') as TestItemImpl),
+			tests.root.toTestItem(),
+			tests.root.children.get('id-a')!.toTestItem(),
+			tests.root.children.get('id-a')!.children.get('id-aa')!.toTestItem(),
 		]);
 
 		r.addTestChainToRun('ctrlId', [
-			Convert.TestItem.from(tests.root.children.get('id-a') as TestItemImpl),
-			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-ab') as TestItemImpl),
+			tests.root.children.get('id-a')!.toTestItem(),
+			tests.root.children.get('id-a')!.children.get('id-ab')!.toTestItem(),
 		]);
 	});
 
@@ -171,20 +169,6 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(r.getStateById(testId)?.ownComputedState, TestResultState.Errored);
 		});
 
-		test('retire', () => {
-			changed.clear();
-			r.retire(new TestId(['ctrlId', 'id-a']).toString());
-			assert.deepStrictEqual(getChangeSummary(), [
-				{ label: 'a', reason: TestResultItemChangeReason.Retired },
-				{ label: 'aa', reason: TestResultItemChangeReason.ParentRetired },
-				{ label: 'ab', reason: TestResultItemChangeReason.ParentRetired },
-			]);
-
-			changed.clear();
-			r.retire(new TestId(['ctrlId', 'id-a']).toString());
-			assert.strictEqual(changed.size, 0);
-		});
-
 		test('ignores outside run', () => {
 			changed.clear();
 			r.updateState(new TestId(['ctrlId', 'id-b']).toString(), 't', TestResultState.Running);
@@ -252,7 +236,7 @@ suite('Workbench - Test Results Service', () => {
 			const expected: any = { ...r.getStateById(tests.root.id)! };
 			expected.item.uri = actual.item.uri;
 			expected.item.children = actual.item.children;
-			assert.deepStrictEqual(actual, { ...expected, retired: true, children: [new TestId(['ctrlId', 'id-a']).toString()] });
+			assert.deepStrictEqual(actual, { ...expected, children: [new TestId(['ctrlId', 'id-a']).toString()] });
 			assert.deepStrictEqual(rehydrated.counts, r.counts);
 			assert.strictEqual(typeof rehydrated.completedAt, 'number');
 		});

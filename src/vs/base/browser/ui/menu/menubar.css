@@ -9,20 +9,22 @@
 	display: flex;
 	flex-shrink: 1;
 	box-sizing: border-box;
-	height: 30px;
+	height: 100%;
+	padding: 4px 0;
 	overflow: hidden;
 	flex-wrap: wrap;
 }
 
 .fullscreen .menubar:not(.compact) {
 	margin: 0px;
-	padding: 0px 5px;
+	padding: 4px 5px;
 }
 
 .menubar > .menubar-menu-button {
 	align-items: center;
 	box-sizing: border-box;
 	padding: 0px 8px;
+	border-radius: 5px;
 	cursor: default;
 	-webkit-app-region: no-drag;
 	zoom: 1;

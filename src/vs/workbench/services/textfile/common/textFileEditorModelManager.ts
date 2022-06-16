@@ -485,7 +485,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeReadonly.fire(model)));
 		modelListeners.add(model.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(model)));
 		modelListeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(model)));
-		modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model, reason })));
+		modelListeners.add(model.onDidSave(e => this._onDidSave.fire({ model, ...e })));
 		modelListeners.add(model.onDidRevert(() => this._onDidRevert.fire(model)));
 		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
 

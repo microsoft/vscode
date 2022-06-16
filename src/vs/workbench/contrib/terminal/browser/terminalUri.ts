@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 	const [, workspaceId, instanceId] = resource.path.split('/');
@@ -34,7 +33,7 @@ export interface IPartialDragEvent {
 }
 
 export function getTerminalResourcesFromDragEvent(event: IPartialDragEvent): URI[] | undefined {
-	const resources = event.dataTransfer?.getData(DataTransfers.TERMINALS);
+	const resources = event.dataTransfer?.getData(TerminalDataTransfers.Terminals);
 	if (resources) {
 		const json = JSON.parse(resources);
 		const result = [];

@@ -8,7 +8,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{
@@ -32,7 +32,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -80,7 +80,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -128,7 +128,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -200,7 +200,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{
@@ -224,7 +224,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -368,7 +368,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{
@@ -440,7 +440,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -464,7 +464,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{

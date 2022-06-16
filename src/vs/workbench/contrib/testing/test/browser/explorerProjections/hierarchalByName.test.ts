@@ -7,11 +7,11 @@ import * as assert from 'assert';
 import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 import { Emitter } from 'vs/base/common/event';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange } from 'vs/workbench/contrib/testing/common/testResult';
-import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
+import { TestTestItem } from 'vs/workbench/contrib/testing/test/common/testStubs';
 
 suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	let harness: TestTreeTestHarness<HierarchicalByNameProjection>;
@@ -44,10 +44,10 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 		harness.flush();
 		harness.pushDiff({
 			op: TestDiffOpType.Add,
-			item: { controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c', 'root2', undefined)) },
+			item: { controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: new TestTestItem('ctrl2', 'c', 'root2').toTestItem() },
 		}, {
 			op: TestDiffOpType.Add,
-			item: { controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c-a', 'c', undefined)) },
+			item: { controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: new TestTestItem('ctrl2', 'c-a', 'c', undefined).toTestItem() },
 		});
 
 		assert.deepStrictEqual(harness.flush(), [
@@ -59,7 +59,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	test('updates nodes if they add children', async () => {
 		harness.flush();
 
-		harness.c.root.children.get('id-a')!.children.add(new TestItemImpl('ctrl2', 'ac', 'ac', undefined));
+		harness.c.root.children.get('id-a')!.children.add(new TestTestItem('ctrl2', 'ac', 'ac'));
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'aa' },
@@ -81,7 +81,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 
 	test('swaps when node is no longer leaf', async () => {
 		harness.flush();
-		harness.c.root.children.get('id-b')!.children.add(new TestItemImpl('ctrl2', 'ba', 'ba', undefined));
+		harness.c.root.children.get('id-b')!.children.add(new TestTestItem('ctrl2', 'ba', 'ba'));
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'aa' },

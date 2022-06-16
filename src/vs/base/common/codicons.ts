@@ -541,6 +541,9 @@ export class Codicon implements CSSIcon {
 	public static readonly layoutStatusbar = new Codicon('layout-statusbar', { fontCharacter: '\\ebf5' });
 	public static readonly layoutMenubar = new Codicon('layout-menubar', { fontCharacter: '\\ebf6' });
 	public static readonly layoutCentered = new Codicon('layout-centered', { fontCharacter: '\\ebf7' });
+	public static readonly layoutSidebarRightOff = new Codicon('layout-sidebar-right-off', { fontCharacter: '\\ec00' });
+	public static readonly layoutPanelOff = new Codicon('layout-panel-off', { fontCharacter: '\\ec01' });
+	public static readonly layoutSidebarLeftOff = new Codicon('layout-sidebar-left-off', { fontCharacter: '\\ec02' });
 	public static readonly target = new Codicon('target', { fontCharacter: '\\ebf8' });
 	public static readonly indent = new Codicon('indent', { fontCharacter: '\\ebf9' });
 	public static readonly recordSmall = new Codicon('record-small', { fontCharacter: '\\ebfa' });
@@ -549,6 +552,7 @@ export class Codicon implements CSSIcon {
 	public static readonly arrowCircleLeft = new Codicon('arrow-circle-left', { fontCharacter: '\\ebfd' });
 	public static readonly arrowCircleRight = new Codicon('arrow-circle-right', { fontCharacter: '\\ebfe' });
 	public static readonly arrowCircleUp = new Codicon('arrow-circle-up', { fontCharacter: '\\ebff' });
+	public static readonly heartFilled = new Codicon('heart-filled', { fontCharacter: '\\ec04' });
 
 
 	// derived icons, that could become separate icons
@@ -611,7 +615,7 @@ export namespace CSSIcon {
 		if (!match) {
 			return asClassNameArray(Codicon.error);
 		}
-		let [, id, modifier] = match;
+		const [, id, modifier] = match;
 		const classNames = ['codicon', 'codicon-' + id];
 		if (modifier) {
 			classNames.push('codicon-modifier-' + modifier.substr(1));

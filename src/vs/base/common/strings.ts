@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LRUCachedComputed } from 'vs/base/common/cache';
+import { LRUCachedFunction } from 'vs/base/common/cache';
 import { CharCode } from 'vs/base/common/charCode';
 import { Lazy } from 'vs/base/common/lazy';
 import { Constants } from 'vs/base/common/uint';
@@ -274,6 +274,29 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
 	return -1;
 }
 
+/**
+ * Function that works identically to String.prototype.replace, except, the
+ * replace function is allowed to be async and return a Promise.
+ */
+export function replaceAsync(str: string, search: RegExp, replacer: (match: string, ...args: any[]) => Promise<string>): Promise<string> {
+	const parts: (string | Promise<string>)[] = [];
+
+	let last = 0;
+	for (const match of str.matchAll(search)) {
+		parts.push(str.slice(last, match.index));
+		if (match.index === undefined) {
+			throw new Error('match.index should be defined');
+		}
+
+		last = match.index + match[0].length;
+		parts.push(replacer(match[0], ...match.slice(1), match.index, str, match.groups));
+	}
+
+	parts.push(str.slice(last));
+
+	return Promise.all(parts).then(p => p.join(''));
+}
+
 export function compare(a: string, b: string): number {
 	if (a < b) {
 		return -1;
@@ -286,8 +309,8 @@ export function compare(a: string, b: string): number {
 
 export function compareSubstring(a: string, b: string, aStart: number = 0, aEnd: number = a.length, bStart: number = 0, bEnd: number = b.length): number {
 	for (; aStart < aEnd && bStart < bEnd; aStart++, bStart++) {
-		let codeA = a.charCodeAt(aStart);
-		let codeB = b.charCodeAt(bStart);
+		const codeA = a.charCodeAt(aStart);
+		const codeB = b.charCodeAt(bStart);
 		if (codeA < codeB) {
 			return -1;
 		} else if (codeA > codeB) {
@@ -381,8 +404,8 @@ export function startsWithIgnoreCase(str: string, candidate: string): boolean {
  */
 export function commonPrefixLength(a: string, b: string): number {
 
-	let i: number,
-		len = Math.min(a.length, b.length);
+	const len = Math.min(a.length, b.length);
+	let i: number;
 
 	for (i = 0; i < len; i++) {
 		if (a.charCodeAt(i) !== b.charCodeAt(i)) {
@@ -398,8 +421,8 @@ export function commonPrefixLength(a: string, b: string): number {
  */
 export function commonSuffixLength(a: string, b: string): number {
 
-	let i: number,
-		len = Math.min(a.length, b.length);
+	const len = Math.min(a.length, b.length);
+	let i: number;
 
 	const aLastIndex = a.length - 1;
 	const bLastIndex = b.length - 1;
@@ -1052,7 +1075,7 @@ export class AmbiguousCharacters {
 		);
 	});
 
-	private static readonly cache = new LRUCachedComputed<
+	private static readonly cache = new LRUCachedFunction<
 		string[],
 		AmbiguousCharacters
 	>((locales) => {

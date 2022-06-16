@@ -13,21 +13,21 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import 'vs/css!./parameterHints';
-import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground, registerColor, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground, listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverForeground, listHighlightForeground, registerColor, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 
@@ -159,9 +159,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.keyVisible.set(true);
 		this.visible = true;
 		setTimeout(() => {
-			if (this.domNodes) {
-				this.domNodes.element.classList.add('visible');
-			}
+			this.domNodes?.element.classList.add('visible');
 		}, 100);
 		this.editor.layoutContentWidget(this);
 	}
@@ -176,9 +174,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.keyVisible.reset();
 		this.visible = false;
 		this.announcedLabel = null;
-		if (this.domNodes) {
-			this.domNodes.element.classList.remove('visible');
-		}
+		this.domNodes?.element.classList.remove('visible');
 		this.editor.layoutContentWidget(this);
 	}
 
@@ -386,12 +382,12 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 }
 
-export const editorHoverWidgetHighlightForeground = registerColor('editorHoverWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));
+export const editorHoverWidgetHighlightForeground = registerColor('editorHoverWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground }, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));
 
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(editorHoverBorder);
 	if (border) {
-		const borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
+		const borderWidth = isHighContrast(theme.type) ? 2 : 1;
 		collector.addRule(`.monaco-editor .parameter-hints-widget { border: ${borderWidth}px solid ${border}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget.multiple .body { border-left: 1px solid ${border.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget .signature.has-docs { border-bottom: 1px solid ${border.transparent(0.5)}; }`);

@@ -335,12 +335,6 @@ registerAction2(class CollapseCellInputAction extends NotebookMultiCellAction {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated()),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC),
 				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated()),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 0
 			}
 		});
 	}
@@ -367,12 +361,6 @@ registerAction2(class ExpandCellInputAction extends NotebookMultiCellAction {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC),
 				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 1
 			}
 		});
 	}
@@ -399,12 +387,6 @@ registerAction2(class CollapseCellOutputAction extends NotebookMultiCellAction {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyT),
 				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 2
 			}
 		});
 	}
@@ -427,12 +409,6 @@ registerAction2(class ExpandCellOuputAction extends NotebookMultiCellAction {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyT),
 				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 3
 			}
 		});
 	}

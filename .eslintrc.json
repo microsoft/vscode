@@ -14,6 +14,12 @@
 		"constructor-super": "warn",
 		"curly": "warn",
 		"eqeqeq": "warn",
+		"prefer-const": [
+			"warn",
+			{
+				"destructuring": "all"
+			}
+		],
 		"no-buffer-constructor": "warn",
 		"no-caller": "warn",
 		"no-case-declarations": "warn",
@@ -164,6 +170,7 @@
 							"delete",
 							"discover",
 							"dispose",
+							"drop",
 							"edit",
 							"end",
 							"expand",
@@ -193,6 +200,7 @@
 				"src/**/*.ts"
 			],
 			"rules": {
+				"code-no-look-behind-regex": "warn",
 				"code-import-patterns": [
 					"warn",
 					{
@@ -219,6 +227,8 @@
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
 							"applicationinsights",
+							"@microsoft/1ds-core-js",
+							"@microsoft/1ds-post-js",
 							"assert",
 							"child_process",
 							"console",
@@ -246,6 +256,7 @@
 							"url",
 							"util",
 							"v8-inspect-profiler",
+							"vscode-policy-watcher",
 							"vscode-proxy-agent",
 							"vscode-regexpp",
 							"vscode-textmate",
@@ -566,7 +577,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/vs/{css.d.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
 						"restrictions": []
 					},
 					{

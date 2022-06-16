@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { dirname, removeTrailingPathSeparator } from 'vs/base/common/resources';
+import { dirname } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -24,9 +24,12 @@ import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs
 import { IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { isWeb } from 'vs/base/common/platform';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = { value: localize('addFolderToWorkspace', "Add Folder to Workspace..."), original: 'Add Folder to Workspace...' };
+
+export const SET_ROOT_FOLDER_COMMAND_ID = 'setRootFolder';
 
 export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder';
 
@@ -61,25 +64,46 @@ CommandsRegistry.registerCommand({
 	id: ADD_ROOT_FOLDER_COMMAND_ID,
 	handler: async (accessor) => {
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
-		const dialogsService = accessor.get(IFileDialogService);
-		const pathService = accessor.get(IPathService);
 
-		const folders = await dialogsService.showOpenDialog({
-			openLabel: mnemonicButtonLabel(localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
-			title: localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
-			canSelectFolders: true,
-			canSelectMany: true,
-			defaultUri: await dialogsService.defaultFolderPath(),
-			availableFileSystems: [pathService.defaultUriScheme]
-		});
-
+		const folders = await selectWorkspaceFolders(accessor);
 		if (!folders || !folders.length) {
 			return;
 		}
 
-		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: removeTrailingPathSeparator(folder) })));
+		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: folder })));
 	}
 });
+
+CommandsRegistry.registerCommand({
+	id: SET_ROOT_FOLDER_COMMAND_ID,
+	handler: async (accessor) => {
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+		const contextService = accessor.get(IWorkspaceContextService);
+
+		const folders = await selectWorkspaceFolders(accessor);
+		if (!folders || !folders.length) {
+			return;
+		}
+
+		await workspaceEditingService.updateFolders(0, contextService.getWorkspace().folders.length, folders.map(folder => ({ uri: folder })));
+	}
+});
+
+async function selectWorkspaceFolders(accessor: ServicesAccessor): Promise<URI[] | undefined> {
+	const dialogsService = accessor.get(IFileDialogService);
+	const pathService = accessor.get(IPathService);
+
+	const folders = await dialogsService.showOpenDialog({
+		openLabel: mnemonicButtonLabel(localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
+		title: localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
+		canSelectFolders: true,
+		canSelectMany: true,
+		defaultUri: await dialogsService.defaultFolderPath(),
+		availableFileSystems: [pathService.defaultUriScheme]
+	});
+
+	return folders;
+}
 
 CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
 	const quickInputService = accessor.get(IQuickInputService);
@@ -283,3 +307,44 @@ CommandsRegistry.registerCommand('_workbench.getRecentlyOpened', async function 
 
 	return workspacesService.getRecentlyOpened();
 });
+
+if (isWeb) {
+	interface UsbDeviceData {
+		readonly deviceClass: number;
+		readonly deviceProtocol: number;
+		readonly deviceSubclass: number;
+		readonly deviceVersionMajor: number;
+		readonly deviceVersionMinor: number;
+		readonly deviceVersionSubminor: number;
+		readonly manufacturerName?: string;
+		readonly productId: number;
+		readonly productName?: string;
+		readonly serialNumber?: string;
+		readonly usbVersionMajor: number;
+		readonly usbVersionMinor: number;
+		readonly usbVersionSubminor: number;
+		readonly vendorId: number;
+	}
+	CommandsRegistry.registerCommand('workbench.experimental.requestUsbDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<UsbDeviceData | undefined> => {
+		const device = await (navigator as any).usb.requestDevice({ filters: options?.filters ?? [] });
+		if (!device) {
+			return undefined;
+		}
+		return {
+			deviceClass: device.deviceClass,
+			deviceProtocol: device.deviceProtocol,
+			deviceSubclass: device.deviceSubclass,
+			deviceVersionMajor: device.deviceVersionMajor,
+			deviceVersionMinor: device.deviceVersionMinor,
+			deviceVersionSubminor: device.deviceVersionSubminor,
+			manufacturerName: device.manufacturerName,
+			productId: device.productId,
+			productName: device.productName,
+			serialNumber: device.serialNumber,
+			usbVersionMajor: device.usbVersionMajor,
+			usbVersionMinor: device.usbVersionMinor,
+			usbVersionSubminor: device.usbVersionSubminor,
+			vendorId: device.vendorId,
+		};
+	});
+}

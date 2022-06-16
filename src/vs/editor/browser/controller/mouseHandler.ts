@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { HitTestContext, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { IMouseTarget, IMouseTargetViewZoneData, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, createEditorPagePosition, createCoordinatesRelativeToEditor } from 'vs/editor/browser/editorDom';
+import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorPointerMoveMonitor, createEditorPagePosition, createCoordinatesRelativeToEditor } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,25 +21,10 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-/**
- * Merges mouse events when mouse move events are throttled
- */
-export function createMouseMoveEventMerger(mouseTargetFactory: MouseTargetFactory | null) {
-	return function (lastEvent: EditorMouseEvent | null, currentEvent: EditorMouseEvent): EditorMouseEvent {
-		let targetIsWidget = false;
-		if (mouseTargetFactory) {
-			targetIsWidget = mouseTargetFactory.mouseTargetIsWidget(currentEvent);
-		}
-		if (!targetIsWidget) {
-			currentEvent.preventDefault();
-		}
-		return currentEvent;
-	};
-}
-
 export interface IPointerHandlerHelper {
 	viewDomNode: HTMLElement;
 	linesContentDomNode: HTMLElement;
+	viewLinesDomNode: HTMLElement;
 
 	focusTextArea(): void;
 	dispatchTextAreaEvent(event: CustomEvent): void;
@@ -62,8 +47,6 @@ export interface IPointerHandlerHelper {
 }
 
 export class MouseHandler extends ViewEventHandler {
-
-	static readonly MOUSE_MOVE_MINIMUM_TIME = 100; // ms
 
 	protected _context: ViewContext;
 	protected viewController: ViewController;
@@ -96,15 +79,29 @@ export class MouseHandler extends ViewEventHandler {
 
 		this._register(mouseEvents.onContextMenu(this.viewHelper.viewDomNode, (e) => this._onContextMenu(e, true)));
 
-		this._register(mouseEvents.onMouseMoveThrottled(this.viewHelper.viewDomNode,
-			(e) => this._onMouseMove(e),
-			createMouseMoveEventMerger(this.mouseTargetFactory), MouseHandler.MOUSE_MOVE_MINIMUM_TIME));
+		this._register(mouseEvents.onMouseMove(this.viewHelper.viewDomNode, (e) => this._onMouseMove(e)));
 
 		this._register(mouseEvents.onMouseUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 
 		this._register(mouseEvents.onMouseLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
 
-		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
+		// `pointerdown` events can't be used to determine if there's a double click, or triple click
+		// because their `e.detail` is always 0.
+		// We will therefore save the pointer id for the mouse and then reuse it in the `mousedown` event
+		// for `element.setPointerCapture`.
+		let capturePointerId: number = 0;
+		this._register(mouseEvents.onPointerDown(this.viewHelper.viewDomNode, (e, pointerId) => {
+			capturePointerId = pointerId;
+		}));
+		// The `pointerup` listener registered by `GlobalEditorPointerMoveMonitor` does not get invoked 100% of the times.
+		// I speculate that this is because the `pointerup` listener is only registered during the `mousedown` event, and perhaps
+		// the `pointerup` event is already queued for dispatching, which makes it that the new listener doesn't get fired.
+		// See https://github.com/microsoft/vscode/issues/146486 for repro steps.
+		// To compensate for that, we simply register here a `pointerup` listener and just communicate it.
+		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.POINTER_UP, (e: PointerEvent) => {
+			this._mouseDownOperation.onPointerUp();
+		}));
+		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e, capturePointerId)));
 
 		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
 			this.viewController.emitMouseWheel(browserEvent);
@@ -201,6 +198,11 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	public _onMouseMove(e: EditorMouseEvent): void {
+		const targetIsWidget = this.mouseTargetFactory.mouseTargetIsWidget(e);
+		if (!targetIsWidget) {
+			e.preventDefault();
+		}
+
 		if (this._mouseDownOperation.isActive()) {
 			// In selection/drag operation
 			return;
@@ -232,7 +234,7 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	public _onMouseDown(e: EditorMouseEvent): void {
+	public _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
 		const t = this._createMouseTarget(e, true);
 
 		const targetIsContent = (t.type === MouseTargetType.CONTENT_TEXT || t.type === MouseTargetType.CONTENT_EMPTY);
@@ -254,16 +256,16 @@ export class MouseHandler extends ViewEventHandler {
 
 		if (shouldHandle && (targetIsContent || (targetIsLineNumbers && selectOnLineNumbers))) {
 			focus();
-			this._mouseDownOperation.start(t.type, e);
+			this._mouseDownOperation.start(t.type, e, pointerId);
 
 		} else if (targetIsGutter) {
 			// Do not steal focus
 			e.preventDefault();
 		} else if (targetIsViewZone) {
 			const viewZoneData = t.detail;
-			if (this.viewHelper.shouldSuppressMouseDownOnViewZone(viewZoneData.viewZoneId)) {
+			if (shouldHandle && this.viewHelper.shouldSuppressMouseDownOnViewZone(viewZoneData.viewZoneId)) {
 				focus();
-				this._mouseDownOperation.start(t.type, e);
+				this._mouseDownOperation.start(t.type, e, pointerId);
 				e.preventDefault();
 			}
 		} else if (targetIsWidget && this.viewHelper.shouldSuppressMouseDownOnWidget(<string>t.detail)) {
@@ -290,7 +292,7 @@ class MouseDownOperation extends Disposable {
 	private readonly _createMouseTarget: (e: EditorMouseEvent, testEventTarget: boolean) => IMouseTarget;
 	private readonly _getMouseColumn: (e: EditorMouseEvent) => number;
 
-	private readonly _mouseMoveMonitor: GlobalEditorMouseMoveMonitor;
+	private readonly _mouseMoveMonitor: GlobalEditorPointerMoveMonitor;
 	private readonly _onScrollTimeout: TimeoutTimer;
 	private readonly _mouseState: MouseDownState;
 
@@ -312,7 +314,7 @@ class MouseDownOperation extends Disposable {
 		this._createMouseTarget = createMouseTarget;
 		this._getMouseColumn = getMouseColumn;
 
-		this._mouseMoveMonitor = this._register(new GlobalEditorMouseMoveMonitor(this._viewHelper.viewDomNode));
+		this._mouseMoveMonitor = this._register(new GlobalEditorPointerMoveMonitor(this._viewHelper.viewDomNode));
 		this._onScrollTimeout = this._register(new TimeoutTimer());
 		this._mouseState = new MouseDownState();
 
@@ -333,7 +335,7 @@ class MouseDownOperation extends Disposable {
 		this._lastMouseEvent = e;
 		this._mouseState.setModifiers(e);
 
-		const position = this._findMousePosition(e, true);
+		const position = this._findMousePosition(e, false);
 		if (!position) {
 			// Ignoring because position is unknown
 			return;
@@ -349,7 +351,7 @@ class MouseDownOperation extends Disposable {
 		}
 	}
 
-	public start(targetType: MouseTargetType, e: EditorMouseEvent): void {
+	public start(targetType: MouseTargetType, e: EditorMouseEvent, pointerId: number): void {
 		this._lastMouseEvent = e;
 
 		this._mouseState.setStartedOnLineNumbers(targetType === MouseTargetType.GUTTER_LINE_NUMBERS);
@@ -382,12 +384,12 @@ class MouseDownOperation extends Disposable {
 			this._isActive = true;
 
 			this._mouseMoveMonitor.startMonitoring(
-				e.target,
+				this._viewHelper.viewLinesDomNode,
+				pointerId,
 				e.buttons,
-				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),
 				(browserEvent?: MouseEvent | KeyboardEvent) => {
-					const position = this._findMousePosition(this._lastMouseEvent!, true);
+					const position = this._findMousePosition(this._lastMouseEvent!, false);
 
 					if (browserEvent && browserEvent instanceof KeyboardEvent) {
 						// cancel
@@ -412,9 +414,9 @@ class MouseDownOperation extends Disposable {
 		if (!this._isActive) {
 			this._isActive = true;
 			this._mouseMoveMonitor.startMonitoring(
-				e.target,
+				this._viewHelper.viewLinesDomNode,
+				pointerId,
 				e.buttons,
-				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),
 				() => this._stop()
 			);
@@ -427,6 +429,10 @@ class MouseDownOperation extends Disposable {
 	}
 
 	public onHeightChanged(): void {
+		this._mouseMoveMonitor.stopMonitoring();
+	}
+
+	public onPointerUp(): void {
 		this._mouseMoveMonitor.stopMonitoring();
 	}
 

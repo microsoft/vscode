@@ -57,7 +57,7 @@ export class CodeEditorService extends AbstractCodeEditorService {
 			input.resource &&															// we need a request resource to compare with
 			source === activeTextEditorControl.getModifiedEditor() && 					// we need the source of this request to be the modified side of the diff editor
 			activeTextEditorControl.getModel() &&										// we need a target model to compare with
-			isEqual(input.resource, activeTextEditorControl.getModel()!.modified.uri) 	// we need the input resources to match with modified side
+			isEqual(input.resource, activeTextEditorControl.getModel()?.modified.uri) 	// we need the input resources to match with modified side
 		) {
 			const targetEditor = activeTextEditorControl.getModifiedEditor();
 

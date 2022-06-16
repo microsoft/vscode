@@ -34,7 +34,7 @@
 			"name": "Regexp",
 			"scope": "string.regexp",
 			"settings": {
-				"foreground": "#D30102"
+				"foreground": "#DC322F"
 			}
 		},
 		{
@@ -78,7 +78,8 @@
 				"entity.name.scope-resolution"
 			],
 			"settings": {
-				"foreground": "#268BD2"
+				"fontStyle": "",
+				"foreground": "#CB4B16"
 			}
 		},
 		{
@@ -102,7 +103,7 @@
 				"punctuation.section.embedded.end"
 			],
 			"settings": {
-				"foreground": "#D30102"
+				"foreground": "#DC322F"
 			}
 		},
 		{
@@ -122,7 +123,7 @@
 				"keyword.other.new"
 			],
 			"settings": {
-				"foreground": "#D30102"
+				"foreground": "#CB4B16"
 			}
 		},
 		{
@@ -138,7 +139,9 @@
 		{
 			"name": "Inherited class",
 			"scope": "entity.other.inherited-class",
-			"settings": {}
+			"settings": {
+				"foreground": "#6C71C4"
+			}
 		},
 		{
 			"name": "Function argument",
@@ -154,10 +157,7 @@
 		},
 		{
 			"name": "Tag start/end",
-			"scope": [
-				"punctuation.definition.tag.begin",
-				"punctuation.definition.tag.end"
-			],
+			"scope": "punctuation.definition.tag",
 			"settings": {
 				"foreground": "#93A1A1"
 			}
@@ -180,7 +180,7 @@
 			"name": "Continuation",
 			"scope": "punctuation.separator.continuation",
 			"settings": {
-				"foreground": "#D30102"
+				"foreground": "#DC322F"
 			}
 		},
 		{
@@ -217,7 +217,7 @@
 			"name": "Invalid",
 			"scope": "invalid",
 			"settings": {
-				"foreground": "#cd3131"
+				"foreground": "#DC322F"
 			}
 		},
 		{
@@ -228,7 +228,7 @@
 			],
 			"settings": {
 				"fontStyle": "italic",
-				"foreground": "#268bd2"
+				"foreground": "#268BD2"
 			}
 		},
 		{
@@ -236,7 +236,7 @@
 			"scope": "markup.deleted",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#dc322f"
+				"foreground": "#DC322F"
 			}
 		},
 		{
@@ -244,14 +244,14 @@
 			"scope": "markup.changed",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#cb4b16"
+				"foreground": "#CB4B16"
 			}
 		},
 		{
 			"name": "diff: inserted",
 			"scope": "markup.inserted",
 			"settings": {
-				"foreground": "#219186"
+				"foreground": "#859900"
 			}
 		},
 		{

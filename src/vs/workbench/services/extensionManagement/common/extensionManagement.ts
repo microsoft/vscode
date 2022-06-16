@@ -6,9 +6,9 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { FileAccess } from 'vs/base/common/network';
 
 export interface IExtensionManagementServer {
 	readonly id: string;
@@ -32,6 +32,8 @@ export interface IExtensionManagementServerService {
 	getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null;
 }
 
+export const DefaultIconPath = FileAccess.asBrowserUri('./media/defaultIcon.png', require).toString(true);
+
 export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
 export type UninstallExtensionOnServerEvent = IExtensionIdentifier & { server: IExtensionManagementServer };
 export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { server: IExtensionManagementServer };
@@ -45,6 +47,7 @@ export interface IWorkbenchExtensionManagementService extends IExtensionManageme
 	onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
 	onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 
+	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallVSIXOptions): Promise<ILocalExtension>;
 	installWebExtension(location: URI): Promise<ILocalExtension>;
 	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]>;
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
@@ -137,21 +140,24 @@ export interface IWorkbenchExtensionEnablementService {
 }
 
 export interface IScannedExtension extends IExtension {
-	readonly metadata?: IStringDictionary<any>;
+	readonly metadata?: Metadata;
 }
+
+export type ScanOptions = { readonly skipInvalidExtensions?: boolean };
 
 export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScannerService>('IWebExtensionsScannerService');
 export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 
 	scanSystemExtensions(): Promise<IExtension[]>;
-	scanUserExtensions(donotIgnoreInvalidExtensions?: boolean): Promise<IScannedExtension[]>;
+	scanUserExtensions(options?: ScanOptions): Promise<IScannedExtension[]>;
 	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
-	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null>;
+	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IScannedExtension | null>;
 
-	addExtension(location: URI, metadata?: IStringDictionary<any>): Promise<IExtension>;
-	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: IStringDictionary<any>): Promise<IExtension>;
+	addExtension(location: URI, metadata?: Metadata): Promise<IExtension>;
+	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Metadata): Promise<IExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
 
+	scanMetadata(extensionLocation: URI): Promise<Metadata | undefined>;
 	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;
 }

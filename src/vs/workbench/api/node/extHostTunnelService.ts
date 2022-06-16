@@ -267,7 +267,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}
 		this._candidateFindingEnabled = enable;
 		// Regularly scan to see if the candidate ports have changed.
-		let movingAverage = new MovingAverage();
+		const movingAverage = new MovingAverage();
 		let oldPorts: { host: string; port: number; detail?: string }[] | undefined = undefined;
 		while (this._candidateFindingEnabled) {
 			const startTime = new Date().getTime();
@@ -402,7 +402,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		const processes: {
 			pid: number; cwd: string; cmd: string;
 		}[] = [];
-		for (let childName of procChildren) {
+		for (const childName of procChildren) {
 			try {
 				const pid: number = Number(childName);
 				const childUri = resources.joinPath(URI.file('/proc'), childName);

@@ -23,6 +23,7 @@ import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground 
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -48,7 +49,7 @@ import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbe
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellEditType, CellKind, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellOutput, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -56,6 +57,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
 
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -242,7 +244,7 @@ class InteractiveInputContentProvider implements ITextModelContentProvider {
 		if (existing) {
 			return existing;
 		}
-		let result: ITextModel | null = this._modelService.createModel('', null, resource, false);
+		const result: ITextModel | null = this._modelService.createModel('', null, resource, false);
 		return result;
 	}
 }
@@ -644,11 +646,52 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.input.focus',
+			title: { value: localize('interactive.input.focus', "Focus input editor in the interactive window"), original: 'Focus input editor in the interactive window' },
+			category: 'Interactive',
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			editorService.activeEditorPane?.focus();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.history.focus',
+			title: { value: localize('interactive.history.focus', "Focus history in the interactive window"), original: 'Focus input editor in the interactive window' },
+			category: 'Interactive',
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget; focusHistory: () => void } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			editorControl.notebookEditor.focus();
+		}
+	}
+});
+
 registerThemingParticipant((theme) => {
 	registerColor('interactive.activeCodeBorder', {
 		dark: theme.getColor(peekViewBorder) ?? '#007acc',
 		light: theme.getColor(peekViewBorder) ?? '#007acc',
-		hc: contrastBorder
+		hcDark: contrastBorder,
+		hcLight: contrastBorder
 	}, localize('interactive.activeCodeBorder', 'The border color for the current interactive code cell when the editor has focus.'));
 
 	// registerColor('interactive.activeCodeBackground', {
@@ -660,7 +703,8 @@ registerThemingParticipant((theme) => {
 	registerColor('interactive.inactiveCodeBorder', {
 		dark: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
 		light: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
-		hc: PANEL_BORDER
+		hcDark: PANEL_BORDER,
+		hcLight: PANEL_BORDER
 	}, localize('interactive.inactiveCodeBorder', 'The border color for the current interactive code cell when the editor does not have focus.'));
 
 	// registerColor('interactive.inactiveCodeBackground', {
@@ -669,3 +713,17 @@ registerThemingParticipant((theme) => {
 	// 	hc: Color.black
 	// }, localize('interactive.inactiveCodeBackground', 'The backgorund color for the current interactive code cell when the editor does not have focus.'));
 });
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'notebook',
+	order: 100,
+	type: 'object',
+	'properties': {
+		[NotebookSetting.interactiveWindowAlwaysScrollOnNewCell]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('interactiveWindow.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
+		},
+	}
+});
+

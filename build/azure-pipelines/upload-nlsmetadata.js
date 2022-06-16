@@ -4,16 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-const path = require("path");
 const es = require("event-stream");
 const vfs = require("vinyl-fs");
-const util = require("../lib/util");
 const merge = require("gulp-merge-json");
 const gzip = require("gulp-gzip");
 const identity_1 = require("@azure/identity");
 const azure = require('gulp-azure-storage');
-const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
 const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
 function main() {
     return new Promise((c, e) => {
@@ -22,7 +19,6 @@ function main() {
             fileName: 'combined.nls.metadata.json',
             jsonSpace: '',
             edit: (parsedJson, file) => {
-                let key;
                 if (file.base === 'out-vscode-web-min') {
                     return { vscode: parsedJson };
                 }
@@ -66,7 +62,7 @@ function main() {
                         break;
                     }
                 }
-                key = 'vscode.' + file.relative.split('/')[0];
+                const key = 'vscode.' + file.relative.split('/')[0];
                 return { [key]: parsedJson };
             },
         }))

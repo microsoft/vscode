@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchOptions, ICrossVersionSerializedTerminalState, ISerializedTerminalState } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
@@ -24,6 +24,9 @@ import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { localize } from 'vs/nls';
 import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonitor';
 import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoResponder';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
+import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 
 type WorkspaceId = string;
 
@@ -109,7 +112,7 @@ export class PtyService extends Disposable implements IPtyService {
 						id: persistentProcessId,
 						shellLaunchConfig: persistentProcess.shellLaunchConfig,
 						processDetails: await this._buildProcessDetails(persistentProcessId, persistentProcess),
-						processLaunchOptions: persistentProcess.processLaunchOptions,
+						processLaunchConfig: persistentProcess.processLaunchOptions,
 						unicodeVersion: persistentProcess.unicodeVersion,
 						replayEvent: await persistentProcess.serializeNormalBuffer(),
 						timestamp: Date.now()
@@ -124,12 +127,12 @@ export class PtyService extends Disposable implements IPtyService {
 		return JSON.stringify(serialized);
 	}
 
-	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string) {
+	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocale: string) {
 		for (const terminal of state) {
-			const restoreMessage = localize({
-				key: 'terminal-session-restore',
-				comment: ['date the snapshot was taken', 'time the snapshot was taken']
-			}, "Session contents restored from {0} at {1}", new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocate), new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocate));
+			const restoreMessage = localize('terminal-history-restored', "History restored");
+			// TODO: We may at some point want to show date information in a hover via a custom sequence:
+			//   new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocale)
+			//   new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocale)
 			const newId = await this.createProcess(
 				{
 					...terminal.shellLaunchConfig,
@@ -137,15 +140,15 @@ export class PtyService extends Disposable implements IPtyService {
 					color: terminal.processDetails.color,
 					icon: terminal.processDetails.icon,
 					name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
-					initialText: terminal.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;252;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
+					initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true })
 				},
 				terminal.processDetails.cwd,
 				terminal.replayEvent.events[0].cols,
 				terminal.replayEvent.events[0].rows,
 				terminal.unicodeVersion,
-				terminal.processLaunchOptions.env,
-				terminal.processLaunchOptions.executableEnv,
-				terminal.processLaunchOptions.windowsEnableConpty,
+				terminal.processLaunchConfig.env,
+				terminal.processLaunchConfig.executableEnv,
+				terminal.processLaunchConfig.options,
 				true,
 				terminal.processDetails.workspaceId,
 				terminal.processDetails.workspaceName,
@@ -168,7 +171,7 @@ export class PtyService extends Disposable implements IPtyService {
 		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
+		options: ITerminalProcessOptions,
 		shouldPersist: boolean,
 		workspaceId: string,
 		workspaceName: string,
@@ -178,12 +181,12 @@ export class PtyService extends Disposable implements IPtyService {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
 		const id = ++this._lastPtyId;
-		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
+		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
-		const processLaunchOptions: IPersistentTerminalProcessLaunchOptions = {
+		const processLaunchOptions: IPersistentTerminalProcessLaunchConfig = {
 			env,
 			executableEnv,
-			windowsEnableConpty
+			options
 		};
 		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
 		process.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
@@ -392,14 +395,15 @@ export class PtyService extends Disposable implements IPtyService {
 			isOrphan,
 			icon: persistentProcess.icon,
 			color: persistentProcess.color,
-			fixedDimensions: persistentProcess.fixedDimensions
+			fixedDimensions: persistentProcess.fixedDimensions,
+			environmentVariableCollections: persistentProcess.processLaunchOptions.options.environmentVariableCollections
 		};
 	}
 
 	private _throwIfNoPty(id: number): PersistentTerminalProcess {
 		const pty = this._ptys.get(id);
 		if (!pty) {
-			throw new Error(`Could not find pty on pty host`);
+			throw new ErrorNoTelemetry(`Could not find pty on pty host`);
 		}
 		return pty;
 	}
@@ -478,7 +482,7 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly shouldPersistTerminal: boolean,
 		cols: number,
 		rows: number,
-		readonly processLaunchOptions: IPersistentTerminalProcessLaunchOptions,
+		readonly processLaunchOptions: IPersistentTerminalProcessLaunchConfig,
 		public unicodeVersion: '6' | '11',
 		reconnectConstants: IReconnectConstants,
 		private readonly _logService: ILogService,
@@ -499,7 +503,8 @@ export class PersistentTerminalProcess extends Disposable {
 			rows,
 			reconnectConstants.scrollback,
 			unicodeVersion,
-			reviveBuffer
+			reviveBuffer,
+			this._logService
 		);
 		this._fixedDimensions = fixedDimensions;
 		this._orphanQuestionBarrier = null;
@@ -722,35 +727,25 @@ export class PersistentTerminalProcess extends Disposable {
 }
 
 class XtermSerializer implements ITerminalSerializer {
-	private _xterm: XtermTerminal;
+	private readonly _xterm: XtermTerminal;
+	private readonly _shellIntegrationAddon: ShellIntegrationAddon;
 	private _unicodeAddon?: XtermUnicode11Addon;
-	private _shellIntegrationEnabled: boolean = false;
 
 	constructor(
 		cols: number,
 		rows: number,
 		scrollback: number,
 		unicodeVersion: '6' | '11',
-		reviveBuffer: string | undefined
+		reviveBuffer: string | undefined,
+		logService: ILogService
 	) {
 		this._xterm = new XtermTerminal({ cols, rows, scrollback });
 		if (reviveBuffer) {
 			this._xterm.writeln(reviveBuffer);
-			if (this._shellIntegrationEnabled) {
-				this._xterm.write('\x1b033]133;E\x1b007');
-			}
 		}
-		this._xterm.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
 		this.setUnicodeVersion(unicodeVersion);
-	}
-
-	private _handleShellIntegration(data: string): boolean {
-		const [command,] = data.split(';');
-		if (command === 'E') {
-			this._shellIntegrationEnabled = true;
-			return true;
-		}
-		return false;
+		this._shellIntegrationAddon = new ShellIntegrationAddon(true, undefined, logService);
+		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 
 	handleData(data: string): void {
@@ -773,11 +768,12 @@ class XtermSerializer implements ITerminalSerializer {
 		return {
 			events: [
 				{
-					cols: this._xterm.getOption('cols'),
-					rows: this._xterm.getOption('rows'),
+					cols: this._xterm.cols,
+					rows: this._xterm.rows,
 					data: serialized
 				}
-			]
+			],
+			commands: this._shellIntegrationAddon.serialize()
 		};
 	}
 

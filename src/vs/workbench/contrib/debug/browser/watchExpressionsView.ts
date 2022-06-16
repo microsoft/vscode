@@ -166,6 +166,13 @@ export class WatchExpressionsView extends ViewPane {
 				horizontalScrolling = undefined;
 			}
 		}));
+
+		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
+			if (e instanceof Variable && this.tree.hasNode(e)) {
+				await this.tree.updateChildren(e, false, true);
+				await this.tree.expand(e);
+			}
+		}));
 	}
 
 	override layoutBody(height: number, width: number): void {
@@ -204,9 +211,9 @@ export class WatchExpressionsView extends ViewPane {
 
 		this.watchItemType.set(element instanceof Expression ? 'expression' : element instanceof Variable ? 'variable' : undefined);
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: element, shouldForwardArgs: true }, actions);
 		const attributes = element instanceof Variable ? element.presentationHint?.attributes : undefined;
-		this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0);
+		this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0 || !!element?.presentationHint?.lazy);
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: element, shouldForwardArgs: true }, actions);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
@@ -267,7 +274,16 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
 		const text = typeof expression.value === 'string' ? `${expression.name}:` : expression.name;
-		data.label.set(text, highlights, expression.type ? expression.type : expression.value);
+		let title: string;
+		if (expression.type) {
+			title = expression.type === expression.value ?
+				expression.type :
+				`${expression.type}: ${expression.value}`;
+		} else {
+			title = expression.value;
+		}
+
+		data.label.set(text, highlights, title);
 		renderExpressionValue(expression, data.value, {
 			showChanged: true,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,

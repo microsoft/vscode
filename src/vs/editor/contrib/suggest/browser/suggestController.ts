@@ -31,11 +31,10 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
 import { WordContextKey } from 'vs/editor/contrib/suggest/browser/wordContextKey';
 import * as nls from 'vs/nls';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CompletionItem, Context as SuggestContext, ISuggestItemPreselector, suggestWidgetStatusbarMenu } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
@@ -48,7 +47,7 @@ import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
 
 // sticky suggest widget which doesn't disappear on focus out and such
-let _sticky = false;
+const _sticky = false;
 // _sticky = Boolean("true"); // done "weirdly" so that a lint warning prevents you from pushing this
 
 class LineSuffix {
@@ -254,8 +253,8 @@ export class SuggestController implements IEditorContribution {
 		}));
 
 		// Manage the acceptSuggestionsOnEnter context key
-		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
-		let updateFromConfig = () => {
+		const acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
+		const updateFromConfig = () => {
 			const acceptSuggestionOnEnter = this.editor.getOption(EditorOption.acceptSuggestionOnEnter);
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
@@ -315,7 +314,7 @@ export class SuggestController implements IEditorContribution {
 			const scrollState = StableEditorScrollState.capture(this.editor);
 			this.editor.executeEdits(
 				'suggestController.additionalTextEdits.sync',
-				item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
+				item.completion.additionalTextEdits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text))
 			);
 			scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 
@@ -330,7 +329,7 @@ export class SuggestController implements IEditorContribution {
 					docListener.dispose();
 					return;
 				}
-				for (let change of e.changes) {
+				for (const change of e.changes) {
 					const thisPosition = Range.getEndPosition(change.range);
 					if (!position || Position.isBefore(thisPosition, position)) {
 						position = thisPosition;
@@ -338,10 +337,10 @@ export class SuggestController implements IEditorContribution {
 				}
 			});
 
-			let oldFlags = flags;
+			const oldFlags = flags;
 			flags |= InsertFlags.NoAfterUndoStop;
 			let didType = false;
-			let typeListener = this.editor.onWillType(() => {
+			const typeListener = this.editor.onWillType(() => {
 				typeListener.dispose();
 				didType = true;
 				if (!(oldFlags & InsertFlags.NoAfterUndoStop)) {
@@ -362,7 +361,7 @@ export class SuggestController implements IEditorContribution {
 				const scrollState = StableEditorScrollState.capture(this.editor);
 				this.editor.executeEdits(
 					'suggestController.additionalTextEdits.async',
-					item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
+					item.completion.additionalTextEdits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text))
 				);
 				scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 				if (didType || !(oldFlags & InsertFlags.NoAfterUndoStop)) {
@@ -435,7 +434,7 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
-			this._reportSuggestionAcceptedTelemetry(model, event);
+			this._reportSuggestionAcceptedTelemetry(item, model, event);
 
 			this.model.clear();
 			cts.dispose();
@@ -443,23 +442,27 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _telemetryGate: number = 0;
-	private _reportSuggestionAcceptedTelemetry(model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
+	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
 		if (this._telemetryGate++ % 100 !== 0) {
 			return;
 		}
 
-		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string };
+		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; kind: number };
 		type AcceptedSuggestionClassification = {
-			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'jrieken';
+			comment: 'Information accepting completion items';
+			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Provider of the completions item' };
+			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Hash of the basename of the file into which the completion was inserted' };
+			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension of the file into which the completion was inserted' };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Language type of the file into which the completion was inserted' };
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The completion item kind' };
 		};
 		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
 		// normalize it to just the extension ID and lowercase
-		const providerId = (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
+		const providerId = item.extensionId ? item.extensionId.value : (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
 			providerId,
+			kind: item.completion.kind,
 			basenameHash: hash(basename(model.uri)).toString(16),
 			languageId: model.getLanguageId(),
 			fileExtension: extname(model.uri),
@@ -486,14 +489,14 @@ export class SuggestController implements IEditorContribution {
 
 	private _alertCompletionItem(item: CompletionItem): void {
 		if (isNonEmptyArray(item.completion.additionalTextEdits)) {
-			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
+			const msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
 			alert(msg);
 		}
 	}
 
-	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean): void {
+	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean, noFilter?: boolean): void {
 		if (this.editor.hasModel()) {
-			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom);
+			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom, undefined, noFilter);
 			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}
@@ -536,7 +539,7 @@ export class SuggestController implements IEditorContribution {
 
 		Event.once(this.model.onDidTrigger)(_ => {
 			// wait for trigger because only then the cancel-event is trustworthy
-			let listener: IDisposable[] = [];
+			const listener: IDisposable[] = [];
 
 			Event.any<any>(this.model.onDidTrigger, this.model.onDidCancel)(() => {
 				// retrigger or cancel -> try to type default text
@@ -728,43 +731,38 @@ registerEditorCommand(new SuggestCommand({
 	precondition: SuggestContext.Visible,
 	handler(x) {
 		x.acceptSelectedSuggestion(true, false);
-	}
+	},
+	kbOpts: [{
+		// normal tab
+		primary: KeyCode.Tab,
+		kbExpr: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+		weight,
+	}, {
+		// accept on enter has special rules
+		primary: KeyCode.Enter,
+		kbExpr: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
+		weight,
+	}],
+	menuOpts: [{
+		menuId: suggestWidgetStatusbarMenu,
+		title: nls.localize('accept.insert', "Insert"),
+		group: 'left',
+		order: 1,
+		when: SuggestContext.HasInsertAndReplaceRange.toNegated()
+	}, {
+		menuId: suggestWidgetStatusbarMenu,
+		title: nls.localize('accept.insert', "Insert"),
+		group: 'left',
+		order: 1,
+		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
+	}, {
+		menuId: suggestWidgetStatusbarMenu,
+		title: nls.localize('accept.replace', "Replace"),
+		group: 'left',
+		order: 1,
+		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
+	}]
 }));
-
-// normal tab
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'acceptSelectedSuggestion',
-	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
-	primary: KeyCode.Tab,
-	weight
-});
-
-// accept on enter has special rules
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'acceptSelectedSuggestion',
-	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
-	primary: KeyCode.Enter,
-	weight,
-});
-
-MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
-	group: 'left',
-	order: 1,
-	when: SuggestContext.HasInsertAndReplaceRange.toNegated()
-});
-MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
-	group: 'left',
-	order: 1,
-	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
-});
-MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.replace', "Replace") },
-	group: 'left',
-	order: 1,
-	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
-});
 
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptAlternativeSelectedSuggestion',

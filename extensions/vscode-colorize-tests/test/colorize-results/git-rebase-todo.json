@@ -32,7 +32,7 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"hc_light": "constant.sha.git-rebase: #098658"
+			"hc_light": "constant.sha.git-rebase: #096D48"
 		}
 	},
 	{
@@ -92,7 +92,7 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"hc_light": "constant.sha.git-rebase: #098658"
+			"hc_light": "constant.sha.git-rebase: #096D48"
 		}
 	},
 	{
@@ -152,7 +152,7 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"hc_light": "constant.sha.git-rebase: #098658"
+			"hc_light": "constant.sha.git-rebase: #096D48"
 		}
 	},
 	{
@@ -212,7 +212,7 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"hc_light": "constant.sha.git-rebase: #098658"
+			"hc_light": "constant.sha.git-rebase: #096D48"
 		}
 	},
 	{
@@ -272,7 +272,7 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"hc_light": "constant.sha.git-rebase: #098658"
+			"hc_light": "constant.sha.git-rebase: #096D48"
 		}
 	},
 	{
@@ -332,7 +332,7 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"hc_light": "constant.sha.git-rebase: #098658"
+			"hc_light": "constant.sha.git-rebase: #096D48"
 		}
 	},
 	{
@@ -392,7 +392,7 @@
 			"dark_vs": "constant.sha.git-rebase: #B5CEA8",
 			"light_vs": "constant.sha.git-rebase: #098658",
 			"hc_black": "constant.sha.git-rebase: #B5CEA8",
-			"hc_light": "constant.sha.git-rebase: #098658"
+			"hc_light": "constant.sha.git-rebase: #096D48"
 		}
 	},
 	{
@@ -428,7 +428,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -440,7 +440,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -452,7 +452,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -464,7 +464,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -476,7 +476,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -488,7 +488,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -500,7 +500,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -512,7 +512,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -524,7 +524,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -536,7 +536,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -548,7 +548,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -560,7 +560,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -572,7 +572,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -584,7 +584,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	}
 ]

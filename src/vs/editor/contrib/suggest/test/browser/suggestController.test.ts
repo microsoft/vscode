@@ -105,12 +105,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(1, 11, 1, 11));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -143,12 +143,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -186,12 +186,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -238,12 +238,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -294,12 +294,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -343,12 +343,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -370,7 +370,7 @@ suite('SuggestController', function () {
 
 	test('resolve additionalTextEdits async when needed (cancel)', async function () {
 
-		let resolve: Function[] = [];
+		const resolve: Function[] = [];
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
@@ -401,12 +401,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(true, false);
 		await p2;
 
@@ -423,5 +423,43 @@ suite('SuggestController', function () {
 
 		// next suggestion used
 		assert.strictEqual(editor.getValue(), 'halloabc');
+	});
+
+	test('Completion edits are applied inconsistently when additionalTextEdits and textEdit start at the same offset #143888', async function () {
+
+
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'MyClassName',
+						insertText: 'MyClassName',
+						range: Range.fromPositions(pos),
+						additionalTextEdits: [{
+							range: Range.fromPositions(pos),
+							text: 'import "my_class.txt";\n'
+						}]
+					}]
+				};
+			}
+		}));
+
+		editor.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		// trigger
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+		await p1;
+
+		//
+		const p2 = Event.toPromise(controller.model.onDidCancel);
+		controller.acceptSelectedSuggestion(true, false);
+		await p2;
+
+		// insertText happens sync!
+		assert.strictEqual(editor.getValue(), 'import "my_class.txt";\nMyClassName');
+
 	});
 });

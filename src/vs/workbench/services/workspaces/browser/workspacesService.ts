@@ -167,8 +167,8 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	//#region Workspace Management
 
-	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return { workspace: await this.getWorkspaceIdentifier(path) };
+	async enterWorkspace(workspaceUri: URI): Promise<IEnterWorkspaceResult | undefined> {
+		return { workspace: await this.getWorkspaceIdentifier(workspaceUri) };
 	}
 
 	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
@@ -200,8 +200,8 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		}
 	}
 
-	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> {
-		return getWorkspaceIdentifier(workspacePath);
+	async getWorkspaceIdentifier(workspaceUri: URI): Promise<IWorkspaceIdentifier> {
+		return getWorkspaceIdentifier(workspaceUri);
 	}
 
 	//#endregion

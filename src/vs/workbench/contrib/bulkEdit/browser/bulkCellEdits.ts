@@ -37,11 +37,11 @@ export class BulkCellEdits {
 		@INotebookEditorModelResolverService private readonly _notebookModelService: INotebookEditorModelResolverService,
 	) { }
 
-	async apply(): Promise<void> {
-
+	async apply(): Promise<readonly URI[]> {
+		const resources: URI[] = [];
 		const editsByNotebook = groupBy(this._edits, (a, b) => compare(a.resource.toString(), b.resource.toString()));
 
-		for (let group of editsByNotebook) {
+		for (const group of editsByNotebook) {
 			if (this._token.isCancellationRequested) {
 				break;
 			}
@@ -56,10 +56,14 @@ export class BulkCellEdits {
 
 			// apply edits
 			const edits = group.map(entry => entry.cellEdit);
-			ref.object.notebook.applyEdits(edits, true, undefined, () => undefined, this._undoRedoGroup);
+			ref.object.notebook.applyEdits(edits, true, undefined, () => undefined, this._undoRedoGroup, true);
 			ref.dispose();
 
 			this._progress.report(undefined);
+
+			resources.push(first.resource);
 		}
+
+		return resources;
 	}
 }

@@ -19,19 +19,22 @@ import { IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/sta
 export const STATUS_BAR_OFFLINE_BACKGROUND = registerColor('statusBar.offlineBackground', {
 	dark: '#6c1717',
 	light: '#6c1717',
-	hc: '#6c1717'
+	hcDark: '#6c1717',
+	hcLight: '#6c1717'
 }, localize('statusBarOfflineBackground', "Status bar background color when the workbench is offline. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_OFFLINE_FOREGROUND = registerColor('statusBar.offlineForeground', {
 	dark: STATUS_BAR_FOREGROUND,
 	light: STATUS_BAR_FOREGROUND,
-	hc: STATUS_BAR_FOREGROUND
+	hcDark: STATUS_BAR_FOREGROUND,
+	hcLight: STATUS_BAR_FOREGROUND
 }, localize('statusBarOfflineForeground', "Status bar foreground color when the workbench is offline. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_OFFLINE_BORDER = registerColor('statusBar.offlineBorder', {
 	dark: STATUS_BAR_BORDER,
 	light: STATUS_BAR_BORDER,
-	hc: STATUS_BAR_BORDER
+	hcDark: STATUS_BAR_BORDER,
+	hcLight: STATUS_BAR_BORDER
 }, localize('statusBarOfflineBorder', "Status bar border color separating to the sidebar and editor when the workbench is offline. The status bar is shown in the bottom of the window"));
 
 export class OfflineStatusBarController implements IWorkbenchContribution {

@@ -242,6 +242,7 @@ export interface IShowOutputMessage {
 	readonly outputId: string;
 	readonly cellTop: number;
 	readonly outputOffset: number;
+	readonly content?: ICreationContent;
 }
 
 export interface IFocusOutputMessage {
@@ -400,6 +401,12 @@ export interface IDidFindHighlightMessage extends BaseToWebviewMessage {
 	readonly offset: number;
 }
 
+export interface IOutputResizedMessage extends BaseToWebviewMessage {
+	readonly type: 'outputResized';
+	readonly cellId: string;
+}
+
+
 export type FromWebviewMessage = WebviewInitialized |
 	IDimensionMessage |
 	IMouseEnterMessage |
@@ -427,7 +434,8 @@ export type FromWebviewMessage = WebviewInitialized |
 	IRenderedMarkupMessage |
 	IRenderedCellOutputMessage |
 	IDidFindMessage |
-	IDidFindHighlightMessage;
+	IDidFindHighlightMessage |
+	IOutputResizedMessage;
 
 export type ToWebviewMessage = IClearMessage |
 	IFocusOutputMessage |
@@ -458,5 +466,6 @@ export type ToWebviewMessage = IClearMessage |
 	IFindHighlightMessage |
 	IFindUnHighlightMessage |
 	IFindStopMessage;
+
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

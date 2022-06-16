@@ -36,7 +36,7 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IThemable } from 'vs/base/common/styler';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { HistoryNavigator } from 'vs/base/common/history';
-import { createAndBindHistoryNavigationWidgetScopedContextKeyService, IHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -111,9 +111,16 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 	private readonly _onInputDidChange = new Emitter<string | undefined>();
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
-	protected readonly inputWidget: CodeEditorWidget;
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocus.event;
+
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	readonly onDidBlur = this._onDidBlur.event;
+
+	readonly inputWidget: CodeEditorWidget;
 	private readonly inputModel: ITextModel;
 	protected stylingContainer: HTMLDivElement;
+	readonly element: HTMLElement;
 	private placeholderText: HTMLDivElement;
 
 	constructor(
@@ -131,19 +138,20 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		super();
 
 		this.stylingContainer = append(parent, $('.suggest-input-container'));
+		this.element = parent;
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
 
 		const editorOptions: IEditorOptions = mixin(
 			getSimpleEditorOptions(),
 			getSuggestEnabledInputOptions(ariaLabel));
 
-		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService, parent);
+		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService);
 
 		const instantiationService = scopedContextKeyService
 			? defaultInstantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))
 			: defaultInstantiationService;
 
-		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
+		this.inputWidget = this._register(instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			editorOptions,
 			{
 				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
@@ -154,10 +162,12 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 					SelectionClipboardContributionID,
 				]),
 				isSimpleWidget: true,
-			});
-		this._register(this.inputWidget);
+			}));
 
-		let scopeHandle = uri.parse(resourceHandle);
+		this._register(this.inputWidget.onDidFocusEditorText(() => this._onDidFocus.fire()));
+		this._register(this.inputWidget.onDidBlurEditorText(() => this._onDidBlur.fire()));
+
+		const scopeHandle = uri.parse(resourceHandle);
 		this.inputModel = modelService.createModel('', null, scopeHandle, true);
 		this._register(this.inputModel);
 		this.inputWidget.setModel(this.inputModel);
@@ -181,7 +191,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		const inputWidgetModel = this.inputWidget.getModel();
 		if (inputWidgetModel) {
 			this._register(inputWidgetModel.onDidChangeContent(() => {
-				let content = this.getValue();
+				const content = this.getValue();
 				this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
 				if (preexistingContent.trim() === content.trim()) { return; }
 				this._onInputDidChange.fire(undefined);
@@ -189,7 +199,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			}));
 		}
 
-		let validatedSuggestProvider = {
+		const validatedSuggestProvider = {
 			provideResults: suggestionProvider.provideResults,
 			sortKey: suggestionProvider.sortKey || (a => a),
 			triggerCharacters: suggestionProvider.triggerCharacters || []
@@ -200,12 +210,12 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: languages.CompletionContext) => {
-				let query = model.getValue();
+				const query = model.getValue();
 
 				const zeroIndexedColumn = position.column - 1;
 
-				let zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
-				let alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
+				const zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
+				const alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
 
 				// dont show suggestions if the user has typed something, but hasn't used the trigger character
 				if (alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters.indexOf(query[zeroIndexedWordStart]) === -1) {
@@ -237,15 +247,13 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		}));
 	}
 
-	protected getScopedContextKeyService(_contextKeyService: IContextKeyService, _parent: HTMLElement): IContextKeyService | undefined {
+	protected getScopedContextKeyService(_contextKeyService: IContextKeyService): IContextKeyService | undefined {
 		return undefined;
 	}
 
 	public updateAriaLabel(label: string): void {
 		this.inputWidget.updateOptions({ ariaLabel: label });
 	}
-
-	public get onFocus(): Event<void> { return this.inputWidget.onDidFocusEditorText; }
 
 	public setValue(val: string) {
 		val = val.replace(/\s/g, ' ');
@@ -409,15 +417,13 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 		}));
 	}
 
-	protected override getScopedContextKeyService(contextKeyService: IContextKeyService, parent: HTMLElement) {
-		const scoped = this.historyContext = createAndBindHistoryNavigationWidgetScopedContextKeyService(
+	protected override getScopedContextKeyService(contextKeyService: IContextKeyService) {
+		this.historyContext = this._register(registerAndCreateHistoryNavigationContext(
 			contextKeyService,
-			{ target: parent, historyNavigator: this },
-		);
+			this,
+		));
 
-		this._register(scoped.scopedContextKeyService);
-
-		return scoped.scopedContextKeyService;
+		return this.historyContext.scopedContextKeyService;
 	}
 }
 

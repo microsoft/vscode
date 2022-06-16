@@ -137,6 +137,8 @@ export interface CommitOptions {
 	empty?: boolean;
 	noVerify?: boolean;
 	requireUserConfig?: boolean;
+	useEditor?: boolean;
+	verbose?: boolean;
 }
 
 export interface FetchOptions {
@@ -173,6 +175,7 @@ export interface Repository {
 	getCommit(ref: string): Promise<Commit>;
 
 	add(paths: string[]): Promise<void>;
+	revert(paths: string[]): Promise<void>;
 	clean(paths: string[]): Promise<void>;
 
 	apply(patch: string, reverse?: boolean): Promise<void>;
@@ -289,7 +292,7 @@ export interface GitExtension {
 	/**
 	 * Returns a specific API version.
 	 *
-	 * Throws error if git extension is disabled. You can listed to the
+	 * Throws error if git extension is disabled. You can listen to the
 	 * [GitExtension.onDidChangeEnablement](#GitExtension.onDidChangeEnablement) event
 	 * to know when the extension becomes enabled/disabled.
 	 *
@@ -335,4 +338,5 @@ export const enum GitErrorCodes {
 	PatchDoesNotApply = 'PatchDoesNotApply',
 	NoPathFound = 'NoPathFound',
 	UnknownPath = 'UnknownPath',
+	EmptyCommitMessage = 'EmptyCommitMessage'
 }

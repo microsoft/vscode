@@ -1279,7 +1279,7 @@ configurationRegistry.registerConfiguration({
 		[multiSelectModifierSettingKey]: {
 			type: 'string',
 			enum: ['ctrlCmd', 'alt'],
-			enumDescriptions: [
+			markdownEnumDescriptions: [
 				localize('multiSelectModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
 				localize('multiSelectModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
 			],
@@ -1327,7 +1327,7 @@ configurationRegistry.registerConfiguration({
 		[mouseWheelScrollSensitivityKey]: {
 			type: 'number',
 			default: 1,
-			description: localize('Mouse Wheel Scroll Sensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.")
+			markdownDescription: localize('Mouse Wheel Scroll Sensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.")
 		},
 		[fastScrollSensitivityKey]: {
 			type: 'number',

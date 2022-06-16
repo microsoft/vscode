@@ -90,7 +90,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 													},
 													{
 														type: 'object',
-														required: ['dark', 'light', 'hc'],
+														required: ['dark', 'light', 'hc', 'hcLight'],
 														properties: {
 															dark: {
 																description: localize('walkthroughs.steps.media.image.path.dark.string', "Path to the image for dark themes, relative to extension directory."),
@@ -102,6 +102,10 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 															},
 															hc: {
 																description: localize('walkthroughs.steps.media.image.path.hc.string', "Path to the image for hc themes, relative to extension directory."),
+																type: 'string',
+															},
+															hcLight: {
+																description: localize('walkthroughs.steps.media.image.path.hcLight.string', "Path to the image for hc light themes, relative to extension directory."),
 																type: 'string',
 															}
 														}

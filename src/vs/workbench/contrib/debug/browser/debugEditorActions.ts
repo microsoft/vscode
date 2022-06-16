@@ -234,13 +234,16 @@ export class RunToCursorAction extends EditorAction {
 	}
 }
 
-class SelectionToReplAction extends EditorAction {
+export class SelectionToReplAction extends EditorAction {
+
+	public static readonly ID = 'editor.debug.action.selectionToRepl';
+	public static readonly LABEL = nls.localize('evaluateInDebugConsole', "Evaluate in Debug Console");
 
 	constructor() {
 		super({
-			id: 'editor.debug.action.selectionToRepl',
-			label: nls.localize('evaluateInDebugConsole', "Evaluate in Debug Console"),
-			alias: 'Evaluate',
+			id: SelectionToReplAction.ID,
+			label: SelectionToReplAction.LABEL,
+			alias: 'Debug: Evaluate in Console',
 			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
@@ -264,13 +267,16 @@ class SelectionToReplAction extends EditorAction {
 	}
 }
 
-class SelectionToWatchExpressionsAction extends EditorAction {
+export class SelectionToWatchExpressionsAction extends EditorAction {
+
+	public static readonly ID = 'editor.debug.action.selectionToWatch';
+	public static readonly LABEL = nls.localize('addToWatch', "Add to Watch");
 
 	constructor() {
 		super({
-			id: 'editor.debug.action.selectionToWatch',
-			label: nls.localize('addToWatch', "Add to Watch"),
-			alias: 'Add to Watch',
+			id: SelectionToWatchExpressionsAction.ID,
+			label: SelectionToWatchExpressionsAction.LABEL,
+			alias: 'Debug: Add to Watch',
 			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',

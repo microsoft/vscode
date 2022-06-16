@@ -23,7 +23,6 @@ import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 const enum ForceOpenAs {
 	None,
@@ -61,6 +60,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			}
 		}
 
+		if (!(capabilities & EditorInputCapabilities.Readonly)) {
+			capabilities |= EditorInputCapabilities.CanDropIntoEditor;
+		}
+
 		return capabilities;
 	}
 
@@ -92,10 +95,9 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@IPathService private readonly pathService: IPathService,
-		@IEditorResolverService editorResolverService: IEditorResolverService
+		@IPathService private readonly pathService: IPathService
 	) {
-		super(resource, preferredResource, editorService, textFileService, labelService, fileService, editorResolverService);
+		super(resource, preferredResource, editorService, textFileService, labelService, fileService);
 
 		this.model = this.textFileService.files.get(resource);
 
@@ -178,7 +180,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	private allowLabelOverride(): boolean {
 		return this.resource.scheme !== this.pathService.defaultUriScheme &&
-			this.resource.scheme !== Schemas.userData &&
+			this.resource.scheme !== Schemas.vscodeUserData &&
 			this.resource.scheme !== Schemas.file &&
 			this.resource.scheme !== Schemas.vscodeRemote;
 	}

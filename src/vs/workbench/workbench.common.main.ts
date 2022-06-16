@@ -83,6 +83,8 @@ import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRe
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
+import 'vs/workbench/services/userDataProfile/common/userDataProfileWorkbenchService';
+import 'vs/workbench/services/userDataProfile/browser/userDataProfileManagement';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
 import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -96,8 +98,8 @@ import 'vs/workbench/services/hover/browser/hoverService';
 import 'vs/workbench/services/assignment/common/assignmentService';
 import 'vs/workbench/services/outline/browser/outlineService';
 import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
-
 import 'vs/editor/common/services/languageFeaturesService';
+
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
@@ -125,6 +127,7 @@ import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
+import { IExtensionsProfileScannerService, ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
@@ -141,6 +144,7 @@ registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationSe
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
+registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService);
 
 //#endregion
 
@@ -208,6 +212,9 @@ import 'vs/workbench/contrib/debug/browser/debugViewlet';
 
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
+
+// Merge Editor
+import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
 
 // Comments
 import 'vs/workbench/contrib/comments/browser/comments.contribution';
@@ -288,7 +295,6 @@ import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 
 // Welcome
 import 'vs/workbench/contrib/welcomeOverlay/browser/welcomeOverlay';
-import 'vs/workbench/contrib/welcomePage/browser/welcomePage.contribution';
 import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution';
 import 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThrough.contribution';
 import 'vs/workbench/contrib/welcomeViews/common/viewsWelcome.contribution';
@@ -304,6 +310,9 @@ import 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchy.contribution';
 import 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline';
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
+// Language Detection
+import 'vs/workbench/contrib/languageDetection/browser/languageDetection.contribution';
+
 // Language Status
 import 'vs/workbench/contrib/languageStatus/browser/languageStatus.contribution';
 
@@ -316,11 +325,20 @@ import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
+// User Data Profiles
+import 'vs/workbench/contrib/userDataProfile/browser/userDataProfile.contribution';
+
+// Continue Edit Session
+import 'vs/workbench/contrib/sessionSync/browser/sessionSync.contribution';
+
 // Code Actions
 import 'vs/workbench/contrib/codeActions/browser/codeActions.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
+
+// Local History
+import 'vs/workbench/contrib/localHistory/browser/localHistory.contribution';
 
 // Workspace
 import 'vs/workbench/contrib/workspace/browser/workspace.contribution';

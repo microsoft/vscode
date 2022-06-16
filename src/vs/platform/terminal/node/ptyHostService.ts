@@ -12,11 +12,11 @@ import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parsePtyHostPort } from 'vs/platform/environment/common/environmentService';
-import { getResolvedShellEnv } from 'vs/platform/terminal/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, TerminalSettingId, ISerializedTerminalState } from 'vs/platform/terminal/common/terminal';
+import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, TerminalSettingId, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
@@ -104,8 +104,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}));
 	}
 
-	async initialize(): Promise<void> {
-		await this._refreshIgnoreProcessNames();
+	initialize(): void {
+		this._refreshIgnoreProcessNames();
 	}
 
 	private get _ignoreProcessNames(): string[] {
@@ -133,7 +133,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _startPtyHost(): [Client, IPtyService] {
 		const opts: IIPCOptions = {
 			serverName: 'Pty Host',
-			args: ['--type=ptyHost'],
+			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsPath],
 			env: {
 				VSCODE_LAST_PTY_ID: lastPtyId,
 				VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
@@ -201,9 +201,21 @@ export class PtyHostService extends Disposable implements IPtyService {
 		super.dispose();
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, unicodeVersion: '6' | '11', env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean, workspaceId: string, workspaceName: string): Promise<number> {
+	async createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cwd: string,
+		cols: number,
+		rows: number,
+		unicodeVersion: '6' | '11',
+		env: IProcessEnvironment,
+		executableEnv: IProcessEnvironment,
+		options: ITerminalProcessOptions,
+		shouldPersist: boolean,
+		workspaceId: string,
+		workspaceName: string
+	): Promise<number> {
 		const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
-		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, windowsEnableConpty, shouldPersist, workspaceId, workspaceName);
+		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, workspaceId, workspaceName);
 		clearTimeout(timeout);
 		lastPtyId = Math.max(lastPtyId, id);
 		return id;
@@ -331,8 +343,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier);
 		if (!this._isResponsive) {
 			this._isResponsive = true;
+			this._onPtyHostResponsive.fire();
 		}
-		this._onPtyHostResponsive.fire();
 	}
 
 	private _handleHeartbeatFirstTimeout() {
@@ -346,14 +358,17 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._heartbeatSecondTimeout = undefined;
 		if (this._isResponsive) {
 			this._isResponsive = false;
+			this._onPtyHostUnresponsive.fire();
 		}
-		this._onPtyHostUnresponsive.fire();
 	}
 
 	private _handleUnresponsiveCreateProcess() {
 		this._clearHeartbeatTimeouts();
 		this._logService.error(`No ptyHost response to createProcess after ${HeartbeatConstants.CreateProcessTimeout / 1000} seconds`);
-		this._onPtyHostUnresponsive.fire();
+		if (this._isResponsive) {
+			this._isResponsive = false;
+			this._onPtyHostUnresponsive.fire();
+		}
 	}
 
 	private _clearHeartbeatTimeouts() {

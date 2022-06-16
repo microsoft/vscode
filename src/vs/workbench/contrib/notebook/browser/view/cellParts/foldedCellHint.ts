@@ -7,10 +7,8 @@ import * as DOM from 'vs/base/browser/dom';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
-import { CellEditState, CellFoldingState, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { CellEditState, CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 
 export class FoldedCellHint extends CellPart {
@@ -22,7 +20,7 @@ export class FoldedCellHint extends CellPart {
 		super();
 	}
 
-	renderCell(element: MarkupCellViewModel, templateData: BaseCellRenderTemplate): void {
+	override didRenderCell(element: MarkupCellViewModel): void {
 		this.update(element);
 	}
 
@@ -68,15 +66,7 @@ export class FoldedCellHint extends CellPart {
 		return expandIcon;
 	}
 
-	prepareLayout(): void {
-		// nothing to read
-	}
-
-	updateInternalLayoutNow(element: MarkupCellViewModel) {
+	override updateInternalLayoutNow(element: MarkupCellViewModel) {
 		this.update(element);
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
-		// nothing to update
 	}
 }

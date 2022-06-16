@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain, session } from 'electron';
+import { session } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -14,6 +15,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
 
@@ -22,10 +24,11 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	declare readonly _serviceBrand: undefined;
 
 	private readonly validRoots = TernarySearchTree.forPaths<boolean>(!isLinux);
-	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp']); // https://github.com/microsoft/vscode/issues/119384
+	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']); // https://github.com/microsoft/vscode/issues/119384
 
 	constructor(
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -36,7 +39,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		// - storage    : all files in global and workspace storage (https://github.com/microsoft/vscode/issues/116735)
 		this.addValidFileRoot(environmentService.appRoot);
 		this.addValidFileRoot(environmentService.extensionsPath);
-		this.addValidFileRoot(environmentService.globalStorageHome.fsPath);
+		this.addValidFileRoot(userDataProfilesService.defaultProfile.globalStorageHome.fsPath);
 		this.addValidFileRoot(environmentService.workspaceStorageHome.fsPath);
 
 		// Handle protocols
@@ -138,7 +141,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		// Install IPC handler
 		const channel = resource.toString();
 		const handler = async (): Promise<T | undefined> => obj;
-		ipcMain.handle(channel, handler);
+		validatedIpcMain.handle(channel, handler);
 
 		this.logService.trace(`IPC Object URL: Registered new channel ${channel}.`);
 
@@ -148,7 +151,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 			dispose: () => {
 				this.logService.trace(`IPC Object URL: Removed channel ${channel}.`);
 
-				ipcMain.removeHandler(channel);
+				validatedIpcMain.removeHandler(channel);
 			}
 		};
 	}

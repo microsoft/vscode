@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain, WebContents } from 'electron';
+import { WebContents } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -16,7 +17,7 @@ interface IIPCEvent {
 }
 
 function createScopedOnMessageEvent(senderId: number, eventName: string): Event<VSBuffer | null> {
-	const onMessage = Event.fromNodeEventEmitter<IIPCEvent>(ipcMain, eventName, (event, message) => ({ event, message }));
+	const onMessage = Event.fromNodeEventEmitter<IIPCEvent>(validatedIpcMain, eventName, (event, message) => ({ event, message }));
 	const onMessageFromSender = Event.filter(onMessage, ({ event }) => event.sender.id === senderId);
 
 	return Event.map(onMessageFromSender, ({ message }) => message ? VSBuffer.wrap(message) : message);
@@ -30,7 +31,7 @@ export class Server extends IPCServer {
 	private static readonly Clients = new Map<number, IDisposable>();
 
 	private static getOnDidClientConnect(): Event<ClientConnectionEvent> {
-		const onHello = Event.fromNodeEventEmitter<WebContents>(ipcMain, 'vscode:hello', ({ sender }) => sender);
+		const onHello = Event.fromNodeEventEmitter<WebContents>(validatedIpcMain, 'vscode:hello', ({ sender }) => sender);
 
 		return Event.map(onHello, webContents => {
 			const id = webContents.id;

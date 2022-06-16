@@ -13,6 +13,7 @@ import { EditorCommand, registerEditorCommand, registerEditorContribution } from
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { PositionAffinity } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -129,13 +130,12 @@ class MessageWidget implements IContentWidget {
 	private readonly _domNode: HTMLDivElement;
 
 	static fadeOut(messageWidget: MessageWidget): IDisposable {
-		let handle: any;
 		const dispose = () => {
 			messageWidget.dispose();
 			clearTimeout(handle);
 			messageWidget.getDomNode().removeEventListener('animationend', dispose);
 		};
-		handle = setTimeout(dispose, 110);
+		const handle = setTimeout(dispose, 110);
 		messageWidget.getDomNode().addEventListener('animationend', dispose);
 		messageWidget.getDomNode().classList.add('fadeOut');
 		return { dispose };
@@ -145,10 +145,11 @@ class MessageWidget implements IContentWidget {
 
 		this._editor = editor;
 		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, ScrollType.Smooth);
-		this._position = { lineNumber, column: column - 1 };
+		this._position = { lineNumber, column };
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('monaco-editor-overlaymessage');
+		this._domNode.style.marginLeft = '-6px';
 
 		const anchorTop = document.createElement('div');
 		anchorTop.classList.add('anchor', 'top');
@@ -180,7 +181,14 @@ class MessageWidget implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition {
-		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW] };
+		return {
+			position: this._position,
+			preference: [
+				ContentWidgetPositionPreference.ABOVE,
+				ContentWidgetPositionPreference.BELOW,
+			],
+			positionAffinity: PositionAffinity.Right,
+		};
 	}
 
 	afterRender(position: ContentWidgetPositionPreference | null): void {

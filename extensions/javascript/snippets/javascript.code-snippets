@@ -149,12 +149,12 @@
 		],
 		"description": "Set Interval Function"
 	},
-	"Import external module.": {
-		"prefix": "import statement",
+	"Import Statement": {
+		"prefix": "import",
 		"body": [
 			"import { $0 } from \"${1:module}\";"
 		],
-		"description": "Import external module."
+		"description": "Import external module"
 	},
 	"Region Start": {
 		"prefix": "#region",
@@ -190,5 +190,14 @@
 			"console.error($1);"
 		],
 		"description": "Log error to the console"
+	},
+	"new Promise": {
+		"prefix": "newpromise",
+		"body": [
+			"new Promise((resolve, reject) => {",
+			"\t$TM_SELECTED_TEXT$0",
+			"})"
+		],
+		"description": "Create a new Promise"
 	}
 }

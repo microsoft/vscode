@@ -14,7 +14,7 @@ import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtensio
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { ColorScheme, isHighContrast } from 'vs/platform/theme/common/theme';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
@@ -99,16 +99,18 @@ class MarketplaceThemesPicker {
 		try {
 			const installedExtensions = await this._installedExtensions;
 
-			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 40 };
+			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 20 };
 			const pager = await this.extensionGalleryService.query(options, token);
-			for (let i = 0; i < pager.total && i < 1; i++) {
+			for (let i = 0; i < pager.total && i < 1; i++) { // loading multiple pages is turned of for now to avoid flickering
 				if (token.isCancellationRequested) {
 					break;
 				}
 
 				const nThemes = this._marketplaceThemes.length;
+				const gallery = i === 0 ? pager.firstPage : await pager.getPage(i, token);
 
-				const gallery = await pager.getPage(i, token);
+				const promises: Promise<IWorkbenchTheme[]>[] = [];
+				const promisesGalleries = [];
 				for (let i = 0; i < gallery.length; i++) {
 					if (token.isCancellationRequested) {
 						break;
@@ -116,12 +118,18 @@ class MarketplaceThemesPicker {
 					const ext = gallery[i];
 					if (!installedExtensions.has(ext.identifier.id) && !this._marketplaceExtensions.has(ext.identifier.id)) {
 						this._marketplaceExtensions.add(ext.identifier.id);
-						const themes = await this.getMarketplaceColorThemes(ext.publisher, ext.name, ext.version);
-						for (const theme of themes) {
-							this._marketplaceThemes.push({ id: theme.id, theme: theme, label: theme.label, description: `${ext.displayName} · ${ext.publisherDisplayName}`, galleryExtension: ext, buttons: [configureButton] });
-						}
+						promises.push(this.getMarketplaceColorThemes(ext.publisher, ext.name, ext.version));
+						promisesGalleries.push(ext);
 					}
 				}
+				const allThemes = await Promise.all(promises);
+				for (let i = 0; i < allThemes.length; i++) {
+					const ext = promisesGalleries[i];
+					for (const theme of allThemes[i]) {
+						this._marketplaceThemes.push({ id: theme.id, theme: theme, label: theme.label, description: `${ext.displayName} · ${ext.publisherDisplayName}`, galleryExtension: ext, buttons: [configureButton] });
+					}
+				}
+
 				if (nThemes !== this._marketplaceThemes.length) {
 					this._marketplaceThemes.sort((t1, t2) => t1.label.localeCompare(t2.label));
 					this._onDidChange.fire();
@@ -151,7 +159,7 @@ class MarketplaceThemesPicker {
 			quickpick.canSelectMany = false;
 			quickpick.onDidChangeValue(() => this.trigger(quickpick.value));
 			quickpick.onDidAccept(async _ => {
-				let themeItem = quickpick.selectedItems[0];
+				const themeItem = quickpick.selectedItems[0];
 				if (themeItem?.galleryExtension) {
 					result = 'selected';
 					quickpick.hide();
@@ -376,7 +384,7 @@ registerAction2(class extends Action2 {
 		const picks: QuickPickInput<ThemeItem>[] = [
 			...toEntries(themes.filter(t => t.type === ColorScheme.LIGHT), localize('themes.category.light', "light themes")),
 			...toEntries(themes.filter(t => t.type === ColorScheme.DARK), localize('themes.category.dark', "dark themes")),
-			...toEntries(themes.filter(t => t.type === ColorScheme.HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
+			...toEntries(themes.filter(t => isHighContrast(t.type)), localize('themes.category.hc', "high contrast themes")),
 		];
 		await picker.openQuickPick(picks, currentTheme);
 	}
@@ -512,7 +520,7 @@ function toEntry(theme: IWorkbenchTheme): ThemeItem {
 
 function toEntries(themes: Array<IWorkbenchTheme>, label?: string): QuickPickInput<ThemeItem>[] {
 	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
-	let entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
+	const entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
 	if (entries.length > 0 && label) {
 		entries.unshift({ type: 'separator', label });
 	}

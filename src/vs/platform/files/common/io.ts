@@ -9,9 +9,9 @@ import { canceled } from 'vs/base/common/errors';
 import { IDataTransformer, IErrorTransformer, WriteableStream } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { createFileSystemProviderError, ensureFileSystemProviderError, FileReadStreamOptions, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, ensureFileSystemProviderError, IFileReadStreamOptions, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability } from 'vs/platform/files/common/files';
 
-export interface ICreateReadStreamOptions extends FileReadStreamOptions {
+export interface ICreateReadStreamOptions extends IFileReadStreamOptions {
 
 	/**
 	 * The size of the buffer to use before sending to the stream.

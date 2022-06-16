@@ -40,9 +40,8 @@ interface ConfigFilePatterns {
 }
 
 const worksapceStatsCache = new Map<string, Promise<WorkspaceStats>>();
-export async function collectWorkspaceStats(folder: string, filter: string[], limit?: number): Promise<WorkspaceStats> {
+export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
 	const cacheKey = `${folder}::${filter.join(':')}`;
-	console.log(cacheKey);
 	const cached = worksapceStatsCache.get(cacheKey);
 	if (cached) {
 		return cached;
@@ -73,7 +72,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[], li
 	const fileTypes = new Map<string, number>();
 	const configFiles = new Map<string, number>();
 
-	const MAX_FILES = limit ?? 20000;
+	const MAX_FILES = 20000;
 
 	function collect(root: string, dir: string, filter: string[], token: { count: number; maxReached: boolean }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
@@ -400,7 +399,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		// File Types
 		let line = '|      File types:';
 		const maxShown = 10;
-		let max = workspaceStats.fileTypes.length > maxShown ? maxShown : workspaceStats.fileTypes.length;
+		const max = workspaceStats.fileTypes.length > maxShown ? maxShown : workspaceStats.fileTypes.length;
 		for (let i = 0; i < max; i++) {
 			const item = workspaceStats.fileTypes[i];
 			appendAndWrap(item.name, item.count);
@@ -519,7 +518,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 			}
 			const folder = folderUri.fsPath;
 			try {
-				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git'], 1000);
+				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git']);
 				stats.fileTypes.forEach(item => items.add(item.name));
 			} catch { }
 		}
@@ -537,8 +536,10 @@ export class DiagnosticsService implements IDiagnosticsService {
 			try {
 				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git']);
 				type WorkspaceStatsClassification = {
-					'workspace.id': { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+					owner: 'lramos15';
+					comment: 'Metadata related to the workspace';
+					'workspace.id': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A UUID given to a workspace to identify it.' };
+					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the session' };
 				};
 				type WorkspaceStatsEvent = {
 					'workspace.id': string | undefined;
@@ -549,9 +550,11 @@ export class DiagnosticsService implements IDiagnosticsService {
 					rendererSessionId: workspace.rendererSessionId
 				});
 				type WorkspaceStatsFileClassification = {
-					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-					type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+					owner: 'lramos15';
+					comment: 'Helps us gain insights into what type of files are being used in a workspace';
+					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the session.' };
+					type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The type of file' };
+					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many types of that file are present' };
 				};
 				type WorkspaceStatsFileEvent = {
 					rendererSessionId: string;

@@ -11,6 +11,6 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 export class SharedProcessEnvironmentService extends NativeEnvironmentService {
 
 	@memoize
-	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 
 }
