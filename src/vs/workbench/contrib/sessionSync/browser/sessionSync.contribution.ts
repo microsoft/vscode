@@ -28,6 +28,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
@@ -59,11 +60,16 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 	) {
 		super();
+
+		if (this.environmentService.editSessionId !== undefined) {
+			void this.applyEditSession(this.environmentService.editSessionId);
+		}
 
 		this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('workbench.experimental.sessionSync.enabled')) {
