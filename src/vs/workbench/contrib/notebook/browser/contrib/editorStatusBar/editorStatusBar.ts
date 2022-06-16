@@ -249,13 +249,13 @@ registerAction2(class extends Action2 {
 				quickPickItems.push({
 					id: 'installSuggested',
 					description: suggestedExtension.displayName ?? suggestedExtension.extensionId,
-					label: nls.localize('installSuggestedKernel', '$({0})Install suggested kernel provider from the marketplace', Codicon.lightbulb.id),
+					label: nls.localize('installSuggestedKernel', '$({0})Install suggested extensions', Codicon.lightbulb.id),
 				});
 			}
 			// there is no kernel, show the install from marketplace
 			quickPickItems.push({
 				id: 'install',
-				label: nls.localize('searchForKernels', "Browse marketplace for kernel providers"),
+				label: nls.localize('searchForKernels', "Browse marketplace for kernel extensions"),
 			});
 		}
 
