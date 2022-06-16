@@ -15,7 +15,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { ProfileOptions, DefaultOptions, IUserDataProfile, IUserDataProfilesService, UserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-type UserDataProfiles = {
+type UserDataProfilesObject = {
 	profiles: IUserDataProfile[];
 	workspaces: ResourceMap<IUserDataProfile>;
 };
@@ -52,9 +52,9 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 	}
 
-	private _profiles: UserDataProfiles | undefined;
-	private get profiles(): UserDataProfiles {
-		if (!this._profiles) {
+	private _profilesObject: UserDataProfilesObject | undefined;
+	private get profilesObject(): UserDataProfilesObject {
+		if (!this._profilesObject) {
 			const profiles = this.storedProfiles.map(storedProfile => this.toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.options, this.defaultProfile));
 			profiles.unshift(this.defaultProfile);
 			const workspaces = this.storedWorskpaceInfos.reduce((workspaces, workspaceProfileInfo) => {
@@ -64,17 +64,19 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 				}
 				return workspaces;
 			}, new ResourceMap<IUserDataProfile>());
-			this._profiles = { profiles: profiles, workspaces: workspaces };
+			this._profilesObject = { profiles: profiles, workspaces: workspaces };
 		}
-		return this._profiles;
+		return this._profilesObject;
 	}
 
+	override get profiles(): IUserDataProfile[] { return this.profilesObject.profiles; }
+
 	override async getAllProfiles(): Promise<IUserDataProfile[]> {
-		return this.profiles.profiles;
+		return this.profiles;
 	}
 
 	override getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile {
-		return this.profiles.workspaces.get(this.getWorkspace(workspaceIdentifier)) ?? this.defaultProfile;
+		return this.profilesObject.workspaces.get(this.getWorkspace(workspaceIdentifier)) ?? this.defaultProfile;
 	}
 
 	override async createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
@@ -88,7 +90,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		if (workspaceIdentifier) {
 			await this.setProfileForWorkspace(profile, workspaceIdentifier);
 		}
-		return this.profiles.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+		return this.profilesObject.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
 	}
 
 	override async setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
@@ -99,7 +101,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 			storedWorkspaceInfos.push({ workspace, profile: profile.location });
 		}
 		this.storedWorskpaceInfos = storedWorkspaceInfos;
-		return this.profiles.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+		return this.profilesObject.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
 	}
 
 	private getWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier) {
@@ -124,7 +126,8 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 
 	private set storedProfiles(storedProfiles: StoredUserDataProfile[]) {
 		this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles);
-		this._profiles = undefined;
+		this._profilesObject = undefined;
+		this._onDidChangeProfiles.fire(this.profiles);
 	}
 
 	private get storedWorskpaceInfos(): StoredWorkspaceInfo[] {
@@ -133,7 +136,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 
 	private set storedWorskpaceInfos(storedWorkspaceInfos: StoredWorkspaceInfo[]) {
 		this.stateMainService.setItem(UserDataProfilesMainService.WORKSPACE_PROFILE_INFO_KEY, storedWorkspaceInfos);
-		this._profiles = undefined;
+		this._profilesObject = undefined;
 	}
 
 }

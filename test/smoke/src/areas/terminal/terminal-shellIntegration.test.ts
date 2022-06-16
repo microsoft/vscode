@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue } from '../../../../automation';
+import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue, TerminalCommandId } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
@@ -16,8 +16,11 @@ export function setup() {
 			app = this.app as Application;
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
-			await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.enabled', 'true');
-			await setTerminalTestSettings(app);
+			await setTerminalTestSettings(app, [['terminal.integrated.shellIntegration.enabled', 'true']]);
+		});
+
+		afterEach(async function () {
+			await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 		});
 
 		after(async function () {
@@ -28,22 +31,23 @@ export function setup() {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, process.platform === 'win32' ? 'PowerShell' : 'bash');
 		}
 
-		// TODO: These are currently flaky https://github.com/microsoft/vscode/issues/150478
-		describe.skip('Shell integration', function () {
+		// TODO: Some agents may not have pwsh installed?
+		(process.platform === 'win32' ? describe.skip : describe)(`Shell integration`, function () {
 			describe('Decorations', function () {
 				describe('Should show default icons', function () {
+
 					it('Placeholder', async () => {
 						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 					});
 					it('Success', async () => {
 						await createShellIntegrationProfile();
-						await terminal.runCommandInTerminal(`ls`);
+						await terminal.runCommandInTerminal(`echo "success"`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
 					});
 					it('Error', async () => {
 						await createShellIntegrationProfile();
-						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await terminal.runCommandInTerminal(`false`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
 					});
 				});
@@ -51,12 +55,13 @@ export function setup() {
 					it('Should update and show custom icons', async () => {
 						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
-						await terminal.runCommandInTerminal(`ls`);
-						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await terminal.runCommandInTerminal(`echo "foo"`);
+						await terminal.runCommandInTerminal(`bar`);
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
 						await terminal.assertCommandDecorations(undefined, { updatedIcon: "zap", count: 3 });
+						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 					});
 				});
 			});

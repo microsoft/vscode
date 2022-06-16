@@ -31,7 +31,7 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/common/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { IWorkbenchConstructionOptions, IWorkbench } from 'vs/workbench/browser/web.api';
+import { IWorkbenchConstructionOptions, IWorkbench, ITunnel } from 'vs/workbench/browser/web.api';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
@@ -75,6 +75,9 @@ import { DelayedLogChannel } from 'vs/workbench/services/output/common/delayedLo
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
+import { IRemoteExplorerService, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { DisposableTunnel } from 'vs/platform/tunnel/common/tunnel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class BrowserMain extends Disposable {
 
@@ -134,6 +137,8 @@ export class BrowserMain extends Disposable {
 			const progessService = accessor.get(IProgressService);
 			const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
 			const instantiationService = accessor.get(IInstantiationService);
+			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			const labelService = accessor.get(ILabelService);
 
 			const embedderLogger = instantiationService.createInstance(DelayedLogChannel, 'webEmbedder', productService.embedderIdentifier || localize('vscode.dev', "vscode.dev"), joinPath(dirname(environmentService.logFile), `webEmbedder.log`));
 
@@ -163,7 +168,26 @@ export class BrowserMain extends Disposable {
 				window: {
 					withProgress: (options, task) => progessService.withProgress(options, task)
 				},
-				shutdown: () => lifecycleService.shutdown()
+				shutdown: () => lifecycleService.shutdown(),
+				openTunnel: async (tunnelOptions) => {
+					const tunnel = await remoteExplorerService.forward({
+						remote: tunnelOptions.remoteAddress,
+						local: tunnelOptions.localAddressPort,
+						name: tunnelOptions.label,
+						source: {
+							source: TunnelSource.Extension,
+							description: labelService.getHostLabel(Schemas.vscodeRemote, this.configuration.remoteAuthority)
+						},
+						elevateIfNeeded: false
+					});
+					if (!tunnel) {
+						throw new Error('cannot open tunnel');
+					}
+
+					return new class extends DisposableTunnel implements ITunnel {
+						override localAddress!: string;
+					}({ port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost }, tunnel.localAddress, () => tunnel.dispose());
+				}
 			};
 		});
 	}
