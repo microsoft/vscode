@@ -66,6 +66,7 @@ const glob = require('glob');
 const util = require('util');
 const bootstrap = require('../../../src/bootstrap');
 const coverage = require('../coverage');
+const { fail } = require('assert');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -177,7 +178,8 @@ function loadTests(opts) {
 
 		suite('Tests are using suiteSetup and setup correctly', () => {
 			test('assertCleanState - check that registries are clean at the start of test running', () => {
-				assertCleanState();
+				fail('Testing...');
+				// assertCleanState();
 			});
 		});
 
