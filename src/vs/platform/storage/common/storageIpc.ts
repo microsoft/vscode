@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { UriDto } from 'vs/base/common/types';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export type Key = string;
@@ -184,7 +184,7 @@ export class StorageDatabaseChannelClient extends Disposable {
 
 	constructor(
 		private channel: IChannel,
-		private userDataProfileService: IUserDataProfilesService,
+		private userDataProfileService: IUserDataProfileService,
 		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined
 	) {
 		super();

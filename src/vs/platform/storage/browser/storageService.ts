@@ -12,7 +12,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class BrowserStorageService extends AbstractStorageService {
@@ -38,7 +38,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	constructor(
 		private readonly payload: IAnyWorkspaceIdentifier,
 		@ILogService private readonly logService: ILogService,
-		@IUserDataProfilesService private readonly userDataProfileService: IUserDataProfilesService
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
 	}

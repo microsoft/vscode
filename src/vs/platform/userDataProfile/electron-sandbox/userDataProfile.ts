@@ -17,22 +17,23 @@ export class UserDataProfilesNativeService extends UserDataProfilesService imple
 	override get profiles(): IUserDataProfile[] { return this._profiles; }
 
 	constructor(
-		defaultProfile: IUserDataProfile,
-		currentProfile: IUserDataProfile,
+		defaultProfile: UriDto<IUserDataProfile>,
 		private readonly channel: IChannel,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 	) {
-		super(defaultProfile, currentProfile, environmentService, fileService, logService);
-		this.getAllProfiles().then(profiles => {
-			this._profiles = profiles;
+		super(defaultProfile, environmentService, fileService, logService);
+		this.initializeProfiles();
+	}
+
+	private async initializeProfiles(): Promise<void> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>[]>('getAllProfiles');
+		this._profiles = result.map(profile => reviveProfile(profile, this.profilesHome.scheme));
+		this._register(this.channel.listen<IUserDataProfile[]>('onDidChangeProfiles')((profiles) => {
+			this._profiles = result.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 			this._onDidChangeProfiles.fire(this._profiles);
-			this._register(this.channel.listen<IUserDataProfile[]>('onDidChangeProfiles')((profiles) => {
-				this._profiles = profiles;
-				this._onDidChangeProfiles.fire(this._profiles);
-			}));
-		});
+		}));
 	}
 
 	override async createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
@@ -43,11 +44,6 @@ export class UserDataProfilesNativeService extends UserDataProfilesService imple
 	override async setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
 		const result = await this.channel.call<UriDto<IUserDataProfile>>('setProfileForWorkspace', [profile, workspaceIdentifier]);
 		return reviveProfile(result, this.profilesHome.scheme);
-	}
-
-	override async getAllProfiles(): Promise<IUserDataProfile[]> {
-		const result = await this.channel.call<UriDto<IUserDataProfile>[]>('getAllProfiles');
-		return result.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 	}
 
 	override removeProfile(profile: IUserDataProfile): Promise<void> {

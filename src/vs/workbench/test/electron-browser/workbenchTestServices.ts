@@ -48,9 +48,10 @@ import { IElevatedFileService } from 'vs/workbench/services/files/common/elevate
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService, IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { joinPath } from 'vs/base/common/resources';
+import { UserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfileService';
 
 const args = parseArgs(process.argv, OPTIONS);
 
@@ -287,7 +288,8 @@ export function workbenchInstantiationService(disposables = new DisposableStore(
 	instantiationService.stub(INativeEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, undefined, TestEnvironmentService, new FileService(new NullLogService()), new NullLogService()));
+	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, TestEnvironmentService, new FileService(new NullLogService()), new NullLogService()));
+	instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService.defaultProfile));
 
 	return instantiationService;
 }

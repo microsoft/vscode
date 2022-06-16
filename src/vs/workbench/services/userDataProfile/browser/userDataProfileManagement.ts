@@ -16,7 +16,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfileService, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -36,6 +36,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 
 	constructor(
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
@@ -59,25 +60,25 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		await this.fileService.createFolder(newProfile.location);
 		if (fromExisting) {
 			if (options?.uiState) {
-				promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.globalStorageHome, newProfile.globalStorageHome));
+				promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.globalStorageHome, newProfile.globalStorageHome));
 			}
 			if (options?.settings) {
-				promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.settingsResource, newProfile.settingsResource));
+				promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.settingsResource, newProfile.settingsResource));
 			}
 			if (options?.extensions && newProfile.extensionsResource) {
 				promises.push((async () => {
-					const extensionsProfileResource = this.userDataProfilesService.currentProfile.extensionsResource ?? await this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, basename(newProfile.extensionsResource!)));
+					const extensionsProfileResource = this.userDataProfileService.currentProfile.extensionsResource ?? await this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, basename(newProfile.extensionsResource!)));
 					this.fileService.copy(extensionsProfileResource, newProfile.extensionsResource!);
 				})());
 			}
 			if (options?.keybindings) {
-				promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.keybindingsResource, newProfile.keybindingsResource));
+				promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.keybindingsResource, newProfile.keybindingsResource));
 			}
 			if (options?.tasks) {
-				promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.tasksResource, newProfile.tasksResource));
+				promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.tasksResource, newProfile.tasksResource));
 			}
 			if (options?.snippets) {
-				promises.push(this.fileService.copy(this.userDataProfilesService.currentProfile.snippetsHome, newProfile.snippetsHome));
+				promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.snippetsHome, newProfile.snippetsHome));
 			}
 		} else {
 			promises.push(this.fileService.createFolder(newProfile.globalStorageHome));
@@ -97,7 +98,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (profile.isDefault) {
 			throw new Error(localize('cannotDeleteDefaultProfile', "Cannot delete the default profile"));
 		}
-		if (profile.id === this.userDataProfilesService.currentProfile.id) {
+		if (profile.id === this.userDataProfileService.currentProfile.id) {
 			throw new Error(localize('cannotDeleteCurrentProfile', "Cannot delete the current profile"));
 		}
 		await this.userDataProfilesService.removeProfile(profile);

@@ -19,7 +19,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { migrateExtensionStorage } from 'vs/workbench/services/extensions/common/extensionStorageMigration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService, IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfileService';
 
 suite('ExtensionStorageMigration', () => {
 
@@ -36,7 +37,8 @@ suite('ExtensionStorageMigration', () => {
 		fileService.registerProvider(ROOT.scheme, disposables.add(new InMemoryFileSystemProvider()));
 		instantiationService.stub(IFileService, fileService);
 		const environmentService = instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{ userRoamingDataHome: ROOT, workspaceStorageHome });
-		instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, undefined, environmentService, fileService, new NullLogService()));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, environmentService, fileService, new NullLogService()));
+		instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService.defaultProfile));
 
 		instantiationService.stub(IExtensionStorageService, instantiationService.createInstance(ExtensionStorageService));
 	});

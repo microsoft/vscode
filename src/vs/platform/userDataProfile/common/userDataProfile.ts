@@ -47,13 +47,21 @@ export interface IUserDataProfile {
 	readonly extensionsResource: URI | undefined;
 }
 
+export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
+export interface IUserDataProfileService {
+	readonly _serviceBrand: undefined;
+	readonly defaultProfile: IUserDataProfile;
+	readonly onDidChangeCurrentProfile: Event<IUserDataProfile>;
+	readonly currentProfile: IUserDataProfile;
+	updateCurrentProfile(currentProfile: IUserDataProfile): void;
+}
+
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
 export interface IUserDataProfilesService {
 	readonly _serviceBrand: undefined;
 
 	readonly profilesHome: URI;
 	readonly defaultProfile: IUserDataProfile;
-	readonly currentProfile: IUserDataProfile;
 
 	readonly onDidChangeProfiles: Event<IUserDataProfile[]>;
 	readonly profiles: IUserDataProfile[];
@@ -62,7 +70,6 @@ export interface IUserDataProfilesService {
 	createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
 	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
 	getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile;
-	getAllProfiles(): Promise<IUserDataProfile[]>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 }
 
@@ -81,13 +88,25 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 	};
 }
 
+export function toUserDataProfile(name: string, location: URI, options: ProfileOptions, defaultProfile: true | IUserDataProfile): IUserDataProfile {
+	return {
+		id: hash(location.toString()).toString(16),
+		name: name,
+		location: location,
+		isDefault: defaultProfile === true,
+		globalStorageHome: defaultProfile === true || options.uiState ? joinPath(location, 'globalStorage') : defaultProfile.globalStorageHome,
+		settingsResource: defaultProfile === true || options.settings ? joinPath(location, 'settings.json') : defaultProfile.settingsResource,
+		keybindingsResource: defaultProfile === true || options.keybindings ? joinPath(location, 'keybindings.json') : defaultProfile.keybindingsResource,
+		tasksResource: defaultProfile === true || options.tasks ? joinPath(location, 'tasks.json') : defaultProfile.tasksResource,
+		snippetsHome: defaultProfile === true || options.snippets ? joinPath(location, 'snippets') : defaultProfile.snippetsHome,
+		extensionsResource: defaultProfile === true && !options.extensions ? undefined : joinPath(location, 'extensions.json'),
+	};
+}
+
 export class UserDataProfilesService extends Disposable implements IUserDataProfilesService {
 	readonly _serviceBrand: undefined;
 
 	readonly profilesHome: URI;
-
-	protected _currentProfile: IUserDataProfile;
-	get currentProfile(): IUserDataProfile { return this._currentProfile; }
 
 	protected _defaultProfile: IUserDataProfile;
 	get defaultProfile(): IUserDataProfile { return this._defaultProfile; }
@@ -99,37 +118,19 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	constructor(
 		defaultProfile: UriDto<IUserDataProfile> | undefined,
-		currentProfile: UriDto<IUserDataProfile> | undefined,
 		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 		@IFileService protected readonly fileService: IFileService,
 		@ILogService protected readonly logService: ILogService
 	) {
 		super();
 		this.profilesHome = joinPath(this.environmentService.userRoamingDataHome, 'profiles');
-		this._defaultProfile = defaultProfile ? reviveProfile(defaultProfile, this.profilesHome.scheme) : this.toUserDataProfile(localize('defaultProfile', "Default"), environmentService.userRoamingDataHome, { ...DefaultOptions, extensions: false }, true);
-		this._currentProfile = currentProfile ? reviveProfile(currentProfile, this.profilesHome.scheme) : this._defaultProfile;
+		this._defaultProfile = defaultProfile ? reviveProfile(defaultProfile, this.profilesHome.scheme) : toUserDataProfile(localize('defaultProfile', "Default"), environmentService.userRoamingDataHome, { ...DefaultOptions, extensions: false }, true);
 	}
 
 	newProfile(name: string, options: ProfileOptions = DefaultOptions): IUserDataProfile {
-		return this.toUserDataProfile(name, joinPath(this.profilesHome, hash(name).toString(16)), options, this.defaultProfile);
+		return toUserDataProfile(name, joinPath(this.profilesHome, hash(name).toString(16)), options, this.defaultProfile);
 	}
 
-	protected toUserDataProfile(name: string, location: URI, options: ProfileOptions, defaultProfile: true | IUserDataProfile): IUserDataProfile {
-		return {
-			id: hash(location.toString()).toString(16),
-			name: name,
-			location: location,
-			isDefault: defaultProfile === true,
-			globalStorageHome: defaultProfile === true || options.uiState ? joinPath(location, 'globalStorage') : defaultProfile.globalStorageHome,
-			settingsResource: defaultProfile === true || options.settings ? joinPath(location, 'settings.json') : defaultProfile.settingsResource,
-			keybindingsResource: defaultProfile === true || options.keybindings ? joinPath(location, 'keybindings.json') : defaultProfile.keybindingsResource,
-			tasksResource: defaultProfile === true || options.tasks ? joinPath(location, 'tasks.json') : defaultProfile.tasksResource,
-			snippetsHome: defaultProfile === true || options.snippets ? joinPath(location, 'snippets') : defaultProfile.snippetsHome,
-			extensionsResource: defaultProfile === true && !options.extensions ? undefined : joinPath(location, 'extensions.json'),
-		};
-	}
-
-	getAllProfiles(): Promise<IUserDataProfile[]> { throw new Error('Not implemented'); }
 	createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
 	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
 	getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile { throw new Error('Not implemented'); }

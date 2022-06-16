@@ -11,7 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class NativeStorageService extends AbstractStorageService {
@@ -33,7 +33,7 @@ export class NativeStorageService extends AbstractStorageService {
 	constructor(
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
 		private readonly mainProcessService: IMainProcessService,
-		private readonly userDataProfilesService: IUserDataProfilesService,
+		private readonly userDataProfileService: IUserDataProfileService,
 		private readonly environmentService: IEnvironmentService,
 	) {
 		super();
@@ -44,7 +44,7 @@ export class NativeStorageService extends AbstractStorageService {
 	}
 
 	private createApplicationStorage(): IStorage {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, undefined);
+		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfileService, undefined);
 		const applicationStorage = new Storage(storageDataBaseClient.applicationStorage);
 
 		this._register(applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
@@ -55,7 +55,7 @@ export class NativeStorageService extends AbstractStorageService {
 	private createGlobalStorage(): IStorage {
 		let globalStorage: IStorage;
 
-		if (this.userDataProfilesService.currentProfile.isDefault) {
+		if (this.userDataProfileService.currentProfile.isDefault) {
 
 			// If we are in default profile, the global storage is
 			// actually the same as application storage. As such we
@@ -64,7 +64,7 @@ export class NativeStorageService extends AbstractStorageService {
 
 			globalStorage = this.applicationStorage;
 		} else {
-			const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, undefined);
+			const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfileService, undefined);
 			globalStorage = new Storage(storageDataBaseClient.globalStorage);
 		}
 
@@ -76,7 +76,7 @@ export class NativeStorageService extends AbstractStorageService {
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorage;
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined;
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, workspace);
+		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfileService, workspace);
 
 		if (storageDataBaseClient.workspaceStorage) {
 			const workspaceStorage = new Storage(storageDataBaseClient.workspaceStorage);
@@ -117,9 +117,9 @@ export class NativeStorageService extends AbstractStorageService {
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		switch (scope) {
 			case StorageScope.APPLICATION:
-				return this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath;
+				return this.userDataProfileService.defaultProfile.globalStorageHome.fsPath;
 			case StorageScope.GLOBAL:
-				return this.userDataProfilesService.currentProfile.globalStorageHome.fsPath;
+				return this.userDataProfileService.currentProfile.globalStorageHome.fsPath;
 			default:
 				return this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
 		}
