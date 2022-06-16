@@ -23,7 +23,7 @@ import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID a
 import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookExtensionRecommendation, KERNEL_RECOMMENDATIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -36,9 +36,9 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { skipWalkthroughOnInstallKey } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { Codicon } from 'vs/base/common/codicons';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -237,24 +237,25 @@ registerAction2(class extends Action2 {
 			});
 		}
 
-		let suggestedExtensionId: string | undefined;
+		let suggestedExtension: INotebookExtensionRecommendation | undefined;
 		if (!all.length && !sourceActions.length) {
 			const activeNotebookModel = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel;
 			if (activeNotebookModel) {
 				const language = this.getSuggestedLanguage(activeNotebookModel);
-				suggestedExtensionId = language ? this.getSuggestedKernelFromLanguage(activeNotebookModel.viewType, language) : undefined;
+				suggestedExtension = language ? this.getSuggestedKernelFromLanguage(activeNotebookModel.viewType, language) : undefined;
 			}
-			if (suggestedExtensionId) {
+			if (suggestedExtension) {
 				// there is no kernel, show the install from marketplace
 				quickPickItems.push({
 					id: 'installSuggested',
-					label: nls.localize('installSuggestedKernel', "Install suggested kernel from the marketplace"),
+					description: suggestedExtension.displayName ?? suggestedExtension.extensionId,
+					label: nls.localize('installSuggestedKernel', '$({0})Install suggested kernel provider from the marketplace', Codicon.lightbulb.id),
 				});
 			}
 			// there is no kernel, show the install from marketplace
 			quickPickItems.push({
 				id: 'install',
-				label: nls.localize('searchForKernels', "Search for kernels on the marketplace"),
+				label: nls.localize('searchForKernels', "Browse marketplace for kernel providers"),
 			});
 		}
 
@@ -285,13 +286,14 @@ registerAction2(class extends Action2 {
 					storageService,
 					notebook.viewType
 				);
-			} else if (pick.id === 'installSuggested') {
+				// suggestedExtension must be defined for this option to be shown, but still check to make TS happy
+			} else if (pick.id === 'installSuggested' && suggestedExtension) {
 				await this._showKernelExtension(
 					paneCompositeService,
 					extensionWorkbenchService,
 					storageService,
 					notebook.viewType,
-					suggestedExtensionId,
+					suggestedExtension.extensionId,
 					productService.quality !== 'stable'
 				);
 			} else if ('action' in pick) {
@@ -328,13 +330,11 @@ registerAction2(class extends Action2 {
 	/**
 	 * Given a language and notebook view type suggest a kernel for installation
 	 * @param language The language to find a suggested kernel extension for
-	 * @returns An extension id if available, otherwise undefined
+	 * @returns A recommednation object for the recommended extension, else undefined
 	 */
-	private getSuggestedKernelFromLanguage(viewType: string, language: string): string | undefined {
-		if (language === 'python') {
-			return 'ms-python.python';
-		}
-		return undefined;
+	private getSuggestedKernelFromLanguage(viewType: string, language: string): INotebookExtensionRecommendation | undefined {
+		const recommendation = KERNEL_RECOMMENDATIONS.get(viewType)?.get(language);
+		return recommendation;
 	}
 
 	private async _showKernelExtension(
@@ -352,10 +352,10 @@ registerAction2(class extends Action2 {
 			// If we can install then install it, otherwise we will fall out into searching the viewlet
 			if (canInstall) {
 				// TODO @lramos15, possibly move this to be a static function of the GettingStartedService
-				const skippedWalkthroughs: string[] = JSON.parse(storageService.get(skipWalkthroughOnInstallKey, StorageScope.GLOBAL, '[]'));
+				// const skippedWalkthroughs: string[] = JSON.parse(storageService.get(skipWalkthroughOnInstallKey, StorageScope.GLOBAL, '[]'));
 				// TODO @lramos15 possibly recursively resolve nested packs
-				skippedWalkthroughs.push(extId.toLowerCase(), ...extension.extensionPack);
-				storageService.store(skipWalkthroughOnInstallKey, JSON.stringify(skippedWalkthroughs), StorageScope.GLOBAL, StorageTarget.USER);
+				// skippedWalkthroughs.push(extId.toLowerCase(), ...extension.extensionPack);
+				// storageService.store(skipWalkthroughOnInstallKey, JSON.stringify(skippedWalkthroughs), StorageScope.GLOBAL, StorageTarget.USER);
 				await extensionWorkbenchService.install(extension, { progressLocation: ProgressLocation.Notification, installPreReleaseVersion: isInsiders ?? false });
 				// Add the extension to the skipped walkthroughs list so we don't auto open it. It will be auto opened next startup
 				return;
