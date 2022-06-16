@@ -153,7 +153,8 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - script: |
         set -e
-        ./scripts/test.sh --tfs "Unit Tests"
+        DISPLAY=:10 \
+          ./scripts/test.sh --tfs "Unit Tests"
       displayName: Run unit tests (Electron)
       timeoutInMinutes: 15
 
@@ -194,7 +195,8 @@ steps:
 
     - script: |
         set -e
-        ./scripts/test-integration.sh --tfs "Integration Tests"
+        DISPLAY=:10 \
+          ./scripts/test-integration.sh --tfs "Integration Tests"
       displayName: Run integration tests (Electron)
       timeoutInMinutes: 20
 
