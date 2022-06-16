@@ -2221,7 +2221,11 @@ export class Repository implements Disposable {
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const branchProtectionGlobs = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
 
-		this.isBranchProtectedMatcher = picomatch(branchProtectionGlobs);
+		if (branchProtectionGlobs.length === 0) {
+				this.isBranchProtectedMatcher = undefined;
+		} else {
+				this.isBranchProtectedMatcher = picomatch(branchProtectionGlobs);
+		}
 	}
 
 	public isBranchProtected(name: string = this.HEAD?.name ?? ''): boolean {
