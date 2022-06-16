@@ -47,7 +47,7 @@ import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions
 import { autorun, autorunWithStore, derivedObservable, IObservable, ITransaction, keepAlive, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
-import { DocumentMapping, LineRange, SimpleLineRangeMapping, ToggleState } from 'vs/workbench/contrib/mergeEditor/browser/model';
+import { DocumentMapping, LineRange, LineRangeMapping, InputState } from 'vs/workbench/contrib/mergeEditor/browser/model';
 import { applyObservableDecorations, join, n, ReentrancyBarrier, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -109,12 +109,12 @@ export class MergeEditor extends AbstractTextEditor<any> {
 				return undefined;
 			}
 			const resultDiffs = model.resultDiffs.read(reader);
-			const modifiedBaseRanges = DocumentMapping.fromDiffs(model.input1LinesDiffs.read(reader), resultDiffs, model.input1.getLineCount());
+			const modifiedBaseRanges = DocumentMapping.betweenOutputs(model.input1LinesDiffs.read(reader), resultDiffs, model.input1.getLineCount());
 
 			return new DocumentMapping(
 				modifiedBaseRanges.lineRangeMappings.map((m) =>
 					m.inputRange.isEmpty || m.outputRange.isEmpty
-						? new SimpleLineRangeMapping(
+						? new LineRangeMapping(
 							m.inputRange.deltaStart(-1),
 							m.outputRange.deltaStart(-1)
 						)
@@ -129,12 +129,12 @@ export class MergeEditor extends AbstractTextEditor<any> {
 				return undefined;
 			}
 			const resultDiffs = model.resultDiffs.read(reader);
-			const modifiedBaseRanges = DocumentMapping.fromDiffs(model.input2LinesDiffs.read(reader), resultDiffs, model.input2.getLineCount());
+			const modifiedBaseRanges = DocumentMapping.betweenOutputs(model.input2LinesDiffs.read(reader), resultDiffs, model.input2.getLineCount());
 
 			return new DocumentMapping(
 				modifiedBaseRanges.lineRangeMappings.map((m) =>
 					m.inputRange.isEmpty || m.outputRange.isEmpty
-						? new SimpleLineRangeMapping(
+						? new LineRangeMapping(
 							m.inputRange.deltaStart(-1),
 							m.outputRange.deltaStart(-1)
 						)
@@ -559,8 +559,8 @@ class InputCodeEditorView extends CodeEditorView {
 
 				const inputDiffs = m.getInputDiffs(this.inputNumber);
 				for (const diff of inputDiffs) {
-					if (diff.innerRangeMappings) {
-						for (const d of diff.innerRangeMappings) {
+					if (diff.rangeMappings) {
+						for (const d of diff.rangeMappings) {
 							result.push({
 								range: d.outputRange,
 								options: {
@@ -624,7 +624,7 @@ class InputCodeEditorView extends CodeEditorView {
 
 interface ModifiedBaseRangeGutterItemInfo extends IGutterItemInfo {
 	enabled: IObservable<boolean>;
-	toggleState: IObservable<ToggleState>;
+	toggleState: IObservable<InputState>;
 	setState(value: boolean, tx: ITransaction): void;
 }
 
@@ -645,11 +645,11 @@ class MergeConflictGutterItemView extends Disposable implements IGutterItemView<
 			autorun((reader) => {
 				const item = this.item.read(reader)!;
 				const value = item.toggleState.read(reader);
-				const iconMap: Record<ToggleState, { icon: Codicon | undefined; checked: boolean }> = {
-					[ToggleState.unset]: { icon: undefined, checked: false },
-					[ToggleState.conflicting]: { icon: Codicon.circleFilled, checked: false },
-					[ToggleState.first]: { icon: Codicon.check, checked: true },
-					[ToggleState.second]: { icon: Codicon.checkAll, checked: true },
+				const iconMap: Record<InputState, { icon: Codicon | undefined; checked: boolean }> = {
+					[InputState.excluded]: { icon: undefined, checked: false },
+					[InputState.conflicting]: { icon: Codicon.circleFilled, checked: false },
+					[InputState.first]: { icon: Codicon.check, checked: true },
+					[InputState.second]: { icon: Codicon.checkAll, checked: true },
 				};
 				checkBox.setIcon(iconMap[value].icon);
 				checkBox.checked = iconMap[value].checked;

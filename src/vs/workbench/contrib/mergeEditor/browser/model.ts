@@ -7,67 +7,7 @@ import { Comparator, compareBy, equals, findLast, numberComparator } from 'vs/ba
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-
-/**
- * Represents an edit, expressed in whole lines:
- * At {@link LineRange.startLineNumber}, delete {@link LineRange.lineCount} many lines and insert {@link newLines}.
-*/
-export class LineRangeEdit {
-	constructor(
-		public readonly range: LineRange,
-		public readonly newLines: string[]
-	) { }
-
-	public equals(other: LineRangeEdit): boolean {
-		return this.range.equals(other.range) && equals(this.newLines, other.newLines);
-	}
-
-	public apply(model: ITextModel): void {
-		new LineEdits([this]).apply(model);
-	}
-}
-
-export class RangeEdit {
-	constructor(
-		public readonly range: Range,
-		public readonly newText: string
-	) { }
-
-	public equals(other: RangeEdit): boolean {
-		return Range.equalsRange(this.range, other.range) && this.newText === other.newText;
-	}
-}
-
-export class LineEdits {
-	constructor(public readonly edits: readonly LineRangeEdit[]) { }
-
-	public apply(model: ITextModel): void {
-		model.pushEditOperations(
-			null,
-			this.edits.map((e) => {
-				if (e.range.endLineNumberExclusive <= model.getLineCount()) {
-					return {
-						range: new Range(e.range.startLineNumber, 1, e.range.endLineNumberExclusive, 1),
-						text: e.newLines.map(s => s + '\n').join(''),
-					};
-				}
-
-				if (e.range.startLineNumber === 1) {
-					return {
-						range: new Range(1, 1, model.getLineCount(), Number.MAX_SAFE_INTEGER),
-						text: e.newLines.join('\n'),
-					};
-				}
-
-				return {
-					range: new Range(e.range.startLineNumber - 1, Number.MAX_SAFE_INTEGER, model.getLineCount(), Number.MAX_SAFE_INTEGER),
-					text: e.newLines.map(s => '\n' + s).join(''),
-				};
-			}),
-			() => null
-		);
-	}
-}
+import { concatArrays } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 
 export class LineRange {
 	public static readonly compareByStart: Comparator<LineRange> = compareBy(l => l.startLineNumber, numberComparator);
@@ -167,63 +107,35 @@ export class LineRange {
 }
 
 export class LineRangeMapping {
-	public static hull(lineDiffs: readonly LineRangeMapping[]): LineRangeMapping | undefined {
-		if (lineDiffs.length === 0) {
-			return undefined;
-		}
-
-		return new LineRangeMapping(
-			lineDiffs[0].inputTextModel,
-			LineRange.join(lineDiffs.map((d) => d.inputRange))!,
-			lineDiffs[0].outputTextModel,
-			LineRange.join(lineDiffs.map((d) => d.outputRange))!,
-			[]
-		);
+	public static join(mappings: readonly LineRangeMapping[]): LineRangeMapping | undefined {
+		return mappings.reduce<undefined | LineRangeMapping>((acc, cur) => acc ? acc.join(cur) : cur, undefined);
 	}
-
-	public static alignOriginalRange(lineDiffs: readonly LineRangeMapping[]): LineRangeMapping[] {
-		if (lineDiffs.length === 0) {
-			return [];
-		}
-		const originalRange = LineRange.join(lineDiffs.map((d) => d.inputRange))!;
-		return lineDiffs.map(l => l.extendInputRange(originalRange));
-	}
-
-	public readonly innerRangeMappings: readonly RangeMapping[];
 
 	constructor(
-		public readonly inputTextModel: ITextModel,
 		public readonly inputRange: LineRange,
-		public readonly outputTextModel: ITextModel,
-		public readonly outputRange: LineRange,
-		innerRangeMappings?: readonly RangeMapping[],
-	) {
-		this.innerRangeMappings = innerRangeMappings
-			? innerRangeMappings
-			: [
-				new RangeMapping(
-					this.inputRange.toRange(),
-					this.outputRange.toRange()
-				),
-			];
-	}
+		public readonly outputRange: LineRange
+	) { }
 
-	public extendInputRange(extendedOriginalRange: LineRange): LineRangeMapping {
-		if (!extendedOriginalRange.containsRange(this.inputRange)) {
+	public extendInputRange(extendedInputRange: LineRange): LineRangeMapping {
+		if (!extendedInputRange.containsRange(this.inputRange)) {
 			throw new BugIndicatingError();
 		}
 
-		const startDelta = extendedOriginalRange.startLineNumber - this.inputRange.startLineNumber;
-		const endDelta = extendedOriginalRange.endLineNumberExclusive - this.inputRange.endLineNumberExclusive;
+		const startDelta = extendedInputRange.startLineNumber - this.inputRange.startLineNumber;
+		const endDelta = extendedInputRange.endLineNumberExclusive - this.inputRange.endLineNumberExclusive;
 		return new LineRangeMapping(
-			this.inputTextModel,
-			extendedOriginalRange,
-			this.outputTextModel,
+			extendedInputRange,
 			new LineRange(
 				this.outputRange.startLineNumber + startDelta,
 				this.outputRange.lineCount - startDelta + endDelta
-			),
-			this.innerRangeMappings,
+			)
+		);
+	}
+
+	public join(other: LineRangeMapping): LineRangeMapping {
+		return new LineRangeMapping(
+			this.inputRange.join(other.inputRange),
+			this.outputRange.join(other.outputRange)
 		);
 	}
 
@@ -231,30 +143,233 @@ export class LineRangeMapping {
 		return this.outputRange.endLineNumberExclusive - this.inputRange.endLineNumberExclusive;
 	}
 
-	private ensureSameInputModel(other: LineRangeMapping): void {
-		if (this.inputTextModel !== other.inputTextModel) {
-			// Both changes must refer to the same original model
-			throw new BugIndicatingError();
-		}
+	public toString(): string {
+		return `${this.inputRange.toString()} -> ${this.outputRange.toString()}`;
 	}
 
-	public isStrictBefore(other: LineRangeMapping): boolean {
-		this.ensureSameInputModel(other);
-		return this.inputRange.endLineNumberExclusive <= other.inputRange.startLineNumber;
+	public addOutputLineDelta(delta: number): LineRangeMapping {
+		return new LineRangeMapping(
+			this.inputRange,
+			this.outputRange.delta(delta)
+		);
+	}
+}
+
+export class MappingAlignment<T extends LineRangeMapping> {
+	public static compute<T extends LineRangeMapping>(
+		fromBaseToInput1: readonly T[],
+		fromBaseToInput2: readonly T[]
+	): MappingAlignment<T>[] {
+		const compareByStartLineNumber = compareBy<LineRangeMapping, number>(
+			(d) => d.inputRange.startLineNumber,
+			numberComparator
+		);
+
+		const combinedDiffs = concatArrays(
+			fromBaseToInput1.map((diff) => ({ source: 0 as const, diff })),
+			fromBaseToInput2.map((diff) => ({ source: 1 as const, diff }))
+		).sort(compareBy((d) => d.diff, compareByStartLineNumber));
+
+		const currentDiffs = [new Array<T>(), new Array<T>()];
+		const deltaFromBaseToInput = [0, 0];
+
+		const alignments = new Array<MappingAlignment<T>>();
+
+		function pushAndReset(baseRange: LineRange) {
+			const mapping1 = LineRangeMapping.join(currentDiffs[0]) || new LineRangeMapping(baseRange, baseRange.delta(deltaFromBaseToInput[0]));
+			const mapping2 = LineRangeMapping.join(currentDiffs[1]) || new LineRangeMapping(baseRange, baseRange.delta(deltaFromBaseToInput[1]));
+
+			alignments.push(
+				new MappingAlignment(
+					currentInputRange!,
+					mapping1.extendInputRange(currentInputRange!).outputRange,
+					currentDiffs[0],
+					mapping2.extendInputRange(currentInputRange!).outputRange,
+					currentDiffs[1]
+				)
+			);
+			currentDiffs[0] = [];
+			currentDiffs[1] = [];
+		}
+
+		let currentInputRange: LineRange | undefined;
+
+		for (const diff of combinedDiffs) {
+			const range = diff.diff.inputRange;
+			if (currentInputRange && !currentInputRange.touches(range)) {
+				pushAndReset(currentInputRange);
+				currentInputRange = undefined;
+			}
+			deltaFromBaseToInput[diff.source] =
+				diff.diff.resultingDeltaFromOriginalToModified;
+			currentInputRange = currentInputRange ? currentInputRange.join(range) : range;
+			currentDiffs[diff.source].push(diff.diff);
+		}
+		if (currentInputRange) {
+			pushAndReset(currentInputRange);
+		}
+
+		return alignments;
+	}
+
+	constructor(
+		public readonly baseRange: LineRange,
+		public readonly input1Range: LineRange,
+		public readonly input1LineMappings: T[],
+		public readonly input2Range: LineRange,
+		public readonly input2LineMappings: T[],
+	) {
+	}
+
+	toString(): string {
+		return `${this.input1Range} <- ${this.baseRange} -> ${this.input2Range}`;
+	}
+}
+
+export class DocumentMapping {
+	public static betweenOutputs(
+		inputToOutput1: readonly LineRangeMapping[],
+		inputToOutput2: readonly LineRangeMapping[],
+		inputLineCount: number
+	): DocumentMapping {
+		const alignments = MappingAlignment.compute(inputToOutput1, inputToOutput2);
+		const mappings = alignments.map((m) => new LineRangeMapping(m.input1Range, m.input2Range));
+		return new DocumentMapping(mappings, inputLineCount);
+	}
+
+	public getOutputLine(inputLineNumber: number): number | LineRangeMapping {
+		const lastBefore = findLast(this.lineRangeMappings, r => r.inputRange.startLineNumber <= inputLineNumber);
+		if (lastBefore) {
+			if (lastBefore.inputRange.contains(inputLineNumber)) {
+				return lastBefore;
+			}
+			return inputLineNumber + lastBefore.outputRange.endLineNumberExclusive - lastBefore.inputRange.endLineNumberExclusive;
+		}
+		return inputLineNumber;
+	}
+
+	public getInputLine(outputLineNumber: number): number | LineRangeMapping {
+		const lastBefore = findLast(this.lineRangeMappings, r => r.outputRange.startLineNumber <= outputLineNumber);
+		if (lastBefore) {
+			if (lastBefore.outputRange.contains(outputLineNumber)) {
+				return lastBefore;
+			}
+			return outputLineNumber + lastBefore.inputRange.endLineNumberExclusive - lastBefore.outputRange.endLineNumberExclusive;
+		}
+		return outputLineNumber;
+	}
+
+	constructor(
+		public readonly lineRangeMappings: LineRangeMapping[],
+		public readonly inputLineCount: number
+	) { }
+}
+
+/**
+ * Represents an edit, expressed in whole lines:
+ * At (before) {@link LineRange.startLineNumber}, delete {@link LineRange.lineCount} many lines and insert {@link newLines}.
+*/
+export class LineRangeEdit {
+	constructor(
+		public readonly range: LineRange,
+		public readonly newLines: string[]
+	) { }
+
+	public equals(other: LineRangeEdit): boolean {
+		return this.range.equals(other.range) && equals(this.newLines, other.newLines);
+	}
+
+	public apply(model: ITextModel): void {
+		new LineEdits([this]).apply(model);
+	}
+}
+
+export class RangeEdit {
+	constructor(
+		public readonly range: Range,
+		public readonly newText: string
+	) { }
+
+	public equals(other: RangeEdit): boolean {
+		return Range.equalsRange(this.range, other.range) && this.newText === other.newText;
+	}
+}
+
+export class LineEdits {
+	constructor(public readonly edits: readonly LineRangeEdit[]) { }
+
+	public apply(model: ITextModel): void {
+		model.pushEditOperations(
+			null,
+			this.edits.map((e) => {
+				if (e.range.endLineNumberExclusive <= model.getLineCount()) {
+					return {
+						range: new Range(e.range.startLineNumber, 1, e.range.endLineNumberExclusive, 1),
+						text: e.newLines.map(s => s + '\n').join(''),
+					};
+				}
+
+				if (e.range.startLineNumber === 1) {
+					return {
+						range: new Range(1, 1, model.getLineCount(), Number.MAX_SAFE_INTEGER),
+						text: e.newLines.join('\n'),
+					};
+				}
+
+				return {
+					range: new Range(e.range.startLineNumber - 1, Number.MAX_SAFE_INTEGER, model.getLineCount(), Number.MAX_SAFE_INTEGER),
+					text: e.newLines.map(s => '\n' + s).join(''),
+				};
+			}),
+			() => null
+		);
+	}
+}
+
+export class DetailedLineRangeMapping extends LineRangeMapping {
+	public static override join(mappings: readonly DetailedLineRangeMapping[]): DetailedLineRangeMapping | undefined {
+		return mappings.reduce<undefined | DetailedLineRangeMapping>((acc, cur) => acc ? acc.join(cur) : cur, undefined);
+	}
+
+	public readonly rangeMappings: readonly RangeMapping[];
+
+	constructor(
+		inputRange: LineRange,
+		public readonly inputTextModel: ITextModel,
+		outputRange: LineRange,
+		public readonly outputTextModel: ITextModel,
+		rangeMappings?: readonly RangeMapping[],
+	) {
+		super(inputRange, outputRange);
+
+		this.rangeMappings = rangeMappings || [new RangeMapping(this.inputRange.toRange(), this.outputRange.toRange())];
+	}
+
+	public override addOutputLineDelta(delta: number): DetailedLineRangeMapping {
+		return new DetailedLineRangeMapping(
+			this.inputRange,
+			this.inputTextModel,
+			this.outputRange.delta(delta),
+			this.outputTextModel,
+			this.rangeMappings.map(d => d.addOutputLineDelta(delta))
+		);
+	}
+
+	public override join(other: DetailedLineRangeMapping): DetailedLineRangeMapping {
+		return new DetailedLineRangeMapping(
+			this.inputRange.join(other.inputRange),
+			this.inputTextModel,
+			this.outputRange.join(other.outputRange),
+			this.outputTextModel,
+		);
 	}
 
 	public getLineEdit(): LineRangeEdit {
-		return new LineRangeEdit(
-			this.inputRange,
-			this.getOutputLines()
-		);
+		return new LineRangeEdit(this.inputRange, this.getOutputLines());
 	}
 
 	public getReverseLineEdit(): LineRangeEdit {
-		return new LineRangeEdit(
-			this.outputRange,
-			this.getInputLines()
-		);
+		return new LineRangeEdit(this.outputRange, this.getInputLines());
 	}
 
 	private getOutputLines(): string[] {
@@ -264,16 +379,6 @@ export class LineRangeMapping {
 	private getInputLines(): string[] {
 		return this.inputRange.getLines(this.inputTextModel);
 	}
-
-	public addOutputLineDelta(delta: number): LineRangeMapping {
-		return new LineRangeMapping(
-			this.inputTextModel,
-			this.inputRange,
-			this.outputTextModel,
-			this.outputRange.delta(delta),
-			this.innerRangeMappings.map(d => d.addOutputLineDelta(delta))
-		);
-	}
 }
 
 export class RangeMapping {
@@ -281,7 +386,12 @@ export class RangeMapping {
 	}
 
 	toString(): string {
-		return `${this.inputRange.toString()} -> ${this.outputRange.toString()}`;
+		function rangeToString(range: Range) {
+			// TODO@hediet make this the default Range.toString
+			return `[${range.startLineNumber}:${range.startColumn}, ${range.endLineNumber}:${range.endColumn})`;
+		}
+
+		return `${rangeToString(this.inputRange)} -> ${rangeToString(this.outputRange)}`;
 	}
 
 	addOutputLineDelta(deltaLines: number): RangeMapping {
@@ -310,116 +420,52 @@ export class ModifiedBaseRange {
 	 * This method computes strongly connected components of that graph while maintaining the side of each diff.
 	*/
 	public static fromDiffs(
+		diffs1: readonly DetailedLineRangeMapping[],
+		diffs2: readonly DetailedLineRangeMapping[],
 		baseTextModel: ITextModel,
 		input1TextModel: ITextModel,
-		diffs1: readonly LineRangeMapping[],
 		input2TextModel: ITextModel,
-		diffs2: readonly LineRangeMapping[]
 	): ModifiedBaseRange[] {
-		const compareByStartLineNumber = compareBy<LineRangeMapping, number>(
-			(d) => d.inputRange.startLineNumber,
-			numberComparator
+		const alignments = MappingAlignment.compute(diffs1, diffs2);
+		return alignments.map(
+			(a) =>
+				new ModifiedBaseRange(
+					a.baseRange,
+					baseTextModel,
+					a.input1Range,
+					input1TextModel,
+					a.input1LineMappings,
+					a.input2Range,
+					input2TextModel,
+					a.input2LineMappings
+				)
 		);
-
-		const diffs = diffs1
-			.map((diff) => ({ source: 0 as 0 | 1, diff }))
-			.concat(diffs2.map((diff) => ({ source: 1 as const, diff })));
-
-		diffs.sort(compareBy(d => d.diff, compareByStartLineNumber));
-
-		const currentDiffs = [
-			new Array<LineRangeMapping>(),
-			new Array<LineRangeMapping>(),
-		];
-		const deltaFromBaseToInput = [0, 0];
-
-		const result = new Array<ModifiedBaseRange>();
-
-		function pushAndReset() {
-			if (currentDiffs[0].length === 0 && currentDiffs[1].length === 0) {
-				return;
-			}
-			result.push(new ModifiedBaseRange(
-				baseTextModel,
-				input1TextModel,
-				currentDiffs[0],
-				deltaFromBaseToInput[0],
-				input2TextModel,
-				currentDiffs[1],
-				deltaFromBaseToInput[1],
-			));
-			currentDiffs[0] = [];
-			currentDiffs[1] = [];
-		}
-
-		let currentRange: LineRange | undefined;
-
-		for (const diff of diffs) {
-			const range = diff.diff.inputRange;
-			if (currentRange && !currentRange.touches(range)) {
-				pushAndReset();
-				currentRange = undefined;
-			}
-			deltaFromBaseToInput[diff.source] = diff.diff.resultingDeltaFromOriginalToModified;
-			currentRange = currentRange ? currentRange.join(range) : range;
-			currentDiffs[diff.source].push(diff.diff);
-		}
-		pushAndReset();
-
-		return result;
 	}
 
-	public readonly input1CombinedDiff = LineRangeMapping.hull(this.input1Diffs);
-	public readonly input2CombinedDiff = LineRangeMapping.hull(this.input2Diffs);
+	public readonly input1CombinedDiff = DetailedLineRangeMapping.join(this.input1Diffs);
+	public readonly input2CombinedDiff = DetailedLineRangeMapping.join(this.input2Diffs);
 
-	public readonly baseRange: LineRange;
-	public readonly input1Range: LineRange;
-	public readonly input2Range: LineRange;
 
 	constructor(
+		public readonly baseRange: LineRange,
 		public readonly baseTextModel: ITextModel,
+		public readonly input1Range: LineRange,
 		public readonly input1TextModel: ITextModel,
-		public readonly input1Diffs: readonly LineRangeMapping[],
-		input1DeltaLineCount: number,
+		public readonly input1Diffs: readonly DetailedLineRangeMapping[],
+		public readonly input2Range: LineRange,
 		public readonly input2TextModel: ITextModel,
-		public readonly input2Diffs: readonly LineRangeMapping[],
-		input2DeltaLineCount: number,
+		public readonly input2Diffs: readonly DetailedLineRangeMapping[],
 	) {
 		if (this.input1Diffs.length === 0 && this.input2Diffs.length === 0) {
 			throw new BugIndicatingError('must have at least one diff');
 		}
-
-		const input1Diff =
-			this.input1CombinedDiff ||
-			new LineRangeMapping(
-				baseTextModel,
-				this.input2CombinedDiff!.inputRange,
-				input1TextModel,
-				this.input2CombinedDiff!.inputRange.delta(input1DeltaLineCount),
-				[]
-			);
-
-		const input2Diff =
-			this.input2CombinedDiff ||
-			new LineRangeMapping(
-				baseTextModel,
-				this.input1CombinedDiff!.inputRange,
-				input1TextModel,
-				this.input1CombinedDiff!.inputRange.delta(input2DeltaLineCount),
-				[]
-			);
-
-		const results = LineRangeMapping.alignOriginalRange([input1Diff, input2Diff]);
-		this.baseRange = results[0].inputRange;
-		this.input1Range = results[0].outputRange;
-		this.input2Range = results[1].outputRange;
 	}
 
 	public getInputRange(inputNumber: 1 | 2): LineRange {
 		return inputNumber === 1 ? this.input1Range : this.input2Range;
 	}
 
-	public getInputDiffs(inputNumber: 1 | 2): readonly LineRangeMapping[] {
+	public getInputDiffs(inputNumber: 1 | 2): readonly DetailedLineRangeMapping[] {
 		return inputNumber === 1 ? this.input1Diffs : this.input2Diffs;
 	}
 
@@ -439,14 +485,14 @@ export class ModifiedBaseRangeState {
 		public readonly conflicting: boolean,
 	) { }
 
-	public getInput(inputNumber: 1 | 2): ToggleState {
+	public getInput(inputNumber: 1 | 2): InputState {
 		if (this.conflicting) {
-			return ToggleState.conflicting;
+			return InputState.conflicting;
 		}
 		if (inputNumber === 1) {
-			return !this.input1 ? ToggleState.unset : this.input2First ? ToggleState.second : ToggleState.first;
+			return !this.input1 ? InputState.excluded : this.input2First ? InputState.second : InputState.first;
 		} else {
-			return !this.input2 ? ToggleState.unset : !this.input2First ? ToggleState.second : ToggleState.first;
+			return !this.input2 ? InputState.excluded : !this.input2First ? InputState.second : InputState.first;
 		}
 	}
 
@@ -472,14 +518,6 @@ export class ModifiedBaseRangeState {
 		);
 	}
 
-	public toggleInput1(): ModifiedBaseRangeState {
-		return this.withInput1(!this.input1);
-	}
-
-	public toggleInput2(): ModifiedBaseRangeState {
-		return this.withInput2(!this.input2);
-	}
-
 	public get isEmpty(): boolean {
 		return !this.input1 && !this.input2;
 	}
@@ -499,122 +537,9 @@ export class ModifiedBaseRangeState {
 	}
 }
 
-export const enum ToggleState {
-	unset = 0,
+export const enum InputState {
+	excluded = 0,
 	first = 1,
 	second = 2,
 	conflicting = 3,
 }
-
-export class DocumentMapping {
-	public static fromDiffs(
-		diffs1: readonly LineRangeMapping[],
-		diffs2: readonly LineRangeMapping[],
-		inputLineCount: number
-	): DocumentMapping {
-		const compareByStartLineNumber = compareBy<LineRangeMapping, number>(
-			(d) => d.inputRange.startLineNumber,
-			numberComparator
-		);
-
-		const diffs = diffs1
-			.map((diff) => ({ source: 0 as 0 | 1, diff }))
-			.concat(diffs2.map((diff) => ({ source: 1 as const, diff })));
-
-		diffs.sort(compareBy((d) => d.diff, compareByStartLineNumber));
-
-		const currentDiffs = [new Array<LineRangeMapping>(), new Array<LineRangeMapping>()];
-		const deltaFromBaseToInput = [0, 0];
-
-		const result = new Array<SimpleLineRangeMapping>();
-
-		function pushAndReset(baseRange: LineRange) {
-			const input1Range = LineRange.join(currentDiffs[0].map(d => d.outputRange)) || baseRange.delta(deltaFromBaseToInput[0]);
-			const input1BaseRange = LineRange.join(currentDiffs[0].map(d => d.inputRange)) || baseRange;
-			const mapping1 = new SimpleLineRangeMapping(input1BaseRange, input1Range);
-
-			const input2Range = LineRange.join(currentDiffs[1].map(d => d.outputRange)) || baseRange.delta(deltaFromBaseToInput[1]);
-			const input2BaseRange = LineRange.join(currentDiffs[1].map(d => d.inputRange)) || baseRange;
-			const mapping2 = new SimpleLineRangeMapping(input2BaseRange, input2Range);
-
-			result.push(
-				new SimpleLineRangeMapping(
-					mapping1.extendInputRange(currentInputRange!).outputRange,
-					mapping2.extendInputRange(currentInputRange!).outputRange
-				)
-			);
-			currentDiffs[0] = [];
-			currentDiffs[1] = [];
-		}
-
-		let currentInputRange: LineRange | undefined;
-
-		for (const diff of diffs) {
-			const range = diff.diff.inputRange;
-			if (currentInputRange && !currentInputRange.touches(range)) {
-				pushAndReset(currentInputRange);
-				currentInputRange = undefined;
-			}
-			deltaFromBaseToInput[diff.source] =
-				diff.diff.resultingDeltaFromOriginalToModified;
-			currentInputRange = currentInputRange ? currentInputRange.join(range) : range;
-			currentDiffs[diff.source].push(diff.diff);
-		}
-		if (currentInputRange) {
-			pushAndReset(currentInputRange);
-		}
-
-		return new DocumentMapping(result, inputLineCount);
-	}
-
-	public getOutputLine(inputLineNumber: number): number | SimpleLineRangeMapping {
-		const lastBefore = findLast(this.lineRangeMappings, r => r.inputRange.startLineNumber <= inputLineNumber);
-		if (lastBefore) {
-			if (lastBefore.inputRange.contains(inputLineNumber)) {
-				return lastBefore;
-			}
-			return inputLineNumber + lastBefore.outputRange.endLineNumberExclusive - lastBefore.inputRange.endLineNumberExclusive;
-		}
-		return inputLineNumber;
-	}
-
-	public getInputLine(outputLineNumber: number): number | SimpleLineRangeMapping {
-		const lastBefore = findLast(this.lineRangeMappings, r => r.outputRange.startLineNumber <= outputLineNumber);
-		if (lastBefore) {
-			if (lastBefore.outputRange.contains(outputLineNumber)) {
-				return lastBefore;
-			}
-			return outputLineNumber + lastBefore.inputRange.endLineNumberExclusive - lastBefore.outputRange.endLineNumberExclusive;
-		}
-		return outputLineNumber;
-	}
-
-	constructor(
-		public readonly lineRangeMappings: SimpleLineRangeMapping[],
-		public readonly inputLineCount: number
-	) { }
-}
-
-export class SimpleLineRangeMapping {
-	constructor(
-		public readonly inputRange: LineRange,
-		public readonly outputRange: LineRange
-	) { }
-
-	public extendInputRange(extendedInputRange: LineRange): SimpleLineRangeMapping {
-		if (!extendedInputRange.containsRange(this.inputRange)) {
-			throw new BugIndicatingError();
-		}
-
-		const startDelta = extendedInputRange.startLineNumber - this.inputRange.startLineNumber;
-		const endDelta = extendedInputRange.endLineNumberExclusive - this.inputRange.endLineNumberExclusive;
-		return new SimpleLineRangeMapping(
-			extendedInputRange,
-			new LineRange(
-				this.outputRange.startLineNumber + startDelta,
-				this.outputRange.lineCount - startDelta + endDelta
-			)
-		);
-	}
-}
-
