@@ -139,17 +139,14 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	async switch(to: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void> {
-
-		// Profile migration
 		if (isUserDataProfile(to)) {
-			return this.migrateToProfile(to, preserveData);
+			return this.switchToProfile(to, preserveData);
 		}
 
-		// Workspace migration
-		return this.migrateToWorkspace(to, preserveData);
+		return this.switchToWorkspace(to, preserveData);
 	}
 
-	private async migrateToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+	private async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
 		const oldGlobalStorage = assertIsDefined(this.globalStorage);
 		const oldItems = oldGlobalStorage.items;
 
@@ -183,7 +180,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		this.migrateData(oldItems, this.globalStorage, StorageScope.GLOBAL, preserveData);
 	}
 
-	private async migrateToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
+	private async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
 		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 
