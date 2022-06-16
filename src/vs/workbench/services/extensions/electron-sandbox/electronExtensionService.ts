@@ -30,7 +30,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { getRemoteName, parseAuthorityWithPort } from 'vs/platform/remote/common/remoteHosts';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -349,12 +349,12 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
-			const lastColon = remoteAuthority.lastIndexOf(':');
+			const { host, port } = parseAuthorityWithPort(remoteAuthority);
 			return {
 				authority: {
 					authority: remoteAuthority,
-					host: remoteAuthority.substring(0, lastColon),
-					port: parseInt(remoteAuthority.substring(lastColon + 1), 10),
+					host,
+					port,
 					connectionToken: undefined
 				}
 			};
@@ -593,6 +593,12 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 	public _onExtensionHostExit(code: number): void {
 		// Dispose everything associated with the extension host
 		this.stopExtensionHosts();
+
+		// Dispose the management connection to avoid reconnecting after the extension host exits
+		const connection = this._remoteAgentService.getConnection();
+		if (connection) {
+			connection.dispose();
+		}
 
 		if (this._isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code

@@ -8,14 +8,14 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { AbstractProblemCollector, StartStopProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
-import { TaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 
-interface TerminalData {
+interface ITerminalData {
 	terminal: ITerminalInstance;
 	task: Task;
 	status: ITerminalStatus;
@@ -36,7 +36,7 @@ const INFO_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: C
 const INFO_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.info, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.infosInactive', "Task has infos and is waiting...") };
 
 export class TaskTerminalStatus extends Disposable {
-	private terminalMap: Map<string, TerminalData> = new Map();
+	private terminalMap: Map<string, ITerminalData> = new Map();
 
 	constructor(taskService: ITaskService) {
 		super();
@@ -56,7 +56,7 @@ export class TaskTerminalStatus extends Disposable {
 		this.terminalMap.set(task._id, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
 
-	private terminalFromEvent(event: TaskEvent): TerminalData | undefined {
+	private terminalFromEvent(event: ITaskEvent): ITerminalData | undefined {
 		if (!event.__task) {
 			return undefined;
 		}
@@ -64,7 +64,7 @@ export class TaskTerminalStatus extends Disposable {
 		return this.terminalMap.get(event.__task._id);
 	}
 
-	private eventEnd(event: TaskEvent) {
+	private eventEnd(event: ITaskEvent) {
 		const terminalData = this.terminalFromEvent(event);
 		if (!terminalData) {
 			return;
@@ -82,7 +82,7 @@ export class TaskTerminalStatus extends Disposable {
 		}
 	}
 
-	private eventInactive(event: TaskEvent) {
+	private eventInactive(event: ITaskEvent) {
 		const terminalData = this.terminalFromEvent(event);
 		if (!terminalData || !terminalData.problemMatcher || terminalData.taskRunEnded) {
 			return;
@@ -99,7 +99,7 @@ export class TaskTerminalStatus extends Disposable {
 		}
 	}
 
-	private eventActive(event: TaskEvent) {
+	private eventActive(event: ITaskEvent) {
 		const terminalData = this.terminalFromEvent(event);
 		if (!terminalData) {
 			return;

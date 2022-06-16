@@ -297,6 +297,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	handleCommandStart(): void {
+		// Only update the column if the line has already been set
+		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
+			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
+			this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
+			return;
+		}
 		if (this._isWindowsPty) {
 			this._handleCommandStartWindows();
 			return;

@@ -77,6 +77,21 @@ const logsRootPath = (() => {
 	return path.join(logsParentPath, logsName);
 })();
 
+const crashesRootPath = (() => {
+	const crashesParentPath = path.join(rootPath, '.build', 'crashes');
+
+	let crashesName: string;
+	if (opts.web) {
+		crashesName = 'smoke-tests-browser';
+	} else if (opts.remote) {
+		crashesName = 'smoke-tests-remote';
+	} else {
+		crashesName = 'smoke-tests-electron';
+	}
+
+	return path.join(crashesParentPath, crashesName);
+})();
+
 const logger = createLogger();
 
 function createLogger(): Logger {
@@ -342,6 +357,7 @@ before(async function () {
 		extensionsPath,
 		logger,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
+		crashesPath: path.join(crashesRootPath, 'suite_unknown'),
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,

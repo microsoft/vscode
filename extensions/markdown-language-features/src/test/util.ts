@@ -14,7 +14,7 @@ export const joinLines = (...args: string[]) =>
 export const CURSOR = '$$CURSOR$$';
 
 export function getCursorPositions(contents: string, doc: InMemoryDocument): vscode.Position[] {
-	let positions: vscode.Position[] = [];
+	const positions: vscode.Position[] = [];
 	let index = 0;
 	let wordLength = 0;
 	while (index !== -1) {

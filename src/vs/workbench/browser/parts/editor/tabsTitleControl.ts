@@ -97,6 +97,8 @@ export class TabsTitleControl extends TitleControl {
 
 	private static readonly TAB_HEIGHT = 35;
 
+	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
+
 	private static readonly MOUSE_WHEEL_EVENT_THRESHOLD = 150;
 	private static readonly MOUSE_WHEEL_DISTANCE_THRESHOLD = 1.5;
 
@@ -896,6 +898,15 @@ export class TabsTitleControl extends TitleControl {
 				}
 
 				this.updateDropFeedback(tab, true, index);
+			},
+
+			onDragOver: (_, dragDuration) => {
+				if (dragDuration >= TabsTitleControl.DRAG_OVER_OPEN_TAB_THRESHOLD) {
+					const draggedOverTab = this.group.getEditorByIndex(index);
+					if (draggedOverTab && this.group.activeEditor !== draggedOverTab) {
+						this.group.openEditor(draggedOverTab, { preserveFocus: true });
+					}
+				}
 			},
 
 			onDragLeave: () => {

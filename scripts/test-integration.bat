@@ -33,6 +33,7 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	::				compile-extension:json-language-features-server^
 	::				compile-extension:git^
 	::				compile-extension:ipynb^
+	::				compile-extension:configuration-editing^
 	::				compile-extension-media
 
 	:: Configuration for more verbose output
@@ -102,6 +103,12 @@ mkdir %IPYNBWORKSPACE%
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %IPYNBWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\ipynb --extensionTestsPath=%~dp0\..\extensions\ipynb\out\test %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### Configuration editing tests
+set CFWORKSPACE=%TEMPDIR%\cf-%RANDOM%
+mkdir %CFWORKSPACE%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %CFWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\configuration-editing --extensionTestsPath=%~dp0\..\extensions\configuration-editing\out\test %API_TESTS_EXTRA_ARGS%
+if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests standalone (CommonJS)
 

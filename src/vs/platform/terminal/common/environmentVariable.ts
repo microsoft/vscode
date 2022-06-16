@@ -14,3 +14,6 @@ export interface IEnvironmentVariableMutator {
 }
 /** [variable, mutator] */
 export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
+
+/** [extension, collection] */
+export type ISerializableEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];

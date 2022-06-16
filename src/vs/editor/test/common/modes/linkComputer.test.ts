@@ -22,7 +22,7 @@ class SimpleLinkComputerTarget implements ILinkComputerTarget {
 }
 
 function myComputeLinks(lines: string[]): ILink[] {
-	let target = new SimpleLinkComputerTarget(lines);
+	const target = new SimpleLinkComputerTarget(lines);
 	return computeLinks(target);
 }
 
@@ -48,7 +48,7 @@ function assertLink(text: string, extractedLink: string): void {
 		}
 	}
 
-	let r = myComputeLinks([text]);
+	const r = myComputeLinks([text]);
 	assert.deepStrictEqual(r, [{
 		range: {
 			startLineNumber: 1,
@@ -63,7 +63,7 @@ function assertLink(text: string, extractedLink: string): void {
 suite('Editor Modes - Link Computer', () => {
 
 	test('Null model', () => {
-		let r = computeLinks(null);
+		const r = computeLinks(null);
 		assert.deepStrictEqual(r, []);
 	});
 

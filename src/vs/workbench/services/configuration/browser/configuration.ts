@@ -26,6 +26,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { isObject } from 'vs/base/common/types';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { DefaultConfiguration as BaseDefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 
 export class DefaultConfiguration extends BaseDefaultConfiguration {
@@ -127,7 +128,7 @@ export class UserConfiguration extends Disposable {
 	get hasTasksLoaded(): boolean { return this.userConfiguration.value instanceof FileServiceBasedConfiguration; }
 
 	constructor(
-		private readonly userSettingsResource: URI,
+		private readonly userDataProfile: IUserDataProfile,
 		scopes: ConfigurationScope[] | undefined,
 		private readonly fileService: IFileService,
 		private readonly uriIdentityService: IUriIdentityService,
@@ -135,7 +136,7 @@ export class UserConfiguration extends Disposable {
 	) {
 		super();
 		this.configurationParseOptions = { scopes, skipRestricted: false };
-		this.userConfiguration.value = new UserSettings(this.userSettingsResource, scopes, uriIdentityService.extUri, this.fileService);
+		this.userConfiguration.value = new UserSettings(this.userDataProfile.settingsResource, scopes, uriIdentityService.extUri, this.fileService);
 		this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 	}
@@ -149,9 +150,9 @@ export class UserConfiguration extends Disposable {
 			return this.userConfiguration.value!.loadConfiguration();
 		}
 
-		const folder = this.uriIdentityService.extUri.dirname(this.userSettingsResource);
-		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY].map(name => ([name, this.uriIdentityService.extUri.joinPath(folder, `${name}.json`)]));
-		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), this.userSettingsResource, standAloneConfigurationResources, this.configurationParseOptions, this.fileService, this.uriIdentityService, this.logService);
+		const folder = this.uriIdentityService.extUri.dirname(this.userDataProfile.settingsResource);
+		const standAloneConfigurationResources: [string, URI][] = [[TASKS_CONFIGURATION_KEY, this.userDataProfile.tasksResource]];
+		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), this.userDataProfile.settingsResource, standAloneConfigurationResources, this.configurationParseOptions, this.fileService, this.uriIdentityService, this.logService);
 		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
 		this.userConfiguration.value = fileServiceBasedConfiguration;
 

@@ -776,7 +776,7 @@ class DecorationCSSRules {
 
 	private collectCSSText(opts: any, properties: string[], cssTextArr: string[]): boolean {
 		const lenBefore = cssTextArr.length;
-		for (let property of properties) {
+		for (const property of properties) {
 			const value = this.resolveValue(opts[property]);
 			if (typeof value === 'string') {
 				cssTextArr.push(strings.format(_CSS_MAP[property], value));

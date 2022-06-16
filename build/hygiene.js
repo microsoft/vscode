@@ -116,8 +116,8 @@ function hygiene(some, linting = true) {
 			})
 			.then(
 				(result) => {
-					let original = result.src.replace(/\r\n/gm, '\n');
-					let formatted = result.dest.replace(/\r\n/gm, '\n');
+					const original = result.src.replace(/\r\n/gm, '\n');
+					const formatted = result.dest.replace(/\r\n/gm, '\n');
 
 					if (original !== formatted) {
 						console.error(

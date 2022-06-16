@@ -55,7 +55,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.editor = editor;
 		this.linkDecorations = this.editor.createDecorationsCollection();
 
-		let linkGesture = new ClickLinkGesture(editor);
+		const linkGesture = new ClickLinkGesture(editor);
 		this.toUnhook.add(linkGesture);
 
 		this.toUnhook.add(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
@@ -151,7 +151,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.currentWordAtPosition = word;
 
 		// Find definition and decorate word if found
-		let state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
+		const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
 		if (this.previousPromise) {
 			this.previousPromise.cancel();
@@ -176,7 +176,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 
 			// Single result
 			else {
-				let result = results[0];
+				const result = results[0];
 
 				if (!result.uri) {
 					return;
@@ -248,7 +248,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		let endLineNumber = startLineNumber + 1;
 
 		for (; endLineNumber < maxLineNumber; endLineNumber++) {
-			let endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
+			const endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
 
 			if (startIndent === endIndent) {
 				break;

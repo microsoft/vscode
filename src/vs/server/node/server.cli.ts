@@ -153,7 +153,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 
 	const inputPaths = parsedArgs['_'];
 	let hasReadStdinArg = false;
-	for (let input of inputPaths) {
+	for (const input of inputPaths) {
 		if (input === '-') {
 			hasReadStdinArg = true;
 		} else {
@@ -217,15 +217,15 @@ export function main(desc: ProductDescription, args: string[]): void {
 		}
 
 
-		let newCommandline: string[] = [];
-		for (let key in parsedArgs) {
-			let val = parsedArgs[key as keyof typeof parsedArgs];
+		const newCommandline: string[] = [];
+		for (const key in parsedArgs) {
+			const val = parsedArgs[key as keyof typeof parsedArgs];
 			if (typeof val === 'boolean') {
 				if (val) {
 					newCommandline.push('--' + key);
 				}
 			} else if (Array.isArray(val)) {
-				for (let entry of val) {
+				for (const entry of val) {
 					newCommandline.push(`--${key}=${entry.toString()}`);
 				}
 			} else if (val) {
@@ -320,8 +320,8 @@ async function waitForFileDeleted(path: string) {
 }
 
 function openInBrowser(args: string[], verbose: boolean) {
-	let uris: string[] = [];
-	for (let location of args) {
+	const uris: string[] = [];
+	for (const location of args) {
 		try {
 			if (/^(http|https|file):\/\//.test(location)) {
 				uris.push(_url.parse(location).href);
@@ -417,10 +417,10 @@ function pathToURI(input: string): _url.URL {
 }
 
 function translatePath(input: string, mapFileUri: (input: string) => string, folderURIS: string[], fileURIS: string[]) {
-	let url = pathToURI(input);
-	let mappedUri = mapFileUri(url.href);
+	const url = pathToURI(input);
+	const mappedUri = mapFileUri(url.href);
 	try {
-		let stat = _fs.lstatSync(_fs.realpathSync(input));
+		const stat = _fs.lstatSync(_fs.realpathSync(input));
 
 		if (stat.isFile()) {
 			fileURIS.push(mappedUri);
@@ -443,6 +443,6 @@ function mapFileToRemoteUri(uri: string): string {
 	return uri.replace(/^file:\/\//, 'vscode-remote://' + cliRemoteAuthority);
 }
 
-let [, , productName, version, commit, executableName, ...remainingArgs] = process.argv;
+const [, , productName, version, commit, executableName, ...remainingArgs] = process.argv;
 main({ productName, version, commit, executableName }, remainingArgs);
 

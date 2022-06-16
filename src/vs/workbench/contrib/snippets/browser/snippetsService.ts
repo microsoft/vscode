@@ -30,6 +30,7 @@ import { isStringArray } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 namespace snippetExt {
 
@@ -177,6 +178,7 @@ class SnippetsService implements ISnippetsService {
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILogService private readonly _logService: ILogService,
@@ -318,8 +320,8 @@ class SnippetsService implements ISnippetsService {
 
 	private _initWorkspaceSnippets(): void {
 		// workspace stuff
-		let disposables = new DisposableStore();
-		let updateWorkspaceSnippets = () => {
+		const disposables = new DisposableStore();
+		const updateWorkspaceSnippets = () => {
 			disposables.clear();
 			this._pendingWork.push(this._initWorkspaceFolderSnippets(this._contextService.getWorkspace(), disposables));
 		};
@@ -348,7 +350,7 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private async _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = this._environmentService.snippetsHome;
+		const userSnippetsFolder = this._userDataProfilesService.currentProfile.snippetsHome;
 		await this._fileService.createFolder(userSnippetsFolder);
 		return await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables);
 	}
@@ -406,11 +408,11 @@ export function getNonWhitespacePrefix(model: ISimpleModel, position: Position):
 	 */
 	const MAX_PREFIX_LENGTH = 100;
 
-	let line = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+	const line = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 
-	let minChIndex = Math.max(0, line.length - MAX_PREFIX_LENGTH);
+	const minChIndex = Math.max(0, line.length - MAX_PREFIX_LENGTH);
 	for (let chIndex = line.length - 1; chIndex >= minChIndex; chIndex--) {
-		let ch = line.charAt(chIndex);
+		const ch = line.charAt(chIndex);
 
 		if (/\s/.test(ch)) {
 			return line.substr(chIndex + 1);

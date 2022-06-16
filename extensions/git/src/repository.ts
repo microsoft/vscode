@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as picomatch from 'picomatch';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
@@ -454,6 +455,13 @@ class ProgressManager {
 		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
 		onDidChange(_ => this.updateEnablement());
 		this.updateEnablement();
+
+		this.repository.onDidChangeOperations(() => {
+			const commitInProgress = this.repository.operations.isRunning(Operation.Commit);
+
+			this.repository.sourceControl.inputBox.enabled = !commitInProgress;
+			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+		});
 	}
 
 	private updateEnablement(): void {
@@ -860,6 +868,7 @@ export class Repository implements Disposable {
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
+	private isBranchProtectedMatcher: picomatch.Matcher | undefined;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private disposables: Disposable[] = [];
 
@@ -978,6 +987,10 @@ export class Repository implements Disposable {
 			}
 		}, null, this.disposables);
 
+		const onDidChangeBranchProtection = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchProtection', root));
+		onDidChangeBranchProtection(this.updateBranchProtectionMatcher, this, this.disposables);
+		this.updateBranchProtectionMatcher();
+
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
@@ -1029,7 +1042,7 @@ export class Repository implements Disposable {
 		}
 
 		let lineNumber = 0;
-		let start = 0, end;
+		let start = 0;
 		let match: RegExpExecArray | null;
 		const regex = /\r?\n/g;
 
@@ -1038,7 +1051,7 @@ export class Repository implements Disposable {
 			lineNumber++;
 		}
 
-		end = match ? match.index : text.length;
+		const end = match ? match.index : text.length;
 
 		const line = text.substring(start, end);
 
@@ -1282,7 +1295,7 @@ export class Repository implements Disposable {
 		});
 	}
 
-	closeDiffEditors(indexResources: string[], workingTreeResources: string[], ignoreSetting: boolean = false): void {
+	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting: boolean = false): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
 
@@ -1291,11 +1304,11 @@ export class Repository implements Disposable {
 		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
 			const { input } = tab;
 			if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
-				if (input.modified.scheme === 'git' && indexResources.some(r => pathEquals(r, input.modified.fsPath))) {
+				if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
 					// Index
 					diffEditorTabsToClose.push(tab);
 				}
-				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && workingTreeResources.some(r => pathEquals(r, input.modified.fsPath))) {
+				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
 					// Working Tree
 					diffEditorTabsToClose.push(tab);
 				}
@@ -2202,6 +2215,21 @@ export class Repository implements Disposable {
 		} else {
 			this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message ({0} to commit)");
 		}
+	}
+
+	private updateBranchProtectionMatcher(): void {
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const branchProtectionGlobs = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
+
+		if (branchProtectionGlobs.length === 0) {
+			this.isBranchProtectedMatcher = undefined;
+		} else {
+			this.isBranchProtectedMatcher = picomatch(branchProtectionGlobs);
+		}
+	}
+
+	public isBranchProtected(name: string = this.HEAD?.name ?? ''): boolean {
+		return this.isBranchProtectedMatcher ? this.isBranchProtectedMatcher(name) : false;
 	}
 
 	dispose(): void {

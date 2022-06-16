@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
 import { Lazy, lazy } from '../util/lazy';
+import { ResourceMap } from '../util/resourceMap';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 
 /**
@@ -13,8 +14,8 @@ import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
  */
 export class MdWorkspaceCache<T> extends Disposable {
 
-	private readonly _cache = new Map<string, Lazy<Promise<T>>>();
-	private _hasPopulatedCache = false;
+	private readonly _cache = new ResourceMap<Lazy<Promise<T>>>();
+	private _init?: Promise<void>;
 
 	public constructor(
 		private readonly workspaceContents: MdWorkspaceContents,
@@ -23,17 +24,27 @@ export class MdWorkspaceCache<T> extends Disposable {
 		super();
 	}
 
-	public async getAll(): Promise<T[]> {
-		if (!this._hasPopulatedCache) {
-			await this.populateCache();
-			this._hasPopulatedCache = true;
+	public async entries(): Promise<Array<[vscode.Uri, T]>> {
+		await this.ensureInit();
+		return Promise.all(Array.from(this._cache.entries(), async ([key, entry]) => {
+			return [key, await entry.value];
+		}));
+	}
 
-			this.workspaceContents.onDidChangeMarkdownDocument(this.onDidChangeDocument, this, this._disposables);
-			this.workspaceContents.onDidCreateMarkdownDocument(this.onDidChangeDocument, this, this._disposables);
-			this.workspaceContents.onDidDeleteMarkdownDocument(this.onDidDeleteDocument, this, this._disposables);
-		}
-
+	public async values(): Promise<Array<T>> {
+		await this.ensureInit();
 		return Promise.all(Array.from(this._cache.values(), x => x.value));
+	}
+
+	private async ensureInit(): Promise<void> {
+		if (!this._init) {
+			this._init = this.populateCache();
+
+			this._register(this.workspaceContents.onDidChangeMarkdownDocument(this.onDidChangeDocument, this));
+			this._register(this.workspaceContents.onDidCreateMarkdownDocument(this.onDidChangeDocument, this));
+			this._register(this.workspaceContents.onDidDeleteMarkdownDocument(this.onDidDeleteDocument, this));
+		}
+		await this._init;
 	}
 
 	private async populateCache(): Promise<void> {
@@ -43,12 +54,8 @@ export class MdWorkspaceCache<T> extends Disposable {
 		}
 	}
 
-	private key(resource: vscode.Uri): string {
-		return resource.toString();
-	}
-
 	private update(document: SkinnyTextDocument): void {
-		this._cache.set(this.key(document.uri), lazy(() => this.getValue(document)));
+		this._cache.set(document.uri, lazy(() => this.getValue(document)));
 	}
 
 	private onDidChangeDocument(document: SkinnyTextDocument) {
@@ -56,6 +63,6 @@ export class MdWorkspaceCache<T> extends Disposable {
 	}
 
 	private onDidDeleteDocument(resource: vscode.Uri) {
-		this._cache.delete(this.key(resource));
+		this._cache.delete(resource);
 	}
 }

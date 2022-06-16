@@ -49,7 +49,7 @@ class WebAppInsightsAppender implements ITelemetryAppender {
 
 			// If we cannot access the endpoint this most likely means it's being blocked
 			// and we should not attempt to send any telemetry.
-			fetch(endpointUrl).catch(() => (this._aiClient = undefined));
+			fetch(endpointUrl, { method: 'POST' }).catch(() => (this._aiClient = undefined));
 		}).catch(err => {
 			console.error(err);
 		});

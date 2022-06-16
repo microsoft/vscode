@@ -244,7 +244,7 @@ class InteractiveInputContentProvider implements ITextModelContentProvider {
 		if (existing) {
 			return existing;
 		}
-		let result: ITextModel | null = this._modelService.createModel('', null, resource, false);
+		const result: ITextModel | null = this._modelService.createModel('', null, resource, false);
 		return result;
 	}
 }

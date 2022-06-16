@@ -23,7 +23,7 @@ export class MdWorkspaceSymbolProvider extends Disposable implements vscode.Work
 	}
 
 	public async provideWorkspaceSymbols(query: string): Promise<vscode.SymbolInformation[]> {
-		const allSymbols = (await this._cache.getAll()).flat();
+		const allSymbols = (await this._cache.values()).flat();
 		return allSymbols.filter(symbolInformation => symbolInformation.name.toLowerCase().indexOf(query.toLowerCase()) !== -1);
 	}
 }

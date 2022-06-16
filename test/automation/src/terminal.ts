@@ -142,11 +142,11 @@ export class Terminal {
 		let index = 0;
 		while (index < expectedCount) {
 			for (let groupIndex = 0; groupIndex < expectedGroups.length; groupIndex++) {
-				let terminalsInGroup = expectedGroups[groupIndex].length;
+				const terminalsInGroup = expectedGroups[groupIndex].length;
 				let indexInGroup = 0;
 				const isSplit = terminalsInGroup > 1;
 				while (indexInGroup < terminalsInGroup) {
-					let instance = expectedGroups[groupIndex][indexInGroup];
+					const instance = expectedGroups[groupIndex][indexInGroup];
 					const nameRegex = instance.name && isSplit ? new RegExp('\\s*[├┌└]\\s*' + instance.name) : instance.name ? new RegExp(/^\s*/ + instance.name) : undefined;
 					await this.assertTabExpected(undefined, index, nameRegex, instance.icon, instance.color, instance.description);
 					indexInGroup++;

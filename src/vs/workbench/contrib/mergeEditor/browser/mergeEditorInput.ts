@@ -14,7 +14,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUntypedEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { MergeEditorModel, MergeEditorModelFactory } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
+import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -39,10 +39,9 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 
 	private _model?: MergeEditorModel;
 	private _outTextModel?: ITextFileEditorModel;
-	private readonly mergeEditorModelFactory = this._instaService.createInstance(MergeEditorModelFactory);
 
 	constructor(
-		private readonly _anchestor: URI,
+		private readonly _base: URI,
 		private readonly _input1: MergeEditorInputData,
 		private readonly _input2: MergeEditorInputData,
 		private readonly _result: URI,
@@ -101,13 +100,14 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 
 		if (!this._model) {
 
-			const anchestor = await this._textModelService.createModelReference(this._anchestor);
+			const base = await this._textModelService.createModelReference(this._base);
 			const input1 = await this._textModelService.createModelReference(this._input1.uri);
 			const input2 = await this._textModelService.createModelReference(this._input2.uri);
 			const result = await this._textModelService.createModelReference(this._result);
 
-			this._model = await this.mergeEditorModelFactory.create(
-				anchestor.object.textEditorModel,
+			this._model = this._instaService.createInstance(
+				MergeEditorModel,
+				base.object.textEditorModel,
 				input1.object.textEditorModel,
 				this._input1.detail,
 				this._input1.description,
@@ -117,13 +117,13 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 				result.object.textEditorModel
 			);
 
+			await this._model.onInitialized;
+
 			this._store.add(this._model);
-			this._store.add(anchestor);
+			this._store.add(base);
 			this._store.add(input1);
 			this._store.add(input2);
 			this._store.add(result);
-
-			// result.object.
 		}
 		return this._model;
 	}
@@ -132,7 +132,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		if (!(otherInput instanceof MergeEditorInput)) {
 			return false;
 		}
-		return isEqual(this._anchestor, otherInput._anchestor)
+		return isEqual(this._base, otherInput._base)
 			&& isEqual(this._input1.uri, otherInput._input1.uri)
 			&& isEqual(this._input2.uri, otherInput._input2.uri)
 			&& isEqual(this._result, otherInput._result);
@@ -140,7 +140,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 
 	toJSON(): MergeEditorInputJSON {
 		return {
-			anchestor: this._anchestor,
+			anchestor: this._base,
 			inputOne: this._input1,
 			inputTwo: this._input2,
 			result: this._result,

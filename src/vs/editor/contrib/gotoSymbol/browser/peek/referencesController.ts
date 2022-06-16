@@ -109,7 +109,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		}));
 
 		this._disposables.add(this._widget.onDidSelectReference(event => {
-			let { element, kind } = event;
+			const { element, kind } = event;
 			if (!element) {
 				return;
 			}
@@ -159,9 +159,9 @@ export abstract class ReferencesController implements IEditorContribution {
 					}
 
 					// set 'best' selection
-					let uri = this._editor.getModel().uri;
-					let pos = new Position(range.startLineNumber, range.startColumn);
-					let selection = this._model.nearestReference(uri, pos);
+					const uri = this._editor.getModel().uri;
+					const pos = new Position(range.startLineNumber, range.startColumn);
+					const selection = this._model.nearestReference(uri, pos);
 					if (selection) {
 						return this._widget.setSelection(selection).then(() => {
 							if (this._widget && this._editor.getOption(EditorOption.peekWidgetDefaultFocus) === 'editor') {

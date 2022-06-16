@@ -222,7 +222,7 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	private _getKeybinding(actionId: string): string {
-		let kb = this._keybindingService?.lookupKeybinding(actionId);
+		const kb = this._keybindingService?.lookupKeybinding(actionId);
 		if (!kb) {
 			return '';
 		}

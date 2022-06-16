@@ -62,7 +62,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
 		this._register(_languageFeaturesService.colorProvider.onDidChange(() => this.onModelChanged()));
 		this._register(_editor.onDidChangeConfiguration(() => {
-			let prevIsEnabled = this._isEnabled;
+			const prevIsEnabled = this._isEnabled;
 			this._isEnabled = this.isEnabled();
 			if (prevIsEnabled !== this._isEnabled) {
 				if (this._isEnabled) {
@@ -183,12 +183,12 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private updateColorDecorators(colorData: IColorData[]): void {
 		this._colorDecorationClassRefs.clear();
 
-		let decorations: IModelDeltaDecoration[] = [];
+		const decorations: IModelDeltaDecoration[] = [];
 
 		for (let i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
 			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
 			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
-			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
+			const color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 
 			const ref = this._colorDecorationClassRefs.add(
 				this._ruleFactory.createClassNameRef({

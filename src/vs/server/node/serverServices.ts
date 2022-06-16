@@ -70,6 +70,8 @@ import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/co
 import { ExtensionHostStatusService, IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
+import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 
 const eventPrefix = 'monacoworkbench';
@@ -108,8 +110,11 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IFileService, fileService);
 	fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService)));
 
+	// Configuration
+	const userDataProfilesService = new UserDataProfilesService(undefined, undefined, environmentService, fileService, logService);
 	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService(), logService);
 	services.set(IConfigurationService, configurationService);
+	await configurationService.initialize();
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
 	services.set(IExtensionHostStatusService, extensionHostStatusService);
@@ -155,6 +160,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const downloadChannel = socketServer.getChannel('download', router);
 	services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, () => getUriTransformer('renderer') /* TODO: @Sandy @Joao need dynamic context based router */));
 
+	services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 	services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
@@ -181,7 +187,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	instantiationService.invokeFunction(accessor => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const extensionsScannerService = accessor.get(IExtensionsScannerService);
-		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, extensionManagementCLIService, logService, extensionHostStatusService, extensionsScannerService);
+		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionManagementCLIService, logService, extensionHostStatusService, extensionsScannerService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), appInsightsAppender);

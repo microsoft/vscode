@@ -210,7 +210,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				}
 				return false;
 			});
-		let languageName: string | null = importantRecommendations.length ? this.languageService.getLanguageName(language) : null;
+		const languageName: string | null = importantRecommendations.length ? this.languageService.getLanguageName(language) : null;
 
 		const fileBasedRecommendations: string[] = [...importantRecommendations];
 		for (let [pattern, extensionIds] of this.fileBasedRecommendationsByPattern) {

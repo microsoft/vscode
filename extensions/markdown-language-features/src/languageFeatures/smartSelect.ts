@@ -240,7 +240,7 @@ function isBlockElement(token: Token): boolean {
 function getFirstChildHeader(document: SkinnyTextDocument, header?: TocEntry, toc?: readonly TocEntry[]): vscode.Position | undefined {
 	let childRange: vscode.Position | undefined;
 	if (header && toc) {
-		let children = toc.filter(t => header.sectionLocation.range.contains(t.sectionLocation.range) && t.sectionLocation.range.start.line > header.sectionLocation.range.start.line).sort((t1, t2) => t1.line - t2.line);
+		const children = toc.filter(t => header.sectionLocation.range.contains(t.sectionLocation.range) && t.sectionLocation.range.start.line > header.sectionLocation.range.start.line).sort((t1, t2) => t1.line - t2.line);
 		if (children.length > 0) {
 			childRange = children[0].sectionLocation.range.start;
 			const lineText = document.lineAt(childRange.line - 1).text;

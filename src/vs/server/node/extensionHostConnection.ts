@@ -326,9 +326,7 @@ export class ExtensionHostConnection {
 			const namedPipeServer = net.createServer();
 			namedPipeServer.on('error', reject);
 			namedPipeServer.listen(pipeName, () => {
-				if (namedPipeServer) {
-					namedPipeServer.removeListener('error', reject);
-				}
+				namedPipeServer?.removeListener('error', reject);
 				resolve({ pipeName, namedPipeServer });
 			});
 		});
@@ -349,7 +347,7 @@ function setCaseInsensitive(env: { [key: string]: unknown }, key: string, value:
 
 function removeNulls(env: { [key: string]: unknown | null }): void {
 	// Don't delete while iterating the object itself
-	for (let key of Object.keys(env)) {
+	for (const key of Object.keys(env)) {
 		if (env[key] === null) {
 			delete env[key];
 		}

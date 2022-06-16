@@ -335,7 +335,7 @@ namespace schema {
 			return false;
 		}
 
-		for (let item of items) {
+		for (const item of items) {
 			if (isMenuItem(item)) {
 				if (!isValidMenuItem(item, collector)) {
 					return false;
@@ -671,7 +671,7 @@ submenusExtensionPoint.setHandler(extensions => {
 
 	_submenus.clear();
 
-	for (let extension of extensions) {
+	for (const extension of extensions) {
 		const { value, collector } = extension;
 
 		forEach(value, entry => {
@@ -684,7 +684,7 @@ submenusExtensionPoint.setHandler(extensions => {
 				return;
 			}
 			if (_submenus.has(entry.value.id)) {
-				collector.warn(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
+				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
 				return;
 			}
 			if (!entry.value.label) {
@@ -733,7 +733,7 @@ menusExtensionPoint.setHandler(extensions => {
 
 	const items: { id: MenuId; item: IMenuItem | ISubmenuItem }[] = [];
 
-	for (let extension of extensions) {
+	for (const extension of extensions) {
 		const { value, collector } = extension;
 
 		forEach(value, entry => {

@@ -10,7 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { joinPath, dirname } from 'vs/base/common/resources';
+import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
@@ -41,6 +41,7 @@ import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/pl
 import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 
 export class UserDataSyncClient extends Disposable {
@@ -54,20 +55,17 @@ export class UserDataSyncClient extends Disposable {
 
 	async setUp(empty: boolean = false): Promise<void> {
 		registerConfiguration();
+
+		const logService = this.instantiationService.stub(ILogService, new NullLogService());
+
 		const userRoamingDataHome = URI.file('userdata').with({ scheme: Schemas.inMemory });
 		const userDataSyncHome = joinPath(userRoamingDataHome, '.sync');
 		const environmentService = this.instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{
 			userDataSyncHome,
 			userRoamingDataHome,
-			settingsResource: joinPath(userRoamingDataHome, 'settings.json'),
-			keybindingsResource: joinPath(userRoamingDataHome, 'keybindings.json'),
-			snippetsHome: joinPath(userRoamingDataHome, 'snippets'),
 			argvResource: joinPath(userRoamingDataHome, 'argv.json'),
 			sync: 'on',
 		});
-
-		const logService = new NullLogService();
-		this.instantiationService.stub(ILogService, logService);
 
 		this.instantiationService.stub(IProductService, {
 			_serviceBrand: undefined, ...product, ...{
@@ -85,9 +83,11 @@ export class UserDataSyncClient extends Disposable {
 		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
 		this.instantiationService.stub(IFileService, fileService);
 
+		const userDataProfilesService = this.instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, undefined, environmentService, fileService, logService));
+
 		this.instantiationService.stub(IStorageService, this._register(new InMemoryStorageService()));
 
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService, new NullPolicyService(), logService));
+		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
 		this.instantiationService.stub(IUriIdentityService, this.instantiationService.createInstance(UriIdentityService));
@@ -124,10 +124,10 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IUserDataSyncService, this._register(this.instantiationService.createInstance(UserDataSyncService)));
 
 		if (!empty) {
-			await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({})));
-			await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([])));
-			await fileService.writeFile(joinPath(environmentService.snippetsHome, 'c.json'), VSBuffer.fromString(`{}`));
-			await fileService.writeFile(joinPath(dirname(environmentService.settingsResource), 'tasks.json'), VSBuffer.fromString(`{}`));
+			await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({})));
+			await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([])));
+			await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'c.json'), VSBuffer.fromString(`{}`));
+			await fileService.writeFile(userDataProfilesService.defaultProfile.tasksResource, VSBuffer.fromString(`{}`));
 			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
 		}
 		await configurationService.reloadConfiguration();

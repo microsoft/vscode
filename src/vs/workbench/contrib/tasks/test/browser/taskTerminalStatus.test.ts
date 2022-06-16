@@ -9,17 +9,17 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { AbstractProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
-import { CommonTask, TaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
+import { CommonTask, ITaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalStatus, ITerminalStatusList, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 class TestTaskService implements Partial<ITaskService> {
-	private readonly _onDidStateChange: Emitter<TaskEvent> = new Emitter();
-	public get onDidStateChange(): Event<TaskEvent> {
+	private readonly _onDidStateChange: Emitter<ITaskEvent> = new Emitter();
+	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
 	}
-	public triggerStateChange(event: TaskEvent): void {
+	public triggerStateChange(event: ITaskEvent): void {
 		this._onDidStateChange.fire(event);
 	}
 }

@@ -126,12 +126,12 @@ export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 		throw new TypeError('invalid index');
 	}
 
-	let pivotValue = data[Math.floor(data.length * Math.random())];
-	let lower: T[] = [];
-	let higher: T[] = [];
-	let pivots: T[] = [];
+	const pivotValue = data[Math.floor(data.length * Math.random())];
+	const lower: T[] = [];
+	const higher: T[] = [];
+	const pivots: T[] = [];
 
-	for (let value of data) {
+	for (const value of data) {
 		const val = compare(value, pivotValue);
 		if (val < 0) {
 			lower.push(value);
@@ -675,6 +675,18 @@ export type Comparator<T> = (a: T, b: T) => CompareResult;
 
 export function compareBy<TItem, TCompareBy>(selector: (item: TItem) => TCompareBy, comparator: Comparator<TCompareBy>): Comparator<TItem> {
 	return (a, b) => comparator(selector(a), selector(b));
+}
+
+export function tieBreakComparators<TItem>(...comparators: Comparator<TItem>[]): Comparator<TItem> {
+	return (item1, item2) => {
+		for (const comparator of comparators) {
+			const result = comparator(item1, item2);
+			if (!CompareResult.isNeitherLessOrGreaterThan(result)) {
+				return result;
+			}
+		}
+		return CompareResult.neitherLessOrGreaterThan;
+	};
 }
 
 /**

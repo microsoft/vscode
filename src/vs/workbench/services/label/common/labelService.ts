@@ -26,6 +26,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -223,8 +224,23 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		// Relative label
-		if (options.relative) {
-			const folder = this.contextService?.getWorkspaceFolder(resource);
+		if (options.relative && this.contextService) {
+			let folder = this.contextService.getWorkspaceFolder(resource);
+			if (!folder) {
+
+				// It is possible that the resource we want to resolve the
+				// workspace folder for is not using the same scheme as
+				// the folders in the workspace, so we help by trying again
+				// to resolve a workspace folder by trying again with a
+				// scheme that is workspace contained.
+
+				const workspace = this.contextService.getWorkspace();
+				const firstFolder = firstOrDefault(workspace.folders);
+				if (firstFolder && resource.scheme !== firstFolder.uri.scheme && resource.path.startsWith(posix.sep)) {
+					folder = this.contextService.getWorkspaceFolder(firstFolder.uri.with({ path: resource.path }));
+				}
+			}
+
 			if (folder) {
 				const folderLabel = this.formatUri(folder.uri, formatting, options.noPrefix);
 

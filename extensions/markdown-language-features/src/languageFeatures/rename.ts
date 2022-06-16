@@ -142,7 +142,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 			return this.renameExternalLink(allRefsInfo, newName);
 		} else if (triggerRef.kind === 'header' || (triggerRef.kind === 'link' && triggerRef.link.source.fragmentRange?.contains(position) && (triggerRef.link.kind === 'definition' || triggerRef.link.kind === 'link' && triggerRef.link.href.kind === 'internal'))) {
 			return this.renameFragment(allRefsInfo, newName);
-		} else if (triggerRef.kind === 'link' && !triggerRef.link.source.fragmentRange?.contains(position) && triggerRef.link.kind === 'link' && triggerRef.link.href.kind === 'internal') {
+		} else if (triggerRef.kind === 'link' && !triggerRef.link.source.fragmentRange?.contains(position) && (triggerRef.link.kind === 'link' || triggerRef.link.kind === 'definition') && triggerRef.link.href.kind === 'internal') {
 			return this.renameFilePath(triggerRef.link.source.resource, triggerRef.link.href, allRefsInfo, newName);
 		}
 

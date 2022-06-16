@@ -5,7 +5,6 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import * as picomatch from 'picomatch';
 import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
@@ -27,24 +26,25 @@ const localize = nls.loadMessageBundle();
 class CheckoutItem implements QuickPickItem {
 
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
-	get label(): string { return this.ref.name || this.shortCommit; }
+	get label(): string { return this.ref.name ? `${this.ref.name}${this.repository.isBranchProtected(this.ref.name) ? ' $(lock-small)' : ''}` : this.shortCommit; }
 	get description(): string { return this.shortCommit; }
 
-	constructor(protected ref: Ref) { }
+	constructor(protected repository: Repository, protected ref: Ref) { }
 
-	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
+	async run(opts?: { detached?: boolean }): Promise<void> {
 		const ref = this.ref.name;
 
 		if (!ref) {
 			return;
 		}
 
-		await repository.checkout(ref, opts);
+		await this.repository.checkout(ref, opts);
 	}
 }
 
 class CheckoutTagItem extends CheckoutItem {
 
+	override get label(): string { return this.ref.name || this.shortCommit; }
 	override get description(): string {
 		return localize('tag at', "Tag at {0}", this.shortCommit);
 	}
@@ -52,21 +52,22 @@ class CheckoutTagItem extends CheckoutItem {
 
 class CheckoutRemoteHeadItem extends CheckoutItem {
 
+	override get label(): string { return this.ref.name || this.shortCommit; }
 	override get description(): string {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
 
-	override async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
+	override async run(opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
 
-		const branches = await repository.findTrackingBranches(this.ref.name);
+		const branches = await this.repository.findTrackingBranches(this.ref.name);
 
 		if (branches.length > 0) {
-			await repository.checkout(branches[0].name!, opts);
+			await this.repository.checkout(branches[0].name!, opts);
 		} else {
-			await repository.checkoutTracking(this.ref.name, opts);
+			await this.repository.checkoutTracking(this.ref.name, opts);
 		}
 	}
 }
@@ -219,7 +220,7 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 		checkoutTypes = checkoutTypeConfig;
 	}
 
-	const processors = checkoutTypes.map(getCheckoutProcessor)
+	const processors = checkoutTypes.map(type => getCheckoutProcessor(repository, type))
 		.filter(p => !!p) as CheckoutProcessor[];
 
 	for (const ref of repository.refs) {
@@ -234,8 +235,8 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 class CheckoutProcessor {
 
 	private refs: Ref[] = [];
-	get items(): CheckoutItem[] { return this.refs.map(r => new this.ctor(r)); }
-	constructor(private type: RefType, private ctor: { new(ref: Ref): CheckoutItem }) { }
+	get items(): CheckoutItem[] { return this.refs.map(r => new this.ctor(this.repository, r)); }
+	constructor(private repository: Repository, private type: RefType, private ctor: { new(repository: Repository, ref: Ref): CheckoutItem }) { }
 
 	onRef(ref: Ref): void {
 		if (ref.type === this.type) {
@@ -244,14 +245,14 @@ class CheckoutProcessor {
 	}
 }
 
-function getCheckoutProcessor(type: string): CheckoutProcessor | undefined {
+function getCheckoutProcessor(repository: Repository, type: string): CheckoutProcessor | undefined {
 	switch (type) {
 		case 'local':
-			return new CheckoutProcessor(RefType.Head, CheckoutItem);
+			return new CheckoutProcessor(repository, RefType.Head, CheckoutItem);
 		case 'remote':
-			return new CheckoutProcessor(RefType.RemoteHead, CheckoutRemoteHeadItem);
+			return new CheckoutProcessor(repository, RefType.RemoteHead, CheckoutRemoteHeadItem);
 		case 'tags':
-			return new CheckoutProcessor(RefType.Tag, CheckoutTagItem);
+			return new CheckoutProcessor(repository, RefType.Tag, CheckoutTagItem);
 	}
 
 	return undefined;
@@ -418,8 +419,8 @@ export class CommandCenter {
 
 		type InputData = { uri: Uri; detail?: string; description?: string };
 		const mergeUris = toMergeUris(uri);
-		let input1: InputData = { uri: mergeUris.ours };
-		let input2: InputData = { uri: mergeUris.theirs };
+		const input1: InputData = { uri: mergeUris.ours };
+		const input2: InputData = { uri: mergeUris.theirs };
 
 		try {
 			const [head, mergeHead] = await Promise.all([repo.getCommit('HEAD'), repo.getCommit('MERGE_HEAD')]);
@@ -1516,6 +1517,14 @@ export class CommandCenter {
 			opts.signoff = true;
 		}
 
+		if (config.get<boolean>('useEditorAsCommitInput')) {
+			opts.useEditor = true;
+
+			if (config.get<boolean>('verboseCommit')) {
+				opts.verbose = true;
+			}
+		}
+
 		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges');
 
 		if (
@@ -1561,9 +1570,9 @@ export class CommandCenter {
 			}
 		}
 
-		let message = await getCommitMessage();
+		const message = await getCommitMessage();
 
-		if (!message && !opts.amend) {
+		if (!message && !opts.amend && !opts.useEditor) {
 			return false;
 		}
 
@@ -1576,11 +1585,8 @@ export class CommandCenter {
 		}
 
 		// Branch protection
-		const branchProtection = config.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
 		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
-		const branchIsProtected = branchProtection.some(bp => picomatch.isMatch(repository.HEAD?.name ?? '', bp));
-
-		if (branchIsProtected && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
+		if (repository.isBranchProtected() && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
 			const commitToNewBranch = localize('commit to branch', "Commit to a New Branch");
 
 			let pick: string | undefined = commitToNewBranch;
@@ -1623,11 +1629,14 @@ export class CommandCenter {
 
 	private async commitWithAnyInput(repository: Repository, opts?: CommitOptions): Promise<void> {
 		const message = repository.inputBox.value;
+		const root = Uri.file(repository.root);
+		const config = workspace.getConfiguration('git', root);
+
 		const getCommitMessage = async () => {
 			let _message: string | undefined = message;
 
-			if (!_message) {
-				let value: string | undefined = undefined;
+			if (!_message && !config.get<boolean>('useEditorAsCommitInput')) {
+				const value: string | undefined = undefined;
 
 				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
 					return undefined;
@@ -1848,7 +1857,7 @@ export class CommandCenter {
 			const item = choice as CheckoutItem;
 
 			try {
-				await item.run(repository, opts);
+				await item.run(opts);
 			} catch (err) {
 				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
 					throw err;
@@ -1860,10 +1869,10 @@ export class CommandCenter {
 
 				if (choice === force) {
 					await this.cleanAll(repository);
-					await item.run(repository, opts);
+					await item.run(opts);
 				} else if (choice === stash) {
 					await this.stash(repository);
-					await item.run(repository, opts);
+					await item.run(opts);
 					await this.stashPopLatest(repository);
 				}
 			}
@@ -2959,13 +2968,7 @@ export class CommandCenter {
 
 	@command('git.closeAllDiffEditors', { repository: true })
 	closeDiffEditors(repository: Repository): void {
-		const resources = [
-			...repository.indexGroup.resourceStates.map(r => r.resourceUri.fsPath),
-			...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath),
-			...repository.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath)
-		];
-
-		repository.closeDiffEditors(resources, resources, true);
+		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
@@ -3010,7 +3013,7 @@ export class CommandCenter {
 				};
 
 				let message: string;
-				let type: 'error' | 'warning' = 'error';
+				let type: 'error' | 'warning' | 'information' = 'error';
 
 				const choices = new Map<string, () => void>();
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
@@ -3073,6 +3076,12 @@ export class CommandCenter {
 						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
 						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-setup-git')));
 						break;
+					case GitErrorCodes.EmptyCommitMessage:
+						message = localize('empty commit', "Commit operation was cancelled due to empty commit message.");
+						choices.clear();
+						type = 'information';
+						options.modal = false;
+						break;
 					default: {
 						const hint = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
@@ -3094,17 +3103,25 @@ export class CommandCenter {
 					return;
 				}
 
+				let result: string | undefined;
 				const allChoices = Array.from(choices.keys());
-				const result = type === 'error'
-					? await window.showErrorMessage(message, options, ...allChoices)
-					: await window.showWarningMessage(message, options, ...allChoices);
+
+				switch (type) {
+					case 'error':
+						result = await window.showErrorMessage(message, options, ...allChoices);
+						break;
+					case 'warning':
+						result = await window.showWarningMessage(message, options, ...allChoices);
+						break;
+					case 'information':
+						result = await window.showInformationMessage(message, options, ...allChoices);
+						break;
+				}
 
 				if (result) {
 					const resultFn = choices.get(result);
 
-					if (resultFn) {
-						resultFn();
-					}
+					resultFn?.();
 				}
 			});
 		};

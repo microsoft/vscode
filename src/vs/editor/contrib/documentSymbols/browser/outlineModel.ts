@@ -30,9 +30,7 @@ export abstract class TreeElement {
 	abstract parent: TreeElement | undefined;
 
 	remove(): void {
-		if (this.parent) {
-			this.parent.children.delete(this.id);
-		}
+		this.parent?.children.delete(this.id);
 	}
 
 	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
@@ -60,7 +58,7 @@ export abstract class TreeElement {
 		if (!id) {
 			return undefined;
 		}
-		let len = commonPrefixLength(id, element.id);
+		const len = commonPrefixLength(id, element.id);
 		if (len === id.length) {
 			return element;
 		}
@@ -68,7 +66,7 @@ export abstract class TreeElement {
 			return undefined;
 		}
 		for (const [, child] of element.children) {
-			let candidate = TreeElement.getElementById(id, child);
+			const candidate = TreeElement.getElementById(id, child);
 			if (candidate) {
 				return candidate;
 			}
@@ -148,7 +146,7 @@ export class OutlineGroup extends TreeElement {
 		item.marker = undefined;
 
 		// find the proper start index to check for item/marker overlap.
-		let idx = binarySearch<IRange>(markers, item.symbol.range, Range.compareRangesUsingStarts);
+		const idx = binarySearch<IRange>(markers, item.symbol.range, Range.compareRangesUsingStarts);
 		let start: number;
 		if (idx < 0) {
 			start = ~idx;
@@ -159,13 +157,13 @@ export class OutlineGroup extends TreeElement {
 			start = idx;
 		}
 
-		let myMarkers: IOutlineMarker[] = [];
+		const myMarkers: IOutlineMarker[] = [];
 		let myTopSev: MarkerSeverity | undefined;
 
 		for (; start < markers.length && Range.areIntersecting(item.symbol.range, markers[start]); start++) {
 			// remove markers intersecting with this outline element
 			// and store them in a 'private' array.
-			let marker = markers[start];
+			const marker = markers[start];
 			myMarkers.push(marker);
 			(markers as Array<IOutlineMarker | undefined>)[start] = undefined;
 			if (!myTopSev || marker.severity > myTopSev) {
@@ -201,8 +199,8 @@ export class OutlineModel extends TreeElement {
 		const provider = registry.ordered(textModel);
 		const promises = provider.map((provider, index) => {
 
-			let id = TreeElement.findId(`provider_${index}`, result);
-			let group = new OutlineGroup(id, result, provider.displayName ?? 'Unknown Outline Provider', index);
+			const id = TreeElement.findId(`provider_${index}`, result);
+			const group = new OutlineGroup(id, result, provider.displayName ?? 'Unknown Outline Provider', index);
 
 			return Promise.resolve(provider.provideDocumentSymbols(textModel, cts.token)).then(result => {
 				for (const info of result || []) {
@@ -240,8 +238,8 @@ export class OutlineModel extends TreeElement {
 	}
 
 	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
-		let id = TreeElement.findId(info, container);
-		let res = new OutlineElement(id, container, info);
+		const id = TreeElement.findId(info, container);
+		const res = new OutlineElement(id, container, info);
 		if (info.children) {
 			for (const childInfo of info.children) {
 				OutlineModel._makeOutlineElement(childInfo, res);
@@ -287,8 +285,8 @@ export class OutlineModel extends TreeElement {
 			this.children = this._groups;
 		} else {
 			// adopt all elements of the first group
-			let group = Iterable.first(this._groups.values())!;
-			for (let [, child] of group.children) {
+			const group = Iterable.first(this._groups.values())!;
+			for (const [, child] of group.children) {
 				child.parent = this;
 				this.children.set(child.id, child);
 			}
@@ -438,7 +436,7 @@ export class OutlineModelService implements IOutlineModelService {
 
 		let data = this._cache.get(textModel.id);
 		if (!data || data.versionId !== textModel.getVersionId() || !equals(data.provider, provider)) {
-			let source = new CancellationTokenSource();
+			const source = new CancellationTokenSource();
 			data = {
 				versionId: textModel.getVersionId(),
 				provider,

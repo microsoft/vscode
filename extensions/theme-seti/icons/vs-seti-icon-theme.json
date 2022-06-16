@@ -750,6 +750,14 @@
 			"fontCharacter": "\\E050",
 			"fontColor": "#cc3e44"
 		},
+		"_java_1_light": {
+			"fontCharacter": "\\E050",
+			"fontColor": "#498ba7"
+		},
+		"_java_1": {
+			"fontCharacter": "\\E050",
+			"fontColor": "#519aba"
+		},
 		"_javascript_light": {
 			"fontCharacter": "\\E051",
 			"fontColor": "#b7b73b"
@@ -1614,7 +1622,7 @@
 		"hxp": "_haxe_2",
 		"hxml": "_haxe_3",
 		"jade": "_jade",
-		"class": "_java",
+		"class": "_java_1",
 		"classpath": "_java",
 		"js.map": "_javascript",
 		"spec.js": "_javascript_1",
@@ -1863,6 +1871,7 @@
 		"clojure": "_clojure",
 		"coffeescript": "_coffee",
 		"jsonc": "_json",
+		"json": "_json",
 		"c": "_c",
 		"cpp": "_cpp",
 		"cuda-cpp": "_cu",
@@ -1880,7 +1889,6 @@
 		"java": "_java",
 		"javascriptreact": "_react",
 		"javascript": "_javascript",
-		"json": "_json",
 		"julia": "_julia",
 		"tex": "_tex_1",
 		"latex": "_tex",
@@ -2012,7 +2020,7 @@
 			"hxp": "_haxe_2_light",
 			"hxml": "_haxe_3_light",
 			"jade": "_jade_light",
-			"class": "_java_light",
+			"class": "_java_1_light",
 			"classpath": "_java_light",
 			"js.map": "_javascript_light",
 			"spec.js": "_javascript_1_light",
@@ -2179,6 +2187,7 @@
 			"clojure": "_clojure_light",
 			"coffeescript": "_coffee_light",
 			"jsonc": "_json_light",
+			"json": "_json_light",
 			"c": "_c_light",
 			"cpp": "_cpp_light",
 			"cuda-cpp": "_cu_light",
@@ -2196,7 +2205,6 @@
 			"java": "_java_light",
 			"javascriptreact": "_react_light",
 			"javascript": "_javascript_light",
-			"json": "_json_light",
 			"julia": "_julia_light",
 			"tex": "_tex_1_light",
 			"latex": "_tex_light",
@@ -2330,5 +2338,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/8dba1bc311dad1b9bc23c4779149f3bf9baa8cb0"
+	"version": "https://github.com/jesseweed/seti-ui/commit/6b83574de165123583d6d8d5b3b6c91f04b7153d"
 }

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
+import { MdLinkComputer } from '../languageFeatures/documentLinkProvider';
 import { MdReference, MdReferencesProvider } from '../languageFeatures/references';
 import { githubSlugifier } from '../slugify';
 import { noopToken } from '../util/cancellation';
@@ -19,8 +19,8 @@ import { joinLines, workspacePath } from './util';
 
 function getFileReferences(resource: vscode.Uri, workspaceContents: MdWorkspaceContents) {
 	const engine = createNewMarkdownEngine();
-	const linkProvider = new MdLinkProvider(engine);
-	const provider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
+	const linkComputer = new MdLinkComputer(engine);
+	const provider = new MdReferencesProvider(linkComputer, workspaceContents, engine, githubSlugifier);
 	return provider.getAllReferencesToFile(resource, noopToken);
 }
 

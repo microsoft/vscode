@@ -68,8 +68,6 @@ module.exports.indentationFilter = [
 	'!**/LICENSE',
 	'!src/vs/nls.js',
 	'!src/vs/nls.build.js',
-	'!src/vs/css.js',
-	'!src/vs/css.build.js',
 	'!src/vs/loader.js',
 	'!src/vs/base/browser/dompurify/*',
 	'!src/vs/base/common/marked/marked.js',

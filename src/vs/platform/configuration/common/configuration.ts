@@ -181,7 +181,7 @@ export interface IConfigurationCompareResult {
 export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {
 	const root = Object.create(null);
 
-	for (let key in properties) {
+	for (const key in properties) {
 		addToValueTree(root, key, properties[key], conflictReporter);
 	}
 
@@ -194,7 +194,7 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 
 	let curr = settingsTreeRoot;
 	for (let i = 0; i < segments.length; i++) {
-		let s = segments[i];
+		const s = segments[i];
 		let obj = curr[s];
 		switch (typeof obj) {
 			case 'undefined':

@@ -66,10 +66,6 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { flatten } from 'vs/base/common/arrays';
 import { fromNow } from 'vs/base/common/date';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Codicon } from 'vs/base/common/codicons';
-import { assertType } from 'vs/base/common/types';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -148,7 +144,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			});
 		}
 
-		let message = `${operationMessage}${additionalMessage ? ` ${additionalMessage}` : ''}`;
+		const message = `${operationMessage}${additionalMessage ? ` ${additionalMessage}` : ''}`;
 		this.notificationService.prompt(Severity.Error, message, promptChoices);
 	}
 }
@@ -881,57 +877,6 @@ export class MigrateDeprecatedExtensionAction extends ExtensionAction {
 	}
 }
 
-export class SponsorExtensionAction extends ExtensionAction {
-
-	private static readonly EnabledClass = `${SponsorExtensionAction.LABEL_ACTION_CLASS} extension-sponsor`;
-	private static readonly DisabledClass = `${SponsorExtensionAction.EnabledClass} disabled`;
-
-	constructor(
-		@IOpenerService private openerService: IOpenerService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-	) {
-		super('extensionsAction.sponsorExtension', localize('sponsor', "Sponsor"), SponsorExtensionAction.DisabledClass, false);
-		this.update();
-	}
-
-	update(): void {
-		this.enabled = false;
-		this.class = SponsorExtensionAction.DisabledClass;
-		this.tooltip = '';
-		if (this.extension?.publisherSponsorLink) {
-			this.enabled = true;
-			this.class = SponsorExtensionAction.EnabledClass;
-			this.tooltip = this.extension.publisherSponsorLink.toString();
-		}
-	}
-
-	override async run(): Promise<any> {
-		if (this.extension?.publisherSponsorLink) {
-			type SponsorExtensionClassification = {
-				owner: 'sandy081';
-				comment: 'Reporting when sponosor extension action is executed';
-				'extensionId': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the extension to be sponsored' };
-			};
-			type SponsorExtensionEvent = {
-				'extensionId': string;
-			};
-			this.telemetryService.publicLog2<SponsorExtensionEvent, SponsorExtensionClassification>('extensionsAction.sponsorExtension', { extensionId: this.extension.identifier.id });
-			return this.openerService.open(this.extension.publisherSponsorLink);
-		}
-	}
-}
-
-export class SponsorExtensionActionViewItem extends ActionViewItem {
-	override render(container: HTMLElement): void {
-		super.render(container);
-		assertType(this.label);
-		const sponsorIcon = renderIcon(Codicon.heart);
-		const label = document.createElement('span');
-		label.textContent = this.getAction().label;
-		DOM.reset(this.label, sponsorIcon, label);
-	}
-}
-
 export class ExtensionActionWithDropdownActionViewItem extends ActionWithDropdownActionViewItem {
 
 	constructor(
@@ -976,9 +921,7 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 	}
 
 	public override run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][]; disposeActionsOnHide: boolean }): Promise<any> {
-		if (this._actionViewItem) {
-			this._actionViewItem.showMenu(actionGroups, disposeActionsOnHide);
-		}
+		this._actionViewItem?.showMenu(actionGroups, disposeActionsOnHide);
 		return Promise.resolve();
 	}
 }
@@ -994,7 +937,7 @@ export class DropDownMenuActionViewItem extends ActionViewItem {
 	public showMenu(menuActionGroups: IAction[][], disposeActionsOnHide: boolean): void {
 		if (this.element) {
 			const actions = this.getActions(menuActionGroups);
-			let elementPosition = DOM.getDomNodePagePosition(this.element);
+			const elementPosition = DOM.getDomNodePagePosition(this.element);
 			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
@@ -2897,9 +2840,6 @@ export const extensionButtonProminentHoverBackground = registerColor('extensionB
 	hcLight: null
 }, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
 
-registerColor('extensionSponsorButton.background', { light: '#B51E78', dark: '#B51E78', hcDark: null, hcLight: '#B51E78' }, localize('extensionSponsorButton.background', "Background color for extension sponsor button."), true);
-registerColor('extensionSponsorButton.hoverBackground', { light: '#D61B8C', dark: '#D61B8C', hcDark: null, hcLight: '#D61B8C' }, localize('extensionSponsorButton.hoverBackground', "Background hover color for extension sponsor button."), true);
-
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const foregroundColor = theme.getColor(foreground);
 	if (foregroundColor) {
@@ -2944,6 +2884,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const errorColor = theme.getColor(editorErrorForeground);
 	if (errorColor) {
 		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-error { color: ${errorColor}; }`);
+		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(errorIcon)} { color: ${errorColor}; }`);
 	}
@@ -2951,6 +2892,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const warningColor = theme.getColor(editorWarningForeground);
 	if (warningColor) {
 		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning { color: ${warningColor}; }`);
+		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(warningIcon)} { color: ${warningColor}; }`);
 	}
@@ -2958,6 +2900,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const infoColor = theme.getColor(editorInfoForeground);
 	if (infoColor) {
 		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.extension-status-info { color: ${infoColor}; }`);
+		collector.addRule(`.extension-editor .header .actions-status-container > .status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.extension-editor .body .subcontent .runtime-status ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(infoIcon)} { color: ${infoColor}; }`);
 	}

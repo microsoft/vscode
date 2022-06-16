@@ -173,7 +173,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const alias: { [key: string]: string } = {};
 	const string: string[] = ['_'];
 	const boolean: string[] = [];
-	for (let optionId in options) {
+	for (const optionId in options) {
 		const o = options[optionId];
 		if (o.alias) {
 			alias[optionId] = o.alias;
@@ -202,7 +202,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 
 	delete remainingArgs._;
 
-	for (let optionId in options) {
+	for (const optionId in options) {
 		const o = options[optionId];
 		if (o.alias) {
 			delete remainingArgs[o.alias];
@@ -253,7 +253,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		delete remainingArgs[optionId];
 	}
 
-	for (let key in remainingArgs) {
+	for (const key in remainingArgs) {
 		errorReporter.onUnknownOption(key);
 	}
 
@@ -278,24 +278,24 @@ function formatUsage(optionId: string, option: Option<any>) {
 // exported only for testing
 export function formatOptions(options: OptionDescriptions<any>, columns: number): string[] {
 	let maxLength = 0;
-	let usageTexts: [string, string][] = [];
+	const usageTexts: [string, string][] = [];
 	for (const optionId in options) {
 		const o = options[optionId];
 		const usageText = formatUsage(optionId, o);
 		maxLength = Math.max(maxLength, usageText.length);
 		usageTexts.push([usageText, o.description!]);
 	}
-	let argLength = maxLength + 2/*left padding*/ + 1/*right padding*/;
+	const argLength = maxLength + 2/*left padding*/ + 1/*right padding*/;
 	if (columns - argLength < 25) {
 		// Use a condensed version on narrow terminals
 		return usageTexts.reduce<string[]>((r, ut) => r.concat([`  ${ut[0]}`, `      ${ut[1]}`]), []);
 	}
-	let descriptionColumns = columns - argLength - 1;
-	let result: string[] = [];
+	const descriptionColumns = columns - argLength - 1;
+	const result: string[] = [];
 	for (const ut of usageTexts) {
-		let usage = ut[0];
-		let wrappedDescription = wrapText(ut[1], descriptionColumns);
-		let keyPadding = indent(argLength - usage.length - 2/*left padding*/);
+		const usage = ut[0];
+		const wrappedDescription = wrapText(ut[1], descriptionColumns);
+		const keyPadding = indent(argLength - usage.length - 2/*left padding*/);
 		result.push('  ' + usage + keyPadding + wrappedDescription[0]);
 		for (let i = 1; i < wrappedDescription.length; i++) {
 			result.push(indent(argLength) + wrappedDescription[i]);
@@ -309,10 +309,10 @@ function indent(count: number): string {
 }
 
 function wrapText(text: string, columns: number): string[] {
-	let lines: string[] = [];
+	const lines: string[] = [];
 	while (text.length) {
-		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
-		let line = text.slice(0, index).trim();
+		const index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
+		const line = text.slice(0, index).trim();
 		text = text.slice(index);
 		lines.push(line);
 	}
@@ -347,10 +347,10 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 		}
 	}
 
-	for (let helpCategoryKey in optionsByCategory) {
+	for (const helpCategoryKey in optionsByCategory) {
 		const key = <keyof typeof helpCategories>helpCategoryKey;
 
-		let categoryOptions = optionsByCategory[key];
+		const categoryOptions = optionsByCategory[key];
 		if (categoryOptions) {
 			help.push(helpCategories[key]);
 			help.push(...formatOptions(categoryOptions, columns));

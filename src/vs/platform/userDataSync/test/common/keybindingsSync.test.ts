@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { getKeybindingsContentFromSyncContent, KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
 import { IUserDataSyncStoreService, SyncResource, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
@@ -32,7 +32,7 @@ suite('KeybindingsSync', () => {
 
 	test('when keybindings file does not exist', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
+		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
 		let manifest = await client.manifest();
@@ -63,7 +63,7 @@ suite('KeybindingsSync', () => {
 
 	test('when keybindings file is empty and remote has no changes', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
+		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(''));
 
 		await testObject.sync(await client.manifest());
@@ -84,11 +84,11 @@ suite('KeybindingsSync', () => {
 				'command': 'workbench.action.closeAllEditors',
 			}
 		]);
-		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IEnvironmentService).keybindingsResource, VSBuffer.fromString(content));
+		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource, VSBuffer.fromString(content));
 		await client2.sync();
 
 		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
+		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(''));
 
 		await testObject.sync(await client.manifest());
@@ -102,7 +102,7 @@ suite('KeybindingsSync', () => {
 
 	test('when keybindings file is empty with comment and remote has no changes', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
+		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 		const expectedContent = '// Empty Keybindings';
 		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(expectedContent));
 
@@ -124,11 +124,11 @@ suite('KeybindingsSync', () => {
 				'command': 'workbench.action.closeAllEditors',
 			}
 		]);
-		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IEnvironmentService).keybindingsResource, VSBuffer.fromString(content));
+		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource, VSBuffer.fromString(content));
 		await client2.sync();
 
 		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
+		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 		await fileService.writeFile(keybindingsResource, VSBuffer.fromString('// Empty Keybindings'));
 
 		await testObject.sync(await client.manifest());
@@ -147,11 +147,11 @@ suite('KeybindingsSync', () => {
 			`// Place your key bindings in this file to override the defaults
 [
 ]`;
-		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IEnvironmentService).keybindingsResource, VSBuffer.fromString(content));
+		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource, VSBuffer.fromString(content));
 		await client2.sync();
 
 		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
+		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 		const expectedLocalContent = '// Empty Keybindings';
 		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(expectedLocalContent));
 
@@ -166,7 +166,7 @@ suite('KeybindingsSync', () => {
 
 	test('when keybindings file is created after first sync', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
+		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 		await testObject.sync(await client.manifest());
 		await fileService.createFile(keybindingsResource, VSBuffer.fromString('[]'));
 
@@ -188,7 +188,7 @@ suite('KeybindingsSync', () => {
 
 	test('test apply remote when keybindings file does not exist', async () => {
 		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
+		const keybindingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource;
 		if (await fileService.exists(keybindingsResource)) {
 			await fileService.del(keybindingsResource);
 		}
@@ -203,7 +203,7 @@ suite('KeybindingsSync', () => {
 	});
 
 	test('sync throws invalid content error - content is an object', async () => {
-		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).keybindingsResource, VSBuffer.fromString('{}'));
+		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IUserDataProfilesService).defaultProfile.keybindingsResource, VSBuffer.fromString('{}'));
 		try {
 			await testObject.sync(await client.manifest());
 			assert.fail('should fail with invalid content error');

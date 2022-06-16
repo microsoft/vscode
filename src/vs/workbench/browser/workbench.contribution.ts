@@ -538,10 +538,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
 			},
-			'window.experimental.commandCenter': {
+			'window.commandCenter': {
 				type: 'boolean',
 				default: false,
-				markdownDescription: localize('window.experimental.commandCenter', "Show command launcher together with the window title. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
+				markdownDescription: localize('window.commandCenter', "Show command launcher together with the window title. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',

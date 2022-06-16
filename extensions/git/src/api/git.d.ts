@@ -137,6 +137,8 @@ export interface CommitOptions {
 	empty?: boolean;
 	noVerify?: boolean;
 	requireUserConfig?: boolean;
+	useEditor?: boolean;
+	verbose?: boolean;
 }
 
 export interface FetchOptions {
@@ -336,4 +338,5 @@ export const enum GitErrorCodes {
 	PatchDoesNotApply = 'PatchDoesNotApply',
 	NoPathFound = 'NoPathFound',
 	UnknownPath = 'UnknownPath',
+	EmptyCommitMessage = 'EmptyCommitMessage'
 }

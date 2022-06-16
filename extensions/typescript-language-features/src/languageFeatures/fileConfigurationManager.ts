@@ -174,6 +174,7 @@ export default class FileConfigurationManager extends Disposable {
 			document);
 
 		const preferences: Proto.UserPreferences = {
+			...config.get('unstable'),
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),

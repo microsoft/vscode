@@ -9,20 +9,19 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IAction } from 'vs/base/common/actions';
-import { findLast } from 'vs/base/common/arrays';
+import { CompareResult } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/mergeEditor';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -30,29 +29,36 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { autorun, derivedObservable, IObservable, ITransaction, keepAlive, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
+import { autorun, autorunWithStore, derivedObservable, IObservable, ITransaction, keepAlive, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
-import { LineRange, ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
-import { applyObservableDecorations, n, ReentrancyBarrier, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { DocumentMapping, LineRange, SimpleLineRangeMapping, ToggleState } from 'vs/workbench/contrib/mergeEditor/browser/model';
+import { applyObservableDecorations, join, n, ReentrancyBarrier, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from './editorGutter';
 
 export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false);
 export const ctxUsesColumnLayout = new RawContextKey<boolean>('mergeEditorUsesColumnLayout', false);
+export const ctxBaseResourceScheme = new RawContextKey<string>('baseResourceScheme', '');
 
-export class MergeEditor extends EditorPane {
+export class MergeEditor extends AbstractTextEditor<any> {
 
 	static readonly ID = 'mergeEditor';
 
@@ -60,15 +66,20 @@ export class MergeEditor extends EditorPane {
 
 	private _grid!: Grid<IView>;
 
-	private readonly input1View = this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: true });
-	private readonly input2View = this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: true });
+	private readonly input1View = this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable });
+	private readonly input2View = this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable });
 	private readonly inputResultView = this.instantiation.createInstance(ResultCodeEditorView, { readonly: false });
 
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
 	private readonly _ctxUsesColumnLayout: IContextKey<boolean>;
+	private readonly _ctxBaseResourceScheme: IContextKey<string>;
 
 	private _model: MergeEditorModel | undefined;
 	public get model(): MergeEditorModel | undefined { return this._model; }
+
+	private get inputsWritable(): boolean {
+		return !!this._configurationService.getValue<boolean>('mergeEditor.writableInputs');
+	}
 
 	constructor(
 		@IInstantiationService private readonly instantiation: IInstantiationService,
@@ -78,12 +89,17 @@ export class MergeEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
-		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService fileService: IFileService
 	) {
-		super(MergeEditor.ID, telemetryService, themeService, storageService);
+		super(MergeEditor.ID, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
 		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(_contextKeyService);
 		this._ctxUsesColumnLayout = ctxUsesColumnLayout.bindTo(_contextKeyService);
+		this._ctxBaseResourceScheme = ctxBaseResourceScheme.bindTo(_contextKeyService);
 
 		const reentrancyBarrier = new ReentrancyBarrier();
 
@@ -93,8 +109,19 @@ export class MergeEditor extends EditorPane {
 				return undefined;
 			}
 			const resultDiffs = model.resultDiffs.read(reader);
-			const modifiedBaseRanges = ModifiedBaseRange.fromDiffs(model.base, model.input1, model.input1LinesDiffs, model.result, resultDiffs);
-			return modifiedBaseRanges;
+			const modifiedBaseRanges = DocumentMapping.fromDiffs(model.input1LinesDiffs.read(reader), resultDiffs, model.input1.getLineCount());
+
+			return new DocumentMapping(
+				modifiedBaseRanges.lineRangeMappings.map((m) =>
+					m.inputRange.isEmpty || m.outputRange.isEmpty
+						? new SimpleLineRangeMapping(
+							m.inputRange.deltaStart(-1),
+							m.outputRange.deltaStart(-1)
+						)
+						: m
+				),
+				modifiedBaseRanges.inputLineCount
+			);
 		});
 		const input2ResultMapping = derivedObservable('input2ResultMapping', reader => {
 			const model = this.input2View.model.read(reader);
@@ -102,8 +129,19 @@ export class MergeEditor extends EditorPane {
 				return undefined;
 			}
 			const resultDiffs = model.resultDiffs.read(reader);
-			const modifiedBaseRanges = ModifiedBaseRange.fromDiffs(model.base, model.input2, model.input2LinesDiffs, model.result, resultDiffs);
-			return modifiedBaseRanges;
+			const modifiedBaseRanges = DocumentMapping.fromDiffs(model.input2LinesDiffs.read(reader), resultDiffs, model.input2.getLineCount());
+
+			return new DocumentMapping(
+				modifiedBaseRanges.lineRangeMappings.map((m) =>
+					m.inputRange.isEmpty || m.outputRange.isEmpty
+						? new SimpleLineRangeMapping(
+							m.inputRange.deltaStart(-1),
+							m.outputRange.deltaStart(-1)
+						)
+						: m
+				),
+				modifiedBaseRanges.inputLineCount
+			);
 		});
 
 		this._register(keepAlive(input1ResultMapping));
@@ -173,12 +211,15 @@ export class MergeEditor extends EditorPane {
 		super.dispose();
 	}
 
-	// TODO use this method & make it private
-	getEditorOptions(resource: URI): IEditorConfiguration {
-		return deepClone(this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource));
+	override getTitle(): string {
+		if (this.input) {
+			return this.input.getName();
+		}
+
+		return localize('mergeEditor', "Text Merge Editor");
 	}
 
-	protected createEditor(parent: HTMLElement): void {
+	protected createEditorControl(parent: HTMLElement, initialOptions: ICodeEditorOptions): void {
 		parent.classList.add('merge-editor');
 
 		this._grid = SerializableGrid.from<any /*TODO@jrieken*/>({
@@ -205,6 +246,22 @@ export class MergeEditor extends EditorPane {
 
 		reset(parent, this._grid.element);
 		this._ctxUsesColumnLayout.set(false);
+
+		this.applyOptions(initialOptions);
+	}
+
+	protected updateEditorControlOptions(options: ICodeEditorOptions): void {
+		this.applyOptions(options);
+	}
+
+	private applyOptions(options: ICodeEditorOptions): void {
+		this.input1View.editor.updateOptions({ ...options, readOnly: !this.inputsWritable });
+		this.input2View.editor.updateOptions({ ...options, readOnly: !this.inputsWritable });
+		this.inputResultView.editor.updateOptions(options);
+	}
+
+	protected getMainControl(): ICodeEditor | undefined {
+		return this.inputResultView.editor;
 	}
 
 	layout(dimension: Dimension): void {
@@ -224,57 +281,99 @@ export class MergeEditor extends EditorPane {
 		this.input1View.setModel(model, model.input1, localize('yours', 'Yours'), model.input1Detail, model.input1Description);
 		this.input2View.setModel(model, model.input2, localize('theirs', 'Theirs',), model.input2Detail, model.input2Description);
 		this.inputResultView.setModel(model, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
+		this._ctxBaseResourceScheme.set(model.base.uri.scheme);
 
-		// TODO: Update editor options!
+		this._sessionDisposables.add(autorunWithStore((reader, store) => {
+			const input1ViewZoneIds: string[] = [];
+			const input2ViewZoneIds: string[] = [];
+			for (const m of model.modifiedBaseRanges.read(reader)) {
+				const max = Math.max(m.input1Range.lineCount, m.input2Range.lineCount, 1);
 
-		const input1ViewZoneIds: string[] = [];
-		const input2ViewZoneIds: string[] = [];
-		for (const m of model.modifiedBaseRanges) {
-			const max = Math.max(m.input1Range.lineCount, m.input2Range.lineCount, 1);
-
-			this.input1View.editor.changeViewZones(a => {
-				input1ViewZoneIds.push(a.addZone({
-					afterLineNumber: m.input1Range.endLineNumberExclusive - 1,
-					heightInLines: max - m.input1Range.lineCount,
-					domNode: $('div.diagonal-fill'),
-				}));
-			});
-
-			this.input2View.editor.changeViewZones(a => {
-				input2ViewZoneIds.push(a.addZone({
-					afterLineNumber: m.input2Range.endLineNumberExclusive - 1,
-					heightInLines: max - m.input2Range.lineCount,
-					domNode: $('div.diagonal-fill'),
-				}));
-			});
-		}
-
-		this._sessionDisposables.add({
-			dispose: () => {
 				this.input1View.editor.changeViewZones(a => {
-					for (const zone of input1ViewZoneIds) {
-						a.removeZone(zone);
-					}
+					input1ViewZoneIds.push(a.addZone({
+						afterLineNumber: m.input1Range.endLineNumberExclusive - 1,
+						heightInLines: max - m.input1Range.lineCount,
+						domNode: $('div.diagonal-fill'),
+					}));
 				});
+
 				this.input2View.editor.changeViewZones(a => {
-					for (const zone of input2ViewZoneIds) {
-						a.removeZone(zone);
-					}
+					input2ViewZoneIds.push(a.addZone({
+						afterLineNumber: m.input2Range.endLineNumberExclusive - 1,
+						heightInLines: max - m.input2Range.lineCount,
+						domNode: $('div.diagonal-fill'),
+					}));
 				});
 			}
-		});
+
+			store.add({
+				dispose: () => {
+					this.input1View.editor.changeViewZones(a => {
+						for (const zone of input1ViewZoneIds) {
+							a.removeZone(zone);
+						}
+					});
+					this.input2View.editor.changeViewZones(a => {
+						for (const zone of input2ViewZoneIds) {
+							a.removeZone(zone);
+						}
+					});
+				}
+			});
+		}, 'update alignment view zones'));
 	}
 
-	protected override setEditorVisible(visible: boolean): void {
+	override setOptions(options: ITextEditorOptions | undefined): void {
+		super.setOptions(options);
+
+		if (options) {
+			applyTextEditorOptions(options, this.inputResultView.editor, ScrollType.Smooth);
+		}
+	}
+
+	override clearInput(): void {
+		super.clearInput();
+
+		this._sessionDisposables.clear();
+
+		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
+			editor.setModel(null);
+		}
+	}
+
+	override focus(): void {
+		(this.getControl() ?? this.inputResultView.editor).focus();
+	}
+
+	override hasFocus(): boolean {
+		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
+			if (editor.hasTextFocus()) {
+				return true;
+			}
+		}
+		return super.hasFocus();
+	}
+
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		super.setEditorVisible(visible, group);
+
+		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
+			if (visible) {
+				editor.onVisible();
+			} else {
+				editor.onHide();
+			}
+		}
+
 		this._ctxIsMergeEditor.set(visible);
 	}
 
 	// ---- interact with "outside world" via `getControl`, `scopedContextKeyService`
 
-	override getControl(): IEditorControl | undefined {
-		for (const view of [this.input1View, this.input2View, this.inputResultView]) {
-			if (view.editor.hasWidgetFocus()) {
-				return view.editor;
+	override getControl(): ICodeEditor | undefined {
+		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
+			if (editor.hasWidgetFocus()) {
+				return editor;
 			}
 		}
 		return undefined;
@@ -301,9 +400,19 @@ export class MergeEditor extends EditorPane {
 		this._usesColumnLayout = !this._usesColumnLayout;
 		this._ctxUsesColumnLayout.set(this._usesColumnLayout);
 	}
+
+	// --- view state (TODO@bpasero revisit with https://github.com/microsoft/vscode/issues/150804)
+
+	protected computeEditorViewState(resource: URI): undefined {
+		return undefined;
+	}
+
+	protected tracksEditorViewState(input: EditorInput): boolean {
+		return false;
+	}
 }
 
-function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: CodeEditorWidget, mapping: ModifiedBaseRange[] | undefined, sourceNumber: 1 | 2) {
+function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: CodeEditorWidget, mapping: DocumentMapping | undefined, sourceNumber: 1 | 2) {
 	if (!mapping) {
 		return;
 	}
@@ -314,25 +423,27 @@ function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: C
 	}
 	const topLineNumber = visibleRanges[0].startLineNumber - 1;
 
-	const firstBefore = findLast(mapping, r => r.getInputRange(sourceNumber).startLineNumber <= topLineNumber);
 	let sourceRange: LineRange;
 	let targetRange: LineRange;
 
-	const targetNumber = sourceNumber === 1 ? 2 : 1;
-
-	const firstBeforeSourceRange = firstBefore?.getInputRange(sourceNumber);
-	const firstBeforeTargetRange = firstBefore?.getInputRange(targetNumber);
-
-	if (firstBeforeSourceRange && firstBeforeSourceRange.contains(topLineNumber)) {
-		sourceRange = firstBeforeSourceRange;
-		targetRange = firstBeforeTargetRange!;
-	} else if (firstBeforeSourceRange && firstBeforeSourceRange.isEmpty && firstBeforeSourceRange.startLineNumber === topLineNumber) {
-		sourceRange = firstBeforeSourceRange.deltaEnd(1);
-		targetRange = firstBeforeTargetRange!.deltaEnd(1);
+	if (sourceNumber === 1) {
+		const number = mapping.getOutputLine(topLineNumber);
+		if (typeof number === 'number') {
+			sourceRange = new LineRange(topLineNumber, 1);
+			targetRange = new LineRange(number, 1);
+		} else {
+			sourceRange = number.inputRange;
+			targetRange = number.outputRange;
+		}
 	} else {
-		const delta = firstBeforeSourceRange ? firstBeforeTargetRange!.endLineNumberExclusive - firstBeforeSourceRange.endLineNumberExclusive : 0;
-		sourceRange = new LineRange(topLineNumber, 1);
-		targetRange = new LineRange(topLineNumber + delta, 1);
+		const number = mapping.getInputLine(topLineNumber);
+		if (typeof number === 'number') {
+			sourceRange = new LineRange(topLineNumber, 1);
+			targetRange = new LineRange(number, 1);
+		} else {
+			sourceRange = number.outputRange;
+			targetRange = number.inputRange;
+		}
 	}
 
 	// sourceRange contains topLineNumber!
@@ -345,19 +456,6 @@ function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: C
 
 	const factor = Math.min((scrollingEditor.getScrollTop() - sourceStartTopPx) / (sourceEndPx - sourceStartTopPx), 1);
 	const resultScrollPosition = resultStartTopPx + (resultEndPx - resultStartTopPx) * factor;
-	/*
-		console.log({
-			topLineNumber,
-			sourceRange: sourceRange.toString(),
-			targetRange: targetRange.toString(),
-			// resultStartTopPx,
-			// resultEndPx,
-			// sourceStartTopPx,
-			// sourceEndPx,
-			factor,
-			resultScrollPosition,
-			top: scrollingEditor.getScrollTop(),
-		});*/
 
 	targetEditor.setScrollTop(resultScrollPosition, ScrollType.Immediate);
 }
@@ -383,12 +481,11 @@ abstract class CodeEditorView extends Disposable {
 
 	public readonly view: IView = {
 		element: this.htmlElements.root,
-		minimumWidth: 10,
-		maximumWidth: Number.MAX_SAFE_INTEGER,
-		minimumHeight: 10,
-		maximumHeight: Number.MAX_SAFE_INTEGER,
+		minimumWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
+		maximumWidth: DEFAULT_EDITOR_MAX_DIMENSIONS.width,
+		minimumHeight: DEFAULT_EDITOR_MIN_DIMENSIONS.height,
+		maximumHeight: DEFAULT_EDITOR_MAX_DIMENSIONS.height,
 		onDidChange: this._onDidViewChange.event,
-
 		layout: (width: number, height: number, top: number, left: number) => {
 			setStyle(this.htmlElements.root, { width, height, top, left });
 			this.editor.layout({
@@ -448,17 +545,32 @@ class InputCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const result = new Array<IModelDeltaDecoration>();
-		for (const m of model.modifiedBaseRanges) {
+		for (const m of model.modifiedBaseRanges.read(reader)) {
 			const range = m.getInputRange(this.inputNumber);
 			if (!range.isEmpty) {
 				result.push({
 					range: new Range(range.startLineNumber, 1, range.endLineNumberExclusive - 1, 1),
 					options: {
 						isWholeLine: true,
-						className: 'merge-base-range-projection',
+						className: `merge-editor-modified-base-range-input${this.inputNumber}`,
 						description: 'Base Range Projection'
 					}
 				});
+
+				const inputDiffs = m.getInputDiffs(this.inputNumber);
+				for (const diff of inputDiffs) {
+					if (diff.innerRangeMappings) {
+						for (const d of diff.innerRangeMappings) {
+							result.push({
+								range: d.outputRange,
+								options: {
+									className: `merge-editor-diff-input${this.inputNumber}`,
+									description: 'Base Range Projection'
+								}
+							});
+						}
+					}
+				}
 			}
 		}
 		return result;
@@ -478,13 +590,14 @@ class InputCodeEditorView extends CodeEditorView {
 				getIntersectingGutterItems: (range, reader) => {
 					const model = this.model.read(reader);
 					if (!model) { return []; }
-					return model.modifiedBaseRanges
+					return model.modifiedBaseRanges.read(reader)
 						.filter((r) => r.getInputDiffs(this.inputNumber).length > 0)
 						.map<ModifiedBaseRangeGutterItemInfo>((baseRange, idx) => ({
 							id: idx.toString(),
 							additionalHeightInPx: 0,
 							offsetInPx: 0,
 							range: baseRange.getInputRange(this.inputNumber),
+							enabled: model.isUpToDate,
 							toggleState: derivedObservable('toggle', (reader) =>
 								model
 									.getState(baseRange)
@@ -510,36 +623,49 @@ class InputCodeEditorView extends CodeEditorView {
 }
 
 interface ModifiedBaseRangeGutterItemInfo extends IGutterItemInfo {
-	toggleState: IObservable<boolean | undefined>;
-	setState(value: boolean, tx: ITransaction | undefined): void;
+	enabled: IObservable<boolean>;
+	toggleState: IObservable<ToggleState>;
+	setState(value: boolean, tx: ITransaction): void;
 }
 
 class MergeConflictGutterItemView extends Disposable implements IGutterItemView<ModifiedBaseRangeGutterItemInfo> {
-	constructor(private item: ModifiedBaseRangeGutterItemInfo, private readonly target: HTMLElement) {
+	private readonly item = new ObservableValue<ModifiedBaseRangeGutterItemInfo | undefined>(undefined, 'item');
+
+	constructor(item: ModifiedBaseRangeGutterItemInfo, private readonly target: HTMLElement) {
 		super();
+
+		this.item.set(item, undefined);
 
 		target.classList.add('merge-accept-gutter-marker');
 
-		// TODO: localized title
-		const checkBox = new Toggle({ isChecked: false, title: 'Accept Merge', icon: Codicon.check });
+		const checkBox = new Toggle({ isChecked: false, title: localize('acceptMerge', "Accept Merge"), icon: Codicon.check });
 		checkBox.domNode.classList.add('accept-conflict-group');
 
 		this._register(
 			autorun((reader) => {
-				const value = this.item.toggleState.read(reader);
-				checkBox.setIcon(
-					value === true
-						? Codicon.check
-						: value === false
-							? undefined
-							: Codicon.circleFilled
-				);
-				checkBox.checked = value === true;
+				const item = this.item.read(reader)!;
+				const value = item.toggleState.read(reader);
+				const iconMap: Record<ToggleState, { icon: Codicon | undefined; checked: boolean }> = {
+					[ToggleState.unset]: { icon: undefined, checked: false },
+					[ToggleState.conflicting]: { icon: Codicon.circleFilled, checked: false },
+					[ToggleState.first]: { icon: Codicon.check, checked: true },
+					[ToggleState.second]: { icon: Codicon.checkAll, checked: true },
+				};
+				checkBox.setIcon(iconMap[value].icon);
+				checkBox.checked = iconMap[value].checked;
+
+				if (!item.enabled.read(reader)) {
+					checkBox.disable();
+				} else {
+					checkBox.enable();
+				}
 			}, 'Update Toggle State')
 		);
 
 		this._register(checkBox.onChange(() => {
-			this.item.setState(checkBox.checked, undefined);
+			transaction(tx => {
+				this.item.get()!.setState(checkBox.checked, tx);
+			});
 		}));
 
 		target.appendChild(n('div.background', [noBreakWhitespace]).root);
@@ -555,7 +681,7 @@ class MergeConflictGutterItemView extends Disposable implements IGutterItemView<
 	}
 
 	update(baseRange: ModifiedBaseRangeGutterItemInfo): void {
-		this.item = baseRange;
+		this.item.set(baseRange, undefined);
 	}
 }
 
@@ -566,18 +692,50 @@ class ResultCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const result = new Array<IModelDeltaDecoration>();
-		for (const m of model.resultDiffs.read(reader)) {
-			const range = m.modifiedRange;
-			if (!range.isEmpty) {
-				result.push({
-					range: new Range(range.startLineNumber, 1, range.endLineNumberExclusive - 1, 1),
-					options: {
-						isWholeLine: true,
-						// TODO
-						className: 'merge-base-range-projection',
-						description: 'Result Diff'
-					}
-				});
+
+		const baseRangeWithStoreAndTouchingDiffs = join(
+			model.modifiedBaseRanges.read(reader),
+			model.resultDiffs.read(reader),
+			(baseRange, diff) =>
+				baseRange.baseRange.touches(diff.inputRange)
+					? CompareResult.neitherLessOrGreaterThan
+					: LineRange.compareByStart(
+						baseRange.baseRange,
+						diff.inputRange
+					)
+		);
+
+		for (const m of baseRangeWithStoreAndTouchingDiffs) {
+			for (const r of m.rights) {
+				const range = r.outputRange;
+
+				const state = m.left ? model.getState(m.left).read(reader) : undefined;
+
+				if (!range.isEmpty) {
+					result.push({
+						range: new Range(range.startLineNumber, 1, range.endLineNumberExclusive - 1, 1),
+						options: {
+							isWholeLine: true,
+							// TODO
+
+							className: (() => {
+								if (state) {
+									if (state.input1 && !state.input2) {
+										return 'merge-editor-modified-base-range-input1';
+									}
+									if (state.input2 && !state.input1) {
+										return 'merge-editor-modified-base-range-input2';
+									}
+									if (state.input1 && state.input2) {
+										return 'merge-editor-modified-base-range-combination';
+									}
+								}
+								return 'merge-editor-modified-base-range';
+							})(),
+							description: 'Result Diff'
+						}
+					});
+				}
 			}
 		}
 		return result;

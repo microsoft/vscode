@@ -36,7 +36,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			// If it's an untitled file we must populate the untitledDocumentData
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
-			let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
+			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
 			const id = generateUuid();
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				id,

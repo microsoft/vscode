@@ -124,7 +124,7 @@ suite.skip('Notebook Document', function () {
 
 		const p = utils.asPromise(vscode.workspace.onDidOpenNotebookDocument).then(notebook => {
 			for (let i = 0; i < notebook.cellCount; i++) {
-				let cell = notebook.cellAt(i);
+				const cell = notebook.cellAt(i);
 
 				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.document.uri.toString());
 				assert.ok(doc);

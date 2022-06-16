@@ -239,8 +239,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	private async _measureUp(proxy: IExtensionHostProxy): Promise<number> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		let buff = VSBuffer.alloc(SIZE);
-		let value = Math.ceil(Math.random() * 256);
+		const buff = VSBuffer.alloc(SIZE);
+		const value = Math.ceil(Math.random() * 256);
 		for (let i = 0; i < buff.byteLength; i++) {
 			buff.writeUInt8(i, value);
 		}
@@ -294,16 +294,27 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
 		for (let i = 0, len = namedCustomers.length; i < len; i++) {
 			const [id, ctor] = namedCustomers[i];
-			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._customers.push(instance);
-			this._rpcProtocol.set(id, instance);
+			try {
+				const instance = this._instantiationService.createInstance(ctor, extHostContext);
+				this._customers.push(instance);
+				this._rpcProtocol.set(id, instance);
+			} catch (err) {
+				this._logService.critical(`Cannot instantiate named customer: '${id.sid}'`);
+				this._logService.critical(err);
+				errors.onUnexpectedError(err);
+			}
 		}
 
 		// Customers
 		const customers = ExtHostCustomersRegistry.getCustomers();
 		for (const ctor of customers) {
-			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._customers.push(instance);
+			try {
+				const instance = this._instantiationService.createInstance(ctor, extHostContext);
+				this._customers.push(instance);
+			} catch (err) {
+				this._logService.critical(err);
+				errors.onUnexpectedError(err);
+			}
 		}
 
 		if (!extensionHostProxy) {
@@ -358,7 +369,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 			if (tryEnableInspector) {
 				await this._extensionHost.enableInspectPort();
 			}
-			let port = this._extensionHost.getInspectPort();
+			const port = this._extensionHost.getInspectPort();
 			if (port) {
 				return port;
 			}
@@ -632,7 +643,7 @@ function prettyWithoutArrays(data: any): any {
 		return data;
 	}
 	if (data && typeof data === 'object' && typeof data.toString === 'function') {
-		let result = data.toString();
+		const result = data.toString();
 		if (result !== '[object Object]') {
 			return result;
 		}
@@ -689,7 +700,7 @@ interface ExtHostLatencyProvider {
 	measure(): Promise<ExtHostLatencyResult | null>;
 }
 
-let providers: ExtHostLatencyProvider[] = [];
+const providers: ExtHostLatencyProvider[] = [];
 function registerLatencyTestProvider(provider: ExtHostLatencyProvider): IDisposable {
 	providers.push(provider);
 	return {

@@ -92,8 +92,8 @@ export default abstract class BaseErrorTelemetry {
 		}
 
 		// work around behavior in workerServer.ts that breaks up Error.stack
-		let callstack = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
-		let msg = err.message ? err.message : safeStringify(err);
+		const callstack = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
+		const msg = err.message ? err.message : safeStringify(err);
 
 		// errors without a stack are not useful telemetry
 		if (!callstack) {
@@ -125,7 +125,7 @@ export default abstract class BaseErrorTelemetry {
 	}
 
 	private _flushBuffer(): void {
-		for (let error of this._buffer) {
+		for (const error of this._buffer) {
 			type UnhandledErrorClassification = {} & ErrorEventFragment;
 			this._telemetryService.publicLogError2<ErrorEvent, UnhandledErrorClassification>('UnhandledError', error);
 		}

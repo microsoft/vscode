@@ -228,7 +228,7 @@ export async function provideSuggestionItems(
 		if (!container) {
 			return didAddResult;
 		}
-		for (let suggestion of container.suggestions) {
+		for (const suggestion of container.suggestions) {
 			if (!options.kindFilter.has(suggestion.kind)) {
 				// skip if not showing deprecated suggestions
 				if (!options.showDeprecated && suggestion?.tags?.includes(languages.CompletionItemTag.Deprecated)) {
@@ -275,7 +275,7 @@ export async function provideSuggestionItems(
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
 	// get provider groups, always add snippet suggestion provider
-	for (let providerGroup of registry.orderedGroups(model)) {
+	for (const providerGroup of registry.orderedGroups(model)) {
 
 		// for each support in the group ask for suggestions
 		let didAddResult = false;

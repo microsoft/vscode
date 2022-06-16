@@ -162,7 +162,7 @@ export class ContextMenuController implements IEditorContribution {
 		menu.dispose();
 
 		// translate them into other actions
-		for (let group of groups) {
+		for (const group of groups) {
 			const [, actions] = group;
 			let addedItems = 0;
 			for (const action of actions) {

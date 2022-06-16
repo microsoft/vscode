@@ -221,7 +221,7 @@ export const setTimeout0 = (() => {
 			id: number;
 			callback: () => void;
 		}
-		let pending: IQueueElement[] = [];
+		const pending: IQueueElement[] = [];
 		globals.addEventListener('message', (e: MessageEvent) => {
 			if (e.data && e.data.vscodeScheduleAsyncWork) {
 				for (let i = 0, len = pending.length; i < len; i++) {

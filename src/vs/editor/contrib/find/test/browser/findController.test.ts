@@ -48,7 +48,7 @@ export class TestFindController extends CommonFindController {
 			this.hasFocus = true;
 		}
 
-		let inputFocused = opts.shouldFocus === FindStartFocusAction.FocusFindInput;
+		const inputFocused = opts.shouldFocus === FindStartFocusAction.FocusFindInput;
 		this._findInputFocused.set(inputFocused);
 	}
 }

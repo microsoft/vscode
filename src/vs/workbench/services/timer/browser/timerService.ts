@@ -439,7 +439,7 @@ class PerfMarks {
 	}
 
 	private _findEntry(name: string): perf.PerformanceMark | void {
-		for (let [, marks] of this._entries) {
+		for (const [, marks] of this._entries) {
 			for (let i = marks.length - 1; i >= 0; i--) {
 				if (marks[i].name === name) {
 					return marks[i];
@@ -539,7 +539,7 @@ export abstract class AbstractTimerService implements ITimerService {
 
 			let lastMark: perf.PerformanceMark = marks[0];
 			for (const mark of marks) {
-				let delta = mark.startTime - lastMark.startTime;
+				const delta = mark.startTime - lastMark.startTime;
 				this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
 					source,
 					name: mark.name,

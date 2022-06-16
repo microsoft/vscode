@@ -6,7 +6,7 @@
 import 'vs/css!./media/review';
 import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as languages from 'vs/editor/common/languages';
 import { IMarkdownRendererOptions } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
@@ -148,7 +148,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
 		if (this._commentThread !== commentThread) {
-			this._commentThreadDisposables.forEach(disposable => disposable.dispose());
+			dispose(this._commentThreadDisposables);
 		}
 
 		this._commentThread = commentThread;
@@ -168,7 +168,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	display(lineHeight: number) {
-		let headHeight = Math.ceil(lineHeight * 1.2);
+		const headHeight = Math.ceil(lineHeight * 1.2);
 		this._header.updateHeight(headHeight);
 
 		this._body.display();

@@ -19,16 +19,6 @@ export interface IUserFriendlyKeybinding {
 	when?: string;
 }
 
-export const enum KeybindingSource {
-	Default = 1,
-	User
-}
-
-export interface IKeybindingEvent {
-	source: KeybindingSource;
-	keybindings?: IUserFriendlyKeybinding[];
-}
-
 export interface IKeyboardEvent {
 	readonly _standardKeyboardEventBrand: true;
 
@@ -53,7 +43,7 @@ export interface IKeybindingService {
 
 	readonly inChordMode: boolean;
 
-	onDidUpdateKeybindings: Event<IKeybindingEvent>;
+	onDidUpdateKeybindings: Event<void>;
 
 	/**
 	 * Returns none, one or many (depending on keyboard layout)!

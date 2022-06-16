@@ -15,7 +15,7 @@ import { getNodeFileFS } from '../node/nodeFs';
 suite('HTML Embedded Formatting', () => {
 
 	async function assertFormat(value: string, expected: string, options?: any, formatOptions?: FormattingOptions, message?: string): Promise<void> {
-		let workspace = {
+		const workspace = {
 			settings: options,
 			folders: [{ name: 'foo', uri: 'test://foo' }]
 		};
@@ -32,21 +32,21 @@ suite('HTML Embedded Formatting', () => {
 			rangeStartOffset = 0;
 			rangeEndOffset = value.length;
 		}
-		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
-		let range = Range.create(document.positionAt(rangeStartOffset), document.positionAt(rangeEndOffset));
+		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
+		const range = Range.create(document.positionAt(rangeStartOffset), document.positionAt(rangeEndOffset));
 		if (!formatOptions) {
 			formatOptions = FormattingOptions.create(2, true);
 		}
 
-		let result = await format(languageModes, document, range, formatOptions, undefined, { css: true, javascript: true });
+		const result = await format(languageModes, document, range, formatOptions, undefined, { css: true, javascript: true });
 
-		let actual = TextDocument.applyEdits(document, result);
+		const actual = TextDocument.applyEdits(document, result);
 		assert.strictEqual(actual, expected, message);
 	}
 
 	async function assertFormatWithFixture(fixtureName: string, expectedPath: string, options?: any, formatOptions?: FormattingOptions): Promise<void> {
-		let input = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
-		let expected = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
+		const input = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
+		const expected = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
 		await assertFormat(input, expected, options, formatOptions, expectedPath);
 	}
 
@@ -85,7 +85,7 @@ suite('HTML Embedded Formatting', () => {
 	});
 
 	test('EndWithNewline', async () => {
-		let options = {
+		const options = {
 			html: {
 				format: {
 					endWithNewline: true
@@ -160,7 +160,7 @@ suite('HTML Embedded Formatting', () => {
 		);
 	});
 	test('#58435', async () => {
-		let options = {
+		const options = {
 			html: {
 				format: {
 					contentUnformatted: 'textarea'

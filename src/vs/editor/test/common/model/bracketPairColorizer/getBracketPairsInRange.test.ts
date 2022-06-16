@@ -197,7 +197,7 @@ class AnnotatedDocument {
 		const numbers = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
 
 		let text = '';
-		let offsetPositions = new Map<number, number>();
+		const offsetPositions = new Map<number, number>();
 
 		let offset = 0;
 		for (let i = 0; i < src.length; i++) {
@@ -213,7 +213,7 @@ class AnnotatedDocument {
 		this.text = text;
 
 		const mapper = new PositionOffsetTransformer(this.text);
-		let positions = new Map<number, Position>();
+		const positions = new Map<number, Position>();
 		for (const [idx, offset] of offsetPositions.entries()) {
 			positions.set(idx, mapper.getPosition(offset));
 		}

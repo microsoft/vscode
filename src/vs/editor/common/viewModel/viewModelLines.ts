@@ -943,7 +943,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		});
 
 		// Eliminate duplicate decorations that might have intersected our visible ranges multiple times
-		let finalResult: IModelDecoration[] = [], finalResultLen = 0;
+		const finalResult: IModelDecoration[] = [];
+		let finalResultLen = 0;
 		let prevDecId: string | null = null;
 		for (const dec of result) {
 			const decId = dec.id;

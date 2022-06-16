@@ -5,8 +5,8 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isCancellationError } from 'vs/base/common/errors';
-import { getBaseLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
+import { basename } from 'vs/base/common/resources';
 import { gt } from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -71,7 +71,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 
 		extensions = extensions.sort((e1, e2) => e1.identifier.id.localeCompare(e2.identifier.id));
 		let lastId: string | undefined = undefined;
-		for (let extension of extensions) {
+		for (const extension of extensions) {
 			if (lastId !== extension.identifier.id) {
 				lastId = extension.identifier.id;
 				output.log(getId(extension.manifest, showVersions));
@@ -177,11 +177,11 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		if (valid) {
 			try {
 				await this.extensionManagementService.install(vsix, installOptions);
-				output.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(vsix)));
+				output.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", basename(vsix)));
 				return manifest;
 			} catch (error) {
 				if (isCancellationError(error)) {
-					output.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", getBaseLabel(vsix)));
+					output.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", basename(vsix)));
 					return null;
 				} else {
 					throw error;

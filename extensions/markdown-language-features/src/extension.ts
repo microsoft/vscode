@@ -9,7 +9,7 @@ import * as commands from './commands/index';
 import { registerPasteProvider } from './languageFeatures/copyPaste';
 import { MdDefinitionProvider } from './languageFeatures/definitionProvider';
 import { register as registerDiagnostics } from './languageFeatures/diagnostics';
-import { MdLinkProvider } from './languageFeatures/documentLinkProvider';
+import { MdLinkComputer, registerDocumentLinkProvider } from './languageFeatures/documentLinkProvider';
 import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbolProvider';
 import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferences } from './languageFeatures/fileReferences';
@@ -63,21 +63,22 @@ function registerMarkdownLanguageFeatures(
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
-	const linkProvider = new MdLinkProvider(engine);
+	const linkComputer = new MdLinkComputer(engine);
 	const workspaceContents = new VsCodeMdWorkspaceContents();
 
-	const referencesProvider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
+	const referencesProvider = new MdReferencesProvider(linkComputer, workspaceContents, engine, githubSlugifier);
 	return vscode.Disposable.from(
+		workspaceContents,
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
-		vscode.languages.registerDocumentLinkProvider(selector, linkProvider),
 		vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine)),
 		vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine)),
 		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, workspaceContents)),
 		vscode.languages.registerReferenceProvider(selector, referencesProvider),
 		vscode.languages.registerRenameProvider(selector, new MdRenameProvider(referencesProvider, workspaceContents, githubSlugifier)),
 		vscode.languages.registerDefinitionProvider(selector, new MdDefinitionProvider(referencesProvider)),
-		MdPathCompletionProvider.register(selector, engine, linkProvider),
-		registerDiagnostics(selector, engine, workspaceContents, linkProvider, commandManager),
+		MdPathCompletionProvider.register(selector, engine, linkComputer),
+		registerDocumentLinkProvider(selector, linkComputer),
+		registerDiagnostics(selector, engine, workspaceContents, linkComputer, commandManager),
 		registerDropIntoEditor(selector),
 		registerPasteProvider(selector),
 		registerFindFileReferences(commandManager, referencesProvider),

@@ -86,7 +86,7 @@
 			});
 			require([moduleId], function (ws) {
 				setTimeout(function () {
-					let messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
+					const messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
 						(<any>self).postMessage(msg, transfer);
 					}, null);
 
@@ -100,7 +100,7 @@
 	};
 
 	let isFirstMessage = true;
-	let beforeReadyMessages: MessageEvent[] = [];
+	const beforeReadyMessages: MessageEvent[] = [];
 	self.onmessage = (message: MessageEvent) => {
 		if (!isFirstMessage) {
 			beforeReadyMessages.push(message);

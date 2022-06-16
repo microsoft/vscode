@@ -41,7 +41,7 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	invokeFunction<R, TS extends any[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R {
-		let _trace = Trace.traceInvocation(fn);
+		const _trace = Trace.traceInvocation(fn);
 		let _done = false;
 		try {
 			const accessor: ServicesAccessor = {
@@ -82,23 +82,23 @@ export class InstantiationService implements IInstantiationService {
 	private _createInstance<T>(ctor: any, args: any[] = [], _trace: Trace): T {
 
 		// arguments defined by service decorators
-		let serviceDependencies = _util.getServiceDependencies(ctor).sort((a, b) => a.index - b.index);
-		let serviceArgs: any[] = [];
+		const serviceDependencies = _util.getServiceDependencies(ctor).sort((a, b) => a.index - b.index);
+		const serviceArgs: any[] = [];
 		for (const dependency of serviceDependencies) {
-			let service = this._getOrCreateServiceInstance(dependency.id, _trace);
+			const service = this._getOrCreateServiceInstance(dependency.id, _trace);
 			if (!service) {
 				this._throwIfStrict(`[createInstance] ${ctor.name} depends on UNKNOWN service ${dependency.id}.`, false);
 			}
 			serviceArgs.push(service);
 		}
 
-		let firstServiceArgPos = serviceDependencies.length > 0 ? serviceDependencies[0].index : args.length;
+		const firstServiceArgPos = serviceDependencies.length > 0 ? serviceDependencies[0].index : args.length;
 
 		// check for argument mismatches, adjust static args if needed
 		if (args.length !== firstServiceArgPos) {
 			console.trace(`[createInstance] First service dependency of ${ctor.name} at position ${firstServiceArgPos + 1} conflicts with ${args.length} static arguments`);
 
-			let delta = firstServiceArgPos - args.length;
+			const delta = firstServiceArgPos - args.length;
 			if (delta > 0) {
 				args = args.concat(new Array(delta));
 			} else {
@@ -121,7 +121,7 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	private _getServiceInstanceOrDescriptor<T>(id: ServiceIdentifier<T>): T | SyncDescriptor<T> {
-		let instanceOrDesc = this._services.get(id);
+		const instanceOrDesc = this._services.get(id);
 		if (!instanceOrDesc && this._parent) {
 			return this._parent._getServiceInstanceOrDescriptor(id);
 		} else {
@@ -130,7 +130,7 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	protected _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
-		let thing = this._getServiceInstanceOrDescriptor(id);
+		const thing = this._getServiceInstanceOrDescriptor(id);
 		if (thing instanceof SyncDescriptor) {
 			return this._safeCreateAndCacheServiceInstance(id, thing, _trace.branch(id, true));
 		} else {
@@ -171,9 +171,9 @@ export class InstantiationService implements IInstantiationService {
 			}
 
 			// check all dependencies for existence and if they need to be created first
-			for (let dependency of _util.getServiceDependencies(item.desc.ctor)) {
+			for (const dependency of _util.getServiceDependencies(item.desc.ctor)) {
 
-				let instanceOrDesc = this._getServiceInstanceOrDescriptor(dependency.id);
+				const instanceOrDesc = this._getServiceInstanceOrDescriptor(dependency.id);
 				if (!instanceOrDesc) {
 					this._throwIfStrict(`[createInstance] ${id} depends on ${dependency.id} which is NOT registered.`, true);
 				}
@@ -239,7 +239,7 @@ export class InstantiationService implements IInstantiationService {
 					if (key in target) {
 						return target[key];
 					}
-					let obj = idle.value;
+					const obj = idle.value;
 					let prop = obj[key];
 					if (typeof prop !== 'function') {
 						return prop;
@@ -298,25 +298,25 @@ export class Trace {
 	) { }
 
 	branch(id: ServiceIdentifier<any>, first: boolean): Trace {
-		let child = new Trace(TraceType.Branch, id.toString());
+		const child = new Trace(TraceType.Branch, id.toString());
 		this._dep.push([id, first, child]);
 		return child;
 	}
 
 	stop() {
-		let dur = Date.now() - this._start;
+		const dur = Date.now() - this._start;
 		Trace._totals += dur;
 
 		let causedCreation = false;
 
 		function printChild(n: number, trace: Trace) {
-			let res: string[] = [];
-			let prefix = new Array(n + 1).join('\t');
+			const res: string[] = [];
+			const prefix = new Array(n + 1).join('\t');
 			for (const [id, first, child] of trace._dep) {
 				if (first && child) {
 					causedCreation = true;
 					res.push(`${prefix}CREATES -> ${id}`);
-					let nested = printChild(n + 1, child);
+					const nested = printChild(n + 1, child);
 					if (nested) {
 						res.push(nested);
 					}
@@ -327,7 +327,7 @@ export class Trace {
 			return res.join('\n');
 		}
 
-		let lines = [
+		const lines = [
 			`${this.type === TraceType.Creation ? 'CREATE' : 'CALL'} ${this.name}`,
 			`${printChild(1, this)}`,
 			`DONE, took ${dur.toFixed(2)}ms (grand total ${Trace._totals.toFixed(2)}ms)`

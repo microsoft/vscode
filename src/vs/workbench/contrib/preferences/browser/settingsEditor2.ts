@@ -254,9 +254,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(workspaceTrustManagementService.onDidChangeTrust(() => {
-			if (this.searchResultModel) {
-				this.searchResultModel.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
-			}
+			this.searchResultModel?.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
 
 			if (this.settingsTreeModel) {
 				this.settingsTreeModel.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
@@ -510,7 +508,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	clearSearchFilters(): void {
-		let query = this.searchWidget.getValue();
+		const query = this.searchWidget.getValue();
 
 		const splitQuery = query.split(' ').filter(word => {
 			return word.length && !SettingsEditor2.SUGGESTIONS.some(suggestion => word.startsWith(suggestion));

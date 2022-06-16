@@ -249,7 +249,7 @@ suite('ExtHostConfiguration', function () {
 			}
 		});
 
-		let testObject: any = all.getConfiguration();
+		const testObject: any = all.getConfiguration();
 
 		try {
 			testObject['get'] = null;
@@ -614,7 +614,7 @@ suite('ExtHostConfiguration', function () {
 			}
 		}, shape);
 
-		let config = allConfig.getConfiguration('foo');
+		const config = allConfig.getConfiguration('foo');
 		config.update('bar', 42);
 
 		assert.strictEqual(shape.lastArgs[0], null);

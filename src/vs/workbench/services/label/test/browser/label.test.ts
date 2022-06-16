@@ -190,7 +190,7 @@ suite('URI Label', () => {
 		for (let i = 0; i < 100; i++) {
 			labelService.registerCachedFormatter(makeFormatter(`i${i}`));
 		}
-		let expected: ResourceLabelFormatter[] = [];
+		const expected: ResourceLabelFormatter[] = [];
 		for (let i = 50; i < 100; i++) {
 			expected.unshift(makeFormatter(`i${i}`));
 		}

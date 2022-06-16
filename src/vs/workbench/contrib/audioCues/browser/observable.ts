@@ -6,7 +6,9 @@
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
-export interface IObservable<T> {
+export interface IObservable<T, TChange = void> {
+	_change: TChange;
+
 	/**
 	 * Reads the current value.
 	 *
@@ -39,7 +41,7 @@ export interface IReader {
 	 *
 	 * Is called by `Observable.read`.
 	 */
-	handleBeforeReadObservable<T>(observable: IObservable<T>): void;
+	handleBeforeReadObservable<T>(observable: IObservable<T, any>): void;
 }
 
 export interface IObserver {
@@ -61,7 +63,7 @@ export interface IObserver {
 	 * Implementations must not call into other observables!
 	 * The change should be processed when {@link IObserver.endUpdate} is called.
 	 */
-	handleChange<T>(observable: IObservable<T>): void;
+	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void;
 
 	/**
 	 * Indicates that an update operation has completed.
@@ -69,8 +71,8 @@ export interface IObserver {
 	endUpdate<T>(observable: IObservable<T>): void;
 }
 
-export interface ISettable<T> {
-	set(value: T, transaction: ITransaction | undefined): void;
+export interface ISettable<T, TChange = void> {
+	set(value: T, transaction: ITransaction | undefined, change: TChange): void;
 }
 
 export interface ITransaction {
@@ -80,12 +82,14 @@ export interface ITransaction {
 	 */
 	updateObserver(
 		observer: IObserver,
-		observable: IObservable<any>
+		observable: IObservable<any, any>
 	): void;
 }
 
 // === Base ===
-export abstract class ConvenientObservable<T> implements IObservable<T> {
+export abstract class ConvenientObservable<T, TChange> implements IObservable<T, TChange> {
+	get _change(): TChange { return null!; }
+
 	public abstract get(): T;
 	public abstract subscribe(observer: IObserver): void;
 	public abstract unsubscribe(observer: IObserver): void;
@@ -100,7 +104,7 @@ export abstract class ConvenientObservable<T> implements IObservable<T> {
 	}
 }
 
-export abstract class BaseObservable<T> extends ConvenientObservable<T> {
+export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {
 	protected readonly observers = new Set<IObserver>();
 
 	public subscribe(observer: IObserver): void {
@@ -151,9 +155,9 @@ class TransactionImpl implements ITransaction {
 	}
 }
 
-export class ObservableValue<T>
-	extends BaseObservable<T>
-	implements ISettable<T>
+export class ObservableValue<T, TChange = void>
+	extends BaseObservable<T, TChange>
+	implements ISettable<T, TChange>
 {
 	private value: T;
 
@@ -166,14 +170,14 @@ export class ObservableValue<T>
 		return this.value;
 	}
 
-	public set(value: T, tx: ITransaction | undefined): void {
+	public set(value: T, tx: ITransaction | undefined, change: TChange): void {
 		if (this.value === value) {
 			return;
 		}
 
 		if (!tx) {
 			transaction((tx) => {
-				this.set(value, tx);
+				this.set(value, tx, change);
 			});
 			return;
 		}
@@ -182,7 +186,7 @@ export class ObservableValue<T>
 
 		for (const observer of this.observers) {
 			tx.updateObserver(observer, this);
-			observer.handleChange(this);
+			observer.handleChange(this, change);
 		}
 	}
 }
@@ -191,7 +195,7 @@ export function constObservable<T>(value: T): IObservable<T> {
 	return new ConstObservable(value);
 }
 
-class ConstObservable<T> extends ConvenientObservable<T> {
+class ConstObservable<T> extends ConvenientObservable<T, void> {
 	constructor(private readonly value: T) {
 		super();
 	}
@@ -208,18 +212,35 @@ class ConstObservable<T> extends ConvenientObservable<T> {
 }
 
 // == autorun ==
-export function autorun(
-	fn: (reader: IReader) => void,
-	name: string
+export function autorun(fn: (reader: IReader) => void, name: string): IDisposable {
+	return new AutorunObserver(fn, name, undefined);
+}
+
+interface IChangeContext {
+	readonly changedObservable: IObservable<any, any>;
+	readonly change: unknown;
+
+	didChange<T, TChange>(observable: IObservable<T, TChange>): this is { change: TChange };
+}
+
+export function autorunHandleChanges(
+	name: string,
+	options: {
+		/**
+		 * Returns if this change should cause a re-run of the autorun.
+		*/
+		handleChange: (context: IChangeContext) => boolean;
+	},
+	fn: (reader: IReader) => void
 ): IDisposable {
-	return new AutorunObserver(fn, name);
+	return new AutorunObserver(fn, name, options.handleChange);
 }
 
 export function autorunWithStore(
 	fn: (reader: IReader, store: DisposableStore) => void,
 	name: string
 ): IDisposable {
-	let store = new DisposableStore();
+	const store = new DisposableStore();
 	const disposable = autorun(
 		reader => {
 			store.clear();
@@ -252,7 +273,8 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 
 	constructor(
 		private readonly runFn: (reader: IReader) => void,
-		public readonly name: string
+		public readonly name: string,
+		private readonly _handleChange: ((context: IChangeContext) => boolean) | undefined
 	) {
 		this.runIfNeeded();
 	}
@@ -264,8 +286,13 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 		}
 	}
 
-	public handleChange() {
-		this.needsToRun = true;
+	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+		const shouldReact = this._handleChange ? this._handleChange({
+			changedObservable: observable,
+			change,
+			didChange: o => o === observable as any,
+		}) : true;
+		this.needsToRun = this.needsToRun || shouldReact;
 
 		if (this.updateCount === 0) {
 			this.runIfNeeded();
@@ -337,7 +364,7 @@ export function autorunDelta<T>(
 export function derivedObservable<T>(name: string, computeFn: (reader: IReader) => T): IObservable<T> {
 	return new LazyDerived(computeFn, name);
 }
-export class LazyDerived<T> extends ConvenientObservable<T> {
+export class LazyDerived<T> extends ConvenientObservable<T, void> {
 	private readonly observer: LazyDerivedObserver<T>;
 
 	constructor(computeFn: (reader: IReader) => T, name: string) {
@@ -366,7 +393,7 @@ export class LazyDerived<T> extends ConvenientObservable<T> {
  * @internal
  */
 class LazyDerivedObserver<T>
-	extends BaseObservable<T>
+	extends BaseObservable<T, void>
 	implements IReader, IObserver {
 	private hadValue = false;
 	private hasValue = false;
@@ -486,9 +513,8 @@ class LazyDerivedObserver<T>
 
 			this.hasValue = true;
 			if (this.hadValue && oldValue !== this.value) {
-				//
 				for (const r of this.observers) {
-					r.handleChange(this);
+					r.handleChange(this, undefined);
 				}
 			}
 		}
@@ -506,6 +532,20 @@ export function observableFromPromise<T>(promise: Promise<T>): IObservable<{ val
 		observable.set({ value }, undefined);
 	});
 	return observable;
+}
+
+export function waitForState<T, TState extends T>(observable: IObservable<T>, predicate: (state: T) => state is TState): Promise<TState>;
+export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean): Promise<T>;
+export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean): Promise<T> {
+	return new Promise(resolve => {
+		const d = autorun(reader => {
+			const currentState = observable.read(reader);
+			if (predicate(currentState)) {
+				d.dispose();
+				resolve(currentState);
+			}
+		}, 'waitForState');
+	});
 }
 
 export function observableFromEvent<T, TArgs = unknown>(
@@ -540,7 +580,7 @@ class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 				transaction(tx => {
 					for (const o of this.observers) {
 						tx.updateObserver(o, this);
-						o.handleChange(this);
+						o.handleChange(this, undefined);
 					}
 				});
 			}
@@ -621,4 +661,13 @@ export function keepAlive(observable: IObservable<any>): IDisposable {
 	return autorun(reader => {
 		observable.read(reader);
 	}, 'keep-alive');
+}
+
+export function derivedObservableWithCache<T>(name: string, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> {
+	let lastValue: T | undefined = undefined;
+	const observable = derivedObservable(name, reader => {
+		lastValue = computeFn(reader, lastValue);
+		return lastValue;
+	});
+	return observable;
 }

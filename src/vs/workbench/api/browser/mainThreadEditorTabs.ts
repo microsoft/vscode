@@ -587,7 +587,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			}
 		}
 		// Loop over keys of the groups map and call closeEditors
-		let results: boolean[] = [];
+		const results: boolean[] = [];
 		for (const [group, editors] of groups) {
 			results.push(await group.closeEditors(editors, { preserveFocus }));
 		}

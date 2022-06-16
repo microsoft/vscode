@@ -293,7 +293,7 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tabDtoAAA, tabDtoBBB]
 		}]);
 
-		let all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
+		const all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 2);
 
 		const activeTab1 = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
@@ -346,7 +346,7 @@ suite('ExtHostEditorTabs', function () {
 	});
 
 	test('Ensure close is called with all tab ids', function () {
-		let closedTabIds: string[][] = [];
+		const closedTabIds: string[][] = [];
 		const extHostEditorTabs = new ExtHostEditorTabs(
 			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
 				// override/implement $moveTab or $closeTab
@@ -384,7 +384,7 @@ suite('ExtHostEditorTabs', function () {
 	});
 
 	test('Update tab only sends tab change event', async function () {
-		let closedTabIds: string[][] = [];
+		const closedTabIds: string[][] = [];
 		const extHostEditorTabs = new ExtHostEditorTabs(
 			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
 				// override/implement $moveTab or $closeTab
