@@ -75,8 +75,8 @@ export const SELECT_AND_START_LABEL = nls.localize('selectAndStartDebugging', "S
 export const DEBUG_CONFIGURE_LABEL = nls.localize('openLaunchJson', "Open '{0}'", 'launch.json');
 export const DEBUG_START_LABEL = nls.localize('startDebug', "Start Debugging");
 export const DEBUG_RUN_LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
-export const NEXT_DEBUG_CONSOLE_LABEL = nls.localize('nextDebugConsole', "Next Debug Console");
-export const PREV_DEBUG_CONSOLE_LABEL = nls.localize('prevDebugConsole', "Previous Debug Console");
+export const NEXT_DEBUG_CONSOLE_LABEL = nls.localize('nextDebugConsole', "Focus Next Debug Console");
+export const PREV_DEBUG_CONSOLE_LABEL = nls.localize('prevDebugConsole', "Focus Previous Debug Console");
 
 interface CallStackContext {
 	sessionId: string;
