@@ -124,7 +124,7 @@ prebuild-install/**/*
 
 @microsoft/applicationinsights*/**
 @microsoft/dynamicproto-js/**
-!@microsoft/applicationinsights-shims/dist/**
+!@microsoft/applicationinsights-shims/**
 !@microsoft/applicationinsights-web/dist/applicationinsights-web.min.js
 
 # other node modules
