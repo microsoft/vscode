@@ -17,16 +17,15 @@ export function setup() {
 				app = this.app as Application;
 				terminal = app.workbench.terminal;
 				settingsEditor = app.workbench.settingsEditor;
-				await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.enabled', 'true');
-				await setTerminalTestSettings(app);
-			});
-
-			after(async function () {
-				await settingsEditor.clearUserSettings();
+				await setTerminalTestSettings(app, [['terminal.integrated.shellIntegration.enabled', 'true']]);
 			});
 
 			afterEach(async function () {
 				await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
+			});
+
+			after(async function () {
+				await settingsEditor.clearUserSettings();
 			});
 
 			async function createShellIntegrationProfile() {
@@ -36,6 +35,7 @@ export function setup() {
 			describe(`Shell integration ${i}`, function () {
 				describe('Decorations', function () {
 					describe('Should show default icons', function () {
+
 						it('Placeholder', async () => {
 							await createShellIntegrationProfile();
 							await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
@@ -47,7 +47,7 @@ export function setup() {
 						});
 						it('Error', async () => {
 							await createShellIntegrationProfile();
-							await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+							await terminal.runCommandInTerminal(`false`);
 							await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
 						});
 					});
@@ -55,12 +55,13 @@ export function setup() {
 						it('Should update and show custom icons', async () => {
 							await createShellIntegrationProfile();
 							await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
-							await terminal.runCommandInTerminal(`echo "success"`);
-							await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+							await terminal.runCommandInTerminal(`echo "foo"`);
+							await terminal.runCommandInTerminal(`bar`);
 							await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
 							await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
 							await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
 							await terminal.assertCommandDecorations(undefined, { updatedIcon: "zap", count: 3 });
+							await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 						});
 					});
 				});
