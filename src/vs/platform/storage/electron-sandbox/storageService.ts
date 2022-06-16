@@ -19,11 +19,13 @@ export class NativeStorageService extends AbstractStorageService {
 	// Application Storage is readonly and shared across
 	// windows and profiles.
 	private readonly applicationStorage: IStorage;
+	private readonly applicationStorageProfile: IUserDataProfile;
 
 	// Global Storage is scoped to a profile of the window
 	// but can change in the current window when changing the
 	// profile of the window.
 	private globalStorage: IStorage;
+	private globalStorageProfile: IUserDataProfile | undefined = undefined;
 	private globalStorageDisposables = this._register(new DisposableStore());
 
 	// Workspace Storage is scoped to a window but can change
@@ -35,13 +37,15 @@ export class NativeStorageService extends AbstractStorageService {
 	constructor(
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
 		private readonly mainProcessService: IMainProcessService,
-		private readonly userDataProfilesService: IUserDataProfilesService,
+		userDataProfilesService: IUserDataProfilesService,
 		private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
+		this.applicationStorageProfile = userDataProfilesService.defaultProfile;
+
 		this.applicationStorage = this.createApplicationStorage();
-		this.globalStorage = this.createGlobalStorage(this.userDataProfilesService.currentProfile);
+		this.globalStorage = this.createGlobalStorage(userDataProfilesService.currentProfile);
 		this.workspaceStorage = this.createWorkspaceStorage(workspace);
 	}
 
@@ -58,6 +62,9 @@ export class NativeStorageService extends AbstractStorageService {
 
 		// First clear any previously associated disposables
 		this.globalStorageDisposables.clear();
+
+		// Remember profile for logging later
+		this.globalStorageProfile = profile;
 
 		let globalStorage: IStorage;
 		if (profile.isDefault) {
@@ -85,6 +92,7 @@ export class NativeStorageService extends AbstractStorageService {
 		// First clear any previously associated disposables
 		this.workspaceStorageDisposables.clear();
 
+		// Remember workspace ID for logging later
 		this.workspaceStorageId = workspace?.id;
 
 		let workspaceStorage: IStorage | undefined = undefined;
@@ -122,9 +130,9 @@ export class NativeStorageService extends AbstractStorageService {
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		switch (scope) {
 			case StorageScope.APPLICATION:
-				return this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath;
+				return this.applicationStorageProfile.globalStorageHome.fsPath;
 			case StorageScope.GLOBAL:
-				return this.userDataProfilesService.currentProfile.globalStorageHome.fsPath;
+				return this.globalStorageProfile?.globalStorageHome.fsPath;
 			default:
 				return this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
 		}
