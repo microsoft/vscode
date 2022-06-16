@@ -151,10 +151,13 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 
 	loader(['require'], (localRequire: any) => {
 		const resolvePath = (entry: IExtraFile) => {
-			const r = localRequire.toUrl(entry.path);
-			if (!/\.js/.test(r)) {
-				return { path: r + '.js', amdModuleId: entry.amdModuleId };
+			let r = localRequire.toUrl(entry.path);
+			if (!r.endsWith('.js')) {
+				r += '.js';
 			}
+			// avoid packaging the build version of plugins:
+			r = r.replace('vs/nls.build.js', 'vs/nls.js');
+			r = r.replace('vs/css.build.js', 'vs/css.js');
 			return { path: r, amdModuleId: entry.amdModuleId };
 		};
 		for (const moduleId in entryPointsMap) {
