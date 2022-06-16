@@ -717,9 +717,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 	private emptyPanelMessageElement: HTMLElement | undefined;
 	private layoutEmptyMessage(): void {
-		if (this.emptyPanelMessageElement) {
-			this.emptyPanelMessageElement.classList.toggle('visible', this.compositeBar.getVisibleComposites().length === 0);
-		}
+		this.emptyPanelMessageElement?.classList.toggle('visible', this.compositeBar.getVisibleComposites().length === 0);
 	}
 
 	private getViewContainer(id: string): ViewContainer | undefined {
@@ -731,9 +729,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		const primaryActions = this.globalActions.getPrimaryActions();
 		const secondaryActions = this.globalActions.getSecondaryActions();
 
-		if (this.globalToolBar) {
-			this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
-		}
+		this.globalToolBar?.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction } {

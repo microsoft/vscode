@@ -361,9 +361,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 				}
 			}, reaction.iconPath, reaction.count);
 
-			if (this._reactionsActionBar) {
-				this._reactionsActionBar.push(action, { label: true, icon: true });
-			}
+			this._reactionsActionBar?.push(action, { label: true, icon: true });
 		});
 
 		if (hasReactionHandler) {
@@ -468,9 +466,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._register(menu);
 		this._register(menu.onDidChange(() => {
-			if (this._commentFormActions) {
-				this._commentFormActions.setActions(menu);
-			}
+			this._commentFormActions?.setActions(menu);
 		}));
 
 		this._commentFormActions = new CommentFormActions(formActions, (action: IAction): void => {

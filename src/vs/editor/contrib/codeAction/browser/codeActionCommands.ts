@@ -244,9 +244,7 @@ function triggerCodeActionsForEditorSelection(
 ): void {
 	if (editor.hasModel()) {
 		const controller = QuickFixController.get(editor);
-		if (controller) {
-			controller.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply, preview);
-		}
+		controller?.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply, preview);
 	}
 }
 

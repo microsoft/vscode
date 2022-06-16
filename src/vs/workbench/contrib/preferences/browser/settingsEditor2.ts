@@ -254,9 +254,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(workspaceTrustManagementService.onDidChangeTrust(() => {
-			if (this.searchResultModel) {
-				this.searchResultModel.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
-			}
+			this.searchResultModel?.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
 
 			if (this.settingsTreeModel) {
 				this.settingsTreeModel.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());

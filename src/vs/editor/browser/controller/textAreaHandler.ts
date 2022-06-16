@@ -634,9 +634,7 @@ export class TextAreaHandler extends ViewPart {
 	public prepareRender(ctx: RenderingContext): void {
 		this._primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primaryCursorPosition);
-		if (this._visibleTextArea) {
-			this._visibleTextArea.prepareRender(ctx);
-		}
+		this._visibleTextArea?.prepareRender(ctx);
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
