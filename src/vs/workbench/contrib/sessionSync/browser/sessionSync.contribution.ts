@@ -108,14 +108,19 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				const ref = await that.storeEditSession();
 
 				// Append the ref to the URI
-				workspaceUri = workspaceUri.with({
-					query: workspaceUri.query.length > 0 ? (workspaceUri + `&${queryParamName}=${ref}`) : `${queryParamName}=${ref}`
-				});
+				if (ref !== undefined) {
+					const encodedRef = encodeURIComponent(ref);
+					workspaceUri = workspaceUri.with({
+						query: workspaceUri.query.length > 0 ? (workspaceUri + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
+					});
 
-				that.environmentService.editSessionId = ref;
+					that.environmentService.editSessionId = ref;
+				} else {
+					that.logService.warn(`Edit Sessions: Failed to store edit session when invoking ${continueEditSessionCommand.id}.`);
+				}
 
 				// Open the URI
-				that.logService.info(`Edit sessions: opening ${workspaceUri.toString()}`);
+				that.logService.info(`Edit Sessions: opening ${workspaceUri.toString()}`);
 				await that.openerService.open(workspaceUri, { openExternal: true });
 			}
 		}));
@@ -166,6 +171,10 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 	}
 
 	async applyEditSession(ref?: string): Promise<void> {
+		if (ref !== undefined) {
+			this.logService.info(`Edit Sessions: Applying edit session with ref ${ref}.`);
+		}
+
 		const editSession = await this.sessionSyncWorkbenchService.read(ref);
 		if (!editSession) {
 			return;
@@ -222,7 +231,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				}
 			}
 		} catch (ex) {
-			this.logService.error(ex);
+			this.logService.error('Edit Sessions:', (ex as Error).toString());
 			this.notificationService.error(localize('apply failed', "Failed to apply your edit session."));
 		}
 	}
@@ -267,7 +276,9 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		const data: EditSession = { folders, version: 1 };
 
 		try {
-			return this.sessionSyncWorkbenchService.write(data);
+			const ref = await this.sessionSyncWorkbenchService.write(data);
+			this.logService.info(`Edit Sessions: Stored edit session with ref ${ref}.`);
+			return ref;
 		} catch (ex) {
 			type UploadFailedEvent = { reason: string };
 			type UploadFailedClassification = {
