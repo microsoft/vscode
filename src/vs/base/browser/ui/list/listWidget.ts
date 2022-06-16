@@ -982,7 +982,7 @@ const defaultStyles: IListStyles = {
 	listFocusBackground: Color.fromHex('#7FB0D0'),
 	listActiveSelectionBackground: Color.fromHex('#0E639C'),
 	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
-	listActiveSelectionFocus: Color.fromHex('#70B1F7'),
+	listActiveSelectionFocus: Color.fromHex('#90C2F9'),
 	listActiveSelectionIconForeground: Color.fromHex('#FFFFFF'),
 	listFocusAndSelectionBackground: Color.fromHex('#094771'),
 	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
