@@ -175,6 +175,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _horizontalScrollbar: DomScrollableElement | undefined;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
+	private _navigationModeActiveContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
 	private _rows: number = 0;
 	private _fixedCols: number | undefined;
@@ -407,6 +408,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._terminalHasTextContextKey = TerminalContextKeys.textSelected.bindTo(this._contextKeyService);
 		this._terminalA11yTreeFocusContextKey = TerminalContextKeys.a11yTreeFocus.bindTo(this._contextKeyService);
+		this._navigationModeActiveContextKey = TerminalContextKeys.navigationModeActive.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(this._contextKeyService);
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
@@ -1818,7 +1820,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	updateAccessibilitySupport(): void {
 		const isEnabled = this._accessibilityService.isScreenReaderOptimized();
 		if (isEnabled) {
-			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey);
+			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey, this._navigationModeActiveContextKey);
 			this.xterm!.raw.loadAddon(this._navigationModeAddon);
 		} else {
 			this._navigationModeAddon?.dispose();
