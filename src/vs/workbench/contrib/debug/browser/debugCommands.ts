@@ -142,6 +142,7 @@ function isSessionContext(obj: any): obj is CallStackContext {
 
 async function changeDebugConsoleFocus(accessor: ServicesAccessor, next: boolean) {
 	const debugService = accessor.get(IDebugService);
+	const viewsService = accessor.get(IViewsService);
 	const sessions = debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl());
 	let currSession = debugService.getViewModel().focusedSession;
 
@@ -162,7 +163,6 @@ async function changeDebugConsoleFocus(accessor: ServicesAccessor, next: boolean
 	}
 	await debugService.focusStackFrame(undefined, undefined, sessions[nextIndex], { explicit: true });
 
-	const viewsService = accessor.get(IViewsService);
 	if (!viewsService.isViewVisible(REPL_VIEW_ID)) {
 		await viewsService.openView(REPL_VIEW_ID, true);
 	}
@@ -262,9 +262,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: NEXT_DEBUG_CONSOLE_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: CONTEXT_IN_DEBUG_REPL,
-	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.BracketRight,
+	primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.BracketRight },
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		changeDebugConsoleFocus(accessor, true);
 	}
@@ -272,9 +273,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: PREV_DEBUG_CONSOLE_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: CONTEXT_IN_DEBUG_REPL,
-	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.BracketLeft,
+	primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.BracketLeft },
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		changeDebugConsoleFocus(accessor, false);
 	}
