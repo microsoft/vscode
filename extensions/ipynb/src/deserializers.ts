@@ -6,6 +6,7 @@
 import * as nbformat from '@jupyterlab/nbformat';
 import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
+import * as uuid from "uuid/v4";
 
 const jupyterLanguageToMonacoLanguageMapping = new Map([
 	['c#', 'csharp'],
@@ -167,6 +168,7 @@ function getNotebookCellMetadata(cell: nbformat.IBaseCell): CellMetadata {
 function getOutputMetadata(output: nbformat.IOutput): CellOutputMetadata {
 	// Add on transient data if we have any. This should be removed by our save functions elsewhere.
 	const metadata: CellOutputMetadata = {
+		__id: uuid(),
 		outputType: output.output_type
 	};
 	if (output.transient) {

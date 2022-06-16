@@ -39,6 +39,11 @@ export interface CellOutputMetadata {
 	 * (this is something we have added)
 	 */
 	__isJson?: boolean;
+
+	/**
+	 * A unique identifier to track a specific output.
+	 */
+	__id?: string;
 }
 
 
