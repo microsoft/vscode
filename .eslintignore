@@ -26,7 +26,5 @@
 **/src/vs/*/**/*.d.ts
 **/src/vs/base/test/common/filters.perf.data.js
 **/src/vs/loader.js
-**/src/vs/nls.build.js
-**/src/vs/nls.js
 **/test/unit/assert.js
 **/typings/**
