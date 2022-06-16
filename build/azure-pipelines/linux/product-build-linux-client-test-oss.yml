@@ -138,17 +138,17 @@ steps:
         yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     displayName: Download Electron and Playwright
 
-  - script: |
-      set -e
-      APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-      ELECTRON_ROOT=.build/electron
-      sudo chown root $APP_ROOT/chrome-sandbox
-      sudo chown root $ELECTRON_ROOT/chrome-sandbox
-      sudo chmod 4755 $APP_ROOT/chrome-sandbox
-      sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
-      stat $APP_ROOT/chrome-sandbox
-      stat $ELECTRON_ROOT/chrome-sandbox
-    displayName: Change setuid helper binary permission
+  # - script: |
+  #     set -e
+  #     APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+  #     ELECTRON_ROOT=.build/electron
+  #     sudo chown root $APP_ROOT/chrome-sandbox
+  #     sudo chown root $ELECTRON_ROOT/chrome-sandbox
+  #     sudo chmod 4755 $APP_ROOT/chrome-sandbox
+  #     sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
+  #     stat $APP_ROOT/chrome-sandbox
+  #     stat $ELECTRON_ROOT/chrome-sandbox
+  #   displayName: Change setuid helper binary permission
 
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - script: |
