@@ -19,14 +19,15 @@ steps:
     inputs:
       versionSpec: "16.x"
 
-  # - script: |
-  #     set -e
-  #     # Start X server
-  #     /etc/init.d/xvfb start
-  #     # Start dbus session
-  #     DBUS_LAUNCH_RESULT=$(sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address)
-  #     echo "##vso[task.setvariable variable=DBUS_SESSION_BUS_ADDRESS]$DBUS_LAUNCH_RESULT"
-  #   displayName: Setup system services
+  - script: |
+      set -e
+      sudo apt-get update
+      sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
+      sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+      sudo chmod +x /etc/init.d/xvfb
+      sudo update-rc.d xvfb defaults
+      sudo service xvfb start
+    displayName: Setup build environment
 
   - script: |
       mkdir -p .build
@@ -153,8 +154,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - script: |
         set -e
-        DISPLAY=:10 \
-          ./scripts/test.sh --tfs "Unit Tests"
+        DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
       displayName: Run unit tests (Electron)
       timeoutInMinutes: 15
 
@@ -195,8 +195,7 @@ steps:
 
     - script: |
         set -e
-        DISPLAY=:10 \
-          ./scripts/test-integration.sh --tfs "Integration Tests"
+        DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
       displayName: Run integration tests (Electron)
       timeoutInMinutes: 20
 
