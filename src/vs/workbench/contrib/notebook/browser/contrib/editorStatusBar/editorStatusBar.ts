@@ -245,7 +245,7 @@ registerAction2(class extends Action2 {
 				suggestedExtension = language ? this.getSuggestedKernelFromLanguage(activeNotebookModel.viewType, language) : undefined;
 			}
 			if (suggestedExtension) {
-				// there is no kernel, show the install from marketplace
+				// We have a suggested kernel, show an option to install it
 				quickPickItems.push({
 					id: 'installSuggested',
 					description: suggestedExtension.displayName ?? suggestedExtension.extensionId,
