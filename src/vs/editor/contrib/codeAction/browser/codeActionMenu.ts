@@ -25,7 +25,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface CodeActionWidgetDelegate {
-	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger, fromLightbulb: boolean, validActions: any) => Promise<any>;
+	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
 }
 
 interface ResolveCodeActionKeybinding {
