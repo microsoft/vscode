@@ -508,6 +508,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			for (const dependency of task.configurationProperties.dependsOn) {
 				const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 				if (dependencyTask) {
+					dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
 					const key = dependencyTask.getMapKey();
 					let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
 					if (!promise) {
@@ -1033,7 +1034,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 			let icon: URI | ThemeIcon | { light: URI; dark: URI } | undefined;
 			if (task.configurationProperties.icon) {
-				icon = ThemeIcon.fromId(task.configurationProperties.icon);
+				icon = ThemeIcon.fromId(task.configurationProperties.icon.id);
 			} else {
 				const taskGroupKind = task.configurationProperties.group ? GroupKind.to(task.configurationProperties.group) : undefined;
 				const kindId = typeof taskGroupKind === 'string' ? taskGroupKind : taskGroupKind?.kind;
@@ -1046,7 +1047,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				args: defaultProfile.args,
 				env: { ...defaultProfile.env },
 				icon,
-				color: task.configurationProperties.color || defaultProfile.color,
+				color: task.configurationProperties.icon?.color || undefined,
 				waitOnExit
 			};
 			let shellSpecified: boolean = false;
@@ -1143,8 +1144,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig = {
 				name: terminalName,
 				type,
-				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : undefined,
-				color: task.configurationProperties.color,
+				icon: task.configurationProperties.icon?.id ? ThemeIcon.fromId(task.configurationProperties.icon.id) : undefined,
+				color: task.configurationProperties.icon?.color || undefined,
 				executable: executable,
 				args: args.map(a => Types.isString(a) ? a : a.value),
 				waitOnExit
@@ -1273,8 +1274,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					comment: ['The task command line or label']
 				}, 'Executing task: {0}', task._label), { excludeLeadingNewLine: true }) : undefined,
 				isFeatureTerminal: true,
-				icon: task.configurationProperties.icon ? ThemeIcon.fromId(task.configurationProperties.icon) : undefined,
-				color: task.configurationProperties.color
+				icon: task.configurationProperties.icon?.id ? ThemeIcon.fromId(task.configurationProperties.icon.id) : undefined,
+				color: task.configurationProperties.icon?.color || undefined,
 			};
 		} else {
 			const resolvedResult: { command: CommandString; args: CommandString[] } = await this._resolveCommandAndArgs(resolver, task.command);

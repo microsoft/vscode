@@ -9,7 +9,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IAction } from 'vs/base/common/actions';
-import { CompareResult, findLast } from 'vs/base/common/arrays';
+import { CompareResult } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
@@ -47,7 +47,7 @@ import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions
 import { autorun, autorunWithStore, derivedObservable, IObservable, ITransaction, keepAlive, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
-import { LineRange, ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
+import { DocumentMapping, LineRange, SimpleLineRangeMapping, ToggleState } from 'vs/workbench/contrib/mergeEditor/browser/model';
 import { applyObservableDecorations, join, n, ReentrancyBarrier, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -109,8 +109,19 @@ export class MergeEditor extends AbstractTextEditor<any> {
 				return undefined;
 			}
 			const resultDiffs = model.resultDiffs.read(reader);
-			const modifiedBaseRanges = ModifiedBaseRange.fromDiffs(model.base, model.input1, model.input1LinesDiffs.read(reader), model.result, resultDiffs);
-			return modifiedBaseRanges;
+			const modifiedBaseRanges = DocumentMapping.fromDiffs(model.input1LinesDiffs.read(reader), resultDiffs, model.input1.getLineCount());
+
+			return new DocumentMapping(
+				modifiedBaseRanges.lineRangeMappings.map((m) =>
+					m.inputRange.isEmpty || m.outputRange.isEmpty
+						? new SimpleLineRangeMapping(
+							m.inputRange.deltaStart(-1),
+							m.outputRange.deltaStart(-1)
+						)
+						: m
+				),
+				modifiedBaseRanges.inputLineCount
+			);
 		});
 		const input2ResultMapping = derivedObservable('input2ResultMapping', reader => {
 			const model = this.input2View.model.read(reader);
@@ -118,8 +129,19 @@ export class MergeEditor extends AbstractTextEditor<any> {
 				return undefined;
 			}
 			const resultDiffs = model.resultDiffs.read(reader);
-			const modifiedBaseRanges = ModifiedBaseRange.fromDiffs(model.base, model.input2, model.input2LinesDiffs.read(reader), model.result, resultDiffs);
-			return modifiedBaseRanges;
+			const modifiedBaseRanges = DocumentMapping.fromDiffs(model.input2LinesDiffs.read(reader), resultDiffs, model.input2.getLineCount());
+
+			return new DocumentMapping(
+				modifiedBaseRanges.lineRangeMappings.map((m) =>
+					m.inputRange.isEmpty || m.outputRange.isEmpty
+						? new SimpleLineRangeMapping(
+							m.inputRange.deltaStart(-1),
+							m.outputRange.deltaStart(-1)
+						)
+						: m
+				),
+				modifiedBaseRanges.inputLineCount
+			);
 		});
 
 		this._register(keepAlive(input1ResultMapping));
@@ -390,7 +412,7 @@ export class MergeEditor extends AbstractTextEditor<any> {
 	}
 }
 
-function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: CodeEditorWidget, mapping: ModifiedBaseRange[] | undefined, sourceNumber: 1 | 2) {
+function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: CodeEditorWidget, mapping: DocumentMapping | undefined, sourceNumber: 1 | 2) {
 	if (!mapping) {
 		return;
 	}
@@ -401,25 +423,27 @@ function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: C
 	}
 	const topLineNumber = visibleRanges[0].startLineNumber - 1;
 
-	const firstBefore = findLast(mapping, r => r.getInputRange(sourceNumber).startLineNumber <= topLineNumber);
 	let sourceRange: LineRange;
 	let targetRange: LineRange;
 
-	const targetNumber = sourceNumber === 1 ? 2 : 1;
-
-	const firstBeforeSourceRange = firstBefore?.getInputRange(sourceNumber);
-	const firstBeforeTargetRange = firstBefore?.getInputRange(targetNumber);
-
-	if (firstBeforeSourceRange && firstBeforeSourceRange.contains(topLineNumber)) {
-		sourceRange = firstBeforeSourceRange;
-		targetRange = firstBeforeTargetRange!;
-	} else if (firstBeforeSourceRange && firstBeforeSourceRange.isEmpty && firstBeforeSourceRange.startLineNumber === topLineNumber) {
-		sourceRange = firstBeforeSourceRange.deltaEnd(1);
-		targetRange = firstBeforeTargetRange!.deltaEnd(1);
+	if (sourceNumber === 1) {
+		const number = mapping.getOutputLine(topLineNumber);
+		if (typeof number === 'number') {
+			sourceRange = new LineRange(topLineNumber, 1);
+			targetRange = new LineRange(number, 1);
+		} else {
+			sourceRange = number.inputRange;
+			targetRange = number.outputRange;
+		}
 	} else {
-		const delta = firstBeforeSourceRange ? firstBeforeTargetRange!.endLineNumberExclusive - firstBeforeSourceRange.endLineNumberExclusive : 0;
-		sourceRange = new LineRange(topLineNumber, 1);
-		targetRange = new LineRange(topLineNumber + delta, 1);
+		const number = mapping.getInputLine(topLineNumber);
+		if (typeof number === 'number') {
+			sourceRange = new LineRange(topLineNumber, 1);
+			targetRange = new LineRange(number, 1);
+		} else {
+			sourceRange = number.outputRange;
+			targetRange = number.inputRange;
+		}
 	}
 
 	// sourceRange contains topLineNumber!
@@ -532,6 +556,21 @@ class InputCodeEditorView extends CodeEditorView {
 						description: 'Base Range Projection'
 					}
 				});
+
+				const inputDiffs = m.getInputDiffs(this.inputNumber);
+				for (const diff of inputDiffs) {
+					if (diff.innerRangeMappings) {
+						for (const d of diff.innerRangeMappings) {
+							result.push({
+								range: d.outputRange,
+								options: {
+									className: `merge-editor-diff-input${this.inputNumber}`,
+									description: 'Base Range Projection'
+								}
+							});
+						}
+					}
+				}
 			}
 		}
 		return result;
@@ -585,7 +624,7 @@ class InputCodeEditorView extends CodeEditorView {
 
 interface ModifiedBaseRangeGutterItemInfo extends IGutterItemInfo {
 	enabled: IObservable<boolean>;
-	toggleState: IObservable<boolean | undefined>;
+	toggleState: IObservable<ToggleState>;
 	setState(value: boolean, tx: ITransaction): void;
 }
 
@@ -606,14 +645,14 @@ class MergeConflictGutterItemView extends Disposable implements IGutterItemView<
 			autorun((reader) => {
 				const item = this.item.read(reader)!;
 				const value = item.toggleState.read(reader);
-				checkBox.setIcon(
-					value === true
-						? Codicon.check
-						: value === false
-							? undefined
-							: Codicon.circleFilled
-				);
-				checkBox.checked = value === true;
+				const iconMap: Record<ToggleState, { icon: Codicon | undefined; checked: boolean }> = {
+					[ToggleState.unset]: { icon: undefined, checked: false },
+					[ToggleState.conflicting]: { icon: Codicon.circleFilled, checked: false },
+					[ToggleState.first]: { icon: Codicon.check, checked: true },
+					[ToggleState.second]: { icon: Codicon.checkAll, checked: true },
+				};
+				checkBox.setIcon(iconMap[value].icon);
+				checkBox.checked = iconMap[value].checked;
 
 				if (!item.enabled.read(reader)) {
 					checkBox.disable();
@@ -658,17 +697,17 @@ class ResultCodeEditorView extends CodeEditorView {
 			model.modifiedBaseRanges.read(reader),
 			model.resultDiffs.read(reader),
 			(baseRange, diff) =>
-				baseRange.baseRange.touches(diff.originalRange)
+				baseRange.baseRange.touches(diff.inputRange)
 					? CompareResult.neitherLessOrGreaterThan
 					: LineRange.compareByStart(
 						baseRange.baseRange,
-						diff.originalRange
+						diff.inputRange
 					)
 		);
 
 		for (const m of baseRangeWithStoreAndTouchingDiffs) {
 			for (const r of m.rights) {
-				const range = r.modifiedRange;
+				const range = r.outputRange;
 
 				const state = m.left ? model.getState(m.left).read(reader) : undefined;
 
@@ -687,8 +726,11 @@ class ResultCodeEditorView extends CodeEditorView {
 									if (state.input2 && !state.input1) {
 										return 'merge-editor-modified-base-range-input2';
 									}
+									if (state.input1 && state.input2) {
+										return 'merge-editor-modified-base-range-combination';
+									}
 								}
-								return 'merge-editor-modified-base-range-combination';
+								return 'merge-editor-modified-base-range';
 							})(),
 							description: 'Result Diff'
 						}

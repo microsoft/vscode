@@ -347,4 +347,48 @@ suite('markdown: Diagnostics', () => {
 			new vscode.Range(5, 7, 5, 17),
 		]);
 	});
+
+	test('Should generate diagnostics for non-existent header using file link to own file', async () => {
+		const doc = new InMemoryDocument(workspacePath('sub', 'doc.md'), joinLines(
+			`[bad](doc.md#no-such)`,
+			`[bad](doc#no-such)`,
+			`[bad](/sub/doc.md#no-such)`,
+			`[bad](/sub/doc#no-such)`,
+		));
+
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertDiagnosticsEqual(orderDiagnosticsByRange(diagnostics), [
+			new vscode.Range(0, 12, 0, 20),
+			new vscode.Range(1, 9, 1, 17),
+			new vscode.Range(2, 17, 2, 25),
+			new vscode.Range(3, 14, 3, 22),
+		]);
+	});
+
+	test('Own header link using file path link should be controlled by "validateMarkdownFileLinkFragments" instead of "validateFragmentLinks"', async () => {
+		const doc = new InMemoryDocument(workspacePath('sub', 'doc.md'), joinLines(
+			`[bad](doc.md#no-such)`,
+			`[bad](doc#no-such)`,
+			`[bad](/sub/doc.md#no-such)`,
+			`[bad](/sub/doc#no-such)`,
+		));
+
+		const contents = new InMemoryWorkspaceMarkdownDocuments([doc]);
+		const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration({
+			validateFragmentLinks: DiagnosticLevel.ignore,
+			validateMarkdownFileLinkFragments: DiagnosticLevel.warning,
+		}));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc, noopToken);
+
+		assertDiagnosticsEqual(orderDiagnosticsByRange(diagnostics), [
+			new vscode.Range(0, 12, 0, 20),
+			new vscode.Range(1, 9, 1, 17),
+			new vscode.Range(2, 17, 2, 25),
+			new vscode.Range(3, 14, 3, 22),
+		]);
+	});
 });
+
+function orderDiagnosticsByRange(diagnostics: Iterable<vscode.Diagnostic>): readonly vscode.Diagnostic[] {
+	return Array.from(diagnostics).sort((a, b) => a.range.start.compareTo(b.range.start));
+}

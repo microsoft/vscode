@@ -7,15 +7,15 @@ import { compareBy, numberComparator } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { LineDiff, LineEdit, LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
+import { LineRangeEdit, LineRange, LineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model';
 import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { IDiffComputer } from './diffComputer';
 
 export class TextModelDiffs extends Disposable {
 	private updateCount = 0;
 	private readonly _state = new ObservableValue<TextModelDiffState, TextModelDiffChangeReason>(TextModelDiffState.initializing, 'LiveDiffState');
-	private readonly _diffs = new ObservableValue<LineDiff[], TextModelDiffChangeReason>([], 'LiveDiffs');
+	private readonly _diffs = new ObservableValue<LineRangeMapping[], TextModelDiffChangeReason>([], 'LiveDiffs');
 
 	private readonly barrier = new ReentrancyBarrier();
 
@@ -35,7 +35,7 @@ export class TextModelDiffs extends Disposable {
 		return this._state;
 	}
 
-	public get diffs(): IObservable<LineDiff[], TextModelDiffChangeReason> {
+	public get diffs(): IObservable<LineRangeMapping[], TextModelDiffChangeReason> {
 		return this._diffs;
 	}
 
@@ -63,9 +63,9 @@ export class TextModelDiffs extends Disposable {
 		}
 
 		transaction(tx => {
-			if (result) {
+			if (result.diffs) {
 				this._state.set(TextModelDiffState.upToDate, tx, TextModelDiffChangeReason.textChange);
-				this._diffs.set(result, tx, TextModelDiffChangeReason.textChange);
+				this._diffs.set(result.diffs, tx, TextModelDiffChangeReason.textChange);
 			} else {
 				this._state.set(TextModelDiffState.error, tx, TextModelDiffChangeReason.textChange);
 			}
@@ -78,10 +78,10 @@ export class TextModelDiffs extends Disposable {
 		}
 	}
 
-	public removeDiffs(diffToRemoves: LineDiff[], transaction: ITransaction | undefined): void {
+	public removeDiffs(diffToRemoves: LineRangeMapping[], transaction: ITransaction | undefined): void {
 		this.ensureUpToDate();
 
-		diffToRemoves.sort(compareBy((d) => d.originalRange.startLineNumber, numberComparator));
+		diffToRemoves.sort(compareBy((d) => d.inputRange.startLineNumber, numberComparator));
 		diffToRemoves.reverse();
 
 		let diffs = this._diffs.get();
@@ -99,15 +99,8 @@ export class TextModelDiffs extends Disposable {
 			});
 
 			diffs = diffs.map((d) =>
-				d.modifiedRange.isAfter(diffToRemove.modifiedRange)
-					? new LineDiff(
-						d.originalTextModel,
-						d.originalRange,
-						d.modifiedTextModel,
-						d.modifiedRange.delta(
-							diffToRemove.originalRange.lineCount - diffToRemove.modifiedRange.lineCount
-						)
-					)
+				d.outputRange.isAfter(diffToRemove.outputRange)
+					? d.addOutputLineDelta(diffToRemove.inputRange.lineCount - diffToRemove.outputRange.lineCount)
 					: d
 			);
 		}
@@ -118,80 +111,79 @@ export class TextModelDiffs extends Disposable {
 	/**
 	 * Edit must be conflict free.
 	 */
-	public applyEditRelativeToOriginal(edit: LineEdit, transaction: ITransaction | undefined): void {
+	public applyEditRelativeToOriginal(edit: LineRangeEdit, transaction: ITransaction | undefined): void {
 		this.ensureUpToDate();
+
+		const editMapping = new LineRangeMapping(
+			this.baseTextModel,
+			edit.range,
+			this.textModel,
+			new LineRange(edit.range.startLineNumber, edit.newLines.length)
+		);
 
 		let firstAfter = false;
 		let delta = 0;
-		const newDiffs = new Array<LineDiff>();
+		const newDiffs = new Array<LineRangeMapping>();
 		for (const diff of this.diffs.get()) {
-			if (diff.originalRange.touches(edit.range)) {
+			if (diff.inputRange.touches(edit.range)) {
 				throw new BugIndicatingError('Edit must be conflict free.');
-			} else if (diff.originalRange.isAfter(edit.range)) {
+			} else if (diff.inputRange.isAfter(edit.range)) {
 				if (!firstAfter) {
 					firstAfter = true;
-
-					newDiffs.push(new LineDiff(
-						this.baseTextModel,
-						edit.range,
-						this.textModel,
-						new LineRange(edit.range.startLineNumber + delta, edit.newLines.length)
-					));
+					newDiffs.push(editMapping.addOutputLineDelta(delta));
 				}
 
-				newDiffs.push(new LineDiff(
-					diff.originalTextModel,
-					diff.originalRange,
-					diff.modifiedTextModel,
-					diff.modifiedRange.delta(edit.newLines.length - edit.range.lineCount)
-				));
+				newDiffs.push(diff.addOutputLineDelta(edit.newLines.length - edit.range.lineCount));
 			} else {
 				newDiffs.push(diff);
 			}
 
 			if (!firstAfter) {
-				delta += diff.modifiedRange.lineCount - diff.originalRange.lineCount;
+				delta += diff.outputRange.lineCount - diff.inputRange.lineCount;
 			}
 		}
 
 		if (!firstAfter) {
 			firstAfter = true;
-
-			newDiffs.push(new LineDiff(
-				this.baseTextModel,
-				edit.range,
-				this.textModel,
-				new LineRange(edit.range.startLineNumber + delta, edit.newLines.length)
-			));
+			newDiffs.push(editMapping.addOutputLineDelta(delta));
 		}
 
 		this.barrier.runExclusivelyOrThrow(() => {
-			new LineEdit(edit.range.delta(delta), edit.newLines).apply(this.textModel);
+			new LineRangeEdit(edit.range.delta(delta), edit.newLines).apply(this.textModel);
 		});
 		this._diffs.set(newDiffs, transaction, TextModelDiffChangeReason.other);
 	}
 
-	public findTouchingDiffs(baseRange: LineRange): LineDiff[] {
-		return this.diffs.get().filter(d => d.originalRange.touches(baseRange));
+	public findTouchingDiffs(baseRange: LineRange): LineRangeMapping[] {
+		return this.diffs.get().filter(d => d.inputRange.touches(baseRange));
 	}
 
-	/*
-	public getResultRange(baseRange: LineRange): LineRange {
-		let startOffset = 0;
-		let lengthOffset = 0;
+	private getResultLine(lineNumber: number): number | LineRangeMapping {
+		let offset = 0;
 		for (const diff of this.diffs.get()) {
-			if (diff.originalRange.endLineNumberExclusive <= baseRange.startLineNumber) {
-				startOffset += diff.resultingDeltaFromOriginalToModified;
-			} else if (diff.originalRange.startLineNumber <= baseRange.endLineNumberExclusive) {
-				lengthOffset += diff.resultingDeltaFromOriginalToModified;
+			if (diff.inputRange.contains(lineNumber) || diff.inputRange.endLineNumberExclusive === lineNumber) {
+				return diff;
+			} else if (diff.inputRange.endLineNumberExclusive < lineNumber) {
+				offset = diff.resultingDeltaFromOriginalToModified;
 			} else {
 				break;
 			}
 		}
-
-		return new LineRange(baseRange.startLineNumber + startOffset, baseRange.lineCount + lengthOffset);
+		return lineNumber + offset;
 	}
-	*/
+
+	public getResultRange(baseRange: LineRange): LineRange {
+		let start = this.getResultLine(baseRange.startLineNumber);
+		if (typeof start !== 'number') {
+			start = start.outputRange.startLineNumber;
+		}
+		let endExclusive = this.getResultLine(baseRange.endLineNumberExclusive);
+		if (typeof endExclusive !== 'number') {
+			endExclusive = endExclusive.outputRange.endLineNumberExclusive;
+		}
+
+		return LineRange.fromLineNumbers(start, endExclusive);
+	}
 }
 
 export const enum TextModelDiffChangeReason {
@@ -208,22 +200,5 @@ export const enum TextModelDiffState {
 
 export interface ITextModelDiffsState {
 	state: TextModelDiffState;
-	diffs: LineDiff[];
-}
-
-export interface IDiffComputer {
-	computeDiff(textModel1: ITextModel, textModel2: ITextModel): Promise<LineDiff[] | null>;
-}
-
-export class EditorWorkerServiceDiffComputer implements IDiffComputer {
-	constructor(@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService) { }
-
-	async computeDiff(textModel1: ITextModel, textModel2: ITextModel): Promise<LineDiff[] | null> {
-		//await wait(1000);
-		const diffs = await this.editorWorkerService.computeDiff(textModel1.uri, textModel2.uri, false, 1000);
-		if (!diffs || diffs.quitEarly) {
-			return null;
-		}
-		return diffs.changes.map((c) => LineDiff.fromLineChange(c, textModel1, textModel2));
-	}
+	diffs: LineRangeMapping[];
 }

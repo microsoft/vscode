@@ -883,7 +883,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				this.loadingIndicator.reset();
 
 				const diagnosticEvent = event as Proto.DiagnosticEvent;
-				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
+				if (diagnosticEvent.body?.diagnostics) {
 					this._onDiagnosticsReceived.fire({
 						kind: getDignosticsKind(event),
 						resource: this.toResource(diagnosticEvent.body.file),
