@@ -60,7 +60,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _onCursorMoveListener?: IDisposable;
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
-	private _disableCommandStorage: boolean = false;
+	private __isCommandStorageDisabled: boolean = false;
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
 	// TODO: as is unsafe here and it duplicates behavor of executingCommand
@@ -248,8 +248,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._isWindowsPty = value;
 	}
 
-	disableCommandStorage(): void {
-		this._disableCommandStorage = true;
+	setIsCommandStorageDisabled(): void {
+		this.__isCommandStorageDisabled = true;
 	}
 
 	getCwdForLine(line: number): string | undefined {
@@ -364,7 +364,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 
 		// Calculate the command
-		this._currentCommand.command = this._disableCommandStorage ? '' : this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX, this._currentCommand.commandRightPromptStartX).trim();
+		this._currentCommand.command = this.__isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX, this._currentCommand.commandRightPromptStartX).trim();
 		let y = this._currentCommand.commandStartMarker.line + 1;
 		const commandExecutedLine = this._currentCommand.commandExecutedMarker.line;
 		for (; y < commandExecutedLine; y++) {
@@ -496,7 +496,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				startX: undefined,
 				endLine: e.endMarker?.line,
 				executedLine: e.executedMarker?.line,
-				command: this._disableCommandStorage ? '' : e.command,
+				command: this.__isCommandStorageDisabled ? '' : e.command,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
@@ -545,7 +545,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			const newCommand = {
-				command: this._disableCommandStorage ? '' : e.command,
+				command: this.__isCommandStorageDisabled ? '' : e.command,
 				marker,
 				endMarker,
 				executedMarker,

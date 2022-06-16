@@ -239,11 +239,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 					}
 					case 'Task': {
-						const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-						if (commandDetection) {
-							commandDetection.disableCommandStorage();
-							this._logService.debug('#disableCommandStorage');
-						}
+						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
 					}
 				}
 			}
