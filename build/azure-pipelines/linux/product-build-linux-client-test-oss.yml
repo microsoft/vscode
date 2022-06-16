@@ -139,18 +139,6 @@ steps:
         yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     displayName: Download Electron and Playwright
 
-  # - script: |
-  #     set -e
-  #     APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-  #     ELECTRON_ROOT=.build/electron
-  #     sudo chown root $APP_ROOT/chrome-sandbox
-  #     sudo chown root $ELECTRON_ROOT/chrome-sandbox
-  #     sudo chmod 4755 $APP_ROOT/chrome-sandbox
-  #     sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
-  #     stat $APP_ROOT/chrome-sandbox
-  #     stat $ELECTRON_ROOT/chrome-sandbox
-  #   displayName: Change setuid helper binary permission
-
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - script: |
         set -e
@@ -220,3 +208,63 @@ steps:
         yarn smoketest-no-compile --tracing
       timeoutInMinutes: 20
       displayName: Run smoke tests (Electron)
+
+    - script: |
+        set -e
+        ps -ef
+        cat /proc/sys/fs/inotify/max_user_watches
+        lsof | wc -l
+      displayName: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
+      continueOnError: true
+      condition: succeededOrFailed()
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+    - task: PublishPipelineArtifact@0
+      inputs:
+        targetPath: .build/crashes
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: crash-dump-linux-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: crash-dump-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: crash-dump-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+      displayName: "Publish Crash Reports"
+      continueOnError: true
+      condition: failed()
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+    # In order to properly symbolify above crash reports
+    # (if any), we need the compiled native modules too
+    - task: PublishPipelineArtifact@0
+      inputs:
+        targetPath: node_modules
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: node-modules-linux-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: node-modules-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+      displayName: "Publish Node Modules"
+      continueOnError: true
+      condition: failed()
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+    - task: PublishPipelineArtifact@0
+      inputs:
+        targetPath: .build/logs
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: logs-linux-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: logs-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+      displayName: "Publish Log Files"
+      continueOnError: true
+      condition: succeededOrFailed()
+
+  - task: PublishTestResults@2
+    displayName: Publish Tests Results
+    inputs:
+      testResultsFiles: "*-results.xml"
+      searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
+    condition: succeededOrFailed()
