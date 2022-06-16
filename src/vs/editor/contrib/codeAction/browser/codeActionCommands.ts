@@ -31,7 +31,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeMenuOpenedFrom } from './types';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -120,7 +120,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 						await this._applyCodeAction(action, preview);
 					} finally {
 						if (retrigger) {
-							this._trigger({ type: CodeActionTriggerType.Auto, filter: {} });
+							this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeMenuOpenedFrom.QuickFix, filter: {} });
 						}
 					}
 				}
@@ -150,7 +150,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		MessageController.get(this._editor)?.closeMessage();
 		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition }, preview, triggerAction });
+		this._trigger({ type: CodeActionTriggerType.Invoke, triggerAction, filter, autoApply, context: { notAvailableMessage, position: triggerPosition }, preview });
 	}
 
 	private _trigger(trigger: CodeActionTrigger) {
@@ -168,17 +168,7 @@ export enum ApplyCodeActionReason {
 	FromCodeActions = 'fromCodeActions'
 }
 
-export enum CodeMenuOpenedFrom {
-	Refactor = 'refactor',
-	RefactorPreview = 'refactor preview',
-	Lightbulb = 'lightbulb',
-	Default = 'other (default)',
-	SourceAction = 'source action',
-	QuickFix = 'quick fix',
-	FixAll = 'fix all',
-	OrganizeImports = 'organize imports',
-	AutoFix = 'auto fix'
-}
+
 
 export async function applyCodeAction(
 	accessor: ServicesAccessor,

@@ -5,7 +5,6 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/languages';
-import { CodeMenuOpenedFrom } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -43,6 +42,19 @@ export const enum CodeActionAutoApply {
 	IfSingle = 'ifSingle',
 	First = 'first',
 	Never = 'never',
+}
+
+export enum CodeMenuOpenedFrom {
+	Refactor = 'refactor',
+	RefactorPreview = 'refactor preview',
+	Lightbulb = 'lightbulb',
+	Default = 'other (default)',
+	SourceAction = 'source action',
+	QuickFix = 'quick fix action',
+	FixAll = 'fix all',
+	OrganizeImports = 'organize imports',
+	AutoFix = 'auto fix',
+	QuickFixHover = 'quick fix hover window'
 }
 
 export interface CodeActionFilter {
