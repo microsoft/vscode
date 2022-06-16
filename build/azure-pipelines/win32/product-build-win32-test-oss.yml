@@ -91,24 +91,50 @@ steps:
       exec { yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install" }
     displayName: Download Electron and Playwright
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn electron $(VSCODE_ARCH) }
-      exec { .\scripts\test.bat --tfs "Unit Tests" }
-    displayName: Run unit tests (Electron)
-    timeoutInMinutes: 15
+  - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { yarn electron $(VSCODE_ARCH) }
+        exec { .\scripts\test.bat --tfs "Unit Tests" }
+      displayName: Run unit tests (Electron)
+      timeoutInMinutes: 15
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn test-node }
-    displayName: Run unit tests (node.js)
-    timeoutInMinutes: 15
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { yarn test-node }
+      displayName: Run unit tests (node.js)
+      timeoutInMinutes: 15
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node test/unit/browser/index.js --sequential --browser chromium --browser firefox --tfs "Browser Unit Tests" }
-    displayName: Run unit tests (Browser, Chromium & Firefox)
-    timeoutInMinutes: 20
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { node test/unit/browser/index.js --sequential --browser chromium --browser firefox --tfs "Browser Unit Tests" }
+      displayName: Run unit tests (Browser, Chromium & Firefox)
+      timeoutInMinutes: 20
+
+  - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { yarn gulp `
+          compile-extension:configuration-editing `
+          compile-extension:css-language-features-server `
+          compile-extension:emmet `
+          compile-extension:git `
+          compile-extension:github-authentication `
+          compile-extension:html-language-features-server `
+          compile-extension:ipynb `
+          compile-extension:json-language-features-server `
+          compile-extension:markdown-language-features `
+          compile-extension-media `
+          compile-extension:microsoft-authentication `
+          compile-extension:typescript-language-features `
+          compile-extension:vscode-api-tests `
+          compile-extension:vscode-colorize-tests `
+          compile-extension:vscode-custom-editor-tests `
+          compile-extension:vscode-notebook-tests `
+          compile-extension:vscode-test-resolver `
+        }
+      displayName: Build integration tests
