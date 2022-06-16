@@ -150,8 +150,6 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	private async migrateToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
-		this.profile = toProfile;
-
 		const oldGlobalStorage = assertIsDefined(this.globalStorage);
 		const oldItems = oldGlobalStorage.items;
 
@@ -166,18 +164,19 @@ export class BrowserStorageService extends AbstractStorageService {
 		this.globalStorage = undefined;
 		this.globalStorageDatabase = undefined;
 
+		// Keep as new profile to use
+		this.profile = toProfile;
+
 		// Create new global storage & init
 		if (toProfile.isDefault) {
 			this.globalStorage = assertIsDefined(this.applicationStorage);
 		} else {
-			const globalStorageDatabase = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService);
-
-			this.globalStorageDatabase = this.globalStorageDisposables.add(globalStorageDatabase);
+			this.globalStorageDatabase = this.globalStorageDisposables.add(await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService));
 			this.globalStorage = this.globalStorageDisposables.add(new Storage(this.globalStorageDatabase));
 
-			this.updateIsNew(this.globalStorage);
-
 			await this.globalStorage.init();
+
+			this.updateIsNew(this.globalStorage);
 		}
 
 		// Handle data migration and eventing
