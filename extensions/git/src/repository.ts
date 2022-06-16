@@ -2222,9 +2222,9 @@ export class Repository implements Disposable {
 		const branchProtectionGlobs = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
 
 		if (branchProtectionGlobs.length === 0) {
-				this.isBranchProtectedMatcher = undefined;
+			this.isBranchProtectedMatcher = undefined;
 		} else {
-				this.isBranchProtectedMatcher = picomatch(branchProtectionGlobs);
+			this.isBranchProtectedMatcher = picomatch(branchProtectionGlobs);
 		}
 	}
 
