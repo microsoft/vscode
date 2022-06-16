@@ -68,7 +68,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		if (this.environmentService.editSessionId !== undefined) {
-			void this.applyEditSession(this.environmentService.editSessionId);
+			void this.applyEditSession(this.environmentService.editSessionId).then(() => this.environmentService.editSessionId = undefined);
 		}
 
 		this.configurationService.onDidChangeConfiguration((e) => {
@@ -111,6 +111,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				workspaceUri = workspaceUri.with({
 					query: workspaceUri.query.length > 0 ? (workspaceUri + `&${queryParamName}=${ref}`) : `${queryParamName}=${ref}`
 				});
+
+				that.environmentService.editSessionId = ref;
 
 				// Open the URI
 				that.logService.info(`Edit sessions: opening ${workspaceUri.toString()}`);
