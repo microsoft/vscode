@@ -67,7 +67,8 @@ module.exports = withBrowserDefaults({
 					from: '../node_modules/typescript/lib/tsserver.js',
 					to: 'typescript/tsserver.web.js',
 					transform: async (content) => {
-						const prefix = fs.readFileSync(path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'tsserverWeb.js'));
+						const dynamicImportCompatPath = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'dynamicImportCompat.js');
+						const prefix = fs.existsSync(dynamicImportCompatPath) ? fs.readFileSync(dynamicImportCompatPath) : undefined;
 						const output = await Terser.minify(content.toString());
 
 						return prefix + '\n' + output.code;
