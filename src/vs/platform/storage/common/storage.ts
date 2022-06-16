@@ -538,6 +538,35 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		);
 	}
 
+	protected migrateData(oldStorage: Map<string, string>, newStorage: IStorage, scope: StorageScope, preserveData: boolean): void {
+
+		// Copy over previous keys if `preserveData`
+		if (preserveData) {
+			for (const [key, value] of oldStorage) {
+				newStorage.set(key, value);
+			}
+		}
+
+		// Otherwise signal storage keys that have changed
+		else {
+			const handledkeys = new Set<string>();
+			for (const [key, oldValue] of oldStorage) {
+				handledkeys.add(key);
+
+				const newValue = newStorage.get(key);
+				if (newValue !== oldValue) {
+					this.emitDidChangeValue(scope, key);
+				}
+			}
+
+			for (const [key] of newStorage.items) {
+				if (!handledkeys.has(key)) {
+					this.emitDidChangeValue(scope, key);
+				}
+			}
+		}
+	}
+
 	// --- abstract
 
 	protected abstract doInitialize(): Promise<void>;

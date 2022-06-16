@@ -36,7 +36,7 @@ export class NativeStorageService extends AbstractStorageService {
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
 		private readonly mainProcessService: IMainProcessService,
 		private readonly userDataProfilesService: IUserDataProfilesService,
-		private readonly environmentService: IEnvironmentService,
+		private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -171,31 +171,8 @@ export class NativeStorageService extends AbstractStorageService {
 		this.globalStorage = this.createGlobalStorage(toProfile);
 		await this.globalStorage.init();
 
-		// Copy over previous keys if `preserveData`
-		if (preserveData) {
-			for (const [key, value] of oldItems) {
-				this.globalStorage.set(key, value);
-			}
-		}
-
-		// Otherwise signal storage keys that have changed
-		else {
-			const handledkeys = new Set<string>();
-			for (const [key, oldValue] of oldItems) {
-				handledkeys.add(key);
-
-				const newValue = this.globalStorage.get(key);
-				if (newValue !== oldValue) {
-					this.emitDidChangeValue(StorageScope.GLOBAL, key);
-				}
-			}
-
-			for (const [key] of this.globalStorage.items) {
-				if (!handledkeys.has(key)) {
-					this.emitDidChangeValue(StorageScope.GLOBAL, key);
-				}
-			}
-		}
+		// Handle data migration and eventing
+		this.migrateData(oldItems, this.globalStorage, StorageScope.GLOBAL, preserveData);
 	}
 
 	private async migrateToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
@@ -209,11 +186,7 @@ export class NativeStorageService extends AbstractStorageService {
 		this.workspaceStorage = this.createWorkspaceStorage(toWorkspace);
 		await this.workspaceStorage.init();
 
-		// Copy over previous keys if `preserveData`
-		if (preserveData) {
-			for (const [key, value] of oldItems) {
-				this.workspaceStorage.set(key, value);
-			}
-		}
+		// Handle data migration and eventing
+		this.migrateData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE, preserveData);
 	}
 }

@@ -180,31 +180,8 @@ export class BrowserStorageService extends AbstractStorageService {
 			await this.globalStorage.init();
 		}
 
-		// Copy over previous keys if `preserveData`
-		if (preserveData) {
-			for (const [key, value] of oldItems) {
-				this.globalStorage.set(key, value);
-			}
-		}
-
-		// Otherwise signal storage keys that have changed
-		else {
-			const handledkeys = new Set<string>();
-			for (const [key, oldValue] of oldItems) {
-				handledkeys.add(key);
-
-				const newValue = this.globalStorage.get(key);
-				if (newValue !== oldValue) {
-					this.emitDidChangeValue(StorageScope.GLOBAL, key);
-				}
-			}
-
-			for (const [key] of this.globalStorage.items) {
-				if (!handledkeys.has(key)) {
-					this.emitDidChangeValue(StorageScope.GLOBAL, key);
-				}
-			}
-		}
+		// Handle data migration and eventing
+		this.migrateData(oldItems, this.globalStorage, StorageScope.GLOBAL, preserveData);
 	}
 
 	private async migrateToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
