@@ -115,9 +115,9 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		this._ui = new Lazy(() =>
 			this._register(new CodeActionUi(editor, QuickFixAction.Id, AutoFixAction.Id, {
-				applyCodeAction: async (action, retrigger, preview, openedFrom, length) => {
+				applyCodeAction: async (action, retrigger, preview) => {
 					try {
-						await this._applyCodeAction(action, preview, <CodeMenuOpenedFrom>openedFrom, length);
+						await this._applyCodeAction(action, preview);
 					} finally {
 						if (retrigger) {
 							this._trigger({ type: CodeActionTriggerType.Auto, filter: {} });
@@ -133,7 +133,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	}
 
 	public showCodeActions(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
-		return this._ui.getValue().showCodeActionList(trigger, actions, at, { includeDisabledActions: false, from: false });
+		return this._ui.getValue().showCodeActionList(trigger, actions, at, { includeDisabledActions: false, fromLightbulb: false });
 	}
 
 	public manualTriggerAtCurrentPosition(
@@ -156,8 +156,8 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		return this._model.trigger(trigger);
 	}
 
-	private _applyCodeAction(action: CodeActionItem, preview: boolean, openedFrom: CodeMenuOpenedFrom, length: any): Promise<void> {
-		return this._instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.FromCodeActions, { preview, editor: this._editor, menuOpenedFrom: openedFrom, validActionsLength: length });
+	private _applyCodeAction(action: CodeActionItem, preview: boolean): Promise<void> {
+		return this._instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.FromCodeActions, { preview, editor: this._editor });
 	}
 }
 
