@@ -8,7 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { MdDefinitionProvider } from '../languageFeatures/definitionProvider';
 import { MdLinkComputer } from '../languageFeatures/documentLinkProvider';
-import { MdReferencesProvider } from '../languageFeatures/references';
+import { MdReferencesComputer } from '../languageFeatures/references';
 import { githubSlugifier } from '../slugify';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
@@ -21,8 +21,8 @@ import { joinLines, workspacePath } from './util';
 function getDefinition(doc: InMemoryDocument, pos: vscode.Position, workspaceContents: MdWorkspaceContents) {
 	const engine = createNewMarkdownEngine();
 	const linkComputer = new MdLinkComputer(engine);
-	const referencesProvider = new MdReferencesProvider(linkComputer, workspaceContents, engine, githubSlugifier);
-	const provider = new MdDefinitionProvider(referencesProvider);
+	const referencesComputer = new MdReferencesComputer(linkComputer, workspaceContents, engine, githubSlugifier);
+	const provider = new MdDefinitionProvider(referencesComputer);
 	return provider.provideDefinition(doc, pos, noopToken);
 }
 
