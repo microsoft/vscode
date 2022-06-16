@@ -16,7 +16,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -81,41 +81,40 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			}
 		} else {
 			promises.push(this.fileService.createFolder(newProfile.globalStorageHome));
+			if (!this.userDataProfilesService.defaultProfile.extensionsResource) {
+				promises.push(this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, basename(newProfile.extensionsResource!))));
+			}
 		}
 		await Promise.allSettled(promises);
 		await this.userDataProfilesService.createProfile(newProfile, options, workspaceIdentifier);
 		await this.enterProfile();
 	}
 
-	async removeProfile(name: string): Promise<void> {
-		if (name === this.userDataProfilesService.defaultProfile.name) {
+	async removeProfile(profile: IUserDataProfile): Promise<void> {
+		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
+			throw new Error(`Profile ${profile.name} does not exist`);
+		}
+		if (profile.isDefault) {
 			throw new Error(localize('cannotDeleteDefaultProfile', "Cannot delete the default profile"));
 		}
-		if (name === this.userDataProfilesService.currentProfile.name) {
+		if (profile.id === this.userDataProfilesService.currentProfile.id) {
 			throw new Error(localize('cannotDeleteCurrentProfile', "Cannot delete the current profile"));
 		}
-		const profiles = await this.userDataProfilesService.getAllProfiles();
-		const profile = profiles.find(p => p.name === name);
-		if (!profile) {
-			throw new Error(`Profile ${name} does not exist`);
-		}
 		await this.userDataProfilesService.removeProfile(profile);
-		if (profiles.length === 2) {
+		if (this.userDataProfilesService.profiles.length === 2) {
 			await this.fileService.del(this.userDataProfilesService.profilesHome, { recursive: true });
 		} else {
 			await this.fileService.del(profile.location, { recursive: true });
 		}
 	}
 
-	async switchProfile(name: string): Promise<void> {
+	async switchProfile(profile: IUserDataProfile): Promise<void> {
 		const workspaceIdentifier = this.getWorkspaceIdentifier();
 		if (!workspaceIdentifier) {
 			throw new Error(localize('cannotSwitchProfileInEmptyWorkbench', "Cannot switch a profile in an empty workspace"));
 		}
-		const profiles = await this.userDataProfilesService.getAllProfiles();
-		const profile = profiles.find(p => p.name === name);
-		if (!profile) {
-			throw new Error(`Profile ${name} does not exist`);
+		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
+			throw new Error(`Profile ${profile.name} does not exist`);
 		}
 		await this.userDataProfilesService.setProfileForWorkspace(profile, workspaceIdentifier);
 		await this.enterProfile();

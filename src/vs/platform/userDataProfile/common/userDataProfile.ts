@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hash } from 'vs/base/common/hash';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { UriDto } from 'vs/base/common/types';
@@ -54,6 +55,9 @@ export interface IUserDataProfilesService {
 	readonly defaultProfile: IUserDataProfile;
 	readonly currentProfile: IUserDataProfile;
 
+	readonly onDidChangeProfiles: Event<IUserDataProfile[]>;
+	readonly profiles: IUserDataProfile[];
+
 	newProfile(name: string, options?: ProfileOptions): IUserDataProfile;
 	createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
 	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
@@ -87,6 +91,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	protected _defaultProfile: IUserDataProfile;
 	get defaultProfile(): IUserDataProfile { return this._defaultProfile; }
+
+	get profiles(): IUserDataProfile[] { return []; }
+
+	protected readonly _onDidChangeProfiles = this._register(new Emitter<IUserDataProfile[]>());
+	readonly onDidChangeProfiles = this._onDidChangeProfiles.event;
 
 	constructor(
 		defaultProfile: UriDto<IUserDataProfile> | undefined,
