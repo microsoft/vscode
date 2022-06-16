@@ -14,26 +14,35 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfileTemplate, isProfile, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileTemplate, isProfile, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
-registerAction2(class SaveProfileAsAction extends Action2 {
+registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 	constructor() {
+		const when = ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty'));
 		super({
-			id: 'workbench.profiles.actions.saveProfileAs',
+			id: 'workbench.profiles.actions.createFromCurrentProfile',
 			title: {
-				value: localize('save profile as', "Save Settings Profile As..."),
-				original: 'Save Settings Profile As...'
+				value: localize('save profile as', "Create from Current Profile..."),
+				original: 'Create from Current Profile...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
+			precondition: when,
+			menu: [
+				{
+					id: ManageProfilesSubMenu,
+					group: '1_create_profiles',
+					when,
+					order: 1
+				}
+			]
 		});
 	}
 
@@ -42,10 +51,83 @@ registerAction2(class SaveProfileAsAction extends Action2 {
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 		const name = await quickInputService.input({
 			placeHolder: localize('name', "Profile name"),
-			title: localize('save profile as', "Save Settings Profile As..."),
+			title: localize('save profile as', "Create from Current Profile..."),
 		});
 		if (name) {
 			await userDataProfileManagementService.createAndEnterProfile(name, undefined, true);
+		}
+	}
+});
+
+registerAction2(class CreateEmptyProfileAction extends Action2 {
+	constructor() {
+		const when = ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty'));
+		super({
+			id: 'workbench.profiles.actions.createProfile',
+			title: {
+				value: localize('create profile', "Create an Empty Profile..."),
+				original: 'Create an Empty Profile...'
+			},
+			category: PROFILES_CATEGORY,
+			f1: true,
+			precondition: when,
+			menu: [
+				{
+					id: ManageProfilesSubMenu,
+					group: '1_create_profiles',
+					when,
+					order: 2
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const name = await quickInputService.input({
+			placeHolder: localize('name', "Profile name"),
+			title: localize('create and enter empty profile', "Create an Empty Profile..."),
+		});
+		if (name) {
+			await userDataProfileManagementService.createAndEnterProfile(name);
+		}
+	}
+});
+
+registerAction2(class RemoveProfileAction extends Action2 {
+	constructor() {
+		const when = ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty'));
+		super({
+			id: 'workbench.profiles.actions.removeProfile',
+			title: {
+				value: localize('remove profile', "Remove Profile..."),
+				original: 'Remove Profile...'
+			},
+			category: PROFILES_CATEGORY,
+			f1: true,
+			precondition: when,
+			menu: [
+				{
+					id: ManageProfilesSubMenu,
+					group: '2_manage_profiles',
+					when
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+
+		const profiles = (await userDataProfilesService.getAllProfiles()).filter(p => p.name !== userDataProfilesService.currentProfile.name && p.name !== userDataProfilesService.defaultProfile.name);
+		if (profiles.length) {
+			const pick = await quickInputService.pick(profiles.map(profile => ({ label: profile.name, profile })), { placeHolder: localize('pick profile', "Select Settings Profile") });
+			if (pick) {
+				await userDataProfileManagementService.removeProfile(pick.profile);
+			}
 		}
 	}
 });
@@ -71,42 +153,14 @@ registerAction2(class SwitchProfileAction extends Action2 {
 
 		const profiles = await userDataProfilesService.getAllProfiles();
 		if (profiles.length) {
-			const picks: IQuickPickItem[] = profiles.map(p => ({
-				label: p.name!,
-				description: p.name === userDataProfilesService.currentProfile.name ? localize('current', "Current") : undefined,
+			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = profiles.map(profile => ({
+				label: profile.name!,
+				description: profile.name === userDataProfilesService.currentProfile.name ? localize('current', "Current") : undefined,
+				profile
 			}));
 			const pick = await quickInputService.pick(picks, { placeHolder: localize('pick profile', "Select Settings Profile") });
 			if (pick) {
-				await userDataProfileManagementService.switchProfile(pick.label);
-			}
-		}
-	}
-});
-
-registerAction2(class RemoveProfileAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.profiles.actions.removeProfile',
-			title: {
-				value: localize('remove profile', "Remove Settings Profile"),
-				original: 'Remove Settings Profile'
-			},
-			category: PROFILES_CATEGORY,
-			f1: true,
-			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const quickInputService = accessor.get(IQuickInputService);
-		const userDataProfilesService = accessor.get(IUserDataProfilesService);
-		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
-
-		const profiles = (await userDataProfilesService.getAllProfiles()).filter(p => p.name !== userDataProfilesService.currentProfile.name && p.name !== userDataProfilesService.defaultProfile.name);
-		if (profiles.length) {
-			const pick = await quickInputService.pick(profiles.map(p => ({ label: p.name! })), { placeHolder: localize('pick profile', "Select Settings Profile") });
-			if (pick) {
-				await userDataProfileManagementService.removeProfile(pick.label);
+				await userDataProfileManagementService.switchProfile(pick.profile);
 			}
 		}
 	}
@@ -135,33 +189,6 @@ registerAction2(class CleanupProfilesAction extends Action2 {
 		const stat = await fileService.resolve(userDataProfilesService.profilesHome);
 		await Promise.all((stat.children || [])?.filter(child => child.isDirectory && allProfiles.every(p => !uriIdentityService.extUri.isEqual(p.location, child.resource)))
 			.map(child => fileService.del(child.resource, { recursive: true })));
-	}
-});
-
-registerAction2(class CreateAndEnterEmptyProfileAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.profiles.actions.createAndEnterEmptyProfile',
-			title: {
-				value: localize('create and enter empty profile', "Create and Enter Empty Profile..."),
-				original: 'Create and Enter Empty Profile...'
-			},
-			category: PROFILES_CATEGORY,
-			f1: true,
-			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const quickInputService = accessor.get(IQuickInputService);
-		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
-		const name = await quickInputService.input({
-			placeHolder: localize('name', "Profile name"),
-			title: localize('create and enter empty profile', "Create and Enter Empty Profile..."),
-		});
-		if (name) {
-			await userDataProfileManagementService.createAndEnterProfile(name);
-		}
 	}
 });
 
@@ -242,7 +269,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 			if (profile) {
 				const name = await quickInputService.input({
 					placeHolder: localize('name', "Profile name"),
-					title: localize('save profile as', "Save Settings Profile As..."),
+					title: localize('save profile as', "Create from Current Profile..."),
 				});
 				if (name) {
 					await userDataProfileMangementService.createAndEnterProfileFromTemplate(name, profile);
