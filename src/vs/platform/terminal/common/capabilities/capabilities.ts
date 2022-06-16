@@ -96,6 +96,7 @@ export interface ICommandDetectionCapability {
 	readonly onCurrentCommandInvalidated: Event<void>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
+	setIsCommandStorageDisabled(): void;
 	/**
 	 * Gets the working directory for a line, this will return undefined if it's unknown in which
 	 * case the terminal's initial cwd should be used.
