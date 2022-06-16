@@ -26,13 +26,13 @@ export class NativeStorageService extends AbstractStorageService {
 	// profile of the window.
 	private globalStorage: IStorage;
 	private globalStorageProfile: IUserDataProfile | undefined = undefined;
-	private globalStorageDisposables = this._register(new DisposableStore());
+	private readonly globalStorageDisposables = this._register(new DisposableStore());
 
 	// Workspace Storage is scoped to a window but can change
 	// in the current window, when entering a workspace.
 	private workspaceStorage: IStorage | undefined = undefined;
 	private workspaceStorageId: string | undefined = undefined;
-	private workspaceStorageDisposables = this._register(new DisposableStore());
+	private readonly workspaceStorageDisposables = this._register(new DisposableStore());
 
 	constructor(
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,

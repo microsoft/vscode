@@ -25,7 +25,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	private globalStorage: IStorage | undefined;
 	private globalStorageDatabase: IIndexedDBStorageDatabase | undefined;
-	private globalStorageDisposables = this._register(new DisposableStore());
+	private readonly globalStorageDisposables = this._register(new DisposableStore());
 
 	private workspaceStorage: IStorage | undefined;
 	private workspaceStorageDatabase: IIndexedDBStorageDatabase | undefined;
