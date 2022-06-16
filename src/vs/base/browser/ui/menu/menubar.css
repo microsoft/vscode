@@ -26,7 +26,7 @@
 	-webkit-app-region: no-drag;
 	zoom: 1;
 	white-space: nowrap;
-	outline: 0;
+	outline: 0 !important;
 }
 
 .menubar.compact {
@@ -91,9 +91,9 @@
 }
 
 /* Match behavior of outline for activity bar icons */
-.menubar.compact > .menubar-menu-button.open,
-.menubar.compact > .menubar-menu-button:focus,
-.menubar.compact > .menubar-menu-button:hover {
+.menubar.compact > .menubar-menu-button.open .menubar-menu-title,
+.menubar.compact > .menubar-menu-button:focus .menubar-menu-title,
+.menubar.compact > .menubar-menu-button:hover .menubar-menu-title{
 	outline-width: 1px !important;
 	outline-offset: -8px !important;
 }
