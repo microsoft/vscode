@@ -32,7 +32,8 @@ export function setup() {
 				await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, process.platform === 'win32' ? 'PowerShell' : 'bash');
 			}
 
-			describe(`Shell integration ${i}`, function () {
+			// TODO: Some agents may not have pwsh installed?
+			(process.platform === 'win32' ? describe.skip : describe)(`Shell integration`, function () {
 				describe('Decorations', function () {
 					describe('Should show default icons', function () {
 
