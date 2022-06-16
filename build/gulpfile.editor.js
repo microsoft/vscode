@@ -30,7 +30,7 @@ const editorEntryPoints = [
 		include: [],
 		exclude: ['vs/css', 'vs/nls'],
 		prepend: [
-			{ path: 'out-editor-build/vs/css.js' },
+			{ path: 'out-editor-build/vs/css.js', amdModuleId: 'vs/css' },
 			{ path: 'out-editor-build/vs/nls.js', amdModuleId: 'vs/nls' }
 		],
 	},

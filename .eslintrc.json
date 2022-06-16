@@ -277,6 +277,7 @@
 						// imports that are allowed in all /test/ files
 						"when": "test",
 						"allow": [
+							"vs/css.build",
 							"assert",
 							"sinon",
 							"sinon-test"
