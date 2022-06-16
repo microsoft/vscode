@@ -446,7 +446,8 @@
 							}, // TODO@layers
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
-							"@vscode/vscode-languagedetection" // node module allowed even in /common/
+							"@vscode/vscode-languagedetection", // node module allowed even in /common/
+							"@microsoft/applicationinsights-web"
 						]
 					},
 					{
