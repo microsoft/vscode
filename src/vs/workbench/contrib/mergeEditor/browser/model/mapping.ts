@@ -162,15 +162,17 @@ export class DocumentMapping {
 			if (lastBefore.getRange(containingDirection).contains(lineNumber)) {
 				return lastBefore;
 			}
-			return new LineRangeMapping(
-				new LineRange(lineNumber, 1),
-				new LineRange(
-					lineNumber +
-					lastBefore.getRange(mapTo).endLineNumberExclusive -
-					lastBefore.getRange(containingDirection).endLineNumberExclusive,
-					1
-				)
+			const containingRange = new LineRange(lineNumber, 1);
+			const mappedRange = new LineRange(
+				lineNumber +
+				lastBefore.getRange(mapTo).endLineNumberExclusive -
+				lastBefore.getRange(containingDirection).endLineNumberExclusive,
+				1
 			);
+
+			return containingDirection === MappingDirection.input
+				? new LineRangeMapping(containingRange, mappedRange)
+				: new LineRangeMapping(mappedRange, containingRange);
 		}
 		return new LineRangeMapping(
 			new LineRange(lineNumber, 1),
