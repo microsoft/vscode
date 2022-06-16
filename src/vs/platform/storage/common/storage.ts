@@ -10,6 +10,7 @@ import { mark } from 'vs/base/common/performance';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
@@ -140,9 +141,10 @@ export interface IStorageService {
 	logStorage(): void;
 
 	/**
-	 * Migrate the storage contents to another workspace.
+	 * Switch storage to another workspace or profile. Optionally preserve the
+	 * current data to the new storage.
 	 */
-	migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void>;
+	switch(to: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
 
 	/**
 	 * Whether the storage for the given scope was created during this session or
@@ -544,7 +546,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	protected abstract getLogDetails(scope: StorageScope): string | undefined;
 
-	abstract migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void>;
+	abstract switch(to: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
 }
 
 export class InMemoryStorageService extends AbstractStorageService {
@@ -585,8 +587,8 @@ export class InMemoryStorageService extends AbstractStorageService {
 
 	protected async doInitialize(): Promise<void> { }
 
-	async migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
-		// not supported
+	async switch(): Promise<void> {
+		// no-op when in-memory
 	}
 }
 

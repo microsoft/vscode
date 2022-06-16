@@ -8,11 +8,12 @@ import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { assertIsDefined } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { isUserDataProfile, IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class BrowserStorageService extends AbstractStorageService {
@@ -20,12 +21,16 @@ export class BrowserStorageService extends AbstractStorageService {
 	private static BROWSER_DEFAULT_FLUSH_INTERVAL = 5 * 1000; // every 5s because async operations are not permitted on shutdown
 
 	private applicationStorage: IStorage | undefined;
-	private globalStorage: IStorage | undefined;
-	private workspaceStorage: IStorage | undefined;
-
 	private applicationStorageDatabase: IIndexedDBStorageDatabase | undefined;
+
+	private globalStorage: IStorage | undefined;
 	private globalStorageDatabase: IIndexedDBStorageDatabase | undefined;
+	private globalStorageDisposables = this._register(new DisposableStore());
+
+	private workspaceStorage: IStorage | undefined;
 	private workspaceStorageDatabase: IIndexedDBStorageDatabase | undefined;
+
+	private profile: IUserDataProfile;
 
 	get hasPendingUpdate(): boolean {
 		return Boolean(
@@ -38,9 +43,11 @@ export class BrowserStorageService extends AbstractStorageService {
 	constructor(
 		private readonly payload: IAnyWorkspaceIdentifier,
 		@ILogService private readonly logService: ILogService,
-		@IUserDataProfilesService private readonly userDataProfileService: IUserDataProfilesService
+		@IUserDataProfilesService userDataProfileService: IUserDataProfilesService
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
+
+		this.profile = userDataProfileService.currentProfile;
 	}
 
 	private getId(scope: StorageScope): string {
@@ -48,10 +55,10 @@ export class BrowserStorageService extends AbstractStorageService {
 			case StorageScope.APPLICATION:
 				return 'global'; // use the default profile global DB for application scope
 			case StorageScope.GLOBAL:
-				if (this.userDataProfileService.currentProfile.isDefault) {
+				if (this.profile.isDefault) {
 					return 'global'; // default profile DB has a fixed name for backwards compatibility
 				} else {
-					return `global-${this.userDataProfileService.currentProfile.id}`;
+					return `global-${this.profile.id}`;
 				}
 			case StorageScope.WORKSPACE:
 				return this.payload.id;
@@ -64,7 +71,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		const promises: Promise<IIndexedDBStorageDatabase>[] = [];
 		promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.APPLICATION), broadcastChanges: true }, this.logService));
 		promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService));
-		if (!this.userDataProfileService.currentProfile.isDefault) {
+		if (!this.profile.isDefault) {
 
 			// If we are in default profile, the global storage is
 			// actually the same as application storage. As such we
@@ -87,12 +94,12 @@ export class BrowserStorageService extends AbstractStorageService {
 
 		// Global Storage
 		if (globalStorageDatabase) {
-			this.globalStorageDatabase = this._register(globalStorageDatabase);
-			this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
+			this.globalStorageDatabase = this.globalStorageDisposables.add(globalStorageDatabase);
+			this.globalStorage = this.globalStorageDisposables.add(new Storage(this.globalStorageDatabase));
 		} else {
 			this.globalStorage = this.applicationStorage;
 		}
-		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		this.globalStorageDisposables.add(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 
 		// Init storages
 		await Promises.settled([
@@ -103,12 +110,16 @@ export class BrowserStorageService extends AbstractStorageService {
 
 		// Apply is-new markers
 		for (const storage of [this.applicationStorage, this.globalStorage, this.workspaceStorage]) {
-			const firstOpen = storage.getBoolean(IS_NEW_KEY);
-			if (firstOpen === undefined) {
-				storage.set(IS_NEW_KEY, true);
-			} else if (firstOpen) {
-				storage.set(IS_NEW_KEY, false);
-			}
+			this.updateIsNew(storage);
+		}
+	}
+
+	private updateIsNew(storage: IStorage): void {
+		const firstOpen = storage.getBoolean(IS_NEW_KEY);
+		if (firstOpen === undefined) {
+			storage.set(IS_NEW_KEY, true);
+		} else if (firstOpen) {
+			storage.set(IS_NEW_KEY, false);
 		}
 	}
 
@@ -127,7 +138,76 @@ export class BrowserStorageService extends AbstractStorageService {
 		return this.getId(scope);
 	}
 
-	async migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
+	async switch(to: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void> {
+
+		// Profile migration
+		if (isUserDataProfile(to)) {
+			return this.migrateToProfile(to, preserveData);
+		}
+
+		// Workspace migration
+		return this.migrateToWorkspace(to, preserveData);
+	}
+
+	private async migrateToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+		this.profile = toProfile;
+
+		const oldGlobalStorage = assertIsDefined(this.globalStorage);
+		const oldItems = oldGlobalStorage.items;
+
+		// Close old global storage but only if this is
+		// different from application storage!
+		if (oldGlobalStorage !== this.applicationStorage) {
+			await oldGlobalStorage.close();
+		}
+
+		// Clear our associated global storage data
+		this.globalStorageDisposables.dispose();
+		this.globalStorage = undefined;
+		this.globalStorageDatabase = undefined;
+
+		// Create new global storage & init
+		if (toProfile.isDefault) {
+			this.globalStorage = assertIsDefined(this.applicationStorage);
+		} else {
+			const globalStorageDatabase = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService);
+
+			this.globalStorageDatabase = this.globalStorageDisposables.add(globalStorageDatabase);
+			this.globalStorage = this.globalStorageDisposables.add(new Storage(this.globalStorageDatabase));
+
+			this.updateIsNew(this.globalStorage);
+
+			await this.globalStorage.init();
+		}
+
+		// Copy over previous keys if `preserveData`
+		if (preserveData) {
+			for (const [key, value] of oldItems) {
+				this.globalStorage.set(key, value);
+			}
+		}
+
+		// Otherwise signal storage keys that have changed
+		else {
+			const handledkeys = new Set<string>();
+			for (const [key, oldValue] of oldItems) {
+				handledkeys.add(key);
+
+				const newValue = this.globalStorage.get(key);
+				if (newValue !== oldValue) {
+					this.emitDidChangeValue(StorageScope.GLOBAL, key);
+				}
+			}
+
+			for (const [key] of this.globalStorage.items) {
+				if (!handledkeys.has(key)) {
+					this.emitDidChangeValue(StorageScope.GLOBAL, key);
+				}
+			}
+		}
+	}
+
+	private async migrateToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
 		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 

@@ -34,7 +34,7 @@ export interface IUserDataProfileTemplate {
 	readonly extensions?: string;
 }
 
-export function isProfile(thing: any): thing is IUserDataProfileTemplate {
+export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTemplate {
 	const candidate = thing as IUserDataProfileTemplate | undefined;
 
 	return !!(candidate && typeof candidate === 'object'

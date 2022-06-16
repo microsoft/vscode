@@ -81,7 +81,7 @@ suite('FindController', async () => {
 		flush: () => { return Promise.resolve(); },
 		keys: () => [],
 		logStorage: () => { },
-		migrate: () => { throw new Error(); }
+		switch: () => { throw new Error(); }
 	} as IStorageService);
 
 	if (platform.isMacintosh) {
@@ -512,7 +512,7 @@ suite('FindController query options persistence', async () => {
 		flush: () => { return Promise.resolve(); },
 		keys: () => [],
 		logStorage: () => { },
-		migrate: () => { throw new Error(); }
+		switch: () => { throw new Error(); }
 	} as IStorageService);
 
 	test('matchCase', async () => {
