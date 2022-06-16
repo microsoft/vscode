@@ -138,10 +138,11 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 	public manualTriggerAtCurrentPosition(
 		notAvailableMessage: string,
+		triggerAction: CodeMenuOpenedFrom,
 		filter?: CodeActionFilter,
 		autoApply?: CodeActionAutoApply,
 		preview?: boolean,
-		triggerAction?: CodeMenuOpenedFrom,
+
 	): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -168,22 +169,22 @@ export enum ApplyCodeActionReason {
 }
 
 export enum CodeMenuOpenedFrom {
-	Refactor = 'from: refactor',
-	RefactorPreview = 'from: refactor preview',
-	Lightbulb = 'from: lightbulb',
-	Default = 'from: other (default)',
-	SourceAction = 'from: source action',
-	QuickFix = 'from: quick fix',
-	FixAll = 'from: fix all',
-	OrganizeImports = 'from: organize imports',
-	AutoFix = 'from: auto fix'
+	Refactor = 'refactor',
+	RefactorPreview = 'refactor preview',
+	Lightbulb = 'lightbulb',
+	Default = 'other (default)',
+	SourceAction = 'source action',
+	QuickFix = 'quick fix',
+	FixAll = 'fix all',
+	OrganizeImports = 'organize imports',
+	AutoFix = 'auto fix'
 }
 
 export async function applyCodeAction(
 	accessor: ServicesAccessor,
 	item: CodeActionItem,
 	codeActionReason: ApplyCodeActionReason,
-	options?: { preview?: boolean; editor?: ICodeEditor; menuOpenedFrom?: CodeMenuOpenedFrom; validActionsLength?: any },
+	options?: { preview?: boolean; editor?: ICodeEditor },
 ): Promise<void> {
 	const bulkEditService = accessor.get(IBulkEditService);
 	const commandService = accessor.get(ICommandService);
@@ -258,7 +259,7 @@ function triggerCodeActionsForEditorSelection(
 ): void {
 	if (editor.hasModel()) {
 		const controller = QuickFixController.get(editor);
-		controller?.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply, preview, triggerAction);
+		controller?.manualTriggerAtCurrentPosition(notAvailableMessage, triggerAction, filter, autoApply, preview);
 	}
 }
 

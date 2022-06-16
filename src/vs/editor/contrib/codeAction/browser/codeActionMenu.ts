@@ -110,7 +110,7 @@ export class CodeActionMenu extends Disposable {
 
 				type ApplyCodeActionEvent = {
 					codeActionFrom: CodeMenuOpenedFrom;
-					validCodeActions: any;
+					validCodeActions: number;
 					cancelled: boolean;
 				};
 
@@ -119,7 +119,7 @@ export class CodeActionMenu extends Disposable {
 					validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
 					cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
 					owner: 'mjbvz';
-					comment: 'Event used to gain insights into which code actions are being triggered';
+					comment: 'Event used to gain insights into how code actions are being triggered';
 				};
 
 				this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
