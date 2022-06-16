@@ -1777,6 +1777,7 @@ export namespace TestItem {
 				add: () => { },
 				delete: () => { },
 				forEach: () => { },
+				*[Symbol.iterator]() { },
 				get: () => undefined,
 				replace: () => { },
 				size: 0,
@@ -1953,8 +1954,6 @@ export namespace DataTransferItem {
 		const file = item.fileData;
 		if (file) {
 			return new class extends types.DataTransferItem {
-				override get kind() { return types.DataTransferItemKind.File; }
-
 				override asFile(): vscode.DataTransferFile {
 					return {
 						name: file.name,

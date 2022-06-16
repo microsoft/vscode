@@ -43,15 +43,14 @@ export class CachedExtensionScanner {
 
 	public async startScanningExtensions(): Promise<void> {
 		try {
-			const { system, user, development } = await this._scanInstalledExtensions();
-			const r = dedupExtensions(system, user, development, this._logService);
-			this._scannedExtensionsResolve(r);
+			const extensions = await this._scanInstalledExtensions();
+			this._scannedExtensionsResolve(extensions);
 		} catch (err) {
 			this._scannedExtensionsReject(err);
 		}
 	}
 
-	private async _scanInstalledExtensions(): Promise<{ system: IExtensionDescription[]; user: IExtensionDescription[]; development: IExtensionDescription[] }> {
+	private async _scanInstalledExtensions(): Promise<IExtensionDescription[]> {
 		try {
 			const language = platform.language;
 			const [scannedSystemExtensions, scannedUserExtensions] = await Promise.all([
@@ -61,6 +60,7 @@ export class CachedExtensionScanner {
 			const system = scannedSystemExtensions.map(e => toExtensionDescription(e, false));
 			const user = scannedUserExtensions.map(e => toExtensionDescription(e, false));
 			const development = scannedDevelopedExtensions.map(e => toExtensionDescription(e, true));
+			const r = dedupExtensions(system, user, development, this._logService);
 			const disposable = this._extensionsScannerService.onDidChangeCache(() => {
 				disposable.dispose();
 				this._notificationService.prompt(
@@ -73,11 +73,11 @@ export class CachedExtensionScanner {
 				);
 			});
 			timeout(5000).then(() => disposable.dispose());
-			return { system, user, development };
+			return r;
 		} catch (err) {
 			this._logService.error(`Error scanning installed extensions:`);
 			this._logService.error(err);
-			return { system: [], user: [], development: [] };
+			return [];
 		}
 	}
 

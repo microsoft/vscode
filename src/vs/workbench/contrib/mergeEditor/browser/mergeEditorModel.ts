@@ -3,15 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, CompareResult, equals } from 'vs/base/common/arrays';
+import { compareBy, CompareResult, tieBreakComparators, equals, numberComparator } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { splitLines } from 'vs/base/common/strings';
+import { Constants } from 'vs/base/common/uint';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { autorunHandleChanges, derivedObservable, derivedObservableWithCache, IObservable, ITransaction, keepAlive, ObservableValue, transaction, waitForState } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { LineDiff, LineEdit, LineRange, ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model';
-import { EditorWorkerServiceDiffComputer, TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'vs/workbench/contrib/mergeEditor/browser/textModelDiffs';
-import { leftJoin } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/diffComputer';
+import { LineRangeMapping, LineRangeEdit, LineRange, ModifiedBaseRange, ModifiedBaseRangeState, RangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model';
+import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'vs/workbench/contrib/mergeEditor/browser/textModelDiffs';
+import { concatArrays, leftJoin, elementAtOrUndefined } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 
 export const enum MergeEditorModelState {
 	initializing = 1,
@@ -109,22 +114,22 @@ export class MergeEditorModel extends EditorModel {
 		});
 	}
 
-	private recomputeState(resultDiffs: LineDiff[], stores: Map<ModifiedBaseRange, ObservableValue<ModifiedBaseRangeState>>): void {
+	private recomputeState(resultDiffs: LineRangeMapping[], stores: Map<ModifiedBaseRange, ObservableValue<ModifiedBaseRangeState>>): void {
 		transaction(tx => {
 			const baseRangeWithStoreAndTouchingDiffs = leftJoin(
 				stores,
 				resultDiffs,
 				(baseRange, diff) =>
-					baseRange[0].baseRange.touches(diff.originalRange)
+					baseRange[0].baseRange.touches(diff.inputRange)
 						? CompareResult.neitherLessOrGreaterThan
 						: LineRange.compareByStart(
 							baseRange[0].baseRange,
-							diff.originalRange
+							diff.inputRange
 						)
 			);
 
 			for (const row of baseRangeWithStoreAndTouchingDiffs) {
-				row.left[1].set(computeState(row.left[0], row.rights), tx);
+				row.left[1].set(this.computeState(row.left[0], row.rights), tx);
 			}
 		});
 	}
@@ -193,65 +198,73 @@ export class MergeEditorModel extends EditorModel {
 			this.resultTextModelDiffs.applyEditRelativeToOriginal(edit, transaction);
 		}
 	}
+
+	private computeState(baseRange: ModifiedBaseRange, conflictingDiffs: LineRangeMapping[]): ModifiedBaseRangeState {
+		if (conflictingDiffs.length === 0) {
+			return ModifiedBaseRangeState.default;
+		}
+		const conflictingEdits = conflictingDiffs.map((d) => d.getLineEdit());
+
+		function editsAgreeWithDiffs(diffs: readonly LineRangeMapping[]): boolean {
+			return equals(
+				conflictingEdits,
+				diffs.map((d) => d.getLineEdit()),
+				(a, b) => a.equals(b)
+			);
+		}
+
+		if (editsAgreeWithDiffs(baseRange.input1Diffs)) {
+			return ModifiedBaseRangeState.default.withInput1(true);
+		}
+		if (editsAgreeWithDiffs(baseRange.input2Diffs)) {
+			return ModifiedBaseRangeState.default.withInput2(true);
+		}
+
+		const states = [
+			ModifiedBaseRangeState.default.withInput1(true).withInput2(true),
+			ModifiedBaseRangeState.default.withInput2(true).withInput1(true),
+		];
+
+		for (const s of states) {
+			const { edit } = getEditForBase(baseRange, s);
+			if (edit) {
+				const resultRange = this.resultTextModelDiffs.getResultRange(baseRange.baseRange);
+				const existingLines = resultRange.getLines(this.result);
+
+				if (equals(edit.newLines, existingLines, (a, b) => a === b)) {
+					return s;
+				}
+			}
+		}
+
+		return ModifiedBaseRangeState.conflicting;
+	}
+
 }
 
-function getEditForBase(baseRange: ModifiedBaseRange, state: ModifiedBaseRangeState): { edit: LineEdit | undefined; effectiveState: ModifiedBaseRangeState } {
-	interface LineDiffWithInputNumber {
-		diff: LineDiff;
-		inputNumber: 1 | 2;
-	}
+function getEditForBase(baseRange: ModifiedBaseRange, state: ModifiedBaseRangeState): { edit: LineRangeEdit | undefined; effectiveState: ModifiedBaseRangeState } {
+	const diffs = concatArrays(
+		state.input1 && baseRange.input1CombinedDiff ? [{ diff: baseRange.input1CombinedDiff, inputNumber: 1 as const }] : [],
+		state.input2 && baseRange.input2CombinedDiff ? [{ diff: baseRange.input2CombinedDiff, inputNumber: 2 as const }] : [],
+	);
 
-	const diffs = new Array<LineDiffWithInputNumber>();
-	if (state.input1) {
-		if (baseRange.input1CombinedDiff) {
-			diffs.push({ diff: baseRange.input1CombinedDiff, inputNumber: 1 });
-		}
-	}
-	if (state.input2) {
-		if (baseRange.input2CombinedDiff) {
-			diffs.push({ diff: baseRange.input2CombinedDiff, inputNumber: 2 });
-		}
-	}
 	if (state.input2First) {
 		diffs.reverse();
 	}
-	const firstDiff: LineDiffWithInputNumber | undefined = diffs[0];
-	const secondDiff: LineDiffWithInputNumber | undefined = diffs[1];
-	diffs.sort(compareBy(d => d.diff.originalRange, LineRange.compareByStart));
+
+	const firstDiff = elementAtOrUndefined(diffs, 0);
+	const secondDiff = elementAtOrUndefined(diffs, 1);
 
 	if (!firstDiff) {
 		return { edit: undefined, effectiveState: ModifiedBaseRangeState.default };
 	}
-
 	if (!secondDiff) {
 		return { edit: firstDiff.diff.getLineEdit(), effectiveState: ModifiedBaseRangeState.default.withInputValue(firstDiff.inputNumber, true) };
 	}
 
-	// Two inserts
-	if (
-		firstDiff.diff.originalRange.lineCount === 0 &&
-		firstDiff.diff.originalRange.equals(secondDiff.diff.originalRange)
-	) {
-		return {
-			edit: new LineEdit(
-				firstDiff.diff.originalRange,
-				firstDiff.diff
-					.getLineEdit()
-					.newLines.concat(secondDiff.diff.getLineEdit().newLines)
-			),
-			effectiveState: state,
-		};
-	}
-
-	// Technically non-conflicting diffs
-	if (diffs.length === 2 && diffs[0].diff.originalRange.endLineNumberExclusive === diffs[1].diff.originalRange.startLineNumber) {
-		return {
-			edit: new LineEdit(
-				LineRange.join(diffs.map(d => d.diff.originalRange))!,
-				diffs.flatMap(d => d.diff.getLineEdit().newLines)
-			),
-			effectiveState: state,
-		};
+	const result = combineInputs(baseRange, state.input2First ? 2 : 1);
+	if (result) {
+		return { edit: result, effectiveState: state };
 	}
 
 	return {
@@ -263,26 +276,67 @@ function getEditForBase(baseRange: ModifiedBaseRange, state: ModifiedBaseRangeSt
 	};
 }
 
-function computeState(baseRange: ModifiedBaseRange, conflictingDiffs: LineDiff[]): ModifiedBaseRangeState {
-	if (conflictingDiffs.length === 0) {
-		return ModifiedBaseRangeState.default;
-	}
-	const conflictingEdits = conflictingDiffs.map((d) => d.getLineEdit());
+function combineInputs(baseRange: ModifiedBaseRange, firstInput: 1 | 2): LineRangeEdit | undefined {
+	const combinedDiffs = concatArrays(
+		baseRange.input1Diffs.flatMap((diffs) =>
+			diffs.innerRangeMappings.map((diff) => ({ diff, input: 1 as const }))
+		),
+		baseRange.input2Diffs.flatMap((diffs) =>
+			diffs.innerRangeMappings.map((diff) => ({ diff, input: 2 as const }))
+		)
+	).sort(
+		tieBreakComparators(
+			compareBy((d) => d.diff.inputRange, Range.compareRangesUsingStarts),
+			compareBy((d) => (d.input === firstInput ? 1 : 2), numberComparator)
+		)
+	);
 
-	function editsAgreeWithDiffs(diffs: readonly LineDiff[]): boolean {
-		return equals(
-			conflictingEdits,
-			diffs.map((d) => d.getLineEdit()),
-			(a, b) => a.equals(b)
-		);
+	const sortedEdits = combinedDiffs.map(d => {
+		const sourceTextModel = d.input === 1 ? baseRange.input1TextModel : baseRange.input2TextModel;
+		return new RangeEdit(d.diff.inputRange, sourceTextModel.getValueInRange(d.diff.outputRange));
+	});
+
+	return editsToLineRangeEdit(baseRange.baseRange, sortedEdits, baseRange.baseTextModel);
+}
+
+function editsToLineRangeEdit(range: LineRange, sortedEdits: RangeEdit[], textModel: ITextModel): LineRangeEdit | undefined {
+	let text = '';
+	const startsLineBefore = range.startLineNumber > 1;
+	let currentPosition = startsLineBefore
+		? new Position(
+			range.startLineNumber - 1,
+			Constants.MAX_SAFE_SMALL_INTEGER
+		)
+		: new Position(range.startLineNumber, 1);
+
+	for (const edit of sortedEdits) {
+		const diffStart = edit.range.getStartPosition();
+		if (!currentPosition.isBeforeOrEqual(diffStart)) {
+			return undefined;
+		}
+		const originalText = textModel.getValueInRange(Range.fromPositions(currentPosition, diffStart));
+		text += originalText;
+		text += edit.newText;
+		currentPosition = edit.range.getEndPosition();
 	}
 
-	if (editsAgreeWithDiffs(baseRange.input1Diffs)) {
-		return ModifiedBaseRangeState.default.withInput1(true);
-	}
-	if (editsAgreeWithDiffs(baseRange.input2Diffs)) {
-		return ModifiedBaseRangeState.default.withInput2(true);
-	}
+	const endsLineAfter = range.endLineNumberExclusive <= textModel.getLineCount();
+	const end = endsLineAfter ? new Position(
+		range.endLineNumberExclusive,
+		1
+	) : new Position(range.endLineNumberExclusive - 1, Constants.MAX_SAFE_SMALL_INTEGER);
 
-	return ModifiedBaseRangeState.conflicting;
+	const originalText = textModel.getValueInRange(
+		Range.fromPositions(currentPosition, end)
+	);
+	text += originalText;
+
+	const lines = splitLines(text);
+	if (startsLineBefore) {
+		lines.shift();
+	}
+	if (endsLineAfter) {
+		lines.pop();
+	}
+	return new LineRangeEdit(range, lines);
 }

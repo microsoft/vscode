@@ -13,6 +13,9 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 
 export class UserDataProfilesNativeService extends UserDataProfilesService implements IUserDataProfilesService {
 
+	private _profiles: IUserDataProfile[] = [];
+	override get profiles(): IUserDataProfile[] { return this._profiles; }
+
 	constructor(
 		defaultProfile: IUserDataProfile,
 		currentProfile: IUserDataProfile,
@@ -22,6 +25,14 @@ export class UserDataProfilesNativeService extends UserDataProfilesService imple
 		@ILogService logService: ILogService,
 	) {
 		super(defaultProfile, currentProfile, environmentService, fileService, logService);
+		this.getAllProfiles().then(profiles => {
+			this._profiles = profiles;
+			this._onDidChangeProfiles.fire(this._profiles);
+			this._register(this.channel.listen<IUserDataProfile[]>('onDidChangeProfiles')((profiles) => {
+				this._profiles = profiles;
+				this._onDidChangeProfiles.fire(this._profiles);
+			}));
+		});
 	}
 
 	override async createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {

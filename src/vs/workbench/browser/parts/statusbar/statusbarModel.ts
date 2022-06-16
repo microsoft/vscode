@@ -406,13 +406,9 @@ export class StatusbarViewModel extends Disposable {
 		}
 
 		// Mark: first visible item
-		if (firstVisibleItem) {
-			firstVisibleItem.container.classList.add('first-visible-item');
-		}
+		firstVisibleItem?.container.classList.add('first-visible-item');
 
 		// Mark: last visible item
-		if (lastVisibleItem) {
-			lastVisibleItem.container.classList.add('last-visible-item');
-		}
+		lastVisibleItem?.container.classList.add('last-visible-item');
 	}
 }

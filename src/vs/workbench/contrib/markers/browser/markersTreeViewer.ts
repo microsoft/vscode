@@ -267,9 +267,7 @@ class ToggleMultilineActionViewItem extends ActionViewItem {
 	}
 
 	private updateExpandedAttribute(): void {
-		if (this.element) {
-			this.element.setAttribute('aria-expanded', `${this._action.class === ThemeIcon.asClassName(expandedIcon)}`);
-		}
+		this.element?.setAttribute('aria-expanded', `${this._action.class === ThemeIcon.asClassName(expandedIcon)}`);
 	}
 
 }

@@ -231,9 +231,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					case 'Cwd': {
 						this._createOrGetCwdDetection().updateCwd(value);
 						const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-						if (commandDetection) {
-							commandDetection.setCwd(value);
-						}
+						commandDetection?.setCwd(value);
 						return true;
 					}
 					case 'IsWindows': {
