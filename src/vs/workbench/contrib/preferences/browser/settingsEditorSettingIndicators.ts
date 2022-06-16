@@ -30,6 +30,7 @@ export interface ISettingOverrideClickEvent {
 export class SettingsTreeIndicatorsLabel {
 	private indicatorsContainerElement: HTMLElement;
 	private scopeOverridesElement: HTMLElement;
+	private scopeOverridesLabel: SimpleIconLabel;
 	private syncIgnoredElement: HTMLElement;
 	private defaultOverrideIndicatorElement: HTMLElement;
 	private hoverDelegate: IHoverDelegate;
@@ -42,7 +43,9 @@ export class SettingsTreeIndicatorsLabel {
 		this.indicatorsContainerElement = DOM.append(container, $('.misc-label'));
 		this.indicatorsContainerElement.style.display = 'inline';
 
-		this.scopeOverridesElement = this.createScopeOverridesElement();
+		const scopeOverridesIndicator = this.createScopeOverridesIndicator();
+		this.scopeOverridesElement = scopeOverridesIndicator.element;
+		this.scopeOverridesLabel = scopeOverridesIndicator.label;
 		this.syncIgnoredElement = this.createSyncIgnoredElement();
 		this.defaultOverrideIndicatorElement = this.createDefaultOverrideIndicator();
 
@@ -55,16 +58,17 @@ export class SettingsTreeIndicatorsLabel {
 		};
 	}
 
-	private createScopeOverridesElement(): HTMLElement {
+	private createScopeOverridesIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
 		const otherOverridesElement = $('span.setting-item-overrides');
-		return otherOverridesElement;
+		const otherOverridesLabel = new SimpleIconLabel(otherOverridesElement);
+		return { element: otherOverridesElement, label: otherOverridesLabel };
 	}
 
 	private createSyncIgnoredElement(): HTMLElement {
 		const syncIgnoredElement = $('span.setting-item-ignored');
 		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
 		syncIgnoredLabel.text = '$(info) ' + localize('extensionSyncIgnoredLabel', 'Not synced');
-		const syncIgnoredHoverContent = localize('syncIgnoredTitle', "Settings sync does not sync this setting");
+		const syncIgnoredHoverContent = localize('syncIgnoredTitle', "This setting is ignored during sync");
 		setupCustomHover(this.hoverDelegate, syncIgnoredElement, syncIgnoredHoverContent);
 		return syncIgnoredElement;
 	}
@@ -106,28 +110,53 @@ export class SettingsTreeIndicatorsLabel {
 		this.scopeOverridesElement.style.display = 'none';
 		if (element.overriddenScopeList.length) {
 			this.scopeOverridesElement.style.display = 'inline';
-			const otherOverridesLabel = element.isConfigured ?
-				localize('alsoConfiguredIn', "Also modified in") :
-				localize('configuredIn', "Modified in");
+			if (element.overriddenScopeList.length === 1) {
+				// Just show all the text in the label.
+				const configuredInText = element.isConfigured ?
+					localize('alsoConfiguredIn', "Also modified in") :
+					localize('configuredIn', "Modified in");
+				this.scopeOverridesLabel.text = `${configuredInText}: `;
 
-			DOM.append(this.scopeOverridesElement, $('span', undefined, `${otherOverridesLabel}: `));
-
-			for (let i = 0; i < element.overriddenScopeList.length; i++) {
-				const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, element.overriddenScopeList[i]));
-
-				if (i !== element.overriddenScopeList.length - 1) {
-					DOM.append(this.scopeOverridesElement, $('span', undefined, ', '));
-				}
-
+				const firstScope = element.overriddenScopeList[0];
+				const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, firstScope));
 				elementDisposables.add(
 					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
 						onDidClickOverrideElement.fire({
 							targetKey: element.setting.key,
-							scope: element.overriddenScopeList[i]
+							scope: firstScope
 						});
 						e.preventDefault();
 						e.stopPropagation();
 					}));
+			} else {
+				// Show most of the text in a custom hover.
+				let scopeOverridesLabelText = '$(info) ';
+				scopeOverridesLabelText += element.isConfigured ?
+					localize('alsoConfiguredElsewhere', "Also modified elsewhere") :
+					localize('configuredElsewhere', "Modified elsewhere");
+				this.scopeOverridesLabel.text = scopeOverridesLabelText;
+
+				const scopeOverridesContent = $('.scope-overrides-hover-content');
+				const scopeOverridesHoverMessagePreface = element.isConfigured ?
+					localize('alsoModifiedInScopes', "The setting has also been modified in the following scopes:") :
+					localize('modifiedInScopes', "The setting has been modified in the following scopes:");
+				const prefaceParagraph = DOM.append(scopeOverridesContent, $('p', { 'style': 'padding: 4px 8px;' }, scopeOverridesHoverMessagePreface));
+				const listMessage = DOM.append(prefaceParagraph, $('ul'));
+				for (const scope of element.overriddenScopeList) {
+					const listBullet = DOM.append(listMessage, $('li'));
+					// TODO: Turn this into a link after improving onDidClickOverrideElement
+					const scopeLink = DOM.append(listBullet, $('span.modified-scope', undefined, scope));
+					elementDisposables.add(
+						DOM.addStandardDisposableListener(scopeLink, DOM.EventType.CLICK, (e: IMouseEvent) => {
+							onDidClickOverrideElement.fire({
+								targetKey: element.setting.key,
+								scope
+							});
+							e.preventDefault();
+							e.stopPropagation();
+						}));
+				}
+				setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, scopeOverridesContent);
 			}
 		}
 		this.render();
@@ -173,7 +202,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	// Add sync ignored text
 	const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), configurationService);
 	if (ignoredSettings.includes(element.setting.key)) {
-		ariaLabelSections.push(localize('syncIgnoredTitle', "Settings sync does not sync this setting"));
+		ariaLabelSections.push(localize('syncIgnoredTitle', "This setting is ignored during sync"));
 	}
 
 	// Add default override indicator text
