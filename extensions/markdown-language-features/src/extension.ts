@@ -77,7 +77,7 @@ function registerMarkdownLanguageFeatures(
 		vscode.languages.registerDefinitionProvider(selector, new MdDefinitionProvider(referencesComputer)),
 		MdPathCompletionProvider.register(selector, engine, linkComputer),
 		registerDocumentLinkProvider(selector, linkComputer),
-		registerDiagnostics(selector, engine, workspaceContents, linkComputer, commandManager, referencesProvider),
+		registerDiagnostics(selector, engine, workspaceContents, linkComputer, commandManager, referencesComputer),
 		registerDropIntoEditor(selector),
 		registerReferencesProvider(selector, referencesComputer),
 		registerPasteProvider(selector),

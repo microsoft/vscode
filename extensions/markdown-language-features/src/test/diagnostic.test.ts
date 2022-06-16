@@ -8,7 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { DiagnosticCollectionReporter, DiagnosticComputer, DiagnosticConfiguration, DiagnosticLevel, DiagnosticManager, DiagnosticOptions, DiagnosticReporter } from '../languageFeatures/diagnostics';
 import { MdLinkComputer } from '../languageFeatures/documentLinkProvider';
-import { MdReferencesProvider } from '../languageFeatures/references';
+import { MdReferencesComputer } from '../languageFeatures/references';
 import { githubSlugifier } from '../slugify';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
@@ -42,14 +42,14 @@ function createDiagnosticsManager(
 ) {
 	const engine = createNewMarkdownEngine();
 	const linkComputer = new MdLinkComputer(engine);
-	const referencesProvider = new MdReferencesProvider(linkComputer, workspaceContents, engine, githubSlugifier);
+	const referencesComputer = new MdReferencesComputer(linkComputer, workspaceContents, engine, githubSlugifier);
 	return new DiagnosticManager(
 		engine,
 		workspaceContents,
 		new DiagnosticComputer(engine, workspaceContents, linkComputer),
 		configuration,
 		reporter,
-		referencesProvider,
+		referencesComputer,
 		0);
 }
 
