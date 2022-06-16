@@ -27,17 +27,23 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
 const applyLatestCommand = {
-	id: 'workbench.sessionSync.actions.applyLatest',
+	id: 'workbench.experimental.sessionSync.actions.applyLatest',
 	title: localize('apply latest', "{0}: Apply Latest Edit Session", EDIT_SESSION_SYNC_TITLE),
 };
 const storeLatestCommand = {
-	id: 'workbench.sessionSync.actions.storeLatest',
+	id: 'workbench.experimental.sessionSync.actions.storeLatest',
 	title: localize('store latest', "{0}: Store Latest Edit Session", EDIT_SESSION_SYNC_TITLE),
 };
+const continueEditSessionCommand = {
+	id: '_workbench.experimental.sessionSync.actions.continueEditSession',
+	title: localize('continue edit session', "{0}: Continue Edit Session", EDIT_SESSION_SYNC_TITLE),
+};
+const queryParamName = 'editSessionId';
 
 export class SessionSyncContribution extends Disposable implements IWorkbenchContribution {
 
@@ -47,6 +53,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		@ISessionSyncWorkbenchService private readonly sessionSyncWorkbenchService: ISessionSyncWorkbenchService,
 		@IFileService private readonly fileService: IFileService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISCMService private readonly scmService: ISCMService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -72,15 +79,43 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			return;
 		}
 
-		this.registerApplyEditSessionAction();
-		this.registerStoreEditSessionAction();
+		this.registerContinueEditSessionAction();
+
+		this.registerApplyLatestEditSessionAction();
+		this.registerStoreLatestEditSessionAction();
 
 		this.registered = true;
 	}
 
-	private registerApplyEditSessionAction(): void {
+	private registerContinueEditSessionAction() {
 		const that = this;
-		this._register(registerAction2(class ApplyEditSessionAction extends Action2 {
+		this._register(registerAction2(class ContinueEditSessionAction extends Action2 {
+			constructor() {
+				super({
+					id: continueEditSessionCommand.id,
+					title: continueEditSessionCommand.title
+				});
+			}
+
+			async run(accessor: ServicesAccessor, workspaceUri: URI): Promise<void> {
+				// Run the store action to get back a ref
+				const ref = await that.storeEditSession();
+
+				// Append the ref to the URI
+				workspaceUri = workspaceUri.with({
+					query: workspaceUri.query.length > 0 ? (workspaceUri + `&${queryParamName}=${ref}`) : `${queryParamName}=${ref}`
+				});
+
+				// Open the URI
+				that.logService.info(`Edit sessions: opening ${workspaceUri.toString()}`);
+				await that.openerService.open(workspaceUri, { openExternal: true });
+			}
+		}));
+	}
+
+	private registerApplyLatestEditSessionAction(): void {
+		const that = this;
+		this._register(registerAction2(class ApplyLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
 					id: applyLatestCommand.id,
@@ -100,9 +135,9 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		}));
 	}
 
-	private registerStoreEditSessionAction(): void {
+	private registerStoreLatestEditSessionAction(): void {
 		const that = this;
-		this._register(registerAction2(class StoreEditSessionAction extends Action2 {
+		this._register(registerAction2(class StoreLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
 					id: storeLatestCommand.id,
@@ -122,8 +157,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		}));
 	}
 
-	async applyEditSession() {
-		const editSession = await this.sessionSyncWorkbenchService.read(undefined);
+	async applyEditSession(ref?: string): Promise<void> {
+		const editSession = await this.sessionSyncWorkbenchService.read(ref);
 		if (!editSession) {
 			return;
 		}
@@ -160,6 +195,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			}
 
 			if (hasLocalUncommittedChanges) {
+				// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
 				const result = await this.dialogService.confirm({
 					message: localize('apply edit session warning', 'Applying your edit session may overwrite your existing uncommitted changes. Do you want to proceed?'),
 					type: 'warning',
@@ -183,7 +219,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		}
 	}
 
-	async storeEditSession() {
+	async storeEditSession(): Promise<string | undefined> {
 		const folders: Folder[] = [];
 
 		for (const repository of this.scmService.repositories) {
@@ -223,7 +259,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		const data: EditSession = { folders, version: 1 };
 
 		try {
-			await this.sessionSyncWorkbenchService.write(data);
+			return this.sessionSyncWorkbenchService.write(data);
 		} catch (ex) {
 			type UploadFailedEvent = { reason: string };
 			type UploadFailedClassification = {
@@ -245,6 +281,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				}
 			}
 		}
+
+		return undefined;
 	}
 
 	private getChangedResources(repository: ISCMRepository) {
