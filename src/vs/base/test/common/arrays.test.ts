@@ -10,7 +10,7 @@ suite('Arrays', () => {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
 		let idx = arrays.findFirstInSorted(array, e => e >= 0);
-		assert.strictEqual(array[idx], -1);
+		assert.strictEqual(array[idx], 1);
 
 		idx = arrays.findFirstInSorted(array, e => e > 1);
 		assert.strictEqual(array[idx], 4);
