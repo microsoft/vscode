@@ -144,17 +144,7 @@ export class SettingsTreeIndicatorsLabel {
 				const listMessage = DOM.append(prefaceParagraph, $('ul'));
 				for (const scope of element.overriddenScopeList) {
 					const listBullet = DOM.append(listMessage, $('li'));
-					// TODO: Turn this into a link after improving onDidClickOverrideElement
-					const scopeLink = DOM.append(listBullet, $('span.modified-scope', undefined, scope));
-					elementDisposables.add(
-						DOM.addStandardDisposableListener(scopeLink, DOM.EventType.CLICK, (e: IMouseEvent) => {
-							onDidClickOverrideElement.fire({
-								targetKey: element.setting.key,
-								scope
-							});
-							e.preventDefault();
-							e.stopPropagation();
-						}));
+					DOM.append(listBullet, $('span.modified-scope', undefined, scope));
 				}
 				setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, scopeOverridesContent);
 			}
