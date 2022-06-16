@@ -109,6 +109,6 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { yarn test-browser-no-install --sequential --browser chromium --browser firefox --tfs "Browser Unit Tests" }
+      exec { node test/unit/browser/index.js --sequential --browser chromium --browser firefox --tfs "Browser Unit Tests" }
     displayName: Run unit tests (Browser, Chromium & Firefox)
     timeoutInMinutes: 20

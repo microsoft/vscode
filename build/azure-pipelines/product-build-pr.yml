@@ -31,8 +31,10 @@ variables:
 
 stages:
   - stage: Compile
+    displayName: Compile & Hygiene
     jobs:
       - job: Compile
+        displayName: Compile & Hygiene
         pool: vscode-1es-vscode-linux-18.04
         variables:
           VSCODE_ARCH: x64
