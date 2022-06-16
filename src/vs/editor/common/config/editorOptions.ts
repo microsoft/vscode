@@ -637,6 +637,10 @@ export interface IEditorOptions {
 	 */
 	showDeprecated?: boolean;
 	/**
+	 * Controls whether suggestions allow a first characer to be matched on a weak match
+	 */
+	firstMatchCanBeWeak?: boolean;
+	/**
 	 * Control the behavior and rendering of the inline hints.
 	 */
 	inlayHints?: IEditorInlayHintsOptions;
@@ -3844,6 +3848,10 @@ export interface ISuggestOptions {
 	 */
 	showDeprecated?: boolean;
 	/**
+	 * Controls whether suggestions allow a first characer to be matched on a weak match
+	 */
+	firstMatchCanBeWeak?: boolean;
+	/**
 	 * Show field-suggestions.
 	 */
 	showFields?: boolean;
@@ -3964,6 +3972,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFunctions: true,
 			showConstructors: true,
 			showDeprecated: true,
+			firstMatchCanBeWeak: true,
 			showFields: true,
 			showVariables: true,
 			showClasses: true,
@@ -4069,6 +4078,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showDeprecated', "When enabled IntelliSense shows `deprecated`-suggestions.")
+				},
+				'editor.suggest.firstMatchCanBeWeak': {
+					type: 'boolean',
+					default: false,
+					markdownDescription: nls.localize('editor.suggest.firstMatchCanBeWeak', "When enabled suggestions allow a first characer to be matched on a weak match.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
@@ -4219,6 +4233,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
 			showDeprecated: boolean(input.showDeprecated, this.defaultValue.showDeprecated),
+			firstMatchCanBeWeak: boolean(input.firstMatchCanBeWeak, this.defaultValue.firstMatchCanBeWeak),
 			showFields: boolean(input.showFields, this.defaultValue.showFields),
 			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
 			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),

@@ -4161,6 +4161,10 @@ declare namespace monaco.editor {
 		 */
 		showDeprecated?: boolean;
 		/**
+		 * Controls whether suggestions allow a first characer to be matched on a weak match
+		 */
+		firstMatchCanBeWeak?: boolean;
+		/**
 		 * Show field-suggestions.
 		 */
 		showFields?: boolean;

@@ -28,6 +28,7 @@ import { CompletionModel } from './completionModel';
 import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, getSuggestionComparator, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { FuzzyScoreOptions } from 'vs/base/common/filters';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -521,6 +522,9 @@ export class SuggestModel implements IDisposable {
 			}
 
 			const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy);
+			const firstMatchCanBeWeak = this._editor.getOption(EditorOption.suggest).firstMatchCanBeWeak;
+			const boostFullMatch = FuzzyScoreOptions.default.boostFullMatch;
+			const fuzzySearchOptions =  { firstMatchCanBeWeak: firstMatchCanBeWeak, boostFullMatch: boostFullMatch };
 			this._completionModel = new CompletionModel(items, this._context!.column, {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: ctx.column - this._context!.column
@@ -528,7 +532,7 @@ export class SuggestModel implements IDisposable {
 				wordDistance,
 				this._editor.getOption(EditorOption.suggest),
 				this._editor.getOption(EditorOption.snippetSuggestions),
-				undefined,
+				fuzzySearchOptions,
 				clipboardText
 			);
 

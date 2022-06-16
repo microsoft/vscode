@@ -370,7 +370,7 @@ export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
 export function anyScore(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number): FuzzyScore {
 	const max = Math.min(13, pattern.length);
 	for (; patternPos < max; patternPos++) {
-		const result = fuzzyScore(pattern, lowPattern, patternPos, word, lowWord, wordPos, { firstMatchCanBeWeak: false, boostFullMatch: true });
+		const result = fuzzyScore(pattern, lowPattern, patternPos, word, lowWord, wordPos, { firstMatchCanBeWeak: true, boostFullMatch: true });
 		if (result) {
 			return result;
 		}
@@ -547,8 +547,10 @@ export namespace FuzzyScore {
 }
 
 export abstract class FuzzyScoreOptions {
-
-	static default = { boostFullMatch: true, firstMatchCanBeWeak: false };
+	static default = {
+		boostFullMatch: true,
+		firstMatchCanBeWeak: false,
+	};
 
 	constructor(
 		readonly firstMatchCanBeWeak: boolean,
