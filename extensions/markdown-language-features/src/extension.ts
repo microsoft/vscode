@@ -26,6 +26,7 @@ import { MarkdownContentProvider } from './preview/previewContentProvider';
 import { MarkdownPreviewManager } from './preview/previewManager';
 import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './preview/security';
 import { githubSlugifier } from './slugify';
+import { MdTableOfContentsProvider } from './tableOfContents';
 import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
 import { VsCodeMdWorkspaceContents } from './workspaceContents';
 
@@ -64,27 +65,29 @@ function registerMarkdownLanguageFeatures(
 	const workspaceContents = new VsCodeMdWorkspaceContents();
 
 	const linkProvider = new MdLinkProvider(engine, workspaceContents);
-	const referencesProvider = new MdReferencesProvider(engine, workspaceContents);
-	const symbolProvider = new MdDocumentSymbolProvider(engine);
+	const tocProvider = new MdTableOfContentsProvider(engine, workspaceContents);
+	const referencesProvider = new MdReferencesProvider(engine, workspaceContents, tocProvider);
+	const symbolProvider = new MdDocumentSymbolProvider(tocProvider);
 
 	return vscode.Disposable.from(
 		workspaceContents,
 		linkProvider,
 		referencesProvider,
+		tocProvider,
 
 		// Language features
 		registerDefinitionSupport(selector, referencesProvider),
-		registerDiagnosticSupport(selector, engine, workspaceContents, linkProvider, commandManager, referencesProvider),
+		registerDiagnosticSupport(selector, engine, workspaceContents, linkProvider, commandManager, referencesProvider, tocProvider),
 		registerDocumentLinkSupport(selector, linkProvider),
-		registerDocumentSymbolSupport(selector, engine),
+		registerDocumentSymbolSupport(selector, tocProvider),
 		registerDropIntoEditorSupport(selector),
 		registerFindFileReferenceSupport(commandManager, referencesProvider),
-		registerFoldingSupport(selector, engine),
+		registerFoldingSupport(selector, engine, tocProvider),
 		registerPasteSupport(selector),
 		registerPathCompletionSupport(selector, engine, linkProvider),
 		registerReferencesSupport(selector, referencesProvider),
 		registerRenameSupport(selector, workspaceContents, referencesProvider, engine.slugifier),
-		registerSmartSelectSupport(selector, engine),
+		registerSmartSelectSupport(selector, engine, tocProvider),
 		registerWorkspaceSymbolSupport(workspaceContents, symbolProvider),
 	);
 }

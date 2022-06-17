@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { MdDocumentInfoCache } from './languageFeatures/workspaceCache';
 import { MarkdownEngine } from './markdownEngine';
 import { githubSlugifier, Slug } from './slugify';
+import { Disposable } from './util/dispose';
 import { isMarkdownFile } from './util/file';
-import { SkinnyTextDocument } from './workspaceContents';
+import { MdWorkspaceContents, SkinnyTextDocument } from './workspaceContents';
 
 export interface TocEntry {
 	readonly slug: Slug;
@@ -161,6 +163,8 @@ export class TableOfContents {
 		return header.replace(/^\s*#+\s*(.*?)(\s+#+)?$/, (_, word) => word.trim());
 	}
 
+	public static readonly empty = new TableOfContents([]);
+
 	private constructor(
 		public readonly entries: readonly TocEntry[],
 	) { }
@@ -168,5 +172,24 @@ export class TableOfContents {
 	public lookup(fragment: string): TocEntry | undefined {
 		const slug = githubSlugifier.fromHeading(fragment);
 		return this.entries.find(entry => entry.slug.equals(slug));
+	}
+}
+
+export class MdTableOfContentsProvider extends Disposable {
+
+	private readonly _cache: MdDocumentInfoCache<TableOfContents>;
+
+	constructor(
+		engine: MarkdownEngine,
+		workspaceContents: MdWorkspaceContents,
+	) {
+		super();
+		this._cache = this._register(new MdDocumentInfoCache<TableOfContents>(workspaceContents, doc => {
+			return TableOfContents.create(engine, doc);
+		}));
+	}
+
+	public async get(resource: vscode.Uri): Promise<TableOfContents> {
+		return (await this._cache.get(resource)) ?? TableOfContents.empty;
 	}
 }

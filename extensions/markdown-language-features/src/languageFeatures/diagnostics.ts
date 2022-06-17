@@ -8,16 +8,16 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { CommandManager } from '../commandManager';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents } from '../tableOfContents';
+import { MdTableOfContentsProvider } from '../tableOfContents';
+import { MdTableOfContentsWatcher } from '../test/tableOfContentsWatcher';
 import { Delayer } from '../util/async';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { Limiter } from '../util/limiter';
 import { ResourceMap } from '../util/resourceMap';
-import { MdTableOfContentsWatcher } from '../test/tableOfContentsWatcher';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalHref, MdLink, MdLinkSource, MdLinkProvider, LinkDefinitionSet } from './documentLinkProvider';
+import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinkProvider';
 import { MdReferencesProvider, tryFindMdDocumentForLink } from './references';
 
 const localize = nls.loadMessageBundle();
@@ -448,9 +448,9 @@ class FileLinkMap {
 export class DiagnosticComputer {
 
 	constructor(
-		private readonly engine: MarkdownEngine,
 		private readonly workspaceContents: MdWorkspaceContents,
 		private readonly linkProvider: MdLinkProvider,
+		private readonly tocProvider: MdTableOfContentsProvider,
 	) { }
 
 	public async getDiagnostics(doc: SkinnyTextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<{ readonly diagnostics: vscode.Diagnostic[]; readonly links: readonly MdLink[] }> {
@@ -475,7 +475,7 @@ export class DiagnosticComputer {
 			return [];
 		}
 
-		const toc = await TableOfContents.create(this.engine, doc);
+		const toc = await this.tocProvider.get(doc.uri);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -552,7 +552,7 @@ export class DiagnosticComputer {
 						// Validate each of the links to headers in the file
 						const fragmentLinks = links.filter(x => x.fragment);
 						if (fragmentLinks.length) {
-							const toc = await TableOfContents.create(this.engine, hrefDoc);
+							const toc = await this.tocProvider.get(hrefDoc.uri);
 							for (const link of fragmentLinks) {
 								if (!toc.lookup(link.fragment) && !this.isIgnoredLink(options, link.source.pathText) && !this.isIgnoredLink(options, link.source.text)) {
 									const msg = localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', link.fragment);
@@ -625,16 +625,17 @@ export function registerDiagnosticSupport(
 	workspaceContents: MdWorkspaceContents,
 	linkProvider: MdLinkProvider,
 	commandManager: CommandManager,
-	referenceComputer: MdReferencesProvider,
+	referenceProvider: MdReferencesProvider,
+	tocProvider: MdTableOfContentsProvider,
 ): vscode.Disposable {
 	const configuration = new VSCodeDiagnosticConfiguration();
 	const manager = new DiagnosticManager(
 		engine,
 		workspaceContents,
-		new DiagnosticComputer(engine, workspaceContents, linkProvider),
+		new DiagnosticComputer(workspaceContents, linkProvider, tocProvider),
 		configuration,
 		new DiagnosticCollectionReporter(),
-		referenceComputer);
+		referenceProvider);
 	return vscode.Disposable.from(
 		configuration,
 		manager,

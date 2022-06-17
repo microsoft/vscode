@@ -6,6 +6,7 @@
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
 import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
+import { requestUsb, UsbDeviceData } from 'vs/base/browser/usb';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -14,8 +15,10 @@ import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -119,6 +122,9 @@ export class BrowserWindow extends Disposable {
 
 		// Label formatting
 		this.registerLabelFormatters();
+
+		// Commands
+		this.registerCommands();
 
 		// Smoke Test Driver
 		this.setupDriver();
@@ -227,7 +233,7 @@ export class BrowserWindow extends Disposable {
 		});
 	}
 
-	private registerLabelFormatters() {
+	private registerLabelFormatters(): void {
 		this._register(this.labelService.registerFormatter({
 			scheme: Schemas.vscodeUserData,
 			priority: true,
@@ -236,5 +242,13 @@ export class BrowserWindow extends Disposable {
 				separator: '/',
 			}
 		}));
+	}
+
+	private registerCommands(): void {
+
+		// Allow extensions to request USB devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestUsbDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<UsbDeviceData | undefined> => {
+			return requestUsb(options);
+		});
 	}
 }

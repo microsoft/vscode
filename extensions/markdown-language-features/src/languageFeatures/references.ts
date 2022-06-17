@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as uri from 'vscode-uri';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents, TocEntry } from '../tableOfContents';
+import { MdTableOfContentsProvider, TocEntry } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
@@ -69,6 +69,7 @@ export class MdReferencesProvider extends Disposable {
 	public constructor(
 		private readonly engine: MarkdownEngine,
 		private readonly workspaceContents: MdWorkspaceContents,
+		private readonly tocProvider: MdTableOfContentsProvider,
 	) {
 		super();
 
@@ -77,7 +78,7 @@ export class MdReferencesProvider extends Disposable {
 	}
 
 	public async getReferencesAtPosition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
-		const toc = await TableOfContents.create(this.engine, document);
+		const toc = await this.tocProvider.get(document.uri);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -184,7 +185,7 @@ export class MdReferencesProvider extends Disposable {
 		const references: MdReference[] = [];
 
 		if (targetDoc && sourceLink.href.fragment && sourceLink.source.fragmentRange?.contains(triggerPosition)) {
-			const toc = await TableOfContents.create(this.engine, targetDoc);
+			const toc = await this.tocProvider.get(targetDoc.uri);
 			const entry = toc.lookup(sourceLink.href.fragment);
 			if (entry) {
 				references.push({

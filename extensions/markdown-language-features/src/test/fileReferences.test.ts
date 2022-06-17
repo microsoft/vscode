@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { MdReference, MdReferencesProvider } from '../languageFeatures/references';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
@@ -15,9 +16,9 @@ import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
 import { joinLines, workspacePath } from './util';
 
 
-function getFileReferences(resource: vscode.Uri, workspaceContents: MdWorkspaceContents) {
+function getFileReferences(resource: vscode.Uri, workspace: MdWorkspaceContents) {
 	const engine = createNewMarkdownEngine();
-	const computer = new MdReferencesProvider(engine, workspaceContents);
+	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace));
 	return computer.getAllReferencesToFile(resource, noopToken);
 }
 
