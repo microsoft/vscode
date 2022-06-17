@@ -12,6 +12,7 @@ import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { IExtensionHostProcessOptions } from 'vs/platform/extensions/common/extensionHostStarter';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IPCExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 import { createMessageOfType, MessageType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionHostProcess, ExtHostMessagePortCommunication, IExtHostCommunication, SandboxLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
 
@@ -64,7 +65,7 @@ class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommun
 	establishProtocol(prepared: INamedPipePreparedData, extensionHostProcess: ExtensionHostProcess, opts: IExtensionHostProcessOptions): Promise<IMessagePassingProtocol> {
 		const { namedPipeServer, pipeName } = prepared;
 
-		opts.env['VSCODE_IPC_HOOK_EXTHOST'] = pipeName;
+		writeExtHostConnection(new IPCExtHostConnection(pipeName), opts.env);
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 
