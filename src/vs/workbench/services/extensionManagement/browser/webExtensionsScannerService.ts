@@ -58,7 +58,7 @@ interface IStoredWebExtension {
 	readonly readmeUri?: UriComponents;
 	readonly changelogUri?: UriComponents;
 	// deprecated in favor of packageNLSUris & fallbackPackageNLSUri
-	packageNLSUri?: UriComponents;
+	readonly packageNLSUri?: UriComponents;
 	readonly packageNLSUris?: IStringDictionary<UriComponents>;
 	readonly fallbackPackageNLSUri?: UriComponents;
 	readonly metadata?: Metadata;
