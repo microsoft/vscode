@@ -281,12 +281,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (useCustomTitleStyle && isMacintosh) {
 				const ccConfigKey = 'window.commandCenter';
 				const trafficLightUpdater = () => {
-					const on = this.configurationService.getValue<boolean>(ccConfigKey);
-					if (on) {
-						this._win.setTrafficLightPosition({ x: 7, y: 9 });
-					} else {
-						this._win.setTrafficLightPosition({ x: 7, y: 6 });
-					}
+					// temporarily disabled because of https://github.com/microsoft/vscode/pull/150272#issuecomment-1152218493
+					// const on = this.configurationService.getValue<boolean>(ccConfigKey);
+					// if (on) {
+					// 	this._win.setTrafficLightPosition({ x: 7, y: 9 });
+					// } else {
+					// 	this._win.setTrafficLightPosition({ x: 7, y: 6 });
+					// }
 				};
 				trafficLightUpdater();
 				this.configurationService.onDidChangeConfiguration(e => {
