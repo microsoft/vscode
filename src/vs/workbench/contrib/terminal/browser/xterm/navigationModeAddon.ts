@@ -10,7 +10,6 @@ import { INavigationMode } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 	private _terminal: Terminal | undefined;
-
 	constructor(
 		private _navigationModeContextKey: IContextKey<boolean>,
 		private _navigationModeActiveContextKey: IContextKey<boolean>
@@ -32,11 +31,13 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 	}
 
 	focusPreviousPage(): void {
-		// set row to current row - terminal.rows (if possible)
+		this._terminal!.scrollLines(-this._terminal!.rows + 1);
+		this.focusPreviousLine();
 	}
 
 	focusNextPage(): void {
-		// set row to current row + terminal.rows
+		this._terminal!.scrollLines(this._terminal!.rows - 1);
+		this.focusNextLine();
 	}
 
 	focusPreviousLine(): void {
@@ -47,14 +48,13 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		this._focusLine(false);
 	}
 
-	private _focusLine(previous: boolean, line?: number): void {
+	private _focusLine(previous: boolean): void {
 		if (!this._terminal?.element) {
 			return;
 		}
 		this._navigationModeActiveContextKey.set(true);
-
 		// Focus row if a row is already focused
-		if (line === undefined && document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
+		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
 			const element = previous ? <HTMLElement | null>document.activeElement.previousElementSibling : <HTMLElement | null>document.activeElement.nextElementSibling;
 			if (element) {
 				element.focus();
@@ -68,19 +68,18 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		}
 
 		let targetRow: number;
-		if (line) {
-			targetRow = line;
-		} else if (previous) {
-			// row before the cursor
+		if (previous) {
 			targetRow = Math.max(this._terminal.buffer.active.cursorY - 1, 0);
 		} else {
-			// cursor row
 			targetRow = this._terminal.buffer.active.cursorY;
 		}
 		this._focusRow(targetRow);
 	}
 
 	private _focusRow(targetRow: number): void {
+		if (!this._terminal) {
+			return;
+		}
 		if (!this._terminal?.element) {
 			return;
 		}
@@ -91,11 +90,10 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		}
 
 		// Check bounds
-		if (treeContainer.childElementCount < targetRow) {
+		if (treeContainer.childElementCount < targetRow || targetRow < 0) {
 			return;
 		}
 
-		// Focus
 		const element = <HTMLElement>treeContainer.childNodes.item(targetRow);
 		element.focus();
 		const disposable = addDisposableListener(element, 'blur', () => {

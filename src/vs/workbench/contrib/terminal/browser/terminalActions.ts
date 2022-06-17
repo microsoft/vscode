@@ -620,7 +620,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated, TerminalContextKeys.navigationModeActive.negate())
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -677,7 +677,7 @@ export function registerTerminalActions() {
 				keybinding: {
 					primary: KeyMod.Shift | KeyCode.PageUp,
 					mac: { primary: KeyCode.PageUp },
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
+					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate(), TerminalContextKeys.navigationModeActive.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
@@ -759,6 +759,28 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.NavigationModeFocusPreviousPage,
+				title: { value: localize('workbench.action.terminal.navigationModeFocusPreviousPage', "Focus Previous Page (Navigation Mode)"), original: 'Focus Previous Page (Navigation Mode)' },
+				f1: true,
+				category,
+				keybinding: [{
+					primary: KeyCode.PageUp,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				}],
+				precondition: TerminalContextKeys.processSupported
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusPreviousPage();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.NavigationModeFocusNext,
 				title: { value: localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)"), original: 'Focus Next Line (Navigation Mode)' },
 				f1: true,
@@ -784,6 +806,28 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusNextLine();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.NavigationModeFocusNextPage,
+				title: { value: localize('workbench.action.terminal.navigationModeFocusNextPage', "Focus Next Page (Navigation Mode)"), original: 'Focus Next Page (Navigation Mode)' },
+				f1: true,
+				category,
+				keybinding: [{
+					primary: KeyCode.PageDown,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				}],
+				precondition: TerminalContextKeys.processSupported
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusNextPage();
 		}
 	});
 	registerAction2(class extends Action2 {
