@@ -15,7 +15,7 @@ import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { timeout } from 'vs/base/common/async';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class CachedExtensionScanner {
 
@@ -27,7 +27,7 @@ export class CachedExtensionScanner {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IHostService private readonly _hostService: IHostService,
 		@IExtensionsScannerService private readonly _extensionsScannerService: IExtensionsScannerService,
-		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
@@ -55,7 +55,7 @@ export class CachedExtensionScanner {
 			const language = platform.language;
 			const [scannedSystemExtensions, scannedUserExtensions] = await Promise.all([
 				this._extensionsScannerService.scanSystemExtensions({ language, useCache: true, checkControlFile: true }),
-				this._extensionsScannerService.scanUserExtensions({ language, profileLocation: this._userDataProfilesService.currentProfile.extensionsResource, useCache: true })]);
+				this._extensionsScannerService.scanUserExtensions({ language, profileLocation: this._userDataProfileService.currentProfile.extensionsResource, useCache: true })]);
 			const scannedDevelopedExtensions = await this._extensionsScannerService.scanExtensionsUnderDevelopment({ language }, [...scannedSystemExtensions, ...scannedUserExtensions]);
 			const system = scannedSystemExtensions.map(e => toExtensionDescription(e, false));
 			const user = scannedUserExtensions.map(e => toExtensionDescription(e, false));

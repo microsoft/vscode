@@ -436,6 +436,12 @@ const newCommands: ApiCommand[] = [
 		'vscode.revealTestInExplorer', '_revealTestInExplorer', 'Reveals a test instance in the explorer',
 		[ApiCommandArgument.TestItem],
 		ApiCommandResult.Void
+	),
+	// --- continue edit session
+	new ApiCommand(
+		'vscode.experimental.editSession.continue', '_workbench.experimental.sessionSync.actions.continueEditSession', 'Continue the current edit session in a different workspace',
+		[ApiCommandArgument.Uri.with('workspaceUri', 'The target workspace to continue the current edit session in')],
+		ApiCommandResult.Void
 	)
 ];
 

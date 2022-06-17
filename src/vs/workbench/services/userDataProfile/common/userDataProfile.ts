@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isUndefined } from 'vs/base/common/types';
+import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export type CreationOptions = {
 	settings?: boolean;
@@ -16,14 +19,23 @@ export type CreationOptions = {
 	uiState?: boolean;
 };
 
+export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
+export interface IUserDataProfileService {
+	readonly _serviceBrand: undefined;
+	readonly defaultProfile: IUserDataProfile;
+	readonly onDidChangeCurrentProfile: Event<IUserDataProfile>;
+	readonly currentProfile: IUserDataProfile;
+	updateCurrentProfile(currentProfile: IUserDataProfile): void;
+}
+
 export const IUserDataProfileManagementService = createDecorator<IUserDataProfileManagementService>('IUserDataProfileManagementService');
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
 	createAndEnterProfile(name: string, options?: CreationOptions, fromExisting?: boolean): Promise<void>;
 	createAndEnterProfileFromTemplate(name: string, template: IUserDataProfileTemplate, options?: CreationOptions): Promise<void>;
-	removeProfile(name: string): Promise<void>;
-	switchProfile(name: string): Promise<void>;
+	removeProfile(profile: IUserDataProfile): Promise<void>;
+	switchProfile(profile: IUserDataProfile): Promise<void>;
 
 }
 
@@ -34,7 +46,7 @@ export interface IUserDataProfileTemplate {
 	readonly extensions?: string;
 }
 
-export function isProfile(thing: any): thing is IUserDataProfileTemplate {
+export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTemplate {
 	const candidate = thing as IUserDataProfileTemplate | undefined;
 
 	return !!(candidate && typeof candidate === 'object'
@@ -59,6 +71,8 @@ export interface IResourceProfile {
 	applyProfile(content: string): Promise<void>;
 }
 
-export const PROFILES_CATEGORY = localize('settings profiles', "Settings Profile");
+export const ManageProfilesSubMenu = new MenuId('Profiles');
+export const PROFILES_TTILE = { value: localize('settings profiles', "Profiles"), original: 'Profiles' };
+export const PROFILES_CATEGORY = PROFILES_TTILE.value;
 export const PROFILE_EXTENSION = 'code-profile';
-export const PROFILE_FILTER = [{ name: localize('profile', "Settings Profile"), extensions: [PROFILE_EXTENSION] }];
+export const PROFILE_FILTER = [{ name: localize('profile', "Profile"), extensions: [PROFILE_EXTENSION] }];

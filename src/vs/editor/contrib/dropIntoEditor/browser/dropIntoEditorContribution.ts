@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { toVSDataTransfer } from 'vs/editor/browser/dnd';
+import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -25,8 +24,6 @@ import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/edit
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { extractEditorsDropData } from 'vs/platform/dnd/browser/dnd';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 
@@ -37,7 +34,6 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	constructor(
 		editor: ICodeEditor,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
@@ -111,15 +107,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		}
 
 		const textEditorDataTransfer = toVSDataTransfer(dragEvent.dataTransfer);
-		const editorData = (await this._instantiationService.invokeFunction(extractEditorsDropData, dragEvent))
-			.filter(input => input.resource)
-			.map(input => input.resource!.toString());
-
-		if (editorData.length) {
-			const str = distinct(editorData).join('\n');
-			textEditorDataTransfer.replace(Mimes.uriList, createStringDataTransferItem(str));
-		}
-
+		addExternalEditorsDropData(textEditorDataTransfer, dragEvent);
 		return textEditorDataTransfer;
 	}
 }

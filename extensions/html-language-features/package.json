@@ -119,12 +119,6 @@
           "default": false,
           "markdownDescription": "%html.format.indentHandlebars.desc%"
         },
-        "html.format.endWithNewline": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.format.endWithNewline.desc%"
-        },
         "html.format.extraLiners": {
           "type": [
             "string",

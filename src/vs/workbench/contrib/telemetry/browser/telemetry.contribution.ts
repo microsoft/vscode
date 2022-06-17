@@ -25,7 +25,7 @@ import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { hash } from 'vs/base/common/hash';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 type TelemetryData = {
 	mimeType: string;
@@ -56,7 +56,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		@IKeybindingService keybindingsService: IKeybindingService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@ITextFileService textFileService: ITextFileService
@@ -173,17 +173,17 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		}
 
 		// Check for global settings file
-		if (isEqual(resource, this.userDataProfilesService.currentProfile.settingsResource)) {
+		if (isEqual(resource, this.userDataProfileService.currentProfile.settingsResource)) {
 			return 'global-settings';
 		}
 
 		// Check for keybindings file
-		if (isEqual(resource, this.userDataProfilesService.currentProfile.keybindingsResource)) {
+		if (isEqual(resource, this.userDataProfileService.currentProfile.keybindingsResource)) {
 			return 'keybindings';
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(resource, this.userDataProfilesService.currentProfile.snippetsHome)) {
+		if (isEqualOrParent(resource, this.userDataProfileService.currentProfile.snippetsHome)) {
 			return 'snippets';
 		}
 

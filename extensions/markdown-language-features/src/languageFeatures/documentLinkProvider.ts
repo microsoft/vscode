@@ -9,8 +9,11 @@ import * as uri from 'vscode-uri';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { MarkdownEngine } from '../markdownEngine';
 import { coalesce } from '../util/arrays';
+import { noopToken } from '../util/cancellation';
+import { Disposable } from '../util/dispose';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/schemes';
-import { SkinnyTextDocument } from '../workspaceContents';
+import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
+import { MdDocumentInfoCache } from './workspaceCache';
 
 const localize = nls.loadMessageBundle();
 
@@ -242,6 +245,9 @@ class NoLinkRanges {
 	}
 }
 
+/**
+ * Stateless object that extracts link information from markdown files.
+ */
 export class MdLinkComputer {
 
 	constructor(
@@ -257,7 +263,7 @@ export class MdLinkComputer {
 		return Array.from([
 			...this.getInlineLinks(document, noLinkRanges),
 			...this.getReferenceLinks(document, noLinkRanges),
-			...this.getLinkDefinitions2(document, noLinkRanges),
+			...this.getLinkDefinitions(document, noLinkRanges),
 			...this.getAutoLinks(document, noLinkRanges),
 		]);
 	}
@@ -369,12 +375,7 @@ export class MdLinkComputer {
 		}
 	}
 
-	public async getLinkDefinitions(document: SkinnyTextDocument): Promise<Iterable<MdLinkDefinition>> {
-		const noLinkRanges = await NoLinkRanges.compute(document, this.engine);
-		return this.getLinkDefinitions2(document, noLinkRanges);
-	}
-
-	private *getLinkDefinitions2(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLinkDefinition> {
+	private *getLinkDefinitions(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLinkDefinition> {
 		const text = document.getText();
 		for (const match of text.matchAll(definitionPattern)) {
 			const pre = match[1];
@@ -419,7 +420,37 @@ export class MdLinkComputer {
 	}
 }
 
-export class LinkDefinitionSet {
+/**
+ * Stateful object which provides links for markdown files the workspace.
+ */
+export class MdLinkProvider extends Disposable {
+
+	private readonly _linkCache: MdDocumentInfoCache<readonly MdLink[]>;
+
+	private readonly linkComputer: MdLinkComputer;
+
+	constructor(
+		engine: MarkdownEngine,
+		workspaceContents: MdWorkspaceContents,
+	) {
+		super();
+		this.linkComputer = new MdLinkComputer(engine);
+		this._linkCache = this._register(new MdDocumentInfoCache(workspaceContents, doc => this.linkComputer.getAllLinks(doc, noopToken)));
+	}
+
+	public async getLinks(document: SkinnyTextDocument): Promise<{
+		readonly links: readonly MdLink[];
+		readonly definitions: LinkDefinitionSet;
+	}> {
+		const links = (await this._linkCache.get(document.uri)) ?? [];
+		return {
+			links,
+			definitions: new LinkDefinitionSet(links),
+		};
+	}
+}
+
+export class LinkDefinitionSet implements Iterable<[string, MdLinkDefinition]> {
 	private readonly _map = new Map<string, MdLinkDefinition>();
 
 	constructor(links: Iterable<MdLink>) {
@@ -430,29 +461,31 @@ export class LinkDefinitionSet {
 		}
 	}
 
+	public [Symbol.iterator](): Iterator<[string, MdLinkDefinition]> {
+		return this._map.entries();
+	}
+
 	public lookup(ref: string): MdLinkDefinition | undefined {
 		return this._map.get(ref);
 	}
 }
 
-export class MdLinkProvider implements vscode.DocumentLinkProvider {
+export class MdVsCodeLinkProvider implements vscode.DocumentLinkProvider {
 
 	constructor(
-		private readonly _linkComputer: MdLinkComputer,
+		private readonly _linkProvider: MdLinkProvider,
 	) { }
 
 	public async provideDocumentLinks(
 		document: SkinnyTextDocument,
 		token: vscode.CancellationToken
 	): Promise<vscode.DocumentLink[]> {
-		const allLinks = (await this._linkComputer.getAllLinks(document, token)) ?? [];
+		const { links, definitions } = await this._linkProvider.getLinks(document);
 		if (token.isCancellationRequested) {
 			return [];
 		}
 
-		const definitionSet = new LinkDefinitionSet(allLinks);
-		return coalesce(allLinks
-			.map(data => this.toValidDocumentLink(data, definitionSet)));
+		return coalesce(links.map(data => this.toValidDocumentLink(data, definitions)));
 	}
 
 	private toValidDocumentLink(link: MdLink, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
@@ -482,9 +515,9 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	}
 }
 
-export function registerDocumentLinkProvider(
+export function registerDocumentLinkSupport(
 	selector: vscode.DocumentSelector,
-	linkComputer: MdLinkComputer,
+	linkProvider: MdLinkProvider,
 ): vscode.Disposable {
-	return vscode.languages.registerDocumentLinkProvider(selector, new MdLinkProvider(linkComputer));
+	return vscode.languages.registerDocumentLinkProvider(selector, new MdVsCodeLinkProvider(linkProvider));
 }

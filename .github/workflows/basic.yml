@@ -62,7 +62,7 @@ jobs:
         run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
-        run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
+        run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64"
 
       - name: Run Unit Tests
         id: electron-unit-tests
@@ -113,9 +113,6 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: yarn --frozen-lockfile --network-timeout 180000
-
-      - name: Download Playwright
-        run: yarn playwright-install
 
       - name: Run Hygiene Checks
         run: yarn gulp hygiene

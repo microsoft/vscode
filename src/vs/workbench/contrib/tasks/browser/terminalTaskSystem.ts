@@ -55,6 +55,9 @@ import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalSt
 import { GroupKind } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
 import { Codicon } from 'vs/base/common/codicons';
 
+const taskShellIntegrationStartSequence = '\x1b]633;A\x07' + '\x1b]633;P;Task=\x07' + '\x1b]633;B\x07';
+const taskShellIntegrationOutputSequence = '\x1b]633;C\x07';
+
 interface ITerminalData {
 	terminal: ITerminalInstance;
 	lastTask: string;
@@ -1012,7 +1015,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return needsFolderQualification ? task.getQualifiedLabel() : (task.configurationProperties.name || '');
 	}
 
-	private async _createShellLaunchConfig(task: CustomTask | ContributedTask, workspaceFolder: IWorkspaceFolder | undefined, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): Promise<IShellLaunchConfig | undefined> {
+	private async _createShellLaunchConfig(task: CustomTask | ContributedTask, workspaceFolder: IWorkspaceFolder | undefined, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string | ((exitCode: number) => string)): Promise<IShellLaunchConfig | undefined> {
 		let shellLaunchConfig: IShellLaunchConfig;
 		const isShellCommand = task.command.runtime === RuntimeType.Shell;
 		const needsFolderQualification = this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
@@ -1123,15 +1126,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
 						key: 'task.executingInFolder',
 						comment: ['The workspace folder the task is running in', 'The task command line or label']
-					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, commandLine), { excludeLeadingNewLine: true });
+					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, commandLine), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				} else {
-					shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
 						key: 'task.executing',
 						comment: ['The task command line or label']
-					}, 'Executing task: {0}', commandLine), { excludeLeadingNewLine: true });
+					}, 'Executing task: {0}', commandLine), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				}
 			}
 		} else {
@@ -1161,15 +1164,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					return args.join(' ');
 				};
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
 						key: 'task.executingInFolder',
 						comment: ['The workspace folder the task is running in', 'The task command line or label']
-					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true });
+					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				} else {
-					shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
 						key: 'task.executing',
 						comment: ['The task command line or label']
-					}, 'Executing task: {0}', `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true });
+					}, 'Executing task: {0}', `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				}
 			}
 		}
@@ -1241,7 +1244,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const options = await this._resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
 
-		let waitOnExit: boolean | string = false;
+		let waitOnExit: boolean | string | ((exitCode: number) => string) = false;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
 		}
@@ -1249,9 +1252,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if ((presentationOptions.close === undefined) || (presentationOptions.close === false)) {
 			if ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground || (presentationOptions.close === false)) {
 				if (presentationOptions.panel === PanelKind.New) {
-					waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
+					waitOnExit = taskShellIntegrationWaitOnExitSequence(nls.localize('closeTerminal', 'Press any key to close the terminal.'));
 				} else if (presentationOptions.showReuseMessage) {
-					waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
+					waitOnExit = taskShellIntegrationWaitOnExitSequence(nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.'));
 				} else {
 					waitOnExit = true;
 				}
@@ -1702,4 +1705,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const outputChannel = this._outputService.getChannel(this._outputChannelId);
 		outputChannel?.append(output);
 	}
+}
+
+function taskShellIntegrationWaitOnExitSequence(message: string): (exitCode: number) => string {
+	return (exitCode) => {
+		return `\x1b]633;D;${exitCode}\x07${message}`;
+	};
 }

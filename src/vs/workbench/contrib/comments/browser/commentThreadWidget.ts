@@ -18,7 +18,6 @@ import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentSe
 import { CommentThreadBody } from 'vs/workbench/contrib/comments/browser/commentThreadBody';
 import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/commentThreadHeader';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { CommentNode } from 'vs/workbench/contrib/comments/common/commentModel';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -273,7 +272,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 	async submitComment() {
 		const activeComment = this._body.activeComment;
-		if (activeComment && !(activeComment instanceof CommentNode)) {
+		if (activeComment) {
+			activeComment.submitComment();
+		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
 			this._commentReply?.submitComment();
 		}
 	}

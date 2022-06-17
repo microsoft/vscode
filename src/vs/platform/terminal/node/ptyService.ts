@@ -210,10 +210,11 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async attachToProcess(id: number): Promise<void> {
 		try {
-			this._throwIfNoPty(id).attach();
+			await this._throwIfNoPty(id).attach();
 			this._logService.trace(`Persistent process reconnection "${id}"`);
 		} catch (e) {
 			this._logService.trace(`Persistent process reconnection "${id}" failed`, e.message);
+			throw e;
 		}
 	}
 
@@ -543,8 +544,16 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 	}
 
-	attach(): void {
+	async attach(): Promise<void> {
 		this._logService.trace('persistentTerminalProcess#attach', this._persistentProcessId);
+		if (!this._disconnectRunner1.isScheduled() && !this._disconnectRunner2.isScheduled()) {
+			// Something wrong happened if the disconnect runner is not canceled, this likely means
+			// multiple windows attempted to attach.
+			if (!await this._isOrphaned()) {
+				throw new Error(`Cannot attach to persistent process "${this._persistentProcessId}", it is already adopted`);
+			}
+			this._logService.warn(`Persistent process "${this._persistentProcessId}": Process had no disconnect runners but was an orphan`);
+		}
 		this._disconnectRunner1.cancel();
 		this._disconnectRunner2.cancel();
 	}
