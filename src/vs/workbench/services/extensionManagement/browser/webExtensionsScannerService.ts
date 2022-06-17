@@ -674,14 +674,14 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const webExtensions = await this.withWebExtensions(this.installedExtensionsResource);
 
 		// TODO: @TylerLeonhardt/@Sandy081: Delete after 6 months
-		if (webExtensions.some(e => e.packageNLSUri)) {
+		if (webExtensions.some(e => !e.packageNLSUris && e.packageNLSUri)) {
 			return this.withWebExtensions(this.installedExtensionsResource, async (extensions) => {
 				for (const e of webExtensions) {
 					if (!e.packageNLSUris && e.packageNLSUri) {
 						e.fallbackPackageNLSUri = e.packageNLSUri;
 						const extensionResources = await this.listExtensionResources(e.location);
 						e.packageNLSUris = this.getNLSResourceMapFromResources(extensionResources);
-						// e.packageNLSUri = undefined;
+						e.packageNLSUri = undefined;
 					}
 				}
 				return webExtensions;
