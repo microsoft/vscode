@@ -2033,7 +2033,7 @@
           "type": "boolean",
           "scope": "resource",
           "description": "%config.useEditorAsCommitInput%",
-          "default": false
+          "default": true
         },
         "git.verboseCommit": {
           "type": "boolean",
@@ -2362,6 +2362,12 @@
           "scope": "resource",
           "default": true,
           "description": "%config.terminalAuthentication%"
+        },
+        "git.terminalGitEditor": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.terminalGitEditor%"
         },
         "git.useCommitInputAsStashMessage": {
           "type": "boolean",
