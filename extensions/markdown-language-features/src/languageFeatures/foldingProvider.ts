@@ -6,7 +6,7 @@
 import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents } from '../tableOfContents';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { SkinnyTextDocument } from '../workspaceContents';
 
 const rangeLimit = 5000;
@@ -18,7 +18,8 @@ interface MarkdownItTokenWithMap extends Token {
 export class MdFoldingProvider implements vscode.FoldingRangeProvider {
 
 	constructor(
-		private readonly engine: MarkdownEngine
+		private readonly engine: MarkdownEngine,
+		private readonly tocProvide: MdTableOfContentsProvider,
 	) { }
 
 	public async provideFoldingRanges(
@@ -54,8 +55,8 @@ export class MdFoldingProvider implements vscode.FoldingRangeProvider {
 			.filter((region: vscode.FoldingRange | null): region is vscode.FoldingRange => !!region);
 	}
 
-	private async getHeaderFoldingRanges(document: SkinnyTextDocument) {
-		const toc = await TableOfContents.create(this.engine, document);
+	private async getHeaderFoldingRanges(document: SkinnyTextDocument): Promise<vscode.FoldingRange[]> {
+		const toc = await this.tocProvide.get(document.uri);
 		return toc.entries.map(entry => {
 			let endLine = entry.sectionLocation.range.end.line;
 			if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= entry.line + 1) {
@@ -115,6 +116,7 @@ const isFoldableToken = (token: Token): token is MarkdownItTokenWithMap => {
 export function registerFoldingSupport(
 	selector: vscode.DocumentSelector,
 	engine: MarkdownEngine,
+	tocProvider: MdTableOfContentsProvider,
 ): vscode.Disposable {
-	return vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine));
+	return vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine, tocProvider));
 }

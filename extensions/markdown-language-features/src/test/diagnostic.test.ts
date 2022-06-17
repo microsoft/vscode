@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { DiagnosticCollectionReporter, DiagnosticComputer, DiagnosticConfiguration, DiagnosticLevel, DiagnosticManager, DiagnosticOptions, DiagnosticReporter } from '../languageFeatures/diagnostics';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { MdReferencesProvider } from '../languageFeatures/references';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { disposeAll } from '../util/dispose';
 import { InMemoryDocument } from '../util/inMemoryDocument';
@@ -30,7 +31,8 @@ const defaultDiagnosticsOptions = Object.freeze<DiagnosticOptions>({
 async function getComputedDiagnostics(doc: InMemoryDocument, workspace: MdWorkspaceContents, options: Partial<DiagnosticOptions> = {}): Promise<vscode.Diagnostic[]> {
 	const engine = createNewMarkdownEngine();
 	const linkProvider = new MdLinkProvider(engine, workspace);
-	const computer = new DiagnosticComputer(engine, workspace, linkProvider);
+	const tocProvider = new MdTableOfContentsProvider(engine, workspace);
+	const computer = new DiagnosticComputer(workspace, linkProvider, tocProvider);
 	return (
 		await computer.getDiagnostics(doc, { ...defaultDiagnosticsOptions, ...options, }, noopToken)
 	).diagnostics;
@@ -430,11 +432,12 @@ suite('Markdown: Diagnostics manager', () => {
 	) {
 		const engine = createNewMarkdownEngine();
 		const linkProvider = new MdLinkProvider(engine, workspace);
-		const referencesProvider = new MdReferencesProvider(engine, workspace);
+		const tocProvider = new MdTableOfContentsProvider(engine, workspace);
+		const referencesProvider = new MdReferencesProvider(engine, workspace, tocProvider);
 		const manager = new DiagnosticManager(
 			engine,
 			workspace,
-			new DiagnosticComputer(engine, workspace, linkProvider),
+			new DiagnosticComputer(workspace, linkProvider, tocProvider),
 			configuration,
 			reporter,
 			referencesProvider,
