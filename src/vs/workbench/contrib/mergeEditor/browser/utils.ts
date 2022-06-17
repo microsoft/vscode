@@ -53,21 +53,21 @@ export class ReentrancyBarrier {
 	}
 }
 
-export function n<TTag extends string>(tag: TTag): never;
-export function n<TTag extends string, TId extends string>(
+export function h<TTag extends string>(tag: TTag): never;
+export function h<TTag extends string, TId extends string>(
 	tag: TTag,
 	attributes: { $: TId }
 ): Record<TId | 'root', TagToElement<TTag>>;
-export function n<TTag extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
+export function h<TTag extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
 	children: T
 ): (ArrayToObj<T> & Record<'root', TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-export function n<TTag extends string, TId extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
+export function h<TTag extends string, TId extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
 	attributes: { $: TId },
 	children: T
 ): (ArrayToObj<T> & Record<TId, TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-export function n(tag: string, ...args: [] | [attributes: { $: string } | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
+export function h(tag: string, ...args: [] | [attributes: { $: string } | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
 	let attributes: Record<string, any>;
 	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;
 

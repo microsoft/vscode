@@ -13,10 +13,13 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { autorunHandleChanges, derivedObservable, derivedObservableWithCache, IObservable, ITransaction, keepAlive, ObservableValue, transaction, waitForState } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/diffComputer';
-import { LineRangeMapping, LineRangeEdit, LineRange, ModifiedBaseRange, ModifiedBaseRangeState, RangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model';
-import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'vs/workbench/contrib/mergeEditor/browser/textModelDiffs';
+import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
+import { DetailedLineRangeMapping, DocumentMapping, LineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
+import { LineRangeEdit, RangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/editing';
+import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
+import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'vs/workbench/contrib/mergeEditor/browser/model/textModelDiffs';
 import { concatArrays, leftJoin, elementAtOrUndefined } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { ModifiedBaseRange, ModifiedBaseRangeState } from './modifiedBaseRange';
 
 export const enum MergeEditorModelState {
 	initializing = 1,
@@ -58,7 +61,7 @@ export class MergeEditorModel extends EditorModel {
 		const input1Diffs = this.input1TextModelDiffs.diffs.read(reader);
 		const input2Diffs = this.input2TextModelDiffs.diffs.read(reader);
 
-		return ModifiedBaseRange.fromDiffs(this.base, this.input1, input1Diffs, this.input2, input2Diffs);
+		return ModifiedBaseRange.fromDiffs(input1Diffs, input2Diffs, this.base, this.input1, this.input2);
 	});
 
 	public readonly input1LinesDiffs = this.input1TextModelDiffs.diffs;
@@ -72,6 +75,40 @@ export class MergeEditorModel extends EditorModel {
 			);
 			return map;
 		});
+
+	public readonly input1ResultMapping = derivedObservable('input1ResultMapping', reader => {
+		const resultDiffs = this.resultDiffs.read(reader);
+		const modifiedBaseRanges = DocumentMapping.betweenOutputs(this.input1LinesDiffs.read(reader), resultDiffs, this.input1.getLineCount());
+
+		return new DocumentMapping(
+			modifiedBaseRanges.lineRangeMappings.map((m) =>
+				m.inputRange.isEmpty || m.outputRange.isEmpty
+					? new LineRangeMapping(
+						m.inputRange.deltaStart(-1),
+						m.outputRange.deltaStart(-1)
+					)
+					: m
+			),
+			modifiedBaseRanges.inputLineCount
+		);
+	});
+
+	public readonly input2ResultMapping = derivedObservable('input2ResultMapping', reader => {
+		const resultDiffs = this.resultDiffs.read(reader);
+		const modifiedBaseRanges = DocumentMapping.betweenOutputs(this.input2LinesDiffs.read(reader), resultDiffs, this.input2.getLineCount());
+
+		return new DocumentMapping(
+			modifiedBaseRanges.lineRangeMappings.map((m) =>
+				m.inputRange.isEmpty || m.outputRange.isEmpty
+					? new LineRangeMapping(
+						m.inputRange.deltaStart(-1),
+						m.outputRange.deltaStart(-1)
+					)
+					: m
+			),
+			modifiedBaseRanges.inputLineCount
+		);
+	});
 
 	constructor(
 		readonly base: ITextModel,
@@ -87,6 +124,8 @@ export class MergeEditorModel extends EditorModel {
 		super();
 
 		this._register(keepAlive(this.modifiedBaseRangeStateStores));
+		this._register(keepAlive(this.input1ResultMapping));
+		this._register(keepAlive(this.input2ResultMapping));
 
 		this._register(
 			autorunHandleChanges(
@@ -114,7 +153,7 @@ export class MergeEditorModel extends EditorModel {
 		});
 	}
 
-	private recomputeState(resultDiffs: LineRangeMapping[], stores: Map<ModifiedBaseRange, ObservableValue<ModifiedBaseRangeState>>): void {
+	private recomputeState(resultDiffs: DetailedLineRangeMapping[], stores: Map<ModifiedBaseRange, ObservableValue<ModifiedBaseRangeState>>): void {
 		transaction(tx => {
 			const baseRangeWithStoreAndTouchingDiffs = leftJoin(
 				stores,
@@ -199,13 +238,13 @@ export class MergeEditorModel extends EditorModel {
 		}
 	}
 
-	private computeState(baseRange: ModifiedBaseRange, conflictingDiffs: LineRangeMapping[]): ModifiedBaseRangeState {
+	private computeState(baseRange: ModifiedBaseRange, conflictingDiffs: DetailedLineRangeMapping[]): ModifiedBaseRangeState {
 		if (conflictingDiffs.length === 0) {
 			return ModifiedBaseRangeState.default;
 		}
 		const conflictingEdits = conflictingDiffs.map((d) => d.getLineEdit());
 
-		function editsAgreeWithDiffs(diffs: readonly LineRangeMapping[]): boolean {
+		function editsAgreeWithDiffs(diffs: readonly DetailedLineRangeMapping[]): boolean {
 			return equals(
 				conflictingEdits,
 				diffs.map((d) => d.getLineEdit()),
@@ -279,10 +318,10 @@ function getEditForBase(baseRange: ModifiedBaseRange, state: ModifiedBaseRangeSt
 function combineInputs(baseRange: ModifiedBaseRange, firstInput: 1 | 2): LineRangeEdit | undefined {
 	const combinedDiffs = concatArrays(
 		baseRange.input1Diffs.flatMap((diffs) =>
-			diffs.innerRangeMappings.map((diff) => ({ diff, input: 1 as const }))
+			diffs.rangeMappings.map((diff) => ({ diff, input: 1 as const }))
 		),
 		baseRange.input2Diffs.flatMap((diffs) =>
-			diffs.innerRangeMappings.map((diff) => ({ diff, input: 2 as const }))
+			diffs.rangeMappings.map((diff) => ({ diff, input: 2 as const }))
 		)
 	).sort(
 		tieBreakComparators(

@@ -8,14 +8,16 @@ import { BugIndicatingError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { LineRangeEdit, LineRange, LineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model';
+import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
+import { LineRangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/editing';
+import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { IDiffComputer } from './diffComputer';
 
 export class TextModelDiffs extends Disposable {
 	private updateCount = 0;
 	private readonly _state = new ObservableValue<TextModelDiffState, TextModelDiffChangeReason>(TextModelDiffState.initializing, 'LiveDiffState');
-	private readonly _diffs = new ObservableValue<LineRangeMapping[], TextModelDiffChangeReason>([], 'LiveDiffs');
+	private readonly _diffs = new ObservableValue<DetailedLineRangeMapping[], TextModelDiffChangeReason>([], 'LiveDiffs');
 
 	private readonly barrier = new ReentrancyBarrier();
 
@@ -35,7 +37,7 @@ export class TextModelDiffs extends Disposable {
 		return this._state;
 	}
 
-	public get diffs(): IObservable<LineRangeMapping[], TextModelDiffChangeReason> {
+	public get diffs(): IObservable<DetailedLineRangeMapping[], TextModelDiffChangeReason> {
 		return this._diffs;
 	}
 
@@ -78,7 +80,7 @@ export class TextModelDiffs extends Disposable {
 		}
 	}
 
-	public removeDiffs(diffToRemoves: LineRangeMapping[], transaction: ITransaction | undefined): void {
+	public removeDiffs(diffToRemoves: DetailedLineRangeMapping[], transaction: ITransaction | undefined): void {
 		this.ensureUpToDate();
 
 		diffToRemoves.sort(compareBy((d) => d.inputRange.startLineNumber, numberComparator));
@@ -114,16 +116,16 @@ export class TextModelDiffs extends Disposable {
 	public applyEditRelativeToOriginal(edit: LineRangeEdit, transaction: ITransaction | undefined): void {
 		this.ensureUpToDate();
 
-		const editMapping = new LineRangeMapping(
-			this.baseTextModel,
+		const editMapping = new DetailedLineRangeMapping(
 			edit.range,
-			this.textModel,
-			new LineRange(edit.range.startLineNumber, edit.newLines.length)
+			this.baseTextModel,
+			new LineRange(edit.range.startLineNumber, edit.newLines.length),
+			this.textModel
 		);
 
 		let firstAfter = false;
 		let delta = 0;
-		const newDiffs = new Array<LineRangeMapping>();
+		const newDiffs = new Array<DetailedLineRangeMapping>();
 		for (const diff of this.diffs.get()) {
 			if (diff.inputRange.touches(edit.range)) {
 				throw new BugIndicatingError('Edit must be conflict free.');
@@ -154,11 +156,11 @@ export class TextModelDiffs extends Disposable {
 		this._diffs.set(newDiffs, transaction, TextModelDiffChangeReason.other);
 	}
 
-	public findTouchingDiffs(baseRange: LineRange): LineRangeMapping[] {
+	public findTouchingDiffs(baseRange: LineRange): DetailedLineRangeMapping[] {
 		return this.diffs.get().filter(d => d.inputRange.touches(baseRange));
 	}
 
-	private getResultLine(lineNumber: number): number | LineRangeMapping {
+	private getResultLine(lineNumber: number): number | DetailedLineRangeMapping {
 		let offset = 0;
 		for (const diff of this.diffs.get()) {
 			if (diff.inputRange.contains(lineNumber) || diff.inputRange.endLineNumberExclusive === lineNumber) {
@@ -200,5 +202,5 @@ export const enum TextModelDiffState {
 
 export interface ITextModelDiffsState {
 	state: TextModelDiffState;
-	diffs: LineRangeMapping[];
+	diffs: DetailedLineRangeMapping[];
 }
