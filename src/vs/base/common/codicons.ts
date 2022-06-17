@@ -553,8 +553,7 @@ export class Codicon implements CSSIcon {
 	public static readonly arrowCircleRight = new Codicon('arrow-circle-right', { fontCharacter: '\\ebfe' });
 	public static readonly arrowCircleUp = new Codicon('arrow-circle-up', { fontCharacter: '\\ebff' });
 	public static readonly heartFilled = new Codicon('heart-filled', { fontCharacter: '\\ec04' });
-	public static readonly doNotDisturb = new Codicon('do-not-disturb', { fontCharacter: '\\EC05' });
-	public static readonly doNotDisturbFilled = new Codicon('do-not-disturb-filled', { fontCharacter: '\\EC06' });
+	public static readonly bellSlash = new Codicon('bell-slash', { fontCharacter: '\\EC05' });
 
 
 	// derived icons, that could become separate icons
