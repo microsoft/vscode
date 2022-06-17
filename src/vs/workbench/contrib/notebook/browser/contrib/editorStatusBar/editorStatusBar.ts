@@ -253,12 +253,10 @@ registerAction2(class extends Action2 {
 				});
 			}
 			// there is no kernel, show the install from marketplace
-			if (!suggestedExtension) {
-				quickPickItems.push({
-					id: 'install',
-					label: nls.localize('searchForKernels', "Browse marketplace for kernel extensions"),
-				});
-			}
+			quickPickItems.push({
+				id: 'install',
+				label: nls.localize('searchForKernels', "Browse marketplace for kernel extensions"),
+			});
 		}
 
 		const pick = await quickInputService.pick(quickPickItems, {
@@ -362,8 +360,8 @@ registerAction2(class extends Action2 {
 					}
 				);
 				await extensionService.activateByEvent(`onNotebook:${viewType}`, ActivationKind.Immediate);
-				// Await 10 sec timeout
-				//await new Promise((resolve) => setTimeout(resolve, 10000));
+				// Await 5 sec timeout
+				await new Promise((resolve) => setTimeout(resolve, 50000));
 				return;
 			}
 		}
