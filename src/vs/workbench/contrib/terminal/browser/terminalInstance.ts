@@ -1570,7 +1570,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(async error => {
 			if (error) {
 				if (this._usedShellIntegrationInjection) {
-					await this.reuseTerminal({ ignoreShellIntegration: true });
+					await this.reuseTerminal({
+						...this._shellLaunchConfig,
+						ignoreShellIntegration: true
+					});
 					this.statusList.add({
 						id: TerminalStatus.ShellIntegrationAttentionNeeded,
 						severity: Severity.Warning,
