@@ -6,19 +6,21 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkComputer, MdLinkProvider } from '../languageFeatures/documentLinkProvider';
+import { MdLinkProvider, MdVsCodeLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
-import { assertRangeEqual, joinLines } from './util';
+import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { assertRangeEqual, joinLines, workspacePath } from './util';
 
-
-const testFile = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'x.md');
 
 function getLinksForFile(fileContents: string) {
-	const doc = new InMemoryDocument(testFile, fileContents);
-	const linkComputer = new MdLinkComputer(createNewMarkdownEngine());
-	const provider = new MdLinkProvider(linkComputer);
+	const doc = new InMemoryDocument(workspacePath('x.md'), fileContents);
+	const workspace = new InMemoryWorkspaceMarkdownDocuments([doc]);
+
+	const engine = createNewMarkdownEngine();
+	const linkProvider = new MdLinkProvider(engine, workspace);
+	const provider = new MdVsCodeLinkProvider(linkProvider);
 	return provider.provideDocumentLinks(doc, noopToken);
 }
 

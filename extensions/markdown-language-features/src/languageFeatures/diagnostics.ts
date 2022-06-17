@@ -17,8 +17,8 @@ import { Limiter } from '../util/limiter';
 import { ResourceMap } from '../util/resourceMap';
 import { MdTableOfContentsWatcher } from '../test/tableOfContentsWatcher';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalHref, LinkDefinitionSet, MdLink, MdLinkComputer, MdLinkSource } from './documentLinkProvider';
-import { MdReferencesComputer, tryFindMdDocumentForLink } from './references';
+import { InternalHref, MdLink, MdLinkSource, MdLinkProvider, LinkDefinitionSet } from './documentLinkProvider';
+import { MdReferencesProvider, tryFindMdDocumentForLink } from './references';
 
 const localize = nls.loadMessageBundle();
 
@@ -305,7 +305,7 @@ export class DiagnosticManager extends Disposable {
 		private readonly computer: DiagnosticComputer,
 		private readonly configuration: DiagnosticConfiguration,
 		private readonly reporter: DiagnosticReporter,
-		private readonly referencesComputer: MdReferencesComputer,
+		private readonly referencesProvider: MdReferencesProvider,
 		delay = 300,
 	) {
 		super();
@@ -344,7 +344,7 @@ export class DiagnosticManager extends Disposable {
 		this._register(this.tableOfContentsWatcher.onTocChanged(async e => {
 			// When the toc of a document changes, revalidate every file that linked to it too
 			const triggered = new ResourceMap<void>();
-			for (const ref of await this.referencesComputer.getAllReferencesToFile(e.uri, noopToken)) {
+			for (const ref of await this.referencesProvider.getAllReferencesToFile(e.uri, noopToken)) {
 				const file = ref.location.uri;
 				if (!triggered.has(file)) {
 					this.triggerDiagnostics(file);
@@ -450,11 +450,11 @@ export class DiagnosticComputer {
 	constructor(
 		private readonly engine: MarkdownEngine,
 		private readonly workspaceContents: MdWorkspaceContents,
-		private readonly linkComputer: MdLinkComputer,
+		private readonly linkProvider: MdLinkProvider,
 	) { }
 
-	public async getDiagnostics(doc: SkinnyTextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<{ readonly diagnostics: vscode.Diagnostic[]; readonly links: MdLink[] }> {
-		const links = await this.linkComputer.getAllLinks(doc, token);
+	public async getDiagnostics(doc: SkinnyTextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<{ readonly diagnostics: vscode.Diagnostic[]; readonly links: readonly MdLink[] }> {
+		const { links, definitions } = await this.linkProvider.getLinks(doc);
 		if (token.isCancellationRequested || !options.enabled) {
 			return { links, diagnostics: [] };
 		}
@@ -463,7 +463,7 @@ export class DiagnosticComputer {
 			links,
 			diagnostics: (await Promise.all([
 				this.validateFileLinks(options, links, token),
-				Array.from(this.validateReferenceLinks(options, links)),
+				Array.from(this.validateReferenceLinks(options, links, definitions)),
 				this.validateFragmentLinks(doc, options, links, token),
 			])).flat()
 		};
@@ -501,15 +501,14 @@ export class DiagnosticComputer {
 		return diagnostics;
 	}
 
-	private *validateReferenceLinks(options: DiagnosticOptions, links: readonly MdLink[]): Iterable<vscode.Diagnostic> {
+	private *validateReferenceLinks(options: DiagnosticOptions, links: readonly MdLink[], definitions: LinkDefinitionSet): Iterable<vscode.Diagnostic> {
 		const severity = toSeverity(options.validateReferences);
 		if (typeof severity === 'undefined') {
 			return [];
 		}
 
-		const definitionSet = new LinkDefinitionSet(links);
 		for (const link of links) {
-			if (link.href.kind === 'reference' && !definitionSet.lookup(link.href.ref)) {
+			if (link.href.kind === 'reference' && !definitions.lookup(link.href.ref)) {
 				yield new vscode.Diagnostic(
 					link.source.hrefRange,
 					localize('invalidReferenceLink', 'No link definition found: \'{0}\'', link.href.ref),
@@ -620,19 +619,19 @@ class AddToIgnoreLinksQuickFixProvider implements vscode.CodeActionProvider {
 	}
 }
 
-export function register(
+export function registerDiagnosticSupport(
 	selector: vscode.DocumentSelector,
 	engine: MarkdownEngine,
 	workspaceContents: MdWorkspaceContents,
-	linkComputer: MdLinkComputer,
+	linkProvider: MdLinkProvider,
 	commandManager: CommandManager,
-	referenceComputer: MdReferencesComputer,
+	referenceComputer: MdReferencesProvider,
 ): vscode.Disposable {
 	const configuration = new VSCodeDiagnosticConfiguration();
 	const manager = new DiagnosticManager(
 		engine,
 		workspaceContents,
-		new DiagnosticComputer(engine, workspaceContents, linkComputer),
+		new DiagnosticComputer(engine, workspaceContents, linkProvider),
 		configuration,
 		new DiagnosticCollectionReporter(),
 		referenceComputer);

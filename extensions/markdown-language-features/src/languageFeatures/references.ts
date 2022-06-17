@@ -5,13 +5,12 @@
 import * as vscode from 'vscode';
 import * as uri from 'vscode-uri';
 import { MarkdownEngine } from '../markdownEngine';
-import { Slugifier } from '../slugify';
 import { TableOfContents, TocEntry } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref, MdLink, MdLinkComputer } from './documentLinkProvider';
-import { MdWorkspaceCache } from './workspaceCache';
+import { MdWorkspaceInfoCache } from './workspaceCache';
 
 
 /**
@@ -59,19 +58,22 @@ export interface MdHeaderReference {
 
 export type MdReference = MdLinkReference | MdHeaderReference;
 
-export class MdReferencesComputer extends Disposable {
+/**
+ * Stateful object that computes references for markdown files.
+ */
+export class MdReferencesProvider extends Disposable {
 
-	private readonly _linkCache: MdWorkspaceCache<readonly MdLink[]>;
+	private readonly _linkCache: MdWorkspaceInfoCache<readonly MdLink[]>;
+	private readonly _linkComputer: MdLinkComputer;
 
 	public constructor(
-		private readonly linkComputer: MdLinkComputer,
-		private readonly workspaceContents: MdWorkspaceContents,
 		private readonly engine: MarkdownEngine,
-		private readonly slugifier: Slugifier,
+		private readonly workspaceContents: MdWorkspaceContents,
 	) {
 		super();
 
-		this._linkCache = this._register(new MdWorkspaceCache(workspaceContents, doc => linkComputer.getAllLinks(doc, noopToken)));
+		this._linkComputer = new MdLinkComputer(engine);
+		this._linkCache = this._register(new MdWorkspaceInfoCache(workspaceContents, doc => this._linkComputer.getAllLinks(doc, noopToken)));
 	}
 
 	public async getReferencesAtPosition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
@@ -110,7 +112,7 @@ export class MdReferencesComputer extends Disposable {
 		for (const link of links) {
 			if (link.href.kind === 'internal'
 				&& this.looksLikeLinkToDoc(link.href, document.uri)
-				&& this.slugifier.fromHeading(link.href.fragment).value === header.slug.value
+				&& this.engine.slugifier.fromHeading(link.href.fragment).value === header.slug.value
 			) {
 				references.push({
 					kind: 'link',
@@ -126,7 +128,7 @@ export class MdReferencesComputer extends Disposable {
 	}
 
 	private async getReferencesToLinkAtPosition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
-		const docLinks = await this.linkComputer.getAllLinks(document, token);
+		const docLinks = await this._linkComputer.getAllLinks(document, token);
 
 		for (const link of docLinks) {
 			if (link.kind === 'definition') {
@@ -200,7 +202,7 @@ export class MdReferencesComputer extends Disposable {
 					continue;
 				}
 
-				if (this.slugifier.fromHeading(link.href.fragment).equals(this.slugifier.fromHeading(sourceLink.href.fragment))) {
+				if (this.engine.slugifier.fromHeading(link.href.fragment).equals(this.engine.slugifier.fromHeading(sourceLink.href.fragment))) {
 					const isTriggerLocation = sourceLink.source.resource.fsPath === link.source.resource.fsPath && sourceLink.source.hrefRange.isEqual(link.source.hrefRange);
 					references.push({
 						kind: 'link',
@@ -284,27 +286,27 @@ export class MdReferencesComputer extends Disposable {
 }
 
 /**
- *
+ * Implements {@link vscode.ReferenceProvider} for markdown documents.
  */
 export class MdVsCodeReferencesProvider implements vscode.ReferenceProvider {
 
 	public constructor(
-		private readonly referencesComputer: MdReferencesComputer
+		private readonly referencesProvider: MdReferencesProvider
 	) { }
 
 	async provideReferences(document: SkinnyTextDocument, position: vscode.Position, context: vscode.ReferenceContext, token: vscode.CancellationToken): Promise<vscode.Location[]> {
-		const allRefs = await this.referencesComputer.getReferencesAtPosition(document, position, token);
+		const allRefs = await this.referencesProvider.getReferencesAtPosition(document, position, token);
 		return allRefs
 			.filter(ref => context.includeDeclaration || !ref.isDefinition)
 			.map(ref => ref.location);
 	}
 }
 
-export function registerReferencesProvider(
+export function registerReferencesSupport(
 	selector: vscode.DocumentSelector,
-	computer: MdReferencesComputer,
+	referencesProvider: MdReferencesProvider,
 ): vscode.Disposable {
-	return vscode.languages.registerReferenceProvider(selector, new MdVsCodeReferencesProvider(computer));
+	return vscode.languages.registerReferenceProvider(selector, new MdVsCodeReferencesProvider(referencesProvider));
 }
 
 export async function tryFindMdDocumentForLink(href: InternalHref, workspaceContents: MdWorkspaceContents): Promise<SkinnyTextDocument | undefined> {
