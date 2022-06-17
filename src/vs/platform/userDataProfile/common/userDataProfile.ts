@@ -7,7 +7,7 @@ import { hash } from 'vs/base/common/hash';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
-import { UriDto } from 'vs/base/common/types';
+import { isUndefined, UriDto } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -54,6 +54,23 @@ export interface IUserDataProfileService {
 	readonly onDidChangeCurrentProfile: Event<IUserDataProfile>;
 	readonly currentProfile: IUserDataProfile;
 	updateCurrentProfile(currentProfile: IUserDataProfile): void;
+}
+
+export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
+	const candidate = thing as IUserDataProfile | undefined;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& typeof candidate.id === 'string'
+		&& typeof candidate.isDefault === 'boolean'
+		&& typeof candidate.name === 'string'
+		&& URI.isUri(candidate.location)
+		&& URI.isUri(candidate.globalStorageHome)
+		&& URI.isUri(candidate.settingsResource)
+		&& URI.isUri(candidate.keybindingsResource)
+		&& URI.isUri(candidate.tasksResource)
+		&& URI.isUri(candidate.snippetsHome)
+		&& (isUndefined(candidate.extensionsResource) || URI.isUri(candidate.extensionsResource))
+	);
 }
 
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');

@@ -231,7 +231,7 @@ class LinkDoesNotExistDiagnostic extends vscode.Diagnostic {
 }
 
 export abstract class DiagnosticReporter extends Disposable {
-	private readonly pending = new ResourceMap<Promise<any>>();
+	private readonly pending = new Set<Promise<any>>();
 
 	public clear(): void {
 		this.pending.clear();
@@ -239,20 +239,15 @@ export abstract class DiagnosticReporter extends Disposable {
 
 	public abstract set(uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]): void;
 
-	public delete(uri: vscode.Uri): void {
-		this.pending.delete(uri);
+	public abstract delete(uri: vscode.Uri): void;
+
+	public addWorkItem(promise: Promise<any>): Promise<any> {
+		this.pending.add(promise);
+		promise.finally(() => this.pending.delete(promise));
+		return promise;
 	}
 
-	public signalTriggered(uri: vscode.Uri, recompute: Promise<any>): void {
-		this.pending.set(uri, recompute);
-		recompute.finally(() => {
-			if (this.pending.get(uri) === recompute) {
-				this.pending.delete(uri);
-			}
-		});
-	}
-
-	public async waitAllPending(): Promise<void> {
+	public async waitPendingWork(): Promise<void> {
 		await Promise.all([...this.pending.values()]);
 	}
 }
@@ -276,8 +271,7 @@ export class DiagnosticCollectionReporter extends DiagnosticReporter {
 		this.collection.set(uri, tabs.has(uri) ? diagnostics : []);
 	}
 
-	public override delete(uri: vscode.Uri): void {
-		super.delete(uri);
+	public delete(uri: vscode.Uri): void {
 		this.collection.delete(uri);
 	}
 
@@ -367,7 +361,7 @@ export class DiagnosticManager extends Disposable {
 		this.pendingDiagnostics.clear();
 	}
 
-	public async recomputeDiagnosticState(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<{ diagnostics: readonly vscode.Diagnostic[]; links: readonly MdLink[]; config: DiagnosticOptions }> {
+	private async recomputeDiagnosticState(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<{ diagnostics: readonly vscode.Diagnostic[]; links: readonly MdLink[]; config: DiagnosticOptions }> {
 		const config = this.configuration.getOptions(doc.uri);
 		if (!config.enabled) {
 			return { diagnostics: [], links: [], config };
@@ -391,21 +385,26 @@ export class DiagnosticManager extends Disposable {
 		}));
 	}
 
-	private async rebuild() {
+	private rebuild(): Promise<void> {
 		this.reporter.clear();
 		this.pendingDiagnostics.clear();
 		this.inFlightDiagnostics.clear();
 
-		for (const doc of await this.workspaceContents.getAllMarkdownDocuments()) {
-			this.triggerDiagnostics(doc.uri);
-		}
+		return this.reporter.addWorkItem(
+			(async () => {
+				const allDocs = await this.workspaceContents.getAllMarkdownDocuments();
+				await Promise.all(Array.from(allDocs, doc => this.triggerDiagnostics(doc.uri)));
+			})()
+		);
 	}
 
-	private triggerDiagnostics(uri: vscode.Uri) {
+	private async triggerDiagnostics(uri: vscode.Uri): Promise<void> {
 		this.inFlightDiagnostics.cancel(uri);
 
 		this.pendingDiagnostics.add(uri);
-		this.reporter.signalTriggered(uri, this.diagnosticDelayer.trigger(() => this.recomputePendingDiagnostics()));
+		return this.reporter.addWorkItem(
+			this.diagnosticDelayer.trigger(() => this.recomputePendingDiagnostics())
+		);
 	}
 }
 
@@ -456,7 +455,7 @@ export class DiagnosticComputer {
 
 	public async getDiagnostics(doc: SkinnyTextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<{ readonly diagnostics: vscode.Diagnostic[]; readonly links: MdLink[] }> {
 		const links = await this.linkComputer.getAllLinks(doc, token);
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || !options.enabled) {
 			return { links, diagnostics: [] };
 		}
 

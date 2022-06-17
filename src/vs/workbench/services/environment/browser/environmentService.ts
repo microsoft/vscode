@@ -205,6 +205,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
 
+	@memoize
+	get editSessionId(): string | undefined { return this.options.editSessionId; }
+
 	private payload: Map<string, string> | undefined;
 
 	constructor(
