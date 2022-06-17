@@ -81,7 +81,6 @@ export class ExtHostNotebookEditor {
 	private _viewColumn?: vscode.ViewColumn;
 
 	private _visible: boolean = false;
-	private readonly _hasDecorationsForKey = new Set<string>();
 
 	private _editor?: vscode.NotebookEditor;
 
@@ -142,9 +141,6 @@ export class ExtHostNotebookEditor {
 					callback(edit);
 					return that._applyEdit(edit.finalize());
 				},
-				setDecorations(decorationType, range) {
-					return that.setDecorations(decorationType, range);
-				}
 			};
 
 			ExtHostNotebookEditor.apiEditorsToExtHost.set(this._editor, this);
@@ -210,23 +206,5 @@ export class ExtHostNotebookEditor {
 		}
 
 		return this._proxy.$tryApplyEdits(this.id, editData.documentVersionId, compressedEdits);
-	}
-
-	setDecorations(decorationType: vscode.NotebookEditorDecorationType, range: vscode.NotebookRange): void {
-		if (range.isEmpty && !this._hasDecorationsForKey.has(decorationType.key)) {
-			// avoid no-op call to the renderer
-			return;
-		}
-		if (range.isEmpty) {
-			this._hasDecorationsForKey.delete(decorationType.key);
-		} else {
-			this._hasDecorationsForKey.add(decorationType.key);
-		}
-
-		return this._proxy.$trySetDecorations(
-			this.id,
-			extHostConverter.NotebookRange.from(range),
-			decorationType.key
-		);
 	}
 }

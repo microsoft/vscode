@@ -15,6 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isBoolean, isUndefined } from 'vs/base/common/types';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
 export class WebExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService {
 
@@ -26,9 +27,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		@ILogService logService: ILogService,
 		@IWebExtensionsScannerService private readonly webExtensionsScannerService: IWebExtensionsScannerService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IProductService productService: IProductService
 	) {
-		super(extensionGalleryService, telemetryService, logService, productService);
+		super(extensionGalleryService, extensionsProfileScannerService, telemetryService, logService, productService);
 	}
 
 	async getTargetPlatform(): Promise<TargetPlatform> {
@@ -67,6 +69,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.installExtension(manifest, location, options);
 	}
 
+	getMetadata(extension: ILocalExtension): Promise<Metadata | undefined> {
+		return this.webExtensionsScannerService.scanMetadata(extension.location);
+	}
+
 	protected override async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
 		const compatibleExtension = await super.getCompatibleVersion(extension, sameVersion, includePreRelease);
 		if (compatibleExtension) {
@@ -87,11 +93,11 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return local;
 	}
 
-	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions): IInstallExtensionTask {
+	protected createDefaultInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions): IInstallExtensionTask {
 		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService);
 	}
 
-	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
+	protected createDefaultUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
 		return new UninstallExtensionTask(extension, options, this.webExtensionsScannerService);
 	}
 
@@ -123,7 +129,7 @@ function getMetadata(options?: InstallOptions, existingExtension?: IExtension): 
 	return metadata;
 }
 
-class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implements IInstallExtensionTask {
+class InstallExtensionTask extends AbstractExtensionTask<{ local: ILocalExtension; metadata: Metadata }> implements IInstallExtensionTask {
 
 	readonly identifier: IExtensionIdentifier;
 	readonly source: URI | IGalleryExtension;
@@ -142,7 +148,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 		this.source = extension;
 	}
 
-	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {
+	protected async doRun(token: CancellationToken): Promise<{ local: ILocalExtension; metadata: Metadata }> {
 		const userExtensions = await this.webExtensionsScannerService.scanUserExtensions();
 		const existingExtension = userExtensions.find(e => areSameExtensions(e.identifier, this.identifier));
 		if (existingExtension) {
@@ -167,7 +173,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 
 		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata)
 			: await this.webExtensionsScannerService.addExtensionFromGallery(this.extension, metadata);
-		return toLocalExtension(scannedExtension);
+		return { local: toLocalExtension(scannedExtension), metadata };
 	}
 }
 

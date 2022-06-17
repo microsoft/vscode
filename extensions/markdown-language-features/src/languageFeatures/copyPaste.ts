@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { tryGetUriListSnippet } from './dropIntoEditor';
 
-export function registerPasteProvider(selector: vscode.DocumentSelector) {
+export function registerPasteSupport(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentPasteEditProvider(selector, new class implements vscode.DocumentPasteEditProvider {
 
 		async provideDocumentPasteEdits(
@@ -21,10 +21,7 @@ export function registerPasteProvider(selector: vscode.DocumentSelector) {
 			}
 
 			const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-			if (snippet) {
-				return { insertText: snippet };
-			}
-			return undefined;
+			return snippet ? new vscode.DocumentPasteEdit(snippet) : undefined;
 		}
 	}, {
 		pasteMimeTypes: ['text/uri-list']

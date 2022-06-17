@@ -588,9 +588,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public setHiddenAreas(ranges: IRange[]): void {
-		if (this._modelData) {
-			this._modelData.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
-		}
+		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
 	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
@@ -1786,9 +1784,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	protected _postDetachModelCleanup(detachedModel: ITextModel | null): void {
-		if (detachedModel) {
-			detachedModel.removeAllDecorationsWithOwnerId(this._id);
-		}
+		detachedModel?.removeAllDecorationsWithOwnerId(this._id);
 	}
 
 	private _detachModel(): ITextModel | null {

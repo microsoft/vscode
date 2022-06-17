@@ -279,6 +279,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/sessionSync",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/views",
 			"project": "vscode-workbench"
 		},
@@ -427,6 +431,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/sessionSync",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/views",
 			"project": "vscode-workbench"
 		},
@@ -455,11 +463,11 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/profiles",
+			"name": "vs/workbench/contrib/userDataProfile",
 			"project": "vscode-profiles"
 		},
 		{
-			"name": "vs/workbench/services/profiles",
+			"name": "vs/workbench/services/userDataProfile",
 			"project": "vscode-profiles"
 		}
 	]

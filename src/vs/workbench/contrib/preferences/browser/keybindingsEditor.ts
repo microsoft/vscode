@@ -371,7 +371,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			getKeyBinding: action => this.keybindingsService.lookupKeybinding(action.id)
 		}));
 		toolBar.setActions(actions);
-		this._register(this.keybindingsService.onDidUpdateKeybindings(e => toolBar.setActions(actions)));
+		this._register(this.keybindingsService.onDidUpdateKeybindings(() => toolBar.setActions(actions)));
 	}
 
 	private updateSearchOptions(): void {

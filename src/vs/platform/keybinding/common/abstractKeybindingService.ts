@@ -13,7 +13,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingEvent, IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { IResolveResult, KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -30,8 +30,8 @@ const HIGH_FREQ_COMMANDS = /^(cursor|delete)/;
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
 	public _serviceBrand: undefined;
 
-	protected readonly _onDidUpdateKeybindings: Emitter<IKeybindingEvent> = this._register(new Emitter<IKeybindingEvent>());
-	get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
+	protected readonly _onDidUpdateKeybindings: Emitter<void> = this._register(new Emitter<void>());
+	get onDidUpdateKeybindings(): Event<void> {
 		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 

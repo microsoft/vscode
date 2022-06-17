@@ -15,7 +15,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WebExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/webExtensionManagementService';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -29,7 +28,6 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ILogService logService: ILogService,
 	) {
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {

@@ -19,7 +19,7 @@ export interface IElectronConfiguration {
 }
 
 export async function resolveElectronConfiguration(options: LaunchOptions): Promise<IElectronConfiguration> {
-	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, extraArgs } = options;
+	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs } = options;
 	const env = { ...process.env };
 
 	const args = [
@@ -30,7 +30,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--no-cached-data',
 		'--disable-updates',
 		'--disable-keytar',
-		'--disable-crash-reporter',
+		`--crash-reporter-directory=${crashesPath}`,
 		'--disable-workspace-trust',
 		`--extensions-dir=${extensionsPath}`,
 		`--user-data-dir=${userDataDir}`,

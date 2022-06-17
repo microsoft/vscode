@@ -24,7 +24,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Command } from 'vs/editor/common/languages';
 import { ITreeViewsService, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
-import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 type TreeItemHandle = string;
 
@@ -92,8 +92,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		const dragMimeTypes = options.dragAndDropController?.dragMimeTypes ?? [];
 		const hasHandleDrag = !!options.dragAndDropController?.handleDrag;
 		const hasHandleDrop = !!options.dragAndDropController?.handleDrop;
-		const supportsFileDataTransfers = isProposedApiEnabled(extension, 'dataTransferFiles');
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop, supportsFileDataTransfers });
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },

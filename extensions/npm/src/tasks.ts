@@ -287,7 +287,7 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 		result.push({ task, location: new Location(packageJsonUri, nameRange) });
 	}
 
-	if (!workspace.getConfiguration('npm', folder).get<string[]>('scriptExplorerExclude', []).find(e => e.includes('install'))) {
+	if (!workspace.getConfiguration('npm', folder).get<string[]>('scriptExplorerExclude', []).find(e => e.includes(INSTALL_SCRIPT))) {
 		result.push({ task: await createTask(packageManager, INSTALL_SCRIPT, [INSTALL_SCRIPT], folder, packageJsonUri, 'install dependencies from package', []) });
 	}
 	return result;

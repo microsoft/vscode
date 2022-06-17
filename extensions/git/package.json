@@ -14,7 +14,6 @@
     "contribMergeEditorToolbar",
     "contribViewsWelcome",
     "scmActionButton",
-    "scmInput",
     "scmSelectedProvider",
     "scmValidation",
     "timeline"
@@ -1517,7 +1516,7 @@
       "merge/toolbar": [
         {
           "command": "git.acceptMerge",
-          "when": "isMergeEditor"
+          "when": "isMergeEditor && baseResourceScheme =~ /^git$|^file$/"
         }
       ],
       "scm/change/title": [
@@ -2034,7 +2033,7 @@
           "type": "boolean",
           "scope": "resource",
           "description": "%config.useEditorAsCommitInput%",
-          "default": false
+          "default": true
         },
         "git.verboseCommit": {
           "type": "boolean",
@@ -2363,6 +2362,12 @@
           "scope": "resource",
           "default": true,
           "description": "%config.terminalAuthentication%"
+        },
+        "git.terminalGitEditor": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.terminalGitEditor%"
         },
         "git.useCommitInputAsStashMessage": {
           "type": "boolean",

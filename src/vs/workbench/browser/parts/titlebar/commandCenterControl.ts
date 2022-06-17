@@ -147,20 +147,8 @@ export class CommandCenterControl {
 		};
 		menuUpdater();
 		this._disposables.add(menu.onDidChange(menuUpdater));
-		this._disposables.add(keybindingService.onDidUpdateKeybindings(e => {
-			if (!e.keybindings?.length) {
-				// when resetting a keybinding it isn't properly reported and we are better safe
-				// than sorry. See https://github.com/microsoft/vscode/issues/151712
-				menuUpdater();
-				return;
-			}
-			const commands = new Set(e.keybindings.map(kb => kb.command));
-			for (let i = 0, len = titleToolbar.getItemsLength(); i < len; i++) {
-				if (commands.has(titleToolbar.getItemAction(i).id)) {
-					menuUpdater();
-					break;
-				}
-			}
+		this._disposables.add(keybindingService.onDidUpdateKeybindings(() => {
+			menuUpdater();
 		}));
 		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
 		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));

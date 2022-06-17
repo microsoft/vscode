@@ -242,9 +242,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $setDebugSessionName(sessionId: DebugSessionUUID, name: string): void {
 		const session = this.debugService.getModel().getSession(sessionId);
-		if (session) {
-			session.setName(name);
-		}
+		session?.setName(name);
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
@@ -284,9 +282,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $appendDebugConsole(value: string): void {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		const session = this.debugService.getViewModel().focusedSession;
-		if (session) {
-			session.appendToRepl(value, severity.Warning);
-		}
+		session?.appendToRepl(value, severity.Warning);
 	}
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {

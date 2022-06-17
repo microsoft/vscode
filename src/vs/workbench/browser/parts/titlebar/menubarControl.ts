@@ -481,9 +481,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTION_BACKGROUND);
 			if (menubarSelectedBgColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover {
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title,
+					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .menubar-menu-title {
 						background-color: ${menubarSelectedBgColor};
 					}
 				`);
@@ -492,19 +492,20 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTION_BORDER);
 			if (menubarSelectedBorderColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar > .menubar-menu-button:hover {
+					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title  {
 						outline: dashed 1px;
 					}
 
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus {
+					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title {
 						outline: solid 1px;
 					}
 
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus,
-					.monaco-workbench .menubar > .menubar-menu-button:hover {
+					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title {
 						outline-color: ${menubarSelectedBorderColor};
+						outline-offset: -1px;
 					}
 				`);
 			}
@@ -751,9 +752,7 @@ export class CustomMenubarControl extends MenubarControl {
 					if (!this.focusInsideMenubar) {
 						const actions: IAction[] = [];
 						updateActions(menu, actions, title);
-						if (this.menubar) {
-							this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
-						}
+						this.menubar?.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 					}
 				}));
 
@@ -763,9 +762,7 @@ export class CustomMenubarControl extends MenubarControl {
 						if (!this.focusInsideMenubar) {
 							const actions: IAction[] = [];
 							updateActions(menu, actions, title);
-							if (this.menubar) {
-								this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
-							}
+							this.menubar?.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 						}
 					}));
 				}

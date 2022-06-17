@@ -223,6 +223,23 @@ suite('Common Editor Config', () => {
 			strings: 'on'
 		});
 	});
+
+	test('issue #151926: Untyped editor options apply', () => {
+		const config = new TestConfiguration({});
+		config.updateOptions({ unicodeHighlight: { allowedCharacters: { 'x': true } } });
+		const actual = config.options.get(EditorOption.unicodeHighlighting);
+		assert.deepStrictEqual(actual,
+			{
+				nonBasicASCII: "inUntrustedWorkspace",
+				invisibleCharacters: true,
+				ambiguousCharacters: true,
+				includeComments: "inUntrustedWorkspace",
+				includeStrings: "inUntrustedWorkspace",
+				allowedCharacters: { "x": true },
+				allowedLocales: { "_os": true, "_vscode": true }
+			}
+		);
+	});
 });
 
 suite('migrateOptions', () => {

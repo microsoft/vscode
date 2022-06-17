@@ -722,9 +722,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this._width = width;
 			const treeHeight = height - DOM.getTotalHeight(this.messageElement);
 			this.treeContainer.style.height = treeHeight + 'px';
-			if (this.tree) {
-				this.tree.layout(treeHeight, width);
-			}
+			this.tree?.layout(treeHeight, width);
 		}
 	}
 
@@ -780,9 +778,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	}
 
 	setSelection(items: ITreeItem[]): void {
-		if (this.tree) {
-			this.tree.setSelection(items);
-		}
+		this.tree?.setSelection(items);
 	}
 
 	setFocus(item: ITreeItem): void {
@@ -1087,7 +1083,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	private shouldHideResourceLabelIcon(iconUrl: URI | undefined, icon: ThemeIcon | undefined): boolean {
 		// We always hide the resource label in favor of the iconUrl when it's provided.
 		// When `ThemeIcon` is provided, we hide the resource label icon in favor of it only if it's a not a file icon.
-		return !!iconUrl || !this.isFileKindThemeIcon(icon);
+		return (!!iconUrl || (!!icon && !this.isFileKindThemeIcon(icon)));
 	}
 
 	private shouldShowThemeIcon(hasResource: boolean, icon: ThemeIcon | undefined): icon is ThemeIcon {
@@ -1528,9 +1524,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 					const file = dataItem.getAsFile();
 					if (file) {
 						uris.push(URI.file(file.path));
-						if (dndController.supportsFileDataTransfers) {
-							treeDataTransfer.append(type, createFileDataTransferItemFromFile(file));
-						}
+						treeDataTransfer.append(type, createFileDataTransferItemFromFile(file));
 					}
 				}
 			}

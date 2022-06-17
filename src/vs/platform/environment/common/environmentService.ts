@@ -60,10 +60,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get cacheHome(): URI { return URI.file(this.userDataPath); }
 
 	@memoize
-	get userRoamingDataHome(): URI { return this.appSettingsHome; }
+	get stateResource(): URI { return joinPath(this.appSettingsHome, 'globalStorage', 'storage.json'); }
 
 	@memoize
-	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
+	get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	@memoize
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
@@ -87,16 +87,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
 
 	@memoize
-	get globalStorageHome(): URI { return joinPath(this.appSettingsHome, 'globalStorage'); }
-
-	@memoize
 	get workspaceStorageHome(): URI { return joinPath(this.appSettingsHome, 'workspaceStorage'); }
 
 	@memoize
 	get localHistoryHome(): URI { return joinPath(this.appSettingsHome, 'History'); }
-
-	@memoize
-	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 
 	@memoize
 	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
@@ -110,9 +104,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 		return joinPath(this.userHome, this.productService.dataFolderName, 'argv.json');
 	}
-
-	@memoize
-	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this.args.extensionDevelopmentPath; }

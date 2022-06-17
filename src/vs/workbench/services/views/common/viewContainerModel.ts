@@ -16,7 +16,7 @@ import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { isEqual } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 import { localize } from 'vs/nls';
 
 export function getViewsStateStorageId(viewContainerStorageId: string): string { return `${viewContainerStorageId}.hidden`; }

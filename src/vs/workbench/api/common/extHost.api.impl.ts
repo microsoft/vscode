@@ -51,7 +51,6 @@ import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyId
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import type * as vscode from 'vscode';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { values } from 'vs/base/common/collections';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -158,7 +157,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
 	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extensionStoragePaths));
 	const extHostNotebookDocuments = rpcProtocol.set(ExtHostContext.ExtHostNotebookDocuments, new ExtHostNotebookDocuments(extHostNotebook));
-	const extHostNotebookEditors = rpcProtocol.set(ExtHostContext.ExtHostNotebookEditors, new ExtHostNotebookEditors(extHostLogService, rpcProtocol, extHostNotebook));
+	const extHostNotebookEditors = rpcProtocol.set(ExtHostContext.ExtHostNotebookEditors, new ExtHostNotebookEditors(extHostLogService, extHostNotebook));
 	const extHostNotebookKernels = rpcProtocol.set(ExtHostContext.ExtHostNotebookKernels, new ExtHostNotebookKernels(rpcProtocol, initData, extHostNotebook, extHostCommands, extHostLogService));
 	const extHostNotebookRenderers = rpcProtocol.set(ExtHostContext.ExtHostNotebookRenderers, new ExtHostNotebookRenderers(rpcProtocol, extHostNotebook));
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
@@ -186,7 +185,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands));
 
 	// Check that no named customers are missing
-	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
+	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
 	rpcProtocol.assertRegistered(expected);
 
 	// Other instances
@@ -856,7 +855,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostWorkspace.saveAll(includeUntitled);
 			},
 			applyEdit(edit: vscode.WorkspaceEdit): Thenable<boolean> {
-				return extHostBulkEdits.applyWorkspaceEdit(edit);
+				return extHostBulkEdits.applyWorkspaceEdit(edit, extension);
 			},
 			createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): vscode.FileSystemWatcher => {
 				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, extension, pattern, ignoreCreate, ignoreChange, ignoreDelete);
@@ -1146,10 +1145,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerNotebookCellStatusBarItemProvider: (notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) => {
 				return extHostNotebook.registerNotebookCellStatusBarItemProvider(extension, notebookType, provider);
 			},
-			createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
-				checkProposedApiEnabled(extension, 'notebookEditorDecorationType');
-				return extHostNotebookEditors.createNotebookEditorDecorationType(options);
-			},
 			createRendererMessaging(rendererId) {
 				return extHostNotebookRenderers.createRendererMessaging(extension, rendererId);
 			},
@@ -1298,6 +1293,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed api types
+			DocumentDropEdit: extHostTypes.DocumentDropEdit,
+			DocumentPasteEdit: extHostTypes.DocumentPasteEdit,
 			InlayHint: extHostTypes.InlayHint,
 			InlayHintLabelPart: extHostTypes.InlayHintLabelPart,
 			InlayHintKind: extHostTypes.InlayHintKind,
@@ -1329,7 +1326,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
 			DataTransfer: extHostTypes.DataTransfer,
 			DataTransferItem: extHostTypes.DataTransferItem,
-			DataTransferItemKind: extHostTypes.DataTransferItemKind,
 			CoveredCount: extHostTypes.CoveredCount,
 			FileCoverage: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,

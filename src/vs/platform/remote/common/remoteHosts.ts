@@ -51,10 +51,6 @@ export function parseAuthorityWithOptionalPort(authority: string, defaultPort: n
 }
 
 function parseAuthority(authority: string): { host: string; port: number | undefined } {
-	if (authority.indexOf('+') >= 0) {
-		throw new Error(`Remote authorities containing '+' need to be resolved!`);
-	}
-
 	// check for ipv6 with port
 	const m1 = authority.match(/^(\[[0-9a-z:]+\]):(\d+)$/);
 	if (m1) {

@@ -92,7 +92,7 @@ suite('MarkdownRenderer', () => {
 					codeBlockRenderer: simpleCodeBlockRenderer
 				});
 				result.dispose();
-				setTimeout(resolve, 250);
+				setTimeout(resolve, 50);
 			});
 		});
 
@@ -111,8 +111,8 @@ suite('MarkdownRenderer', () => {
 				setTimeout(() => {
 					result.dispose();
 					resolveCodeBlockRendering(document.createElement('code'));
-					setTimeout(resolve, 250);
-				}, 250);
+					setTimeout(resolve, 50);
+				}, 50);
 			});
 		});
 	});
@@ -172,6 +172,14 @@ suite('MarkdownRenderer', () => {
 </tr>
 </tbody></table>
 `);
+		});
+
+		test('render icon in <a> without href (#152170)', () => {
+			const mds = new MarkdownString(undefined, { supportThemeIcons: true, supportHtml: true });
+			mds.appendMarkdown(`<a>$(sync)</a>`);
+
+			const result: HTMLElement = renderMarkdown(mds).element;
+			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-sync"></span></p>`);
 		});
 	});
 

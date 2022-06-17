@@ -50,8 +50,12 @@ import { isCI, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfile';
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class DesktopMain extends Disposable {
 
@@ -236,6 +240,11 @@ export class DesktopMain extends Disposable {
 		const uriIdentityService = new UriIdentityService(fileService);
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
+		// User Data Profiles
+		const userDataProfilesService = new UserDataProfilesNativeService(this.configuration.profiles.default, mainProcessService.getChannel('userDataProfiles'), environmentService, fileService, logService);
+		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
+		const userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, reviveProfile(this.configuration.profiles.current, userDataProfilesService.profilesHome.scheme));
+		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -253,7 +262,7 @@ export class DesktopMain extends Disposable {
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 
 		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(service => {
+			this.createWorkspaceService(payload, environmentService, userDataProfileService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -264,7 +273,7 @@ export class DesktopMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService(payload, environmentService, mainProcessService).then(service => {
+			this.createStorageService(payload, environmentService, userDataProfileService, mainProcessService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
@@ -334,6 +343,7 @@ export class DesktopMain extends Disposable {
 	private async createWorkspaceService(
 		payload: IAnyWorkspaceIdentifier,
 		environmentService: INativeWorkbenchEnvironmentService,
+		userDataProfileService: IUserDataProfileService,
 		fileService: FileService,
 		remoteAgentService: IRemoteAgentService,
 		uriIdentityService: IUriIdentityService,
@@ -341,7 +351,7 @@ export class DesktopMain extends Disposable {
 		policyService: IPolicyService
 	): Promise<WorkspaceService> {
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData] /* Cache all non native resources */, environmentService, fileService);
-		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, fileService, remoteAgentService, uriIdentityService, logService, policyService);
+		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, userDataProfileService, fileService, remoteAgentService, uriIdentityService, logService, policyService);
 
 		try {
 			await workspaceService.initialize(payload);
@@ -354,8 +364,8 @@ export class DesktopMain extends Disposable {
 		}
 	}
 
-	private async createStorageService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
-		const storageService = new NativeStorageService(payload, mainProcessService, environmentService);
+	private async createStorageService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
+		const storageService = new NativeStorageService(payload, userDataProfileService, mainProcessService, environmentService);
 
 		try {
 			await storageService.initialize();

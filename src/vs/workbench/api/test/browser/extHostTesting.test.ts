@@ -36,8 +36,8 @@ const assertTreesEqual = (a: TestItemImpl | undefined, b: TestItemImpl | undefin
 
 	assert.deepStrictEqual(simplify(a), simplify(b));
 
-	const aChildren = [...a.children].map(c => c.id).sort();
-	const bChildren = [...b.children].map(c => c.id).sort();
+	const aChildren = [...a.children].map(([_, c]) => c.id).sort();
+	const bChildren = [...b.children].map(([_, c]) => c.id).sort();
 	assert.strictEqual(aChildren.length, bChildren.length, `expected ${a.label}.children.length == ${b.label}.children.length`);
 	aChildren.forEach(key => assertTreesEqual(a.children.get(key) as TestItemImpl, b.children.get(key) as TestItemImpl));
 };
@@ -242,7 +242,7 @@ suite('ExtHost Testing', () => {
 
 			const oldA = single.root.children.get('id-a') as TestItemImpl;
 			const newA = new TestItemImpl('ctrlId', 'id-a', 'Hello world', undefined);
-			newA.children.replace([...oldA.children]);
+			newA.children.replace([...oldA.children].map(([_, item]) => item));
 			single.root.children.replace([
 				newA,
 				new TestItemImpl('ctrlId', 'id-b', single.root.children.get('id-b')!.label, undefined),
@@ -334,7 +334,7 @@ suite('ExtHost Testing', () => {
 				},
 			]);
 
-			assert.deepStrictEqual([...single.root.children], [single.root.children.get('id-a')]);
+			assert.deepStrictEqual([...single.root.children].map(([_, item]) => item), [single.root.children.get('id-a')]);
 			assert.deepStrictEqual(b.parent, a);
 		});
 	});
