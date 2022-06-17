@@ -242,7 +242,6 @@ export class DesktopMain extends Disposable {
 		// User Data Profiles
 		const userDataProfilesService = new UserDataProfilesNativeService(this.configuration.profiles.default, mainProcessService.getChannel('userDataProfiles'), environmentService, fileService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-
 		const userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, reviveProfile(this.configuration.profiles.current, userDataProfilesService.profilesHome.scheme));
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
