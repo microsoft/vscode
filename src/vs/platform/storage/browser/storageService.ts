@@ -13,7 +13,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isUserDataProfile, IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class BrowserStorageService extends AbstractStorageService {
@@ -160,15 +160,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		return this.getId(scope);
 	}
 
-	async switch(to: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void> {
-		if (isUserDataProfile(to)) {
-			return this.switchToProfile(to, preserveData);
-		}
-
-		return this.switchToWorkspace(to, preserveData);
-	}
-
-	private async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
 		const oldGlobalStorage = assertIsDefined(this.globalStorage);
 		const oldItems = oldGlobalStorage.items;
 
@@ -181,11 +173,11 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Create new global storage & init
 		await this.createGlobalStorage(toProfile);
 
-		// Handle data migration and eventing
-		this.migrateData(oldItems, assertIsDefined(this.globalStorage), StorageScope.GLOBAL, preserveData);
+		// Handle data switch and eventing
+		this.switchData(oldItems, assertIsDefined(this.globalStorage), StorageScope.GLOBAL, preserveData);
 	}
 
-	private async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
+	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
 		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 

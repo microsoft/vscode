@@ -11,7 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ApplicationStorageDatabaseClient, GlobalStorageDatabaseClient, WorkspaceStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
-import { isUserDataProfile, IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class NativeStorageService extends AbstractStorageService {
@@ -147,15 +147,7 @@ export class NativeStorageService extends AbstractStorageService {
 		]);
 	}
 
-	async switch(to: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void> {
-		if (isUserDataProfile(to)) {
-			return this.switchToProfile(to, preserveData);
-		}
-
-		return this.switchToWorkspace(to, preserveData);
-	}
-
-	private async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
 		const oldGlobalStorage = this.globalStorage;
 		const oldItems = oldGlobalStorage.items;
 
@@ -169,11 +161,11 @@ export class NativeStorageService extends AbstractStorageService {
 		this.globalStorage = this.createGlobalStorage(toProfile);
 		await this.globalStorage.init();
 
-		// Handle data migration and eventing
-		this.migrateData(oldItems, this.globalStorage, StorageScope.GLOBAL, preserveData);
+		// Handle data switch and eventing
+		this.switchData(oldItems, this.globalStorage, StorageScope.GLOBAL, preserveData);
 	}
 
-	private async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
+	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
 		const oldWorkspaceStorage = this.workspaceStorage;
 		const oldItems = oldWorkspaceStorage?.items ?? new Map();
 
@@ -184,7 +176,7 @@ export class NativeStorageService extends AbstractStorageService {
 		this.workspaceStorage = this.createWorkspaceStorage(toWorkspace);
 		await this.workspaceStorage.init();
 
-		// Handle data migration and eventing
-		this.migrateData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE, preserveData);
+		// Handle data switch and eventing
+		this.switchData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE, preserveData);
 	}
 }

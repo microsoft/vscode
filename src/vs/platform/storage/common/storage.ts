@@ -10,7 +10,7 @@ import { mark } from 'vs/base/common/performance';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
@@ -538,7 +538,19 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		);
 	}
 
-	protected migrateData(oldStorage: Map<string, string>, newStorage: IStorage, scope: StorageScope, preserveData: boolean): void {
+	async switch(to: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void> {
+
+		// Signal as event so that clients can store data before we switch
+		this.emitWillSaveState(WillSaveStateReason.NONE);
+
+		if (isUserDataProfile(to)) {
+			return this.switchToProfile(to, preserveData);
+		}
+
+		return this.switchToWorkspace(to, preserveData);
+	}
+
+	protected switchData(oldStorage: Map<string, string>, newStorage: IStorage, scope: StorageScope, preserveData: boolean): void {
 		this.withPausedEmitters(() => {
 
 			// Copy over previous keys if `preserveData`
@@ -577,7 +589,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	protected abstract getLogDetails(scope: StorageScope): string | undefined;
 
-	abstract switch(to: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
+	protected abstract switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
+	protected abstract switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
 }
 
 export class InMemoryStorageService extends AbstractStorageService {
@@ -618,7 +631,11 @@ export class InMemoryStorageService extends AbstractStorageService {
 
 	protected async doInitialize(): Promise<void> { }
 
-	async switch(): Promise<void> {
+	protected async switchToProfile(): Promise<void> {
+		// no-op when in-memory
+	}
+
+	protected async switchToWorkspace(): Promise<void> {
 		// no-op when in-memory
 	}
 }

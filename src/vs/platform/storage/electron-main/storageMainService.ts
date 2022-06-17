@@ -304,7 +304,15 @@ export class ApplicationStorageMainService extends AbstractStorageService implem
 		return false; // not needed here, will be triggered from any window that is opened
 	}
 
-	switch(): never {
+	override switch(): never {
 		throw new Error('Migrating storage is unsupported from main process');
+	}
+
+	protected switchToProfile(): never {
+		throw new Error('Switching storage profile is unsupported from main process');
+	}
+
+	protected switchToWorkspace(): never {
+		throw new Error('Switching storage workspace is unsupported from main process');
 	}
 }
