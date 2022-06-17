@@ -38,6 +38,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Codicon } from 'vs/base/common/codicons';
+import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -113,6 +114,7 @@ registerAction2(class extends Action2 {
 		const logService = accessor.get(ILogService);
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const extensionHostService = accessor.get(IExtensionService);
 
 		let editor: INotebookEditor | undefined;
 		if (context !== undefined && 'notebookEditorId' in context) {
@@ -251,10 +253,12 @@ registerAction2(class extends Action2 {
 				});
 			}
 			// there is no kernel, show the install from marketplace
-			quickPickItems.push({
-				id: 'install',
-				label: nls.localize('searchForKernels', "Browse marketplace for kernel extensions"),
-			});
+			if (!suggestedExtension) {
+				quickPickItems.push({
+					id: 'install',
+					label: nls.localize('searchForKernels', "Browse marketplace for kernel extensions"),
+				});
+			}
 		}
 
 		const pick = await quickInputService.pick(quickPickItems, {
@@ -281,6 +285,7 @@ registerAction2(class extends Action2 {
 				await this._showKernelExtension(
 					paneCompositeService,
 					extensionWorkbenchService,
+					extensionHostService,
 					notebook.viewType
 				);
 				// suggestedExtension must be defined for this option to be shown, but still check to make TS happy
@@ -288,6 +293,7 @@ registerAction2(class extends Action2 {
 				await this._showKernelExtension(
 					paneCompositeService,
 					extensionWorkbenchService,
+					extensionHostService,
 					notebook.viewType,
 					suggestedExtension.extensionId,
 					productService.quality !== 'stable'
@@ -336,6 +342,7 @@ registerAction2(class extends Action2 {
 	private async _showKernelExtension(
 		paneCompositePartService: IPaneCompositePartService,
 		extensionWorkbenchService: IExtensionsWorkbenchService,
+		extensionService: IExtensionService,
 		viewType: string,
 		extId?: string,
 		isInsiders?: boolean
@@ -352,7 +359,11 @@ registerAction2(class extends Action2 {
 						progressLocation: ProgressLocation.Notification,
 						installPreReleaseVersion: isInsiders ?? false,
 						context: { skipWalkthrough: true }
-					});
+					}
+				);
+				await extensionService.activateByEvent(`onNotebook:${viewType}`, ActivationKind.Immediate);
+				// Await 10 sec timeout
+				//await new Promise((resolve) => setTimeout(resolve, 10000));
 				return;
 			}
 		}
