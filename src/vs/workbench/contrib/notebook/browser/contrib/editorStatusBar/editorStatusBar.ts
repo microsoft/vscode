@@ -346,7 +346,13 @@ registerAction2(class extends Action2 {
 			const canInstall = await extensionWorkbenchService.canInstall(extension);
 			// If we can install then install it, otherwise we will fall out into searching the viewlet
 			if (canInstall) {
-				await extensionWorkbenchService.install(extension, { progressLocation: ProgressLocation.Notification, installPreReleaseVersion: isInsiders ?? false });
+				await extensionWorkbenchService.install(
+					extension,
+					{
+						progressLocation: ProgressLocation.Notification,
+						installPreReleaseVersion: isInsiders ?? false,
+						context: { skipWalkthrough: true }
+					});
 				return;
 			}
 		}

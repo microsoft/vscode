@@ -235,7 +235,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
 			const hadLastFoucs = await this.hostService.hadLastFocus();
 			for (const e of result) {
-				if (hadLastFoucs) {
+				// If the window had last focus and the install didn't specify to skip the walkthrough
+				// Then add it to the sessionInstallExtensions to be opened
+				if (hadLastFoucs && !e?.context?.skipWalkthrough) {
 					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
 				}
 				this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
