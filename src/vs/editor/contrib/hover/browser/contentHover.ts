@@ -199,17 +199,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
-		// update column from which to show
-		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
-		let highlightRange: Range = messages[0].range;
-		let forceShowAtRange: Range | null = null;
-		for (const msg of messages) {
-			renderColumn = Math.min(renderColumn, msg.range.startColumn);
-			highlightRange = Range.plusRange(highlightRange, msg.range);
-			if (msg.forceShowAtRange) {
-				forceShowAtRange = msg.range;
-			}
-		}
+		const { showAtPosition, showAtRange, highlightRange } = ContentHoverController.computeHoverRanges(anchor.range, messages);
 
 		const disposables = new DisposableStore();
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
@@ -247,8 +237,8 @@ export class ContentHoverController extends Disposable {
 
 			this._widget.showAt(fragment, new ContentHoverVisibleData(
 				colorPicker,
-				forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchor.range.startLineNumber, renderColumn),
-				forceShowAtRange ? forceShowAtRange : highlightRange,
+				showAtPosition,
+				showAtRange,
 				this._editor.getOption(EditorOption.hover).above,
 				this._computer.shouldFocus,
 				disposables
@@ -262,6 +252,24 @@ export class ContentHoverController extends Disposable {
 		description: 'content-hover-highlight',
 		className: 'hoverHighlight'
 	});
+
+	public static computeHoverRanges(anchorRange: Range, messages: IHoverPart[]) {
+		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
+		let highlightRange: Range = messages[0].range;
+		let forceShowAtRange: Range | null = null;
+		for (const msg of messages) {
+			renderColumn = Math.min(renderColumn, msg.range.startColumn);
+			highlightRange = Range.plusRange(highlightRange, msg.range);
+			if (msg.forceShowAtRange) {
+				forceShowAtRange = msg.range;
+			}
+		}
+		return {
+			showAtPosition: forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchorRange.startLineNumber, renderColumn),
+			showAtRange: forceShowAtRange ? forceShowAtRange : highlightRange,
+			highlightRange
+		};
+	}
 }
 
 class ContentHoverVisibleData {
