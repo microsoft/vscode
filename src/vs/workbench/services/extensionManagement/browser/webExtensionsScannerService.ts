@@ -57,6 +57,8 @@ interface IStoredWebExtension {
 	readonly location: UriComponents;
 	readonly readmeUri?: UriComponents;
 	readonly changelogUri?: UriComponents;
+	// deprecated in favor of packageNLSUris & fallbackPackageNLSUri
+	packageNLSUri?: UriComponents;
 	readonly packageNLSUris?: IStringDictionary<UriComponents>;
 	readonly fallbackPackageNLSUri?: UriComponents;
 	readonly metadata?: Metadata;
@@ -68,6 +70,8 @@ interface IWebExtension {
 	location: URI;
 	readmeUri?: URI;
 	changelogUri?: URI;
+	// deprecated in favor of packageNLSUris & fallbackPackageNLSUri
+	packageNLSUri?: URI;
 	packageNLSUris?: Map<string, URI>;
 	fallbackPackageNLSUri?: URI;
 	metadata?: Metadata;
@@ -666,8 +670,25 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return manifest;
 	}
 
-	private readInstalledExtensions(): Promise<IWebExtension[]> {
-		return this.withWebExtensions(this.installedExtensionsResource);
+	private async readInstalledExtensions(): Promise<IWebExtension[]> {
+		const webExtensions = await this.withWebExtensions(this.installedExtensionsResource);
+
+		// TODO: @TylerLeonhardt/@Sandy081: Delete after 6 months
+		if (webExtensions.some(e => e.packageNLSUri)) {
+			return this.withWebExtensions(this.installedExtensionsResource, async (extensions) => {
+				for (const e of webExtensions) {
+					if (!e.packageNLSUris && e.packageNLSUri) {
+						e.fallbackPackageNLSUri = e.packageNLSUri;
+						const extensionResources = await this.listExtensionResources(e.location);
+						e.packageNLSUris = this.getNLSResourceMapFromResources(extensionResources);
+						// e.packageNLSUri = undefined;
+					}
+				}
+				return webExtensions;
+			});
+		}
+
+		return webExtensions;
 	}
 
 	private writeInstalledExtensions(updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
@@ -690,7 +711,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return this.withWebExtensions(this.systemExtensionsCacheResource, updateFn);
 	}
 
-	private async withWebExtensions(file: URI | undefined, updateFn?: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
+	private async withWebExtensions(file: URI | undefined, updateFn?: (extensions: IWebExtension[]) => IWebExtension[] | Promise<IWebExtension[]>): Promise<IWebExtension[]> {
 		if (!file) {
 			return [];
 		}
@@ -712,24 +733,15 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						forEach<UriComponents>(e.packageNLSUris, (entry) => packageNLSUris!.set(entry.key, URI.revive(entry.value)));
 					}
 
-					const location = URI.revive(e.location);
-
-					// Migrate to new format. Delete after some time.
-					let fallbackPackageNLSUri = e.fallbackPackageNLSUri;
-					if ((e as any).packageNLSUri) {
-						fallbackPackageNLSUri = (e as any).packageNLSUri;
-						const extensionResources = await this.listExtensionResources(location);
-						packageNLSUris = this.getNLSResourceMapFromResources(extensionResources);
-					}
-
 					webExtensions.push({
 						identifier: e.identifier,
 						version: e.version,
-						location,
+						location: URI.revive(e.location),
 						readmeUri: URI.revive(e.readmeUri),
 						changelogUri: URI.revive(e.changelogUri),
 						packageNLSUris,
-						fallbackPackageNLSUri: URI.revive(fallbackPackageNLSUri),
+						fallbackPackageNLSUri: URI.revive(e.fallbackPackageNLSUri),
+						packageNLSUri: URI.revive(e.packageNLSUri),
 						metadata: e.metadata,
 					});
 				}
@@ -742,7 +754,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 			// Update
 			if (updateFn) {
-				webExtensions = updateFn(webExtensions);
+				webExtensions = await updateFn(webExtensions);
 				function toStringDictionary(dictionary: Map<string, URI> | undefined): IStringDictionary<UriComponents> | undefined {
 					if (!dictionary) {
 						return undefined;
