@@ -513,9 +513,6 @@ export class PersistentTerminalProcess extends Disposable {
 		fixedDimensions?: IFixedTerminalDimensions
 	) {
 		super();
-		if (name) {
-			this.setTitle(name, TitleEventSource.Api);
-		}
 		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
 		this._wasRevived = reviveBuffer !== undefined;
 		this._serializer = new XtermSerializer(
@@ -524,9 +521,12 @@ export class PersistentTerminalProcess extends Disposable {
 			reconnectConstants.scrollback,
 			unicodeVersion,
 			reviveBuffer,
-			rawReviveBuffer,
+			shouldPersistTerminal ? rawReviveBuffer : undefined,
 			this._logService
 		);
+		if (name) {
+			this.setTitle(name, TitleEventSource.Api);
+		}
 		this._fixedDimensions = fixedDimensions;
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
