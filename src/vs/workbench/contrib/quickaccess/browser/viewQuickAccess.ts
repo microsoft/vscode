@@ -21,7 +21,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;
@@ -190,6 +190,10 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 				containerLabel: localize('debugConsoles', "Debug Console"),
 				accept: async () => {
 					await this.debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
+
+					if (!this.viewsService.isViewVisible(REPL_VIEW_ID)) {
+						await this.viewsService.openView(REPL_VIEW_ID, true);
+					}
 				}
 			});
 
