@@ -99,9 +99,9 @@ import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { CredentialsNativeMainService } from 'vs/platform/credentials/electron-main/credentialsMainService';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -711,8 +711,7 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
 
 		// Profiles
-		const userDataProfilesService = ProxyChannel.fromService(accessor.get(IUserDataProfilesService));
-		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
+		mainProcessElectronServer.registerChannel('userDataProfiles', ProxyChannel.fromService(accessor.get(IUserDataProfilesMainService)));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
@@ -875,6 +874,13 @@ export class CodeApplication extends Disposable {
 
 				// or if no window is open (macOS only)
 				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
+
+				// Pass along edit session id
+				if (params.get('edit-session-id') !== null) {
+					environmentService.editSessionId = params.get('edit-session-id') ?? undefined;
+					params.delete('edit-session-id');
+					uri = uri.with({ query: params.toString() });
+				}
 
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);

@@ -212,6 +212,7 @@
 	"config.requireGitUserConfig": "Controls whether to require explicit Git user configuration or allow Git to guess if missing.",
 	"config.showCommitInput": "Controls whether to show the commit input in the Git source control panel.",
 	"config.terminalAuthentication": "Controls whether to enable VS Code to be the authentication handler for git processes spawned in the integrated terminal. Note: terminals need to be restarted to pick up a change in this setting.",
+	"config.terminalGitEditor": "Controls whether to enable VS Code to be git editor for git processes spawned in the integrated terminal. Note: terminals need to be restarted to pick up a change in this setting.",
 	"config.timeline.showAuthor": "Controls whether to show the commit author in the Timeline view.",
 	"config.timeline.showUncommitted": "Controls whether to show uncommitted changes in the Timeline view.",
 	"config.timeline.date": "Controls which date to use for items in the Timeline view.",

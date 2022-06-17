@@ -132,7 +132,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const iframe = document.createElement('iframe');
 		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
 		iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-		iframe.setAttribute('allow', 'usb; serial');
+		iframe.setAttribute('allow', 'usb; serial; cross-origin-isolated;');
 		iframe.setAttribute('aria-hidden', 'true');
 		iframe.style.display = 'none';
 

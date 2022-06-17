@@ -45,7 +45,10 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return 30 / (this.currentMenubarVisibility === 'hidden' || getZoomFactor() < 1 ? getZoomFactor() : 1); }
+	get minimumHeight(): number {
+		const value = this.isCommandCenterVisible ? 35 : 30;
+		return value / (this.currentMenubarVisibility === 'hidden' || getZoomFactor() < 1 ? getZoomFactor() : 1);
+	}
 	get maximumHeight(): number { return this.minimumHeight; }
 
 	//#endregion
@@ -53,8 +56,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
-	private readonly _onDidChangeTitleMenuVisibility = new Emitter<void>();
-	readonly onDidChangeTitleMenuVisibility: Event<void> = this._onDidChangeTitleMenuVisibility.event;
+	private readonly _onDidChangeCommandCenterVisibility = new Emitter<void>();
+	readonly onDidChangeCommandCenterVisibility: Event<void> = this._onDidChangeCommandCenterVisibility.event;
 
 	protected rootContainer!: HTMLElement;
 	protected windowControls: HTMLElement | undefined;
@@ -140,7 +143,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (event.affectsConfiguration(TitlebarPart.configCommandCenter)) {
 			this.updateTitle();
 			this.adjustTitleMarginToCenter();
-			this._onDidChangeTitleMenuVisibility.fire();
+			this._onDidChangeCommandCenterVisibility.fire();
 		}
 	}
 

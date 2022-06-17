@@ -9,17 +9,15 @@ import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Storage } from 'vs/base/parts/storage/common/storage';
-import { mock } from 'vs/base/test/common/mock';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { BrowserStorageService, IndexedDBStorageDatabase } from 'vs/platform/storage/browser/storageService';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
-import { IUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
 	const disposables = new DisposableStore();
@@ -31,24 +29,6 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	disposables.add(fileService.registerProvider(Schemas.vscodeUserData, userDataProvider));
 
 	const profilesRoot = URI.file('/profiles').with({ scheme: Schemas.inMemory });
-
-	class EnvironmentServiceMock extends mock<IEnvironmentService>() {
-		override readonly userRoamingDataHome = profilesRoot;
-	}
-
-	const inMemoryDefaultProfileRoot = joinPath(profilesRoot, 'default');
-	const inMemoryDefaultProfile: IUserDataProfile = {
-		id: 'id',
-		name: 'inMemory',
-		isDefault: true,
-		location: inMemoryDefaultProfileRoot,
-		globalStorageHome: joinPath(inMemoryDefaultProfileRoot, 'globalStorageHome'),
-		settingsResource: joinPath(inMemoryDefaultProfileRoot, 'settingsResource'),
-		keybindingsResource: joinPath(inMemoryDefaultProfileRoot, 'keybindingsResource'),
-		tasksResource: joinPath(inMemoryDefaultProfileRoot, 'tasksResource'),
-		snippetsHome: joinPath(inMemoryDefaultProfileRoot, 'snippetsHome'),
-		extensionsResource: joinPath(inMemoryDefaultProfileRoot, 'extensionsResource')
-	};
 
 	const inMemoryExtraProfileRoot = joinPath(profilesRoot, 'extra');
 	const inMemoryExtraProfile: IUserDataProfile = {
@@ -64,9 +44,7 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource')
 	};
 
-	const userDataProfileService = new UserDataProfilesService(inMemoryDefaultProfile, inMemoryExtraProfile, new EnvironmentServiceMock(), fileService, new NullLogService());
-
-	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService, userDataProfileService));
+	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, inMemoryExtraProfile, logService));
 
 	await storageService.initialize();
 

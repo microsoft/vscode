@@ -25,7 +25,7 @@ import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybindin
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export const IKeybindingEditingService = createDecorator<IKeybindingEditingService>('keybindingEditingService');
 
@@ -47,14 +47,14 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	public _serviceBrand: undefined;
 	private queue: Queue<void>;
 
-	private resource: URI = this.userDataProfilesService.currentProfile.keybindingsResource;
+	private resource: URI = this.userDataProfileService.currentProfile.keybindingsResource;
 
 	constructor(
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService
 	) {
 		super();
 		this.queue = new Queue<void>();
