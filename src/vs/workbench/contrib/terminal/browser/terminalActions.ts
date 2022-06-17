@@ -620,7 +620,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated, TerminalContextKeys.navigationModeActive.negate())
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -677,7 +677,7 @@ export function registerTerminalActions() {
 				keybinding: {
 					primary: KeyMod.Shift | KeyCode.PageUp,
 					mac: { primary: KeyCode.PageUp },
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate(), TerminalContextKeys.navigationModeActive.negate()),
+					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
