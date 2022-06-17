@@ -7,10 +7,11 @@ import { Codicon } from 'vs/base/common/codicons';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
-import { StartDebugQuickAccessProvider } from 'vs/workbench/contrib/debug/browser/debugQuickAccess';
+import { DEBUG_CONSOLE_QUICK_PICK_PREFIX, SELECT_AND_START_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { getStateLabel, IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
@@ -33,18 +34,17 @@ export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQu
 		debugConsolePicks.push({
 			label: `$(plus) ${createTerminalLabel}`,
 			ariaLabel: createTerminalLabel,
-			accept: () =>
-				this._quickInputService.quickAccess.show(StartDebugQuickAccessProvider.PREFIX)
+			accept: () => this._commandService.executeCommand(SELECT_AND_START_ID)
 		});
 		return debugConsolePicks;
 	}
 
-	static PREFIX = 'debugcons ';
+	static PREFIX = DEBUG_CONSOLE_QUICK_PICK_PREFIX;
 
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super(DebugConsoleQuickAccess.PREFIX, { canAcceptInBackground: true });
 	}

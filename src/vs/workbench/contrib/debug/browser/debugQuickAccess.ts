@@ -12,13 +12,13 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { ADD_CONFIGURATION_ID, DEBUG_QUICK_PICK_PREFIX } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { debugConfigure, debugRemoveConfig } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
-	static PREFIX = 'debug ';
+	static PREFIX = DEBUG_QUICK_PICK_PREFIX;
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,

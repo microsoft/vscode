@@ -31,8 +31,6 @@ import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { DebugConsoleQuickAccess } from 'vs/workbench/contrib/debug/browser/debugConsoleQuickAccess';
-import { StartDebugQuickAccessProvider } from 'vs/workbench/contrib/debug/browser/debugQuickAccess';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -80,6 +78,9 @@ export const DEBUG_START_LABEL = nls.localize('startDebug', "Start Debugging");
 export const DEBUG_RUN_LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 export const NEXT_DEBUG_CONSOLE_LABEL = nls.localize('nextDebugConsole', "Focus Next Debug Console");
 export const PREV_DEBUG_CONSOLE_LABEL = nls.localize('prevDebugConsole', "Focus Previous Debug Console");
+
+export const DEBUG_QUICK_PICK_PREFIX = 'debug ';
+export const DEBUG_CONSOLE_QUICK_PICK_PREFIX = 'debugcons ';
 
 interface CallStackContext {
 	sessionId: string;
@@ -474,7 +475,7 @@ CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show(StartDebugQuickAccessProvider.PREFIX);
+		quickInputService.quickAccess.show('debug ');
 	}
 });
 
@@ -482,7 +483,7 @@ CommandsRegistry.registerCommand({
 	id: SELECT_DEBUG_CONSOLE_ID,
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show(DebugConsoleQuickAccess.PREFIX);
+		quickInputService.quickAccess.show('debugcons ');
 	}
 });
 
