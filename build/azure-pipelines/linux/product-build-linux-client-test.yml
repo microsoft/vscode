@@ -18,12 +18,6 @@ steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
-        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-          yarn gulp "transpile-client" "transpile-extensions"
-      displayName: Transpile
-
-    - script: |
-        set -e
         sudo apt-get update
         sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
         sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
