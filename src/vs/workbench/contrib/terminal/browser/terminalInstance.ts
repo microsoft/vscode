@@ -1572,24 +1572,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(async error => {
 			if (error) {
 				if (this._usedShellIntegrationInjection) {
-					await this.reuseTerminal({
-						...this._shellLaunchConfig,
-						ignoreShellIntegration: true
-					});
-					this.statusList.add({
-						id: TerminalStatus.ShellIntegrationAttentionNeeded,
-						severity: Severity.Warning,
-						icon: Codicon.warning,
-						tooltip: nls.localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch (exit code: {0}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", error.code),
-						hoverActions: [{
-							commandId: TerminalCommandId.ShellIntegrationLearnMore,
-							label: nls.localize('shellIntegration.learnMore', "Learn more"),
-							run: () => {
-								this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration');
-							}
-						}]
-					});
-					this._telemetryService.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates the process exited when created with shell integration args' }>('terminal/shellIntegrationFailureProcessExit');
+					this._relaunchWithShellIntegrationDisabled();
 				} else {
 					this._onProcessExit(error);
 				}
@@ -1632,6 +1615,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
 			return;
+		}
+
+		if (this._usedShellIntegrationInjection && this._processManager.processState === ProcessState.KilledDuringLaunch || this._processManager.processState === ProcessState.KilledByProcess) {
+			this._relaunchWithShellIntegrationDisabled();
 		}
 
 		this._isExiting = true;
@@ -1687,6 +1674,26 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._isDisposed) {
 			this._onExit.dispose();
 		}
+	}
+
+	private _relaunchWithShellIntegrationDisabled(): void {
+		this._shellLaunchConfig.ignoreShellIntegration = true;
+		this.relaunch();
+		this.statusList.add({
+			id: TerminalStatus.ShellIntegrationAttentionNeeded,
+			severity: Severity.Warning,
+			icon: Codicon.warning,
+			tooltip: nls.localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch (exit code: {0}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", this.exitCode),
+			hoverActions: [{
+				commandId: TerminalCommandId.ShellIntegrationLearnMore,
+				label: nls.localize('shellIntegration.learnMore', "Learn more"),
+				run: () => {
+					this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration');
+				}
+			}]
+		});
+		this._telemetryService.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates the process exited when created with shell integration args' }>('terminal/shellIntegrationFailureProcessExit');
+		return;
 	}
 
 	/**
