@@ -22,6 +22,7 @@ import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteCo
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { IPCExtHostConnection, writeExtHostConnection, SocketExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
 export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, isDebug: boolean, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {
 	const nlsConfig = await getNLSConfiguration(language, environmentService.userDataPath);
@@ -244,11 +245,11 @@ export class ExtensionHostConnection {
 			let extHostNamedPipeServer: net.Server | null;
 
 			if (this._canSendSocket) {
-				env['VSCODE_EXTHOST_WILL_SEND_SOCKET'] = 'true';
+				writeExtHostConnection(new SocketExtHostConnection(), env);
 				extHostNamedPipeServer = null;
 			} else {
 				const { namedPipeServer, pipeName } = await this._listenOnPipe();
-				env['VSCODE_IPC_HOOK_EXTHOST'] = pipeName;
+				writeExtHostConnection(new IPCExtHostConnection(pipeName), env);
 				extHostNamedPipeServer = namedPipeServer;
 			}
 

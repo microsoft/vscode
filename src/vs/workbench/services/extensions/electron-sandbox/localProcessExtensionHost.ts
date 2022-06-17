@@ -45,6 +45,7 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 import { generateUuid } from 'vs/base/common/uuid';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { MessagePortExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -620,7 +621,7 @@ export class ExtHostMessagePortCommunication extends Disposable implements IExtH
 
 	establishProtocol(prepared: void, extensionHostProcess: ExtensionHostProcess, opts: IExtensionHostProcessOptions): Promise<IMessagePassingProtocol> {
 
-		opts.env['VSCODE_WILL_SEND_MESSAGE_PORT'] = 'true';
+		writeExtHostConnection(new MessagePortExtHostConnection(), opts.env);
 
 		// Get ready to acquire the message port from the shared process worker
 		const portPromise = acquirePort(undefined /* we trigger the request via service call! */, opts.responseChannel, opts.responseNonce);
