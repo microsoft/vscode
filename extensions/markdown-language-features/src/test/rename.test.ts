@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { MdReferencesProvider } from '../languageFeatures/references';
 import { MdVsCodeRenameProvider, MdWorkspaceEdit } from '../languageFeatures/rename';
 import { githubSlugifier } from '../slugify';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
@@ -22,7 +23,7 @@ import { assertRangeEqual, joinLines, workspacePath } from './util';
  */
 function prepareRename(doc: InMemoryDocument, pos: vscode.Position, workspace: MdWorkspaceContents): Promise<undefined | { readonly range: vscode.Range; readonly placeholder: string }> {
 	const engine = createNewMarkdownEngine();
-	const referenceComputer = new MdReferencesProvider(engine, workspace);
+	const referenceComputer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace));
 	const renameProvider = new MdVsCodeRenameProvider(workspace, referenceComputer, githubSlugifier);
 	return renameProvider.prepareRename(doc, pos, noopToken);
 }
@@ -32,7 +33,7 @@ function prepareRename(doc: InMemoryDocument, pos: vscode.Position, workspace: M
  */
 function getRenameEdits(doc: InMemoryDocument, pos: vscode.Position, newName: string, workspace: MdWorkspaceContents): Promise<MdWorkspaceEdit | undefined> {
 	const engine = createNewMarkdownEngine();
-	const referencesProvider = new MdReferencesProvider(engine, workspace);
+	const referencesProvider = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace));
 	const renameProvider = new MdVsCodeRenameProvider(workspace, referencesProvider, githubSlugifier);
 	return renameProvider.provideRenameEditsImpl(doc, pos, newName, noopToken);
 }
