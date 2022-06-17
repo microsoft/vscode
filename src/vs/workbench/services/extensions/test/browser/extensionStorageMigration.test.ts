@@ -19,8 +19,9 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { migrateExtensionStorage } from 'vs/workbench/services/extensions/common/extensionStorageMigration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUserDataProfileService, IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfileService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 suite('ExtensionStorageMigration', () => {
 

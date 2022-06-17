@@ -9,12 +9,12 @@ import { localize } from 'vs/nls';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IUserDataProfile, IUserDataProfileService, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IUserDataProfileManagementService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const CONTEXT_CURRENT_PROFILE = new RawContextKey<string>('currentUserDataProfile', '');
 

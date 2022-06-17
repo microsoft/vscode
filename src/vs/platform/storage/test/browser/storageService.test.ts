@@ -18,7 +18,6 @@ import { BrowserStorageService, IndexedDBStorageDatabase } from 'vs/platform/sto
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfileService';
 
 async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
 	const disposables = new DisposableStore();
@@ -30,20 +29,6 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	disposables.add(fileService.registerProvider(Schemas.vscodeUserData, userDataProvider));
 
 	const profilesRoot = URI.file('/profiles').with({ scheme: Schemas.inMemory });
-
-	const inMemoryDefaultProfileRoot = joinPath(profilesRoot, 'default');
-	const inMemoryDefaultProfile: IUserDataProfile = {
-		id: 'id',
-		name: 'inMemory',
-		isDefault: true,
-		location: inMemoryDefaultProfileRoot,
-		globalStorageHome: joinPath(inMemoryDefaultProfileRoot, 'globalStorageHome'),
-		settingsResource: joinPath(inMemoryDefaultProfileRoot, 'settingsResource'),
-		keybindingsResource: joinPath(inMemoryDefaultProfileRoot, 'keybindingsResource'),
-		tasksResource: joinPath(inMemoryDefaultProfileRoot, 'tasksResource'),
-		snippetsHome: joinPath(inMemoryDefaultProfileRoot, 'snippetsHome'),
-		extensionsResource: joinPath(inMemoryDefaultProfileRoot, 'extensionsResource')
-	};
 
 	const inMemoryExtraProfileRoot = joinPath(profilesRoot, 'extra');
 	const inMemoryExtraProfile: IUserDataProfile = {
@@ -59,9 +44,7 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource')
 	};
 
-	const userDataProfileService = new UserDataProfileService(inMemoryDefaultProfile, inMemoryExtraProfile);
-
-	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService, userDataProfileService));
+	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, inMemoryExtraProfile, logService));
 
 	await storageService.initialize();
 

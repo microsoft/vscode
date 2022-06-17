@@ -11,7 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ApplicationStorageDatabaseClient, GlobalStorageDatabaseClient, WorkspaceStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
-import { IUserDataProfile, IUserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class NativeStorageService extends AbstractStorageService {
@@ -29,16 +29,16 @@ export class NativeStorageService extends AbstractStorageService {
 
 	constructor(
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
+		{ defaultProfile, currentProfile }: { defaultProfile: IUserDataProfile; currentProfile: IUserDataProfile },
 		private readonly mainProcessService: IMainProcessService,
-		userDataProfileService: IUserDataProfileService,
 		private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
-		this.applicationStorageProfile = userDataProfileService.defaultProfile;
+		this.applicationStorageProfile = defaultProfile;
 
 		this.applicationStorage = this.createApplicationStorage();
-		this.globalStorage = this.createGlobalStorage(userDataProfileService.currentProfile);
+		this.globalStorage = this.createGlobalStorage(currentProfile);
 		this.workspaceStorage = this.createWorkspaceStorage(workspace);
 	}
 
