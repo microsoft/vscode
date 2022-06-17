@@ -797,12 +797,12 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
 		}
 
-		if (styles.listActiveSelectionFocus) {
-			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { outline-color: ${styles.listActiveSelectionFocus} !important; }`);
-		}
-
 		if (styles.listActiveSelectionIconForeground) {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground}; }`);
+		}
+
+		if (styles.listFocusAndSelectionOutline) {
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { outline-color: ${styles.listFocusAndSelectionOutline} !important; }`);
 		}
 
 		if (styles.listFocusAndSelectionBackground) {
@@ -953,8 +953,8 @@ export interface IListStyles {
 	listFocusForeground?: Color;
 	listActiveSelectionBackground?: Color;
 	listActiveSelectionForeground?: Color;
-	listActiveSelectionFocus?: Color;
 	listActiveSelectionIconForeground?: Color;
+	listFocusAndSelectionOutline?: Color;
 	listFocusAndSelectionBackground?: Color;
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
@@ -982,8 +982,8 @@ const defaultStyles: IListStyles = {
 	listFocusBackground: Color.fromHex('#7FB0D0'),
 	listActiveSelectionBackground: Color.fromHex('#0E639C'),
 	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
-	listActiveSelectionFocus: Color.fromHex('#90C2F9'),
 	listActiveSelectionIconForeground: Color.fromHex('#FFFFFF'),
+	listFocusAndSelectionOutline: Color.fromHex('#90C2F9'),
 	listFocusAndSelectionBackground: Color.fromHex('#094771'),
 	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
