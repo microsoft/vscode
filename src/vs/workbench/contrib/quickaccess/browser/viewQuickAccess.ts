@@ -21,6 +21,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;
@@ -36,6 +37,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		@IOutputService private readonly outputService: IOutputService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
@@ -179,6 +181,18 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 					}
 				});
 			});
+		});
+
+		this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl()).forEach((session, index) => {
+			const label = localize('debugConsoleTitle', "{0}: {1}", index, session.name);
+			viewEntries.push({
+				label,
+				containerLabel: localize('debugConsoles', "Debug Console"),
+				accept: async () => {
+					await this.debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
+				}
+			});
+
 		});
 
 		// Output Channels
