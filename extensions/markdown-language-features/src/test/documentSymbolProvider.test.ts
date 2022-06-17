@@ -5,21 +5,17 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import * as vscode from 'vscode';
 import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbolProvider';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from '../util/inMemoryDocument';
-
-
-const testFileName = vscode.Uri.file('test.md');
+import { workspacePath } from './util';
 
 
 function getSymbolsForFile(fileContents: string) {
-	const doc = new InMemoryDocument(testFileName, fileContents);
+	const doc = new InMemoryDocument(workspacePath('test.md'), fileContents);
 	const provider = new MdDocumentSymbolProvider(createNewMarkdownEngine());
 	return provider.provideDocumentSymbols(doc);
 }
-
 
 suite('markdown.DocumentSymbolProvider', () => {
 	test('Should not return anything for empty document', async () => {

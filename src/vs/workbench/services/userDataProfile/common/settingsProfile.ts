@@ -8,10 +8,9 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platf
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService, IResourceProfile, ProfileCreationOptions } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { removeComments, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IResourceProfile, ProfileCreationOptions } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ISettingsContent {
 	settings: string;
@@ -21,7 +20,7 @@ export class SettingsProfile implements IResourceProfile {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -29,7 +28,7 @@ export class SettingsProfile implements IResourceProfile {
 
 	async getProfileContent(options?: ProfileCreationOptions): Promise<string> {
 		const ignoredSettings = this.getIgnoredSettings();
-		const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.userDataProfilesService.currentProfile.settingsResource);
+		const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.userDataProfileService.currentProfile.settingsResource);
 		const localContent = await this.getLocalFileContent();
 		let settingsProfileContent = updateIgnoredSettings(localContent || '{}', '{}', ignoredSettings, formattingOptions);
 		if (options?.skipComments) {
@@ -45,9 +44,9 @@ export class SettingsProfile implements IResourceProfile {
 		const settingsContent: ISettingsContent = JSON.parse(content);
 		this.logService.trace(`Profile: Applying settings...`);
 		const localSettingsContent = await this.getLocalFileContent();
-		const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.userDataProfilesService.currentProfile.settingsResource);
+		const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.userDataProfileService.currentProfile.settingsResource);
 		const contentToUpdate = updateIgnoredSettings(settingsContent.settings, localSettingsContent || '{}', this.getIgnoredSettings(), formattingOptions);
-		await this.fileService.writeFile(this.userDataProfilesService.currentProfile.settingsResource, VSBuffer.fromString(contentToUpdate));
+		await this.fileService.writeFile(this.userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString(contentToUpdate));
 		this.logService.info(`Profile: Applied settings`);
 	}
 
@@ -59,7 +58,7 @@ export class SettingsProfile implements IResourceProfile {
 
 	private async getLocalFileContent(): Promise<string | null> {
 		try {
-			const content = await this.fileService.readFile(this.userDataProfilesService.currentProfile.settingsResource);
+			const content = await this.fileService.readFile(this.userDataProfileService.currentProfile.settingsResource);
 			return content.value.toString();
 		} catch (error) {
 			return null;

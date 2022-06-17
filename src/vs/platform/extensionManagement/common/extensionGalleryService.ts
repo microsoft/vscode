@@ -7,7 +7,6 @@ import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { getOrDefault } from 'vs/base/common/objects';
 import { IPager } from 'vs/base/common/paging';
 import { isWeb, platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
@@ -709,7 +708,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		let text = options.text || '';
-		const pageSize = getOrDefault(options, o => o.pageSize, 50);
+		const pageSize = options.pageSize ?? 50;
 
 		let query = new Query()
 			.withPage(1, pageSize);

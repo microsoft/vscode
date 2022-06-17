@@ -35,7 +35,7 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(channel, undefined);
+		super(channel);
 	}
 
 	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {

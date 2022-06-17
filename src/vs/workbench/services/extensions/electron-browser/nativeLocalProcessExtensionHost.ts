@@ -10,7 +10,6 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IExtensionHostProcessOptions } from 'vs/platform/extensions/common/extensionHostStarter';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createMessageOfType, MessageType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -19,7 +18,7 @@ import { ExtensionHostProcess, ExtHostMessagePortCommunication, IExtHostCommunic
 export class NativeLocalProcessExtensionHost extends SandboxLocalProcessExtensionHost {
 	protected override async _start(): Promise<IMessagePassingProtocol> {
 		const canUseUtilityProcess = await this._extensionHostStarter.canUseUtilityProcess();
-		if (canUseUtilityProcess && process.env['VSCODE_USE_UTILITY_PROCESS']) {
+		if (canUseUtilityProcess && this._configurationService.getValue<boolean | undefined>('extensions.experimental.useUtilityProcess')) {
 			const communication = this._toDispose.add(new ExtHostMessagePortCommunication(this._logService));
 			return this._startWithCommunication(communication);
 		} else {
