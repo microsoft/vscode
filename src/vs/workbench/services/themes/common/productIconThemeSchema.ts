@@ -79,8 +79,7 @@ const schema: IJSONSchema = {
 		},
 		iconDefinitions: {
 			description: nls.localize('schema.iconDefinitions', 'Association of icon name to a font character.'),
-			$ref: iconsSchemaId,
-			additionalProperties: false
+			$ref: iconsSchemaId
 		}
 	}
 };
