@@ -6,15 +6,6 @@ pr:
   branches:
     include: ["main", "release/*"]
 
-resources:
-  containers:
-    - container: centos7-devtoolset8-x64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-x64
-      options: --user 0:0 --cap-add SYS_ADMIN
-    - container: vscode-bionic-x64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-x64
-      options: --user 0:0 --cap-add SYS_ADMIN
-
 variables:
   - name: Codeql.SkipTaskAutoInjection
     value: true
@@ -43,23 +34,110 @@ stages:
             parameters:
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-  # - stage: LinuxServerDependencies
-  #   dependsOn: []
-  #   pool: vscode-1es-vscode-linux-18.04
-  #   jobs:
-  #     - job: x64
-  #       container: centos7-devtoolset8-x64
-  #       variables:
-  #         VSCODE_ARCH: x64
-  #         NPM_ARCH: x64
-  #       steps:
-  #         - template: linux/product-build-linux-server.yml
-  #           parameters:
-  #             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
   - stage: Test
     dependsOn: []
     jobs:
+      # - job: Linuxx64UnitTest
+      #   displayName: Linux (Unit Tests)
+      #   pool: vscode-1es-vscode-linux-18.04
+      #   # container: vscode-bionic-x64
+      #   timeoutInMinutes: 60
+      #   variables:
+      #     VSCODE_ARCH: x64
+      #     NPM_ARCH: x64
+      #     DISPLAY: ":10"
+      #   steps:
+      #     - template: linux/product-build-linux-client.yml
+      #       parameters:
+      #         VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+      #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      #         VSCODE_RUN_UNIT_TESTS: true
+      #         VSCODE_RUN_INTEGRATION_TESTS: false
+      #         VSCODE_RUN_SMOKE_TESTS: false
+      # - job: Linuxx64IntegrationTest
+      #   displayName: Linux (Integration Tests)
+      #   pool: vscode-1es-vscode-linux-18.04
+      #   # container: vscode-bionic-x64
+      #   timeoutInMinutes: 60
+      #   variables:
+      #     VSCODE_ARCH: x64
+      #     NPM_ARCH: x64
+      #     DISPLAY: ":10"
+      #   steps:
+      #     - template: linux/product-build-linux-client.yml
+      #       parameters:
+      #         VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+      #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      #         VSCODE_RUN_UNIT_TESTS: false
+      #         VSCODE_RUN_INTEGRATION_TESTS: true
+      #         VSCODE_RUN_SMOKE_TESTS: false
+      # - job: Linuxx64SmokeTest
+      #   displayName: Linux (Smoke Tests)
+      #   pool: vscode-1es-vscode-linux-18.04
+      #   # container: vscode-bionic-x64
+      #   timeoutInMinutes: 60
+      #   variables:
+      #     VSCODE_ARCH: x64
+      #     NPM_ARCH: x64
+      #     DISPLAY: ":10"
+      #   steps:
+      #     - template: linux/product-build-linux-client.yml
+      #       parameters:
+      #         VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+      #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      #         VSCODE_RUN_UNIT_TESTS: false
+      #         VSCODE_RUN_INTEGRATION_TESTS: false
+      #         VSCODE_RUN_SMOKE_TESTS: true
+
+      # - job: macOSUnitTest
+      #   displayName: macOS (Unit Tests)
+      #   pool:
+      #     vmImage: macOS-latest
+      #   timeoutInMinutes: 60
+      #   variables:
+      #     BUILDSECMON_OPT_IN: true
+      #     VSCODE_ARCH: x64
+      #   steps:
+      #     - template: darwin/product-build-darwin.yml
+      #       parameters:
+      #         VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+      #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      #         VSCODE_RUN_UNIT_TESTS: true
+      #         VSCODE_RUN_INTEGRATION_TESTS: false
+      #         VSCODE_RUN_SMOKE_TESTS: false
+      # - job: macOSIntegrationTest
+      #   displayName: macOS (Integration Tests)
+      #   pool:
+      #     vmImage: macOS-latest
+      #   timeoutInMinutes: 60
+      #   variables:
+      #     BUILDSECMON_OPT_IN: true
+      #     VSCODE_ARCH: x64
+      #   steps:
+      #     - template: darwin/product-build-darwin.yml
+      #       parameters:
+      #         VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+      #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      #         VSCODE_RUN_UNIT_TESTS: false
+      #         VSCODE_RUN_INTEGRATION_TESTS: true
+      #         VSCODE_RUN_SMOKE_TESTS: false
+      # - job: macOSSmokeTest
+      #   displayName: macOS (Smoke Tests)
+      #   pool:
+      #     vmImage: macOS-latest
+      #   timeoutInMinutes: 60
+      #   variables:
+      #     BUILDSECMON_OPT_IN: true
+      #     VSCODE_ARCH: x64
+      #   steps:
+      #     - template: darwin/product-build-darwin.yml
+      #       parameters:
+      #         VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+      #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      #         VSCODE_RUN_UNIT_TESTS: false
+      #         VSCODE_RUN_INTEGRATION_TESTS: false
+      #         VSCODE_RUN_SMOKE_TESTS: true
+
       - job: WindowsUnitTests
         displayName: Windows (Unit Tests)
         pool: vscode-1es-vscode-windows-2019
@@ -67,7 +145,7 @@ stages:
         variables:
           VSCODE_ARCH: x64
         steps:
-          - template: win32/product-build-win32-test-oss.yml
+          - template: win32/product-build-win32.yml
             parameters:
               VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
@@ -81,7 +159,7 @@ stages:
         variables:
           VSCODE_ARCH: x64
         steps:
-          - template: win32/product-build-win32-test-oss.yml
+          - template: win32/product-build-win32.yml
             parameters:
               VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
@@ -95,109 +173,10 @@ stages:
         variables:
           VSCODE_ARCH: x64
         steps:
-          - template: win32/product-build-win32-test-oss.yml
+          - template: win32/product-build-win32.yml
             parameters:
               VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: false
               VSCODE_RUN_SMOKE_TESTS: true
-      - job: Linuxx64UnitTest
-        displayName: Linux (Unit Tests)
-        pool: vscode-1es-vscode-linux-18.04
-        # container: vscode-bionic-x64
-        timeoutInMinutes: 60
-        variables:
-          VSCODE_ARCH: x64
-          NPM_ARCH: x64
-          DISPLAY: ":10"
-        steps:
-          - template: linux/product-build-linux-client-test-oss.yml
-            parameters:
-              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-              VSCODE_RUN_UNIT_TESTS: true
-              VSCODE_RUN_INTEGRATION_TESTS: false
-              VSCODE_RUN_SMOKE_TESTS: false
-      - job: Linuxx64IntegrationTest
-        displayName: Linux (Integration Tests)
-        pool: vscode-1es-vscode-linux-18.04
-        # container: vscode-bionic-x64
-        timeoutInMinutes: 60
-        variables:
-          VSCODE_ARCH: x64
-          NPM_ARCH: x64
-          DISPLAY: ":10"
-        steps:
-          - template: linux/product-build-linux-client-test-oss.yml
-            parameters:
-              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-              VSCODE_RUN_UNIT_TESTS: false
-              VSCODE_RUN_INTEGRATION_TESTS: true
-              VSCODE_RUN_SMOKE_TESTS: false
-      - job: Linuxx64SmokeTest
-        displayName: Linux (Smoke Tests)
-        pool: vscode-1es-vscode-linux-18.04
-        # container: vscode-bionic-x64
-        timeoutInMinutes: 60
-        variables:
-          VSCODE_ARCH: x64
-          NPM_ARCH: x64
-          DISPLAY: ":10"
-        steps:
-          - template: linux/product-build-linux-client-test-oss.yml
-            parameters:
-              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-              VSCODE_RUN_UNIT_TESTS: false
-              VSCODE_RUN_INTEGRATION_TESTS: false
-              VSCODE_RUN_SMOKE_TESTS: true
-
-  # - stage: macOS
-  #   dependsOn:
-  #     - Compile
-  #   pool:
-  #     vmImage: macOS-latest
-  #   variables:
-  #     BUILDSECMON_OPT_IN: true
-  #   jobs:
-  #     - job: macOSUnitTest
-  #       displayName: Unit Tests
-  #       timeoutInMinutes: 90
-  #       variables:
-  #         VSCODE_ARCH: x64
-  #       steps:
-  #         - template: darwin/product-build-darwin.yml
-  #           parameters:
-  #             VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-  #             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-  #             VSCODE_RUN_UNIT_TESTS: true
-  #             VSCODE_RUN_INTEGRATION_TESTS: false
-  #             VSCODE_RUN_SMOKE_TESTS: false
-  #     - job: macOSIntegrationTest
-  #       displayName: Integration Tests
-  #       timeoutInMinutes: 90
-  #       variables:
-  #         VSCODE_ARCH: x64
-  #       steps:
-  #         - template: darwin/product-build-darwin.yml
-  #           parameters:
-  #             VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-  #             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-  #             VSCODE_RUN_UNIT_TESTS: false
-  #             VSCODE_RUN_INTEGRATION_TESTS: true
-  #             VSCODE_RUN_SMOKE_TESTS: false
-  #     - job: macOSSmokeTest
-  #       displayName: Smoke Tests
-  #       timeoutInMinutes: 90
-  #       variables:
-  #         VSCODE_ARCH: x64
-  #       steps:
-  #         - template: darwin/product-build-darwin.yml
-  #           parameters:
-  #             VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-  #             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-  #             VSCODE_RUN_UNIT_TESTS: false
-  #             VSCODE_RUN_INTEGRATION_TESTS: false
-  #             VSCODE_RUN_SMOKE_TESTS: true
