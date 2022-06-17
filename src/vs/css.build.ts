@@ -29,15 +29,15 @@ interface INodePath {
 	join(...paths: string[]): string;
 }
 
-const nodeRequire = <T>(module: string): T | undefined => {
-	if (typeof (<any>require).nodeRequire === 'function') {
-		return (<any>require).nodeRequire(module);
+const nodeReq = <T>(module: string): T | undefined => {
+	if (typeof (<any>require).__$__nodeRequire === 'function') {
+		return (<any>require).__$__nodeRequire(module);
 	}
 	return undefined;
 };
 
-const fs = nodeRequire<INodeFS>('fs');
-const path = nodeRequire<INodePath>('path');
+const fs = nodeReq<INodeFS>('fs');
+const path = nodeReq<INodePath>('path');
 
 let inlineResources: boolean | 'base64' = false;
 let inlineResourcesLimit: number = 5000;
