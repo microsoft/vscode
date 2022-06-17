@@ -1893,6 +1893,25 @@
           "default": [],
           "scope": "resource"
         },
+        "git.branchProtectionIndicator": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "%config.branchProtectionIndicator%",
+          "properties": {
+            "branchPicker": {
+              "type": "boolean",
+              "description": "%config.branchProtectionIndicator.branchPicker%"
+            },
+            "statusBar": {
+              "type": "boolean",
+              "description": "%config.branchProtectionIndicator.statusBar%"
+            }
+          },
+          "default": {
+            "branchPicker": true,
+            "statusBar": true
+          }
+        },
         "git.branchProtectionPrompt": {
           "type": "string",
           "description": "%config.branchProtectionPrompt%",

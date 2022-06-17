@@ -941,7 +941,9 @@ export class Repository implements Disposable {
 		}, undefined, this.disposables);
 
 		filterEvent(workspace.onDidChangeConfiguration, e =>
-			e.affectsConfiguration('git.branchSortOrder', root)
+			e.affectsConfiguration('git.branchProtection', root)
+			|| e.affectsConfiguration('git.branchProtectionIndicator', root)
+			|| e.affectsConfiguration('git.branchSortOrder', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
@@ -2228,7 +2230,17 @@ export class Repository implements Disposable {
 		}
 	}
 
-	public isBranchProtected(name: string = this.HEAD?.name ?? ''): boolean {
+	public isBranchProtected(name: string = this.HEAD?.name ?? '', indicator?: 'branchPicker' | 'statusBar'): boolean {
+		if (indicator) {
+			const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+			const branchProtectionIndicator = scopedConfig.get<{ branchPicker: boolean; statusBar: boolean }>('branchProtectionIndicator', { branchPicker: true, statusBar: true });
+
+			if ((indicator === 'branchPicker' && !branchProtectionIndicator.branchPicker) ||
+				(indicator === 'statusBar' && !branchProtectionIndicator.statusBar)) {
+				return false;
+			}
+		}
+
 		return this.isBranchProtectedMatcher ? this.isBranchProtectedMatcher(name) : false;
 	}
 
