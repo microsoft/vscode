@@ -1618,7 +1618,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		if (this._usedShellIntegrationInjection && this._processManager.processState === ProcessState.KilledDuringLaunch || this._processManager.processState === ProcessState.KilledByProcess) {
-			this._relaunchWithShellIntegrationDisabled();
+			return this._relaunchWithShellIntegrationDisabled();
 		}
 
 		this._isExiting = true;
