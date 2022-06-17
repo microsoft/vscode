@@ -31,14 +31,31 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		this._navigationModeActiveContextKey.set(false);
 	}
 
+	focusPreviousPage(): void {
+		// set row to current row - terminal.rows (if possible)
+	}
+
+	focusNextPage(): void {
+		// set row to current row + terminal.rows
+	}
+
 	focusPreviousLine(): void {
-		if (!this._terminal || !this._terminal.element) {
+		this._focusLine(true);
+	}
+
+	focusNextLine(): void {
+		this._focusLine(false);
+	}
+
+	private _focusLine(previous: boolean, line?: number): void {
+		if (!this._terminal?.element) {
 			return;
 		}
 		this._navigationModeActiveContextKey.set(true);
-		// Focus previous row if a row is already focused
-		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
-			const element = <HTMLElement | null>document.activeElement.previousElementSibling;
+
+		// Focus row if a row is already focused
+		if (line === undefined && document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
+			const element = previous ? <HTMLElement | null>document.activeElement.previousElementSibling : <HTMLElement | null>document.activeElement.nextElementSibling;
 			if (element) {
 				element.focus();
 				const disposable = addDisposableListener(element, 'blur', () => {
@@ -50,14 +67,28 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 			return;
 		}
 
+		let targetRow: number;
+		if (line) {
+			targetRow = line;
+		} else if (previous) {
+			// row before the cursor
+			targetRow = Math.max(this._terminal.buffer.active.cursorY - 1, 0);
+		} else {
+			// cursor row
+			targetRow = this._terminal.buffer.active.cursorY;
+		}
+		this._focusRow(targetRow);
+	}
+
+	private _focusRow(targetRow: number): void {
+		if (!this._terminal?.element) {
+			return;
+		}
 		// Ensure a11y tree exists
 		const treeContainer = this._terminal.element.querySelector('.xterm-accessibility-tree');
 		if (!treeContainer) {
 			return;
 		}
-
-		// Target is row before the cursor
-		const targetRow = Math.max(this._terminal.buffer.active.cursorY - 1, 0);
 
 		// Check bounds
 		if (treeContainer.childElementCount < targetRow) {
@@ -65,49 +96,6 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		}
 
 		// Focus
-		const element = <HTMLElement>treeContainer.childNodes.item(targetRow);
-		element.focus();
-		const disposable = addDisposableListener(element, 'blur', () => {
-			this._navigationModeContextKey.set(false);
-			disposable.dispose();
-		});
-		this._navigationModeContextKey.set(true);
-	}
-
-	focusNextLine(): void {
-		if (!this._terminal || !this._terminal.element) {
-			return;
-		}
-		this._navigationModeActiveContextKey.set(true);
-		// Focus previous row if a row is already focused
-		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
-			const element = <HTMLElement | null>document.activeElement.nextElementSibling;
-			if (element) {
-				element.focus();
-				const disposable = addDisposableListener(element, 'blur', () => {
-					this._navigationModeContextKey.set(false);
-					disposable.dispose();
-				});
-				this._navigationModeContextKey.set(true);
-			}
-			return;
-		}
-
-		// Ensure a11y tree exists
-		const treeContainer = this._terminal.element.querySelector('.xterm-accessibility-tree');
-		if (!treeContainer) {
-			return;
-		}
-
-		// Target is cursor row
-		const targetRow = this._terminal.buffer.active.cursorY;
-
-		// Check bounds
-		if (treeContainer.childElementCount < targetRow) {
-			return;
-		}
-
-		// Focus row before cursor
 		const element = <HTMLElement>treeContainer.childNodes.item(targetRow);
 		element.focus();
 		const disposable = addDisposableListener(element, 'blur', () => {
