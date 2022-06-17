@@ -62,6 +62,34 @@ export const diffInput1 = registerColor(
 	)
 );
 
+export const diff = registerColor(
+	'mergeEditor.diff',
+	{
+		dark: '#d3d3d321',
+		light: '#d3d3d321',
+		hcDark: '#d3d3d321',
+		hcLight: '#d3d3d321',
+	},
+	localize(
+		'mergeEditor.diff',
+		'The foreground color for changes in the result.'
+	)
+);
+
+export const diffWord = registerColor(
+	'mergeEditor.diff.word',
+	{
+		dark: '#e571db21',
+		light: '#e571db21',
+		hcDark: '#e571db21',
+		hcLight: '#e571db21',
+	},
+	localize(
+		'mergeEditor.diff.word',
+		'The foreground color for word changes in the result.'
+	)
+);
+
 export const diffInput2 = registerColor(
 	'mergeEditor.diff.input2',
 	{

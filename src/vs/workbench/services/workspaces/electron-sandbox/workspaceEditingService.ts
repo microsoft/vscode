@@ -164,7 +164,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		if (result) {
 
 			// Migrate storage to new workspace
-			await this.storageService.migrate(result.workspace);
+			await this.storageService.switch(result.workspace, true /* preserve data */);
 
 			// Reinitialize backup service
 			if (this.workingCopyBackupService instanceof WorkingCopyBackupService) {

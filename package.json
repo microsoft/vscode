@@ -91,7 +91,7 @@
     "xterm-addon-search": "0.9.0-beta.39",
     "xterm-addon-serialize": "0.7.0-beta.12",
     "xterm-addon-unicode11": "0.4.0-beta.3",
-    "xterm-addon-webgl": "0.12.0-beta.38",
+    "xterm-addon-webgl": "0.12.0-beta.39",
     "xterm-headless": "4.19.0-beta.60",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
@@ -138,7 +138,7 @@
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "18.3.2",
+    "electron": "18.3.3",
     "eslint": "8.7.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^39.3.2",

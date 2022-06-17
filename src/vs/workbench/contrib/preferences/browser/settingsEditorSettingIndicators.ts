@@ -5,6 +5,8 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -13,6 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 const $ = DOM.$;
 
@@ -25,26 +28,31 @@ export interface ISettingOverrideClickEvent {
  * Renders the indicators next to a setting, such as "Also Modified In".
  */
 export class SettingsTreeIndicatorsLabel {
-	/**
-	 * This element wraps around the other elements.
-	 */
-	private labelElement: HTMLElement;
+	private indicatorsContainerElement: HTMLElement;
 	private scopeOverridesElement: HTMLElement;
 	private syncIgnoredElement: HTMLElement;
 	private defaultOverrideIndicatorElement: HTMLElement;
-	private defaultOverrideIndicatorLabel: SimpleIconLabel;
+	private hoverDelegate: IHoverDelegate;
 
 	constructor(
 		container: HTMLElement,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService) {
-		this.labelElement = DOM.append(container, $('.misc-label'));
-		this.labelElement.style.display = 'inline';
+		this.indicatorsContainerElement = DOM.append(container, $('.misc-label'));
+		this.indicatorsContainerElement.style.display = 'inline';
 
 		this.scopeOverridesElement = this.createScopeOverridesElement();
 		this.syncIgnoredElement = this.createSyncIgnoredElement();
-		const { element: defaultOverrideElement, label: defaultOverrideLabel } = this.createDefaultOverrideIndicator();
-		this.defaultOverrideIndicatorElement = defaultOverrideElement;
-		this.defaultOverrideIndicatorLabel = defaultOverrideLabel;
+		this.defaultOverrideIndicatorElement = this.createDefaultOverrideIndicator();
+
+		this.hoverDelegate = {
+			showHover: (options: IHoverDelegateOptions, focus?: boolean) => {
+				return hoverService.showHover(options, focus);
+			},
+			delay: configurationService.getValue<number>('workbench.hover.delay'),
+			placement: 'element'
+		};
 	}
 
 	private createScopeOverridesElement(): HTMLElement {
@@ -55,15 +63,17 @@ export class SettingsTreeIndicatorsLabel {
 	private createSyncIgnoredElement(): HTMLElement {
 		const syncIgnoredElement = $('span.setting-item-ignored');
 		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
-		syncIgnoredLabel.text = '$(info) ' + localize('extensionSyncIgnoredLabel', 'Setting not synced');
-		syncIgnoredLabel.title = localize('syncIgnoredTitle', "Settings sync does not sync this setting");
+		syncIgnoredLabel.text = '$(info) ' + localize('extensionSyncIgnoredLabel', 'Not synced');
+		const syncIgnoredHoverContent = localize('syncIgnoredTitle', "Settings sync does not sync this setting");
+		setupCustomHover(this.hoverDelegate, syncIgnoredElement, syncIgnoredHoverContent);
 		return syncIgnoredElement;
 	}
 
-	private createDefaultOverrideIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
+	private createDefaultOverrideIndicator(): HTMLElement {
 		const defaultOverrideIndicator = $('span.setting-item-default-overridden');
 		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
-		return { element: defaultOverrideIndicator, label: defaultOverrideLabel };
+		defaultOverrideLabel.text = '$(info) ' + localize('defaultOverriddenLabel', "Default value changed");
+		return defaultOverrideIndicator;
 	}
 
 	private render() {
@@ -71,17 +81,17 @@ export class SettingsTreeIndicatorsLabel {
 			return element.style.display !== 'none';
 		});
 
-		this.labelElement.innerText = '';
-		this.labelElement.style.display = 'none';
+		this.indicatorsContainerElement.innerText = '';
+		this.indicatorsContainerElement.style.display = 'none';
 		if (elementsToShow.length) {
-			this.labelElement.style.display = 'inline';
-			DOM.append(this.labelElement, $('span', undefined, '('));
+			this.indicatorsContainerElement.style.display = 'inline';
+			DOM.append(this.indicatorsContainerElement, $('span', undefined, '('));
 			for (let i = 0; i < elementsToShow.length - 1; i++) {
-				DOM.append(this.labelElement, elementsToShow[i]);
-				DOM.append(this.labelElement, $('span.comma', undefined, ' • '));
+				DOM.append(this.indicatorsContainerElement, elementsToShow[i]);
+				DOM.append(this.indicatorsContainerElement, $('span.comma', undefined, ' • '));
 			}
-			DOM.append(this.labelElement, elementsToShow[elementsToShow.length - 1]);
-			DOM.append(this.labelElement, $('span', undefined, ')'));
+			DOM.append(this.indicatorsContainerElement, elementsToShow[elementsToShow.length - 1]);
+			DOM.append(this.indicatorsContainerElement, $('span', undefined, ')'));
 		}
 	}
 
@@ -125,22 +135,27 @@ export class SettingsTreeIndicatorsLabel {
 
 	updateDefaultOverrideIndicator(element: SettingsTreeSettingElement) {
 		this.defaultOverrideIndicatorElement.style.display = 'none';
-		const defaultValueSource = element.defaultValueSource;
-		if (defaultValueSource) {
+		const sourceToDisplay = getDefaultValueSourceToDisplay(element);
+		if (sourceToDisplay !== undefined) {
 			this.defaultOverrideIndicatorElement.style.display = 'inline';
-			let sourceToDisplay = '';
-			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
-				sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
-			} else if (typeof defaultValueSource === 'string') {
-				sourceToDisplay = defaultValueSource;
-			}
-			if (sourceToDisplay) {
-				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay);
-				this.defaultOverrideIndicatorLabel.text = '$(info) ' + localize('defaultOverriddenLabel', "Default value changed");
-			}
+			const defaultOverrideHoverContent = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay);
+			setupCustomHover(this.hoverDelegate, this.defaultOverrideIndicatorElement, defaultOverrideHoverContent);
 		}
 		this.render();
 	}
+}
+
+function getDefaultValueSourceToDisplay(element: SettingsTreeSettingElement): string | undefined {
+	let sourceToDisplay: string | undefined;
+	const defaultValueSource = element.defaultValueSource;
+	if (defaultValueSource) {
+		if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
+			sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
+		} else if (typeof defaultValueSource === 'string') {
+			sourceToDisplay = defaultValueSource;
+		}
+	}
+	return sourceToDisplay;
 }
 
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService): string {
@@ -162,17 +177,9 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	}
 
 	// Add default override indicator text
-	if (element.defaultValueSource) {
-		const defaultValueSource = element.defaultValueSource;
-		let sourceToDisplay = '';
-		if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
-			sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
-		} else if (typeof defaultValueSource === 'string') {
-			sourceToDisplay = defaultValueSource;
-		}
-		if (sourceToDisplay) {
-			ariaLabelSections.push(localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay));
-		}
+	const sourceToDisplay = getDefaultValueSourceToDisplay(element);
+	if (sourceToDisplay !== undefined) {
+		ariaLabelSections.push(localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay));
 	}
 
 	const ariaLabel = ariaLabelSections.join('. ');

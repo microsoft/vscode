@@ -249,3 +249,10 @@ function getFirstChildHeader(document: SkinnyTextDocument, header?: TocEntry, to
 	}
 	return undefined;
 }
+
+export function registerSmartSelectSupport(
+	selector: vscode.DocumentSelector,
+	engine: MarkdownEngine,
+): vscode.Disposable {
+	return vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine));
+}

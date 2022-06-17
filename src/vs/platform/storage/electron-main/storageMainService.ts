@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ApplicationStorageMain, GlobalStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 //#region Storage Main Service (intent: make application, global and workspace storage accessible to windows from main process)
 
@@ -258,7 +258,7 @@ export interface IApplicationStorageMainService extends IStorageService {
 
 	keys(scope: StorageScope.APPLICATION, target: StorageTarget): string[];
 
-	migrate(toWorkspace: IAnyWorkspaceIdentifier): never;
+	switch(): never;
 
 	isNew(scope: StorageScope.APPLICATION): boolean;
 }
@@ -304,7 +304,15 @@ export class ApplicationStorageMainService extends AbstractStorageService implem
 		return false; // not needed here, will be triggered from any window that is opened
 	}
 
-	migrate(): never {
+	override switch(): never {
 		throw new Error('Migrating storage is unsupported from main process');
+	}
+
+	protected switchToProfile(): never {
+		throw new Error('Switching storage profile is unsupported from main process');
+	}
+
+	protected switchToWorkspace(): never {
+		throw new Error('Switching storage workspace is unsupported from main process');
 	}
 }

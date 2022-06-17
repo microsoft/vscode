@@ -7,7 +7,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
+import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
 	private readonly scrollTop = observableFromEvent(
@@ -132,10 +132,12 @@ export interface IGutterItemProvider<TItem extends IGutterItemInfo> {
 export interface IGutterItemInfo {
 	id: string;
 	range: LineRange;
+	/*
 
 	// To accommodate view zones:
 	offsetInPx: number;
 	additionalHeightInPx: number;
+	*/
 }
 
 export interface IGutterItemView<T extends IGutterItemInfo> extends IDisposable {

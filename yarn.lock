@@ -4335,10 +4335,10 @@ electron-to-chromium@^1.4.17:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.45.tgz#cf1144091d6683cbd45a231954a745f02fb24598"
   integrity sha512-czF9eYVuOmlY/vxyMQz2rGlNSjZpxNQYBe1gmQv7al171qOIhgyO9k7D5AKlgeTCSPKk+LHhj5ZyIdmEub9oNg==
 
-electron@18.3.2:
-  version "18.3.2"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-18.3.2.tgz#015a8f4c92c62855d7f33206f2166d3e33b053b7"
-  integrity sha512-Q1ciZ1M90L71WvyLbkD8Iwaq4YCwo8NUpBiLQUsd6M4E7i5vrzsA4g5Ylfzyela8DgRCNVknDVDfj6s+7YVWpA==
+electron@18.3.3:
+  version "18.3.3"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-18.3.3.tgz#1c48273c1ad1522b8c18f19575e862c7ccd9f409"
+  integrity sha512-LYxf3uCDc/r0klu7LL0eZLxkseoGIY/vrCfS0Qj4YTU3M7LLjOaIqrajI7icKwaI2dgxiuJJH3n4eqALFpJAFg==
   dependencies:
     "@electron/get" "^1.13.0"
     "@types/node" "^16.11.26"
@@ -12271,10 +12271,10 @@ xterm-addon-unicode11@0.4.0-beta.3:
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.4.0-beta.3.tgz#f350184155fafd5ad0d6fbf31d13e6ca7dea1efa"
   integrity sha512-FryZAVwbUjKTmwXnm1trch/2XO60F5JsDvOkZhzobV1hm10sFLVuZpFyHXiUx7TFeeFsvNP+S77LAtWoeT5z+Q==
 
-xterm-addon-webgl@0.12.0-beta.38:
-  version "0.12.0-beta.38"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.38.tgz#59fc8f3711e38b9a238fd460cd070007b7904e7a"
-  integrity sha512-fqRhfwUx/WZlDLFsZX26irLYTdRGMf1xuRwoqfr4KiFoQvHye55U8VJ4WLHdWglN2Kzh8PbINk5HfMhIwYHe9Q==
+xterm-addon-webgl@0.12.0-beta.39:
+  version "0.12.0-beta.39"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.39.tgz#f5fafd2c4d1ec046ff6b57edf850234948cf630a"
+  integrity sha512-116gk9KYqbMyCcjedDYhqg3RKl0CI19I1l/+u8JdJb6bucv835Hj60W2it5AAsmvw726FEXwhMoOaY3gs+n1/g==
 
 xterm-headless@4.19.0-beta.60:
   version "4.19.0-beta.60"

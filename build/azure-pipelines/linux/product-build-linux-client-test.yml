@@ -122,24 +122,23 @@ steps:
       timeoutInMinutes: 20
       displayName: Run smoke tests (Browser, Chromium)
 
-  # TODO enable again after https://github.com/microsoft/vscode/issues/152143 is fixed
-  # - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
-  #   - script: |
-  #       set -e
-  #       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-  #       yarn smoketest-no-compile --tracing --build "$APP_PATH"
-  #     timeoutInMinutes: 20
-  #     displayName: Run smoke tests (Electron)
+  - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
+    - script: |
+        set -e
+        APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+        yarn smoketest-no-compile --tracing --build "$APP_PATH"
+      timeoutInMinutes: 20
+      displayName: Run smoke tests (Electron)
 
-  # - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
-  #   - script: |
-  #       set -e
-  #       yarn gulp compile-extension:vscode-test-resolver
-  #       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-  #       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
-  #       yarn smoketest-no-compile --tracing --remote --build "$APP_PATH"
-  #     timeoutInMinutes: 20
-  #     displayName: Run smoke tests (Remote)
+  - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
+    - script: |
+        set -e
+        yarn gulp compile-extension:vscode-test-resolver
+        APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+        VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
+        yarn smoketest-no-compile --tracing --remote --build "$APP_PATH"
+      timeoutInMinutes: 20
+      displayName: Run smoke tests (Remote)
 
   - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
     - script: |

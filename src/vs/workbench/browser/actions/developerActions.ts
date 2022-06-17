@@ -273,7 +273,7 @@ class LogStorageAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IStorageService).logStorage();
+		accessor.get(IStorageService).log();
 	}
 }
 

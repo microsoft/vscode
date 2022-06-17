@@ -134,8 +134,7 @@ class EditorEditTask extends ModelEditTask {
 
 			} else {
 				this._edits = this._edits
-					.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range))
-					.map(edit => ({ ...edit, text: edit.text && SnippetParser.escape(edit.text) }));
+					.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 				this._editor.executeEdits('', this._edits);
 			}
 		}

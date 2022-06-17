@@ -74,3 +74,10 @@ export class MdDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 		return '#'.repeat(entry.level) + ' ' + entry.text;
 	}
 }
+
+export function registerDocumentSymbolSupport(
+	selector: vscode.DocumentSelector,
+	engine: MarkdownEngine,
+): vscode.Disposable {
+	return vscode.languages.registerDocumentSymbolProvider(selector, new MdDocumentSymbolProvider(engine));
+}
