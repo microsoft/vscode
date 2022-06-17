@@ -1514,7 +1514,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					break;
 				case ProcessPropertyType.UsedShellIntegrationInjection:
 					this._usedShellIntegrationInjection = true;
-					console.log('used shell integration injection');
 					break;
 			}
 		});
