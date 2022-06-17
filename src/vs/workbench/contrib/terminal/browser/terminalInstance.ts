@@ -83,6 +83,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const enum Constants {
 	/**
@@ -372,7 +373,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IHistoryService private readonly _historyService: IHistoryService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
 
@@ -1579,7 +1581,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						severity: Severity.Warning,
 						icon: Codicon.warning,
 						tooltip: nls.localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch (exit code: {0}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", error.code),
-						hoverActions: []
+						hoverActions: [{
+							commandId: TerminalCommandId.ShellIntegrationLearnMore,
+							label: nls.localize('shellIntegration.learnMore', "Learn more"),
+							run: () => {
+								this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration');
+							}
+						}]
 					});
 					this._telemetryService.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates the process exited when created with shell integration args' }>('terminal/shellIntegrationFailureProcessExit');
 				} else {
