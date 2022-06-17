@@ -274,7 +274,16 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
 		const text = typeof expression.value === 'string' ? `${expression.name}:` : expression.name;
-		data.label.set(text, highlights, expression.type ? expression.type : expression.value);
+		let title: string;
+		if (expression.type) {
+			title = expression.type === expression.value ?
+				expression.type :
+				`${expression.type}: ${expression.value}`;
+		} else {
+			title = expression.value;
+		}
+
+		data.label.set(text, highlights, title);
 		renderExpressionValue(expression, data.value, {
 			showChanged: true,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,

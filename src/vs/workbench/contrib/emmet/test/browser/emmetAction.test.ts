@@ -40,7 +40,7 @@ suite('Emmet', () => {
 				}
 
 				model.setMode(mode);
-				let langOutput = EmmetEditorAction.getLanguage(editor, new MockGrammarContributions(scopeName));
+				const langOutput = EmmetEditorAction.getLanguage(editor, new MockGrammarContributions(scopeName));
 				if (!langOutput) {
 					assert.fail('langOutput not found');
 				}

@@ -97,9 +97,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 	}
 
 	private _updateReadonly(input: NotebookEditorInput): void {
-		if (this._widget.value) {
-			this._widget.value.setOptions({ isReadOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
-		}
+		this._widget.value?.setOptions({ isReadOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
 	}
 
 	get textModel(): NotebookTextModel | undefined {
@@ -245,6 +243,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			mark(input.resource, 'editorLoaded');
 
 			type WorkbenchNotebookOpenClassification = {
+				owner: 'rebornix';
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };

@@ -113,9 +113,7 @@ suite('SearchModel', () => {
 	function canceleableSearchService(tokenSource: CancellationTokenSource): ISearchService {
 		return <ISearchService>{
 			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-				if (token) {
-					token.onCancellationRequested(() => tokenSource.cancel());
-				}
+				token?.onCancellationRequested(() => tokenSource.cancel());
 
 				return new Promise(resolve => {
 					queueMicrotask(() => {

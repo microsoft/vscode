@@ -33,11 +33,11 @@ import { Codicon } from 'vs/base/common/codicons';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { TitleMenuControl } from 'vs/workbench/browser/parts/titlebar/titleMenuControl';
+import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/commandCenterControl';
 
 export class TitlebarPart extends Part implements ITitleService {
 
-	private static readonly configTitleMenu = 'window.experimental.titleMenu';
+	private static readonly configCommandCenter = 'window.commandCenter';
 
 	declare readonly _serviceBrand: undefined;
 
@@ -45,7 +45,10 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return 30 / (this.currentMenubarVisibility === 'hidden' || getZoomFactor() < 1 ? getZoomFactor() : 1); }
+	get minimumHeight(): number {
+		const value = this.isCommandCenterVisible ? 35 : 30;
+		return value / (this.currentMenubarVisibility === 'hidden' || getZoomFactor() < 1 ? getZoomFactor() : 1);
+	}
 	get maximumHeight(): number { return this.minimumHeight; }
 
 	//#endregion
@@ -53,8 +56,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
-	private readonly _onDidChangeTitleMenuVisibility = new Emitter<void>();
-	readonly onDidChangeTitleMenuVisibility: Event<void> = this._onDidChangeTitleMenuVisibility.event;
+	private readonly _onDidChangeCommandCenterVisibility = new Emitter<void>();
+	readonly onDidChangeCommandCenterVisibility: Event<void> = this._onDidChangeCommandCenterVisibility.event;
 
 	protected rootContainer!: HTMLElement;
 	protected windowControls: HTMLElement | undefined;
@@ -102,8 +105,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.windowTitle.updateProperties(properties);
 	}
 
-	get titleMenuVisible() {
-		return this.configurationService.getValue<boolean>(TitlebarPart.configTitleMenu);
+	get isCommandCenterVisible() {
+		return this.configurationService.getValue<boolean>(TitlebarPart.configCommandCenter);
 	}
 
 	private registerListeners(): void {
@@ -137,10 +140,10 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 		}
 
-		if (event.affectsConfiguration(TitlebarPart.configTitleMenu)) {
+		if (event.affectsConfiguration(TitlebarPart.configCommandCenter)) {
 			this.updateTitle();
 			this.adjustTitleMarginToCenter();
-			this._onDidChangeTitleMenuVisibility.fire();
+			this._onDidChangeCommandCenterVisibility.fire();
 		}
 	}
 
@@ -183,7 +186,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private updateTitle(): void {
 		this.titleDisposables.clear();
-		if (!this.titleMenuVisible) {
+		if (!this.isCommandCenterVisible) {
 			// Text Title
 			this.title.innerText = this.windowTitle.value;
 			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
@@ -192,10 +195,10 @@ export class TitlebarPart extends Part implements ITitleService {
 			}));
 		} else {
 			// Menu Title
-			const titleMenu = this.instantiationService.createInstance(TitleMenuControl, this.windowTitle);
-			reset(this.title, titleMenu.element);
-			this.titleDisposables.add(titleMenu);
-			this.titleDisposables.add(titleMenu.onDidChangeVisibility(this.adjustTitleMarginToCenter, this));
+			const commandCenter = this.instantiationService.createInstance(CommandCenterControl, this.windowTitle);
+			reset(this.title, commandCenter.element);
+			this.titleDisposables.add(commandCenter);
+			this.titleDisposables.add(commandCenter.onDidChangeVisibility(this.adjustTitleMarginToCenter, this));
 		}
 	}
 

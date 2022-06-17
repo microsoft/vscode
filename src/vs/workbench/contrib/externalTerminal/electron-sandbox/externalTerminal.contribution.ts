@@ -89,7 +89,7 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 
 	private async _updateConfiguration(): Promise<void> {
 		const terminals = await this._externalTerminalService.getDefaultTerminalForPlatforms();
-		let configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			id: 'externalTerminal',
 			order: 100,

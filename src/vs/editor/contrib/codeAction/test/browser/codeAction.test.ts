@@ -30,12 +30,12 @@ function staticCodeActionProvider(...actions: languages.CodeAction[]): languages
 
 suite('CodeAction', () => {
 
-	let langId = 'fooLang';
-	let uri = URI.parse('untitled:path');
+	const langId = 'fooLang';
+	const uri = URI.parse('untitled:path');
 	let model: TextModel;
 	let registry: LanguageFeatureRegistry<languages.CodeActionProvider>;
 	const disposables = new DisposableStore();
-	let testData = {
+	const testData = {
 		diagnostics: {
 			abc: {
 				title: 'bTitle',

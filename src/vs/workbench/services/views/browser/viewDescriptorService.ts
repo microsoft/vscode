@@ -19,7 +19,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { getViewsStateStorageId, ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 
 interface ICachedViewContainerInfo {
 	containerId: string;
@@ -346,7 +346,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
-		let container = this.registerGeneratedViewContainer(location);
+		const container = this.registerGeneratedViewContainer(location);
 		this.moveViewsToContainer([view], container);
 	}
 
@@ -545,7 +545,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const newCachedPositions = this.getCachedViewPositions();
 		const viewsToMove: { views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }[] = [];
 
-		for (let viewId of newCachedPositions.keys()) {
+		for (const viewId of newCachedPositions.keys()) {
 			const viewDescriptor = this.getViewDescriptorById(viewId);
 			if (!viewDescriptor) {
 				continue;

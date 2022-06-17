@@ -23,7 +23,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 interface CodeActionWidgetDelegate {
-	onSelectCodeAction: (action: CodeActionItem) => Promise<any>;
+	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
 }
 
 interface ResolveCodeActionKeybinding {
@@ -115,7 +115,7 @@ export class CodeActionMenu extends Disposable {
 		actionsToShow: readonly CodeActionItem[],
 		documentation: readonly Command[]
 	): IAction[] {
-		const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(item.action, () => this._delegate.onSelectCodeAction(item));
+		const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(item.action, () => this._delegate.onSelectCodeAction(item, trigger));
 
 		const result: IAction[] = actionsToShow
 			.map(toCodeActionAction);

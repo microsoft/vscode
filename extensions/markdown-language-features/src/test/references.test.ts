@@ -6,9 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
-import { MdReferencesProvider } from '../languageFeatures/references';
-import { githubSlugifier } from '../slugify';
+import { MdReferencesProvider, MdVsCodeReferencesProvider } from '../languageFeatures/references';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
@@ -19,8 +17,8 @@ import { joinLines, workspacePath } from './util';
 
 function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspaceContents: MdWorkspaceContents) {
 	const engine = createNewMarkdownEngine();
-	const linkProvider = new MdLinkProvider(engine);
-	const provider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
+	const computer = new MdReferencesProvider(engine, workspaceContents);
+	const provider = new MdVsCodeReferencesProvider(computer);
 	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
 }
 
@@ -576,6 +574,20 @@ suite('markdown: find all references', () => {
 				{ uri: docUri, line: 0 },
 				{ uri: docUri, line: 2 },
 			);
+		});
+
+		test('Should not consider checkboxes as reference links', async () => {
+			const docUri = workspacePath('doc.md');
+			const doc = new InMemoryDocument(docUri, joinLines(
+				`- [x]`,
+				`- [X]`,
+				`- [ ]`,
+				``,
+				`[x]: https://example.com`
+			));
+
+			const refs = await getReferences(doc, new vscode.Position(0, 4), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			assert.strictEqual(refs?.length!, 0);
 		});
 	});
 });

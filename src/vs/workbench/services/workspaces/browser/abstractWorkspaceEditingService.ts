@@ -76,23 +76,20 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	}
 
 	private getNewWorkspaceName(): string {
-		switch (this.contextService.getWorkbenchState()) {
-			case WorkbenchState.FOLDER: {
-				const folder = firstOrDefault(this.contextService.getWorkspace().folders);
-				if (folder) {
-					return `${basename(folder.uri)}.${WORKSPACE_EXTENSION}`;
-				}
-				break;
-			}
-			case WorkbenchState.WORKSPACE: {
-				const configPathURI = this.getCurrentWorkspaceIdentifier()?.configPath;
-				if (configPathURI && isSavedWorkspace(configPathURI, this.environmentService)) {
-					return basename(configPathURI);
-				}
-				break;
-			}
+
+		// First try with existing workspace name
+		const configPathURI = this.getCurrentWorkspaceIdentifier()?.configPath;
+		if (configPathURI && isSavedWorkspace(configPathURI, this.environmentService)) {
+			return basename(configPathURI);
 		}
 
+		// Then fallback to first folder if any
+		const folder = firstOrDefault(this.contextService.getWorkspace().folders);
+		if (folder) {
+			return `${basename(folder.uri)}.${WORKSPACE_EXTENSION}`;
+		}
+
+		// Finally pick a good default
 		return `workspace.${WORKSPACE_EXTENSION}`;
 	}
 

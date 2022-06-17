@@ -11,7 +11,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { ITextFileService, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
-import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel, isResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -19,7 +19,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
-class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
+class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextEditorModel>> {
 
 	private readonly providers = new Map<string, ITextModelContentProvider[]>();
 	private readonly modelsToDispose = new Set<string>();
@@ -33,11 +33,11 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		super();
 	}
 
-	createReferencedObject(key: string): Promise<ITextEditorModel> {
+	createReferencedObject(key: string): Promise<IResolvedTextEditorModel> {
 		return this.doCreateReferencedObject(key);
 	}
 
-	private async doCreateReferencedObject(key: string, skipActivateProvider?: boolean): Promise<ITextEditorModel> {
+	private async doCreateReferencedObject(key: string, skipActivateProvider?: boolean): Promise<IResolvedTextEditorModel> {
 
 		// Untrack as being disposed
 		this.modelsToDispose.delete(key);
@@ -50,24 +50,36 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 				throw new Error(`Unable to resolve inMemory resource ${key}`);
 			}
 
-			return this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			const model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			if (this.ensureResolvedModel(model, key)) {
+				return model;
+			}
 		}
 
 		// Untitled Schema: go through untitled text service
 		if (resource.scheme === Schemas.untitled) {
-			return this.textFileService.untitled.resolve({ untitledResource: resource });
+			const model = await this.textFileService.untitled.resolve({ untitledResource: resource });
+			if (this.ensureResolvedModel(model, key)) {
+				return model;
+			}
 		}
 
 		// File or remote file: go through text file service
 		if (this.fileService.hasProvider(resource)) {
-			return this.textFileService.files.resolve(resource, { reason: TextFileResolveReason.REFERENCE });
+			const model = await this.textFileService.files.resolve(resource, { reason: TextFileResolveReason.REFERENCE });
+			if (this.ensureResolvedModel(model, key)) {
+				return model;
+			}
 		}
 
 		// Virtual documents
 		if (this.providers.has(resource.scheme)) {
 			await this.resolveTextModelContent(key);
 
-			return this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			const model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			if (this.ensureResolvedModel(model, key)) {
+				return model;
+			}
 		}
 
 		// Either unknown schema, or not yet registered, try to activate
@@ -75,6 +87,14 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 			await this.fileService.activateProvider(resource.scheme);
 
 			return this.doCreateReferencedObject(key, true);
+		}
+
+		throw new Error(`Unable to resolve resource ${key}`);
+	}
+
+	private ensureResolvedModel(model: ITextEditorModel, key: string): model is IResolvedTextEditorModel {
+		if (isResolvedTextEditorModel(model)) {
+			return true;
 		}
 
 		throw new Error(`Unable to resolve resource ${key}`);
@@ -173,7 +193,7 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly resourceModelCollection = this.instantiationService.createInstance(ResourceModelCollection);
+	private readonly resourceModelCollection: ResourceModelCollection & ReferenceCollection<Promise<IResolvedTextEditorModel>> /* TS Fail */ = this.instantiationService.createInstance(ResourceModelCollection);
 	private readonly asyncModelCollection = new AsyncReferenceCollection(this.resourceModelCollection);
 
 	constructor(
@@ -195,8 +215,7 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 		// with different resource forms (e.g. path casing on Windows)
 		resource = this.uriIdentityService.asCanonicalUri(resource);
 
-		const result = await this.asyncModelCollection.acquire(resource.toString());
-		return result as IReference<IResolvedTextEditorModel>; // TODO@Ben: why is this cast here?
+		return await this.asyncModelCollection.acquire(resource.toString());
 	}
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {

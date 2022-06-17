@@ -26,10 +26,15 @@ export const TERMINAL_CURSOR_BACKGROUND_COLOR = registerColor('terminalCursor.ba
 export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selectionBackground', {
 	light: editorSelectionBackground,
 	dark: editorSelectionBackground,
-	// TODO: hcDark should be editorSelectionBackground (white) when min contrast ratio moves luminance the other way when needed https://github.com/xtermjs/xterm.js/issues/3720
-	hcDark: '#FFFFFF80',
+	hcDark: editorSelectionBackground,
 	hcLight: editorSelectionBackground
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
+export const TERMINAL_SELECTION_FOREGROUND_COLOR = registerColor('terminal.selectionForeground', {
+	light: null,
+	dark: null,
+	hcDark: '#000000',
+	hcLight: '#ffffff'
+}, nls.localize('terminal.selectionForeground', 'The selection foreground color of the terminal. When this is null the selection foreground will be retained and have the minimum contrast ratio feature applied.'));
 export const TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.defaultBackground', {
 	light: '#00000040',
 	dark: '#ffffff40',

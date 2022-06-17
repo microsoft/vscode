@@ -555,8 +555,7 @@ export class Codicon implements CSSIcon {
 	public static readonly doNotDisturb = new Codicon('do-not-disturb', { fontCharacter: '\\F102' });
 	public static readonly doNotDisturbFilled = new Codicon('do-not-disturb-filled', { fontCharacter: '\\F101' });
 	public static readonly notificationsMuted = new Codicon('notifications-muted', { fontCharacter: '\\F103' });
-
-
+	public static readonly heartFilled = new Codicon('heart-filled', { fontCharacter: '\\ec04' });
 
 
 	// derived icons, that could become separate icons
@@ -619,7 +618,7 @@ export namespace CSSIcon {
 		if (!match) {
 			return asClassNameArray(Codicon.error);
 		}
-		let [, id, modifier] = match;
+		const [, id, modifier] = match;
 		const classNames = ['codicon', 'codicon-' + id];
 		if (modifier) {
 			classNames.push('codicon-modifier-' + modifier.substr(1));

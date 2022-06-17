@@ -101,7 +101,7 @@ suite('Workbench parts', () => {
 	}
 
 	let fixture: HTMLElement;
-	let fixtureId = 'workbench-part-fixture';
+	const fixtureId = 'workbench-part-fixture';
 
 	setup(() => {
 		fixture = document.createElement('div');
@@ -114,7 +114,7 @@ suite('Workbench parts', () => {
 	});
 
 	test('Creation', () => {
-		let b = document.createElement('div');
+		const b = document.createElement('div');
 		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
@@ -151,11 +151,11 @@ suite('Workbench parts', () => {
 	});
 
 	test('Part Layout with Title and Content', function () {
-		let b = document.createElement('div');
+		const b = document.createElement('div');
 		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
-		let part = new MyPart2();
+		const part = new MyPart2();
 		part.create(b);
 
 		assert(document.getElementById('myPart.title'));
@@ -163,11 +163,11 @@ suite('Workbench parts', () => {
 	});
 
 	test('Part Layout with Content only', function () {
-		let b = document.createElement('div');
+		const b = document.createElement('div');
 		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
-		let part = new MyPart3();
+		const part = new MyPart3();
 		part.create(b);
 
 		assert(!document.getElementById('myPart.title'));

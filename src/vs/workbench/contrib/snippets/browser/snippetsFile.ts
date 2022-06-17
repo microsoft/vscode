@@ -45,7 +45,7 @@ class SnippetBodyInsights {
 		// check snippet...
 		const textmateSnippet = new SnippetParser().parse(body, false);
 
-		let placeholders = new Map<string, number>();
+		const placeholders = new Map<string, number>();
 		let placeholderMax = 0;
 		for (const placeholder of textmateSnippet.placeholders) {
 			placeholderMax = Math.max(placeholderMax, placeholder.index);
@@ -60,7 +60,7 @@ class SnippetBodyInsights {
 			this.isTrivial = last instanceof Placeholder && last.isFinalTabstop;
 		}
 
-		let stack = [...textmateSnippet.children];
+		const stack = [...textmateSnippet.children];
 		while (stack.length > 0) {
 			const marker = stack.shift()!;
 			if (marker instanceof Variable) {
@@ -236,7 +236,7 @@ export class SnippetFile {
 			}
 		}
 
-		let idx = selector.lastIndexOf('.');
+		const idx = selector.lastIndexOf('.');
 		if (idx >= 0) {
 			this._scopeSelect(selector.substring(0, idx), bucket);
 		}

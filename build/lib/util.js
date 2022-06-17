@@ -240,7 +240,7 @@ function _rreaddir(dirPath, prepend, result) {
     }
 }
 function rreddir(dirPath) {
-    let result = [];
+    const result = [];
     _rreaddir(dirPath, '', result);
     return result;
 }
@@ -344,7 +344,7 @@ function createExternalLoaderConfig(webEndpoint, commit, quality) {
         return undefined;
     }
     webEndpoint = webEndpoint + `/${quality}/${commit}`;
-    let nodePaths = acquireWebNodePaths();
+    const nodePaths = acquireWebNodePaths();
     Object.keys(nodePaths).map(function (key, _) {
         nodePaths[key] = `${webEndpoint}/node_modules/${key}/${nodePaths[key]}`;
     });

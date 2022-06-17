@@ -11,7 +11,7 @@ suite('Debug - prepareCommand', () => {
 	test('bash', () => {
 		assert.strictEqual(
 			prepareCommand('bash', ['{$} (']).trim(),
-			'{\\$}\\ \\(');
+			'\\{\\$\\}\\ \\(');
 		assert.strictEqual(
 			prepareCommand('bash', ['hello', 'world', '--flag=true']).trim(),
 			'hello world --flag=true');

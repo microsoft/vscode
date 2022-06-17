@@ -203,6 +203,7 @@ export class LanguageDetectionWorkerHost {
 	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
 		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number };
 		type LanguageDetectionStatsClassification = {
+			owner: 'TylerLeonhardt';
 			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -337,6 +338,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		}
 
 		type LanguageDetectionPerfClassification = {
+			owner: 'TylerLeonhardt';
 			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 			detection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};

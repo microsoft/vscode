@@ -28,7 +28,7 @@ export function nextItemStylesheet(document: vscode.TextDocument, startPosition:
 	if (currentNode.type === 'property' &&
 		startOffset >= (<Property>currentNode).valueToken.start &&
 		endOffset <= (<Property>currentNode).valueToken.end) {
-		let singlePropertyValue = getSelectionFromProperty(document, currentNode, startOffset, endOffset, false, 'next');
+		const singlePropertyValue = getSelectionFromProperty(document, currentNode, startOffset, endOffset, false, 'next');
 		if (singlePropertyValue) {
 			return singlePropertyValue;
 		}
@@ -77,7 +77,7 @@ export function prevItemStylesheet(document: vscode.TextDocument, startPosition:
 	if (currentNode.type === 'property' &&
 		startOffset >= (<Property>currentNode).valueToken.start &&
 		endOffset <= (<Property>currentNode).valueToken.end) {
-		let singlePropertyValue = getSelectionFromProperty(document, currentNode, startOffset, endOffset, false, 'prev');
+		const singlePropertyValue = getSelectionFromProperty(document, currentNode, startOffset, endOffset, false, 'prev');
 		if (singlePropertyValue) {
 			return singlePropertyValue;
 		}
@@ -115,7 +115,7 @@ function getSelectionFromProperty(document: vscode.TextDocument, node: Node | un
 	}
 	const propertyNode = <Property>node;
 
-	let propertyValue = propertyNode.valueToken.stream.substring(propertyNode.valueToken.start, propertyNode.valueToken.end);
+	const propertyValue = propertyNode.valueToken.stream.substring(propertyNode.valueToken.start, propertyNode.valueToken.end);
 	selectFullValue = selectFullValue ||
 		(direction === 'prev' && selectionStart === propertyNode.valueToken.start && selectionEnd < propertyNode.valueToken.end);
 
@@ -144,7 +144,7 @@ function getSelectionFromProperty(document: vscode.TextDocument, node: Node | un
 	}
 
 
-	let [newSelectionStartOffset, newSelectionEndOffset] = direction === 'prev' ? findPrevWord(propertyValue, pos) : findNextWord(propertyValue, pos);
+	const [newSelectionStartOffset, newSelectionEndOffset] = direction === 'prev' ? findPrevWord(propertyValue, pos) : findNextWord(propertyValue, pos);
 	if (!newSelectionStartOffset && !newSelectionEndOffset) {
 		return;
 	}

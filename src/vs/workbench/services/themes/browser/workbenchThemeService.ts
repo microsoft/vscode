@@ -579,6 +579,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			const key = themeType + themeData.extensionId;
 			if (!this.themeExtensionsActivated.get(key)) {
 				type ActivatePluginClassification = {
+					owner: 'aeschli';
 					id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 					name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };

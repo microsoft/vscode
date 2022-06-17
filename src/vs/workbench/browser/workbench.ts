@@ -198,7 +198,7 @@ export class Workbench extends Layout {
 
 		// All Contributed Services
 		const contributedServices = getSingletonServiceDescriptors();
-		for (let [id, descriptor] of contributedServices) {
+		for (const [id, descriptor] of contributedServices) {
 			serviceCollection.set(id, descriptor);
 		}
 

@@ -7,8 +7,8 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { IWebviewService, IWebview, WebviewContentOptions, IWebviewElement, WebviewExtensionDescription, WebviewOptions, IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewElement, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { OverlayWebview } from './overlayWebview';
 
 export class WebviewService extends Disposable implements IWebviewService {
@@ -43,24 +43,14 @@ export class WebviewService extends Disposable implements IWebviewService {
 	private readonly _onDidChangeActiveWebview = this._register(new Emitter<IWebview | undefined>());
 	public readonly onDidChangeActiveWebview = this._onDidChangeActiveWebview.event;
 
-	createWebviewElement(
-		id: string,
-		options: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-	): IWebviewElement {
-		const webview = this._instantiationService.createInstance(WebviewElement, id, options, contentOptions, extension, this._webviewThemeDataProvider);
+	createWebviewElement(initInfo: WebviewInitInfo): IWebviewElement {
+		const webview = this._instantiationService.createInstance(WebviewElement, initInfo, this._webviewThemeDataProvider);
 		this.registerNewWebview(webview);
 		return webview;
 	}
 
-	createWebviewOverlay(
-		id: string,
-		options: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-	): IOverlayWebview {
-		const webview = this._instantiationService.createInstance(OverlayWebview, id, options, contentOptions, extension);
+	createWebviewOverlay(initInfo: WebviewInitInfo): IOverlayWebview {
+		const webview = this._instantiationService.createInstance(OverlayWebview, initInfo);
 		this.registerNewWebview(webview);
 		return webview;
 	}

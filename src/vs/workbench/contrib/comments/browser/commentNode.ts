@@ -224,14 +224,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private createActionsToolbar() {
 		const actions: IAction[] = [];
 
-		let hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
+		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
 
 		if (hasReactionHandler) {
-			let toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
+			const toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
 			actions.push(toggleReactionAction);
 		}
 
-		let commentMenus = this.commentService.getCommentMenus(this.owner);
+		const commentMenus = this.commentService.getCommentMenus(this.owner);
 		const menu = commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
 		this._register(menu);
 		this._register(menu.onDidChange(e => {
@@ -261,21 +261,26 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 
 		if (action.id === ReactionAction.ID) {
-			let item = new ReactionActionViewItem(action);
+			const item = new ReactionActionViewItem(action);
 			return item;
 		} else if (action instanceof MenuItemAction) {
 			return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
 		} else if (action instanceof SubmenuItemAction) {
 			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
 		} else {
-			let item = new ActionViewItem({}, action, options);
+			const item = new ActionViewItem({}, action, options);
 			return item;
 		}
 	}
 
+	async submitComment(): Promise<void> {
+		if (this._commentEditor && this._commentFormActions) {
+			this._commentFormActions.triggerDefaultAction();
+		}
+	}
+
 	private createReactionPicker(reactionGroup: languages.CommentReaction[]): ToggleReactionsAction {
-		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
-		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
+		const toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionViewItem) {
 				toggleReactionActionViewItem.show();
 			}
@@ -299,7 +304,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		toggleReactionAction.menuActions = reactionMenuActions;
 
-		toggleReactionActionViewItem = new DropdownMenuActionViewItem(
+		const toggleReactionActionViewItem: DropdownMenuActionViewItem = new DropdownMenuActionViewItem(
 			toggleReactionAction,
 			(<ToggleReactionsAction>toggleReactionAction).menuActions,
 			this.contextMenuService,
@@ -341,9 +346,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 		this._register(this._reactionsActionBar);
 
-		let hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
+		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
 		this.comment.commentReactions!.filter(reaction => !!reaction.count).map(reaction => {
-			let action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
+			const action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
 				try {
 					await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread, this.comment, reaction);
 				} catch (e) {
@@ -362,13 +367,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 				}
 			}, reaction.iconPath, reaction.count);
 
-			if (this._reactionsActionBar) {
-				this._reactionsActionBar.push(action, { label: true, icon: true });
-			}
+			this._reactionsActionBar?.push(action, { label: true, icon: true });
 		});
 
 		if (hasReactionHandler) {
-			let toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
+			const toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
 			this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
 		}
 	}
@@ -397,7 +400,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		const lastColumn = this._commentEditorModel.getLineContent(lastLine).length + 1;
 		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
 
-		let commentThread = this.commentThread;
+		const commentThread = this.commentThread;
 		commentThread.input = {
 			uri: this._commentEditor.getModel()!.uri,
 			value: this.commentBodyValue
@@ -414,9 +417,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
 			if (commentThread.input && this._commentEditor && this._commentEditor.getModel()!.uri === commentThread.input.uri) {
-				let newVal = this._commentEditor.getValue();
+				const newVal = this._commentEditor.getValue();
 				if (newVal !== commentThread.input.value) {
-					let input = commentThread.input;
+					const input = commentThread.input;
 					input.value = newVal;
 					commentThread.input = input;
 					this.commentService.setActiveCommentThread(commentThread);
@@ -469,13 +472,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._register(menu);
 		this._register(menu.onDidChange(() => {
-			if (this._commentFormActions) {
-				this._commentFormActions.setActions(menu);
-			}
+			this._commentFormActions?.setActions(menu);
 		}));
 
 		this._commentFormActions = new CommentFormActions(formActions, (action: IAction): void => {
-			let text = this._commentEditor!.getValue();
+			const text = this._commentEditor!.getValue();
 
 			action.run({
 				thread: this.commentThread,
@@ -579,7 +580,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 }
 
 function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[] }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
-	for (let tuple of groups) {
+	for (const tuple of groups) {
 		let [group, actions] = tuple;
 		if (useAlternativeActions) {
 			actions = actions.map(a => (a instanceof MenuItemAction) && !!a.alt ? a.alt : a);

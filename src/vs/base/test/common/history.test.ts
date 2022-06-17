@@ -148,7 +148,7 @@ suite('History Navigator', () => {
 	});
 
 	function toArray(historyNavigator: HistoryNavigator<string>): Array<string | null> {
-		let result: Array<string | null> = [];
+		const result: Array<string | null> = [];
 		historyNavigator.first();
 		if (historyNavigator.current()) {
 			do {

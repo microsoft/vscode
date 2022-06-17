@@ -37,7 +37,7 @@ import 'vs/workbench/workbench.sandbox.main';
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-import 'vs/workbench/services/extensions/electron-browser/extensionService';
+import 'vs/workbench/services/extensions/electron-browser/nativeExtensionService';
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //

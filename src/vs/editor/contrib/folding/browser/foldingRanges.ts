@@ -34,21 +34,21 @@ export class FoldingRegions {
 	private ensureParentIndices() {
 		if (!this._parentsComputed) {
 			this._parentsComputed = true;
-			let parentIndexes: number[] = [];
-			let isInsideLast = (startLineNumber: number, endLineNumber: number) => {
-				let index = parentIndexes[parentIndexes.length - 1];
+			const parentIndexes: number[] = [];
+			const isInsideLast = (startLineNumber: number, endLineNumber: number) => {
+				const index = parentIndexes[parentIndexes.length - 1];
 				return this.getStartLineNumber(index) <= startLineNumber && this.getEndLineNumber(index) >= endLineNumber;
 			};
 			for (let i = 0, len = this._startIndexes.length; i < len; i++) {
-				let startLineNumber = this._startIndexes[i];
-				let endLineNumber = this._endIndexes[i];
+				const startLineNumber = this._startIndexes[i];
+				const endLineNumber = this._endIndexes[i];
 				if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
 					throw new Error('startLineNumber or endLineNumber must not exceed ' + MAX_LINE_NUMBER);
 				}
 				while (parentIndexes.length > 0 && !isInsideLast(startLineNumber, endLineNumber)) {
 					parentIndexes.pop();
 				}
-				let parentIndex = parentIndexes.length > 0 ? parentIndexes[parentIndexes.length - 1] : -1;
+				const parentIndex = parentIndexes.length > 0 ? parentIndexes[parentIndexes.length - 1] : -1;
 				parentIndexes.push(i);
 				this._startIndexes[i] = startLineNumber + ((parentIndex & 0xFF) << 24);
 				this._endIndexes[i] = endLineNumber + ((parentIndex & 0xFF00) << 16);
@@ -77,15 +77,15 @@ export class FoldingRegions {
 	}
 
 	public isCollapsed(index: number): boolean {
-		let arrayIndex = (index / 32) | 0;
-		let bit = index % 32;
+		const arrayIndex = (index / 32) | 0;
+		const bit = index % 32;
 		return (this._collapseStates[arrayIndex] & (1 << bit)) !== 0;
 	}
 
 	public setCollapsed(index: number, newState: boolean) {
-		let arrayIndex = (index / 32) | 0;
-		let bit = index % 32;
-		let value = this._collapseStates[arrayIndex];
+		const arrayIndex = (index / 32) | 0;
+		const bit = index % 32;
+		const value = this._collapseStates[arrayIndex];
 		if (newState) {
 			this._collapseStates[arrayIndex] = value | (1 << bit);
 		} else {
@@ -112,7 +112,7 @@ export class FoldingRegions {
 
 	public getParentIndex(index: number) {
 		this.ensureParentIndices();
-		let parent = ((this._startIndexes[index] & MASK_INDENT) >>> 24) + ((this._endIndexes[index] & MASK_INDENT) >>> 16);
+		const parent = ((this._startIndexes[index] & MASK_INDENT) >>> 24) + ((this._endIndexes[index] & MASK_INDENT) >>> 16);
 		if (parent === MAX_FOLDING_REGIONS) {
 			return -1;
 		}
@@ -129,7 +129,7 @@ export class FoldingRegions {
 			return -1; // no children
 		}
 		while (low < high) {
-			let mid = Math.floor((low + high) / 2);
+			const mid = Math.floor((low + high) / 2);
 			if (line < this.getStartLineNumber(mid)) {
 				high = mid;
 			} else {
@@ -142,7 +142,7 @@ export class FoldingRegions {
 	public findRange(line: number): number {
 		let index = this.findIndex(line);
 		if (index >= 0) {
-			let endLineNumber = this.getEndLineNumber(index);
+			const endLineNumber = this.getEndLineNumber(index);
 			if (endLineNumber >= line) {
 				return index;
 			}
@@ -158,7 +158,7 @@ export class FoldingRegions {
 	}
 
 	public toString() {
-		let res: string[] = [];
+		const res: string[] = [];
 		for (let i = 0; i < this.length; i++) {
 			res[i] = `[${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
 		}

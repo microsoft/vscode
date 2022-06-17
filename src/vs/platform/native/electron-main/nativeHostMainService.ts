@@ -212,16 +212,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async updateTitleBarOverlay(windowId: number | undefined, backgroundColor: string, foregroundColor: string): Promise<void> {
-		if (!isWindows || !this.environmentMainService.isBuilt) {
-			return; // Non-OSS, Windows only
-		}
-
+	async updateTitleBarOverlay(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			window.win.setTitleBarOverlay({
-				color: backgroundColor,
-				symbolColor: foregroundColor
+				color: options.backgroundColor,
+				symbolColor: options.foregroundColor,
+				height: options.height ? options.height - 1 : undefined // account for window border
 			});
 		}
 	}
@@ -232,9 +229,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		const window = this.windowById(windowId);
-		if (window) {
-			window.focus({ force: options?.force ?? false });
-		}
+		window?.focus({ force: options?.force ?? false });
 	}
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
@@ -440,16 +435,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async setRepresentedFilename(windowId: number | undefined, path: string): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.setRepresentedFilename(path);
-		}
+		window?.setRepresentedFilename(path);
 	}
 
 	async setDocumentEdited(windowId: number | undefined, edited: boolean): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.setDocumentEdited(edited);
-		}
+		window?.setDocumentEdited(edited);
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
@@ -661,9 +652,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.updateTouchBar(items);
-		}
+		window?.updateTouchBar(items);
 	}
 
 	//#endregion

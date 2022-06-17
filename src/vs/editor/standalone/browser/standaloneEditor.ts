@@ -135,6 +135,14 @@ export function setModelMarkers(model: ITextModel, owner: string, markers: IMark
 }
 
 /**
+ * Remove all markers of an owner.
+ */
+export function removeAllMarkers(owner: string) {
+	const markerService = StandaloneServices.get(IMarkerService);
+	markerService.changeAll(owner, []);
+}
+
+/**
  * Get markers for owner and/or resource
  *
  * @returns list of markers
@@ -321,6 +329,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		setModelLanguage: <any>setModelLanguage,
 		setModelMarkers: <any>setModelMarkers,
 		getModelMarkers: <any>getModelMarkers,
+		removeAllMarkers: removeAllMarkers,
 		onDidChangeMarkers: <any>onDidChangeMarkers,
 		getModels: <any>getModels,
 		getModel: <any>getModel,

@@ -101,6 +101,14 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 				}
 			}
 		}));
+		this._register(this._editorService.onDidActiveEditorChange(() => {
+			const instance = this._editorService.activeEditor instanceof TerminalEditorInput ? this._editorService.activeEditor : undefined;
+			if (!instance) {
+				for (const instance of this.instances) {
+					instance.resetFocusContextKey();
+				}
+			}
+		}));
 	}
 
 	private _getActiveTerminalEditors(): EditorInput[] {

@@ -223,7 +223,7 @@ export abstract class MenubarControl extends Disposable {
 	}
 
 	protected calculateActionLabel(action: { id: string; label: string }): string {
-		let label = action.label;
+		const label = action.label;
 		switch (action.id) {
 			default:
 				break;
@@ -481,9 +481,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTION_BACKGROUND);
 			if (menubarSelectedBgColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover {
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title,
+					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .menubar-menu-title {
 						background-color: ${menubarSelectedBgColor};
 					}
 				`);
@@ -492,19 +492,20 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTION_BORDER);
 			if (menubarSelectedBorderColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar > .menubar-menu-button:hover {
+					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title  {
 						outline: dashed 1px;
 					}
 
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus {
+					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title {
 						outline: solid 1px;
 					}
 
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus,
-					.monaco-workbench .menubar > .menubar-menu-button:hover {
+					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title {
 						outline-color: ${menubarSelectedBorderColor};
+						outline-offset: -1px;
 					}
 				`);
 			}
@@ -581,7 +582,7 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {
-		let settingValue = this.configurationService.getValue<boolean>('window.customMenuBarAltFocus');
+		const settingValue = this.configurationService.getValue<boolean>('window.customMenuBarAltFocus');
 
 		let disableMenuBarAltBehavior = false;
 		if (typeof settingValue === 'boolean') {
@@ -687,12 +688,12 @@ export class CustomMenubarControl extends MenubarControl {
 		// Update the menu actions
 		const updateActions = (menu: IMenu, target: IAction[], topLevelTitle: string) => {
 			target.splice(0);
-			let groups = menu.getActions();
+			const groups = menu.getActions();
 
-			for (let group of groups) {
+			for (const group of groups) {
 				const [, actions] = group;
 
-				for (let action of actions) {
+				for (const action of actions) {
 					this.insertActionsBefore(action, target);
 
 					// use mnemonicTitle whenever possible
@@ -751,9 +752,7 @@ export class CustomMenubarControl extends MenubarControl {
 					if (!this.focusInsideMenubar) {
 						const actions: IAction[] = [];
 						updateActions(menu, actions, title);
-						if (this.menubar) {
-							this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
-						}
+						this.menubar?.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 					}
 				}));
 
@@ -763,9 +762,7 @@ export class CustomMenubarControl extends MenubarControl {
 						if (!this.focusInsideMenubar) {
 							const actions: IAction[] = [];
 							updateActions(menu, actions, title);
-							if (this.menubar) {
-								this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
-							}
+							this.menubar?.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 						}
 					}));
 				}

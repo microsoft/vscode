@@ -29,7 +29,7 @@ import { isEqual } from 'vs/base/common/resources';
 suite('EditorGroupModel', () => {
 
 	function inst(): IInstantiationService {
-		let inst = new TestInstantiationService();
+		const inst = new TestInstantiationService();
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(ILifecycleService, new TestLifecycleService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
@@ -265,8 +265,8 @@ suite('EditorGroupModel', () => {
 				return undefined;
 			}
 
-			let testEditorInput = <TestEditorInput>editorInput;
-			let testInput: ISerializedTestInput = {
+			const testEditorInput = <TestEditorInput>editorInput;
+			const testInput: ISerializedTestInput = {
 				id: testEditorInput.id
 			};
 
@@ -278,7 +278,7 @@ suite('EditorGroupModel', () => {
 				return undefined;
 			}
 
-			let testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
+			const testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
 
 			return new TestEditorInput(testInput.id);
 		}
@@ -826,7 +826,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(events.activated[0].editor, input1);
 		assert.strictEqual(events.activated[0].editorIndex, 0);
 
-		let index = group.indexOf(input1);
+		const index = group.indexOf(input1);
 		let event = group.closeEditor(input1, EditorCloseContext.UNPIN);
 		assert.strictEqual(event?.editor, input1);
 		assert.strictEqual(event?.editorIndex, index);
@@ -1031,7 +1031,7 @@ suite('EditorGroupModel', () => {
 	});
 
 	test('Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {
-		let inst = new TestInstantiationService();
+		const inst = new TestInstantiationService();
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(ILifecycleService, new TestLifecycleService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
@@ -1263,7 +1263,7 @@ suite('EditorGroupModel', () => {
 	});
 
 	test('Multiple Editors - closing picks next to the right', function () {
-		let inst = new TestInstantiationService();
+		const inst = new TestInstantiationService();
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(ILifecycleService, new TestLifecycleService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
@@ -1640,7 +1640,7 @@ suite('EditorGroupModel', () => {
 	});
 
 	test('Single Group, Single Editor - persist', function () {
-		let inst = new TestInstantiationService();
+		const inst = new TestInstantiationService();
 
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
@@ -1674,7 +1674,7 @@ suite('EditorGroupModel', () => {
 	});
 
 	test('Multiple Groups, Multiple editors - persist', function () {
-		let inst = new TestInstantiationService();
+		const inst = new TestInstantiationService();
 
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
@@ -1744,7 +1744,7 @@ suite('EditorGroupModel', () => {
 	});
 
 	test('Single group, multiple editors - persist (some not persistable)', function () {
-		let inst = new TestInstantiationService();
+		const inst = new TestInstantiationService();
 
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
@@ -1788,7 +1788,7 @@ suite('EditorGroupModel', () => {
 	});
 
 	test('Single group, multiple editors - persist (some not persistable, sticky editors)', function () {
-		let inst = new TestInstantiationService();
+		const inst = new TestInstantiationService();
 
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
@@ -1823,7 +1823,7 @@ suite('EditorGroupModel', () => {
 	});
 
 	test('Multiple groups, multiple editors - persist (some not persistable, causes empty group)', function () {
-		let inst = new TestInstantiationService();
+		const inst = new TestInstantiationService();
 
 		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(IWorkspaceContextService, new TestContextService());

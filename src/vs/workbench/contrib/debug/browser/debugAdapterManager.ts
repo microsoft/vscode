@@ -34,6 +34,10 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
+export interface IAdapterManagerDelegate {
+	onDidNewSession: Event<IDebugSession>;
+}
+
 export class AdapterManager extends Disposable implements IAdapterManager {
 
 	private debuggers: Debugger[];
@@ -49,7 +53,10 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	/** Extensions that were already active before any debugger activation events */
 	private earlyActivatedExtensions: Set<string> | undefined;
 
+	private usedDebugTypes = new Set<string>();
+
 	constructor(
+		delegate: IAdapterManagerDelegate,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -59,7 +66,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
 		this.adapterDescriptorFactories = [];
@@ -79,6 +86,10 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		}));
 		this.lifecycleService.when(LifecyclePhase.Eventually)
 			.then(() => this.debugExtensionsAvailable.set(this.debuggers.length > 0)); // If no extensions with a debugger contribution are loaded
+
+		this._register(delegate.onDidNewSession(s => {
+			this.usedDebugTypes.add(s.configuration.type);
+		}));
 	}
 
 	private registerListeners(): void {
@@ -287,18 +298,18 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		return this.debuggers.find(dbg => strings.equalsIgnoreCase(dbg.type, type));
 	}
 
-	isDebuggerInterestedInLanguage(language: string): boolean {
-		return !!this.debuggers
-			.filter(d => d.enabled)
-			.find(a => language && a.languages && a.languages.indexOf(language) >= 0);
+	getEnabledDebugger(type: string): Debugger | undefined {
+		const adapter = this.getDebugger(type);
+		return adapter && adapter.enabled ? adapter : undefined;
 	}
 
-	async guessDebugger(gettingConfigurations: boolean, type?: string): Promise<Debugger | undefined> {
-		if (type) {
-			const adapter = this.getDebugger(type);
-			return adapter && adapter.enabled ? adapter : undefined;
-		}
+	someDebuggerInterestedInLanguage(languageId: string): boolean {
+		return !!this.debuggers
+			.filter(d => d.enabled)
+			.find(a => a.interestedInLanguage(languageId));
+	}
 
+	async guessDebugger(gettingConfigurations: boolean): Promise<Debugger | undefined> {
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;
 		let candidates: Debugger[] = [];
 		let languageLabel: string | null = null;
@@ -311,7 +322,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			}
 			const adapters = this.debuggers
 				.filter(a => a.enabled)
-				.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
+				.filter(a => language && a.interestedInLanguage(language));
 			if (adapters.length === 1) {
 				return adapters[0];
 			}
@@ -351,6 +362,10 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		candidates.forEach(d => {
 			const descriptor = d.getMainExtensionDescriptor();
 			if (descriptor.id && !!this.earlyActivatedExtensions?.has(descriptor.id)) {
+				// Was activated early
+				suggestedCandidates.push(d);
+			} else if (this.usedDebugTypes.has(d.type)) {
+				// Was used already
 				suggestedCandidates.push(d);
 			} else {
 				otherCandidates.push(d);
@@ -360,7 +375,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		const picks: { label: string; debugger?: Debugger; type?: string }[] = [];
 		if (suggestedCandidates.length > 0) {
 			picks.push(
-				{ type: 'separator', label: 'Suggested' },
+				{ type: 'separator', label: nls.localize('suggestedDebuggers', "Suggested") },
 				...suggestedCandidates.map(c => ({ label: c.label, debugger: c })));
 		}
 

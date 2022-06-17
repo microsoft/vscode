@@ -66,6 +66,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 		const sendTelemetry = (userReaction: 'accept' | 'remindLater' | 'neverShowAgain' | 'cancelled') => {
 			/* __GDPR__
 			"cesSurvey:popup" : {
+				"owner": "digitarald",
 				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 			*/
@@ -141,7 +142,9 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 			}
 		}
 		/* __GDPR__
-		"cesSurvey:schedule" : { }
+		"cesSurvey:schedule" : {
+			"owner": "digitarald"
+		}
 		*/
 		this.telemetryService.publicLog('cesSurvey:schedule');
 

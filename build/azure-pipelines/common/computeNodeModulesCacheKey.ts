@@ -19,7 +19,7 @@ shasum.update(fs.readFileSync(path.join(ROOT, '.yarnrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'remote/.yarnrc')));
 
 // Add `package.json` and `yarn.lock` files
-for (let dir of dirs) {
+for (const dir of dirs) {
 	const packageJsonPath = path.join(ROOT, dir, 'package.json');
 	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath).toString());
 	const relevantPackageJsonSections = {

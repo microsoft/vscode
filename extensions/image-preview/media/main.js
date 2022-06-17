@@ -259,7 +259,7 @@
 			firstZoom();
 		}
 
-		let delta = e.deltaY > 0 ? 1 : -1;
+		const delta = e.deltaY > 0 ? 1 : -1;
 		updateScale(scale * (1 - delta * SCALE_PINCH_FACTOR));
 	}, { passive: false });
 

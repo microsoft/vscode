@@ -42,8 +42,8 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 		};
 
 		const applyAlternatives = (request: string) => {
-			for (let alternativeModuleName of that._alternatives) {
-				let alternative = alternativeModuleName(request);
+			for (const alternativeModuleName of that._alternatives) {
+				const alternative = alternativeModuleName(request);
 				if (alternative) {
 					request = alternative;
 					break;

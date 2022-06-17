@@ -17,7 +17,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { getTitleBarStyle } from 'vs/platform/window/common/window';
+import { getTitleBarStyle, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
@@ -27,6 +27,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
+	private cachedWindowControlHeight: number | undefined;
 
 	private getMacTitlebarSize() {
 		const osVersion = this.environmentService.os.release;
@@ -37,7 +38,12 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		return 22;
 	}
 
-	override get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() / getZoomFactor() : super.minimumHeight; }
+	override get minimumHeight(): number {
+		if (!isMacintosh) {
+			return super.minimumHeight;
+		}
+		return (this.isCommandCenterVisible ? 35 : this.getMacTitlebarSize()) / getZoomFactor();
+	}
 	override get maximumHeight(): number { return this.minimumHeight; }
 
 	protected override readonly environmentService: INativeWorkbenchEnvironmentService;
@@ -196,11 +202,23 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		super.updateStyles();
 
 		// WCO styles only supported on Windows currently
-		if (isWindows) {
+		if (useWindowControlsOverlay(this.configurationService, this.environmentService)) {
 			if (!this.cachedWindowControlStyles ||
 				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
 				this.cachedWindowControlStyles.fgColor !== this.element.style.color) {
-				this.nativeHostService.updateTitleBarOverlay(this.element.style.backgroundColor, this.element.style.color);
+				this.nativeHostService.updateTitleBarOverlay({ backgroundColor: this.element.style.backgroundColor, foregroundColor: this.element.style.color });
+			}
+		}
+	}
+
+	override layout(width: number, height: number): void {
+		super.layout(width, height);
+
+		if (useWindowControlsOverlay(this.configurationService, this.environmentService)) {
+			const newHeight = Math.trunc(this.element.clientHeight * getZoomFactor());
+			if (newHeight !== this.cachedWindowControlHeight) {
+				this.cachedWindowControlHeight = newHeight;
+				this.nativeHostService.updateTitleBarOverlay({ height: newHeight });
 			}
 		}
 	}

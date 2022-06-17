@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
 export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown: boolean, configurationService: IConfigurationService): string {
-	if (!configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)) {
+	if (!configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) || instance.disableShellIntegrationReporting) {
 		return '';
 	}
 	const shellIntegrationCapabilities: TerminalCapability[] = [];

@@ -33,7 +33,7 @@ class IntegrityStorage {
 	}
 
 	private _read(): IStorageData | null {
-		let jsonValue = this.storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
+		const jsonValue = this.storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
 		if (!jsonValue) {
 			return null;
 		}

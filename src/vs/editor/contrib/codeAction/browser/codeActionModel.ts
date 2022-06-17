@@ -263,9 +263,7 @@ export class CodeActionModel extends Disposable {
 	}
 
 	public trigger(trigger: CodeActionTrigger) {
-		if (this._codeActionOracle.value) {
-			this._codeActionOracle.value.trigger(trigger);
-		}
+		this._codeActionOracle.value?.trigger(trigger);
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {

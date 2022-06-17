@@ -64,6 +64,8 @@ class TestSynchroniser extends AbstractSynchroniser {
 		} catch (error) { }
 
 		return [{
+			baseResource: this.localResource.with(({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' })),
+			baseContent: null,
 			localResource: this.localResource,
 			localContent: fileContent ? fileContent.value.toString() : null,
 			remoteResource: this.localResource.with(({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' })),
