@@ -5,11 +5,11 @@
 
 import * as vscode from 'vscode';
 import { MdTableOfContentsProvider, TableOfContents } from '../tableOfContents';
+import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { equals } from './arrays';
+import { Delayer } from './async';
 import { Disposable } from './dispose';
 import { ResourceMap } from './resourceMap';
-import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { Delayer } from './async';
 
 /**
  * Check if the items in a table of contents have changed.
