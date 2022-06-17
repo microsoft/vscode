@@ -2094,6 +2094,11 @@ export class CommandCenter {
 		await choice.run(repository);
 	}
 
+	@command('git.abortMerge', { repository: true })
+	async abortMerge(repository: Repository): Promise<void> {
+		await repository.merge('--abort');
+	}
+
 	@command('git.rebase', { repository: true })
 	async rebase(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');

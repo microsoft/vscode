@@ -353,6 +353,11 @@
         "category": "Git"
       },
       {
+        "command": "git.abortMerge",
+        "title": "%command.abortMerge%",
+        "category": "Git"
+      },
+      {
         "command": "git.rebase",
         "title": "%command.rebase%",
         "category": "Git"
@@ -853,6 +858,10 @@
         },
         {
           "command": "git.merge",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.abortMerge",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -1702,28 +1711,32 @@
           "group": "branch@1"
         },
         {
-          "command": "git.rebase",
+          "command": "git.abortMerge",
           "group": "branch@2"
         },
         {
-          "command": "git.branch",
+          "command": "git.rebase",
           "group": "branch@3"
         },
         {
-          "command": "git.branchFrom",
+          "command": "git.branch",
           "group": "branch@4"
         },
         {
-          "command": "git.renameBranch",
+          "command": "git.branchFrom",
           "group": "branch@5"
         },
         {
-          "command": "git.deleteBranch",
+          "command": "git.renameBranch",
           "group": "branch@6"
         },
         {
-          "command": "git.publish",
+          "command": "git.deleteBranch",
           "group": "branch@7"
+        },
+        {
+          "command": "git.publish",
+          "group": "branch@8"
         }
       ],
       "git.remotes": [
