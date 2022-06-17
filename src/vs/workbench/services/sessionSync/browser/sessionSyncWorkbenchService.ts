@@ -60,14 +60,15 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	/**
 	 *
 	 * @param editSession An object representing edit session state to be restored.
+	 * @returns The ref of the stored edit session state.
 	 */
-	async write(editSession: EditSession): Promise<void> {
+	async write(editSession: EditSession): Promise<string> {
 		this.initialized = await this.waitAndInitialize();
 		if (!this.initialized) {
 			throw new Error('Please sign in to store your edit session.');
 		}
 
-		await this.storeClient?.write('editSessions', JSON.stringify(editSession), null);
+		return this.storeClient!.write('editSessions', JSON.stringify(editSession), null);
 	}
 
 	/**

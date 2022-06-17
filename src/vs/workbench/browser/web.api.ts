@@ -170,6 +170,11 @@ export interface IWorkbenchConstructionOptions {
 	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string };
 
 	/**
+	 * The identifier of an edit session associated with the current workspace.
+	 */
+	readonly editSessionId?: string;
+
+	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Endpoints to be used for proxying repository tarball download calls in the browser.
 	 */

@@ -876,6 +876,13 @@ export class CodeApplication extends Disposable {
 				// or if no window is open (macOS only)
 				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
 
+				// Pass along edit session id
+				if (params.get('edit-session-id') !== null) {
+					environmentService.editSessionId = params.get('edit-session-id') ?? undefined;
+					params.delete('edit-session-id');
+					uri = uri.with({ query: params.toString() });
+				}
+
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
 				logService.trace('app#handleURL: windowOpenableFromProtocolLink = ', windowOpenableFromProtocolLink);

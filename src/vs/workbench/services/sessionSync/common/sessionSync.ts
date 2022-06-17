@@ -13,7 +13,7 @@ export interface ISessionSyncWorkbenchService {
 	_serviceBrand: undefined;
 
 	read(ref: string | undefined): Promise<EditSession | undefined>;
-	write(editSession: EditSession): Promise<void>;
+	write(editSession: EditSession): Promise<string>;
 }
 
 export enum ChangeType {
