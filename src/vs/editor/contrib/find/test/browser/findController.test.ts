@@ -80,7 +80,7 @@ suite('FindController', async () => {
 		isNew: () => false,
 		flush: () => { return Promise.resolve(); },
 		keys: () => [],
-		logStorage: () => { },
+		log: () => { },
 		switch: () => { throw new Error(); }
 	} as IStorageService);
 
@@ -511,7 +511,7 @@ suite('FindController query options persistence', async () => {
 		isNew: () => false,
 		flush: () => { return Promise.resolve(); },
 		keys: () => [],
-		logStorage: () => { },
+		log: () => { },
 		switch: () => { throw new Error(); }
 	} as IStorageService);
 

@@ -138,7 +138,7 @@ export interface IStorageService {
 	/**
 	 * Log the contents of the storage to the console.
 	 */
-	logStorage(): void;
+	log(): void;
 
 	/**
 	 * Switch storage to another workspace or profile. Optionally preserve the
@@ -523,7 +523,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		}
 	}
 
-	async logStorage(): Promise<void> {
+	async log(): Promise<void> {
 		const applicationItems = this.getStorage(StorageScope.APPLICATION)?.items ?? new Map<string, string>();
 		const globalItems = this.getStorage(StorageScope.GLOBAL)?.items ?? new Map<string, string>();
 		const workspaceItems = this.getStorage(StorageScope.WORKSPACE)?.items ?? new Map<string, string>();
