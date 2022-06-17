@@ -414,8 +414,6 @@ export interface INotebookEditor {
 	setFocus(focus: ICellRange): void;
 	getId(): string;
 
-	cursorNavigationMode: boolean;
-
 	_getViewModel(): INotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
 	dispose(): void;
@@ -592,16 +590,6 @@ export interface INotebookEditor {
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
 	 */
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
-
-	/**
-	 * Set decoration key on cells in the range
-	 */
-	setEditorDecorations(key: string, range: ICellRange): void;
-
-	/**
-	 * Remove decoration key from the notebook editor
-	 */
-	removeEditorDecorations(key: string): void;
 
 	/**
 	 * Get a contribution of this editor.

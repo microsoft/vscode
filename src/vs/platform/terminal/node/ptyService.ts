@@ -26,6 +26,7 @@ import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonito
 import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoResponder';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 
 type WorkspaceId = string;
 
@@ -126,12 +127,12 @@ export class PtyService extends Disposable implements IPtyService {
 		return JSON.stringify(serialized);
 	}
 
-	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string) {
+	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocale: string) {
 		for (const terminal of state) {
-			const restoreMessage = localize({
-				key: 'terminal-session-restore',
-				comment: ['date the snapshot was taken', 'time the snapshot was taken']
-			}, "Session contents restored from {0} at {1}", new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocate), new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocate));
+			const restoreMessage = localize('terminal-history-restored', "History restored");
+			// TODO: We may at some point want to show date information in a hover via a custom sequence:
+			//   new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocale)
+			//   new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocale)
 			const newId = await this.createProcess(
 				{
 					...terminal.shellLaunchConfig,
@@ -139,7 +140,7 @@ export class PtyService extends Disposable implements IPtyService {
 					color: terminal.processDetails.color,
 					icon: terminal.processDetails.icon,
 					name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
-					initialText: terminal.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;252;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
+					initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true })
 				},
 				terminal.processDetails.cwd,
 				terminal.replayEvent.events[0].cols,
@@ -209,10 +210,11 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async attachToProcess(id: number): Promise<void> {
 		try {
-			this._throwIfNoPty(id).attach();
+			await this._throwIfNoPty(id).attach();
 			this._logService.trace(`Persistent process reconnection "${id}"`);
 		} catch (e) {
 			this._logService.trace(`Persistent process reconnection "${id}" failed`, e.message);
+			throw e;
 		}
 	}
 
@@ -394,7 +396,8 @@ export class PtyService extends Disposable implements IPtyService {
 			isOrphan,
 			icon: persistentProcess.icon,
 			color: persistentProcess.color,
-			fixedDimensions: persistentProcess.fixedDimensions
+			fixedDimensions: persistentProcess.fixedDimensions,
+			environmentVariableCollections: persistentProcess.processLaunchOptions.options.environmentVariableCollections
 		};
 	}
 
@@ -541,8 +544,16 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 	}
 
-	attach(): void {
+	async attach(): Promise<void> {
 		this._logService.trace('persistentTerminalProcess#attach', this._persistentProcessId);
+		if (!this._disconnectRunner1.isScheduled() && !this._disconnectRunner2.isScheduled()) {
+			// Something wrong happened if the disconnect runner is not canceled, this likely means
+			// multiple windows attempted to attach.
+			if (!await this._isOrphaned()) {
+				throw new Error(`Cannot attach to persistent process "${this._persistentProcessId}", it is already adopted`);
+			}
+			this._logService.warn(`Persistent process "${this._persistentProcessId}": Process had no disconnect runners but was an orphan`);
+		}
 		this._disconnectRunner1.cancel();
 		this._disconnectRunner2.cancel();
 	}

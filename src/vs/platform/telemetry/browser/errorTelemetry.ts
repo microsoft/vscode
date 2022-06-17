@@ -17,9 +17,7 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 		}
 		globals.onerror = function (message: string, filename: string, line: number, column?: number, e?: any) {
 			that._onUncaughtError(message, filename, line, column, e);
-			if (oldOnError) {
-				oldOnError.apply(this, arguments);
-			}
+			oldOnError?.apply(this, arguments);
 		};
 		this._disposables.add(toDisposable(() => {
 			if (oldOnError) {
@@ -39,7 +37,7 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 
 		if (err) {
 			// If it's the no telemetry error it doesn't get logged
-			if (err instanceof ErrorNoTelemetry) {
+			if (ErrorNoTelemetry.isErrorNoTelemetry(err)) {
 				return;
 			}
 

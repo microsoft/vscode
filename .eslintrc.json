@@ -210,7 +210,8 @@
 						// - electron-browser
 						"when": "hasBrowser",
 						"allow": [
-							"vs/css!./**/*"
+							"vs/css!./**/*",
+							"@microsoft/applicationinsights-web"
 						]
 					},
 					{
@@ -220,13 +221,14 @@
 						// - electron-main
 						"when": "hasNode",
 						"allow": [
-							"@microsoft/applicationinsights-web",
 							"@parcel/watcher",
 							"@vscode/sqlite3",
 							"@vscode/vscode-languagedetection",
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
 							"applicationinsights",
+							"@microsoft/1ds-core-js",
+							"@microsoft/1ds-post-js",
 							"assert",
 							"child_process",
 							"console",
@@ -443,8 +445,7 @@
 							}, // TODO@layers
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
-							"@vscode/vscode-languagedetection", // node module allowed even in /common/
-							"@microsoft/applicationinsights-web" // node module allowed even in /common/
+							"@vscode/vscode-languagedetection" // node module allowed even in /common/
 						]
 					},
 					{
@@ -575,7 +576,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/vs/{css.d.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.build.ts,nls.mock.ts}",
 						"restrictions": []
 					},
 					{

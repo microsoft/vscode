@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IGlobalExtensionEnablementService, IServerExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { migrateUnsupportedExtensions } from 'vs/platform/extensionManagement/common/unsupportedExtensionsMigration';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -14,7 +14,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 export class ExtensionsCleaner extends Disposable {
 
 	constructor(
-		@IExtensionManagementService extensionManagementService: ExtensionManagementService,
+		@IServerExtensionManagementService extensionManagementService: ExtensionManagementService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@IExtensionStorageService extensionStorageService: IExtensionStorageService,
 		@IGlobalExtensionEnablementService extensionEnablementService: IGlobalExtensionEnablementService,

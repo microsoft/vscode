@@ -29,6 +29,7 @@ if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
 	::				compile-extension:markdown-language-features^
 	::				compile-extension:typescript-language-features^
 	::				compile-extension:emmet^
+	::				compile-extension:configuration-editing^
 	::				compile-extension:git^
 	::				compile-extension-media
 )
@@ -69,4 +70,11 @@ for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os
 set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
 mkdir %GITWORKSPACE%
 call node .\test\integration\browser\out\index.js --workspacePath=%GITWORKSPACE% --extensionDevelopmentPath=.\extensions\git --extensionTestsPath=.\extensions\git\out\test %*
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### Configuration editing tests
+set CFWORKSPACE=%TEMPDIR%\git-%RANDOM%
+mkdir %CFWORKSPACE%
+call node .\test\integration\browser\out\index.js --workspacePath=%CFWORKSPACE% --extensionDevelopmentPath=.\extensions\configuration-editing --extensionTestsPath=.\extensions\configuration-editing\out\test %*
 if %errorlevel% neq 0 exit /b %errorlevel%

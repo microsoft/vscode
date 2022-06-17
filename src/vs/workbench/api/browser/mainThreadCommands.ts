@@ -74,17 +74,16 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		}
 	}
 
-	async $activateByCommandEvent(id: string): Promise<void> {
-		const activationEvent = `onCommand:${id}`;
-		await this._extensionService.activateByEvent(activationEvent);
-	}
-
-	async $executeCommand<T>(id: string, args: any[] | SerializableObjectWithBuffers<any[]>): Promise<T | undefined> {
+	async $executeCommand<T>(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<T | undefined> {
 		if (args instanceof SerializableObjectWithBuffers) {
 			args = args.value;
 		}
 		for (let i = 0; i < args.length; i++) {
 			args[i] = revive(args[i]);
+		}
+		if (retry && args.length > 0 && !CommandsRegistry.getCommand(id)) {
+			await this._extensionService.activateByEvent(`onCommand:${id}`);
+			throw new Error('$executeCommand:retry');
 		}
 		return this._commandService.executeCommand<T>(id, ...args);
 	}

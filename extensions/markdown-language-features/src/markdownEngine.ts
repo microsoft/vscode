@@ -98,10 +98,14 @@ export class MarkdownEngine {
 	private _slugCount = new Map<string, number>();
 	private _tokenCache = new TokenCache();
 
+	public readonly slugifier: Slugifier;
+
 	public constructor(
 		private readonly contributionProvider: MarkdownContributionProvider,
-		private readonly slugifier: Slugifier,
+		slugifier: Slugifier,
 	) {
+		this.slugifier = slugifier;
+
 		contributionProvider.onContributionsChanged(() => {
 			// Markdown plugin contributions may have changed
 			this.md = undefined;

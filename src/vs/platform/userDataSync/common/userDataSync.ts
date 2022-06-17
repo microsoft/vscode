@@ -359,6 +359,7 @@ export const enum MergeState {
 }
 
 export interface IResourcePreview {
+	readonly baseResource: URI;
 	readonly remoteResource: URI;
 	readonly localResource: URI;
 	readonly previewResource: URI;

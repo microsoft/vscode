@@ -15,6 +15,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { URI } from 'vs/base/common/uri';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -29,9 +31,17 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const localExtensionManagementService = new ExtensionManagementChannelClient(sharedProcessService.getChannel('extensions'));
+		const localExtensionManagementService = new class extends ExtensionManagementChannelClient {
+			constructor() {
+				super(sharedProcessService.getChannel('extensions'));
+			}
+			protected override getExtensionsProfileResource(): URI | undefined {
+				return userDataProfileService.currentProfile.extensionsResource;
+			}
+		};
 
 		this._localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local") };
 		const remoteAgentConnection = remoteAgentService.getConnection();

@@ -283,7 +283,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					tooltip: '',
 					weight: 1,
 					minimumWidth: 100,
-					maximumWidth: 200,
+					maximumWidth: 300,
 					templateId: MarkerCodeColumnRenderer.TEMPLATE_ID,
 					project(row: Marker): Marker { return row; }
 				},
@@ -306,7 +306,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					tooltip: '',
 					weight: 1,
 					minimumWidth: 100,
-					maximumWidth: 200,
+					maximumWidth: 300,
 					templateId: MarkerOwnerColumnRenderer.TEMPLATE_ID,
 					project(row: Marker): Marker { return row; }
 				}
@@ -509,9 +509,12 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 				} else {
 					this.table.setFocus([this.findMarkerIndex(selection[0])]);
 				}
+
+				this.table.reveal(this.findMarkerIndex(selection[0]));
 			} else if (this.getSelection().length === 0 && this.getVisibleItemCount() > 0) {
-				this.table.setFocus([0]);
 				this.table.setSelection([0]);
+				this.table.setFocus([0]);
+				this.table.reveal(0);
 			}
 		}
 	}

@@ -92,8 +92,7 @@ export interface MainThreadClipboardShape extends IDisposable {
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
-	$activateByCommandEvent(id: string): Promise<void>;
-	$executeCommand(id: string, args: any[] | SerializableObjectWithBuffers<any[]>): Promise<unknown | undefined>;
+	$executeCommand(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<unknown | undefined>;
 	$getCommands(): Promise<string[]>;
 }
 
@@ -259,7 +258,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: readonly string[]; dragMimeTypes: readonly string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; supportsFileDataTransfers: boolean }): Promise<void>;
+	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: readonly string[]; dragMimeTypes: readonly string[]; hasHandleDrag: boolean; hasHandleDrop: boolean }): Promise<void>;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Promise<void>;
 	$reveal(treeViewId: string, itemInfo: { item: ITreeItem; parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void>;
 	$setMessage(treeViewId: string, message: string): void;
@@ -959,10 +958,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$tryShowNotebookDocument(uriComponents: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
-	$registerNotebookEditorDecorationType(key: string, options: notebookCommon.INotebookDecorationRenderOptions): void;
-	$removeNotebookEditorDecorationType(key: string): void;
 	$trySetSelections(id: string, range: ICellRange[]): void;
-	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
 	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperationDto[]): Promise<boolean>;
 }
 
@@ -1606,7 +1602,7 @@ export interface IWorkspaceFileEditDto {
 export interface IWorkspaceTextEditDto {
 	_type: WorkspaceEditType.Text;
 	resource: UriComponents;
-	edit: languages.TextEdit;
+	edit: languages.TextEdit & { insertAsSnippet?: boolean };
 	modelVersionId?: number;
 	metadata?: IWorkspaceEditEntryMetadataDto;
 }

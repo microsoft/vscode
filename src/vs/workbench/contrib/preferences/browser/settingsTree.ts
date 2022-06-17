@@ -785,7 +785,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const labelElement = new SimpleIconLabel(labelElementContainer);
-		const indicatorsLabel = new SettingsTreeIndicatorsLabel(titleElement);
+		const indicatorsLabel = this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement);
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
@@ -1814,7 +1814,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(titleElement, $('span.setting-item-label'));
 		const labelElement = new SimpleIconLabel(labelElementContainer);
-		const indicatorsLabel = new SettingsTreeIndicatorsLabel(titleElement);
+		const indicatorsLabel = this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));

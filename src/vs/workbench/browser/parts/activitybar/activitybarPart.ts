@@ -43,7 +43,7 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -495,9 +495,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.compositeBarContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
 				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
-					if (this.globalActivityActionBar) {
-						this.globalActivityActionBar.focus(true);
-					}
+					this.globalActivityActionBar?.focus(true);
 				} else if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
 					if (this.menuBar) {
 						this.menuBar.toggleFocus();
@@ -511,9 +509,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.globalActivitiesContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
 				if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
-					if (this.compositeBar) {
-						this.compositeBar.focus(this.getVisiblePaneCompositeIds().length - 1);
-					}
+					this.compositeBar?.focus(this.getVisiblePaneCompositeIds().length - 1);
 				}
 			}));
 		}
