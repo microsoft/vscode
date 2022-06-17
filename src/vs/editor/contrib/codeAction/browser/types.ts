@@ -44,7 +44,7 @@ export const enum CodeActionAutoApply {
 	Never = 'never',
 }
 
-export enum CodeMenuOpenedFrom {
+export enum CodeActionTriggerSource {
 	Refactor = 'refactor',
 	RefactorPreview = 'refactor preview',
 	Lightbulb = 'lightbulb',
@@ -54,7 +54,9 @@ export enum CodeMenuOpenedFrom {
 	FixAll = 'fix all',
 	OrganizeImports = 'organize imports',
 	AutoFix = 'auto fix',
-	QuickFixHover = 'quick fix hover window'
+	QuickFixHover = 'quick fix hover window',
+	OnSave = 'save participants',
+	ProblemsView = 'problems view'
 }
 
 export interface CodeActionFilter {
@@ -129,6 +131,7 @@ function excludesAction(providedKind: CodeActionKind, exclude: CodeActionKind, i
 
 export interface CodeActionTrigger {
 	readonly type: CodeActionTriggerType;
+	readonly triggerAction: CodeActionTriggerSource;
 	readonly filter?: CodeActionFilter;
 	readonly autoApply?: CodeActionAutoApply;
 	readonly context?: {
@@ -136,7 +139,6 @@ export interface CodeActionTrigger {
 		readonly position: Position;
 	};
 	readonly preview?: boolean;
-	readonly triggerAction?: CodeMenuOpenedFrom;
 }
 
 export class CodeActionCommandArgs {

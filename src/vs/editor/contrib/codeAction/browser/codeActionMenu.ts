@@ -17,7 +17,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction, Command } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeMenuOpenedFrom } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -48,7 +48,7 @@ function stripNewlines(str: string): string {
 
 export interface CodeActionShowOptions {
 	readonly includeDisabledActions: boolean;
-	readonly fromLightbulb: boolean;
+	readonly fromLightbulb?: boolean;
 }
 
 export class CodeActionMenu extends Disposable {
@@ -105,10 +105,10 @@ export class CodeActionMenu extends Disposable {
 			getAnchor: () => anchor,
 			getActions: () => menuActions,
 			onHide: (didCancel) => {
-				const openedFromString = (options.fromLightbulb) ? CodeMenuOpenedFrom.Lightbulb : trigger.triggerAction;
+				const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
 
 				type ApplyCodeActionEvent = {
-					codeActionFrom: CodeMenuOpenedFrom;
+					codeActionFrom: CodeActionTriggerSource;
 					validCodeActions: number;
 					cancelled: boolean;
 				};
@@ -122,7 +122,7 @@ export class CodeActionMenu extends Disposable {
 				};
 
 				this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-					codeActionFrom: <CodeMenuOpenedFrom>openedFromString,
+					codeActionFrom: openedFromString,
 					validCodeActions: codeActions.validActions.length,
 					cancelled: didCancel,
 

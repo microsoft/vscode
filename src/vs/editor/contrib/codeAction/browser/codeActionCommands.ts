@@ -31,7 +31,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeMenuOpenedFrom } from './types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from './types';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -39,7 +39,7 @@ function contextKeyForSupportedActions(kind: CodeActionKind) {
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
 }
 
-function RefactorTrigger(editor: ICodeEditor, userArgs: any, preview: boolean, codeActionFrom: CodeMenuOpenedFrom) {
+function refactorTrigger(editor: ICodeEditor, userArgs: any, preview: boolean, codeActionFrom: CodeActionTriggerSource) {
 	const args = CodeActionCommandArgs.fromUser(userArgs, {
 		kind: CodeActionKind.Refactor,
 		apply: CodeActionAutoApply.Never
@@ -120,7 +120,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 						await this._applyCodeAction(action, preview);
 					} finally {
 						if (retrigger) {
-							this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeMenuOpenedFrom.QuickFix, filter: {} });
+							this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.QuickFix, filter: {} });
 						}
 					}
 				}
@@ -138,7 +138,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 	public manualTriggerAtCurrentPosition(
 		notAvailableMessage: string,
-		triggerAction: CodeMenuOpenedFrom,
+		triggerAction: CodeActionTriggerSource,
 		filter?: CodeActionFilter,
 		autoApply?: CodeActionAutoApply,
 		preview?: boolean,
@@ -167,7 +167,6 @@ export enum ApplyCodeActionReason {
 	FromProblemsView = 'fromProblemsView',
 	FromCodeActions = 'fromCodeActions'
 }
-
 
 
 export async function applyCodeAction(
@@ -245,7 +244,7 @@ function triggerCodeActionsForEditorSelection(
 	filter: CodeActionFilter | undefined,
 	autoApply: CodeActionAutoApply | undefined,
 	preview: boolean = false,
-	triggerAction: CodeMenuOpenedFrom = CodeMenuOpenedFrom.Default
+	triggerAction: CodeActionTriggerSource = CodeActionTriggerSource.Default
 ): void {
 	if (editor.hasModel()) {
 		const controller = QuickFixController.get(editor);
@@ -272,7 +271,7 @@ export class QuickFixAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), undefined, undefined, false, CodeMenuOpenedFrom.QuickFix);
+		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), undefined, undefined, false, CodeActionTriggerSource.QuickFix);
 	}
 }
 
@@ -343,7 +342,7 @@ export class RefactorAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		return RefactorTrigger(editor, userArgs, false, CodeMenuOpenedFrom.Refactor);
+		return refactorTrigger(editor, userArgs, false, CodeActionTriggerSource.Refactor);
 	}
 }
 
@@ -363,7 +362,7 @@ export class RefactorPreview extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		return RefactorTrigger(editor, userArgs, true, CodeMenuOpenedFrom.RefactorPreview);
+		return refactorTrigger(editor, userArgs, true, CodeActionTriggerSource.RefactorPreview);
 	}
 }
 
@@ -407,7 +406,7 @@ export class SourceAction extends EditorAction {
 				includeSourceActions: true,
 				onlyIncludePreferredActions: args.preferred,
 			},
-			args.apply, undefined, CodeMenuOpenedFrom.SourceAction);
+			args.apply, undefined, CodeActionTriggerSource.SourceAction);
 	}
 }
 
@@ -433,7 +432,7 @@ export class OrganizeImportsAction extends EditorAction {
 		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.organize.noneMessage', "No organize imports action available"),
 			{ include: CodeActionKind.SourceOrganizeImports, includeSourceActions: true },
-			CodeActionAutoApply.IfSingle, undefined, CodeMenuOpenedFrom.OrganizeImports);
+			CodeActionAutoApply.IfSingle, undefined, CodeActionTriggerSource.OrganizeImports);
 	}
 }
 
@@ -454,7 +453,7 @@ export class FixAllAction extends EditorAction {
 		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('fixAll.noneMessage', "No fix all action available"),
 			{ include: CodeActionKind.SourceFixAll, includeSourceActions: true },
-			CodeActionAutoApply.IfSingle, undefined, CodeMenuOpenedFrom.FixAll);
+			CodeActionAutoApply.IfSingle, undefined, CodeActionTriggerSource.FixAll);
 	}
 }
 
@@ -488,6 +487,6 @@ export class AutoFixAction extends EditorAction {
 				include: CodeActionKind.QuickFix,
 				onlyIncludePreferredActions: true
 			},
-			CodeActionAutoApply.IfSingle, undefined, CodeMenuOpenedFrom.AutoFix);
+			CodeActionAutoApply.IfSingle, undefined, CodeActionTriggerSource.AutoFix);
 	}
 }
