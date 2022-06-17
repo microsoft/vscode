@@ -97,6 +97,7 @@ export class BrowserStorageService extends AbstractStorageService {
 			this.globalStorageDatabase = this.globalStorageDisposables.add(globalStorageDatabase);
 			this.globalStorage = this.globalStorageDisposables.add(new Storage(this.globalStorageDatabase));
 		} else {
+			this.globalStorageDatabase = this.applicationStorageDatabase;
 			this.globalStorage = this.applicationStorage;
 		}
 		this.globalStorageDisposables.add(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
@@ -166,6 +167,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 		// Create new global storage & init
 		if (toProfile.isDefault) {
+			this.globalStorageDatabase = this.applicationStorageDatabase;
 			this.globalStorage = assertIsDefined(this.applicationStorage);
 		} else {
 			this.globalStorageDatabase = this.globalStorageDisposables.add(await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService));
