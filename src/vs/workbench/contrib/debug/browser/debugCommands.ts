@@ -31,6 +31,8 @@ import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { DebugConsoleQuickAccess } from 'vs/workbench/contrib/debug/browser/debugConsoleQuickAccess';
+import { StartDebugQuickAccessProvider } from 'vs/workbench/contrib/debug/browser/debugQuickAccess';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -52,6 +54,7 @@ export const FOCUS_REPL_ID = 'workbench.debug.action.focusRepl';
 export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
 export const FOCUS_SESSION_ID = 'workbench.action.debug.focusProcess';
 export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
+export const SELECT_DEBUG_CONSOLE_ID = 'workbench.action.debug.selectDebugConsole';
 export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
@@ -471,7 +474,15 @@ CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show('debug ');
+		quickInputService.quickAccess.show(StartDebugQuickAccessProvider.PREFIX);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: SELECT_DEBUG_CONSOLE_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.quickAccess.show(DebugConsoleQuickAccess.PREFIX);
 	}
 });
 
