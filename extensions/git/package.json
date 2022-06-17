@@ -1898,9 +1898,9 @@
           "additionalProperties": false,
           "description": "%config.branchProtectionIndicator%",
           "properties": {
-            "branchPicker": {
+            "quickOpen": {
               "type": "boolean",
-              "description": "%config.branchProtectionIndicator.branchPicker%"
+              "description": "%config.branchProtectionIndicator.quickOpen%"
             },
             "statusBar": {
               "type": "boolean",
@@ -1908,7 +1908,7 @@
             }
           },
           "default": {
-            "branchPicker": true,
+            "quickOpen": true,
             "statusBar": true
           }
         },

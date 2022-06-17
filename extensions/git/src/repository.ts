@@ -2230,12 +2230,12 @@ export class Repository implements Disposable {
 		}
 	}
 
-	public isBranchProtected(name: string = this.HEAD?.name ?? '', indicator?: 'branchPicker' | 'statusBar'): boolean {
+	public isBranchProtected(name: string = this.HEAD?.name ?? '', indicator?: 'quickOpen' | 'statusBar'): boolean {
 		if (indicator) {
 			const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-			const branchProtectionIndicator = scopedConfig.get<{ branchPicker: boolean; statusBar: boolean }>('branchProtectionIndicator', { branchPicker: true, statusBar: true });
+			const branchProtectionIndicator = scopedConfig.get<{ quickOpen: boolean; statusBar: boolean }>('branchProtectionIndicator', { quickOpen: true, statusBar: true });
 
-			if ((indicator === 'branchPicker' && !branchProtectionIndicator.branchPicker) ||
+			if ((indicator === 'quickOpen' && !branchProtectionIndicator.quickOpen) ||
 				(indicator === 'statusBar' && !branchProtectionIndicator.statusBar)) {
 				return false;
 			}
