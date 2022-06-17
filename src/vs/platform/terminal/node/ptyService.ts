@@ -774,7 +774,7 @@ class XtermSerializer implements ITerminalSerializer {
 	}
 
 	freeRawReviveBuffer(): void {
-		// Free the memory if the terminal if it will need to be re-serialized
+		// Free the memory of the terminal if it will need to be re-serialized
 		this._rawReviveBuffer = undefined;
 	}
 
