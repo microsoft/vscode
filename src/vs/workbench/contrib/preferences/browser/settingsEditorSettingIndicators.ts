@@ -112,10 +112,10 @@ export class SettingsTreeIndicatorsLabel {
 			this.scopeOverridesElement.style.display = 'inline';
 			if (element.overriddenScopeList.length === 1) {
 				// Just show all the text in the label.
-				const configuredInText = element.isConfigured ?
+				const prefaceText = element.isConfigured ?
 					localize('alsoConfiguredIn', "Also modified in") :
 					localize('configuredIn', "Modified in");
-				this.scopeOverridesLabel.text = `${configuredInText}: `;
+				this.scopeOverridesLabel.text = `${prefaceText}: `;
 
 				const firstScope = element.overriddenScopeList[0];
 				const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, firstScope));
@@ -136,17 +136,17 @@ export class SettingsTreeIndicatorsLabel {
 					localize('configuredElsewhere', "Modified elsewhere");
 				this.scopeOverridesLabel.text = scopeOverridesLabelText;
 
-				const scopeOverridesContent = $('.scope-overrides-hover-content');
-				const scopeOverridesHoverMessagePreface = element.isConfigured ?
+				const content = $('.scope-overrides-hover-content');
+				const prefaceText = element.isConfigured ?
 					localize('alsoModifiedInScopes', "The setting has also been modified in the following scopes:") :
 					localize('modifiedInScopes', "The setting has been modified in the following scopes:");
-				const prefaceParagraph = DOM.append(scopeOverridesContent, $('p', { 'style': 'padding: 4px 8px;' }, scopeOverridesHoverMessagePreface));
-				const listMessage = DOM.append(prefaceParagraph, $('ul'));
+				const preface = DOM.append(content, $('p', { 'style': 'padding: 4px 8px;' }, prefaceText));
+				const list = DOM.append(preface, $('ul'));
 				for (const scope of element.overriddenScopeList) {
-					const listBullet = DOM.append(listMessage, $('li'));
+					const listBullet = DOM.append(list, $('li'));
 					DOM.append(listBullet, $('span.modified-scope', undefined, scope));
 				}
-				setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, scopeOverridesContent);
+				setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content);
 			}
 		}
 		this.render();
