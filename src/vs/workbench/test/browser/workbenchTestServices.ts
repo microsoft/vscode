@@ -160,8 +160,9 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
-import { IUserDataProfileService, IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfileService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);

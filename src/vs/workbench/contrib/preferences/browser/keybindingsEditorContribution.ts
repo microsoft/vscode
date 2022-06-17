@@ -32,7 +32,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { equals } from 'vs/base/common/arrays';
 import { assertIsDefined } from 'vs/base/common/types';
 import { isEqual } from 'vs/base/common/resources';
-import { IUserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");

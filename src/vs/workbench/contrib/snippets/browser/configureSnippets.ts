@@ -18,7 +18,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { isValidBasename } from 'vs/base/common/extpath';
 import { joinPath, basename } from 'vs/base/common/resources';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 namespace ISnippetPick {
 	export function is(thing: object | undefined): thing is ISnippetPick {

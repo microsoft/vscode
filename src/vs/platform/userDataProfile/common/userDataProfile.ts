@@ -47,15 +47,6 @@ export interface IUserDataProfile {
 	readonly extensionsResource: URI | undefined;
 }
 
-export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
-export interface IUserDataProfileService {
-	readonly _serviceBrand: undefined;
-	readonly defaultProfile: IUserDataProfile;
-	readonly onDidChangeCurrentProfile: Event<IUserDataProfile>;
-	readonly currentProfile: IUserDataProfile;
-	updateCurrentProfile(currentProfile: IUserDataProfile): void;
-}
-
 export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 	const candidate = thing as IUserDataProfile | undefined;
 

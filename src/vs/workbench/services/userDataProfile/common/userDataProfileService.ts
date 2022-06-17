@@ -5,7 +5,8 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataProfile, IUserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
 

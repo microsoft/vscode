@@ -39,12 +39,13 @@ import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { DefaultOptions, IUserDataProfileService, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { DefaultOptions, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { hash } from 'vs/base/common/hash';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { UserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfileService';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 

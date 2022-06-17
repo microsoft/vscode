@@ -14,9 +14,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUserDataProfile, IUserDataProfileService, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';

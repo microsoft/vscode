@@ -16,11 +16,11 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IUserDataProfile, IUserDataProfileService, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { CreationOptions, IUserDataProfileManagementService, IUserDataProfileTemplate, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { CreationOptions, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const DefaultOptions: CreationOptions = {
 	settings: true,

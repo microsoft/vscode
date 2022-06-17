@@ -15,7 +15,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IUserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { URI } from 'vs/base/common/uri';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {

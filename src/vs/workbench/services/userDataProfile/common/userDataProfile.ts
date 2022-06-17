@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isUndefined } from 'vs/base/common/types';
+import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -17,6 +18,15 @@ export type CreationOptions = {
 	extensions?: boolean;
 	uiState?: boolean;
 };
+
+export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
+export interface IUserDataProfileService {
+	readonly _serviceBrand: undefined;
+	readonly defaultProfile: IUserDataProfile;
+	readonly onDidChangeCurrentProfile: Event<IUserDataProfile>;
+	readonly currentProfile: IUserDataProfile;
+	updateCurrentProfile(currentProfile: IUserDataProfile): void;
+}
 
 export const IUserDataProfileManagementService = createDecorator<IUserDataProfileManagementService>('IUserDataProfileManagementService');
 export interface IUserDataProfileManagementService {

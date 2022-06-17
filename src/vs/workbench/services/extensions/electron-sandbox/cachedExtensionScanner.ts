@@ -15,7 +15,7 @@ import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { timeout } from 'vs/base/common/async';
-import { IUserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class CachedExtensionScanner {
 

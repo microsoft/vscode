@@ -51,7 +51,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { dirname } from 'vs/base/common/resources';
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
-import { IUserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ContributedKeyBinding {
 	command: string;

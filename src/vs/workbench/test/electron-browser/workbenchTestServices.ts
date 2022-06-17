@@ -48,10 +48,11 @@ import { IElevatedFileService } from 'vs/workbench/services/files/common/elevate
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfileService, IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { joinPath } from 'vs/base/common/resources';
-import { UserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfileService';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const args = parseArgs(process.argv, OPTIONS);
 

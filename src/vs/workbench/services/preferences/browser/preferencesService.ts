@@ -44,7 +44,7 @@ import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEd
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { isArray, isObject } from 'vs/base/common/types';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IUserDataProfileService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const emptyEditableSettingsContent = '{\n}';
 
