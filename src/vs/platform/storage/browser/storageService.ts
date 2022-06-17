@@ -5,7 +5,7 @@
 
 import { isSafari } from 'vs/base/browser/browser';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
-import { Promises } from 'vs/base/common/async';
+import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -22,15 +22,15 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	private applicationStorage: IStorage | undefined;
 	private applicationStorageDatabase: IIndexedDBStorageDatabase | undefined;
+	private readonly applicationStoragePromise = new DeferredPromise<{ indededDb: IIndexedDBStorageDatabase; storage: IStorage }>();
 
 	private globalStorage: IStorage | undefined;
 	private globalStorageDatabase: IIndexedDBStorageDatabase | undefined;
+	private globalStorageProfile: IUserDataProfile;
 	private readonly globalStorageDisposables = this._register(new DisposableStore());
 
 	private workspaceStorage: IStorage | undefined;
 	private workspaceStorageDatabase: IIndexedDBStorageDatabase | undefined;
-
-	private profile: IUserDataProfile;
 
 	get hasPendingUpdate(): boolean {
 		return Boolean(
@@ -47,7 +47,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
 
-		this.profile = userDataProfileService.currentProfile;
+		this.globalStorageProfile = userDataProfileService.currentProfile;
 	}
 
 	private getId(scope: StorageScope): string {
@@ -55,10 +55,10 @@ export class BrowserStorageService extends AbstractStorageService {
 			case StorageScope.APPLICATION:
 				return 'global'; // use the default profile global DB for application scope
 			case StorageScope.GLOBAL:
-				if (this.profile.isDefault) {
+				if (this.globalStorageProfile.isDefault) {
 					return 'global'; // default profile DB has a fixed name for backwards compatibility
 				} else {
-					return `global-${this.profile.id}`;
+					return `global-${this.globalStorageProfile.id}`;
 				}
 			case StorageScope.WORKSPACE:
 				return this.payload.id;
@@ -67,52 +67,73 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	protected async doInitialize(): Promise<void> {
 
-		// Create Storage in Parallel
-		const promises: Promise<IIndexedDBStorageDatabase>[] = [];
-		promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.APPLICATION), broadcastChanges: true }, this.logService));
-		promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService));
-		if (!this.profile.isDefault) {
+		// Init storages
+		await Promises.settled([
+			this.createApplicationStorage(),
+			this.createGlobalStorage(this.globalStorageProfile),
+			this.createWorkspaceStorage()
+		]);
+	}
+
+	private async createApplicationStorage(): Promise<void> {
+		const applicationStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.APPLICATION), broadcastChanges: true }, this.logService);
+
+		this.applicationStorageDatabase = this._register(applicationStorageIndexedDB);
+		this.applicationStorage = this._register(new Storage(this.applicationStorageDatabase));
+
+		this._register(this.applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
+
+		await this.applicationStorage.init();
+
+		this.updateIsNew(this.applicationStorage);
+
+		this.applicationStoragePromise.complete({ indededDb: applicationStorageIndexedDB, storage: this.applicationStorage });
+	}
+
+	private async createGlobalStorage(profile: IUserDataProfile): Promise<void> {
+
+		// First clear any previously associated disposables
+		this.globalStorageDisposables.clear();
+
+		// Remember profile associated to global storage
+		this.globalStorageProfile = profile;
+
+		if (this.globalStorageProfile.isDefault) {
 
 			// If we are in default profile, the global storage is
 			// actually the same as application storage. As such we
 			// avoid creating the storage library a second time on
 			// the same DB.
 
-			promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService));
-		}
-		const [applicationStorageDatabase, workspaceStorageDatabase, globalStorageDatabase] = await Promises.settled(promises);
+			const { indededDb: applicationStorageIndexedDB, storage: applicationStorage } = await this.applicationStoragePromise.p;
 
-		// Workspace Storage
-		this.workspaceStorageDatabase = this._register(workspaceStorageDatabase);
-		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
-		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
-
-		// Application Storage
-		this.applicationStorageDatabase = this._register(applicationStorageDatabase);
-		this.applicationStorage = this._register(new Storage(this.applicationStorageDatabase));
-		this._register(this.applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
-
-		// Global Storage
-		if (globalStorageDatabase) {
-			this.globalStorageDatabase = this.globalStorageDisposables.add(globalStorageDatabase);
-			this.globalStorage = this.globalStorageDisposables.add(new Storage(this.globalStorageDatabase));
+			this.globalStorageDatabase = applicationStorageIndexedDB;
+			this.globalStorage = applicationStorage;
 		} else {
-			this.globalStorageDatabase = this.applicationStorageDatabase;
-			this.globalStorage = this.applicationStorage;
+			const globalStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService);
+
+			this.globalStorageDatabase = this.globalStorageDisposables.add(globalStorageIndexedDB);
+			this.globalStorage = this.globalStorageDisposables.add(new Storage(this.globalStorageDatabase));
 		}
+
 		this.globalStorageDisposables.add(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 
-		// Init storages
-		await Promises.settled([
-			this.workspaceStorage.init(),
-			this.globalStorage.init(),
-			this.applicationStorage.init()
-		]);
+		await this.globalStorage.init();
 
-		// Apply is-new markers
-		for (const storage of [this.applicationStorage, this.globalStorage, this.workspaceStorage]) {
-			this.updateIsNew(storage);
-		}
+		this.updateIsNew(this.globalStorage);
+	}
+
+	private async createWorkspaceStorage(): Promise<void> {
+		const workspaceStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService);
+
+		this.workspaceStorageDatabase = this._register(workspaceStorageIndexedDB);
+		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
+
+		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
+
+		await this.workspaceStorage.init();
+
+		this.updateIsNew(this.workspaceStorage);
 	}
 
 	private updateIsNew(storage: IStorage): void {
@@ -157,29 +178,11 @@ export class BrowserStorageService extends AbstractStorageService {
 			await oldGlobalStorage.close();
 		}
 
-		// Clear our associated global storage data
-		this.globalStorageDisposables.clear();
-		this.globalStorage = undefined;
-		this.globalStorageDatabase = undefined;
-
-		// Keep as new profile to use
-		this.profile = toProfile;
-
 		// Create new global storage & init
-		if (toProfile.isDefault) {
-			this.globalStorageDatabase = this.applicationStorageDatabase;
-			this.globalStorage = assertIsDefined(this.applicationStorage);
-		} else {
-			this.globalStorageDatabase = this.globalStorageDisposables.add(await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService));
-			this.globalStorage = this.globalStorageDisposables.add(new Storage(this.globalStorageDatabase));
-
-			await this.globalStorage.init();
-
-			this.updateIsNew(this.globalStorage);
-		}
+		await this.createGlobalStorage(toProfile);
 
 		// Handle data migration and eventing
-		this.migrateData(oldItems, this.globalStorage, StorageScope.GLOBAL, preserveData);
+		this.migrateData(oldItems, assertIsDefined(this.globalStorage), StorageScope.GLOBAL, preserveData);
 	}
 
 	private async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {

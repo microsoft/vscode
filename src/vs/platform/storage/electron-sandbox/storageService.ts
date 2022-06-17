@@ -16,20 +16,13 @@ import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorksp
 
 export class NativeStorageService extends AbstractStorageService {
 
-	// Application Storage is readonly and shared across
-	// windows and profiles.
 	private readonly applicationStorage: IStorage;
 	private readonly applicationStorageProfile: IUserDataProfile;
 
-	// Global Storage is scoped to a profile of the window
-	// but can change in the current window when changing the
-	// profile of the window.
 	private globalStorage: IStorage;
 	private globalStorageProfile: IUserDataProfile | undefined = undefined;
 	private readonly globalStorageDisposables = this._register(new DisposableStore());
 
-	// Workspace Storage is scoped to a window but can change
-	// in the current window, when entering a workspace.
 	private workspaceStorage: IStorage | undefined = undefined;
 	private workspaceStorageId: string | undefined = undefined;
 	private readonly workspaceStorageDisposables = this._register(new DisposableStore());
@@ -63,7 +56,7 @@ export class NativeStorageService extends AbstractStorageService {
 		// First clear any previously associated disposables
 		this.globalStorageDisposables.clear();
 
-		// Remember profile for logging later
+		// Remember profile associated to global storage
 		this.globalStorageProfile = profile;
 
 		let globalStorage: IStorage;
