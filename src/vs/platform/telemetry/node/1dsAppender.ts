@@ -79,8 +79,7 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 
 export class OneDataSystemAppender implements ITelemetryAppender {
 
-	private _aiCore: AppInsightsCore | undefined;
-	private _iKey: string | undefined;
+	private _aiCoreOrKey: AppInsightsCore | string | undefined;
 	private _asyncAiCore: Promise<AppInsightsCore> | null;
 
 	constructor(
@@ -93,29 +92,28 @@ export class OneDataSystemAppender implements ITelemetryAppender {
 		}
 
 		if (typeof iKeyOrClientFactory === 'function') {
-			this._aiCore = iKeyOrClientFactory();
+			this._aiCoreOrKey = iKeyOrClientFactory();
 		} else {
-			this._iKey = iKeyOrClientFactory;
+			this._aiCoreOrKey = iKeyOrClientFactory;
 		}
 		this._asyncAiCore = null;
 	}
 
 	private _withAIClient(callback: (aiCore: AppInsightsCore) => void): void {
-		if (!this._aiCore) {
+		if (!this._aiCoreOrKey) {
 			return;
 		}
 
-		if (this._aiCore) {
-			callback(this._aiCore);
+		if (typeof this._aiCoreOrKey !== 'string') {
+			callback(this._aiCoreOrKey);
 			return;
 		}
 
-		if (this._iKey && !this._asyncAiCore) {
-			this._asyncAiCore = getClient(this._iKey);
-			this._iKey = undefined;
+		if (!this._asyncAiCore) {
+			this._asyncAiCore = getClient(this._aiCoreOrKey);
 		}
 
-		this._asyncAiCore?.then(
+		this._asyncAiCore.then(
 			(aiClient) => {
 				callback(aiClient);
 			},
@@ -127,7 +125,7 @@ export class OneDataSystemAppender implements ITelemetryAppender {
 	}
 
 	log(eventName: string, data?: any): void {
-		if (!this._aiCore) {
+		if (!this._aiCoreOrKey) {
 			return;
 		}
 		data = mixin(data, this._defaultData);
@@ -144,11 +142,11 @@ export class OneDataSystemAppender implements ITelemetryAppender {
 	}
 
 	flush(): Promise<any> {
-		if (this._aiCore) {
+		if (this._aiCoreOrKey) {
 			return new Promise(resolve => {
 				this._withAIClient((aiClient) => {
 					aiClient.unload(true, () => {
-						this._aiCore = undefined;
+						this._aiCoreOrKey = undefined;
 						resolve(undefined);
 					});
 				});

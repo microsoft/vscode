@@ -41,7 +41,6 @@
 .monaco-workbench.web .part.titlebar>.titlebar-container,
 .monaco-workbench.windows .part.titlebar>.titlebar-container,
 .monaco-workbench.linux .part.titlebar>.titlebar-container {
-	height: 30px;
 	line-height: 22px;
 	justify-content: left;
 }
@@ -162,6 +161,7 @@
 	/* move menubar above drag region as negative z-index on drag region cause greyscale AA */
 	z-index: 2500;
 	min-width: 36px;
+	flex-wrap: nowrap;
 }
 
 /* Resizer */
@@ -228,7 +228,7 @@
 	text-align: center;
 	z-index: 3000;
 	-webkit-app-region: no-drag;
-	height: 30px;
+	height: 100%;
 	width: 138px;
 	zoom: calc(1 / var(--zoom-factor));
 }
@@ -246,11 +246,17 @@
 
 /* Window Control Icons */
 .monaco-workbench .part.titlebar>.window-controls-container>.window-icon {
-	display: inline-block;
-	line-height: 30px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
 	height: 100%;
 	width: 46px;
 	font-size: 16px;
+}
+
+.monaco-workbench .part.titlebar>.window-controls-container>.window-icon::before {
+	height: 16px;
+	line-height: 16px;
 }
 
 .monaco-workbench .part.titlebar>.window-controls-container>.window-icon:hover {

@@ -30,7 +30,7 @@ import { isStringArray } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 namespace snippetExt {
 
@@ -178,7 +178,7 @@ class SnippetsService implements ISnippetsService {
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILogService private readonly _logService: ILogService,
@@ -350,7 +350,7 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private async _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = this._userDataProfilesService.currentProfile.snippetsHome;
+		const userSnippetsFolder = this._userDataProfileService.currentProfile.snippetsHome;
 		await this._fileService.createFolder(userSnippetsFolder);
 		return await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables);
 	}

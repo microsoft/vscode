@@ -45,7 +45,7 @@ function tryDecodeUri(str: string): string {
 	}
 }
 
-export class MdRenameProvider extends Disposable implements vscode.RenameProvider {
+export class MdVsCodeRenameProvider extends Disposable implements vscode.RenameProvider {
 
 	private cachedRefs?: {
 		readonly resource: vscode.Uri;
@@ -58,8 +58,8 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 	private readonly renameNotSupportedText = localize('invalidRenameLocation', "Rename not supported at location");
 
 	public constructor(
-		private readonly referencesProvider: MdReferencesProvider,
 		private readonly workspaceContents: MdWorkspaceContents,
+		private readonly referencesProvider: MdReferencesProvider,
 		private readonly slugifier: Slugifier,
 	) {
 		super();
@@ -253,7 +253,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 			return this.cachedRefs;
 		}
 
-		const references = await this.referencesProvider.getAllReferencesAtPosition(document, position, token);
+		const references = await this.referencesProvider.getReferencesAtPosition(document, position, token);
 		const triggerRef = references.find(ref => ref.isTriggerLocation);
 		if (!triggerRef) {
 			return undefined;
@@ -270,3 +270,12 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 	}
 }
 
+
+export function registerRenameSupport(
+	selector: vscode.DocumentSelector,
+	workspaceContents: MdWorkspaceContents,
+	referencesProvider: MdReferencesProvider,
+	slugifier: Slugifier,
+): vscode.Disposable {
+	return vscode.languages.registerRenameProvider(selector, new MdVsCodeRenameProvider(workspaceContents, referencesProvider, slugifier));
+}

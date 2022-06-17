@@ -427,13 +427,9 @@ export class Dialog extends Disposable {
 			this.element.style.backgroundColor = bgColor?.toString() ?? '';
 			this.element.style.border = border;
 
-			if (this.buttonBar) {
-				this.buttonBar.buttons.forEach(button => button.style(style));
-			}
+			this.buttonBar?.buttons.forEach(button => button.style(style));
 
-			if (this.checkbox) {
-				this.checkbox.style(style);
-			}
+			this.checkbox?.style(style);
 
 			if (fgColor && bgColor) {
 				const messageDetailColor = fgColor.transparent(.9);

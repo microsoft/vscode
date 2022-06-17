@@ -83,7 +83,7 @@ export class UserDataSyncClient extends Disposable {
 		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
 		this.instantiationService.stub(IFileService, fileService);
 
-		const userDataProfilesService = this.instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, undefined, environmentService, fileService, logService));
+		const userDataProfilesService = this.instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, environmentService, fileService, logService));
 
 		this.instantiationService.stub(IStorageService, this._register(new InMemoryStorageService()));
 

@@ -92,9 +92,7 @@ export class CellOutputElement extends Disposable {
 	}
 
 	detach() {
-		if (this.renderedOutputContainer) {
-			this.renderedOutputContainer.parentElement?.removeChild(this.renderedOutputContainer);
-		}
+		this.renderedOutputContainer?.parentElement?.removeChild(this.renderedOutputContainer);
 
 		let count = 0;
 		if (this.innerContainer) {

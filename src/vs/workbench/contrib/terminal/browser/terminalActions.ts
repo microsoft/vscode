@@ -733,14 +733,22 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.navigationModeFocusPrevious', "Focus Previous Line (Navigation Mode)"), original: 'Focus Previous Line (Navigation Mode)' },
 				f1: true,
 				category,
-				keybinding: {
+				keybinding: [{
+					primary: KeyCode.UpArrow,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				{
 					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 					when: ContextKeyExpr.or(
 						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
 					),
 					weight: KeybindingWeight.WorkbenchContrib
-				},
+				}],
 				precondition: TerminalContextKeys.processSupported
 			});
 		}
@@ -755,14 +763,22 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)"), original: 'Focus Next Line (Navigation Mode)' },
 				f1: true,
 				category,
-				keybinding: {
+				keybinding: [{
+					primary: KeyCode.DownArrow,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				{
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 					when: ContextKeyExpr.or(
 						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
 					),
 					weight: KeybindingWeight.WorkbenchContrib
-				},
+				}],
 				precondition: TerminalContextKeys.processSupported
 			});
 		}

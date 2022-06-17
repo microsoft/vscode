@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents, TocEntry } from '../tableOfContents';
+import { MdTableOfContentsProvider, TocEntry } from '../tableOfContents';
 import { SkinnyTextDocument } from '../workspaceContents';
 
 interface MarkdownSymbol {
@@ -17,16 +16,16 @@ interface MarkdownSymbol {
 export class MdDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
 	constructor(
-		private readonly engine: MarkdownEngine
+		private readonly tocProvider: MdTableOfContentsProvider,
 	) { }
 
 	public async provideDocumentSymbolInformation(document: SkinnyTextDocument): Promise<vscode.SymbolInformation[]> {
-		const toc = await TableOfContents.create(this.engine, document);
+		const toc = await this.tocProvider.get(document.uri);
 		return toc.entries.map(entry => this.toSymbolInformation(entry));
 	}
 
 	public async provideDocumentSymbols(document: SkinnyTextDocument): Promise<vscode.DocumentSymbol[]> {
-		const toc = await TableOfContents.create(this.engine, document);
+		const toc = await this.tocProvider.get(document.uri);
 		const root: MarkdownSymbol = {
 			level: -Infinity,
 			children: [],
@@ -73,4 +72,11 @@ export class MdDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 	private getSymbolName(entry: TocEntry): string {
 		return '#'.repeat(entry.level) + ' ' + entry.text;
 	}
+}
+
+export function registerDocumentSymbolSupport(
+	selector: vscode.DocumentSelector,
+	tocProvider: MdTableOfContentsProvider,
+): vscode.Disposable {
+	return vscode.languages.registerDocumentSymbolProvider(selector, new MdDocumentSymbolProvider(tocProvider));
 }

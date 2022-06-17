@@ -54,6 +54,10 @@
 	background-color: var(--vscode-mergeEditor-modifiedBaseRange-combination);
 }
 
+.merge-editor-modified-base-range {
+	background-color: var(--vscode-mergeEditor-diff);
+}
+
 .gutter-item {
 	position: absolute;
 }

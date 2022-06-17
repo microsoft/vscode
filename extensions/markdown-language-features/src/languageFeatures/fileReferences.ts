@@ -49,6 +49,9 @@ export class FindFileReferencesCommand implements Command {
 	}
 }
 
-export function registerFindFileReferences(commandManager: CommandManager, referencesProvider: MdReferencesProvider): vscode.Disposable {
+export function registerFindFileReferenceSupport(
+	commandManager: CommandManager,
+	referencesProvider: MdReferencesProvider
+): vscode.Disposable {
 	return commandManager.register(new FindFileReferencesCommand(referencesProvider));
 }

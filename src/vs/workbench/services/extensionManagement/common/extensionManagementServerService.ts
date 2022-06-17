@@ -31,7 +31,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	) {
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const extensionManagementService = new ExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'), undefined);
+			const extensionManagementService = new ExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'));
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,

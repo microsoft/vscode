@@ -10,16 +10,16 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IExtensionHostProcessOptions } from 'vs/platform/extensions/common/extensionHostStarter';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IPCExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 import { createMessageOfType, MessageType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionHostProcess, ExtHostMessagePortCommunication, IExtHostCommunication, SandboxLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
 
 export class NativeLocalProcessExtensionHost extends SandboxLocalProcessExtensionHost {
 	protected override async _start(): Promise<IMessagePassingProtocol> {
 		const canUseUtilityProcess = await this._extensionHostStarter.canUseUtilityProcess();
-		if (canUseUtilityProcess && process.env['VSCODE_USE_UTILITY_PROCESS']) {
+		if (canUseUtilityProcess && this._configurationService.getValue<boolean | undefined>('extensions.experimental.useUtilityProcess')) {
 			const communication = this._toDispose.add(new ExtHostMessagePortCommunication(this._logService));
 			return this._startWithCommunication(communication);
 		} else {
@@ -51,9 +51,7 @@ class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommun
 			const namedPipeServer = createServer();
 			namedPipeServer.on('error', reject);
 			namedPipeServer.listen(pipeName, () => {
-				if (namedPipeServer) {
-					namedPipeServer.removeListener('error', reject);
-				}
+				namedPipeServer?.removeListener('error', reject);
 				resolve({ pipeName, namedPipeServer });
 			});
 			this._register(toDisposable(() => {
@@ -67,7 +65,7 @@ class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommun
 	establishProtocol(prepared: INamedPipePreparedData, extensionHostProcess: ExtensionHostProcess, opts: IExtensionHostProcessOptions): Promise<IMessagePassingProtocol> {
 		const { namedPipeServer, pipeName } = prepared;
 
-		opts.env['VSCODE_IPC_HOOK_EXTHOST'] = pipeName;
+		writeExtHostConnection(new IPCExtHostConnection(pipeName), opts.env);
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 

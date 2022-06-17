@@ -6,6 +6,7 @@
 import 'vs/css!./media/diffEditor';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
+import * as assert from 'vs/base/common/assert';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -149,17 +150,13 @@ class VisualEditorState {
 			}
 		});
 
-		if (scrollState) {
-			scrollState.restore(editor);
-		}
+		scrollState?.restore(editor);
 
 		// decorations
 		this._decorations = editor.deltaDecorations(this._decorations, newDecorations.decorations);
 
 		// overview ruler
-		if (overviewRuler) {
-			overviewRuler.setZones(newDecorations.overviewZones);
-		}
+		overviewRuler?.setZones(newDecorations.overviewZones);
 	}
 }
 
@@ -429,23 +426,29 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return result;
 	}
 
-	private _recreateOverviewRulers(): void {
+	private _disposeOverviewRulers(): void {
+		if (this._originalOverviewRuler) {
+			this._overviewDomElement.removeChild(this._originalOverviewRuler.getDomNode());
+			this._originalOverviewRuler.dispose();
+			this._originalOverviewRuler = null;
+		}
+		if (this._modifiedOverviewRuler) {
+			this._overviewDomElement.removeChild(this._modifiedOverviewRuler.getDomNode());
+			this._modifiedOverviewRuler.dispose();
+			this._modifiedOverviewRuler = null;
+		}
+	}
+
+	private _createOverviewRulers(): void {
 		if (!this._options.renderOverviewRuler) {
 			return;
 		}
 
-		if (this._originalOverviewRuler) {
-			this._overviewDomElement.removeChild(this._originalOverviewRuler.getDomNode());
-			this._originalOverviewRuler.dispose();
-		}
+		assert.ok(!this._originalOverviewRuler && !this._modifiedOverviewRuler);
+
 		if (this._originalEditor.hasModel()) {
 			this._originalOverviewRuler = this._originalEditor.createOverviewRuler('original diffOverviewRuler')!;
 			this._overviewDomElement.appendChild(this._originalOverviewRuler.getDomNode());
-		}
-
-		if (this._modifiedOverviewRuler) {
-			this._overviewDomElement.removeChild(this._modifiedOverviewRuler.getDomNode());
-			this._modifiedOverviewRuler.dispose();
 		}
 		if (this._modifiedEditor.hasModel()) {
 			this._modifiedOverviewRuler = this._modifiedEditor.createOverviewRuler('modified diffOverviewRuler')!;
@@ -794,6 +797,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		// Remove all view zones & decorations
 		this._cleanViewZonesAndDecorations();
 
+		this._disposeOverviewRulers();
+
 		// Update code editor models
 		this._originalEditor.setModel(model ? model.original : null);
 		this._modifiedEditor.setModel(model ? model.modified : null);
@@ -812,7 +817,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._setState(editorBrowser.DiffEditorState.Idle);
 
 		if (model) {
-			this._recreateOverviewRulers();
+			this._createOverviewRulers();
 
 			// Begin comparing
 			this._beginUpdateDecorations();

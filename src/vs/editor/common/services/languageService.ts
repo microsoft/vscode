@@ -180,8 +180,6 @@ class LanguageSelection implements ILanguageSelection {
 			return;
 		}
 		this.languageId = languageId;
-		if (this._emitter) {
-			this._emitter.fire(this.languageId);
-		}
+		this._emitter?.fire(this.languageId);
 	}
 }

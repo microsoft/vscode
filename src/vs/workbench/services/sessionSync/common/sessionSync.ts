@@ -12,8 +12,8 @@ export const ISessionSyncWorkbenchService = createDecorator<ISessionSyncWorkbenc
 export interface ISessionSyncWorkbenchService {
 	_serviceBrand: undefined;
 
-	read(): Promise<EditSession | undefined>;
-	write(editSession: EditSession): Promise<void>;
+	read(ref: string | undefined): Promise<EditSession | undefined>;
+	write(editSession: EditSession): Promise<string>;
 }
 
 export enum ChangeType {
@@ -46,7 +46,9 @@ export interface Folder {
 	workingChanges: Change[];
 }
 
+export const EditSessionSchemaVersion = 1;
+
 export interface EditSession {
-	version: 1;
+	version: number;
 	folders: Folder[];
 }

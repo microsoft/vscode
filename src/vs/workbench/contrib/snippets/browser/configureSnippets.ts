@@ -18,7 +18,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { isValidBasename } from 'vs/base/common/extpath';
 import { joinPath, basename } from 'vs/base/common/resources';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 namespace ISnippetPick {
 	export function is(thing: object | undefined): thing is ISnippetPick {
@@ -31,7 +31,7 @@ interface ISnippetPick extends IQuickPickItem {
 	hint?: true;
 }
 
-async function computePicks(snippetService: ISnippetsService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService) {
+async function computePicks(snippetService: ISnippetsService, userDataProfileService: IUserDataProfileService, languageService: ILanguageService) {
 
 	const existing: ISnippetPick[] = [];
 	const future: ISnippetPick[] = [];
@@ -85,7 +85,7 @@ async function computePicks(snippetService: ISnippetsService, userDataProfilesSe
 		}
 	}
 
-	const dir = userDataProfilesService.currentProfile.snippetsHome;
+	const dir = userDataProfileService.currentProfile.snippetsHome;
 	for (const languageId of languageService.getRegisteredLanguageIds()) {
 		const label = languageService.getLanguageName(languageId);
 		if (label && !seen.has(languageId)) {
@@ -227,19 +227,19 @@ registerAction2(class ConfigureSnippets extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const opener = accessor.get(IOpenerService);
 		const languageService = accessor.get(ILanguageService);
-		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const workspaceService = accessor.get(IWorkspaceContextService);
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
 
-		const picks = await computePicks(snippetService, userDataProfilesService, languageService);
+		const picks = await computePicks(snippetService, userDataProfileService, languageService);
 		const existing: QuickPickInput[] = picks.existing;
 
 		type SnippetPick = IQuickPickItem & { uri: URI } & { scope: string };
 		const globalSnippetPicks: SnippetPick[] = [{
 			scope: nls.localize('new.global_scope', 'global'),
 			label: nls.localize('new.global', "New Global Snippets file..."),
-			uri: userDataProfilesService.currentProfile.snippetsHome
+			uri: userDataProfileService.currentProfile.snippetsHome
 		}];
 
 		const workspaceSnippetPicks: SnippetPick[] = [];

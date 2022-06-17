@@ -260,9 +260,7 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 					case 'disassemble':
 						{
 							const di = <DebugProtocol.DisassembleResponse>response;
-							if (di.body) {
-								di.body.instructions.forEach(di => fixSourcePath(false, di.location));
-							}
+							di.body?.instructions.forEach(di => fixSourcePath(false, di.location));
 						}
 						break;
 					default:

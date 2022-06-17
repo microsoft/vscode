@@ -3,20 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
-import { UriDto } from 'vs/base/common/types';
+import { isUndefined, UriDto } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+
+export type ProfileOptions = {
+	settings?: boolean;
+	keybindings?: boolean;
+	tasks?: boolean;
+	snippets?: boolean;
+	extensions?: boolean;
+	uiState?: boolean;
+};
+
+export const DefaultOptions: ProfileOptions = {
+	settings: true,
+	keybindings: true,
+	tasks: true,
+	snippets: true,
+	extensions: true,
+	uiState: true
+};
 
 export interface IUserDataProfile {
 	readonly id: string;
+	readonly isDefault: boolean;
 	readonly name: string;
 	readonly location: URI;
 	readonly globalStorageHome: URI;
@@ -27,11 +47,22 @@ export interface IUserDataProfile {
 	readonly extensionsResource: URI | undefined;
 }
 
-export type IUserDataProfileDto = UriDto<IUserDataProfile>;
-export type IUserDataProfilesDto = {
-	readonly current: IUserDataProfileDto;
-	readonly default: IUserDataProfileDto;
-};
+export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
+	const candidate = thing as IUserDataProfile | undefined;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& typeof candidate.id === 'string'
+		&& typeof candidate.isDefault === 'boolean'
+		&& typeof candidate.name === 'string'
+		&& URI.isUri(candidate.location)
+		&& URI.isUri(candidate.globalStorageHome)
+		&& URI.isUri(candidate.settingsResource)
+		&& URI.isUri(candidate.keybindingsResource)
+		&& URI.isUri(candidate.tasksResource)
+		&& URI.isUri(candidate.snippetsHome)
+		&& (isUndefined(candidate.extensionsResource) || URI.isUri(candidate.extensionsResource))
+	);
+}
 
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
 export interface IUserDataProfilesService {
@@ -40,19 +71,20 @@ export interface IUserDataProfilesService {
 	readonly profilesHome: URI;
 	readonly defaultProfile: IUserDataProfile;
 
-	readonly onDidChangeCurrentProfile: Event<IUserDataProfile>;
-	readonly currentProfile: IUserDataProfile;
+	readonly onDidChangeProfiles: Event<IUserDataProfile[]>;
+	readonly profiles: IUserDataProfile[];
 
-	createProfile(name: string): IUserDataProfile;
-	setProfile(name: string): Promise<void>;
-	getAllProfiles(): Promise<IUserDataProfile[]>;
-
-	serialize(): IUserDataProfilesDto;
+	newProfile(name: string, options?: ProfileOptions): IUserDataProfile;
+	createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
+	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
+	getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile;
+	removeProfile(profile: IUserDataProfile): Promise<void>;
 }
 
-function reviveProfile(profile: IUserDataProfile, scheme: string): IUserDataProfile {
+export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string): IUserDataProfile {
 	return {
 		id: profile.id,
+		isDefault: profile.isDefault,
 		name: profile.name,
 		location: URI.revive(profile.location).with({ scheme }),
 		globalStorageHome: URI.revive(profile.globalStorageHome).with({ scheme }),
@@ -64,75 +96,51 @@ function reviveProfile(profile: IUserDataProfile, scheme: string): IUserDataProf
 	};
 }
 
+export function toUserDataProfile(name: string, location: URI, options: ProfileOptions, defaultProfile: true | IUserDataProfile): IUserDataProfile {
+	return {
+		id: hash(location.toString()).toString(16),
+		name: name,
+		location: location,
+		isDefault: defaultProfile === true,
+		globalStorageHome: defaultProfile === true || options.uiState ? joinPath(location, 'globalStorage') : defaultProfile.globalStorageHome,
+		settingsResource: defaultProfile === true || options.settings ? joinPath(location, 'settings.json') : defaultProfile.settingsResource,
+		keybindingsResource: defaultProfile === true || options.keybindings ? joinPath(location, 'keybindings.json') : defaultProfile.keybindingsResource,
+		tasksResource: defaultProfile === true || options.tasks ? joinPath(location, 'tasks.json') : defaultProfile.tasksResource,
+		snippetsHome: defaultProfile === true || options.snippets ? joinPath(location, 'snippets') : defaultProfile.snippetsHome,
+		extensionsResource: defaultProfile === true && !options.extensions ? undefined : joinPath(location, 'extensions.json'),
+	};
+}
+
 export class UserDataProfilesService extends Disposable implements IUserDataProfilesService {
 	readonly _serviceBrand: undefined;
 
-	protected static DEFAULT_PROFILE_NAME = 'default';
-
-	protected _currentProfile: IUserDataProfile;
-	get currentProfile(): IUserDataProfile { return this._currentProfile; }
-
 	readonly profilesHome: URI;
+
 	protected _defaultProfile: IUserDataProfile;
 	get defaultProfile(): IUserDataProfile { return this._defaultProfile; }
 
-	private readonly _onDidChangeCurrentProfile = this._register(new Emitter<IUserDataProfile>());
-	readonly onDidChangeCurrentProfile = this._onDidChangeCurrentProfile.event;
+	get profiles(): IUserDataProfile[] { return []; }
+
+	protected readonly _onDidChangeProfiles = this._register(new Emitter<IUserDataProfile[]>());
+	readonly onDidChangeProfiles = this._onDidChangeProfiles.event;
 
 	constructor(
-		defaultProfile: IUserDataProfile | undefined,
-		currentProfile: IUserDataProfile | undefined,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		defaultProfile: UriDto<IUserDataProfile> | undefined,
+		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 		@IFileService protected readonly fileService: IFileService,
 		@ILogService protected readonly logService: ILogService
 	) {
 		super();
 		this.profilesHome = joinPath(this.environmentService.userRoamingDataHome, 'profiles');
-		this._defaultProfile = defaultProfile ? reviveProfile(defaultProfile, this.profilesHome.scheme) : this.createProfile(undefined);
-		this._currentProfile = currentProfile ? reviveProfile(currentProfile, this.profilesHome.scheme) : this._defaultProfile;
+		this._defaultProfile = defaultProfile ? reviveProfile(defaultProfile, this.profilesHome.scheme) : toUserDataProfile(localize('defaultProfile', "Default"), environmentService.userRoamingDataHome, { ...DefaultOptions, extensions: false }, true);
 	}
 
-	createProfile(name: string | undefined): IUserDataProfile {
-		const location = name && name !== UserDataProfilesService.DEFAULT_PROFILE_NAME ? joinPath(this.profilesHome, name) : this.environmentService.userRoamingDataHome;
-		return {
-			id: hash(location.toString()).toString(16),
-			name: name ?? UserDataProfilesService.DEFAULT_PROFILE_NAME,
-			location,
-			globalStorageHome: joinPath(location, 'globalStorage'),
-			settingsResource: joinPath(location, 'settings.json'),
-			keybindingsResource: joinPath(location, 'keybindings.json'),
-			tasksResource: joinPath(location, 'tasks.json'),
-			snippetsHome: joinPath(location, 'snippets'),
-			extensionsResource: name ? joinPath(location, 'extensions.json') : undefined
-		};
+	newProfile(name: string, options: ProfileOptions = DefaultOptions): IUserDataProfile {
+		return toUserDataProfile(name, joinPath(this.profilesHome, hash(name).toString(16)), options, this.defaultProfile);
 	}
 
-	async getAllProfiles(): Promise<IUserDataProfile[]> {
-		try {
-			const stat = await this.fileService.resolve(this.profilesHome);
-			const profiles = coalesce(stat.children?.map(stat => stat.isDirectory ? this.createProfile(stat.name) : undefined) ?? []);
-			if (profiles.length) {
-				profiles.unshift(this._defaultProfile);
-			}
-			return profiles;
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				this.logService.error('Error while getting all profiles', error);
-			}
-		}
-		return [];
-	}
-
-	protected createCurrentProfile(profile: string | undefined): IUserDataProfile {
-		return profile === UserDataProfilesService.DEFAULT_PROFILE_NAME ? this._defaultProfile : this.createProfile(profile);
-	}
-
-	setProfile(name: string): Promise<void> { throw new Error('Not implemented'); }
-
-	serialize(): IUserDataProfilesDto {
-		return {
-			default: this.defaultProfile,
-			current: this.currentProfile
-		};
-	}
+	createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
+	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
+	getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile { throw new Error('Not implemented'); }
+	removeProfile(profile: IUserDataProfile): Promise<void> { throw new Error('Not implemented'); }
 }

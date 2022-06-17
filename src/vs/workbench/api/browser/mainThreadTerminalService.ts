@@ -318,9 +318,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $sendProcessProperty(terminalId: number, property: IProcessProperty<any>): void {
 		if (property.type === ProcessPropertyType.Title) {
 			const instance = this._terminalService.getInstanceFromId(terminalId);
-			if (instance) {
-				instance.refreshTabLabels(property.value, TitleEventSource.Api);
-			}
+			instance?.refreshTabLabels(property.value, TitleEventSource.Api);
 		}
 		this._terminalProcessProxies.get(terminalId)?.emitProcessProperty(property);
 	}
