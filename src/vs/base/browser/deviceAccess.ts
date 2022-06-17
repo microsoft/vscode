@@ -75,3 +75,34 @@ export async function requestSerialPort(options?: { filters?: unknown[] }): Prom
 		usbProductId: info.usbProductId
 	};
 }
+
+// https://wicg.github.io/webhid/
+
+export interface HidDeviceData {
+	readonly opened: boolean;
+	readonly vendorId: number;
+	readonly productId: number;
+	readonly productName: string;
+	readonly collections: [];
+}
+
+export async function requestHidDevice(options?: { filters?: unknown[] }): Promise<HidDeviceData | undefined> {
+	const hid = (navigator as any).hid;
+	if (!hid) {
+		return undefined;
+	}
+
+	const devices = await hid.requestDevice({ filters: options?.filters ?? [] });
+	if (!devices.length) {
+		return undefined;
+	}
+
+	const device = devices[0];
+	return {
+		opened: device.opened,
+		vendorId: device.vendorId,
+		productId: device.productId,
+		productName: device.productName,
+		collections: device.collections
+	};
+}
