@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { ITooltipMarkdownString, IUpdatableHoverOptions, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -136,17 +136,32 @@ export class SettingsTreeIndicatorsLabel {
 					localize('configuredElsewhere', "Modified elsewhere");
 				this.scopeOverridesLabel.text = scopeOverridesLabelText;
 
-				const content = $('.scope-overrides-hover-content');
 				const prefaceText = element.isConfigured ?
 					localize('alsoModifiedInScopes', "The setting has also been modified in the following scopes:") :
 					localize('modifiedInScopes', "The setting has been modified in the following scopes:");
-				const preface = DOM.append(content, $('p', { 'style': 'padding: 4px 8px;' }, prefaceText));
-				const list = DOM.append(preface, $('ul'));
+				let contentMarkdownString = prefaceText;
+				let contentFallback = prefaceText;
 				for (const scope of element.overriddenScopeList) {
-					const listBullet = DOM.append(list, $('li'));
-					DOM.append(listBullet, $('span.modified-scope', undefined, scope));
+					contentMarkdownString += `\n- [${scope}](${scope})`;
+					contentFallback += `\n• ${scope}`;
 				}
-				setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content);
+				const content: ITooltipMarkdownString = {
+					markdown: {
+						value: contentMarkdownString,
+						isTrusted: false,
+						supportHtml: false
+					},
+					markdownNotSupportedFallback: contentFallback
+				};
+				const options: IUpdatableHoverOptions = {
+					linkHandler: (scope: string) => {
+						onDidClickOverrideElement.fire({
+							targetKey: element.setting.key,
+							scope
+						});
+					}
+				};
+				setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
 			}
 		}
 		this.render();
