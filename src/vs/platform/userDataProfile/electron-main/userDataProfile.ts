@@ -7,13 +7,20 @@ import { ResourceMap } from 'vs/base/common/map';
 import { revive } from 'vs/base/common/marshalling';
 import { UriDto } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ProfileOptions, DefaultOptions, IUserDataProfile, IUserDataProfilesService, UserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ProfileOptions, DefaultOptions, IUserDataProfile, IUserDataProfilesService, UserDataProfilesService, reviveProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+
+export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
+export interface IUserDataProfilesMainService extends IUserDataProfilesService {
+	getAllProfiles(): Promise<IUserDataProfile[]>;
+}
 
 type UserDataProfilesObject = {
 	profiles: IUserDataProfile[];
@@ -31,7 +38,7 @@ type StoredWorkspaceInfo = {
 	profile: URI;
 };
 
-export class UserDataProfilesMainService extends UserDataProfilesService implements IUserDataProfilesService {
+export class UserDataProfilesMainService extends UserDataProfilesService implements IUserDataProfilesMainService {
 
 	private static readonly PROFILES_KEY = 'userDataProfiles';
 	private static readonly WORKSPACE_PROFILE_INFO_KEY = 'workspaceAndProfileInfo';
@@ -43,19 +50,19 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 	) {
-		super(undefined, undefined, environmentService, fileService, logService);
+		super(toUserDataProfile(localize('defaultProfile', "Default"), environmentService.userRoamingDataHome, { ...DefaultOptions, extensions: false }, true), environmentService, fileService, logService);
 	}
 
 	init(): void {
 		if (this.storedProfiles.length) {
-			this._defaultProfile = this.toUserDataProfile(this.defaultProfile.name, this.defaultProfile.location, DefaultOptions, true);
+			this._defaultProfile = toUserDataProfile(this.defaultProfile.name, this.defaultProfile.location, DefaultOptions, true);
 		}
 	}
 
 	private _profilesObject: UserDataProfilesObject | undefined;
 	private get profilesObject(): UserDataProfilesObject {
 		if (!this._profilesObject) {
-			const profiles = this.storedProfiles.map(storedProfile => this.toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.options, this.defaultProfile));
+			const profiles = this.storedProfiles.map(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.options, this.defaultProfile));
 			profiles.unshift(this.defaultProfile);
 			const workspaces = this.storedWorskpaceInfos.reduce((workspaces, workspaceProfileInfo) => {
 				const profile = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, workspaceProfileInfo.profile));
@@ -71,7 +78,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 
 	override get profiles(): IUserDataProfile[] { return this.profilesObject.profiles; }
 
-	override async getAllProfiles(): Promise<IUserDataProfile[]> {
+	async getAllProfiles(): Promise<IUserDataProfile[]> {
 		return this.profiles;
 	}
 
