@@ -125,6 +125,11 @@ steps:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: |
           set -e
+          yarn --cwd test/smoke compile
+        displayName: Compile smoke tests
+
+      - script: |
+          set -e
           yarn smoketest-no-compile --tracing
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
