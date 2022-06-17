@@ -407,12 +407,16 @@ export class TerminalService implements ITerminalService {
 			if (layoutInfo.tabs.length > 0) {
 				await this._recreateTerminalGroups(layoutInfo);
 			}
-			if (layoutInfo.editorTerminals && layoutInfo.editorTerminals.length > 0) {
-				for (const editorTerminal of layoutInfo.editorTerminals) {
-					await this.createTerminal({
-						config: { attachPersistentProcess: editorTerminal.terminal! },
-						location: TerminalLocation.Editor
-					});
+			if (this._terminalEditorService.instances.length === 0) {
+				// only do this for restart because editor terminals are already restored
+				// on reload
+				if (layoutInfo.editorTerminals && layoutInfo.editorTerminals.length > 0) {
+					for (const editorTerminal of layoutInfo.editorTerminals) {
+						await this.createTerminal({
+							config: { attachPersistentProcess: editorTerminal.terminal! },
+							location: TerminalLocation.Editor
+						});
+					}
 				}
 			}
 		}
