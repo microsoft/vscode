@@ -10,6 +10,7 @@ import { mark } from 'vs/base/common/performance';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
@@ -137,12 +138,13 @@ export interface IStorageService {
 	/**
 	 * Log the contents of the storage to the console.
 	 */
-	logStorage(): void;
+	log(): void;
 
 	/**
-	 * Migrate the storage contents to another workspace.
+	 * Switch storage to another workspace or profile. Optionally preserve the
+	 * current data to the new storage.
 	 */
-	migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void>;
+	switch(to: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
 
 	/**
 	 * Whether the storage for the given scope was created during this session or
@@ -521,7 +523,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		}
 	}
 
-	async logStorage(): Promise<void> {
+	async log(): Promise<void> {
 		const applicationItems = this.getStorage(StorageScope.APPLICATION)?.items ?? new Map<string, string>();
 		const globalItems = this.getStorage(StorageScope.GLOBAL)?.items ?? new Map<string, string>();
 		const workspaceItems = this.getStorage(StorageScope.WORKSPACE)?.items ?? new Map<string, string>();
@@ -536,6 +538,49 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		);
 	}
 
+	async switch(to: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void> {
+
+		// Signal as event so that clients can store data before we switch
+		this.emitWillSaveState(WillSaveStateReason.NONE);
+
+		if (isUserDataProfile(to)) {
+			return this.switchToProfile(to, preserveData);
+		}
+
+		return this.switchToWorkspace(to, preserveData);
+	}
+
+	protected switchData(oldStorage: Map<string, string>, newStorage: IStorage, scope: StorageScope, preserveData: boolean): void {
+		this.withPausedEmitters(() => {
+
+			// Copy over previous keys if `preserveData`
+			if (preserveData) {
+				for (const [key, value] of oldStorage) {
+					newStorage.set(key, value);
+				}
+			}
+
+			// Otherwise signal storage keys that have changed
+			else {
+				const handledkeys = new Set<string>();
+				for (const [key, oldValue] of oldStorage) {
+					handledkeys.add(key);
+
+					const newValue = newStorage.get(key);
+					if (newValue !== oldValue) {
+						this.emitDidChangeValue(scope, key);
+					}
+				}
+
+				for (const [key] of newStorage.items) {
+					if (!handledkeys.has(key)) {
+						this.emitDidChangeValue(scope, key);
+					}
+				}
+			}
+		});
+	}
+
 	// --- abstract
 
 	protected abstract doInitialize(): Promise<void>;
@@ -544,7 +589,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	protected abstract getLogDetails(scope: StorageScope): string | undefined;
 
-	abstract migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void>;
+	protected abstract switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
+	protected abstract switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
 }
 
 export class InMemoryStorageService extends AbstractStorageService {
@@ -585,8 +631,12 @@ export class InMemoryStorageService extends AbstractStorageService {
 
 	protected async doInitialize(): Promise<void> { }
 
-	async migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
-		// not supported
+	protected async switchToProfile(): Promise<void> {
+		// no-op when in-memory
+	}
+
+	protected async switchToWorkspace(): Promise<void> {
+		// no-op when in-memory
 	}
 }
 

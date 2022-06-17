@@ -94,8 +94,8 @@ suite('Multicursor selection', () => {
 		getNumber: (key: string) => undefined!,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
 		remove: (key) => undefined,
-		logStorage: () => undefined,
-		migrate: (toWorkspace) => Promise.resolve(undefined),
+		log: () => undefined,
+		switch: () => Promise.resolve(undefined),
 		flush: () => Promise.resolve(undefined),
 		isNew: () => true,
 		keys: () => []

@@ -14,7 +14,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfileTemplate, isProfile, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -293,7 +293,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		}
 		const content = (await fileService.readFile(profileLocation[0])).value.toString();
 		const parsed = JSON.parse(content);
-		return isProfile(parsed) ? parsed : null;
+		return isUserDataProfileTemplate(parsed) ? parsed : null;
 	}
 
 	private async getProfileFromURL(url: string, requestService: IRequestService): Promise<IUserDataProfileTemplate | null> {
@@ -301,7 +301,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		const context = await requestService.request(options, CancellationToken.None);
 		if (context.res.statusCode === 200) {
 			const result = await asJson(context);
-			return isProfile(result) ? result : null;
+			return isUserDataProfileTemplate(result) ? result : null;
 		} else {
 			const message = await asText(context);
 			throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
