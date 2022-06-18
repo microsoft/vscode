@@ -141,8 +141,11 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 			this._onDidDeleteMarkdownDocumentEmitter.fire(resource);
 		}));
 
+		this._register(vscode.workspace.onDidOpenTextDocument(e => {
+			this._documentCache.delete(e.uri);
+		}));
+
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
-			this._documentCache.delete(e.document.uri);
 			if (this.isRelevantMarkdownDocument(e.document)) {
 				this._onDidChangeMarkdownDocumentEmitter.fire(e.document);
 			}
