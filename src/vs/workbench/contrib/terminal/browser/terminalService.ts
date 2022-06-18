@@ -650,9 +650,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		const tabs = this._terminalGroupService.groups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup));
-		const state: ITerminalsLayoutInfoById = {
-			tabs
-		};
+		const state: ITerminalsLayoutInfoById = { tabs };
 		this._primaryBackend?.setTerminalLayoutInfo(state);
 	}
 

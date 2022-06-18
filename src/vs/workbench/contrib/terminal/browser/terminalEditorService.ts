@@ -93,7 +93,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		// Remove the terminal from the managed instances when the editor closes. This fires when
 		// dragging and dropping to another editor or closing the editor via cmd/ctrl+w.
 		this._register(this._editorService.onDidCloseEditor(e => {
-			console.log('closed editor');
 			const instance = e.editor instanceof TerminalEditorInput ? e.editor.terminalInstance : undefined;
 			if (instance) {
 				const instanceIndex = this.instances.findIndex(e => e === instance);
@@ -101,7 +100,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 					this.instances.splice(instanceIndex, 1);
 				}
 			}
-			console.log(this.instances);
 		}));
 		this._register(this._editorService.onDidActiveEditorChange(() => {
 			const instance = this._editorService.activeEditor instanceof TerminalEditorInput ? this._editorService.activeEditor : undefined;

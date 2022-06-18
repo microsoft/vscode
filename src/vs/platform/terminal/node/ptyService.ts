@@ -349,13 +349,12 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
+		this._logService.trace('ptyService#getLayoutInfo', args);
 		if (layout) {
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
 			this._logService.trace('ptyService#returnLayoutInfo', tabs);
-			return {
-				tabs
-			};
+			return { tabs };
 		}
 		return undefined;
 	}
