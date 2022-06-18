@@ -266,8 +266,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: workspace.id,
-			tabs: layout ? layout.tabs : [],
-			editorTerminals: layout ? layout.editorTerminals : []
+			tabs: layout ? layout.tabs : []
 		};
 		return this._channel.call<void>('$setTerminalLayoutInfo', args);
 	}
@@ -298,6 +297,10 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 
 	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
 		return this._channel.call('$reviveTerminalProcesses', [state, dateTimeFormatLocate]);
+	}
+
+	getRevivedPtyNewId(id: number): Promise<number | undefined> {
+		return this._channel.call('$getRevivedPtyNewId', [id]);
 	}
 
 	serializeTerminalState(ids: number[]): Promise<string> {

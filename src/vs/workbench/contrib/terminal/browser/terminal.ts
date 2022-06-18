@@ -471,6 +471,11 @@ export interface ITerminalInstance {
 	readonly persistentProcessId: number | undefined;
 
 	/**
+	 * The id of a persistent process during the shutdown process
+	 */
+	shutdownPersistentProcessId: number | undefined;
+
+	/**
 	 * Whether the process should be persisted across reloads.
 	 */
 	readonly shouldPersist: boolean;

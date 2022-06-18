@@ -403,22 +403,8 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		const layoutInfo = await localBackend.getTerminalLayoutInfo();
-		if (layoutInfo) {
-			if (layoutInfo.tabs.length > 0) {
-				await this._recreateTerminalGroups(layoutInfo);
-			}
-			if (this._terminalEditorService.instances.length === 0) {
-				// only do this for restart because editor terminals are already restored
-				// on reload
-				if (layoutInfo.editorTerminals && layoutInfo.editorTerminals.length > 0) {
-					for (const editorTerminal of layoutInfo.editorTerminals) {
-						await this.createTerminal({
-							config: { attachPersistentProcess: editorTerminal.terminal! },
-							location: TerminalLocation.Editor
-						});
-					}
-				}
-			}
+		if (layoutInfo && layoutInfo.tabs.length > 0) {
+			await this._recreateTerminalGroups(layoutInfo);
 		}
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
@@ -634,8 +620,13 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
+
 		// Force dispose of all terminal instances
+		const shouldPersistTerminalsForEvent = this._shouldReviveProcesses(e.reason);
 		for (const instance of this.instances) {
+			if (shouldPersistTerminalsForEvent) {
+				instance.shutdownPersistentProcessId = instance.persistentProcessId;
+			}
 			instance.dispose();
 		}
 
@@ -659,24 +650,8 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		const tabs = this._terminalGroupService.groups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup));
-
-		// Save terminals in editors too
-		const seenPersistentProcessIds: number[] = [];
-		for (const t of tabs) {
-			for (const term of t.terminals) {
-				seenPersistentProcessIds.push(term.terminal);
-			}
-		}
-		const otherInstances = this.instances.filter(instance => typeof instance.persistentProcessId === 'number' && instance.shouldPersist && seenPersistentProcessIds.indexOf(instance.persistentProcessId) === -1);
-		const editorTerminals = otherInstances.map((instance) => {
-			return {
-				terminal: instance.persistentProcessId || 0
-			};
-		});
-
 		const state: ITerminalsLayoutInfoById = {
-			tabs,
-			editorTerminals
+			tabs
 		};
 		this._primaryBackend?.setTerminalLayoutInfo(state);
 	}

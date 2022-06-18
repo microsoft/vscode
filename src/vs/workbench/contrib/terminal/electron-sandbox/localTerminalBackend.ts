@@ -168,6 +168,19 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return undefined;
 	}
 
+	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+		try {
+			const newId = await this._localPtyService.getRevivedPtyNewId(id);
+			if (newId === undefined) {
+				return undefined;
+			}
+			return await this.attachToProcess(newId);
+		} catch (e) {
+			this._logService.trace(`Couldn't attach to process ${e.message}`);
+		}
+		return undefined;
+	}
+
 	async listProcesses(): Promise<IProcessDetails[]> {
 		return this._localPtyService.listProcesses();
 	}
@@ -199,8 +212,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),
-			tabs: layoutInfo ? layoutInfo.tabs : [],
-			editorTerminals: layoutInfo ? layoutInfo.editorTerminals : []
+			tabs: layoutInfo ? layoutInfo.tabs : []
 		};
 		await this._localPtyService.setTerminalLayoutInfo(args);
 		// Store in the storage service as well to be used when reviving processes as normally this

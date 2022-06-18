@@ -296,6 +296,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.getWslPath(original);
 	}
 
+	getRevivedPtyNewId(id: number): Promise<number | undefined> {
+		return this._proxy.getRevivedPtyNewId(id);
+	}
+
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
