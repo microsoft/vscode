@@ -197,8 +197,8 @@ const linkPattern = new RegExp(
 	// text
 	r`(\[` + // open prefix match -->
 	/**/r`(?:` +
-	/*****/r`[^\[\]]+|` + // non-bracket chars, or...
-	/*****/r`\\[\[\]]|` + // Escaped bracket, or...
+	/*****/r`[^\[\]\\]|` + // Non-bracket chars, or...
+	/*****/r`\\.|` + // Escaped char, or...
 	/*****/r`\[[^\[\]]*\]` + // Matched bracket pair
 	/**/r`)*` +
 	r`\]` +
@@ -207,7 +207,7 @@ const linkPattern = new RegExp(
 	r`\(\s*)` + // <-- close prefix match
 	/**/r`(` +
 	/*****/r`[^\s\(\)\<](?:[^\s\(\)]|\([^\s\(\)]*?\))*|` + // Link without whitespace, or...
-	/*****/r`<[^<>]*>` + // in angle brackets
+	/*****/r`<[^<>]*>` + // In angle brackets
 	/**/r`)` +
 
 	// Title
