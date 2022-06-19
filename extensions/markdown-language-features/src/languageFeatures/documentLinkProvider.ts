@@ -260,7 +260,7 @@ class NoLinkRanges {
 
 	contains(range: vscode.Range): boolean {
 		return this.multiline.some(interval => range.start.line >= interval[0] && range.start.line < interval[1]) ||
-			this.inline.some(position => position.intersection(range));
+			this.inline.some(inlineRange => inlineRange.contains(range.start));
 	}
 }
 
