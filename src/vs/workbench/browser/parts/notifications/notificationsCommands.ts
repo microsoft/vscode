@@ -248,7 +248,6 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Toggle Do Not Disturb Mode
 	CommandsRegistry.registerCommand(TOGGLE_DO_NOT_DISTURB_MODE, () => center.toggleDoNotDisturbMode());
 
-
 	// Commands for Command Palette
 	const category = { value: localize('notifications', "Notifications"), original: 'Notifications' };
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER, title: { value: localize('showNotifications', "Show Notifications"), original: 'Show Notifications' }, category } });
@@ -256,5 +255,4 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: { value: localize('clearAllNotifications', "Clear All Notifications"), original: 'Clear All Notifications' }, category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: TOGGLE_DO_NOT_DISTURB_MODE, title: { value: localize('toggleDoNotDisturbMode', "Toggle Do Not Disturb Mode"), original: 'Toggle Do Not Disturb Mode' }, category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: FOCUS_NOTIFICATION_TOAST, title: { value: localize('focusNotificationToasts', "Focus Notification Toast"), original: 'Focus Notification Toast' }, category }, when: NotificationsToastsVisibleContext });
-
 }

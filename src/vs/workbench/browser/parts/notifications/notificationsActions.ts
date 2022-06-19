@@ -23,6 +23,7 @@ const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localiz
 const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, localize('expandIcon', 'Icon for the expand action in notifications.'));
 const collapseIcon = registerIcon('notifications-collapse', Codicon.chevronDown, localize('collapseIcon', 'Icon for the collapse action in notifications.'));
 const configureIcon = registerIcon('notifications-configure', Codicon.gear, localize('configureIcon', 'Icon for the configure action in notifications.'));
+const doNotDisturbIcon = registerIcon('notifications-do-not-disturb', Codicon.bellSlash, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
 
 export class ClearNotificationAction extends Action {
 
@@ -68,10 +69,9 @@ export class ToggleDoNotDisturbAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		icon: ThemeIcon,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, ThemeIcon.asClassName(icon));
+		super(id, label, ThemeIcon.asClassName(doNotDisturbIcon));
 	}
 
 	override async run(): Promise<void> {

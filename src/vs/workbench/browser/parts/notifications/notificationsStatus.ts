@@ -42,7 +42,6 @@ export class NotificationsStatus extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateNotificationsCenterStatusItem()));
 	}
 
-
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
 
 		// Consider a notification as unread as long as it only
@@ -60,6 +59,7 @@ export class NotificationsStatus extends Disposable {
 	}
 
 	private updateNotificationsCenterStatusItem(): void {
+
 		// Figure out how many notifications have progress only if neither
 		// toasts are visible nor center is visible. In that case we still
 		// want to give a hint to the user that something is running.
@@ -72,9 +72,9 @@ export class NotificationsStatus extends Disposable {
 			}
 		}
 
+		// Show the status bar entry depending on do not disturb setting
 
-		// Show the bell with a dot if there are unread or in-progress notifications
-		const defaultStatusProperties: IStatusbarEntry = {
+		let statusProperties: IStatusbarEntry = {
 			name: localize('status.notifications', "Notifications"),
 			text: `${notificationsInProgress > 0 || this.newNotificationsCount > 0 ? '$(bell-dot)' : '$(bell)'}`,
 			ariaLabel: localize('status.notifications', "Notifications"),
@@ -83,16 +83,15 @@ export class NotificationsStatus extends Disposable {
 			showBeak: this.isNotificationsCenterVisible
 		};
 
-		const isDoNotDisturbModeStatusProperties: IStatusbarEntry = {
-			name: localize('status.doNotDisturb', "Do Not Disturb"),
-			text: '$(bell-slash)',
-			ariaLabel: localize('status.doNotDisturb', "Do Not Disturb"),
-			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
-			tooltip: 'Do Not Disturb Mode is Enabled',
-		};
-
-		const isDoNotDisturbMode = this.configurationService.getValue('notifications.experimental.doNotDisturbMode');
-		const statusProperties = isDoNotDisturbMode === true ? isDoNotDisturbModeStatusProperties : defaultStatusProperties;
+		if (this.configurationService.getValue('notifications.experimental.doNotDisturbMode')) {
+			statusProperties = {
+				...statusProperties,
+				name: localize('status.doNotDisturb', "Do Not Disturb"),
+				text: '$(bell-slash)',
+				ariaLabel: localize('status.doNotDisturb', "Do Not Disturb"),
+				tooltip: localize('status.doNotDisturbTooltip', "Do Not Disturb Mode is Enabled")
+			};
+		}
 
 		if (!this.notificationsCenterStatusItem) {
 			this.notificationsCenterStatusItem = this.statusbarService.addEntry(
