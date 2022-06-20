@@ -195,7 +195,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerGenericMarkerDecoration(): IDecoration | undefined {
-		const marker = this._terminal?.registerMarker(-1);
+		const marker = this._terminal?.registerMarker(0);
 		if (!marker || !this._terminal || !defaultColor) {
 			return;
 		}
