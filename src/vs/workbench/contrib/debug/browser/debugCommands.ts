@@ -60,6 +60,7 @@ export const SET_EXPRESSION_COMMAND_ID = 'debug.setWatchExpression';
 export const REMOVE_EXPRESSION_COMMAND_ID = 'debug.removeWatchExpression';
 export const NEXT_DEBUG_CONSOLE_ID = 'workbench.action.debug.nextConsole';
 export const PREV_DEBUG_CONSOLE_ID = 'workbench.action.debug.prevConsole';
+export const SHOW_LOADED_SCRIPTS_ID = 'workbench.action.debug.showLoadedScripts';
 
 export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
 export const STEP_OVER_LABEL = nls.localize('stepOverDebug', "Step Over");
@@ -77,6 +78,9 @@ export const DEBUG_START_LABEL = nls.localize('startDebug', "Start Debugging");
 export const DEBUG_RUN_LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 export const NEXT_DEBUG_CONSOLE_LABEL = nls.localize('nextDebugConsole', "Focus Next Debug Console");
 export const PREV_DEBUG_CONSOLE_LABEL = nls.localize('prevDebugConsole', "Focus Previous Debug Console");
+export const SHOW_LOADED_SCRIPTS_LABEL = nls.localize('showLoadedScripts', "Show Loaded Scripts");
+
+export const LOADED_SCRIPTS_QUICK_PICK_PREFIX = 'loadedscripts ';
 
 interface CallStackContext {
 	sessionId: string;
@@ -431,6 +435,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		getThreadAndRun(accessor, context, thread => thread.continue());
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: SHOW_LOADED_SCRIPTS_ID,
+	handler: async (accessor) => {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.quickAccess.show(LOADED_SCRIPTS_QUICK_PICK_PREFIX);
 	}
 });
 
