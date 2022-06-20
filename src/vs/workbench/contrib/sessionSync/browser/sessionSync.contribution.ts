@@ -68,7 +68,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		if (this.environmentService.editSessionId !== undefined) {
-			void this.applyEditSession(this.environmentService.editSessionId).then(() => this.environmentService.editSessionId = undefined);
+			void this.applyEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
 		}
 
 		this.configurationService.onDidChangeConfiguration((e) => {
