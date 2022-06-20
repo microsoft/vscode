@@ -1613,7 +1613,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		if (this._usedShellIntegrationInjection && this._processManager.processState === ProcessState.KilledDuringLaunch || this._processManager.processState === ProcessState.KilledByProcess) {
+		if (this._usedShellIntegrationInjection && (this._processManager.processState === ProcessState.KilledDuringLaunch || this._processManager.processState === ProcessState.KilledByProcess)) {
 			this._relaunchWithShellIntegrationDisabled(exitCodeOrError);
 			this._onExit.fire(exitCodeOrError);
 			return;
