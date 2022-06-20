@@ -16,6 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Emitter } from 'vs/base/common/event';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -117,6 +118,17 @@ const enum VSCodeOscPt {
 }
 
 /**
+ * ITerm sequences
+ */
+const enum ITermOscPt {
+	/**
+	 * Set a mark on the scroll bar `OSC 1337 ; SetMark`
+	 * Based on ITerm's `OSC 1337 ; SetMark`
+	 */
+	SetMark = 'SetMark'
+}
+
+/**
  * The shell integration addon extends xterm by reading shell integration sequences and creating
  * capabilities and passing along relevant sequences to the capabilities. This is meant to
  * encapsulate all handling/parsing of sequences so the capabilities don't need to.
@@ -126,6 +138,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	readonly capabilities = new TerminalCapabilityStore();
 	private _hasUpdatedTelemetry: boolean = false;
 	private _activationTimeout: any;
+	private readonly _onRequestCreateGenericMarker = new Emitter<void>();
+	readonly onRequestCreateGenericMarker = this._onRequestCreateGenericMarker.event;
 
 	constructor(
 		private readonly _disableTelemetry: boolean | undefined,
@@ -140,6 +154,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
 		this._ensureCapabilitiesOrAddFailureTelemetry();
 	}
 
@@ -242,6 +257,24 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
 					}
 				}
+			}
+		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	private _doHandleITermSequence(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		// Pass the sequence along to the capability
+		const [command,] = data.split(';');
+		switch (command) {
+
+			case ITermOscPt.SetMark: {
+				this._onRequestCreateGenericMarker.fire();
 			}
 		}
 

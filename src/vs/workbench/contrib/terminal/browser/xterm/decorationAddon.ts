@@ -31,7 +31,8 @@ const enum DecorationSelector {
 	DefaultColor = 'default',
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
-	OverviewRuler = 'xterm-decoration-overview-ruler'
+	OverviewRuler = 'xterm-decoration-overview-ruler',
+	GenericMarkerIcon = 'codicon-circle-small-filled'
 }
 
 const enum DecorationStyles {
@@ -193,6 +194,39 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._attachToCommandCapability();
 	}
 
+	registerGenericMarkerDecoration(): IDecoration | undefined {
+		const marker = this._terminal?.registerMarker(-1);
+		if (!marker || !this._terminal || !defaultColor) {
+			return;
+		}
+		const decoration = this._terminal.registerDecoration({
+			marker,
+			overviewRulerOptions: { color: defaultColor.toString(), position: 'center' }
+		});
+		if (!decoration) {
+			return undefined;
+		}
+		decoration.onRender(element => {
+			if (element.classList.contains(DecorationSelector.OverviewRuler)) {
+				return;
+			}
+			if (!this._decorations.get(decoration.marker.id)) {
+				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
+				this._decorations.set(decoration.marker.id,
+					{
+						decoration,
+						disposables: []
+					});
+			}
+			if (!element.classList.contains(DecorationSelector.Codicon) || marker?.line === 0) {
+				// first render or buffer was cleared
+				this._updateLayout(element);
+				this._updateClasses(element, undefined, true);
+			}
+		});
+		return decoration;
+	}
+
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
 		if (!this._terminal) {
 			return undefined;
@@ -257,7 +291,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _updateClasses(element?: HTMLElement, exitCode?: number): void {
+	private _updateClasses(element?: HTMLElement, exitCode?: number, generic?: boolean): void {
 		if (!element) {
 			return;
 		}
@@ -265,7 +299,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			element.classList.remove(classes);
 		}
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
-		if (exitCode === undefined) {
+		if (generic) {
+			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.GenericMarkerIcon);
+		} else if (exitCode === undefined) {
 			element.classList.add(DecorationSelector.DefaultColor);
 			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
 		} else if (exitCode) {

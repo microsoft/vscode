@@ -58,6 +58,9 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	protected _onDidStateChange: Emitter<IProblemCollectorEvent>;
 
+	private readonly _onDidAddMatch = new Emitter<void>();
+	readonly onDidAddMatch = this._onDidAddMatch.event;
+
 	constructor(public readonly problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
 		this.matchers = Object.create(null);
 		this.bufferLength = 1;
@@ -205,6 +208,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		if (this._maxMarkerSeverity === undefined || match.marker.severity > this._maxMarkerSeverity) {
 			this._maxMarkerSeverity = match.marker.severity;
 		}
+		this._onDidAddMatch.fire();
 	}
 
 	private clearBuffer(): void {

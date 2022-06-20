@@ -83,6 +83,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
+import { ITermOscPt, ITermSequence } from 'vs/workbench/contrib/terminal/browser/terminalEscapSequences';
 
 const enum Constants {
 	/**
@@ -1578,6 +1579,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;
 			this._onIconChanged.fire(this);
 		}
+	}
+
+	public addGenericMarker(): void {
+		this.xterm?.raw.write(ITermSequence(ITermOscPt.SetMark));
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

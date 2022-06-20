@@ -636,6 +636,11 @@ export interface ITerminalInstance {
 	showEnvironmentInfoHover(): void;
 
 	/**
+	 * Adds a generic marker and decoration to the buffer
+	 */
+	addGenericMarker(): void;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
 	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used

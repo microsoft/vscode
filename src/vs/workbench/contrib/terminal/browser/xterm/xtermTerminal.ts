@@ -184,6 +184,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _createDecorationAddon(): void {
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
+		this.add(this._shellIntegrationAddon?.onRequestCreateGenericMarker(() => this._decorationAddon?.registerGenericMarkerDecoration()));
 		this.raw.loadAddon(this._decorationAddon);
 	}
 
