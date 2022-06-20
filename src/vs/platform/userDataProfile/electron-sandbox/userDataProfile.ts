@@ -31,7 +31,7 @@ export class UserDataProfilesNativeService extends UserDataProfilesService imple
 		const result = await this.channel.call<UriDto<IUserDataProfile>[]>('getAllProfiles');
 		this._profiles = result.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 		this._register(this.channel.listen<IUserDataProfile[]>('onDidChangeProfiles')((profiles) => {
-			this._profiles = result.map(profile => reviveProfile(profile, this.profilesHome.scheme));
+			this._profiles = profiles.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 			this._onDidChangeProfiles.fire(this._profiles);
 		}));
 	}

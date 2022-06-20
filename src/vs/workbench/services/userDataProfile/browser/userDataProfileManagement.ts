@@ -5,7 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, joinPath } from 'vs/base/common/resources';
+import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -16,9 +16,12 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { EXTENSIONS_RESOURCE_NAME, IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { CreationOptions, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
@@ -45,9 +48,23 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		@IDialogService private readonly dialogService: IDialogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILogService logService: ILogService
 	) {
 		super();
+	}
+
+	private async checkAndCreateExtensionsProfileResource(): Promise<URI> {
+		if (this.userDataProfileService.currentProfile.extensionsResource) {
+			return this.userDataProfileService.currentProfile.extensionsResource;
+		}
+		if (!this.userDataProfileService.defaultProfile.extensionsResource) {
+			// Extensions profile is not yet created for default profile, create it now
+			return this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, EXTENSIONS_RESOURCE_NAME));
+		}
+		throw new Error('Invalid Profile');
 	}
 
 	async createAndEnterProfile(name: string, options: CreationOptions = DefaultOptions, fromExisting?: boolean): Promise<void> {
@@ -58,18 +75,17 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		const promises: Promise<any>[] = [];
 		const newProfile = this.userDataProfilesService.newProfile(name);
 		await this.fileService.createFolder(newProfile.location);
+		const extensionsProfileResourcePromise = this.checkAndCreateExtensionsProfileResource();
+		promises.push(extensionsProfileResourcePromise);
 		if (fromExisting) {
 			if (options?.uiState) {
-				promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.globalStorageHome, newProfile.globalStorageHome));
+				// No op because, migration is handled by storage service while entering profile
 			}
 			if (options?.settings) {
 				promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.settingsResource, newProfile.settingsResource));
 			}
-			if (options?.extensions && newProfile.extensionsResource) {
-				promises.push((async () => {
-					const extensionsProfileResource = this.userDataProfileService.currentProfile.extensionsResource ?? await this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, basename(newProfile.extensionsResource!)));
-					this.fileService.copy(extensionsProfileResource, newProfile.extensionsResource!);
-				})());
+			if (options?.extensions) {
+				promises.push((async () => this.fileService.copy(await extensionsProfileResourcePromise, newProfile.extensionsResource))());
 			}
 			if (options?.keybindings) {
 				promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.keybindingsResource, newProfile.keybindingsResource));
@@ -82,13 +98,10 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			}
 		} else {
 			promises.push(this.fileService.createFolder(newProfile.globalStorageHome));
-			if (!this.userDataProfilesService.defaultProfile.extensionsResource) {
-				promises.push(this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, basename(newProfile.extensionsResource!))));
-			}
 		}
 		await Promise.allSettled(promises);
-		await this.userDataProfilesService.createProfile(newProfile, options, workspaceIdentifier);
-		await this.enterProfile();
+		const createdProfile = await this.userDataProfilesService.createProfile(newProfile, options, workspaceIdentifier);
+		await this.enterProfile(createdProfile, !!fromExisting);
 	}
 
 	async removeProfile(profile: IUserDataProfile): Promise<void> {
@@ -118,7 +131,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			throw new Error(`Profile ${profile.name} does not exist`);
 		}
 		await this.userDataProfilesService.setProfileForWorkspace(profile, workspaceIdentifier);
-		await this.enterProfile();
+		await this.enterProfile(profile, false);
 	}
 
 	async createAndEnterProfileFromTemplate(name: string, template: IUserDataProfileTemplate, options: CreationOptions = DefaultOptions): Promise<void> {
@@ -126,7 +139,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (!workspaceIdentifier) {
 			throw new Error(localize('cannotCreateProfileInEmptyWorkbench', "Cannot create a profile in an empty workspace"));
 		}
-		await this.progressService.withProgress({
+		const profile = await this.progressService.withProgress({
 			location: ProgressLocation.Notification,
 			title: localize('profiles.creating', "{0}: Creating...", PROFILES_CATEGORY),
 		}, async progress => {
@@ -143,9 +156,9 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 				promises.push(this.fileService.writeFile(newProfile.extensionsResource, VSBuffer.fromString(template.extensions)));
 			}
 			await Promise.allSettled(promises);
-			await this.userDataProfilesService.createProfile(newProfile, options, workspaceIdentifier);
+			return this.userDataProfilesService.createProfile(newProfile, options, workspaceIdentifier);
 		});
-		await this.enterProfile();
+		await this.enterProfile(profile, false);
 	}
 
 	private getWorkspaceIdentifier(): ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier | undefined {
@@ -159,15 +172,23 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		return undefined;
 	}
 
-	private async enterProfile(): Promise<void> {
-		const result = await this.dialogService.confirm({
-			type: 'info',
-			message: localize('reload message', "Switching a profile requires reloading VS Code."),
-			primaryButton: localize('reload button', "&&Reload"),
-		});
-		if (result.confirmed) {
-			await this.hostService.reload();
+	private async enterProfile(profile: IUserDataProfile, preserveData: boolean): Promise<void> {
+		if (this.environmentService.remoteAuthority) {
+			const result = await this.dialogService.confirm({
+				type: 'info',
+				message: localize('reload message', "Switching a profile requires reloading VS Code."),
+				primaryButton: localize('reload button', "&&Reload"),
+			});
+			if (result.confirmed) {
+				await this.hostService.reload();
+			}
+			return;
 		}
+
+		this.extensionService.stopExtensionHosts();
+		await this.storageService.switch(profile, preserveData);
+		await this.userDataProfileService.updateCurrentProfile(profile);
+		await this.extensionService.startExtensionHosts();
 	}
 
 	private async createDefaultExtensionsProfile(extensionsProfileResource: URI): Promise<URI> {

@@ -317,8 +317,8 @@ export class NotebookOutputRendererInfoStore {
 		const enum ReuseOrder {
 			PreviouslySelected = 1 << 8,
 			SameExtensionAsNotebook = 2 << 8,
-			BuiltIn = 3 << 8,
-			OtherRenderer = 4 << 8,
+			OtherRenderer = 3 << 8,
+			BuiltIn = 4 << 8,
 		}
 
 		const preferred = notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];

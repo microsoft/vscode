@@ -22,8 +22,12 @@ export class InMemoryWorkspaceMarkdownDocuments implements MdWorkspaceContents {
 		return Array.from(this._documents.values());
 	}
 
-	public async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
+	public async getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
 		return this._documents.get(resource);
+	}
+
+	public hasMarkdownDocument(resolvedHrefPath: vscode.Uri): boolean {
+		return this._documents.has(resolvedHrefPath);
 	}
 
 	public async pathExists(resource: vscode.Uri): Promise<boolean> {

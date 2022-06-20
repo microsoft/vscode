@@ -62,7 +62,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	private _profilesObject: UserDataProfilesObject | undefined;
 	private get profilesObject(): UserDataProfilesObject {
 		if (!this._profilesObject) {
-			const profiles = this.storedProfiles.map(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.options, this.defaultProfile));
+			const profiles = this.storedProfiles.map<IUserDataProfile>(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.options, this.defaultProfile));
 			profiles.unshift(this.defaultProfile);
 			const workspaces = this.storedWorskpaceInfos.reduce((workspaces, workspaceProfileInfo) => {
 				const profile = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, workspaceProfileInfo.profile));
