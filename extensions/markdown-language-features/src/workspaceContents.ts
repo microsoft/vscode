@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as URI from 'vscode-uri';
 import { coalesce } from './util/arrays';
 import { Disposable } from './util/dispose';
 import { isMarkdownFile } from './util/file';
 import { InMemoryDocument } from './util/inMemoryDocument';
 import { Limiter } from './util/limiter';
+import { ResourceMap } from './util/resourceMap';
 
 /**
  * Minimal version of {@link vscode.TextLine}. Used for mocking out in testing.
@@ -61,6 +63,8 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 	private readonly _onDidDeleteMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<vscode.Uri>());
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
+
+	private readonly _documentCache = new ResourceMap<SkinnyTextDocument>();
 
 	private readonly utf8Decoder = new TextDecoder('utf-8');
 
@@ -118,6 +122,7 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		this._watcher = this._register(vscode.workspace.createFileSystemWatcher('**/*.md'));
 
 		this._register(this._watcher.onDidChange(async resource => {
+			this._documentCache.delete(resource);
 			const document = await this.getMarkdownDocument(resource);
 			if (document) {
 				this._onDidChangeMarkdownDocumentEmitter.fire(document);
@@ -132,13 +137,22 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		}));
 
 		this._register(this._watcher.onDidDelete(resource => {
+			this._documentCache.delete(resource);
 			this._onDidDeleteMarkdownDocumentEmitter.fire(resource);
+		}));
+
+		this._register(vscode.workspace.onDidOpenTextDocument(e => {
+			this._documentCache.delete(e.uri);
 		}));
 
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
 			if (this.isRelevantMarkdownDocument(e.document)) {
 				this._onDidChangeMarkdownDocumentEmitter.fire(e.document);
 			}
+		}));
+
+		this._register(vscode.workspace.onDidCloseTextDocument(e => {
+			this._documentCache.delete(e.uri);
 		}));
 	}
 
@@ -147,9 +161,20 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 	}
 
 	public async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
+		const existing = this._documentCache.get(resource);
+		if (existing) {
+			return existing;
+		}
+
 		const matchingDocument = vscode.workspace.textDocuments.find((doc) => this.isRelevantMarkdownDocument(doc) && doc.uri.toString() === resource.toString());
 		if (matchingDocument) {
+			this._documentCache.set(resource, matchingDocument);
 			return matchingDocument;
+		}
+
+		const ext = URI.Utils.extname(resource).toLowerCase();
+		if (ext !== '.md') {
+			return undefined;
 		}
 
 		try {
@@ -157,7 +182,9 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 
 			// We assume that markdown is in UTF-8
 			const text = this.utf8Decoder.decode(bytes);
-			return new InMemoryDocument(resource, text, 0);
+			const doc = new InMemoryDocument(resource, text, 0);
+			this._documentCache.set(resource, doc);
+			return doc;
 		} catch {
 			return undefined;
 		}

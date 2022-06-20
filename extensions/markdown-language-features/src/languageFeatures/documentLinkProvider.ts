@@ -131,11 +131,14 @@ export type MdLink = MdInlineLink | MdLinkDefinition;
 
 function extractDocumentLink(
 	document: SkinnyTextDocument,
-	pre: number,
-	link: string,
+	pre: string,
+	rawLink: string,
 	matchIndex: number | undefined
 ): MdLink | undefined {
-	const offset = (matchIndex || 0) + pre;
+	const isAngleBracketLink = rawLink.startsWith('<');
+	const link = stripAngleBrackets(rawLink);
+
+	const offset = (matchIndex || 0) + pre.length + (isAngleBracketLink ? 1 : 0);
 	const linkStart = document.positionAt(offset);
 	const linkEnd = document.positionAt(offset + link.length);
 	try {
@@ -185,20 +188,36 @@ function stripAngleBrackets(link: string) {
 	return link.replace(angleBracketLinkRe, '$1');
 }
 
-/**
- * Matches `[text](link)`
- */
-const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]]|\][^(])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*("[^"]*"|'[^']*'|\([^\(\)]*\))?\s*\)/g;
+const r = String.raw;
 
 /**
- * Matches `[text](<link>)`
+ * Matches `[text](link)` or `[text](<link>)`
  */
-const linkPatternAngle = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]]|\][^(])*\])\(\s*<)(([^<>]|\([^\s\(\)]*?\))+)>\s*("[^"]*"|'[^']*'|\([^\(\)]*\))?\s*\)/g;
+const linkPattern = new RegExp(
+	// text
+	r`(\[` + // open prefix match -->
+	/**/r`(?:` +
+	/*****/r`[^\[\]\\]|` + // Non-bracket chars, or...
+	/*****/r`\\.|` + // Escaped char, or...
+	/*****/r`\[[^\[\]]*\]` + // Matched bracket pair
+	/**/r`)*` +
+	r`\]` +
 
+	// Destination
+	r`\(\s*)` + // <-- close prefix match
+	/**/r`(` +
+	/*****/r`[^\s\(\)\<](?:[^\s\(\)]|\([^\s\(\)]*?\))*|` + // Link without whitespace, or...
+	/*****/r`<[^<>]*>` + // In angle brackets
+	/**/r`)` +
+
+	// Title
+	/**/r`\s*(?:"[^"]*"|'[^']*'|\([^\(\)]*\))?\s*` +
+	r`\)`,
+	'g');
 
 /**
- * Matches `[text][ref]` or `[shorthand]`
- */
+* Matches `[text][ref]` or `[shorthand]`
+*/
 const referenceLinkPattern = /(^|[^\]\\])(?:(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]|\[\s*?([^\s\]]*?)\])(?![\:\(]))/gm;
 
 /**
@@ -241,7 +260,7 @@ class NoLinkRanges {
 
 	contains(range: vscode.Range): boolean {
 		return this.multiline.some(interval => range.start.line >= interval[0] && range.start.line < interval[1]) ||
-			this.inline.some(position => position.intersection(range));
+			this.inline.some(inlineRange => inlineRange.contains(range.start));
 	}
 }
 
@@ -270,36 +289,23 @@ export class MdLinkComputer {
 
 	private *getInlineLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
-
-		for (const match of text.matchAll(linkPatternAngle)) {
-			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
-			if (matchImageData && !noLinkRanges.contains(matchImageData.source.hrefRange)) {
-				yield matchImageData;
-			}
-			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
-			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
-				yield matchLinkData;
-			}
-		}
-
 		for (const match of text.matchAll(linkPattern)) {
-			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
-			if (matchImageData && !noLinkRanges.contains(matchImageData.source.hrefRange)) {
-				yield matchImageData;
-			}
-
-			if (match[5] !== undefined && match[5].startsWith('<')) {
-				continue;
-			}
-
-			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
+			const matchLinkData = extractDocumentLink(document, match[1], match[2], match.index);
 			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
 				yield matchLinkData;
+
+				// Also check link destination for links
+				for (const innerMatch of match[1].matchAll(linkPattern)) {
+					const innerData = extractDocumentLink(document, innerMatch[1], innerMatch[2], (match.index ?? 0) + (innerMatch.index ?? 0));
+					if (innerData) {
+						yield innerData;
+					}
+				}
 			}
 		}
 	}
 
-	private *getAutoLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
+	private * getAutoLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 
 		for (const match of text.matchAll(autoLinkPattern)) {
