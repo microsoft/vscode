@@ -367,10 +367,10 @@ export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
 	return score ? createMatches(score) : null;
 }
 
-export function anyScore(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number): FuzzyScore {
+export function anyScore(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, options: FuzzyScoreOptions = FuzzyScoreOptions.default): FuzzyScore {
 	const max = Math.min(13, pattern.length);
 	for (; patternPos < max; patternPos++) {
-		const result = fuzzyScore(pattern, lowPattern, patternPos, word, lowWord, wordPos, { firstMatchCanBeWeak: true, boostFullMatch: true });
+		const result = fuzzyScore(pattern, lowPattern, patternPos, word, lowWord, wordPos, options);
 		if (result) {
 			return result;
 		}
