@@ -435,12 +435,12 @@ suite('Markdown: Diagnostics manager', () => {
 		const tocProvider = new MdTableOfContentsProvider(engine, workspace);
 		const referencesProvider = new MdReferencesProvider(engine, workspace, tocProvider);
 		const manager = new DiagnosticManager(
-			engine,
 			workspace,
 			new DiagnosticComputer(workspace, linkProvider, tocProvider),
 			configuration,
 			reporter,
 			referencesProvider,
+			tocProvider,
 			0);
 		_disposables.push(manager, referencesProvider);
 		return manager;

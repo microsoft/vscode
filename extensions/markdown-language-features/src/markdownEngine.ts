@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import MarkdownIt = require('markdown-it');
-import Token = require('markdown-it/lib/token');
+import type MarkdownIt = require('markdown-it');
+import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
+import { MdDocumentInfoCache } from './languageFeatures/workspaceCache';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
+import { Disposable } from './util/dispose';
 import { stringHash } from './util/hash';
 import { WebviewResourceProvider } from './util/resources';
 import { isOfScheme, Schemes } from './util/schemes';
-import { SkinnyTextDocument } from './workspaceContents';
+import { MdWorkspaceContents, SkinnyTextDocument } from './workspaceContents';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -91,7 +93,12 @@ interface RenderEnv {
 	resourceProvider: WebviewResourceProvider | undefined;
 }
 
-export class MarkdownEngine {
+export interface IMdParser {
+	readonly slugifier: Slugifier;
+	tokenize(document: SkinnyTextDocument): Promise<Token[]>;
+}
+
+export class MarkdownItEngine implements IMdParser {
 
 	private md?: Promise<MarkdownIt>;
 
@@ -213,7 +220,7 @@ export class MarkdownEngine {
 		};
 	}
 
-	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
+	public async tokenize(document: SkinnyTextDocument): Promise<Token[]> {
 		const config = this.getConfig(document.uri);
 		const engine = await this.getEngine(config);
 		return this.tokenizeDocument(document, config, engine);
@@ -425,5 +432,29 @@ function normalizeHighlightLang(lang: string | undefined) {
 
 		default:
 			return lang;
+	}
+}
+
+export class MdParsingProvider extends Disposable implements IMdParser {
+
+	private readonly _cache: MdDocumentInfoCache<Token[]>;
+
+	public readonly slugifier: Slugifier;
+
+	constructor(
+		engine: MarkdownItEngine,
+		workspaceContents: MdWorkspaceContents,
+	) {
+		super();
+
+		this.slugifier = engine.slugifier;
+
+		this._cache = this._register(new MdDocumentInfoCache<Token[]>(workspaceContents, doc => {
+			return engine.tokenize(doc);
+		}));
+	}
+
+	public tokenize(document: SkinnyTextDocument): Promise<Token[]> {
+		return this._cache.getForDocument(document);
 	}
 }
