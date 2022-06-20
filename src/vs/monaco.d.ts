@@ -3398,6 +3398,10 @@ declare namespace monaco.editor {
 		 */
 		showDeprecated?: boolean;
 		/**
+		 * Controls whether suggestions allow a first characer to be matched on a weak match
+		 */
+		firstMatchCanBeWeak?: boolean;
+		/**
 		 * Control the behavior and rendering of the inline hints.
 		 */
 		inlayHints?: IEditorInlayHintsOptions;
