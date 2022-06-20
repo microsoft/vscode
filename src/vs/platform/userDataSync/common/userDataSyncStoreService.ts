@@ -263,7 +263,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = ref !== null ? joinPath(this.userDataSyncStoreUrl, 'resource', ref).toString() : joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
+		const url = ref !== null ? joinPath(this.userDataSyncStoreUrl, 'resource', resource, ref).toString() : joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
 		const headers: IHeaders = {};
 
 		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
