@@ -241,6 +241,8 @@ export abstract class DiagnosticReporter extends Disposable {
 
 	public abstract delete(uri: vscode.Uri): void;
 
+	public abstract areDiagnosticsEnabled(uri: vscode.Uri): boolean;
+
 	public addWorkItem(promise: Promise<any>): Promise<any> {
 		this.pending.add(promise);
 		promise.finally(() => this.pending.delete(promise));
@@ -253,7 +255,6 @@ export abstract class DiagnosticReporter extends Disposable {
 }
 
 export class DiagnosticCollectionReporter extends DiagnosticReporter {
-
 	private readonly collection: vscode.DiagnosticCollection;
 
 	constructor() {
@@ -267,8 +268,12 @@ export class DiagnosticCollectionReporter extends DiagnosticReporter {
 	}
 
 	public set(uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]): void {
+		this.collection.set(uri, this.areDiagnosticsEnabled(uri) ? diagnostics : []);
+	}
+
+	public areDiagnosticsEnabled(uri: vscode.Uri): boolean {
 		const tabs = this.getAllTabResources();
-		this.collection.set(uri, tabs.has(uri) ? diagnostics : []);
+		return tabs.has(uri);
 	}
 
 	public delete(uri: vscode.Uri): void {
@@ -331,6 +336,7 @@ export class DiagnosticManager extends Disposable {
 			this.reporter.delete(uri);
 		}));
 
+
 		this._register(this.linkWatcher.onDidChangeLinkedToFile(changedDocuments => {
 			for (const resource of changedDocuments) {
 				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === resource.toString());
@@ -377,9 +383,14 @@ export class DiagnosticManager extends Disposable {
 			const doc = await this.workspaceContents.getOrLoadMarkdownDocument(resource);
 			if (doc) {
 				await this.inFlightDiagnostics.trigger(doc.uri, async (token) => {
-					const state = await this.recomputeDiagnosticState(doc, token);
-					this.linkWatcher.updateLinksForDocument(doc.uri, state.config.enabled && state.config.validateFileLinks ? state.links : []);
-					this.reporter.set(doc.uri, state.diagnostics);
+					if (this.reporter.areDiagnosticsEnabled(doc.uri)) {
+						const state = await this.recomputeDiagnosticState(doc, token);
+						this.linkWatcher.updateLinksForDocument(doc.uri, state.config.enabled && state.config.validateFileLinks ? state.links : []);
+						this.reporter.set(doc.uri, state.diagnostics);
+					} else {
+						this.linkWatcher.deleteDocument(doc.uri);
+						this.reporter.delete(doc.uri);
+					}
 				});
 			}
 		}));
@@ -392,6 +403,8 @@ export class DiagnosticManager extends Disposable {
 
 		return this.reporter.addWorkItem(
 			(async () => {
+				// TODO: This pulls in all md files in the workspace. Instead we only care about opened text documents.
+				// Need a new way to handle that.
 				const allDocs = await this.workspaceContents.getAllMarkdownDocuments();
 				await Promise.all(Array.from(allDocs, doc => this.triggerDiagnostics(doc.uri)));
 			})()
