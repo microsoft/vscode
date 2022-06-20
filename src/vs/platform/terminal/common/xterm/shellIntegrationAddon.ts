@@ -268,7 +268,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			return false;
 		}
 
-		// Pass the sequence along to the capability
 		const [command,] = data.split(';');
 		switch (command) {
 
