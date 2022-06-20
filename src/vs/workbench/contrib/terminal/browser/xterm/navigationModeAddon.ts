@@ -31,31 +31,34 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 	}
 
 	focusPreviousPage(): void {
-		this._terminal!.scrollLines(-this._terminal!.rows + 1);
-		this.focusPreviousLine();
+		this._terminal!.scrollLines(-this._terminal!.rows);
+		this._focusLine('current');
 	}
 
 	focusNextPage(): void {
-		this._terminal!.scrollLines(this._terminal!.rows - 1);
-		this.focusNextLine();
+		this._terminal!.scrollLines(this._terminal!.rows);
+		this._focusLine('current');
 	}
 
 	focusPreviousLine(): void {
-		this._focusLine(true);
+		this._focusLine('previous');
 	}
 
 	focusNextLine(): void {
-		this._focusLine(false);
+		this._focusLine('next');
 	}
 
-	private _focusLine(previous: boolean): void {
+	private _focusLine(type: 'previous' | 'next' | 'current'): void {
 		if (!this._terminal?.element) {
 			return;
 		}
 		this._navigationModeActiveContextKey.set(true);
 		// Focus row if a row is already focused
 		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
-			const element = previous ? <HTMLElement | null>document.activeElement.previousElementSibling : <HTMLElement | null>document.activeElement.nextElementSibling;
+			let element = <HTMLElement | null>document.activeElement;
+			if (type !== 'current') {
+				element = type === 'previous' ? <HTMLElement | null>document.activeElement.previousElementSibling : <HTMLElement | null>document.activeElement.nextElementSibling;
+			}
 			if (element) {
 				element.focus();
 				const disposable = addDisposableListener(element, 'blur', () => {
@@ -68,8 +71,10 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		}
 
 		let targetRow: number;
-		if (previous) {
+		if (type === 'previous') {
 			targetRow = Math.max(this._terminal.buffer.active.cursorY - 1, 0);
+		} else if (type === 'next') {
+			targetRow = this._terminal.buffer.active.cursorY;
 		} else {
 			targetRow = this._terminal.buffer.active.cursorY;
 		}
