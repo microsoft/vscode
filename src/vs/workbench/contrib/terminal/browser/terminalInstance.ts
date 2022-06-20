@@ -1569,7 +1569,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.xterm?.raw.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
 		}
 		const originalIcon = this.shellLaunchConfig.icon;
-		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(async error => {
+		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
 				if (this._usedShellIntegrationInjection) {
 					this._relaunchWithShellIntegrationDisabled();
@@ -1618,7 +1618,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		if (this._usedShellIntegrationInjection && this._processManager.processState === ProcessState.KilledDuringLaunch || this._processManager.processState === ProcessState.KilledByProcess) {
-			return this._relaunchWithShellIntegrationDisabled();
+			this._relaunchWithShellIntegrationDisabled(exitCodeOrError);
+			this._onExit.fire(exitCodeOrError);
+			return;
 		}
 
 		this._isExiting = true;
@@ -1676,14 +1678,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _relaunchWithShellIntegrationDisabled(): void {
+	private _relaunchWithShellIntegrationDisabled(exitCodeOrError?: ITerminalLaunchError | number): void {
 		this._shellLaunchConfig.ignoreShellIntegration = true;
 		this.relaunch();
 		this.statusList.add({
 			id: TerminalStatus.ShellIntegrationAttentionNeeded,
 			severity: Severity.Warning,
 			icon: Codicon.warning,
-			tooltip: nls.localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch (exit code: {0}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", this.exitCode),
+			tooltip: nls.localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch (exit code or error: {0}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", exitCodeOrError?.toString()),
 			hoverActions: [{
 				commandId: TerminalCommandId.ShellIntegrationLearnMore,
 				label: nls.localize('shellIntegration.learnMore', "Learn more"),

@@ -317,6 +317,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._childProcessMonitor?.handleOutput();
 		});
 		ptyProcess.onExit(e => {
+			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		});
 		this._sendProcessId(ptyProcess.pid);
