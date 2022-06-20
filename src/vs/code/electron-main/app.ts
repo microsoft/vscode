@@ -877,7 +877,7 @@ export class CodeApplication extends Disposable {
 
 				// Pass along edit session id
 				if (params.get('editSessionId') !== null) {
-					environmentService.editSessionId = params.get('editSessionId') ?? undefined;
+					environmentService.args['editSessionId'] = params.get('editSessionId') ?? undefined;
 					params.delete('editSessionId');
 					uri = uri.with({ query: params.toString() });
 				}
