@@ -11,7 +11,7 @@ import { Disposable } from '../util/dispose';
 import { resolveDocumentLink } from '../util/openDocumentLink';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref } from './documentLinkProvider';
-import { MdHeaderReference, MdLinkReference, MdReference, MdReferencesProvider, tryFindMdDocumentForLink } from './references';
+import { MdHeaderReference, MdLinkReference, MdReference, MdReferencesProvider, tryResolveLinkPath } from './references';
 
 const localize = nls.loadMessageBundle();
 
@@ -153,8 +153,7 @@ export class MdVsCodeRenameProvider extends Disposable implements vscode.RenameP
 		const edit = new vscode.WorkspaceEdit();
 		const fileRenames: MdFileRenameEdit[] = [];
 
-		const targetDoc = await tryFindMdDocumentForLink(triggerHref, this.workspaceContents);
-		const targetUri = targetDoc?.uri ?? triggerHref.path;
+		const targetUri = await tryResolveLinkPath(triggerHref.path, this.workspaceContents) ?? triggerHref.path;
 
 		const rawNewFilePath = resolveDocumentLink(newName, triggerDocument);
 		let resolvedNewFilePath = rawNewFilePath;
