@@ -760,11 +760,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
 		// Add newly visited .gitignore files to the ignore tree
-		if (stat.name === '.gitignore') {
+		if (stat.name === '.gitignore' && this.ignoreTreesPerRoot.has(stat.resource.toString())) {
 			this.processIgnoreFile(stat.root.resource.toString(), stat.resource, false);
-			// Never hide .gitignore files if explorer.excludeGitIgnore setting is enabled
-			// We can tell it's enabled if there is an ignore tree for the workspace root
-			return !!this.ignoreTreesPerRoot.get(stat.root.resource.toString());
+			return true;
 		}
 
 		return this.isVisible(stat, parentVisibility);
