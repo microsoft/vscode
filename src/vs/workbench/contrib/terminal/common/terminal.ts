@@ -564,6 +564,7 @@ export const enum TerminalCommandId {
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
 	ClearCommandHistory = 'workbench.action.terminal.clearCommandHistory',
+	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

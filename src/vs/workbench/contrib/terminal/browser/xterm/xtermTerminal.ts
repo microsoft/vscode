@@ -16,7 +16,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { ICommandTracker, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICommandTracker, IInternalXtermTerminal, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -50,7 +50,7 @@ let SerializeAddon: typeof SerializeAddonType;
  * Wraps the xterm object with additional functionality. Interaction with the backing process is out
  * of the scope of this class.
  */
-export class XtermTerminal extends DisposableStore implements IXtermTerminal {
+export class XtermTerminal extends DisposableStore implements IXtermTerminal, IInternalXtermTerminal {
 	/** The raw xterm.js instance */
 	readonly raw: RawXtermTerminal;
 
@@ -628,5 +628,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			this._decorationAddon.dispose();
 			this._decorationAddon = undefined;
 		}
+	}
+
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	_writeText(data: string): void {
+		this.raw.write(data);
 	}
 }
