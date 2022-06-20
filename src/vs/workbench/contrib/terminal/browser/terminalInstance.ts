@@ -1571,11 +1571,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const originalIcon = this.shellLaunchConfig.icon;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
-				if (this._usedShellIntegrationInjection) {
-					this._relaunchWithShellIntegrationDisabled();
-				} else {
-					this._onProcessExit(error);
-				}
+				this._onProcessExit(error);
 			}
 		});
 		if (this.xterm?.shellIntegration) {
