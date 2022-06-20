@@ -57,6 +57,8 @@ export class TaskTerminalStatus extends Disposable {
 		this.terminalMap.set(task._id, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
 
+	onDidAddMatch(): void { }
+
 	private terminalFromEvent(event: ITaskEvent): ITerminalData | undefined {
 		if (!event.__task) {
 			return undefined;
