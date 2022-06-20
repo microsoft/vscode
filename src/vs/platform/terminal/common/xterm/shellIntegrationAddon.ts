@@ -122,8 +122,7 @@ const enum VSCodeOscPt {
  */
 const enum ITermOscPt {
 	/**
-	 * Set a mark on the scroll bar `OSC 1337 ; SetMark`
-	 * Based on ITerm's `OSC 1337 ; SetMark`
+	 * Based on ITerm's `OSC 1337 ; SetMark`, sets a mark on the scroll bar
 	 */
 	SetMark = 'SetMark'
 }
