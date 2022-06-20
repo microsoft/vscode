@@ -129,7 +129,26 @@ export class ActionButtonCommand {
 						title: title,
 						tooltip: tooltip,
 						arguments: [this.repository.sourceControl],
-					}
+					},
+					secondaryCommands: [
+						{
+							command: 'git.pull',
+							title: 'Commit & Pull',
+							arguments: [this.repository.sourceControl],
+							group: '0_commit'
+						},
+						{
+							command: 'git.sync',
+							title: 'Commit & Sync',
+							arguments: [this.repository.sourceControl],
+							group: '0_commit'
+						},
+						{
+							command: 'pr.create',
+							title: 'Commit & Create Pull Request',
+							group: '1_pr'
+						}
+					]
 				};
 			}
 		}
