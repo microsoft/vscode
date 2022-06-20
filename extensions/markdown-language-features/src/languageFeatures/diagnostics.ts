@@ -13,12 +13,12 @@ import { MdTableOfContentsWatcher } from '../test/tableOfContentsWatcher';
 import { Delayer } from '../util/async';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
-import { isMarkdownFile } from '../util/file';
+import { isMarkdownFile, looksLikeMarkdownPath } from '../util/file';
 import { Limiter } from '../util/limiter';
 import { ResourceMap } from '../util/resourceMap';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinkProvider';
-import { MdReferencesProvider, tryFindMdDocumentForLink } from './references';
+import { MdReferencesProvider, tryResolveLinkPath } from './references';
 
 const localize = nls.loadMessageBundle();
 
@@ -374,7 +374,7 @@ export class DiagnosticManager extends Disposable {
 		this.pendingDiagnostics.clear();
 
 		await Promise.all(pending.map(async resource => {
-			const doc = await this.workspaceContents.getMarkdownDocument(resource);
+			const doc = await this.workspaceContents.getOrLoadMarkdownDocument(resource);
 			if (doc) {
 				await this.inFlightDiagnostics.trigger(doc.uri, async (token) => {
 					const state = await this.recomputeDiagnosticState(doc, token);
@@ -540,19 +540,19 @@ export class DiagnosticComputer {
 						return;
 					}
 
-					const hrefDoc = await tryFindMdDocumentForLink({ kind: 'internal', path: path, fragment: '' }, this.workspaceContents);
-					if (!hrefDoc && !await this.workspaceContents.pathExists(path)) {
+					const resolvedHrefPath = await tryResolveLinkPath(path, this.workspaceContents);
+					if (!resolvedHrefPath) {
 						const msg = localize('invalidPathLink', 'File does not exist at path: {0}', path.fsPath);
 						for (const link of links) {
 							if (!this.isIgnoredLink(options, link.source.pathText)) {
 								diagnostics.push(new LinkDoesNotExistDiagnostic(link.source.hrefRange, msg, pathErrorSeverity, link.source.pathText));
 							}
 						}
-					} else if (hrefDoc && typeof fragmentErrorSeverity !== 'undefined') {
+					} else if (typeof fragmentErrorSeverity !== 'undefined' && this.isMarkdownPath(resolvedHrefPath)) {
 						// Validate each of the links to headers in the file
 						const fragmentLinks = links.filter(x => x.fragment);
 						if (fragmentLinks.length) {
-							const toc = await this.tocProvider.get(hrefDoc.uri);
+							const toc = await this.tocProvider.get(resolvedHrefPath);
 							for (const link of fragmentLinks) {
 								if (!toc.lookup(link.fragment) && !this.isIgnoredLink(options, link.source.pathText) && !this.isIgnoredLink(options, link.source.text)) {
 									const msg = localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', link.fragment);
@@ -565,6 +565,10 @@ export class DiagnosticComputer {
 				});
 			}));
 		return diagnostics;
+	}
+
+	private isMarkdownPath(resolvedHrefPath: vscode.Uri) {
+		return this.workspaceContents.hasMarkdownDocument(resolvedHrefPath) || looksLikeMarkdownPath(resolvedHrefPath);
 	}
 
 	private isIgnoredLink(options: DiagnosticOptions, link: string): boolean {

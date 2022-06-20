@@ -8,6 +8,7 @@ import { MarkdownEngine } from '../markdownEngine';
 import { MdTableOfContentsProvider, TocEntry } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
+import { looksLikeMarkdownPath } from '../util/file';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref, MdLink, MdLinkComputer } from './documentLinkProvider';
 import { MdWorkspaceInfoCache } from './workspaceCache';
@@ -177,15 +178,15 @@ export class MdReferencesProvider extends Disposable {
 			return references;
 		}
 
-		const targetDoc = await tryFindMdDocumentForLink(sourceLink.href, this.workspaceContents);
+		const resolvedResource = await tryResolveLinkPath(sourceLink.href.path, this.workspaceContents);
 		if (token.isCancellationRequested) {
 			return [];
 		}
 
 		const references: MdReference[] = [];
 
-		if (targetDoc && sourceLink.href.fragment && sourceLink.source.fragmentRange?.contains(triggerPosition)) {
-			const toc = await this.tocProvider.get(targetDoc.uri);
+		if (resolvedResource && this.isMarkdownPath(resolvedResource) && sourceLink.href.fragment && sourceLink.source.fragmentRange?.contains(triggerPosition)) {
+			const toc = await this.tocProvider.get(resolvedResource);
 			const entry = toc.lookup(sourceLink.href.fragment);
 			if (entry) {
 				references.push({
@@ -199,7 +200,7 @@ export class MdReferencesProvider extends Disposable {
 			}
 
 			for (const link of allLinksInWorkspace) {
-				if (link.href.kind !== 'internal' || !this.looksLikeLinkToDoc(link.href, targetDoc.uri)) {
+				if (link.href.kind !== 'internal' || !this.looksLikeLinkToDoc(link.href, resolvedResource)) {
 					continue;
 				}
 
@@ -215,10 +216,14 @@ export class MdReferencesProvider extends Disposable {
 				}
 			}
 		} else { // Triggered on a link without a fragment so we only require matching the file and ignore fragments
-			references.push(...this.findAllLinksToFile(targetDoc?.uri ?? sourceLink.href.path, allLinksInWorkspace, sourceLink));
+			references.push(...this.findAllLinksToFile(resolvedResource ?? sourceLink.href.path, allLinksInWorkspace, sourceLink));
 		}
 
 		return references;
+	}
+
+	private isMarkdownPath(resolvedHrefPath: vscode.Uri) {
+		return this.workspaceContents.hasMarkdownDocument(resolvedHrefPath) || looksLikeMarkdownPath(resolvedHrefPath);
 	}
 
 	private looksLikeLinkToDoc(href: InternalHref, targetDoc: vscode.Uri) {
@@ -310,16 +315,17 @@ export function registerReferencesSupport(
 	return vscode.languages.registerReferenceProvider(selector, new MdVsCodeReferencesProvider(referencesProvider));
 }
 
-export async function tryFindMdDocumentForLink(href: InternalHref, workspaceContents: MdWorkspaceContents): Promise<SkinnyTextDocument | undefined> {
-	const targetDoc = await workspaceContents.getMarkdownDocument(href.path);
-	if (targetDoc) {
-		return targetDoc;
+export async function tryResolveLinkPath(originalUri: vscode.Uri, workspaceContents: MdWorkspaceContents): Promise<vscode.Uri | undefined> {
+	if (await workspaceContents.pathExists(originalUri)) {
+		return originalUri;
 	}
 
 	// We don't think the file exists. If it doesn't already have an extension, try tacking on a `.md` and using that instead
-	if (uri.Utils.extname(href.path) === '') {
-		const dotMdResource = href.path.with({ path: href.path.path + '.md' });
-		return workspaceContents.getMarkdownDocument(dotMdResource);
+	if (uri.Utils.extname(originalUri) === '') {
+		const dotMdResource = originalUri.with({ path: originalUri.path + '.md' });
+		if (await workspaceContents.pathExists(dotMdResource)) {
+			return dotMdResource;
+		}
 	}
 
 	return undefined;

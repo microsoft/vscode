@@ -244,7 +244,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private loadTrustInfo(): IWorkspaceTrustInfo {
-		const infoAsString = this.storageService.get(this.storageKey, StorageScope.GLOBAL);
+		const infoAsString = this.storageService.get(this.storageKey, StorageScope.APPLICATION);
 
 		let result: IWorkspaceTrustInfo | undefined;
 		try {
@@ -270,7 +270,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private async saveTrustInfo(): Promise<void> {
-		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this._onDidChangeTrustedFolders.fire();
 
 		await this.updateWorkspaceTrust();
