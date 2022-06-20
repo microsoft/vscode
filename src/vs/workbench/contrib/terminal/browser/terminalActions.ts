@@ -2135,10 +2135,12 @@ export function registerTerminalActions() {
 			if (!data) {
 				return;
 			}
-			let escapedData = data;
+			let escapedData = data
+				.replace(/\\n/g, '\n')
+				.replace(/\\r/g, '\r');
 			while (true) {
 				const match = escapedData.match(/\\x([0-9a-fA-F]{2})/);
-				if (!match?.index || match.length < 2) {
+				if (match === null || match.index === undefined || match.length < 2) {
 					break;
 				}
 				escapedData = escapedData.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + escapedData.slice(match.index + 4);

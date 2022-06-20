@@ -194,6 +194,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
+		console.log('registerCommandDecoration');
 		if (!this._terminal) {
 			return undefined;
 		}
