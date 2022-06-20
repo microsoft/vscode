@@ -39,7 +39,7 @@ class TestTask extends CommonTask {
 
 class TestProblemCollector implements Partial<AbstractProblemCollector> {
 	private readonly _onDidAddMatch = new Emitter<void>();
-	readonly onDidAddMatch = this._onDidAddMatch.event;
+	readonly onDidFindMatch = this._onDidAddMatch.event;
 }
 
 suite('Task Terminal Status', () => {

@@ -53,7 +53,7 @@ export class TaskTerminalStatus extends Disposable {
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
-		problemMatcher.onDidAddMatch(() => terminal.addGenericMarker());
+		problemMatcher.onDidFindMatch(() => terminal.addGenericMarker());
 		this.terminalMap.set(task._id, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
 
