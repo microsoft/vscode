@@ -444,4 +444,11 @@ suite('Markdown: DocumentLinkProvider', () => {
 			new vscode.Range(5, 7, 5, 17),
 		]);
 	});
+
+	test('Should not include links with escaped leading paren', async () => {
+		const links = await getLinksForFile(joinLines(
+			`\\[text](http://example.com)`
+		));
+		assertLinksEqual(links, []);
+	});
 });

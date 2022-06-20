@@ -195,7 +195,7 @@ const r = String.raw;
  */
 const linkPattern = new RegExp(
 	// text
-	r`(\[` + // open prefix match -->
+	r`((?:^|[^\\])\[` + // open prefix match -->
 	/**/r`(?:` +
 	/*****/r`[^\[\]\\]|` + // Non-bracket chars, or...
 	/*****/r`\\.|` + // Escaped char, or...
@@ -213,7 +213,7 @@ const linkPattern = new RegExp(
 	// Title
 	/**/r`\s*(?:"[^"]*"|'[^']*'|\([^\(\)]*\))?\s*` +
 	r`\)`,
-	'g');
+	'gm');
 
 /**
 * Matches `[text][ref]` or `[shorthand]`
