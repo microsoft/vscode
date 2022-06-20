@@ -1691,7 +1691,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}]
 		});
 		this._telemetryService.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates the process exited when created with shell integration args' }>('terminal/shellIntegrationFailureProcessExit');
-		return;
 	}
 
 	/**
