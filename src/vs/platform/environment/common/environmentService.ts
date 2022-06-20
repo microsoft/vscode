@@ -241,6 +241,11 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return undefined;
 	}
 
+	@memoize
+	get editSessionId(): string | undefined {
+		return this.args['editSessionId'];
+	}
+
 	get args(): NativeParsedArgs { return this._args; }
 
 	constructor(
