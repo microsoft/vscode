@@ -1137,6 +1137,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						comment: ['The task command line or label']
 					}, 'Executing task: {0}', commandLine), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				}
+			} else {
+				shellLaunchConfig.initialText = taskShellIntegrationStartSequence + taskShellIntegrationOutputSequence;
 			}
 		} else {
 			const commandExecutable = (task.command.runtime !== RuntimeType.CustomExecution) ? CommandString.value(command) : undefined;
@@ -1175,6 +1177,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						comment: ['The task command line or label']
 					}, 'Executing task: {0}', `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				}
+			} else {
+				shellLaunchConfig.initialText = taskShellIntegrationStartSequence + taskShellIntegrationOutputSequence;
 			}
 		}
 
