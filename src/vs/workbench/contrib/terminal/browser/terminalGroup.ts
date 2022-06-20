@@ -393,9 +393,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			const newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
 			this.setActiveInstanceByIndex(newIndex);
 			// TODO: Only focus the new instance if the group had focus?
-			if (this.activeInstance) {
-				this.activeInstance.focus(true);
-			}
+			this.activeInstance?.focus(true);
 		} else if (index < this._activeInstanceIndex) {
 			// Adjust active instance index if needed
 			this._activeInstanceIndex--;

@@ -147,18 +147,22 @@ async function runTestsInBrowser(testModules, browserType) {
 	withReporter(browserType, new EchoRunner(emitter, browserType.toUpperCase()));
 
 	// collection failures for console printing
-	const fails = [];
+	const failingModuleIds = [];
+	const failingTests = [];
 	emitter.on('fail', (test, err) => {
 		if (err.stack) {
 			const regex = /(vs\/.*\.test)\.js/;
 			for (const line of String(err.stack).split('\n')) {
 				const match = regex.exec(line);
 				if (match) {
-					fails.push(match[1]);
-					break;
+					failingModuleIds.push(match[1]);
+					return;
 				}
 			}
 		}
+
+		// We could not determine the module id
+		failingTests.push(test.fullTitle);
 	});
 
 	try {
@@ -172,8 +176,11 @@ async function runTestsInBrowser(testModules, browserType) {
 	}
 	await browser.close();
 
-	if (fails.length > 0) {
-		return `to DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${fails.map(module => `m=${module}`).join('&')}`;
+	if (failingModuleIds.length > 0) {
+		return `to DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${failingModuleIds.map(module => `m=${module}`).join('&')}`;
+	}
+	if (failingTests.length > 0) {
+		return `The followings tests are failing:\n - ${failingTests.join('\n - ')}`;
 	}
 }
 

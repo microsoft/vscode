@@ -18,6 +18,10 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		return params.teardown(storageService);
 	});
 
+	test('Get Data, Integer, Boolean (application)', () => {
+		storeData(StorageScope.APPLICATION);
+	});
+
 	test('Get Data, Integer, Boolean (global)', () => {
 		storeData(StorageScope.GLOBAL);
 	});
@@ -67,6 +71,10 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		strictEqual(storageService.getBoolean('test.getBooleanDefault', scope, true), true);
 	}
 
+	test('Remove Data (application)', () => {
+		removeData(StorageScope.APPLICATION);
+	});
+
 	test('Remove Data (global)', () => {
 		removeData(StorageScope.GLOBAL);
 	});
@@ -97,14 +105,14 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		storageService.onDidChangeValue(e => storageValueChangeEvent = e);
 
 		// Empty
-		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL, StorageScope.APPLICATION]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				strictEqual(storageService.keys(scope, target).length, 0);
 			}
 		}
 
 		// Add values
-		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL, StorageScope.APPLICATION]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				storageTargetEvent = Object.create(null);
 				storageValueChangeEvent = Object.create(null);
@@ -134,7 +142,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		}
 
 		// Remove values
-		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL, StorageScope.APPLICATION]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				const keysLength = storageService.keys(scope, target).length;
 
@@ -153,7 +161,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		}
 
 		// Remove all
-		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL, StorageScope.APPLICATION]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				const keys = storageService.keys(scope, target);
 
@@ -166,7 +174,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		}
 
 		// Adding undefined or null removes value
-		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL, StorageScope.APPLICATION]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				storageService.store('test.target1', 'value1', scope, target);
 				strictEqual(storageService.keys(scope, target).length, 1);
@@ -186,18 +194,20 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		}
 
 		// Target change
-		storageTargetEvent = undefined;
-		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
-		ok(storageTargetEvent);
-		storageTargetEvent = undefined;
-		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.USER);
-		ok(storageTargetEvent);
-		storageTargetEvent = undefined;
-		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
-		ok(storageTargetEvent);
-		storageTargetEvent = undefined;
-		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
-		ok(!storageTargetEvent); // no change in target
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL, StorageScope.APPLICATION]) {
+			storageTargetEvent = undefined;
+			storageService.store('test.target5', 'value1', scope, StorageTarget.MACHINE);
+			ok(storageTargetEvent);
+			storageTargetEvent = undefined;
+			storageService.store('test.target5', 'value1', scope, StorageTarget.USER);
+			ok(storageTargetEvent);
+			storageTargetEvent = undefined;
+			storageService.store('test.target5', 'value1', scope, StorageTarget.MACHINE);
+			ok(storageTargetEvent);
+			storageTargetEvent = undefined;
+			storageService.store('test.target5', 'value1', scope, StorageTarget.MACHINE);
+			ok(!storageTargetEvent); // no change in target
+		}
 	});
 }
 

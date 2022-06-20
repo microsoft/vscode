@@ -209,9 +209,7 @@ export class ExtensionsListView extends ViewPane {
 		if (this.bodyTemplate) {
 			this.bodyTemplate.extensionsList.style.height = height + 'px';
 		}
-		if (this.list) {
-			this.list.layout(height, width);
-		}
+		this.list?.layout(height, width);
 	}
 
 	async show(query: string, refresh?: boolean): Promise<IPagedModel<IExtension>> {

@@ -210,7 +210,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._dimensions.rows = rows;
 		this._isScreenReaderModeEnabled = isScreenReaderModeEnabled;
 
-		let newProcess: ITerminalChildProcess;
+		let newProcess: ITerminalChildProcess | undefined;
 
 		if (shellLaunchConfig.customPtyImplementation) {
 			this._processType = ProcessType.PsuedoTerminal;
@@ -251,10 +251,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					if (result) {
 						newProcess = result;
 					} else {
-						this._logService.trace(`Attach to process failed for terminal ${shellLaunchConfig.attachPersistentProcess}`);
-						return undefined;
+						// Warn and just create a new terminal if attach failed for some reason
+						this._logService.warn(`Attach to process failed for terminal`, shellLaunchConfig.attachPersistentProcess);
+						shellLaunchConfig.attachPersistentProcess = undefined;
 					}
-				} else {
+				}
+				if (!newProcess) {
 					await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
 						remoteAuthority: this.remoteAuthority,
 						os: this.os
@@ -294,10 +296,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					if (result) {
 						newProcess = result;
 					} else {
-						this._logService.trace(`Attach to process failed for terminal ${shellLaunchConfig.attachPersistentProcess}`);
-						return undefined;
+						// Warn and just create a new terminal if attach failed for some reason
+						this._logService.warn(`Attach to process failed for terminal`, shellLaunchConfig.attachPersistentProcess);
+						shellLaunchConfig.attachPersistentProcess = undefined;
 					}
-				} else {
+				}
+				if (!newProcess) {
 					newProcess = await this._launchLocalProcess(backend, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled, variableResolver);
 				}
 				if (!this._isDisposed) {
@@ -335,7 +339,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				if (this._preLaunchInputQueue.length > 0 && this._process) {
 					// Send any queued data that's waiting
-					newProcess.input(this._preLaunchInputQueue.join(''));
+					newProcess!.input(this._preLaunchInputQueue.join(''));
 					this._preLaunchInputQueue.length = 0;
 				}
 			}),

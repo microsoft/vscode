@@ -356,7 +356,7 @@ export interface IConfigurationProperties {
 	/**
 	 * The icon for this task in the terminal tabs list
 	 */
-	icon?: string;
+	icon?: { id: string; color?: string };
 
 	/**
 	 * The icon's color in the terminal tabs list
@@ -1322,7 +1322,6 @@ namespace ConfigurationProperties {
 		{ property: 'presentation', type: CommandConfiguration.PresentationOptions },
 		{ property: 'problemMatchers' },
 		{ property: 'options' },
-		{ property: 'color' },
 		{ property: 'icon' }
 	];
 
@@ -1350,12 +1349,7 @@ namespace ConfigurationProperties {
 		if (Types.isString(external.identifier)) {
 			result.identifier = external.identifier;
 		}
-		if (Types.isString(external.color)) {
-			result.color = external.color;
-		}
-		if (Types.isString(external.icon)) {
-			result.icon = external.icon;
-		}
+		result.icon = external.icon;
 
 		if (external.isBackground !== undefined) {
 			result.isBackground = !!external.isBackground;
@@ -1641,8 +1635,7 @@ namespace CustomTask {
 			{
 				name: configuredProps.configurationProperties.name || contributedTask.configurationProperties.name,
 				identifier: configuredProps.configurationProperties.identifier || contributedTask.configurationProperties.identifier,
-				icon: contributedTask.configurationProperties.icon,
-				color: contributedTask.configurationProperties.color
+				icon: contributedTask.configurationProperties.icon
 			},
 
 		);

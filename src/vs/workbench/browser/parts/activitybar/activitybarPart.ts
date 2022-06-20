@@ -495,9 +495,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.compositeBarContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
 				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
-					if (this.globalActivityActionBar) {
-						this.globalActivityActionBar.focus(true);
-					}
+					this.globalActivityActionBar?.focus(true);
 				} else if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
 					if (this.menuBar) {
 						this.menuBar.toggleFocus();
@@ -511,9 +509,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.globalActivitiesContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
 				if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
-					if (this.compositeBar) {
-						this.compositeBar.focus(this.getVisiblePaneCompositeIds().length - 1);
-					}
+					this.compositeBar?.focus(this.getVisiblePaneCompositeIds().length - 1);
 				}
 			}));
 		}
@@ -558,6 +554,9 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private toggleAccountsActivity() {
+		if (!!this.accountsActivityAction === this.accountsVisibilityPreference) {
+			return;
+		}
 		if (this.globalActivityActionBar) {
 			if (this.accountsActivityAction) {
 				this.globalActivityActionBar.pull(ActivitybarPart.ACCOUNTS_ACTION_INDEX);
@@ -841,7 +840,13 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			for (let index = 0; index < compositeItems.length; index++) {
 				// Add items currently exists but does not exist in new.
 				if (!newCompositeItems.some(({ id }) => id === compositeItems[index].id)) {
-					newCompositeItems.splice(index, 0, compositeItems[index]);
+					const viewContainer = this.viewDescriptorService.getViewContainerById(compositeItems[index].id);
+					newCompositeItems.splice(index, 0, {
+						...compositeItems[index],
+						pinned: true,
+						visible: true,
+						order: viewContainer?.order,
+					});
 				}
 			}
 

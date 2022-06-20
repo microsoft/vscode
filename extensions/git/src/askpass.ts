@@ -8,9 +8,11 @@ import { IDisposable, EmptyDisposable, toDisposable } from './util';
 import * as path from 'path';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
 import { CredentialsProvider, Credentials } from './api/git';
+import { ITerminalEnvironmentProvider } from './terminal';
 
-export class Askpass implements IIPCHandler {
+export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 
+	private env: { [key: string]: string };
 	private disposable: IDisposable = EmptyDisposable;
 	private cache = new Map<string, Credentials>();
 	private credentialsProviders = new Set<CredentialsProvider>();
@@ -19,6 +21,13 @@ export class Askpass implements IIPCHandler {
 		if (ipc) {
 			this.disposable = ipc.registerHandler('askpass', this);
 		}
+
+		this.env = {
+			GIT_ASKPASS: path.join(__dirname, this.ipc ? 'askpass.sh' : 'askpass-empty.sh'),
+			VSCODE_GIT_ASKPASS_NODE: process.execPath,
+			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
+			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js'),
+		};
 	}
 
 	async handle({ request, host }: { request: string; host: string }): Promise<string> {
@@ -64,25 +73,13 @@ export class Askpass implements IIPCHandler {
 	}
 
 	getEnv(): { [key: string]: string } {
-		if (!this.ipc) {
-			return {
-				GIT_ASKPASS: path.join(__dirname, 'askpass-empty.sh')
-			};
-		}
-
-		const env: { [key: string]: string } = {
-			...this.ipc.getEnv(),
-			VSCODE_GIT_ASKPASS_NODE: process.execPath,
-			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
-			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js')
-		};
-
 		const config = workspace.getConfiguration('git');
-		if (config.get<boolean>('useIntegratedAskPass')) {
-			env.GIT_ASKPASS = path.join(__dirname, 'askpass.sh');
-		}
+		return config.get<boolean>('useIntegratedAskPass') ? this.env : {};
+	}
 
-		return env;
+	getTerminalEnv(): { [key: string]: string } {
+		const config = workspace.getConfiguration('git');
+		return config.get<boolean>('useIntegratedAskPass') && config.get<boolean>('terminalAuthentication') ? this.env : {};
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {

@@ -224,9 +224,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	protected removeResourceToClean(owner: string, resource: string): void {
 		const resourceSet = this.resourcesToClean.get(owner);
-		if (resourceSet) {
-			resourceSet.delete(resource);
-		}
+		resourceSet?.delete(resource);
 	}
 
 	private getResourceSetToClean(owner: string): Map<string, URI> {

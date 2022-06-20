@@ -6,6 +6,8 @@
 import { strictEqual } from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { Storage } from 'vs/base/parts/storage/common/storage';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
@@ -15,6 +17,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { BrowserStorageService, IndexedDBStorageDatabase } from 'vs/platform/storage/browser/storageService';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
 	const disposables = new DisposableStore();
@@ -25,7 +28,23 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
 	disposables.add(fileService.registerProvider(Schemas.vscodeUserData, userDataProvider));
 
-	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService));
+	const profilesRoot = URI.file('/profiles').with({ scheme: Schemas.inMemory });
+
+	const inMemoryExtraProfileRoot = joinPath(profilesRoot, 'extra');
+	const inMemoryExtraProfile: IUserDataProfile = {
+		id: 'id',
+		name: 'inMemory',
+		isDefault: false,
+		location: inMemoryExtraProfileRoot,
+		globalStorageHome: joinPath(inMemoryExtraProfileRoot, 'globalStorageHome'),
+		settingsResource: joinPath(inMemoryExtraProfileRoot, 'settingsResource'),
+		keybindingsResource: joinPath(inMemoryExtraProfileRoot, 'keybindingsResource'),
+		tasksResource: joinPath(inMemoryExtraProfileRoot, 'tasksResource'),
+		snippetsHome: joinPath(inMemoryExtraProfileRoot, 'snippetsHome'),
+		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource')
+	};
+
+	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, inMemoryExtraProfile, logService));
 
 	await storageService.initialize();
 
@@ -69,6 +88,8 @@ flakySuite('StorageService (browser specific)', () => {
 
 	test('clear', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			storageService.store('bar', 'foo', StorageScope.APPLICATION, StorageTarget.MACHINE);
+			storageService.store('bar', 3, StorageScope.APPLICATION, StorageTarget.USER);
 			storageService.store('bar', 'foo', StorageScope.GLOBAL, StorageTarget.MACHINE);
 			storageService.store('bar', 3, StorageScope.GLOBAL, StorageTarget.USER);
 			storageService.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -76,7 +97,7 @@ flakySuite('StorageService (browser specific)', () => {
 
 			await storageService.clear();
 
-			for (const scope of [StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
+			for (const scope of [StorageScope.APPLICATION, StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
 				for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
 					strictEqual(storageService.get('bar', scope), undefined);
 					strictEqual(storageService.keys(scope, target).length, 0);

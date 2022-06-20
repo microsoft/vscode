@@ -428,7 +428,8 @@ export class Codicon implements CSSIcon {
 	public static readonly debugBreakpointFunction = new Codicon('debug-breakpoint-function', { fontCharacter: '\\eb88' });
 	public static readonly debugBreakpointFunctionDisabled = new Codicon('debug-breakpoint-function-disabled', { fontCharacter: '\\eb88' });
 	public static readonly debugStackframeActive = new Codicon('debug-stackframe-active', { fontCharacter: '\\eb89' });
-	public static readonly debugStackframeDot = new Codicon('debug-stackframe-dot', { fontCharacter: '\\eb8a' });
+	public static readonly circleSmallFilled = new Codicon('circle-small-filled', { fontCharacter: '\\eb8a' });
+	public static readonly debugStackframeDot = new Codicon('debug-stackframe-dot', Codicon.circleSmallFilled.definition);
 	public static readonly debugStackframe = new Codicon('debug-stackframe', { fontCharacter: '\\eb8b' });
 	public static readonly debugStackframeFocused = new Codicon('debug-stackframe-focused', { fontCharacter: '\\eb8b' });
 	public static readonly debugBreakpointUnsupported = new Codicon('debug-breakpoint-unsupported', { fontCharacter: '\\eb8c' });
@@ -553,6 +554,10 @@ export class Codicon implements CSSIcon {
 	public static readonly arrowCircleRight = new Codicon('arrow-circle-right', { fontCharacter: '\\ebfe' });
 	public static readonly arrowCircleUp = new Codicon('arrow-circle-up', { fontCharacter: '\\ebff' });
 	public static readonly heartFilled = new Codicon('heart-filled', { fontCharacter: '\\ec04' });
+	public static readonly map = new Codicon('map', { fontCharacter: '\\ec05' });
+	public static readonly mapFilled = new Codicon('map-filled', { fontCharacter: '\\ec06' });
+	public static readonly circleSmall = new Codicon('circle-small', { fontCharacter: '\\ec07' });
+	public static readonly bellSlash = new Codicon('bell-slash', { fontCharacter: '\\ec08' });
 
 
 	// derived icons, that could become separate icons

@@ -549,6 +549,7 @@ export class TextEdit {
 
 	protected _range: Range;
 	protected _newText: string | null;
+	newText2?: string | SnippetString;
 	protected _newEol?: EndOfLine;
 
 	get range(): Range {
@@ -1209,9 +1210,7 @@ export class DocumentSymbol {
 		if (!candidate.range.contains(candidate.selectionRange)) {
 			throw new Error('selectionRange must be contained in fullRange');
 		}
-		if (candidate.children) {
-			candidate.children.forEach(DocumentSymbol.validate);
-		}
+		candidate.children?.forEach(DocumentSymbol.validate);
 	}
 
 	name: string;
@@ -2427,15 +2426,8 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
-export enum DataTransferItemKind {
-	String = 1,
-	File = 2,
-}
-
 @es5ClassCompat
 export class DataTransferItem {
-
-	get kind(): DataTransferItemKind { return DataTransferItemKind.String; }
 
 	async asString(): Promise<string> {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
@@ -2449,7 +2441,7 @@ export class DataTransferItem {
 }
 
 @es5ClassCompat
-export class DataTransfer {
+export class DataTransfer implements vscode.DataTransfer {
 	#items = new Map<string, DataTransferItem[]>();
 
 	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
@@ -2477,6 +2469,14 @@ export class DataTransfer {
 		for (const [mime, items] of this.#items) {
 			for (const item of items) {
 				callbackfn.call(thisArg, item, mime, this);
+			}
+		}
+	}
+
+	*[Symbol.iterator](): IterableIterator<[mimeType: string, item: vscode.DataTransferItem]> {
+		for (const [mime, items] of this.#items) {
+			for (const item of items) {
+				yield [mime, item];
 			}
 		}
 	}

@@ -58,7 +58,7 @@ import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/act
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { coalesce } from 'vs/base/common/arrays';
-import { extractEditorsDropData } from 'vs/platform/dnd/browser/dnd';
+import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { extname } from 'vs/base/common/resources';
 
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -541,7 +541,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 				if (this.isSupportedDragElement(e)) {
 					hide(overlay);
 
-					const vsixs = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsDropData(accessor, e)))
+					const vsixs = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, e)))
 						.map(editor => editor.resource && extname(editor.resource) === '.vsix' ? editor.resource : undefined));
 
 					if (vsixs.length > 0) {
@@ -571,9 +571,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			this.root.classList.toggle('narrow', dimension.width <= 250);
 			this.root.classList.toggle('mini', dimension.width <= 200);
 		}
-		if (this.searchBox) {
-			this.searchBox.layout(new Dimension(dimension.width - 34 - /*padding*/8, 20));
-		}
+		this.searchBox?.layout(new Dimension(dimension.width - 34 - /*padding*/8, 20));
 		super.layout(new Dimension(dimension.width, dimension.height - 41));
 	}
 

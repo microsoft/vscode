@@ -32,6 +32,7 @@ import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { timeout } from 'vs/base/common/async';
+import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -99,6 +100,7 @@ class RemoteLogOutputChannels implements IWorkbenchContribution {
 			if (remoteEnv) {
 				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 				outputChannelRegistry.registerChannel({ id: 'remoteExtensionLog', label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
+				outputChannelRegistry.registerChannel({ id: 'remotePtyHostLog', label: localize('remotePtyHostLog', "Remote Pty Host"), file: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`), log: true });
 			}
 		});
 	}

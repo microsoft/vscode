@@ -204,9 +204,7 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 
 		model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], _edits => prevSelection);
 
-		if (editor) {
-			editor.setSelections(prevSelection);
-		}
+		editor?.setSelections(prevSelection);
 	}
 }
 
