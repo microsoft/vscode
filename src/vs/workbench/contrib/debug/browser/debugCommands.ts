@@ -475,7 +475,7 @@ CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show('debug ');
+		quickInputService.quickAccess.show(DEBUG_QUICK_PICK_PREFIX);
 	}
 });
 
@@ -483,7 +483,7 @@ CommandsRegistry.registerCommand({
 	id: SELECT_DEBUG_CONSOLE_ID,
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show('debugcons ');
+		quickInputService.quickAccess.show(DEBUG_CONSOLE_QUICK_PICK_PREFIX);
 	}
 });
 
