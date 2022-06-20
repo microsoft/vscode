@@ -31,12 +31,27 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 	}
 
 	focusPreviousPage(): void {
-		this._terminal!.scrollLines(-this._terminal!.rows);
-		this._focusLine('current');
+		if (!this._terminal?.buffer.active) {
+			return;
+		}
+		if (this._terminal?.buffer.active.viewportY < this._terminal.rows) {
+			this._terminal.scrollToTop();
+			this._focusRow(0);
+		} else {
+			this._terminal.scrollLines(-this._terminal.rows);
+			this._focusLine('current');
+		}
 	}
 
 	focusNextPage(): void {
-		this._terminal!.scrollLines(this._terminal!.rows);
+		if (!this._terminal?.buffer.active) {
+			return;
+		}
+		if (this._terminal.buffer.active.baseY + this._terminal.rows > this._terminal.buffer.active.length) {
+			this._terminal.scrollToBottom();
+		} else {
+			this._terminal!.scrollLines(this._terminal!.rows);
+		}
 		this._focusLine('current');
 	}
 
