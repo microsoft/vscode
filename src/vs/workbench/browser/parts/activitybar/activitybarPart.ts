@@ -554,6 +554,9 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private toggleAccountsActivity() {
+		if (!!this.accountsActivityAction === this.accountsVisibilityPreference) {
+			return;
+		}
 		if (this.globalActivityActionBar) {
 			if (this.accountsActivityAction) {
 				this.globalActivityActionBar.pull(ActivitybarPart.ACCOUNTS_ACTION_INDEX);
@@ -837,7 +840,13 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			for (let index = 0; index < compositeItems.length; index++) {
 				// Add items currently exists but does not exist in new.
 				if (!newCompositeItems.some(({ id }) => id === compositeItems[index].id)) {
-					newCompositeItems.splice(index, 0, compositeItems[index]);
+					const viewContainer = this.viewDescriptorService.getViewContainerById(compositeItems[index].id);
+					newCompositeItems.splice(index, 0, {
+						...compositeItems[index],
+						pinned: true,
+						visible: true,
+						order: viewContainer?.order,
+					});
 				}
 			}
 
