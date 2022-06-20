@@ -4082,7 +4082,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 				'editor.suggest.firstMatchCanBeWeak': {
 					type: 'boolean',
 					default: false,
-					markdownDescription: nls.localize('editor.suggest.firstMatchCanBeWeak', "When enabled suggestions allow a first characer to be matched on a weak match.")
+					markdownDescription: nls.localize('editor.suggest.firstMatchCanBeWeak', "When enabled suggestions allow a first characer to be matched on a non-capital letter. This will provide more search results that may not be as accurate.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
