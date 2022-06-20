@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as URI from 'vscode-uri';
 import { coalesce } from './util/arrays';
 import { Disposable } from './util/dispose';
-import { isMarkdownFile } from './util/file';
+import { isMarkdownFile, looksLikeMarkdownPath } from './util/file';
 import { InMemoryDocument } from './util/inMemoryDocument';
 import { Limiter } from './util/limiter';
 import { ResourceMap } from './util/resourceMap';
@@ -42,7 +41,12 @@ export interface MdWorkspaceContents {
 	 */
 	getAllMarkdownDocuments(): Promise<Iterable<SkinnyTextDocument>>;
 
-	getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined>;
+	/**
+	 * Check if a document already exists in the workspace contents.
+	 */
+	hasMarkdownDocument(resource: vscode.Uri): boolean;
+
+	getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined>;
 
 	pathExists(resource: vscode.Uri): Promise<boolean>;
 
@@ -84,7 +88,7 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
 		const onDiskResults = await Promise.all(resources.map(resource => {
 			return limiter.queue(async () => {
-				const doc = await this.getMarkdownDocument(resource);
+				const doc = await this.getOrLoadMarkdownDocument(resource);
 				if (doc) {
 					foundFiles.add(doc.uri.toString());
 				}
@@ -123,14 +127,14 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 
 		this._register(this._watcher.onDidChange(async resource => {
 			this._documentCache.delete(resource);
-			const document = await this.getMarkdownDocument(resource);
+			const document = await this.getOrLoadMarkdownDocument(resource);
 			if (document) {
 				this._onDidChangeMarkdownDocumentEmitter.fire(document);
 			}
 		}));
 
 		this._register(this._watcher.onDidCreate(async resource => {
-			const document = await this.getMarkdownDocument(resource);
+			const document = await this.getOrLoadMarkdownDocument(resource);
 			if (document) {
 				this._onDidCreateMarkdownDocumentEmitter.fire(document);
 			}
@@ -160,7 +164,7 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		return isMarkdownFile(doc) && doc.uri.scheme !== 'vscode-bulkeditpreview';
 	}
 
-	public async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
+	public async getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
 		const existing = this._documentCache.get(resource);
 		if (existing) {
 			return existing;
@@ -172,8 +176,7 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 			return matchingDocument;
 		}
 
-		const ext = URI.Utils.extname(resource).toLowerCase();
-		if (ext !== '.md') {
+		if (!looksLikeMarkdownPath(resource)) {
 			return undefined;
 		}
 
@@ -188,6 +191,10 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		} catch {
 			return undefined;
 		}
+	}
+
+	public hasMarkdownDocument(resolvedHrefPath: vscode.Uri): boolean {
+		return this._documentCache.has(resolvedHrefPath);
 	}
 
 	public async pathExists(target: vscode.Uri): Promise<boolean> {
