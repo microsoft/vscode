@@ -73,8 +73,6 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		let targetRow: number;
 		if (type === 'previous') {
 			targetRow = Math.max(this._terminal.buffer.active.cursorY - 1, 0);
-		} else if (type === 'next') {
-			targetRow = this._terminal.buffer.active.cursorY;
 		} else {
 			targetRow = this._terminal.buffer.active.cursorY;
 		}
