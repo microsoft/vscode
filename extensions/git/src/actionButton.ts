@@ -121,25 +121,27 @@ export class ActionButtonCommand {
 
 		return {
 			command: {
-				command: this.state.isActionRunning ? '' : 'git.commit',
+				command: 'git.commit',
 				title: title,
 				tooltip: tooltip,
 				arguments: [this.repository.sourceControl],
 			},
-			description: description
+			description: description,
+			enabled: !this.state.isActionRunning
 		};
 	}
 
 	private getPublishBranchActionButton(): SourceControlActionButton {
 		return {
 			command: {
-				command: this.state.isActionRunning ? '' : 'git.publish',
+				command: 'git.publish',
 				title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
 				tooltip: this.state.isActionRunning ?
 					localize('scm button publish branch running', "Publishing Branch...") :
 					localize('scm button publish branch', "Publish Branch"),
 				arguments: [this.repository.sourceControl],
-			}
+			},
+			enabled: !this.state.isActionRunning
 		};
 	}
 
@@ -154,14 +156,15 @@ export class ActionButtonCommand {
 
 			return {
 				command: {
-					command: this.state.isActionRunning ? '' : rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
+					command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
 					title: localize('scm button sync title', "{0} {1}{2}", icon, behind, ahead),
 					tooltip: this.state.isActionRunning ?
 						localize('syncing changes', "Synchronizing Changes...")
 						: this.repository.syncTooltip,
 					arguments: [this.repository.sourceControl],
 				},
-				description: localize('scm button sync description', "{0} Sync Changes {1}{2}", icon, behind, ahead)
+				description: localize('scm button sync description', "{0} Sync Changes {1}{2}", icon, behind, ahead),
+				enabled: !this.state.isActionRunning
 			};
 		}
 
