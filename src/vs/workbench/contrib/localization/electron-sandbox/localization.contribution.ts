@@ -11,7 +11,7 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -77,7 +77,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						}],
 						{
 							sticky: true,
-							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
+							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
 						}
 					);
 				}
