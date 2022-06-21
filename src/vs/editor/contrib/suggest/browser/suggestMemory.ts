@@ -274,7 +274,7 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 
 			try {
 				const share = this._configService.getValue<boolean>('editor.suggest.shareSuggestSelections');
-				const scope = share ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
+				const scope = share ? StorageScope.PROFILE : StorageScope.WORKSPACE;
 				const raw = this._storageService.get(`${SuggestMemoryService._storagePrefix}/${mode}`, scope);
 				if (raw) {
 					this._strategy.fromJSON(JSON.parse(raw));
@@ -290,7 +290,7 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 	private _saveState() {
 		if (this._strategy) {
 			const share = this._configService.getValue<boolean>('editor.suggest.shareSuggestSelections');
-			const scope = share ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
+			const scope = share ? StorageScope.PROFILE : StorageScope.WORKSPACE;
 			const raw = JSON.stringify(this._strategy);
 			this._storageService.store(`${SuggestMemoryService._storagePrefix}/${this._strategy.name}`, raw, scope, StorageTarget.MACHINE);
 		}

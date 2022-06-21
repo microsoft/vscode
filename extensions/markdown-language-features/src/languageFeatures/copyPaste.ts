@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { tryGetUriListSnippet } from './dropIntoEditor';
 
-export function registerPasteProvider(selector: vscode.DocumentSelector) {
+export function registerPasteSupport(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentPasteEditProvider(selector, new class implements vscode.DocumentPasteEditProvider {
 
 		async provideDocumentPasteEdits(

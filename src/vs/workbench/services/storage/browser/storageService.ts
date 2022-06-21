@@ -5,53 +5,65 @@
 
 import { isSafari } from 'vs/base/browser/browser';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
-import { Promises } from 'vs/base/common/async';
+import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { assertIsDefined } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class BrowserStorageService extends AbstractStorageService {
 
 	private static BROWSER_DEFAULT_FLUSH_INTERVAL = 5 * 1000; // every 5s because async operations are not permitted on shutdown
 
 	private applicationStorage: IStorage | undefined;
-	private globalStorage: IStorage | undefined;
-	private workspaceStorage: IStorage | undefined;
-
 	private applicationStorageDatabase: IIndexedDBStorageDatabase | undefined;
-	private globalStorageDatabase: IIndexedDBStorageDatabase | undefined;
+	private readonly applicationStoragePromise = new DeferredPromise<{ indededDb: IIndexedDBStorageDatabase; storage: IStorage }>();
+
+	private profileStorage: IStorage | undefined;
+	private profileStorageDatabase: IIndexedDBStorageDatabase | undefined;
+	private profileStorageProfile = this.userDataProfileService.currentProfile;
+	private readonly profileStorageDisposables = this._register(new DisposableStore());
+
+	private workspaceStorage: IStorage | undefined;
 	private workspaceStorageDatabase: IIndexedDBStorageDatabase | undefined;
 
 	get hasPendingUpdate(): boolean {
 		return Boolean(
 			this.applicationStorageDatabase?.hasPendingUpdate ||
-			this.globalStorageDatabase?.hasPendingUpdate ||
+			this.profileStorageDatabase?.hasPendingUpdate ||
 			this.workspaceStorageDatabase?.hasPendingUpdate
 		);
 	}
 
 	constructor(
 		private readonly payload: IAnyWorkspaceIdentifier,
+		private readonly userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly logService: ILogService,
-		@IUserDataProfilesService private readonly userDataProfileService: IUserDataProfilesService
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.switchToProfile(e.profile, e.preserveData))));
 	}
 
 	private getId(scope: StorageScope): string {
 		switch (scope) {
 			case StorageScope.APPLICATION:
-				return 'global'; // use the default profile global DB for application scope
-			case StorageScope.GLOBAL:
-				if (this.userDataProfileService.currentProfile.isDefault) {
+				return 'global'; // use the default profile application DB for application scope
+			case StorageScope.PROFILE:
+				if (this.profileStorageProfile.isDefault) {
 					return 'global'; // default profile DB has a fixed name for backwards compatibility
 				} else {
-					return `global-${this.userDataProfileService.currentProfile.id}`;
+					return `global-${this.profileStorageProfile.id}`;
 				}
 			case StorageScope.WORKSPACE:
 				return this.payload.id;
@@ -60,55 +72,81 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	protected async doInitialize(): Promise<void> {
 
-		// Create Storage in Parallel
-		const promises: Promise<IIndexedDBStorageDatabase>[] = [];
-		promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.APPLICATION), broadcastChanges: true }, this.logService));
-		promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService));
-		if (!this.userDataProfileService.currentProfile.isDefault) {
+		// Init storages
+		await Promises.settled([
+			this.createApplicationStorage(),
+			this.createProfileStorage(this.profileStorageProfile),
+			this.createWorkspaceStorage()
+		]);
+	}
 
-			// If we are in default profile, the global storage is
+	private async createApplicationStorage(): Promise<void> {
+		const applicationStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.APPLICATION), broadcastChanges: true }, this.logService);
+
+		this.applicationStorageDatabase = this._register(applicationStorageIndexedDB);
+		this.applicationStorage = this._register(new Storage(this.applicationStorageDatabase));
+
+		this._register(this.applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
+
+		await this.applicationStorage.init();
+
+		this.updateIsNew(this.applicationStorage);
+
+		this.applicationStoragePromise.complete({ indededDb: applicationStorageIndexedDB, storage: this.applicationStorage });
+	}
+
+	private async createProfileStorage(profile: IUserDataProfile): Promise<void> {
+
+		// First clear any previously associated disposables
+		this.profileStorageDisposables.clear();
+
+		// Remember profile associated to profile storage
+		this.profileStorageProfile = profile;
+
+		if (this.profileStorageProfile.isDefault) {
+
+			// If we are in default profile, the profile storage is
 			// actually the same as application storage. As such we
 			// avoid creating the storage library a second time on
 			// the same DB.
 
-			promises.push(IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService));
-		}
-		const [applicationStorageDatabase, workspaceStorageDatabase, globalStorageDatabase] = await Promises.settled(promises);
+			const { indededDb: applicationStorageIndexedDB, storage: applicationStorage } = await this.applicationStoragePromise.p;
 
-		// Workspace Storage
-		this.workspaceStorageDatabase = this._register(workspaceStorageDatabase);
+			this.profileStorageDatabase = applicationStorageIndexedDB;
+			this.profileStorage = applicationStorage;
+		} else {
+			const profileStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.PROFILE), broadcastChanges: true }, this.logService);
+
+			this.profileStorageDatabase = this.profileStorageDisposables.add(profileStorageIndexedDB);
+			this.profileStorage = this.profileStorageDisposables.add(new Storage(this.profileStorageDatabase));
+		}
+
+		this.profileStorageDisposables.add(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
+
+		await this.profileStorage.init();
+
+		this.updateIsNew(this.profileStorage);
+	}
+
+	private async createWorkspaceStorage(): Promise<void> {
+		const workspaceStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService);
+
+		this.workspaceStorageDatabase = this._register(workspaceStorageIndexedDB);
 		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
+
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
 
-		// Application Storage
-		this.applicationStorageDatabase = this._register(applicationStorageDatabase);
-		this.applicationStorage = this._register(new Storage(this.applicationStorageDatabase));
-		this._register(this.applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
+		await this.workspaceStorage.init();
 
-		// Global Storage
-		if (globalStorageDatabase) {
-			this.globalStorageDatabase = this._register(globalStorageDatabase);
-			this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
-		} else {
-			this.globalStorage = this.applicationStorage;
-		}
-		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		this.updateIsNew(this.workspaceStorage);
+	}
 
-		// Init storages
-		await Promises.settled([
-			this.workspaceStorage.init(),
-			this.globalStorage.init(),
-			this.applicationStorage.init()
-		]);
-
-		// Apply is-new markers
-		for (const storage of [this.applicationStorage, this.globalStorage, this.workspaceStorage]) {
-			const firstOpen = storage.getBoolean(IS_NEW_KEY);
-			if (firstOpen === undefined) {
-				storage.set(IS_NEW_KEY, true);
-			} else if (firstOpen) {
-				storage.set(IS_NEW_KEY, false);
-			}
+	private updateIsNew(storage: IStorage): void {
+		const firstOpen = storage.getBoolean(IS_NEW_KEY);
+		if (firstOpen === undefined) {
+			storage.set(IS_NEW_KEY, true);
+		} else if (firstOpen) {
+			storage.set(IS_NEW_KEY, false);
 		}
 	}
 
@@ -116,8 +154,8 @@ export class BrowserStorageService extends AbstractStorageService {
 		switch (scope) {
 			case StorageScope.APPLICATION:
 				return this.applicationStorage;
-			case StorageScope.GLOBAL:
-				return this.globalStorage;
+			case StorageScope.PROFILE:
+				return this.profileStorage;
 			default:
 				return this.workspaceStorage;
 		}
@@ -127,7 +165,24 @@ export class BrowserStorageService extends AbstractStorageService {
 		return this.getId(scope);
 	}
 
-	async migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
+	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+		const oldProfileStorage = assertIsDefined(this.profileStorage);
+		const oldItems = oldProfileStorage.items;
+
+		// Close old profile storage but only if this is
+		// different from application storage!
+		if (oldProfileStorage !== this.applicationStorage) {
+			await oldProfileStorage.close();
+		}
+
+		// Create new profile storage & init
+		await this.createProfileStorage(toProfile);
+
+		// Handle data switch and eventing
+		this.switchData(oldItems, assertIsDefined(this.profileStorage), StorageScope.PROFILE, preserveData);
+	}
+
+	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
 		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 
@@ -155,7 +210,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// we expect data to be written when the unload happens.
 		if (isSafari) {
 			this.applicationStorage?.close();
-			this.globalStorageDatabase?.close();
+			this.profileStorageDatabase?.close();
 			this.workspaceStorageDatabase?.close();
 		}
 
@@ -167,7 +222,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	async clear(): Promise<void> {
 
 		// Clear key/values
-		for (const scope of [StorageScope.APPLICATION, StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
+		for (const scope of [StorageScope.APPLICATION, StorageScope.PROFILE, StorageScope.WORKSPACE]) {
 			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
 				for (const key of this.keys(scope, target)) {
 					this.remove(key, scope);
@@ -180,7 +235,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Clear databases
 		await Promises.settled([
 			this.applicationStorageDatabase?.clear() ?? Promise.resolve(),
-			this.globalStorageDatabase?.clear() ?? Promise.resolve(),
+			this.profileStorageDatabase?.clear() ?? Promise.resolve(),
 			this.workspaceStorageDatabase?.clear() ?? Promise.resolve()
 		]);
 	}
@@ -265,7 +320,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 
 	private registerListeners(): void {
 
-		// Check for global storage change events from other
+		// Check for storage change events from other
 		// windows/tabs via `BroadcastChannel` mechanisms.
 		if (this.broadcastChannel) {
 			const listener = (event: MessageEvent) => {

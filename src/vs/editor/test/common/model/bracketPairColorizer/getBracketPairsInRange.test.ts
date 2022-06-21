@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { DisposableStore, disposeOnReturn } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';

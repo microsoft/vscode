@@ -652,7 +652,8 @@ class ExtensionsManager extends Disposable {
 			this.logService.error(error);
 		}
 		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e.reduce<IExtension[]>((result, { local, operation }) => { if (local && operation !== InstallOperation.Migrate) { result.push(local); } return result; }, []))));
-		this._register(Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error))(e => this.onDidUninstallExtension(e.identifier, e.server)));
+		this._register(Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error))(e => this.onDidUninstallExtensions([e.identifier], e.server)));
+		this._register(this.extensionManagementService.onDidChangeProfileExtensions(({ added, removed, server }) => { this.onDidInstallExtensions(added); this.onDidUninstallExtensions(removed.map(({ identifier }) => identifier), server); }));
 	}
 
 	private onDidInstallExtensions(extensions: IExtension[]): void {
@@ -662,10 +663,15 @@ class ExtensionsManager extends Disposable {
 		}
 	}
 
-	private onDidUninstallExtension(identifier: IExtensionIdentifier, server: IExtensionManagementServer): void {
-		const index = this._extensions.findIndex(e => areSameExtensions(e.identifier, identifier) && this.extensionManagementServerService.getExtensionManagementServer(e) === server);
-		if (index !== -1) {
-			const removed = this._extensions.splice(index, 1);
+	private onDidUninstallExtensions(identifiers: IExtensionIdentifier[], server: IExtensionManagementServer): void {
+		const removed: IExtension[] = [];
+		for (const identifier of identifiers) {
+			const index = this._extensions.findIndex(e => areSameExtensions(e.identifier, identifier) && this.extensionManagementServerService.getExtensionManagementServer(e) === server);
+			if (index !== -1) {
+				removed.push(...this._extensions.splice(index, 1));
+			}
+		}
+		if (removed.length) {
 			this._onDidChangeExtensions.fire({ added: [], removed });
 		}
 	}

@@ -28,7 +28,7 @@ import { IReference } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -153,7 +153,7 @@ export class ConfigurationEditingService {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IFileService private readonly fileService: IFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -614,9 +614,9 @@ export class ConfigurationEditingService {
 	private getConfigurationFileResource(target: EditableConfigurationTarget, standAloneConfigurationKey: string | undefined, relativePath: string, resource: URI | null | undefined): URI | null {
 		if (target === EditableConfigurationTarget.USER_LOCAL) {
 			if (standAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
-				return this.userDataProfilesService.currentProfile.tasksResource;
+				return this.userDataProfileService.currentProfile.tasksResource;
 			} else {
-				return this.userDataProfilesService.currentProfile.settingsResource;
+				return this.userDataProfileService.currentProfile.settingsResource;
 			}
 		}
 		if (target === EditableConfigurationTarget.USER_REMOTE) {

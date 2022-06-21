@@ -9,7 +9,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Constants } from 'vs/base/common/uint';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
@@ -199,17 +198,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
-		// update column from which to show
-		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
-		let highlightRange: Range = messages[0].range;
-		let forceShowAtRange: Range | null = null;
-		for (const msg of messages) {
-			renderColumn = Math.min(renderColumn, msg.range.startColumn);
-			highlightRange = Range.plusRange(highlightRange, msg.range);
-			if (msg.forceShowAtRange) {
-				forceShowAtRange = msg.range;
-			}
-		}
+		const { showAtPosition, showAtRange, highlightRange } = ContentHoverController.computeHoverRanges(anchor.range, messages);
 
 		const disposables = new DisposableStore();
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
@@ -247,8 +236,8 @@ export class ContentHoverController extends Disposable {
 
 			this._widget.showAt(fragment, new ContentHoverVisibleData(
 				colorPicker,
-				forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchor.range.startLineNumber, renderColumn),
-				forceShowAtRange ? forceShowAtRange : highlightRange,
+				showAtPosition,
+				showAtRange,
 				this._editor.getOption(EditorOption.hover).above,
 				this._computer.shouldFocus,
 				disposables
@@ -262,6 +251,33 @@ export class ContentHoverController extends Disposable {
 		description: 'content-hover-highlight',
 		className: 'hoverHighlight'
 	});
+
+	public static computeHoverRanges(anchorRange: Range, messages: IHoverPart[]) {
+		// The anchor range is always on a single line
+		const anchorLineNumber = anchorRange.startLineNumber;
+		let renderStartColumn = anchorRange.startColumn;
+		let renderEndColumn = anchorRange.endColumn;
+		let highlightRange: Range = messages[0].range;
+		let forceShowAtRange: Range | null = null;
+
+		for (const msg of messages) {
+			highlightRange = Range.plusRange(highlightRange, msg.range);
+			if (msg.range.startLineNumber === anchorLineNumber && msg.range.endLineNumber === anchorLineNumber) {
+				// this message has a range that is completely sitting on the line of the anchor
+				renderStartColumn = Math.min(renderStartColumn, msg.range.startColumn);
+				renderEndColumn = Math.max(renderEndColumn, msg.range.endColumn);
+			}
+			if (msg.forceShowAtRange) {
+				forceShowAtRange = msg.range;
+			}
+		}
+
+		return {
+			showAtPosition: forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchorRange.startLineNumber, renderStartColumn),
+			showAtRange: forceShowAtRange ? forceShowAtRange : new Range(anchorLineNumber, renderStartColumn, anchorLineNumber, renderEndColumn),
+			highlightRange
+		};
+	}
 }
 
 class ContentHoverVisibleData {

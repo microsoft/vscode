@@ -60,14 +60,15 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	/**
 	 *
 	 * @param editSession An object representing edit session state to be restored.
+	 * @returns The ref of the stored edit session state.
 	 */
-	async write(editSession: EditSession): Promise<void> {
+	async write(editSession: EditSession): Promise<string> {
 		this.initialized = await this.waitAndInitialize();
 		if (!this.initialized) {
 			throw new Error('Please sign in to store your edit session.');
 		}
 
-		await this.storeClient?.write('editSessions', JSON.stringify(editSession), null);
+		return this.storeClient!.write('editSessions', JSON.stringify(editSession), null);
 	}
 
 	/**
@@ -240,14 +241,14 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	}
 
 	private get existingSessionId() {
-		return this.storageService.get(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
+		return this.storageService.get(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.PROFILE);
 	}
 
 	private set existingSessionId(sessionId: string | undefined) {
 		if (sessionId === undefined) {
-			this.storageService.remove(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
+			this.storageService.remove(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.PROFILE);
 		} else {
-			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 
@@ -258,7 +259,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 
 	private async onDidChangeStorage(e: IStorageValueChangeEvent): Promise<void> {
 		if (e.key === SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY
-			&& e.scope === StorageScope.GLOBAL
+			&& e.scope === StorageScope.PROFILE
 			&& this.#authenticationInfo?.sessionId !== this.existingSessionId
 		) {
 			this.#authenticationInfo = undefined;

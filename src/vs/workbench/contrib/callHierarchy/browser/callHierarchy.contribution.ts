@@ -92,7 +92,7 @@ class CallHierarchyController implements IEditorContribution {
 
 		const cts = new CancellationTokenSource();
 		const model = CallHierarchyModel.create(document, position, cts.token);
-		const direction = sanitizedDirection(this._storageService.get(CallHierarchyController._StorageDirection, StorageScope.GLOBAL, CallHierarchyDirection.CallsTo));
+		const direction = sanitizedDirection(this._storageService.get(CallHierarchyController._StorageDirection, StorageScope.PROFILE, CallHierarchyDirection.CallsTo));
 
 		this._showCallHierarchyWidget(position, direction, model, cts);
 	}
@@ -130,7 +130,7 @@ class CallHierarchyController implements IEditorContribution {
 		this._widget.showLoading();
 		this._sessionDisposables.add(this._widget.onDidClose(() => {
 			this.endCallHierarchy();
-			this._storageService.store(CallHierarchyController._StorageDirection, this._widget!.direction, StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(CallHierarchyController._StorageDirection, this._widget!.direction, StorageScope.PROFILE, StorageTarget.USER);
 		}));
 		this._sessionDisposables.add({ dispose() { cts.dispose(true); } });
 		this._sessionDisposables.add(this._widget);

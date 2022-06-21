@@ -44,7 +44,7 @@ import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEd
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { isArray, isObject } from 'vs/base/common/types';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -66,7 +66,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private readonly modelService: IModelService,
@@ -93,7 +93,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.json' });
 
 	get userSettingsResource(): URI {
-		return this.userDataProfilesService.currentProfile.settingsResource;
+		return this.userDataProfileService.currentProfile.settingsResource;
 	}
 
 	get workspaceSettingsResource(): URI | null {
@@ -304,7 +304,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		options = { pinned: true, revealIfOpened: true, ...options };
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
-			const editableKeybindings = this.userDataProfilesService.currentProfile.keybindingsResource;
+			const editableKeybindings = this.userDataProfileService.currentProfile.keybindingsResource;
 			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor

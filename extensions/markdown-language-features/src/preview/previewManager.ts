@@ -5,8 +5,8 @@
 
 import * as vscode from 'vscode';
 import { Logger } from '../logger';
-import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { Disposable, disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { DynamicMarkdownPreview, ManagedMarkdownPreview, StaticMarkdownPreview } from './preview';
@@ -71,7 +71,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		private readonly _contentProvider: MarkdownContentProvider,
 		private readonly _logger: Logger,
 		private readonly _contributions: MarkdownContributionProvider,
-		private readonly _engine: MarkdownEngine,
+		private readonly _tocProvider: MdTableOfContentsProvider,
 	) {
 		super();
 
@@ -166,7 +166,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._logger,
 			this._topmostLineMonitor,
 			this._contributions,
-			this._engine);
+			this._tocProvider);
 
 		this.registerDynamicPreview(preview);
 	}
@@ -184,7 +184,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._topmostLineMonitor,
 			this._logger,
 			this._contributions,
-			this._engine,
+			this._tocProvider,
 			lineNumber
 		);
 		this.registerStaticPreview(preview);
@@ -209,7 +209,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._logger,
 			this._topmostLineMonitor,
 			this._contributions,
-			this._engine);
+			this._tocProvider);
 
 		this.setPreviewActiveContext(true);
 		this._activePreview = preview;

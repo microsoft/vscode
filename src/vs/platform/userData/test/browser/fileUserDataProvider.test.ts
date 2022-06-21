@@ -52,7 +52,7 @@ suite('FileUserDataProvider', () => {
 		await testObject.createFolder(backupWorkspaceHomeOnDisk);
 
 		environmentService = new TestEnvironmentService(userDataHomeOnDisk);
-		userDataProfilesService = new UserDataProfilesService(undefined, undefined, environmentService, testObject, logService);
+		userDataProfilesService = new UserDataProfilesService(undefined, environmentService, testObject, logService);
 
 		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService);
 		disposables.add(fileUserDataProvider);
@@ -62,25 +62,25 @@ suite('FileUserDataProvider', () => {
 	teardown(() => disposables.clear());
 
 	test('exists return false when file does not exist', async () => {
-		const exists = await testObject.exists(userDataProfilesService.currentProfile.settingsResource);
+		const exists = await testObject.exists(userDataProfilesService.defaultProfile.settingsResource);
 		assert.strictEqual(exists, false);
 	});
 
 	test('read file throws error if not exist', async () => {
 		try {
-			await testObject.readFile(userDataProfilesService.currentProfile.settingsResource);
+			await testObject.readFile(userDataProfilesService.defaultProfile.settingsResource);
 			assert.fail('Should fail since file does not exist');
 		} catch (e) { }
 	});
 
 	test('read existing file', async () => {
 		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'settings.json'), VSBuffer.fromString('{}'));
-		const result = await testObject.readFile(userDataProfilesService.currentProfile.settingsResource);
+		const result = await testObject.readFile(userDataProfilesService.defaultProfile.settingsResource);
 		assert.strictEqual(result.value.toString(), '{}');
 	});
 
 	test('create file', async () => {
-		const resource = userDataProfilesService.currentProfile.settingsResource;
+		const resource = userDataProfilesService.defaultProfile.settingsResource;
 		const actual1 = await testObject.createFile(resource, VSBuffer.fromString('{}'));
 		assert.strictEqual(actual1.resource.toString(), resource.toString());
 		const actual2 = await testObject.readFile(joinPath(userDataHomeOnDisk, 'settings.json'));
@@ -88,7 +88,7 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('write file creates the file if not exist', async () => {
-		const resource = userDataProfilesService.currentProfile.settingsResource;
+		const resource = userDataProfilesService.defaultProfile.settingsResource;
 		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{}'));
 		assert.strictEqual(actual1.resource.toString(), resource.toString());
 		const actual2 = await testObject.readFile(joinPath(userDataHomeOnDisk, 'settings.json'));
@@ -96,7 +96,7 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('write to existing file', async () => {
-		const resource = userDataProfilesService.currentProfile.settingsResource;
+		const resource = userDataProfilesService.defaultProfile.settingsResource;
 		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'settings.json'), VSBuffer.fromString('{}'));
 		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
 		assert.strictEqual(actual1.resource.toString(), resource.toString());
@@ -106,33 +106,33 @@ suite('FileUserDataProvider', () => {
 
 	test('delete file', async () => {
 		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'settings.json'), VSBuffer.fromString(''));
-		await testObject.del(userDataProfilesService.currentProfile.settingsResource);
+		await testObject.del(userDataProfilesService.defaultProfile.settingsResource);
 		const result = await testObject.exists(joinPath(userDataHomeOnDisk, 'settings.json'));
 		assert.strictEqual(false, result);
 	});
 
 	test('resolve file', async () => {
 		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'settings.json'), VSBuffer.fromString(''));
-		const result = await testObject.resolve(userDataProfilesService.currentProfile.settingsResource);
+		const result = await testObject.resolve(userDataProfilesService.defaultProfile.settingsResource);
 		assert.ok(!result.isDirectory);
 		assert.ok(result.children === undefined);
 	});
 
 	test('exists return false for folder that does not exist', async () => {
-		const exists = await testObject.exists(userDataProfilesService.currentProfile.snippetsHome);
+		const exists = await testObject.exists(userDataProfilesService.defaultProfile.snippetsHome);
 		assert.strictEqual(exists, false);
 	});
 
 	test('exists return true for folder that exists', async () => {
 		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		const exists = await testObject.exists(userDataProfilesService.currentProfile.snippetsHome);
+		const exists = await testObject.exists(userDataProfilesService.defaultProfile.snippetsHome);
 		assert.strictEqual(exists, true);
 	});
 
 	test('read file throws error for folder', async () => {
 		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
 		try {
-			await testObject.readFile(userDataProfilesService.currentProfile.snippetsHome);
+			await testObject.readFile(userDataProfilesService.defaultProfile.snippetsHome);
 			assert.fail('Should fail since read file is not supported for folders');
 		} catch (e) { }
 	});
@@ -140,7 +140,7 @@ suite('FileUserDataProvider', () => {
 	test('read file under folder', async () => {
 		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
 		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffer.fromString('{}'));
-		const resource = joinPath(userDataProfilesService.currentProfile.snippetsHome, 'settings.json');
+		const resource = joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json');
 		const actual = await testObject.readFile(resource);
 		assert.strictEqual(actual.resource.toString(), resource.toString());
 		assert.strictEqual(actual.value.toString(), '{}');
@@ -149,7 +149,7 @@ suite('FileUserDataProvider', () => {
 	test('read file under sub folder', async () => {
 		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets', 'java'));
 		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'snippets', 'java', 'settings.json'), VSBuffer.fromString('{}'));
-		const resource = joinPath(userDataProfilesService.currentProfile.snippetsHome, 'java/settings.json');
+		const resource = joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'java/settings.json');
 		const actual = await testObject.readFile(resource);
 		assert.strictEqual(actual.resource.toString(), resource.toString());
 		assert.strictEqual(actual.value.toString(), '{}');
@@ -157,7 +157,7 @@ suite('FileUserDataProvider', () => {
 
 	test('create file under folder that exists', async () => {
 		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		const resource = joinPath(userDataProfilesService.currentProfile.snippetsHome, 'settings.json');
+		const resource = joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json');
 		const actual1 = await testObject.createFile(resource, VSBuffer.fromString('{}'));
 		assert.strictEqual(actual1.resource.toString(), resource.toString());
 		const actual2 = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
@@ -165,7 +165,7 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('create file under folder that does not exist', async () => {
-		const resource = joinPath(userDataProfilesService.currentProfile.snippetsHome, 'settings.json');
+		const resource = joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json');
 		const actual1 = await testObject.createFile(resource, VSBuffer.fromString('{}'));
 		assert.strictEqual(actual1.resource.toString(), resource.toString());
 		const actual2 = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
@@ -174,7 +174,7 @@ suite('FileUserDataProvider', () => {
 
 	test('write to not existing file under container that exists', async () => {
 		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		const resource = joinPath(userDataProfilesService.currentProfile.snippetsHome, 'settings.json');
+		const resource = joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json');
 		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{}'));
 		assert.strictEqual(actual1.resource.toString(), resource.toString());
 		const actual = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
@@ -182,7 +182,7 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('write to not existing file under container that does not exists', async () => {
-		const resource = joinPath(userDataProfilesService.currentProfile.snippetsHome, 'settings.json');
+		const resource = joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json');
 		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{}'));
 		assert.strictEqual(actual1.resource.toString(), resource.toString());
 		const actual = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
@@ -192,7 +192,7 @@ suite('FileUserDataProvider', () => {
 	test('write to existing file under container', async () => {
 		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
 		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffer.fromString('{}'));
-		const resource = joinPath(userDataProfilesService.currentProfile.snippetsHome, 'settings.json');
+		const resource = joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json');
 		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
 		assert.strictEqual(actual1.resource.toString(), resource.toString());
 		const actual = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
@@ -200,7 +200,7 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('write file under sub container', async () => {
-		const resource = joinPath(userDataProfilesService.currentProfile.snippetsHome, 'java/settings.json');
+		const resource = joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'java/settings.json');
 		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{}'));
 		assert.strictEqual(actual1.resource.toString(), resource.toString());
 		const actual = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'java', 'settings.json'));
@@ -209,7 +209,7 @@ suite('FileUserDataProvider', () => {
 
 	test('delete throws error for folder that does not exist', async () => {
 		try {
-			await testObject.del(userDataProfilesService.currentProfile.snippetsHome);
+			await testObject.del(userDataProfilesService.defaultProfile.snippetsHome);
 			assert.fail('Should fail the folder does not exist');
 		} catch (e) { }
 	});
@@ -217,14 +217,14 @@ suite('FileUserDataProvider', () => {
 	test('delete not existing file under container that exists', async () => {
 		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
 		try {
-			await testObject.del(joinPath(userDataProfilesService.currentProfile.snippetsHome, 'settings.json'));
+			await testObject.del(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json'));
 			assert.fail('Should fail since file does not exist');
 		} catch (e) { }
 	});
 
 	test('delete not existing file under container that does not exists', async () => {
 		try {
-			await testObject.del(joinPath(userDataProfilesService.currentProfile.snippetsHome, 'settings.json'));
+			await testObject.del(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json'));
 			assert.fail('Should fail since file does not exist');
 		} catch (e) { }
 	});
@@ -232,7 +232,7 @@ suite('FileUserDataProvider', () => {
 	test('delete existing file under folder', async () => {
 		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
 		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffer.fromString('{}'));
-		await testObject.del(joinPath(userDataProfilesService.currentProfile.snippetsHome, 'settings.json'));
+		await testObject.del(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json'));
 		const exists = await testObject.exists(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
 		assert.strictEqual(exists, false);
 	});
@@ -240,11 +240,11 @@ suite('FileUserDataProvider', () => {
 	test('resolve folder', async () => {
 		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
 		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffer.fromString('{}'));
-		const result = await testObject.resolve(userDataProfilesService.currentProfile.snippetsHome);
+		const result = await testObject.resolve(userDataProfilesService.defaultProfile.snippetsHome);
 		assert.ok(result.isDirectory);
 		assert.ok(result.children !== undefined);
 		assert.strictEqual(result.children!.length, 1);
-		assert.strictEqual(result.children![0].resource.toString(), joinPath(userDataProfilesService.currentProfile.snippetsHome, 'settings.json').toString());
+		assert.strictEqual(result.children![0].resource.toString(), joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json').toString());
 	});
 
 	test('read backup file', async () => {

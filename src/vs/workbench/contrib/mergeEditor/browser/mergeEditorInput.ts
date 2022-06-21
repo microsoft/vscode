@@ -14,7 +14,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUntypedEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
+import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 

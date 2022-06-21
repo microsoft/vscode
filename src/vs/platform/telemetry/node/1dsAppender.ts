@@ -67,10 +67,10 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 	appInsightsCore.initialize(coreConfig, []);
 
 	appInsightsCore.addTelemetryInitializer((envelope) => {
-		if (envelope.tags) {
-			// Sets it to be internal only based on Windows UTC flagging
-			envelope.tags['utc.flags'] = 0x0000811ECD;
-		}
+		envelope['ext'] = envelope['ext'] ?? {};
+		envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
+		// Sets it to be internal only based on Windows UTC flagging
+		envelope['ext']['utc']['flags'] = 0x0000811ECD;
 	});
 
 	return appInsightsCore;
@@ -135,7 +135,7 @@ export class OneDataSystemAppender implements ITelemetryAppender {
 		try {
 			this._withAIClient((aiClient) => aiClient.track({
 				name: this._eventPrefix + '/' + eventName,
-				data: { ...data.properties, ...data.measurements },
+				data,
 
 			}));
 		} catch { }

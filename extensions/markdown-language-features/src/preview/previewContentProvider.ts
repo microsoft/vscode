@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
 import { Logger } from '../logger';
-import { MarkdownEngine } from '../markdownEngine';
+import { MarkdownItEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { WebviewResourceProvider } from '../util/resources';
 import { MarkdownPreviewConfiguration, MarkdownPreviewConfigurationManager } from './previewConfig';
@@ -47,7 +47,7 @@ export interface MarkdownContentProviderOutput {
 
 export class MarkdownContentProvider {
 	constructor(
-		private readonly engine: MarkdownEngine,
+		private readonly engine: MarkdownItEngine,
 		private readonly context: vscode.ExtensionContext,
 		private readonly cspArbiter: ContentSecurityPolicyArbiter,
 		private readonly contributionProvider: MarkdownContributionProvider,
