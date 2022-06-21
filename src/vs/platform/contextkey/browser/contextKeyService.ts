@@ -22,7 +22,7 @@ const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 export class Context implements IContext {
 
 	protected _parent: Context | null;
-	protected _value: { [key: string]: any };
+	protected _value: Record<string, any>;
 	protected _id: number;
 
 	constructor(id: number, parent: Context | null) {
@@ -30,6 +30,10 @@ export class Context implements IContext {
 		this._parent = parent;
 		this._value = Object.create(null);
 		this._value['_contextId'] = id;
+	}
+
+	public get value(): Record<string, any> {
+		return { ...this._value };
 	}
 
 	public setValue(key: string, value: any): boolean {
@@ -62,7 +66,7 @@ export class Context implements IContext {
 		this._parent = parent;
 	}
 
-	public collectAllValues(): { [key: string]: any } {
+	public collectAllValues(): Record<string, any> {
 		let result = this._parent ? this._parent.collectAllValues() : Object.create(null);
 		result = { ...result, ...this._value };
 		delete result['_contextId'];
@@ -245,6 +249,12 @@ class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
 		}
 		return false;
 	}
+}
+
+function allEventKeysInContext(event: IContextKeyChangeEvent, context: Record<string, any>): boolean {
+	return (event instanceof ArrayContextKeyChangeEvent && event.keys.every(key => key in context)) ||
+		(event instanceof SimpleContextKeyChangeEvent && event.key in context) ||
+		(event instanceof CompositeContextKeyChangeEvent && event.events.every(e => allEventKeysInContext(e, context)));
 }
 
 export abstract class AbstractContextKeyService implements IContextKeyService {
@@ -439,7 +449,14 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 
 	private _updateParentChangeListener(): void {
 		// Forward parent events to this listener. Parent will change.
-		this._parentChangeListener.value = this._parent.onDidChangeContext(this._onDidChangeContext.fire, this._onDidChangeContext);
+		this._parentChangeListener.value = this._parent.onDidChangeContext(e => {
+			const thisContainer = this._parent.getContextValuesContainer(this._myContextId);
+			const thisContextValues = thisContainer.value;
+
+			if (!allEventKeysInContext(e, thisContextValues)) {
+				this._onDidChangeContext.fire(e);
+			}
+		});
 	}
 
 	public dispose(): void {
