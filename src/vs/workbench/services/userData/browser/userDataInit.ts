@@ -87,7 +87,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 						return;
 					}
 
-					if (!this.storageService.isNew(StorageScope.APPLICATION)) {
+					if (!this.storageService.isNew(StorageScope.GLOBAL)) {
 						this.logService.trace(`Skipping initializing user data as application was opened before`);
 						return;
 					}

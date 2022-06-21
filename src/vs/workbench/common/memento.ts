@@ -11,8 +11,8 @@ export type MementoObject = { [key: string]: any };
 
 export class Memento {
 
-	private static readonly applicationMementos = new Map<string, ScopedMemento>();
 	private static readonly globalMementos = new Map<string, ScopedMemento>();
+	private static readonly profileMementos = new Map<string, ScopedMemento>();
 	private static readonly workspaceMementos = new Map<string, ScopedMemento>();
 
 	private static readonly COMMON_PREFIX = 'memento/';
@@ -37,6 +37,17 @@ export class Memento {
 				return workspaceMemento.getMemento();
 			}
 
+			// Scope Profile
+			case StorageScope.PROFILE: {
+				let profileMemento = Memento.profileMementos.get(this.id);
+				if (!profileMemento) {
+					profileMemento = new ScopedMemento(this.id, scope, target, this.storageService);
+					Memento.profileMementos.set(this.id, profileMemento);
+				}
+
+				return profileMemento.getMemento();
+			}
+
 			// Scope Global
 			case StorageScope.GLOBAL: {
 				let globalMemento = Memento.globalMementos.get(this.id);
@@ -47,24 +58,13 @@ export class Memento {
 
 				return globalMemento.getMemento();
 			}
-
-			// Scope Application
-			case StorageScope.APPLICATION: {
-				let applicationMemento = Memento.applicationMementos.get(this.id);
-				if (!applicationMemento) {
-					applicationMemento = new ScopedMemento(this.id, scope, target, this.storageService);
-					Memento.applicationMementos.set(this.id, applicationMemento);
-				}
-
-				return applicationMemento.getMemento();
-			}
 		}
 	}
 
 	saveMemento(): void {
 		Memento.workspaceMementos.get(this.id)?.save();
+		Memento.profileMementos.get(this.id)?.save();
 		Memento.globalMementos.get(this.id)?.save();
-		Memento.applicationMementos.get(this.id)?.save();
 	}
 
 	static clear(scope: StorageScope): void {
@@ -72,11 +72,11 @@ export class Memento {
 			case StorageScope.WORKSPACE:
 				Memento.workspaceMementos.clear();
 				break;
+			case StorageScope.PROFILE:
+				Memento.profileMementos.clear();
+				break;
 			case StorageScope.GLOBAL:
 				Memento.globalMementos.clear();
-				break;
-			case StorageScope.APPLICATION:
-				Memento.applicationMementos.clear();
 				break;
 		}
 	}

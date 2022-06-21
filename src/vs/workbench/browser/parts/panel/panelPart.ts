@@ -783,7 +783,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === this.pinnedPanelsKey && e.scope === StorageScope.GLOBAL
+		if (e.key === this.pinnedPanelsKey && e.scope === StorageScope.PROFILE
 			&& this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
 			this._cachedPanelsValue = undefined;
 			const newCompositeItems: ICompositeBarItem[] = [];
@@ -868,11 +868,11 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private getStoredCachedPanelsValue(): string {
-		return this.storageService.get(this.pinnedPanelsKey, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(this.pinnedPanelsKey, StorageScope.PROFILE, '[]');
 	}
 
 	private setStoredCachedViewletsValue(value: string): void {
-		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {

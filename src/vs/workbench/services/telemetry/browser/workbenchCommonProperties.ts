@@ -30,15 +30,15 @@ export async function resolveWorkbenchCommonProperties(
 	resolveAdditionalProperties?: () => { [key: string]: any }
 ): Promise<{ [name: string]: string | undefined }> {
 	const result: { [name: string]: string | undefined } = Object.create(null);
-	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
-	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
+	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
+	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;
 
 	let machineId: string | undefined;
 	if (!removeMachineId) {
-		machineId = storageService.get(machineIdKey, StorageScope.APPLICATION);
+		machineId = storageService.get(machineIdKey, StorageScope.GLOBAL);
 		if (!machineId) {
 			machineId = uuid.generateUuid();
-			storageService.store(machineIdKey, machineId, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			storageService.store(machineIdKey, machineId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 	} else {
 		machineId = `Redacted-${productIdentifier ?? 'web'}`;

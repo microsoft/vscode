@@ -95,7 +95,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				/* Locale change */
 				Event.filter(fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource)),
 				/* Global storage with user target has changed */
-				Event.filter(storageService.onDidChangeValue, e => e.scope === StorageScope.GLOBAL && e.target !== undefined ? e.target === StorageTarget.USER : storageService.keys(StorageScope.GLOBAL, StorageTarget.USER).includes(e.key)),
+				Event.filter(storageService.onDidChangeValue, e => e.scope === StorageScope.PROFILE && e.target !== undefined ? e.target === StorageTarget.USER : storageService.keys(StorageScope.PROFILE, StorageTarget.USER).includes(e.key)),
 				/* Storage key target has changed */
 				this.storageService.onDidChangeTarget
 			)((() => this.triggerLocalChange()))
@@ -303,8 +303,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				storage[`${argvStoragePrefx}${argvProperty}`] = { version: 1, value: argvValue[argvProperty] };
 			}
 		}
-		for (const key of this.storageService.keys(StorageScope.GLOBAL, StorageTarget.USER)) {
-			const value = this.storageService.get(key, StorageScope.GLOBAL);
+		for (const key of this.storageService.keys(StorageScope.PROFILE, StorageTarget.USER)) {
+			const value = this.storageService.get(key, StorageScope.PROFILE);
 			if (value) {
 				storage[key] = { version: 1, value };
 			}
@@ -335,11 +335,11 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				}
 				if (storage) {
 					const storageValue = storage[key];
-					if (storageValue.value !== String(this.storageService.get(key, StorageScope.GLOBAL))) {
+					if (storageValue.value !== String(this.storageService.get(key, StorageScope.PROFILE))) {
 						updatedStorage[key] = storageValue.value;
 					}
 				} else {
-					if (this.storageService.get(key, StorageScope.GLOBAL) !== undefined) {
+					if (this.storageService.get(key, StorageScope.PROFILE) !== undefined) {
 						updatedStorage[key] = undefined;
 					}
 				}
@@ -357,7 +357,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		if (updatedStorageKeys.length) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating global state...`);
 			for (const key of Object.keys(updatedStorage)) {
-				this.storageService.store(key, updatedStorage[key], StorageScope.GLOBAL, StorageTarget.USER);
+				this.storageService.store(key, updatedStorage[key], StorageScope.PROFILE, StorageTarget.USER);
 			}
 			this.logService.info(`${this.syncResourceLogLabel}: Updated global state`, Object.keys(updatedStorage));
 		}
@@ -377,10 +377,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	private getStorageKeys(lastSyncGlobalState: IGlobalState | null): StorageKeys {
-		const user = this.storageService.keys(StorageScope.GLOBAL, StorageTarget.USER);
-		const machine = this.storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		const user = this.storageService.keys(StorageScope.PROFILE, StorageTarget.USER);
+		const machine = this.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE);
 		const registered = [...user, ...machine];
-		const unregistered = lastSyncGlobalState?.storage ? Object.keys(lastSyncGlobalState.storage).filter(key => !key.startsWith(argvStoragePrefx) && !registered.includes(key) && this.storageService.get(key, StorageScope.GLOBAL) !== undefined) : [];
+		const unregistered = lastSyncGlobalState?.storage ? Object.keys(lastSyncGlobalState.storage).filter(key => !key.startsWith(argvStoragePrefx) && !registered.includes(key) && this.storageService.get(key, StorageScope.PROFILE) !== undefined) : [];
 
 		if (!isWeb) {
 			// Following keys are synced only in web. Do not sync these keys in other platforms
@@ -419,7 +419,7 @@ export class GlobalStateInitializer extends AbstractInitializer {
 			if (key.startsWith(argvStoragePrefx)) {
 				argv[key.substring(argvStoragePrefx.length)] = remoteGlobalState.storage[key].value;
 			} else {
-				if (this.storageService.get(key, StorageScope.GLOBAL) === undefined) {
+				if (this.storageService.get(key, StorageScope.PROFILE) === undefined) {
 					storage[key] = remoteGlobalState.storage[key].value;
 				}
 			}
@@ -439,7 +439,7 @@ export class GlobalStateInitializer extends AbstractInitializer {
 
 		if (Object.keys(storage).length) {
 			for (const key of Object.keys(storage)) {
-				this.storageService.store(key, storage[key], StorageScope.GLOBAL, StorageTarget.USER);
+				this.storageService.store(key, storage[key], StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}
 	}
