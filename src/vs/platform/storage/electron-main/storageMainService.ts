@@ -14,6 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { GlobalStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 //#region Storage Main Service (intent: make global, profile and workspace storage accessible to windows from main process)
@@ -60,7 +61,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IFileService private readonly fileService: IFileService
 	) {
@@ -115,6 +116,23 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			// Workspace Storage(s)
 			for (const [, workspaceStorage] of this.mapWorkspaceToStorage) {
 				e.join(workspaceStorage.close());
+			}
+		}));
+
+		// Prepare storage location as needed
+		this._register(this.userDataProfilesService.onWillCreateProfile(e => {
+			e.join((async () => {
+				if (!(await this.fileService.exists(e.profile.globalStorageHome))) {
+					await this.fileService.createFolder(e.profile.globalStorageHome);
+				}
+			})());
+		}));
+
+		// Close the storage of the profile that is being removed
+		this._register(this.userDataProfilesService.onWillRemoveProfile(e => {
+			const storage = this.mapProfileToStorage.get(e.profile.id);
+			if (storage) {
+				e.join(storage.close());
 			}
 		}));
 	}

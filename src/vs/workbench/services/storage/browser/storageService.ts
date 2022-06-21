@@ -15,6 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class BrowserStorageService extends AbstractStorageService {
 
@@ -26,7 +27,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	private profileStorage: IStorage | undefined;
 	private profileStorageDatabase: IIndexedDBStorageDatabase | undefined;
-	private profileStorageProfile: IUserDataProfile;
+	private profileStorageProfile = this.userDataProfileService.currentProfile;
 	private readonly profileStorageDisposables = this._register(new DisposableStore());
 
 	private workspaceStorage: IStorage | undefined;
@@ -42,12 +43,16 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	constructor(
 		private readonly payload: IAnyWorkspaceIdentifier,
-		currentProfile: IUserDataProfile,
+		private readonly userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
 
-		this.profileStorageProfile = currentProfile;
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.switchToProfile(e.profile, e.preserveData))));
 	}
 
 	private getId(scope: StorageScope): string {

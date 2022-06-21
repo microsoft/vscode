@@ -14,10 +14,11 @@ import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { BrowserStorageService, IndexedDBStorageDatabase } from 'vs/platform/storage/browser/storageService';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { BrowserStorageService, IndexedDBStorageDatabase } from 'vs/workbench/services/storage/browser/storageService';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 
 async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
 	const disposables = new DisposableStore();
@@ -44,7 +45,7 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource')
 	};
 
-	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, inMemoryExtraProfile, logService));
+	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, new UserDataProfileService(inMemoryExtraProfile, inMemoryExtraProfile), logService));
 
 	await storageService.initialize();
 

@@ -16,7 +16,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { EXTENSIONS_RESOURCE_NAME, IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -48,7 +47,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		@IDialogService private readonly dialogService: IDialogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILogService logService: ILogService
@@ -96,8 +94,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			if (options?.snippets) {
 				promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.snippetsHome, newProfile.snippetsHome));
 			}
-		} else {
-			promises.push(this.fileService.createFolder(newProfile.globalStorageHome));
 		}
 		await Promise.allSettled(promises);
 		const createdProfile = await this.userDataProfilesService.createProfile(newProfile, options, workspaceIdentifier);
@@ -115,11 +111,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			throw new Error(localize('cannotDeleteCurrentProfile', "Cannot delete the current profile"));
 		}
 		await this.userDataProfilesService.removeProfile(profile);
-		if (this.userDataProfilesService.profiles.length === 2) {
-			await this.fileService.del(this.userDataProfilesService.profilesHome, { recursive: true });
-		} else {
-			await this.fileService.del(profile.location, { recursive: true });
-		}
 	}
 
 	async switchProfile(profile: IUserDataProfile): Promise<void> {
@@ -186,8 +177,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		}
 
 		this.extensionService.stopExtensionHosts();
-		await this.storageService.switch(profile, preserveData);
-		await this.userDataProfileService.updateCurrentProfile(profile);
+		await this.userDataProfileService.updateCurrentProfile(profile, preserveData);
 		await this.extensionService.startExtensionHosts();
 	}
 
