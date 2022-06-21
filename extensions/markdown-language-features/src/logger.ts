@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Disposable } from './util/dispose';
 import { lazy } from './util/lazy';
 
 enum Trace {
@@ -25,17 +26,18 @@ namespace Trace {
 	}
 }
 
-
-function isString(value: any): value is string {
-	return Object.prototype.toString.call(value) === '[object String]';
-}
-
-export class Logger {
+export class Logger extends Disposable {
 	private trace?: Trace;
 
-	private readonly outputChannel = lazy(() => vscode.window.createOutputChannel('Markdown'));
+	private readonly outputChannel = lazy(() => this._register(vscode.window.createOutputChannel('Markdown')));
 
 	constructor() {
+		super();
+
+		this._register(vscode.workspace.onDidChangeConfiguration(() => {
+			this.updateConfiguration();
+		}));
+
 		this.updateConfiguration();
 	}
 
@@ -48,7 +50,6 @@ export class Logger {
 		}
 	}
 
-
 	private now(): string {
 		const now = new Date();
 		return String(now.getUTCHours()).padStart(2, '0')
@@ -56,12 +57,12 @@ export class Logger {
 			+ ':' + String(now.getUTCSeconds()).padStart(2, '0') + '.' + now.getMilliseconds();
 	}
 
-	public updateConfiguration() {
+	private updateConfiguration(): void {
 		this.trace = this.readTrace();
 	}
 
-	private appendLine(value: string) {
-		return this.outputChannel.value.appendLine(value);
+	private appendLine(value: string): void {
+		this.outputChannel.value.appendLine(value);
 	}
 
 	private readTrace(): Trace {
@@ -70,12 +71,12 @@ export class Logger {
 
 	private static data2String(data: any): string {
 		if (data instanceof Error) {
-			if (isString(data.stack)) {
+			if (typeof data.stack === 'string') {
 				return data.stack;
 			}
-			return (data as Error).message;
+			return data.message;
 		}
-		if (isString(data)) {
+		if (typeof data === 'string') {
 			return data;
 		}
 		return JSON.stringify(data, undefined, 2);

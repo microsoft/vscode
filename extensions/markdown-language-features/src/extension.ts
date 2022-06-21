@@ -38,8 +38,10 @@ export function activate(context: vscode.ExtensionContext) {
 	const contributions = getMarkdownExtensionContributions(context);
 	context.subscriptions.push(contributions);
 
-	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
 	const logger = new Logger();
+	context.subscriptions.push(logger);
+
+	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
 	const commandManager = new CommandManager();
 
 	const engine = new MarkdownItEngine(contributions, githubSlugifier);
@@ -56,7 +58,6 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine, tocProvider));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		logger.updateConfiguration();
 		previewManager.updateConfiguration();
 	}));
 }
