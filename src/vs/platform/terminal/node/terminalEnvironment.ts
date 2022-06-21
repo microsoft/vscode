@@ -141,7 +141,9 @@ export function getShellIntegrationInjection(
 	}
 
 	// Linux & macOS
-	const envMixin: IProcessEnvironment = {};
+	const envMixin: IProcessEnvironment = {
+		'VSCODE_INJECTION': '1'
+	};
 	switch (shell) {
 		case 'bash': {
 			if (!originalArgs || originalArgs.length === 0) {
@@ -168,7 +170,7 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
-			return { newArgs };
+			return { newArgs, envMixin };
 		}
 		case 'zsh': {
 			if (!originalArgs || originalArgs.length === 0) {
