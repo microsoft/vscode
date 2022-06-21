@@ -551,14 +551,14 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	protected canSwitchProfile(from: IUserDataProfile, to: IUserDataProfile): boolean {
-		// Both profiles are same
 		if (from.id === to.id) {
-			return false;
+			return false; // both profiles are same
 		}
-		// Both profiles are using default
+
 		if (to.isDefault || to.useDefaultFlags?.uiState === from.isDefault || from.useDefaultFlags?.uiState) {
-			return false;
+			return false; // both profiles are using default
 		}
+
 		return true;
 	}
 

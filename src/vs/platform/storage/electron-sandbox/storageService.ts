@@ -151,6 +151,7 @@ export class NativeStorageService extends AbstractStorageService {
 		if (this.profileStorageProfile && !this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
 			return;
 		}
+
 		const oldProfileStorage = this.profileStorage;
 		const oldItems = oldProfileStorage.items;
 

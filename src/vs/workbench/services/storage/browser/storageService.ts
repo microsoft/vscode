@@ -169,6 +169,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		if (this.profileStorageProfile && !this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
 			return;
 		}
+
 		const oldProfileStorage = assertIsDefined(this.profileStorage);
 		const oldItems = oldProfileStorage.items;
 
