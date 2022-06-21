@@ -13,11 +13,12 @@ import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
 import { workspacePath } from './util';
 
 function getWorkspaceSymbols(workspace: MdWorkspaceContents, query = ''): Promise<vscode.SymbolInformation[]> {
 	const engine = createNewMarkdownEngine();
-	const symbolProvider = new MdDocumentSymbolProvider(new MdTableOfContentsProvider(engine, workspace));
+	const symbolProvider = new MdDocumentSymbolProvider(new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
 	return new MdWorkspaceSymbolProvider(symbolProvider, workspace).provideWorkspaceSymbols(query);
 }
 

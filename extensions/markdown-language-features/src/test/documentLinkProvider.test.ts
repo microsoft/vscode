@@ -11,6 +11,7 @@ import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
 import { assertRangeEqual, joinLines, workspacePath } from './util';
 
 
@@ -19,7 +20,7 @@ function getLinksForFile(fileContents: string) {
 	const workspace = new InMemoryWorkspaceMarkdownDocuments([doc]);
 
 	const engine = createNewMarkdownEngine();
-	const linkProvider = new MdLinkProvider(engine, workspace);
+	const linkProvider = new MdLinkProvider(engine, workspace, nulLogger);
 	const provider = new MdVsCodeLinkProvider(linkProvider);
 	return provider.provideDocumentLinks(doc, noopToken);
 }

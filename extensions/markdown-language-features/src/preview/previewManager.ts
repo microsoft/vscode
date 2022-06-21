@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../logger';
+import { ILogger } from '../logging';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { Disposable, disposeAll } from '../util/dispose';
@@ -69,7 +69,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 	public constructor(
 		private readonly _contentProvider: MdDocumentRenderer,
-		private readonly _logger: Logger,
+		private readonly _logger: ILogger,
 		private readonly _contributions: MarkdownContributionProvider,
 		private readonly _tocProvider: MdTableOfContentsProvider,
 	) {
