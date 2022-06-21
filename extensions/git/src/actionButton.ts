@@ -41,8 +41,8 @@ export class ActionButtonCommand {
 		const root = Uri.file(repository.root);
 		this.disposables.push(workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.postCommitCommand', root) ||
-				e.affectsConfiguration('git.showCommitActionButton', root)
-			) {
+				e.affectsConfiguration('git.showCommitActionButton', root) ||
+				e.affectsConfiguration('git.branchProtectionPrompt', root)) {
 				this._onDidChange.fire();
 			}
 		}));
@@ -54,6 +54,7 @@ export class ActionButtonCommand {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButtonCommitChanges = config.get<boolean>('showCommitActionButton', false);
 		const showActionButtonUnpublishedChanges = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
+		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
 		const postCommitCommand = config.get<string>('postCommitCommand');
 
 		let actionButton: SourceControlActionButton | undefined;
@@ -99,27 +100,37 @@ export class ActionButtonCommand {
 		} else {
 			if (showActionButtonCommitChanges) {
 				let title: string, tooltip: string;
-				switch (postCommitCommand) {
-					case 'push': {
-						title = localize('scm button commit and push title', "$(arrow-up) Commit & Push");
-						tooltip = this.state.isActionRunning ?
-							localize('scm button committing pushing tooltip', "Committing & Pushing Changes...") :
-							localize('scm button commit push tooltip', "Commit & Push Changes");
-						break;
-					}
-					case 'sync': {
-						title = localize('scm button commit and sync title', "$(sync) Commit & Sync");
-						tooltip = this.state.isActionRunning ?
-							localize('scm button committing synching tooltip', "Committing & Synching Changes...") :
-							localize('scm button commit sync tooltip', "Commit & Sync Changes");
-						break;
-					}
-					default: {
-						title = localize('scm button commit title', "$(check) Commit");
-						tooltip = this.state.isActionRunning ?
-							localize('scm button committing tooltip', "Committing Changes...") :
-							localize('scm button commit tooltip', "Commit Changes");
-						break;
+				let description: string | undefined = undefined;
+
+				if (this.repository.isBranchProtected() && branchProtectionPrompt === 'alwaysCommitToNewBranch') {
+					title = localize('scm button commit to new branch title', "$(git-branch) Commit");
+					description = localize('scm button commit to new branch description', "$(git-branch) Commit to New Branch");
+					tooltip = this.state.isActionRunning ?
+						localize('scm button committing to new branch tooltip', "Committing to new Branch...") :
+						localize('scm button commit to new branch tooltip', "Commit to New Branch");
+				} else {
+					switch (postCommitCommand) {
+						case 'push': {
+							title = localize('scm button commit and push title', "$(arrow-up) Commit & Push");
+							tooltip = this.state.isActionRunning ?
+								localize('scm button committing pushing tooltip', "Committing & Pushing Changes...") :
+								localize('scm button commit push tooltip', "Commit & Push Changes");
+							break;
+						}
+						case 'sync': {
+							title = localize('scm button commit and sync title', "$(sync) Commit & Sync");
+							tooltip = this.state.isActionRunning ?
+								localize('scm button committing synching tooltip', "Committing & Synching Changes...") :
+								localize('scm button commit sync tooltip', "Commit & Sync Changes");
+							break;
+						}
+						default: {
+							title = localize('scm button commit title', "$(check) Commit");
+							tooltip = this.state.isActionRunning ?
+								localize('scm button committing tooltip', "Committing Changes...") :
+								localize('scm button commit tooltip', "Commit Changes");
+							break;
+						}
 					}
 				}
 
@@ -130,7 +141,8 @@ export class ActionButtonCommand {
 						title: title,
 						tooltip: tooltip,
 						arguments: [this.repository.sourceControl],
-					}
+					},
+					description: description
 				};
 			}
 		}
