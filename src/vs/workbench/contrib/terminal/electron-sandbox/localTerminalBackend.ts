@@ -170,10 +170,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		try {
-			const newId = await this._localPtyService.getRevivedPtyNewId(id);
-			if (newId === undefined) {
-				return undefined;
-			}
+			const newId = await this._localPtyService.getRevivedPtyNewId(id) ?? id;
 			return await this.attachToProcess(newId);
 		} catch (e) {
 			this._logService.trace(`Couldn't attach to process ${e.message}`);
