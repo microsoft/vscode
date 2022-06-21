@@ -106,7 +106,7 @@
 	line-height: 18px;
 	width: 38vw;
 	max-width: 600px;
-	margin: 4px 4px;
+	margin: 0 4px;
 	flex-direction: row;
 	justify-content: center;
 	overflow: hidden;
