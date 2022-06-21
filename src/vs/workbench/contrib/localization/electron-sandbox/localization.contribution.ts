@@ -77,7 +77,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						}],
 						{
 							sticky: true,
-							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.GLOBAL }
 						}
 					);
 				}
