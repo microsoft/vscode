@@ -198,22 +198,31 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	 * Returns all authentication sessions available from {@link getAuthenticationProviders}.
 	 */
 	private async getAllSessions() {
-		const options: ExistingSession[] = [];
 		const authenticationProviders = await this.getAuthenticationProviders();
+		const accounts = new Map<string, ExistingSession>();
+		let currentSession: ExistingSession | undefined;
 
 		for (const provider of authenticationProviders) {
 			const sessions = await this.authenticationService.getSessions(provider.id, provider.scopes);
 
 			for (const session of sessions) {
-				options.push({
+				const item = {
 					label: session.account.label,
 					description: this.authenticationService.getLabel(provider.id),
 					session: { ...session, providerId: provider.id }
-				});
+				};
+				accounts.set(item.session.account.id, item);
+				if (this.existingSessionId === session.id) {
+					currentSession = item;
+				}
 			}
 		}
 
-		return options;
+		if (currentSession !== undefined) {
+			accounts.set(currentSession.session.account.id, currentSession);
+		}
+
+		return [...accounts.values()];
 	}
 
 	/**
