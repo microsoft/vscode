@@ -33,15 +33,15 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
 const resumeLatestCommand = {
-	id: 'workbench.experimental.sessionSync.actions.resumeLatest',
+	id: 'workbench.experimental.editSessions.actions.resumeLatest',
 	title: localize('resume latest', "{0}: Resume Latest Edit Session", EDIT_SESSION_SYNC_TITLE),
 };
 const storeCurrentCommand = {
-	id: 'workbench.experimental.sessionSync.actions.storeCurrent',
+	id: 'workbench.experimental.editSessions.actions.storeCurrent',
 	title: localize('store current', "{0}: Store Current Edit Session", EDIT_SESSION_SYNC_TITLE),
 };
 const continueEditSessionCommand = {
-	id: '_workbench.experimental.sessionSync.actions.continueEditSession',
+	id: '_workbench.experimental.editSessions.actions.continueEditSession',
 	title: localize('continue edit session', "{0}: Continue Edit Session", EDIT_SESSION_SYNC_TITLE),
 };
 const queryParamName = 'editSessionId';
@@ -72,7 +72,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		}
 
 		this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('workbench.experimental.sessionSync.enabled')) {
+			if (e.affectsConfiguration('workbench.experimental.editSessions.enabled')) {
 				this.registerActions();
 			}
 		});
@@ -81,7 +81,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private registerActions() {
-		if (this.registered || this.configurationService.getValue('workbench.experimental.sessionSync.enabled') !== true) {
+		if (this.registered || this.configurationService.getValue('workbench.experimental.editSessions.enabled') !== true) {
 			return;
 		}
 
