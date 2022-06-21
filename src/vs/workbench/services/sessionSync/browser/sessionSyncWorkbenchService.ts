@@ -77,7 +77,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	 *
 	 * @returns An object representing the requested or latest edit session state, if any.
 	 */
-	async read(ref: string | undefined): Promise<EditSession | undefined> {
+	async read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined> {
 		this.initialized = await this.waitAndInitialize();
 		if (!this.initialized) {
 			throw new Error('Please sign in to apply your latest edit session.');
@@ -88,14 +88,29 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 			if (ref !== undefined) {
 				content = await this.storeClient?.resolveContent('editSessions', ref);
 			} else {
-				content = (await this.storeClient?.read('editSessions', null))?.content;
+				const result = await this.storeClient?.read('editSessions', null);
+				content = result?.content;
+				ref = result?.ref;
 			}
 		} catch (ex) {
 			this.logService.error(ex);
 		}
 
 		// TODO@joyceerhl Validate session data, check schema version
-		return (content !== undefined && content !== null) ? JSON.parse(content) : undefined;
+		return (content !== undefined && content !== null && ref !== undefined) ? { ref: ref, editSession: JSON.parse(content) } : undefined;
+	}
+
+	async delete(ref: string) {
+		this.initialized = await this.waitAndInitialize();
+		if (!this.initialized) {
+			throw new Error(`Unable to delete edit session with ref ${ref}.`);
+		}
+
+		try {
+			await this.storeClient?.delete('editSessions', ref);
+		} catch (ex) {
+			this.logService.error(ex);
+		}
 	}
 
 	/**

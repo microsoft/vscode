@@ -175,10 +175,12 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			this.logService.info(`Edit Sessions: Applying edit session with ref ${ref}.`);
 		}
 
-		const editSession = await this.sessionSyncWorkbenchService.read(ref);
-		if (!editSession) {
+		const data = await this.sessionSyncWorkbenchService.read(ref);
+		if (!data) {
 			return;
 		}
+		const editSession = data.editSession;
+		ref = data.ref;
 
 		if (editSession.version > EditSessionSchemaVersion) {
 			this.notificationService.error(localize('client too old', "Please upgrade to a newer version of {0} to apply this edit session.", this.productService.nameLong));
@@ -230,6 +232,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 					await this.fileService.del(uri);
 				}
 			}
+
+			await this.sessionSyncWorkbenchService.delete(ref);
 		} catch (ex) {
 			this.logService.error('Edit Sessions:', (ex as Error).toString());
 			this.notificationService.error(localize('apply failed', "Failed to apply your edit session."));

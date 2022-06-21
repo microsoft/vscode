@@ -101,7 +101,7 @@ suite('Edit session sync', () => {
 
 		// Stub sync service to return edit session data
 		const sandbox = sinon.createSandbox();
-		const readStub = sandbox.stub().returns(editSession);
+		const readStub = sandbox.stub().returns({ editSession, ref: '0' });
 		instantiationService.stub(ISessionSyncWorkbenchService, 'read', readStub);
 
 		// Stub repositories
