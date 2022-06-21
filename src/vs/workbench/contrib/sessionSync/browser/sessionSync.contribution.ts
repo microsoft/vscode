@@ -113,8 +113,6 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 					workspaceUri = workspaceUri.with({
 						query: workspaceUri.query.length > 0 ? (workspaceUri + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
 					});
-
-					that.environmentService.editSessionId = ref;
 				} else {
 					that.logService.warn(`Edit Sessions: Failed to store edit session when invoking ${continueEditSessionCommand.id}.`);
 				}
