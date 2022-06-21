@@ -106,6 +106,7 @@
 	line-height: 18px;
 	width: 38vw;
 	max-width: 600px;
+	min-width: 32px;
 	margin: 0 4px;
 	flex-direction: row;
 	justify-content: center;
@@ -291,7 +292,6 @@
 }
 
 .monaco-workbench.mac:not(.web) .part.titlebar>.titlebar-container>.layout-controls-container {
-	position: absolute;
 	right: 8px;
 }
 
