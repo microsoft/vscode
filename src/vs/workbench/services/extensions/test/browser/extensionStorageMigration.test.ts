@@ -68,7 +68,7 @@ suite('ExtensionStorageMigration', () => {
 		assert.deepStrictEqual((await fileService.readFile(joinPath(userDataProfilesService.defaultProfile.globalStorageHome, toExtensionId))).value.toString(), 'hello global storage');
 		assert.deepStrictEqual((await fileService.readFile(joinPath(workspaceStorageHome, TestWorkspace.id, toExtensionId))).value.toString(), 'hello workspace storage');
 
-		assert.deepStrictEqual(storageService.get(storageMigratedKey, StorageScope.GLOBAL), 'true');
+		assert.deepStrictEqual(storageService.get(storageMigratedKey, StorageScope.PROFILE), 'true');
 		assert.deepStrictEqual(storageService.get(storageMigratedKey, StorageScope.WORKSPACE), 'true');
 
 	});
@@ -90,7 +90,7 @@ suite('ExtensionStorageMigration', () => {
 		assert.deepStrictEqual((await fileService.exists(joinPath(userDataProfilesService.defaultProfile.globalStorageHome, toExtensionId))), false);
 		assert.deepStrictEqual((await fileService.exists(joinPath(workspaceStorageHome, TestWorkspace.id, toExtensionId))), false);
 
-		assert.deepStrictEqual(storageService.get(storageMigratedKey, StorageScope.GLOBAL), 'true');
+		assert.deepStrictEqual(storageService.get(storageMigratedKey, StorageScope.PROFILE), 'true');
 		assert.deepStrictEqual(storageService.get(storageMigratedKey, StorageScope.WORKSPACE), 'true');
 
 	});

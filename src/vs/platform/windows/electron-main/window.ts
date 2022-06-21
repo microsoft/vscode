@@ -29,7 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
-import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { IGlobalStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
@@ -158,7 +158,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IFileService private readonly fileService: IFileService,
-		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
+		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
@@ -542,7 +542,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private marketplaceHeadersPromise: Promise<object> | undefined;
 	private getMarketplaceHeaders(): Promise<object> {
 		if (!this.marketplaceHeadersPromise) {
-			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, this.applicationStorageMainService);
+			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, this.globalStorageMainService);
 		}
 
 		return this.marketplaceHeadersPromise;

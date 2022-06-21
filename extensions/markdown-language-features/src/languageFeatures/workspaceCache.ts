@@ -61,8 +61,17 @@ export class MdDocumentInfoCache<T> extends Disposable {
 			return existing;
 		}
 
-		const doc = await this.workspaceContents.getMarkdownDocument(resource);
+		const doc = await this.workspaceContents.getOrLoadMarkdownDocument(resource);
 		return doc && this.onDidChangeDocument(doc, true)?.value;
+	}
+
+	public async getForDocument(document: SkinnyTextDocument): Promise<T> {
+		const existing = this._cache.get(document.uri);
+		if (existing) {
+			return existing;
+		}
+
+		return this.onDidChangeDocument(document, true)!.value;
 	}
 
 	public async entries(): Promise<Array<[vscode.Uri, T]>> {

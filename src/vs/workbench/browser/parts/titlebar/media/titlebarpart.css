@@ -87,7 +87,7 @@
 
 /* Window Title Menu */
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center {
-	z-index: 2550;
+	z-index: 2500;
 	-webkit-app-region: no-drag;
 	padding: 0 8px;
 }
@@ -106,7 +106,8 @@
 	line-height: 18px;
 	width: 38vw;
 	max-width: 600px;
-	margin: 4px 4px;
+	min-width: 32px;
+	margin: 0 4px;
 	flex-direction: row;
 	justify-content: center;
 	overflow: hidden;
@@ -283,7 +284,7 @@
 	flex-shrink: 0;
 	text-align: center;
 	position: relative;
-	z-index: 3000;
+	z-index: 2500;
 	-webkit-app-region: no-drag;
 	height: 100%;
 	margin-left: auto;
@@ -291,7 +292,6 @@
 }
 
 .monaco-workbench.mac:not(.web) .part.titlebar>.titlebar-container>.layout-controls-container {
-	position: absolute;
 	right: 8px;
 }
 

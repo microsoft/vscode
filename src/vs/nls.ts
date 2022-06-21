@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 let isPseudo = (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
 const DEFAULT_TAG = 'i-default';
 
@@ -115,12 +113,18 @@ export function setPseudoTranslation(value: boolean) {
 	isPseudo = value;
 }
 
+/**
+ * Invoked in a built product at run-time
+ */
 export function create(key: string, data: IBundledStrings): IConsumerAPI {
 	return {
 		localize: createScopedLocalize(data[key])
 	};
 }
 
+/**
+ * Invoked by the loader at run-time
+ */
 export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoader.IPluginLoadCallback, config: AMDLoader.IConfigurationOptions): void {
 	config = config || {};
 	if (!name || name.length === 0) {

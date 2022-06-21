@@ -469,14 +469,14 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private getHiddenCategories(): Set<string> {
-		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.GLOBAL, '[]')));
+		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.PROFILE, '[]')));
 	}
 
 	private setHiddenCategories(hidden: string[]) {
 		this.storageService.store(
 			hiddenEntriesConfigurationKey,
 			JSON.stringify(hidden),
-			StorageScope.GLOBAL,
+			StorageScope.PROFILE,
 			StorageTarget.USER);
 	}
 
@@ -815,7 +815,7 @@ export class GettingStartedPage extends EditorPane {
 			this.buildTelemetryFooter(telemetryNotice);
 			footer.appendChild(telemetryNotice);
 		} else if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory) {
-			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
+			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL) || new Date().toUTCString();
 			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
 
@@ -1152,7 +1152,7 @@ export class GettingStartedPage extends EditorPane {
 					this.storageService.store(
 						restoreWalkthroughsConfigurationKey,
 						JSON.stringify(restoreData),
-						StorageScope.GLOBAL, StorageTarget.MACHINE);
+						StorageScope.PROFILE, StorageTarget.MACHINE);
 					this.hostService.openWindow([{ folderUri: toOpen }]);
 				}
 			});

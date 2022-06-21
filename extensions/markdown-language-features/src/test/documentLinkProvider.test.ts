@@ -32,7 +32,7 @@ function assertLinksEqual(actualLinks: readonly vscode.DocumentLink[], expectedR
 	}
 }
 
-suite('markdown.DocumentLinkProvider', () => {
+suite('Markdown: DocumentLinkProvider', () => {
 	test('Should not return anything for empty document', async () => {
 		const links = await getLinksForFile('');
 		assert.strictEqual(links.length, 0);
@@ -131,24 +131,24 @@ suite('markdown.DocumentLinkProvider', () => {
 		{
 			const links = await getLinksForFile('[![alt text](image.jpg)](https://example.com)');
 			assertLinksEqual(links, [
+				new vscode.Range(0, 25, 0, 44),
 				new vscode.Range(0, 13, 0, 22),
-				new vscode.Range(0, 25, 0, 44)
 			]);
 		}
 		{
 			const links = await getLinksForFile('[![a]( whitespace.jpg )]( https://whitespace.com )');
 			assertLinksEqual(links, [
+				new vscode.Range(0, 26, 0, 48),
 				new vscode.Range(0, 7, 0, 21),
-				new vscode.Range(0, 26, 0, 48)
 			]);
 		}
 		{
 			const links = await getLinksForFile('[![a](img1.jpg)](file1.txt) text [![a](img2.jpg)](file2.txt)');
 			assertLinksEqual(links, [
-				new vscode.Range(0, 6, 0, 14),
 				new vscode.Range(0, 17, 0, 26),
-				new vscode.Range(0, 39, 0, 47),
+				new vscode.Range(0, 6, 0, 14),
 				new vscode.Range(0, 50, 0, 59),
+				new vscode.Range(0, 39, 0, 47),
 			]);
 		}
 	});

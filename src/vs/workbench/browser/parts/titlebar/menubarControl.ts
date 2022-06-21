@@ -349,7 +349,7 @@ export abstract class MenubarControl extends Disposable {
 			return;
 		}
 
-		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.GLOBAL, false);
+		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.PROFILE, false);
 		const usingCustomMenubar = getTitleBarStyle(this.configurationService) === 'custom';
 
 		if (hasBeenNotified || usingCustomMenubar || !this.accessibilityService.isScreenReaderOptimized()) {
@@ -366,7 +366,7 @@ export abstract class MenubarControl extends Disposable {
 			}
 		]);
 
-		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.PROFILE, StorageTarget.USER);
 	}
 }
 

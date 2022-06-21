@@ -127,7 +127,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	//#endregion
 
 	private readonly workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
-	private readonly globalMemento = this.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+	private readonly profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 
 	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
@@ -862,7 +862,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doCreateGridControl(options);
 
 		// Centered layout widget
-		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
+		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
 
 		// Drag & Drop support
 		this.setupDragAndDropSupport(parent, this.container);
@@ -1162,9 +1162,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		if (this.centeredLayoutWidget) {
 			const centeredLayoutState = this.centeredLayoutWidget.state;
 			if (this.centeredLayoutWidget.isDefault(centeredLayoutState)) {
-				delete this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY];
+				delete this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY];
 			} else {
-				this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = centeredLayoutState;
+				this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = centeredLayoutState;
 			}
 		}
 

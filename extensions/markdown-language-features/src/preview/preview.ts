@@ -7,8 +7,8 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
 import { Logger } from '../logger';
-import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { openDocumentLink, resolveDocumentLink, resolveUriToMarkdownFile } from '../util/openDocumentLink';
@@ -116,11 +116,11 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		resource: vscode.Uri,
 		startingScroll: StartingScrollLocation | undefined,
 		private readonly delegate: MarkdownPreviewDelegate,
-		private readonly engine: MarkdownEngine,
 		private readonly _contentProvider: MarkdownContentProvider,
 		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
 		private readonly _logger: Logger,
 		private readonly _contributionProvider: MarkdownContributionProvider,
+		private readonly _tocProvider: MdTableOfContentsProvider,
 	) {
 		super();
 
@@ -456,7 +456,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}
 
-		return openDocumentLink(this.engine, targetResource, this.resource);
+		return openDocumentLink(this._tocProvider, targetResource, this.resource);
 	}
 
 	//#region WebviewResourceProvider
@@ -504,10 +504,10 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		topmostLineMonitor: TopmostLineMonitor,
 		logger: Logger,
 		contributionProvider: MarkdownContributionProvider,
-		engine: MarkdownEngine,
+		tocProvider: MdTableOfContentsProvider,
 		scrollLine?: number,
 	): StaticMarkdownPreview {
-		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, topmostLineMonitor, logger, contributionProvider, engine, scrollLine);
+		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, topmostLineMonitor, logger, contributionProvider, tocProvider, scrollLine);
 	}
 
 	private readonly preview: MarkdownPreview;
@@ -520,7 +520,7 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		topmostLineMonitor: TopmostLineMonitor,
 		logger: Logger,
 		contributionProvider: MarkdownContributionProvider,
-		engine: MarkdownEngine,
+		tocProvider: MdTableOfContentsProvider,
 		scrollLine?: number,
 	) {
 		super();
@@ -532,7 +532,7 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 					fragment
 				}), StaticMarkdownPreview.customEditorViewType, this._webviewPanel.viewColumn);
 			}
-		}, engine, contentProvider, _previewConfigurations, logger, contributionProvider));
+		}, contentProvider, _previewConfigurations, logger, contributionProvider, tocProvider));
 
 		this._register(this._webviewPanel.onDidDispose(() => {
 			this.dispose();
@@ -616,12 +616,12 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 		logger: Logger,
 		topmostLineMonitor: TopmostLineMonitor,
 		contributionProvider: MarkdownContributionProvider,
-		engine: MarkdownEngine,
+		tocProvider: MdTableOfContentsProvider,
 	): DynamicMarkdownPreview {
 		webview.iconPath = contentProvider.iconPath;
 
 		return new DynamicMarkdownPreview(webview, input,
-			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, engine);
+			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, tocProvider);
 	}
 
 	public static create(
@@ -632,7 +632,7 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 		logger: Logger,
 		topmostLineMonitor: TopmostLineMonitor,
 		contributionProvider: MarkdownContributionProvider,
-		engine: MarkdownEngine,
+		tocProvider: MdTableOfContentsProvider,
 	): DynamicMarkdownPreview {
 		const webview = vscode.window.createWebviewPanel(
 			DynamicMarkdownPreview.viewType,
@@ -642,7 +642,7 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 		webview.iconPath = contentProvider.iconPath;
 
 		return new DynamicMarkdownPreview(webview, input,
-			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, engine);
+			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, tocProvider);
 	}
 
 	private constructor(
@@ -653,7 +653,7 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 		private readonly _logger: Logger,
 		private readonly _topmostLineMonitor: TopmostLineMonitor,
 		private readonly _contributionProvider: MarkdownContributionProvider,
-		private readonly _engine: MarkdownEngine,
+		private readonly _tocProvider: MdTableOfContentsProvider,
 	) {
 		super();
 
@@ -805,10 +805,10 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 				this.update(link, fragment ? new StartingScrollFragment(fragment) : undefined);
 			}
 		},
-			this._engine,
 			this._contentProvider,
 			this._previewConfigurations,
 			this._logger,
-			this._contributionProvider);
+			this._contributionProvider,
+			this._tocProvider);
 	}
 }

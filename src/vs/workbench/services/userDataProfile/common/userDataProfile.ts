@@ -19,13 +19,19 @@ export type CreationOptions = {
 	uiState?: boolean;
 };
 
+export interface DidChangeUserDataProfileEvent {
+	readonly preserveData: boolean;
+	readonly profile: IUserDataProfile;
+	join(promise: Promise<void>): void;
+}
+
 export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
 export interface IUserDataProfileService {
 	readonly _serviceBrand: undefined;
 	readonly defaultProfile: IUserDataProfile;
-	readonly onDidChangeCurrentProfile: Event<IUserDataProfile>;
+	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
-	updateCurrentProfile(currentProfile: IUserDataProfile): void;
+	updateCurrentProfile(currentProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
 }
 
 export const IUserDataProfileManagementService = createDecorator<IUserDataProfileManagementService>('IUserDataProfileManagementService');

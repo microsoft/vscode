@@ -47,6 +47,8 @@ export interface IUserDataProfile {
 	readonly extensionsResource: URI | undefined;
 }
 
+export type CustomUserDataProfile = IUserDataProfile & { readonly extensionsResource: URI; readonly isDefault: false };
+
 export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 	const candidate = thing as IUserDataProfile | undefined;
 
@@ -74,7 +76,7 @@ export interface IUserDataProfilesService {
 	readonly onDidChangeProfiles: Event<IUserDataProfile[]>;
 	readonly profiles: IUserDataProfile[];
 
-	newProfile(name: string, options?: ProfileOptions): IUserDataProfile;
+	newProfile(name: string, options?: ProfileOptions): CustomUserDataProfile;
 	createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
 	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
 	getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile;
@@ -96,6 +98,10 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 	};
 }
 
+export const EXTENSIONS_RESOURCE_NAME = 'extensions.json';
+
+export function toUserDataProfile(name: string, location: URI, options: ProfileOptions, defaultProfile: true): IUserDataProfile;
+export function toUserDataProfile(name: string, location: URI, options: ProfileOptions, defaultProfile: IUserDataProfile): CustomUserDataProfile;
 export function toUserDataProfile(name: string, location: URI, options: ProfileOptions, defaultProfile: true | IUserDataProfile): IUserDataProfile {
 	return {
 		id: hash(location.toString()).toString(16),
@@ -107,7 +113,7 @@ export function toUserDataProfile(name: string, location: URI, options: ProfileO
 		keybindingsResource: defaultProfile === true || options.keybindings ? joinPath(location, 'keybindings.json') : defaultProfile.keybindingsResource,
 		tasksResource: defaultProfile === true || options.tasks ? joinPath(location, 'tasks.json') : defaultProfile.tasksResource,
 		snippetsHome: defaultProfile === true || options.snippets ? joinPath(location, 'snippets') : defaultProfile.snippetsHome,
-		extensionsResource: defaultProfile === true && !options.extensions ? undefined : joinPath(location, 'extensions.json'),
+		extensionsResource: defaultProfile === true && !options.extensions ? undefined : joinPath(location, EXTENSIONS_RESOURCE_NAME),
 	};
 }
 
@@ -135,7 +141,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		this._defaultProfile = defaultProfile ? reviveProfile(defaultProfile, this.profilesHome.scheme) : toUserDataProfile(localize('defaultProfile', "Default"), environmentService.userRoamingDataHome, { ...DefaultOptions, extensions: false }, true);
 	}
 
-	newProfile(name: string, options: ProfileOptions = DefaultOptions): IUserDataProfile {
+	newProfile(name: string, options: ProfileOptions = DefaultOptions): CustomUserDataProfile {
 		return toUserDataProfile(name, joinPath(this.profilesHome, hash(name).toString(16)), options, this.defaultProfile);
 	}
 

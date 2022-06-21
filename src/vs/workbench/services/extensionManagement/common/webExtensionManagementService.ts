@@ -6,8 +6,9 @@
 import { ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, InstallOptions, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IProfileAwareExtensionManagementService, IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
@@ -17,9 +18,11 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
-export class WebExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService {
+export class WebExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService, IProfileAwareExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
+
+	readonly onDidChangeProfileExtensions = Event.None;
 
 	constructor(
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
@@ -92,6 +95,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		return local;
 	}
+
+	async switchExtensionsProfile(extensionsProfileResource: URI | undefined): Promise<void> { }
 
 	protected createDefaultInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions): IInstallExtensionTask {
 		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService);
