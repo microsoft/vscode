@@ -1613,8 +1613,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
+		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd);
+
 		if (this._usedShellIntegrationInjection && (this._processManager.processState === ProcessState.KilledDuringLaunch || this._processManager.processState === ProcessState.KilledByProcess)) {
-			this._relaunchWithShellIntegrationDisabled(exitCodeOrError);
+			this._relaunchWithShellIntegrationDisabled(parsedExitResult?.message);
 			this._onExit.fire(exitCodeOrError);
 			return;
 		}
@@ -1624,7 +1626,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._flushXtermData();
 		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
 
-		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd);
 		this._exitCode = parsedExitResult?.code;
 		const exitMessage = parsedExitResult?.message;
 
@@ -1674,14 +1675,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _relaunchWithShellIntegrationDisabled(exitCodeOrError?: ITerminalLaunchError | number): void {
+	private _relaunchWithShellIntegrationDisabled(exitMessage: string | undefined): void {
 		this._shellLaunchConfig.ignoreShellIntegration = true;
 		this.relaunch();
 		this.statusList.add({
 			id: TerminalStatus.ShellIntegrationAttentionNeeded,
 			severity: Severity.Warning,
 			icon: Codicon.warning,
-			tooltip: nls.localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch (exit code or error: {0}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", exitCodeOrError?.toString()),
+			tooltip: (`${exitMessage} ` ?? '') + nls.localize('launchFailed.exitCodeOnlyShellIntegration', 'Disabling shell integration with {0} might help.', '`terminal.integrated.shellIntegration.enabled`'),
 			hoverActions: [{
 				commandId: TerminalCommandId.ShellIntegrationLearnMore,
 				label: nls.localize('shellIntegration.learnMore', "Learn more"),
