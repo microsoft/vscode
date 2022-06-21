@@ -144,7 +144,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	private toStorageScope(options: INeverShowAgainOptions): StorageScope {
 		switch (options.scope) {
-			case NeverShowAgainScope.GLOBAL:
+			case NeverShowAgainScope.APPLICATION:
 				return StorageScope.APPLICATION;
 			case NeverShowAgainScope.PROFILE:
 				return StorageScope.PROFILE;
