@@ -4,15 +4,23 @@
 # ---------------------------------------------------------------------------------------------
 builtin autoload -Uz add-zsh-hook
 
+# Prevent the script recursing when setting up
+if [ -n "$VSCODE_SHELL_INTEGRATION" ]; then
+	builtin return
+fi
+
 # This variable allows the shell to both detect that VS Code's shell integration is enabled as well
 # as disable it by unsetting the variable.
-VSCODE_SHELL_INTEGRATION=1
+export VSCODE_SHELL_INTEGRATION=1
 
-if [[ $options[norcs] = off  && -f $USER_ZDOTDIR/.zshrc ]]; then
-	VSCODE_ZDOTDIR=$ZDOTDIR
-	ZDOTDIR=$USER_ZDOTDIR
-	. $USER_ZDOTDIR/.zshrc
-	ZDOTDIR=$VSCODE_ZDOTDIR
+# Only fix up ZDOTDIR if shell integration was injected (not manually installed) and has not been called yet
+if [[ "$VSCODE_INJECTION" == "1" ]]; then
+	if [[ $options[norcs] = off  && -f $USER_ZDOTDIR/.zshrc ]]; then
+		VSCODE_ZDOTDIR=$ZDOTDIR
+		ZDOTDIR=$USER_ZDOTDIR
+		. $USER_ZDOTDIR/.zshrc
+		ZDOTDIR=$VSCODE_ZDOTDIR
+	fi
 fi
 
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
