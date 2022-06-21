@@ -54,7 +54,7 @@ export enum NeverShowAgainScope {
 	 * Will never show this notification on any workspace across all
 	 * profiles again.
 	 */
-	GLOBAL
+	APPLICATION
 }
 
 export interface INeverShowAgainOptions {
@@ -73,7 +73,7 @@ export interface INeverShowAgainOptions {
 	/**
 	 * Whether to persist the choice in the current workspace or for all workspaces. By
 	 * default it will be persisted for all workspaces across all profiles
-	 * (= `NeverShowAgainScope.GLOBAL`).
+	 * (= `NeverShowAgainScope.APPLICATION`).
 	 */
 	readonly scope?: NeverShowAgainScope;
 }
