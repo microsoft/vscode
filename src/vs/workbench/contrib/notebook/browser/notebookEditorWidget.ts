@@ -1120,6 +1120,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this.restoreListViewState(viewState);
 		}
 
+		this._restoreSelectedKernel(viewState);
+
 		// load preloads for matching kernel
 		this._loadKernelPreloads();
 
@@ -1685,6 +1687,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 	}
 
+	private _restoreSelectedKernel(viewState: INotebookEditorViewState | undefined): void {
+		if (viewState?.selectedKernelId && this.textModel) {
+			const kernel = this.notebookKernelService.getMatchingKernel(this.textModel).all.find(k => k.id === viewState.selectedKernelId);
+			if (kernel) {
+				this.notebookKernelService.selectKernelForNotebook(kernel, this.textModel);
+			}
+		}
+	}
+
 	getEditorViewState(): INotebookEditorViewState {
 		const state = this.viewModel?.getEditorViewState();
 		if (!state) {
@@ -1730,8 +1741,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				contributionsState[id] = contribution.saveViewState();
 			}
 		}
-
 		state.contributionsState = contributionsState;
+		state.selectedKernelId = this.activeKernel?.id;
+
 		return state;
 	}
 
