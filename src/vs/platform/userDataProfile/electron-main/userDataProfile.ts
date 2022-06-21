@@ -31,8 +31,8 @@ export type WillRemoveProfileEvent = {
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
-	readonly willCreateProfile: Event<WillCreateProfileEvent>;
-	readonly willRemoveProfile: Event<WillRemoveProfileEvent>;
+	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
+	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
 	getAllProfiles(): Promise<IUserDataProfile[]>;
 }
 
@@ -57,11 +57,11 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	private static readonly PROFILES_KEY = 'userDataProfiles';
 	private static readonly WORKSPACE_PROFILE_INFO_KEY = 'workspaceAndProfileInfo';
 
-	private readonly _willCreateProfile = this._register(new Emitter<WillCreateProfileEvent>());
-	readonly willCreateProfile = this._willCreateProfile.event;
+	private readonly _onWillCreateProfile = this._register(new Emitter<WillCreateProfileEvent>());
+	readonly onWillCreateProfile = this._onWillCreateProfile.event;
 
-	private readonly _willRemoveProfile = this._register(new Emitter<WillRemoveProfileEvent>());
-	readonly willRemoveProfile = this._willRemoveProfile.event;
+	private readonly _onWillRemoveProfile = this._register(new Emitter<WillRemoveProfileEvent>());
+	readonly onWillRemoveProfile = this._onWillRemoveProfile.event;
 
 	constructor(
 		@IStateMainService private readonly stateMainService: IStateMainService,
@@ -117,7 +117,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 
 		const joiners: Promise<void>[] = [];
-		this._willCreateProfile.fire({
+		this._onWillCreateProfile.fire({
 			profile,
 			join(promise) {
 				joiners.push(promise);
@@ -159,7 +159,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 
 		const joiners: Promise<void>[] = [];
-		this._willRemoveProfile.fire({
+		this._onWillRemoveProfile.fire({
 			profile,
 			join(promise) {
 				joiners.push(promise);

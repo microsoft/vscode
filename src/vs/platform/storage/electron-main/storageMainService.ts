@@ -120,7 +120,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		}));
 
 		// Prepare storage location as needed
-		this._register(this.userDataProfilesService.willCreateProfile(e => {
+		this._register(this.userDataProfilesService.onWillCreateProfile(e => {
 			e.join((async () => {
 				if (!(await this.fileService.exists(e.profile.globalStorageHome))) {
 					await this.fileService.createFolder(e.profile.globalStorageHome);
@@ -129,7 +129,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		}));
 
 		// Close the storage of the profile that is being removed
-		this._register(this.userDataProfilesService.willRemoveProfile(e => {
+		this._register(this.userDataProfilesService.onWillRemoveProfile(e => {
 			const storage = this.mapProfileToStorage.get(e.profile.id);
 			if (storage) {
 				e.join(storage.close());
