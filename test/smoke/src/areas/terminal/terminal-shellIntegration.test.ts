@@ -73,6 +73,9 @@ export function setup() {
 			});
 		});
 
+		// These are integration tests that only test the UI side by simulating process writes.
+		// Because of this, they do not test the shell integration scripts, only what the scripts
+		// are expected to write.
 		describe('Write data-based tests', () => {
 			before(async function () {
 				await setTerminalTestSettings(app);
@@ -93,7 +96,7 @@ export function setup() {
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
 					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('C')}Failure\\r\\n${vsc('D;1')}`);
 					await terminal.assertCommandDecorations({ placeholder: 0, success: 1, error: 1 });
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}exitcode 1`);
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}`);
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
 				});
 			});
