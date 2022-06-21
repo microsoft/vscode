@@ -10,51 +10,84 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetCon
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { pickSnippet } from 'vs/workbench/contrib/snippets/browser/snippetPicker';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
+import { ISnippetsService } from './snippets.contribution';
 
+const options = {
+	id: 'editor.action.surroundWithSnippet',
+	title: {
+		value: localize('label', 'Surround With Snippet...'),
+		original: 'Surround With Snippet...'
+	},
+	precondition: ContextKeyExpr.and(
+		EditorContextKeys.writable,
+		EditorContextKeys.hasNonEmptySelection
+	),
+	f1: true,
+};
 
-registerAction2(class SurroundWithAction extends EditorAction2 {
+class SurroundWithSnippet {
+	constructor(
+		private readonly _editor: ICodeEditor,
+		@ISnippetsService private readonly _snippetService: ISnippetsService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+	) { }
 
-	constructor() {
-		super({
-			id: 'editor.action.surroundWithSnippet',
-			title: { value: localize('label', 'Surround With Snippet...'), original: 'Surround With Snippet...' },
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasNonEmptySelection),
-			f1: true
-		});
+	async getSurroundableSnippets(): Promise<Snippet[]> {
+		if (!this._editor.hasModel()) {
+			return [];
+		}
+
+		const model = this._editor.getModel();
+		const { lineNumber, column } = this._editor.getPosition();
+		model.tokenization.tokenizeIfCheap(lineNumber);
+		const languageId = model.getLanguageIdAtPosition(lineNumber, column);
+
+		const allSnippets = await this._snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true, includeDisabledSnippets: true });
+		return allSnippets.filter(snippet => snippet.usesSelection);
 	}
 
-	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+	canExecute(): boolean {
+		return this._contextKeyService.contextMatchesRules(options.precondition);
+	}
 
-		const snippetService = accessor.get(ISnippetsService);
-		const clipboardService = accessor.get(IClipboardService);
-		const instaService = accessor.get(IInstantiationService);
-
-		if (!editor.hasModel()) {
+	async run() {
+		if (!this.canExecute()) {
 			return;
 		}
 
-		const { lineNumber, column } = editor.getPosition();
-		editor.getModel().tokenization.tokenizeIfCheap(lineNumber);
-		const languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
+		const snippets = await this.getSurroundableSnippets();
+		if (!snippets.length) {
+			return;
+		}
 
-		const allSnippets = await snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true, includeDisabledSnippets: true });
-		const surroundSnippets = allSnippets.filter(snippet => snippet.usesSelection);
-		const snippet = await instaService.invokeFunction(pickSnippet, surroundSnippets);
-
+		const snippet = await this._instaService.invokeFunction(pickSnippet, snippets);
 		if (!snippet) {
 			return;
 		}
 
-
 		let clipboardText: string | undefined;
 		if (snippet.needsClipboard) {
-			clipboardText = await clipboardService.readText();
+			clipboardText = await this._clipboardService.readText();
 		}
 
-		SnippetController2.get(editor)?.insert(snippet.codeSnippet, { clipboardText });
+		SnippetController2.get(this._editor)?.insert(snippet.codeSnippet, { clipboardText });
 	}
-});
+}
+
+class SurroundWithSnippetEditorAction extends EditorAction2 {
+	constructor() {
+		super(options);
+	}
+	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+		const instaService = accessor.get(IInstantiationService);
+		const core = instaService.createInstance(SurroundWithSnippet, editor);
+		await core.run();
+	}
+}
+
+registerAction2(SurroundWithSnippetEditorAction);
