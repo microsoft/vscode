@@ -3,11 +3,15 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
+# Prevent the script recursing when setting up
+if [[ -n "$VSCODE_SHELL_INTEGRATION" ]]; then
+	builtin return
+fi
+
 VSCODE_SHELL_INTEGRATION=1
 
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
 if [ "$VSCODE_INJECTION" == "1" ]; then
-	echo 'run!'
 	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 		. ~/.bashrc
 	else
