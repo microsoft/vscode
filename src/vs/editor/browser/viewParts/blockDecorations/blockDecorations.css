@@ -10,6 +10,5 @@
 
 .monaco-editor .blockDecorations-block {
 	position: absolute;
-	content: " ";
 	box-sizing: border-box;
 }

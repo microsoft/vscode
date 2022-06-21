@@ -54,9 +54,13 @@ export class BlockDecorations extends ViewPart {
 		return this.update();
 	}
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged || e.scrollHeightChanged || e.scrollLeftChanged;
+		return e.scrollTopChanged || e.scrollLeftChanged;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		return true;
+	}
+
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
@@ -79,6 +83,7 @@ export class BlockDecorations extends ViewPart {
 				this.domNode.appendChild(block);
 			}
 			const top = ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber);
+			// See https://github.com/microsoft/vscode/pull/152740#discussion_r902661546
 			const bottom = ctx.getVerticalOffsetForLineNumber(decoration.range.endLineNumber + 1);
 
 			block.setClassName('blockDecorations-block ' + decoration.options.blockClassName);
