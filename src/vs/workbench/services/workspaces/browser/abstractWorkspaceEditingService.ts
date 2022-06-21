@@ -20,13 +20,13 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Schemas } from 'vs/base/common/network';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -35,7 +35,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService protected readonly contextService: WorkspaceService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
@@ -359,8 +359,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			await this.migrateWorkspaceSettings(workspace);
 		}
 
-		const workspaceImpl = this.contextService as WorkspaceService;
-		await workspaceImpl.initialize(workspace);
+		await this.configurationService.initialize(workspace);
 
 		return this.workspacesService.enterWorkspace(workspaceUri);
 	}

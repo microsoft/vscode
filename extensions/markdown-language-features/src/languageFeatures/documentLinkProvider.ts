@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
-import { MarkdownEngine } from '../markdownEngine';
+import { IMdParser } from '../markdownEngine';
 import { coalesce } from '../util/arrays';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
@@ -233,8 +233,8 @@ const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>
 const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
 
 class NoLinkRanges {
-	public static async compute(document: SkinnyTextDocument, engine: MarkdownEngine): Promise<NoLinkRanges> {
-		const tokens = await engine.parse(document);
+	public static async compute(tokenizer: IMdParser, document: SkinnyTextDocument): Promise<NoLinkRanges> {
+		const tokens = await tokenizer.tokenize(document);
 		const multiline = tokens.filter(t => (t.type === 'code_block' || t.type === 'fence' || t.type === 'html_block') && !!t.map).map(t => t.map) as [number, number][];
 
 		const text = document.getText();
@@ -270,11 +270,11 @@ class NoLinkRanges {
 export class MdLinkComputer {
 
 	constructor(
-		private readonly engine: MarkdownEngine
+		private readonly tokenizer: IMdParser,
 	) { }
 
 	public async getAllLinks(document: SkinnyTextDocument, token: vscode.CancellationToken): Promise<MdLink[]> {
-		const noLinkRanges = await NoLinkRanges.compute(document, this.engine);
+		const noLinkRanges = await NoLinkRanges.compute(this.tokenizer, document);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -436,11 +436,11 @@ export class MdLinkProvider extends Disposable {
 	private readonly linkComputer: MdLinkComputer;
 
 	constructor(
-		engine: MarkdownEngine,
+		tokenizer: IMdParser,
 		workspaceContents: MdWorkspaceContents,
 	) {
 		super();
-		this.linkComputer = new MdLinkComputer(engine);
+		this.linkComputer = new MdLinkComputer(tokenizer);
 		this._linkCache = this._register(new MdDocumentInfoCache(workspaceContents, doc => this.linkComputer.getAllLinks(doc, noopToken)));
 	}
 

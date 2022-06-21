@@ -876,9 +876,9 @@ export class CodeApplication extends Disposable {
 				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
 
 				// Pass along edit session id
-				if (params.get('edit-session-id') !== null) {
-					environmentService.editSessionId = params.get('edit-session-id') ?? undefined;
-					params.delete('edit-session-id');
+				if (params.get('editSessionId') !== null) {
+					environmentService.editSessionId = params.get('editSessionId') ?? undefined;
+					params.delete('editSessionId');
 					uri = uri.with({ query: params.toString() });
 				}
 

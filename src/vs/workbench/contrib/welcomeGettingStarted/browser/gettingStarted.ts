@@ -469,14 +469,14 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private getHiddenCategories(): Set<string> {
-		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.GLOBAL, '[]')));
+		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.PROFILE, '[]')));
 	}
 
 	private setHiddenCategories(hidden: string[]) {
 		this.storageService.store(
 			hiddenEntriesConfigurationKey,
 			JSON.stringify(hidden),
-			StorageScope.GLOBAL,
+			StorageScope.PROFILE,
 			StorageTarget.USER);
 	}
 
@@ -1152,7 +1152,7 @@ export class GettingStartedPage extends EditorPane {
 					this.storageService.store(
 						restoreWalkthroughsConfigurationKey,
 						JSON.stringify(restoreData),
-						StorageScope.GLOBAL, StorageTarget.MACHINE);
+						StorageScope.PROFILE, StorageTarget.MACHINE);
 					this.hostService.openWindow([{ folderUri: toOpen }]);
 				}
 			});

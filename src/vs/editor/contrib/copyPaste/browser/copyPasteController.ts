@@ -14,7 +14,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { Selection } from 'vs/editor/common/core/selection';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { DocumentPasteEdit, DocumentPasteEditProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
@@ -30,7 +31,7 @@ const vscodeClipboardMime = 'application/vnd.code.copyId';
 const defaultPasteEditProvider = new class implements DocumentPasteEditProvider {
 	pasteMimeTypes = [Mimes.text, 'text'];
 
-	async provideDocumentPasteEdits(model: ITextModel, selections: Selection[], dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
+	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
 		const textDataTransfer = dataTransfer.get(Mimes.text) ?? dataTransfer.get('text');
 		if (textDataTransfer) {
 			const text = await textDataTransfer.asString();
@@ -94,6 +95,15 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
+		const ranges: IRange[] = [...selections];
+		const primarySelection = selections[0];
+		if (primarySelection.isEmpty()) {
+			if (!this._editor.getOption(EditorOption.emptySelectionClipboard)) {
+				return;
+			}
+			ranges[0] = new Range(primarySelection.startLineNumber, 0, primarySelection.startLineNumber, model.getLineLength(primarySelection.startLineNumber));
+		}
+
 		const providers = this._languageFeaturesService.documentPasteEditProvider.ordered(model).filter(x => !!x.prepareDocumentPaste);
 		if (!providers.length) {
 			return;
@@ -107,7 +117,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 		const promise = createCancelablePromise(async token => {
 			const results = await Promise.all(providers.map(provider => {
-				return provider.prepareDocumentPaste!(model, selections, dataTransfer, token);
+				return provider.prepareDocumentPaste!(model, ranges, dataTransfer, token);
 			}));
 
 			for (const result of results) {
