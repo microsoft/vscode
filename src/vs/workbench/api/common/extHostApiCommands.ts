@@ -439,7 +439,7 @@ const newCommands: ApiCommand[] = [
 	),
 	// --- continue edit session
 	new ApiCommand(
-		'vscode.experimental.editSession.continue', '_workbench.experimental.sessionSync.actions.continueEditSession', 'Continue the current edit session in a different workspace',
+		'vscode.experimental.editSession.continue', '_workbench.experimental.editSessions.actions.continueEditSession', 'Continue the current edit session in a different workspace',
 		[ApiCommandArgument.Uri.with('workspaceUri', 'The target workspace to continue the current edit session in')],
 		ApiCommandResult.Void
 	)
