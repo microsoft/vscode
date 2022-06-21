@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkProvider, MdVsCodeLinkProvider } from '../languageFeatures/documentLinkProvider';
+import { MdLinkProvider, MdVsCodeLinkProvider } from '../languageFeatures/documentLinks';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';

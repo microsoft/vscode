@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Disposable } from '../util/dispose';
-import { Lazy, lazy } from '../util/lazy';
-import { ResourceMap } from '../util/resourceMap';
+import { Disposable } from './dispose';
+import { Lazy, lazy } from './lazy';
+import { ResourceMap } from './resourceMap';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 
 class LazyResourceMap<T> {

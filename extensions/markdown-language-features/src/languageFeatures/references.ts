@@ -10,8 +10,8 @@ import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { looksLikeMarkdownPath } from '../util/file';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalHref, MdLink, MdLinkComputer } from './documentLinkProvider';
-import { MdWorkspaceInfoCache } from './workspaceCache';
+import { InternalHref, MdLink, MdLinkComputer } from './documentLinks';
+import { MdWorkspaceInfoCache } from '../util/workspaceCache';
 
 
 /**

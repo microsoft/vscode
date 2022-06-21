@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdFoldingProvider } from '../languageFeatures/foldingProvider';
+import { MdFoldingProvider } from '../languageFeatures/folding';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';

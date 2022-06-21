@@ -10,7 +10,7 @@ import { Slugifier } from '../slugify';
 import { Disposable } from '../util/dispose';
 import { resolveDocumentLink } from '../util/openDocumentLink';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalHref } from './documentLinkProvider';
+import { InternalHref } from './documentLinks';
 import { MdHeaderReference, MdLinkReference, MdReference, MdReferencesProvider, tryResolveLinkPath } from './references';
 
 const localize = nls.loadMessageBundle();

@@ -9,7 +9,7 @@ import { IMdParser } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import { SkinnyTextDocument } from '../workspaceContents';
-import { MdLinkProvider } from './documentLinkProvider';
+import { MdLinkProvider } from './documentLinks';
 
 enum CompletionContextKind {
 	/** `[...](|)` */
