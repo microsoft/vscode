@@ -354,10 +354,10 @@ registerAction2(class extends Action2 {
 				await extensionWorkbenchService.install(
 					extension,
 					{
-						progressLocation: ProgressLocation.Notification,
 						installPreReleaseVersion: isInsiders ?? false,
 						context: { skipWalkthrough: true }
-					}
+					},
+					ProgressLocation.Notification
 				);
 				await extensionService.activateByEvent(`onNotebook:${viewType}`, ActivationKind.Immediate);
 				// Await 5 sec timeout

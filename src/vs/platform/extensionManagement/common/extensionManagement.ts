@@ -12,7 +12,6 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -393,7 +392,6 @@ export type InstallOptions = {
 	installGivenVersion?: boolean;
 	installPreReleaseVersion?: boolean;
 	operation?: InstallOperation;
-	progressLocation?: ProgressLocation;
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */
