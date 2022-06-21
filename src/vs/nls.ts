@@ -9,7 +9,7 @@ const DEFAULT_TAG = 'i-default';
 interface INLSPluginConfig {
 	availableLanguages?: INLSPluginConfigAvailableLanguages;
 	loadBundle?: BundleLoader;
-	baseUrl?: string;
+	translationServiceUrl?: string;
 }
 
 interface INLSPluginConfigAvailableLanguages {
@@ -155,13 +155,49 @@ export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoa
 					messagesLoaded(messages);
 				}
 			});
+		} else if (pluginConfig.translationServiceUrl) {
+			if (language === null) {
+				return req([name + '.nls'], messagesLoaded);
+			}
+			const url = endWithSlash(pluginConfig.translationServiceUrl) + endWithSlash(language) + 'vscode/' + endWithSlash(name);
+			(async () => {
+				try {
+					const res = await fetch(url);
+					if (res.ok) {
+						const messages = await res.json();
+						return messagesLoaded(messages);
+					}
+					throw new Error(`${res.status} - ${res.statusText}`);
+				} catch (err) {
+					if (!language.includes('-')) {
+						return req([name + '.nls'], messagesLoaded);
+					}
+					const url = endWithSlash(pluginConfig.translationServiceUrl!) + endWithSlash(language.split('-')[0]) + 'vscode/' + endWithSlash(name);
+					try {
+						const res2 = await fetch(url);
+						if (res2.ok) {
+							const messages = await res2.json();
+							return messagesLoaded(messages);
+						}
+						throw new Error(`${res2.status} - ${res2.statusText}`);
+					} catch (err) {
+						return req([name + '.nls'], messagesLoaded);
+					}
+				}
+			})();
 		} else {
-			const base = pluginConfig.baseUrl ?? '';
-			req([base + name + suffix], messagesLoaded, (err: Error) => {
+			req([name + suffix], messagesLoaded, (err: Error) => {
 				// We have an error. Load the English default strings instead.
-				console.warn(`Falling back to default strings. Unable to load translations because of: ${err.message ?? err}`);
+				console.warn(`Falling back to default strings. Unable to load translations because of: ${err.toString()}`);
 				req([name + '.nls'], messagesLoaded);
 			});
 		}
 	}
+}
+
+function endWithSlash(path: string): string {
+	if (path.charAt(path.length - 1) === '/') {
+		return path;
+	}
+	return path + '/';
 }
