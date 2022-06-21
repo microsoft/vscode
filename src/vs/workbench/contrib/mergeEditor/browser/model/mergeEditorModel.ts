@@ -126,9 +126,11 @@ export class MergeEditorModel extends EditorModel {
 	constructor(
 		readonly base: ITextModel,
 		readonly input1: ITextModel,
+		readonly input1Title: string | undefined,
 		readonly input1Detail: string | undefined,
 		readonly input1Description: string | undefined,
 		readonly input2: ITextModel,
+		readonly input2Title: string | undefined,
 		readonly input2Detail: string | undefined,
 		readonly input2Description: string | undefined,
 		readonly result: ITextModel,

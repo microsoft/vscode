@@ -20,14 +20,15 @@ import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/te
 
 export interface MergeEditorInputJSON {
 	anchestor: URI;
-	inputOne: { uri: URI; detail?: string; description?: string };
-	inputTwo: { uri: URI; detail?: string; description?: string };
+	inputOne: { uri: URI; title?: string; detail?: string; description?: string };
+	inputTwo: { uri: URI; title?: string; detail?: string; description?: string };
 	result: URI;
 }
 
 export class MergeEditorInputData {
 	constructor(
 		readonly uri: URI,
+		readonly title: string | undefined,
 		readonly detail: string | undefined,
 		readonly description: string | undefined,
 	) { }
@@ -109,9 +110,11 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 				MergeEditorModel,
 				base.object.textEditorModel,
 				input1.object.textEditorModel,
+				this._input1.title,
 				this._input1.detail,
 				this._input1.description,
 				input2.object.textEditorModel,
+				this._input2.title,
 				this._input2.detail,
 				this._input2.description,
 				result.object.textEditorModel
