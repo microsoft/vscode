@@ -30,15 +30,29 @@
       {
         "command": "github.publish",
         "title": "Publish to GitHub"
-      }
+      },
+	  {
+		"command": "github.copyVscodeDevLink",
+		"title": "Copy vscode.dev Link"
+	  }
     ],
     "menus": {
       "commandPalette": [
         {
           "command": "github.publish",
           "when": "git-base.gitEnabled"
+        },
+        {
+          "command": "github.copyVscodeDevLink",
+          "when": "false"
         }
-      ]
+      ],
+	  "file/share": [
+		{
+			"command": "github.copyVscodeDevLink",
+			"when": "github.hasGitHubRepo"
+		}
+	  ]
     },
     "configuration": [
       {
