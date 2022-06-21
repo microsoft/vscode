@@ -183,6 +183,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			});
 		});
 
+	// Debug Consoles
 		this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl()).forEach((session, index) => {
 			const label = localize('debugConsoleTitle', "{0}: {1}", index, session.name);
 			viewEntries.push({
