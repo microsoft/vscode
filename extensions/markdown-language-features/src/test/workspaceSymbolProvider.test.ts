@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbolProvider';
-import { MdWorkspaceSymbolProvider } from '../languageFeatures/workspaceSymbolProvider';
+import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbols';
+import { MdWorkspaceSymbolProvider } from '../languageFeatures/workspaceSymbols';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';

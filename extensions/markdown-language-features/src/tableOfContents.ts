@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { MdDocumentInfoCache } from './languageFeatures/workspaceCache';
+import { MdDocumentInfoCache } from './util/workspaceCache';
 import { IMdParser } from './markdownEngine';
 import { githubSlugifier, Slug, Slugifier } from './slugify';
 import { Disposable } from './util/dispose';

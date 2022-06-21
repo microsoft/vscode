@@ -9,6 +9,7 @@ import * as uri from 'vscode-uri';
 import { Logger } from '../logger';
 import { MarkdownItEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
+import { escapeAttribute, getNonce } from '../util/dom';
 import { WebviewResourceProvider } from '../util/resources';
 import { MarkdownPreviewConfiguration, MarkdownPreviewConfigurationManager } from './previewConfig';
 import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from './security';
@@ -35,17 +36,13 @@ const previewStrings = {
 		'Content Disabled Security Warning')
 };
 
-function escapeAttribute(value: string | vscode.Uri): string {
-	return value.toString().replace(/"/g, '&quot;');
-}
-
 export interface MarkdownContentProviderOutput {
 	html: string;
 	containingImages: { src: string }[];
 }
 
 
-export class MarkdownContentProvider {
+export class MdDocumentRenderer {
 	constructor(
 		private readonly engine: MarkdownItEngine,
 		private readonly context: vscode.ExtensionContext,
@@ -61,7 +58,7 @@ export class MarkdownContentProvider {
 
 	public readonly iconPath: { light: vscode.Uri; dark: vscode.Uri };
 
-	public async provideTextDocumentContent(
+	public async renderDocument(
 		markdownDocument: vscode.TextDocument,
 		resourceProvider: WebviewResourceProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
@@ -89,7 +86,7 @@ export class MarkdownContentProvider {
 		const nonce = getNonce();
 		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
 
-		const body = await this.markdownBody(markdownDocument, resourceProvider);
+		const body = await this.renderBody(markdownDocument, resourceProvider);
 		if (token.isCancellationRequested) {
 			return { html: '', containingImages: [] };
 		}
@@ -118,7 +115,7 @@ export class MarkdownContentProvider {
 		};
 	}
 
-	public async markdownBody(
+	public async renderBody(
 		markdownDocument: vscode.TextDocument,
 		resourceProvider: WebviewResourceProvider,
 	): Promise<MarkdownContentProviderOutput> {
@@ -130,9 +127,7 @@ export class MarkdownContentProvider {
 		};
 	}
 
-	public provideFileNotFoundContent(
-		resource: vscode.Uri,
-	): string {
+	public renderFileNotFoundDocument(resource: vscode.Uri): string {
 		const resourcePath = uri.Utils.basename(resource);
 		const body = localize('preview.notFound', '{0} cannot be found', resourcePath);
 		return `<!DOCTYPE html>
@@ -250,13 +245,4 @@ export class MarkdownContentProvider {
 				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${rule} https: data:; media-src 'self' ${rule} https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${rule} 'unsafe-inline' https: data:; font-src 'self' ${rule} https: data:;">`;
 		}
 	}
-}
-
-function getNonce() {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 64; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
 }

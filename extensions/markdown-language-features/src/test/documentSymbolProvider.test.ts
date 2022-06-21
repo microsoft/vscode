@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbolProvider';
+import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbols';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';

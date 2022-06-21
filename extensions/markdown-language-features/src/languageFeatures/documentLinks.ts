@@ -13,7 +13,7 @@ import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/schemes';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { MdDocumentInfoCache } from './workspaceCache';
+import { MdDocumentInfoCache } from '../util/workspaceCache';
 
 const localize = nls.loadMessageBundle();
 

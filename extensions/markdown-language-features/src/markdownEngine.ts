@@ -6,7 +6,7 @@
 import type MarkdownIt = require('markdown-it');
 import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
-import { MdDocumentInfoCache } from './languageFeatures/workspaceCache';
+import { MdDocumentInfoCache } from './util/workspaceCache';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { Disposable } from './util/dispose';

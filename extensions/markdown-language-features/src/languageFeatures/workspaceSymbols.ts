@@ -6,8 +6,8 @@
 import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents } from '../workspaceContents';
-import { MdDocumentSymbolProvider } from './documentSymbolProvider';
-import { MdWorkspaceInfoCache } from './workspaceCache';
+import { MdDocumentSymbolProvider } from './documentSymbols';
+import { MdWorkspaceInfoCache } from '../util/workspaceCache';
 
 export class MdWorkspaceSymbolProvider extends Disposable implements vscode.WorkspaceSymbolProvider {
 
