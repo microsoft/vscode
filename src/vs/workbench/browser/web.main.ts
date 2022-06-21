@@ -32,7 +32,7 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/common/c
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { IWorkbenchConstructionOptions, IWorkbench, ITunnel } from 'vs/workbench/browser/web.api';
-import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
+import { BrowserStorageService } from 'vs/workbench/services/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogger } from 'vs/platform/log/common/fileLog';
@@ -78,6 +78,8 @@ import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { IRemoteExplorerService, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { DisposableTunnel } from 'vs/platform/tunnel/common/tunnel';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class BrowserMain extends Disposable {
 
@@ -258,8 +260,11 @@ export class BrowserMain extends Disposable {
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(undefined, undefined, environmentService, fileService, logService);
+		const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, fileService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
+
+		const userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService.defaultProfile);
+		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
@@ -267,7 +272,7 @@ export class BrowserMain extends Disposable {
 
 		// Long running services (workspace, config, storage)
 		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(payload, environmentService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, userDataProfileService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -278,7 +283,7 @@ export class BrowserMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService(payload, logService, userDataProfilesService).then(service => {
+			this.createStorageService(payload, logService, userDataProfileService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
@@ -450,8 +455,8 @@ export class BrowserMain extends Disposable {
 		});
 	}
 
-	private async createStorageService(payload: IAnyWorkspaceIdentifier, logService: ILogService, userDataProfilesService: IUserDataProfilesService): Promise<IStorageService> {
-		const storageService = new BrowserStorageService(payload, logService, userDataProfilesService);
+	private async createStorageService(payload: IAnyWorkspaceIdentifier, logService: ILogService, userDataProfileService: IUserDataProfileService): Promise<IStorageService> {
+		const storageService = new BrowserStorageService(payload, userDataProfileService, logService);
 
 		try {
 			await storageService.initialize();
@@ -468,9 +473,9 @@ export class BrowserMain extends Disposable {
 		}
 	}
 
-	private async createWorkspaceService(payload: IAnyWorkspaceIdentifier, environmentService: IWorkbenchEnvironmentService, userDataProfilesService: IUserDataProfilesService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+	private async createWorkspaceService(payload: IAnyWorkspaceIdentifier, environmentService: IWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData, Schemas.tmp] /* Cache all non native resources */, environmentService, fileService);
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache }, environmentService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, new NullPolicyService());
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache }, environmentService, userDataProfileService, fileService, remoteAgentService, uriIdentityService, logService, new NullPolicyService());
 
 		try {
 			await workspaceService.initialize(payload);

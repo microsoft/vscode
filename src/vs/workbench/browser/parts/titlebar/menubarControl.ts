@@ -349,7 +349,7 @@ export abstract class MenubarControl extends Disposable {
 			return;
 		}
 
-		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.GLOBAL, false);
+		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.PROFILE, false);
 		const usingCustomMenubar = getTitleBarStyle(this.configurationService) === 'custom';
 
 		if (hasBeenNotified || usingCustomMenubar || !this.accessibilityService.isScreenReaderOptimized()) {
@@ -366,7 +366,7 @@ export abstract class MenubarControl extends Disposable {
 			}
 		]);
 
-		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.PROFILE, StorageTarget.USER);
 	}
 }
 
@@ -481,9 +481,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTION_BACKGROUND);
 			if (menubarSelectedBgColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover {
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title,
+					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .menubar-menu-title {
 						background-color: ${menubarSelectedBgColor};
 					}
 				`);
@@ -492,19 +492,20 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTION_BORDER);
 			if (menubarSelectedBorderColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar > .menubar-menu-button:hover {
+					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title  {
 						outline: dashed 1px;
 					}
 
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus {
+					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title {
 						outline: solid 1px;
 					}
 
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus,
-					.monaco-workbench .menubar > .menubar-menu-button:hover {
+					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title,
+					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title {
 						outline-color: ${menubarSelectedBorderColor};
+						outline-offset: -1px;
 					}
 				`);
 			}

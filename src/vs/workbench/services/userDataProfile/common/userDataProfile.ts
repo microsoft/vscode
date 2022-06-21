@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isUndefined } from 'vs/base/common/types';
+import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -17,6 +18,21 @@ export type CreationOptions = {
 	extensions?: boolean;
 	uiState?: boolean;
 };
+
+export interface DidChangeUserDataProfileEvent {
+	readonly preserveData: boolean;
+	readonly profile: IUserDataProfile;
+	join(promise: Promise<void>): void;
+}
+
+export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
+export interface IUserDataProfileService {
+	readonly _serviceBrand: undefined;
+	readonly defaultProfile: IUserDataProfile;
+	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
+	readonly currentProfile: IUserDataProfile;
+	updateCurrentProfile(currentProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
+}
 
 export const IUserDataProfileManagementService = createDecorator<IUserDataProfileManagementService>('IUserDataProfileManagementService');
 export interface IUserDataProfileManagementService {
@@ -36,7 +52,7 @@ export interface IUserDataProfileTemplate {
 	readonly extensions?: string;
 }
 
-export function isProfile(thing: any): thing is IUserDataProfileTemplate {
+export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTemplate {
 	const candidate = thing as IUserDataProfileTemplate | undefined;
 
 	return !!(candidate && typeof candidate === 'object'

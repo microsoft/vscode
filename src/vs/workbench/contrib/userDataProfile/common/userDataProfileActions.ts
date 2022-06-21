@@ -14,7 +14,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfileTemplate, isProfile, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -119,10 +119,11 @@ registerAction2(class RemoveProfileAction extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const quickInputService = accessor.get(IQuickInputService);
+		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 
-		const profiles = (await userDataProfilesService.getAllProfiles()).filter(p => p.name !== userDataProfilesService.currentProfile.name && p.name !== userDataProfilesService.defaultProfile.name);
+		const profiles = userDataProfilesService.profiles.filter(p => p.name !== userDataProfileService.currentProfile.name && p.name !== userDataProfilesService.defaultProfile.name);
 		if (profiles.length) {
 			const pick = await quickInputService.pick(profiles.map(profile => ({ label: profile.name, profile })), { placeHolder: localize('pick profile', "Select Settings Profile") });
 			if (pick) {
@@ -148,14 +149,14 @@ registerAction2(class SwitchProfileAction extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const quickInputService = accessor.get(IQuickInputService);
+		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 
-		const profiles = await userDataProfilesService.getAllProfiles();
-		if (profiles.length) {
-			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = profiles.map(profile => ({
+		if (userDataProfilesService.profiles) {
+			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = userDataProfilesService.profiles.map(profile => ({
 				label: profile.name!,
-				description: profile.name === userDataProfilesService.currentProfile.name ? localize('current', "Current") : undefined,
+				description: profile.name === userDataProfileService.currentProfile.name ? localize('current', "Current") : undefined,
 				profile
 			}));
 			const pick = await quickInputService.pick(picks, { placeHolder: localize('pick profile', "Select Settings Profile") });
@@ -185,9 +186,8 @@ registerAction2(class CleanupProfilesAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
 
-		const allProfiles = await userDataProfilesService.getAllProfiles();
 		const stat = await fileService.resolve(userDataProfilesService.profilesHome);
-		await Promise.all((stat.children || [])?.filter(child => child.isDirectory && allProfiles.every(p => !uriIdentityService.extUri.isEqual(p.location, child.resource)))
+		await Promise.all((stat.children || [])?.filter(child => child.isDirectory && userDataProfilesService.profiles.every(p => !uriIdentityService.extUri.isEqual(p.location, child.resource)))
 			.map(child => fileService.del(child.resource, { recursive: true })));
 	}
 });
@@ -293,7 +293,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		}
 		const content = (await fileService.readFile(profileLocation[0])).value.toString();
 		const parsed = JSON.parse(content);
-		return isProfile(parsed) ? parsed : null;
+		return isUserDataProfileTemplate(parsed) ? parsed : null;
 	}
 
 	private async getProfileFromURL(url: string, requestService: IRequestService): Promise<IUserDataProfileTemplate | null> {
@@ -301,7 +301,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		const context = await requestService.request(options, CancellationToken.None);
 		if (context.res.statusCode === 200) {
 			const result = await asJson(context);
-			return isProfile(result) ? result : null;
+			return isUserDataProfileTemplate(result) ? result : null;
 		} else {
 			const message = await asText(context);
 			throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);

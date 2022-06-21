@@ -51,6 +51,8 @@ import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { joinPath } from 'vs/base/common/resources';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const args = parseArgs(process.argv, OPTIONS);
 
@@ -221,7 +223,7 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
-	async updateTitleBarOverlay(backgroundColor: string, foregroundColor: string): Promise<void> { }
+	async updateTitleBarOverlay(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
 	async focusWindow(options?: { windowId?: number | undefined } | undefined): Promise<void> { }
@@ -287,7 +289,8 @@ export function workbenchInstantiationService(disposables = new DisposableStore(
 	instantiationService.stub(INativeEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, undefined, TestEnvironmentService, new FileService(new NullLogService()), new NullLogService()));
+	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, TestEnvironmentService, new FileService(new NullLogService()), new NullLogService()));
+	instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService.defaultProfile));
 
 	return instantiationService;
 }

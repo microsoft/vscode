@@ -13,7 +13,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
 	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, InstallOperation, IExtensionTipsService, IGalleryMetadata, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { anExtensionManagementServerService, TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
@@ -94,6 +94,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidInstallExtensions: didInstallEvent.event,
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
+			onDidChangeProfileExtensions: Event.None,
 			async getInstalled() { return []; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
 			async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata) {
@@ -109,7 +110,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService({
 			id: 'local',
 			label: 'local',
-			extensionManagementService: instantiationService.get(IExtensionManagementService),
+			extensionManagementService: instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService,
 		}, null, null));
 
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
@@ -1458,7 +1459,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		});
 	}
 
-	function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService, localExtensionManagementService?: IExtensionManagementService, remoteExtensionManagementService?: IExtensionManagementService): IExtensionManagementServerService {
+	function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService, localExtensionManagementService?: IProfileAwareExtensionManagementService, remoteExtensionManagementService?: IProfileAwareExtensionManagementService): IExtensionManagementServerService {
 		const localExtensionManagementServer: IExtensionManagementServer = {
 			id: 'vscode-local',
 			label: 'local',
@@ -1472,12 +1473,13 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return anExtensionManagementServerService(localExtensionManagementServer, remoteExtensionManagementServer, null);
 	}
 
-	function createExtensionManagementService(installed: ILocalExtension[] = []): IExtensionManagementService {
-		return <IExtensionManagementService>{
+	function createExtensionManagementService(installed: ILocalExtension[] = []): IProfileAwareExtensionManagementService {
+		return <IProfileAwareExtensionManagementService>{
 			onInstallExtension: Event.None,
 			onDidInstallExtensions: Event.None,
 			onUninstallExtension: Event.None,
 			onDidUninstallExtension: Event.None,
+			onDidChangeProfileExtensions: Event.None,
 			getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 			installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
 			updateMetadata: async (local: ILocalExtension, metadata: IGalleryMetadata) => {

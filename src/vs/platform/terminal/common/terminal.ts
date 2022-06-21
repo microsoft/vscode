@@ -439,7 +439,7 @@ export interface IShellLaunchConfig {
 	ignoreConfigurationCwd?: boolean;
 
 	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean | string;
+	waitOnExit?: boolean | string | ((exitCode: number) => string);
 
 	/**
 	 * A string including ANSI escape sequences that will be written to the terminal emulator

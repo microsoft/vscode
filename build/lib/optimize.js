@@ -35,39 +35,57 @@ function loaderConfig() {
 }
 exports.loaderConfig = loaderConfig;
 const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
-function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
-    let sources = [
-        `${src}/vs/loader.js`
-    ];
-    if (bundleLoader) {
-        sources = sources.concat([
-            `${src}/vs/css.js`,
-            `${src}/vs/nls.js`
-        ]);
-    }
-    let isFirst = true;
+function loaderPlugin(src, base, amdModuleId) {
     return (gulp
-        .src(sources, { base: `${src}` })
+        .src(src, { base })
         .pipe(es.through(function (data) {
-        if (isFirst) {
-            isFirst = false;
-            this.emit('data', new VinylFile({
-                path: 'fake',
-                base: '.',
-                contents: Buffer.from(bundledFileHeader)
-            }));
-            this.emit('data', data);
+        if (amdModuleId) {
+            let contents = data.contents.toString('utf8');
+            contents = contents.replace(/^define\(/m, `define("${amdModuleId}",`);
+            data.contents = Buffer.from(contents);
         }
-        else {
-            this.emit('data', data);
+        this.emit('data', data);
+    })));
+}
+function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
+    let loaderStream = gulp.src(`${src}/vs/loader.js`, { base: `${src}` });
+    if (bundleLoader) {
+        loaderStream = es.merge(loaderStream, loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'), loaderPlugin(`${src}/vs/nls.js`, `${src}`, 'vs/nls'));
+    }
+    const files = [];
+    const order = (f) => {
+        if (f.path.endsWith('loader.js')) {
+            return 0;
         }
+        if (f.path.endsWith('css.js')) {
+            return 1;
+        }
+        if (f.path.endsWith('nls.js')) {
+            return 2;
+        }
+        return 3;
+    };
+    return (loaderStream
+        .pipe(es.through(function (data) {
+        files.push(data);
     }, function () {
+        files.sort((a, b) => {
+            return order(a) - order(b);
+        });
+        files.unshift(new VinylFile({
+            path: 'fake',
+            base: '.',
+            contents: Buffer.from(bundledFileHeader)
+        }));
         if (externalLoaderInfo !== undefined) {
-            this.emit('data', new VinylFile({
+            files.push(new VinylFile({
                 path: 'fake2',
                 base: '.',
                 contents: Buffer.from(`require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});`)
             }));
+        }
+        for (const file of files) {
+            this.emit('data', file);
         }
         this.emit('end');
     }))

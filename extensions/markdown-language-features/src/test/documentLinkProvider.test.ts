@@ -6,19 +6,21 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkComputer, MdLinkProvider } from '../languageFeatures/documentLinkProvider';
+import { MdLinkProvider, MdVsCodeLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
-import { assertRangeEqual, joinLines } from './util';
+import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { assertRangeEqual, joinLines, workspacePath } from './util';
 
-
-const testFile = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'x.md');
 
 function getLinksForFile(fileContents: string) {
-	const doc = new InMemoryDocument(testFile, fileContents);
-	const linkComputer = new MdLinkComputer(createNewMarkdownEngine());
-	const provider = new MdLinkProvider(linkComputer);
+	const doc = new InMemoryDocument(workspacePath('x.md'), fileContents);
+	const workspace = new InMemoryWorkspaceMarkdownDocuments([doc]);
+
+	const engine = createNewMarkdownEngine();
+	const linkProvider = new MdLinkProvider(engine, workspace);
+	const provider = new MdVsCodeLinkProvider(linkProvider);
 	return provider.provideDocumentLinks(doc, noopToken);
 }
 
@@ -30,7 +32,7 @@ function assertLinksEqual(actualLinks: readonly vscode.DocumentLink[], expectedR
 	}
 }
 
-suite('markdown.DocumentLinkProvider', () => {
+suite('Markdown: DocumentLinkProvider', () => {
 	test('Should not return anything for empty document', async () => {
 		const links = await getLinksForFile('');
 		assert.strictEqual(links.length, 0);
@@ -129,24 +131,24 @@ suite('markdown.DocumentLinkProvider', () => {
 		{
 			const links = await getLinksForFile('[![alt text](image.jpg)](https://example.com)');
 			assertLinksEqual(links, [
+				new vscode.Range(0, 25, 0, 44),
 				new vscode.Range(0, 13, 0, 22),
-				new vscode.Range(0, 25, 0, 44)
 			]);
 		}
 		{
 			const links = await getLinksForFile('[![a]( whitespace.jpg )]( https://whitespace.com )');
 			assertLinksEqual(links, [
+				new vscode.Range(0, 26, 0, 48),
 				new vscode.Range(0, 7, 0, 21),
-				new vscode.Range(0, 26, 0, 48)
 			]);
 		}
 		{
 			const links = await getLinksForFile('[![a](img1.jpg)](file1.txt) text [![a](img2.jpg)](file2.txt)');
 			assertLinksEqual(links, [
-				new vscode.Range(0, 6, 0, 14),
 				new vscode.Range(0, 17, 0, 26),
-				new vscode.Range(0, 39, 0, 47),
+				new vscode.Range(0, 6, 0, 14),
 				new vscode.Range(0, 50, 0, 59),
+				new vscode.Range(0, 39, 0, 47),
 			]);
 		}
 	});
