@@ -343,6 +343,7 @@ export interface INotebookEditorViewState {
 	focus?: number;
 	editorFocused?: boolean;
 	contributionsState?: { [id: string]: unknown };
+	selectedKernelId?: string;
 }
 
 export interface ICellModelDecorations {

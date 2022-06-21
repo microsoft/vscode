@@ -369,7 +369,7 @@ export class LazyDerived<T> extends ConvenientObservable<T, void> {
 
 	constructor(computeFn: (reader: IReader) => T, name: string) {
 		super();
-		this.observer = new LazyDerivedObserver(computeFn, name);
+		this.observer = new LazyDerivedObserver(computeFn, name, this);
 	}
 
 	public subscribe(observer: IObserver): void {
@@ -412,7 +412,8 @@ class LazyDerivedObserver<T>
 
 	constructor(
 		private readonly computeFn: (reader: IReader) => T,
-		public readonly name: string
+		public readonly name: string,
+		private readonly actualObservable: LazyDerived<T>,
 	) {
 		super();
 	}
@@ -514,7 +515,7 @@ class LazyDerivedObserver<T>
 			this.hasValue = true;
 			if (this.hadValue && oldValue !== this.value) {
 				for (const r of this.observers) {
-					r.handleChange(this, undefined);
+					r.handleChange(this.actualObservable, undefined);
 				}
 			}
 		}
@@ -670,4 +671,20 @@ export function derivedObservableWithCache<T>(name: string, computeFn: (reader: 
 		return lastValue;
 	});
 	return observable;
+}
+
+export function derivedObservableWithWritableCache<T>(name: string, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> & { clearCache(transaction: ITransaction): void } {
+	let lastValue: T | undefined = undefined;
+	const counter = new ObservableValue(0, 'counter');
+	const observable = derivedObservable(name, reader => {
+		counter.read(reader);
+		lastValue = computeFn(reader, lastValue);
+		return lastValue;
+	});
+	return Object.assign(observable, {
+		clearCache: (transaction: ITransaction) => {
+			lastValue = undefined;
+			counter.set(counter.get() + 1, transaction);
+		},
+	});
 }

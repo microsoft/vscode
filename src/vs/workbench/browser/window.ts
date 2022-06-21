@@ -6,7 +6,7 @@
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
 import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
-import { requestUsb, UsbDeviceData } from 'vs/base/browser/usb';
+import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -248,7 +248,17 @@ export class BrowserWindow extends Disposable {
 
 		// Allow extensions to request USB devices in Web
 		CommandsRegistry.registerCommand('workbench.experimental.requestUsbDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<UsbDeviceData | undefined> => {
-			return requestUsb(options);
+			return requestUsbDevice(options);
+		});
+
+		// Allow extensions to request Serial devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestSerialPort', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<SerialPortData | undefined> => {
+			return requestSerialPort(options);
+		});
+
+		// Allow extensions to request HID devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestHidDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<HidDeviceData | undefined> => {
+			return requestHidDevice(options);
 		});
 	}
 }

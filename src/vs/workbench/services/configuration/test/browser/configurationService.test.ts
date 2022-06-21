@@ -44,7 +44,7 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteA
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { hash } from 'vs/base/common/hash';
 import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
-import { DefaultOptions, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
@@ -68,7 +68,7 @@ export class ConfigurationCache implements IConfigurationCache {
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 function aUserDataProfileService(environmentService: IEnvironmentService): IUserDataProfileService {
-	const profile = toUserDataProfile('temp', environmentService.userRoamingDataHome, DefaultOptions, true);
+	const profile = toUserDataProfile('temp', environmentService.userRoamingDataHome);
 	return new UserDataProfileService(profile, profile);
 }
 

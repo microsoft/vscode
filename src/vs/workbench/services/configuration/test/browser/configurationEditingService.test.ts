@@ -39,7 +39,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { DefaultOptions, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { hash } from 'vs/base/common/hash';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
@@ -110,7 +110,7 @@ suite('ConfigurationEditingService', () => {
 		environmentService = TestEnvironmentService;
 		environmentService.policyFile = joinPath(workspaceFolder, 'policies.json');
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const profile = toUserDataProfile('temp', environmentService.userRoamingDataHome, DefaultOptions, true);
+		const profile = toUserDataProfile('temp', environmentService.userRoamingDataHome);
 		userDataProfileService = new UserDataProfileService(profile, profile);
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService))));
