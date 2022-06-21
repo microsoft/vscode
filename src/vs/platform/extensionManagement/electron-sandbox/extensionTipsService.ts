@@ -256,7 +256,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 	}
 
 	private getLastPromptedMediumExeTime(): number {
-		let value = this.storageService.getNumber(lastPromptedMediumImpExeTimeStorageKey, StorageScope.GLOBAL);
+		let value = this.storageService.getNumber(lastPromptedMediumImpExeTimeStorageKey, StorageScope.APPLICATION);
 		if (!value) {
 			value = Date.now();
 			this.updateLastPromptedMediumExeTime(value);
@@ -265,17 +265,17 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 	}
 
 	private updateLastPromptedMediumExeTime(value: number): void {
-		this.storageService.store(lastPromptedMediumImpExeTimeStorageKey, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(lastPromptedMediumImpExeTimeStorageKey, value, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	private getPromptedExecutableTips(): IStringDictionary<string[]> {
-		return JSON.parse(this.storageService.get(promptedExecutableTipsStorageKey, StorageScope.GLOBAL, '{}'));
+		return JSON.parse(this.storageService.get(promptedExecutableTipsStorageKey, StorageScope.APPLICATION, '{}'));
 	}
 
 	private addToRecommendedExecutables(exeName: string, tips: IExecutableBasedExtensionTip[]) {
 		const promptedExecutableTips = this.getPromptedExecutableTips();
 		promptedExecutableTips[exeName] = tips.map(({ extensionId }) => extensionId.toLowerCase());
-		this.storageService.store(promptedExecutableTipsStorageKey, JSON.stringify(promptedExecutableTips), StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(promptedExecutableTipsStorageKey, JSON.stringify(promptedExecutableTips), StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 	private groupByInstalled(recommendationsToSuggest: string[], local: ILocalExtension[]): { installed: string[]; uninstalled: string[] } {

@@ -31,7 +31,7 @@ export interface IStorageMainOptions {
 }
 
 /**
- * Provides access to global, profile and workspace storage from
+ * Provides access to application, profile and workspace storage from
  * the electron-main side that is the owner of all storage connections.
  */
 export interface IStorageMain extends IDisposable {
@@ -295,7 +295,7 @@ export class ProfileStorageMain extends BaseProfileAwareStorageMain {
 	}
 }
 
-export class GlobalStorageMain extends BaseProfileAwareStorageMain {
+export class ApplicationStorageMain extends BaseProfileAwareStorageMain {
 
 	constructor(
 		options: IStorageMainOptions,
@@ -309,7 +309,7 @@ export class GlobalStorageMain extends BaseProfileAwareStorageMain {
 	protected override async doInit(storage: IStorage): Promise<void> {
 		await super.doInit(storage);
 
-		// Apply telemetry values as part of the global storage initialization
+		// Apply telemetry values as part of the application storage initialization
 		this.updateTelemetryState(storage);
 	}
 

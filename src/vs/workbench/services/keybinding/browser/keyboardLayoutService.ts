@@ -186,7 +186,7 @@ export class BrowserKeyboardMapperFactoryBase {
 			// we shoud avoid yielding the false error.
 			// if (keymap && score < 0) {
 			// const donotAskUpdateKey = 'missing.keyboardlayout.donotask';
-			// if (this._storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL)) {
+			// if (this._storageService.getBoolean(donotAskUpdateKey, StorageScope.APPLICATION)) {
 			// 	return;
 			// }
 
@@ -200,7 +200,7 @@ export class BrowserKeyboardMapperFactoryBase {
 			// 	}, {
 			// 		label: nls.localize('neverAgain', "Don't Show Again"),
 			// 		isSecondary: true,
-			// 		run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
+			// 		run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.APPLICATION)
 			// 	}]
 			// );
 

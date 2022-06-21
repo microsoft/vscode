@@ -89,8 +89,8 @@ flakySuite('StorageService (browser specific)', () => {
 
 	test('clear', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
-			storageService.store('bar', 'foo', StorageScope.GLOBAL, StorageTarget.MACHINE);
-			storageService.store('bar', 3, StorageScope.GLOBAL, StorageTarget.USER);
+			storageService.store('bar', 'foo', StorageScope.APPLICATION, StorageTarget.MACHINE);
+			storageService.store('bar', 3, StorageScope.APPLICATION, StorageTarget.USER);
 			storageService.store('bar', 'foo', StorageScope.PROFILE, StorageTarget.MACHINE);
 			storageService.store('bar', 3, StorageScope.PROFILE, StorageTarget.USER);
 			storageService.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -98,7 +98,7 @@ flakySuite('StorageService (browser specific)', () => {
 
 			await storageService.clear();
 
-			for (const scope of [StorageScope.GLOBAL, StorageScope.PROFILE, StorageScope.WORKSPACE]) {
+			for (const scope of [StorageScope.APPLICATION, StorageScope.PROFILE, StorageScope.WORKSPACE]) {
 				for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
 					strictEqual(storageService.get('bar', scope), undefined);
 					strictEqual(storageService.keys(scope, target).length, 0);

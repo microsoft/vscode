@@ -18,7 +18,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 
 	private static readonly STORAGE_CHANGE_DEBOUNCE_TIME = 100;
 
-	private readonly onDidChangeGlobalStorageEmitter = this._register(new Emitter<ISerializableItemsChangeEvent>());
+	private readonly onDidChangeApplicationStorageEmitter = this._register(new Emitter<ISerializableItemsChangeEvent>());
 
 	private readonly mapProfileToOnDidChangeProfileStorageEmitter = new Map<string /* profile ID */, Emitter<ISerializableItemsChangeEvent>>();
 
@@ -28,7 +28,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	) {
 		super();
 
-		this.registerStorageChangeListeners(storageMainService.globalStorage, this.onDidChangeGlobalStorageEmitter);
+		this.registerStorageChangeListeners(storageMainService.applicationStorage, this.onDidChangeApplicationStorageEmitter);
 	}
 
 	//#region Storage Change Events
@@ -76,9 +76,9 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 			case 'onDidChangeStorage': {
 				const profile = arg.profile ? revive<IUserDataProfile>(arg.profile) : undefined;
 
-				// Without profile: global scope
+				// Without profile: application scope
 				if (!profile) {
-					return this.onDidChangeGlobalStorageEmitter.event;
+					return this.onDidChangeApplicationStorageEmitter.event;
 				}
 
 				// With profile: profile scope for the profile
@@ -137,13 +137,13 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 		} else if (profile) {
 			storage = this.storageMainService.profileStorage(profile);
 		} else {
-			storage = this.storageMainService.globalStorage;
+			storage = this.storageMainService.applicationStorage;
 		}
 
 		try {
 			await storage.init();
 		} catch (error) {
-			this.logService.error(`StorageIPC#init: Unable to init ${workspace ? 'workspace' : profile ? 'profile' : 'global'} storage due to ${error}`);
+			this.logService.error(`StorageIPC#init: Unable to init ${workspace ? 'workspace' : profile ? 'profile' : 'application'} storage due to ${error}`);
 		}
 
 		return storage;

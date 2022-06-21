@@ -21,9 +21,9 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	private static BROWSER_DEFAULT_FLUSH_INTERVAL = 5 * 1000; // every 5s because async operations are not permitted on shutdown
 
-	private globalStorage: IStorage | undefined;
-	private globalStorageDatabase: IIndexedDBStorageDatabase | undefined;
-	private readonly globalStoragePromise = new DeferredPromise<{ indededDb: IIndexedDBStorageDatabase; storage: IStorage }>();
+	private applicationStorage: IStorage | undefined;
+	private applicationStorageDatabase: IIndexedDBStorageDatabase | undefined;
+	private readonly applicationStoragePromise = new DeferredPromise<{ indededDb: IIndexedDBStorageDatabase; storage: IStorage }>();
 
 	private profileStorage: IStorage | undefined;
 	private profileStorageDatabase: IIndexedDBStorageDatabase | undefined;
@@ -35,7 +35,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	get hasPendingUpdate(): boolean {
 		return Boolean(
-			this.globalStorageDatabase?.hasPendingUpdate ||
+			this.applicationStorageDatabase?.hasPendingUpdate ||
 			this.profileStorageDatabase?.hasPendingUpdate ||
 			this.workspaceStorageDatabase?.hasPendingUpdate
 		);
@@ -57,8 +57,8 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	private getId(scope: StorageScope): string {
 		switch (scope) {
-			case StorageScope.GLOBAL:
-				return 'global'; // use the default profile global DB for global scope
+			case StorageScope.APPLICATION:
+				return 'global'; // use the default profile application DB for application scope
 			case StorageScope.PROFILE:
 				if (this.profileStorageProfile.isDefault) {
 					return 'global'; // default profile DB has a fixed name for backwards compatibility
@@ -74,25 +74,25 @@ export class BrowserStorageService extends AbstractStorageService {
 
 		// Init storages
 		await Promises.settled([
-			this.createGlobalStorage(),
+			this.createApplicationStorage(),
 			this.createProfileStorage(this.profileStorageProfile),
 			this.createWorkspaceStorage()
 		]);
 	}
 
-	private async createGlobalStorage(): Promise<void> {
-		const globalStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true }, this.logService);
+	private async createApplicationStorage(): Promise<void> {
+		const applicationStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.APPLICATION), broadcastChanges: true }, this.logService);
 
-		this.globalStorageDatabase = this._register(globalStorageIndexedDB);
-		this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
+		this.applicationStorageDatabase = this._register(applicationStorageIndexedDB);
+		this.applicationStorage = this._register(new Storage(this.applicationStorageDatabase));
 
-		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		this._register(this.applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
 
-		await this.globalStorage.init();
+		await this.applicationStorage.init();
 
-		this.updateIsNew(this.globalStorage);
+		this.updateIsNew(this.applicationStorage);
 
-		this.globalStoragePromise.complete({ indededDb: globalStorageIndexedDB, storage: this.globalStorage });
+		this.applicationStoragePromise.complete({ indededDb: applicationStorageIndexedDB, storage: this.applicationStorage });
 	}
 
 	private async createProfileStorage(profile: IUserDataProfile): Promise<void> {
@@ -106,14 +106,14 @@ export class BrowserStorageService extends AbstractStorageService {
 		if (this.profileStorageProfile.isDefault) {
 
 			// If we are in default profile, the profile storage is
-			// actually the same as global storage. As such we
+			// actually the same as application storage. As such we
 			// avoid creating the storage library a second time on
 			// the same DB.
 
-			const { indededDb: globalStorageIndexedDB, storage: globalStorage } = await this.globalStoragePromise.p;
+			const { indededDb: applicationStorageIndexedDB, storage: applicationStorage } = await this.applicationStoragePromise.p;
 
-			this.profileStorageDatabase = globalStorageIndexedDB;
-			this.profileStorage = globalStorage;
+			this.profileStorageDatabase = applicationStorageIndexedDB;
+			this.profileStorage = applicationStorage;
 		} else {
 			const profileStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.PROFILE), broadcastChanges: true }, this.logService);
 
@@ -152,8 +152,8 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {
 		switch (scope) {
-			case StorageScope.GLOBAL:
-				return this.globalStorage;
+			case StorageScope.APPLICATION:
+				return this.applicationStorage;
 			case StorageScope.PROFILE:
 				return this.profileStorage;
 			default:
@@ -170,8 +170,8 @@ export class BrowserStorageService extends AbstractStorageService {
 		const oldItems = oldProfileStorage.items;
 
 		// Close old profile storage but only if this is
-		// different from global storage!
-		if (oldProfileStorage !== this.globalStorage) {
+		// different from application storage!
+		if (oldProfileStorage !== this.applicationStorage) {
 			await oldProfileStorage.close();
 		}
 
@@ -209,7 +209,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// On all other browsers, we keep the databases opened because
 		// we expect data to be written when the unload happens.
 		if (isSafari) {
-			this.globalStorage?.close();
+			this.applicationStorage?.close();
 			this.profileStorageDatabase?.close();
 			this.workspaceStorageDatabase?.close();
 		}
@@ -222,7 +222,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	async clear(): Promise<void> {
 
 		// Clear key/values
-		for (const scope of [StorageScope.GLOBAL, StorageScope.PROFILE, StorageScope.WORKSPACE]) {
+		for (const scope of [StorageScope.APPLICATION, StorageScope.PROFILE, StorageScope.WORKSPACE]) {
 			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
 				for (const key of this.keys(scope, target)) {
 					this.remove(key, scope);
@@ -234,7 +234,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 		// Clear databases
 		await Promises.settled([
-			this.globalStorageDatabase?.clear() ?? Promise.resolve(),
+			this.applicationStorageDatabase?.clear() ?? Promise.resolve(),
 			this.profileStorageDatabase?.clear() ?? Promise.resolve(),
 			this.workspaceStorageDatabase?.clear() ?? Promise.resolve()
 		]);
