@@ -3972,7 +3972,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFunctions: true,
 			showConstructors: true,
 			showDeprecated: true,
-			firstMatchCanBeWeak: true,
+			firstMatchCanBeWeak: false,
 			showFields: true,
 			showVariables: true,
 			showClasses: true,
