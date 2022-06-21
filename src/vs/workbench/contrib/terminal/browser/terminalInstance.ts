@@ -1046,7 +1046,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const EXCLUDED_KEYS = ['RightArrow', 'LeftArrow', 'UpArrow', 'DownArrow', 'Space', 'Meta', 'Control', 'Shift', 'Alt', '', 'Delete', 'Backspace', 'Tab'];
 
 			// only keep track of input if prompt hasn't already been shown
-			if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.PROFILE, true) &&
+			if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
 				!EXCLUDED_KEYS.includes(event.key) &&
 				!event.ctrlKey &&
 				!event.shiftKey &&
@@ -1058,7 +1058,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// within commandsToSkipShell, either alert or skip processing by xterm.js
 			if (resolveResult && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
 				// don't alert when terminal is opened or closed
-				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.PROFILE, true) &&
+				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
 					this._hasHadInput &&
 					!TERMINAL_CREATION_COMMANDS.includes(resolveResult.commandId)) {
 					this._notificationService.prompt(
@@ -1073,7 +1073,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 							} as IPromptChoice
 						]
 					);
-					this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
+					this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT_KEY, false, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 				event.preventDefault();
 				return false;
