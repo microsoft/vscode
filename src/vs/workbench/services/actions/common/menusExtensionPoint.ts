@@ -250,6 +250,11 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 	},
 	{
+		key: 'file/share',
+		id: MenuId.MenubarShare,
+		description: localize('menus.share', "Share submenu shown in the top level File menu.")
+	},
+	{
 		key: 'editor/inlineCompletions/actions',
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),

@@ -85,6 +85,7 @@ export class MenuId {
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
+	static readonly MenubarShare = new MenuId('MenubarShare');
 	static readonly MenubarSwitchEditorMenu = new MenuId('MenubarSwitchEditorMenu');
 	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
 	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
