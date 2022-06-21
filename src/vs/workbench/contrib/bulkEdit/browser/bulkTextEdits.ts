@@ -19,7 +19,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { performSnippetEdits } from 'vs/editor/contrib/snippet/browser/snippetController2';
 
 type ValidationResult = { canApply: true } | { canApply: false; reason: URI };
@@ -94,8 +93,7 @@ class ModelEditTask implements IDisposable {
 	apply(): void {
 		if (this._edits.length > 0) {
 			this._edits = this._edits
-				.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range))
-				.map(edit => ({ ...edit, text: edit.text && SnippetParser.escape(edit.text) }));
+				.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 			this.model.pushEditOperations(null, this._edits, () => null);
 		}
 		if (this._newEol !== undefined) {
