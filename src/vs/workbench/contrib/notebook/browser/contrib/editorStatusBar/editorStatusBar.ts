@@ -38,7 +38,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Codicon } from 'vs/base/common/codicons';
-import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -359,9 +359,7 @@ registerAction2(class extends Action2 {
 					},
 					ProgressLocation.Notification
 				);
-				await extensionService.activateByEvent(`onNotebook:${viewType}`, ActivationKind.Immediate);
-				// Await 5 sec timeout
-				await new Promise((resolve) => setTimeout(resolve, 50000));
+				await extensionService.activateByEvent(`onNotebook:${viewType}`);
 				return;
 			}
 		}
