@@ -11,7 +11,7 @@ export type MementoObject = { [key: string]: any };
 
 export class Memento {
 
-	private static readonly globalMementos = new Map<string, ScopedMemento>();
+	private static readonly applicationMementos = new Map<string, ScopedMemento>();
 	private static readonly profileMementos = new Map<string, ScopedMemento>();
 	private static readonly workspaceMementos = new Map<string, ScopedMemento>();
 
@@ -48,15 +48,15 @@ export class Memento {
 				return profileMemento.getMemento();
 			}
 
-			// Scope Global
-			case StorageScope.GLOBAL: {
-				let globalMemento = Memento.globalMementos.get(this.id);
-				if (!globalMemento) {
-					globalMemento = new ScopedMemento(this.id, scope, target, this.storageService);
-					Memento.globalMementos.set(this.id, globalMemento);
+			// Scope Application
+			case StorageScope.APPLICATION: {
+				let applicationMemento = Memento.applicationMementos.get(this.id);
+				if (!applicationMemento) {
+					applicationMemento = new ScopedMemento(this.id, scope, target, this.storageService);
+					Memento.applicationMementos.set(this.id, applicationMemento);
 				}
 
-				return globalMemento.getMemento();
+				return applicationMemento.getMemento();
 			}
 		}
 	}
@@ -64,7 +64,7 @@ export class Memento {
 	saveMemento(): void {
 		Memento.workspaceMementos.get(this.id)?.save();
 		Memento.profileMementos.get(this.id)?.save();
-		Memento.globalMementos.get(this.id)?.save();
+		Memento.applicationMementos.get(this.id)?.save();
 	}
 
 	static clear(scope: StorageScope): void {
@@ -75,8 +75,8 @@ export class Memento {
 			case StorageScope.PROFILE:
 				Memento.profileMementos.clear();
 				break;
-			case StorageScope.GLOBAL:
-				Memento.globalMementos.clear();
+			case StorageScope.APPLICATION:
+				Memento.applicationMementos.clear();
 				break;
 		}
 	}

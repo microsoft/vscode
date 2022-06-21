@@ -10,14 +10,14 @@ import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { GlobalStorageDatabaseClient, ProfileStorageDatabaseClient, WorkspaceStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
+import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient, WorkspaceStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class NativeStorageService extends AbstractStorageService {
 
-	private readonly globalStorage: IStorage;
-	private readonly globalStorageProfile: IUserDataProfile;
+	private readonly applicationStorage: IStorage;
+	private readonly applicationStorageProfile: IUserDataProfile;
 
 	private profileStorage: IStorage;
 	private profileStorageProfile: IUserDataProfile | undefined = undefined;
@@ -35,20 +35,20 @@ export class NativeStorageService extends AbstractStorageService {
 	) {
 		super();
 
-		this.globalStorageProfile = defaultProfile;
+		this.applicationStorageProfile = defaultProfile;
 
-		this.globalStorage = this.createGlobalStorage();
+		this.applicationStorage = this.createApplicationStorage();
 		this.profileStorage = this.createProfileStorage(currentProfile);
 		this.workspaceStorage = this.createWorkspaceStorage(workspace);
 	}
 
-	private createGlobalStorage(): IStorage {
-		const storageDataBaseClient = this._register(new GlobalStorageDatabaseClient(this.mainProcessService.getChannel('storage')));
-		const globalStorage = this._register(new Storage(storageDataBaseClient));
+	private createApplicationStorage(): IStorage {
+		const storageDataBaseClient = this._register(new ApplicationStorageDatabaseClient(this.mainProcessService.getChannel('storage')));
+		const applicationStorage = this._register(new Storage(storageDataBaseClient));
 
-		this._register(globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		this._register(applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
 
-		return globalStorage;
+		return applicationStorage;
 	}
 
 	private createProfileStorage(profile: IUserDataProfile): IStorage {
@@ -63,11 +63,11 @@ export class NativeStorageService extends AbstractStorageService {
 		if (profile.isDefault) {
 
 			// If we are in default profile, the profile storage is
-			// actually the same as global storage. As such we
+			// actually the same as application storage. As such we
 			// avoid creating the storage library a second time on
 			// the same DB.
 
-			profileStorage = this.globalStorage;
+			profileStorage = this.applicationStorage;
 		} else {
 			const storageDataBaseClient = this.profileStorageDisposables.add(new ProfileStorageDatabaseClient(this.mainProcessService.getChannel('storage'), profile));
 			profileStorage = this.profileStorageDisposables.add(new Storage(storageDataBaseClient));
@@ -103,7 +103,7 @@ export class NativeStorageService extends AbstractStorageService {
 
 		// Init all storage locations
 		await Promises.settled([
-			this.globalStorage.init(),
+			this.applicationStorage.init(),
 			this.profileStorage.init(),
 			this.workspaceStorage?.init() ?? Promise.resolve()
 		]);
@@ -111,8 +111,8 @@ export class NativeStorageService extends AbstractStorageService {
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {
 		switch (scope) {
-			case StorageScope.GLOBAL:
-				return this.globalStorage;
+			case StorageScope.APPLICATION:
+				return this.applicationStorage;
 			case StorageScope.PROFILE:
 				return this.profileStorage;
 			default:
@@ -122,8 +122,8 @@ export class NativeStorageService extends AbstractStorageService {
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		switch (scope) {
-			case StorageScope.GLOBAL:
-				return this.globalStorageProfile.globalStorageHome.fsPath;
+			case StorageScope.APPLICATION:
+				return this.applicationStorageProfile.globalStorageHome.fsPath;
 			case StorageScope.PROFILE:
 				return this.profileStorageProfile?.globalStorageHome.fsPath;
 			default:
@@ -141,7 +141,7 @@ export class NativeStorageService extends AbstractStorageService {
 
 		// Do it
 		await Promises.settled([
-			this.globalStorage.close(),
+			this.applicationStorage.close(),
 			this.profileStorage.close(),
 			this.workspaceStorage?.close() ?? Promise.resolve()
 		]);
@@ -152,8 +152,8 @@ export class NativeStorageService extends AbstractStorageService {
 		const oldItems = oldProfileStorage.items;
 
 		// Close old profile storage but only if this is
-		// different from global storage!
-		if (oldProfileStorage !== this.globalStorage) {
+		// different from application storage!
+		if (oldProfileStorage !== this.applicationStorage) {
 			await oldProfileStorage.close();
 		}
 

@@ -88,7 +88,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	private checkAndInstall(): void {
 		const language = platform.language;
 		const locale = platform.locale;
-		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.GLOBAL, '[]'));
+		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.APPLICATION, '[]'));
 
 		if (!this.galleryService.isEnabled()) {
 			return;
@@ -182,7 +182,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 										this.storageService.store(
 											LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
 											JSON.stringify(languagePackSuggestionIgnoreList),
-											StorageScope.GLOBAL,
+											StorageScope.APPLICATION,
 											StorageTarget.USER
 										);
 										logUserReaction('neverShowAgain');
