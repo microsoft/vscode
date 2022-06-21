@@ -8,7 +8,7 @@ declare module 'vscode' {
 
 	export interface SourceControlActionButton {
 		command: Command;
-		secondaryCommands?: (Command & { group?: string })[];
+		secondaryCommands?: Command[][];
 		description?: string;
 	}
 

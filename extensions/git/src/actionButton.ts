@@ -101,14 +101,14 @@ export class ActionButtonCommand {
 				let title: string, tooltip: string;
 				switch (postCommitCommand) {
 					case 'push': {
-						title = localize('scm button commit and push title', "$(check) Commit & Push");
+						title = localize('scm button commit and push title', "$(arrow-up) Commit & Push");
 						tooltip = this.state.isCommitRunning ?
 							localize('scm button committing pushing tooltip', "Committing & Pushing Changes...") :
 							localize('scm button commit push tooltip', "Commit & Push Changes");
 						break;
 					}
 					case 'sync': {
-						title = localize('scm button commit and sync title', "$(check) Commit & Sync");
+						title = localize('scm button commit and sync title', "$(sync) Commit & Sync");
 						tooltip = this.state.isCommitRunning ?
 							localize('scm button committing synching tooltip', "Committing & Synching Changes...") :
 							localize('scm button commit sync tooltip', "Commit & Sync Changes");
@@ -130,25 +130,24 @@ export class ActionButtonCommand {
 						tooltip: tooltip,
 						arguments: [this.repository.sourceControl],
 					},
-					secondaryCommands: [
-						{
-							command: 'git.pull',
-							title: 'Commit & Pull',
-							arguments: [this.repository.sourceControl],
-							group: '0_commit'
-						},
-						{
-							command: 'git.sync',
-							title: 'Commit & Sync',
-							arguments: [this.repository.sourceControl],
-							group: '0_commit'
-						},
-						{
-							command: 'pr.create',
-							title: 'Commit & Create Pull Request',
-							group: '1_pr'
-						}
-					]
+					// secondaryCommands: [
+					// 	[
+					// 		{
+					// 			command: 'git.pull',
+					// 			title: 'Commit & Pull',
+					// 		},
+					// 		{
+					// 			command: 'git.sync',
+					// 			title: 'Commit & Sync',
+					// 		},
+					// 	],
+					// 	[
+					// 		{
+					// 			command: 'pr.create',
+					// 			title: 'Commit & Create Pull Request',
+					// 		}
+					// 	]
+					// ]
 				};
 			}
 		}
