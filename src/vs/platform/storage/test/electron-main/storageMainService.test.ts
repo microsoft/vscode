@@ -93,8 +93,8 @@ suite('StorageMainService', function () {
 
 	async function testStorage(storage: IStorageMain, scope: StorageScope): Promise<void> {
 
-		// Telemetry: added after init unless workspace/global scoped
-		if (scope === StorageScope.APPLICATION) {
+		// Telemetry: added after init unless workspace/profile scoped
+		if (scope === StorageScope.GLOBAL) {
 			strictEqual(storage.items.size, 0);
 			await storage.init();
 			strictEqual(typeof storage.get(firstSessionDateStorageKey), 'string');
@@ -148,17 +148,17 @@ suite('StorageMainService', function () {
 		return new TestStorageMainService(new NullLogService(), environmentService, new UserDataProfilesService(undefined, environmentService, fileService, new NullLogService()), lifecycleMainService, fileService);
 	}
 
-	test('basics (application)', function () {
+	test('basics (global)', function () {
 		const storageMainService = createStorageService();
 
-		return testStorage(storageMainService.applicationStorage, StorageScope.APPLICATION);
+		return testStorage(storageMainService.globalStorage, StorageScope.GLOBAL);
 	});
 
-	test('basics (global)', function () {
+	test('basics (profile)', function () {
 		const storageMainService = createStorageService();
 		const profile = inMemoryProfile;
 
-		return testStorage(storageMainService.globalStorage(profile), StorageScope.GLOBAL);
+		return testStorage(storageMainService.profileStorage(profile), StorageScope.PROFILE);
 	});
 
 	test('basics (workspace)', function () {
@@ -181,34 +181,34 @@ suite('StorageMainService', function () {
 			didCloseWorkspaceStorage = true;
 		});
 
-		const globalStorage = storageMainService.globalStorage(profile);
+		const profileStorage = storageMainService.profileStorage(profile);
+		let didCloseProfileStorage = false;
+		profileStorage.onDidCloseStorage(() => {
+			didCloseProfileStorage = true;
+		});
+
+		const globalStorage = storageMainService.globalStorage;
 		let didCloseGlobalStorage = false;
 		globalStorage.onDidCloseStorage(() => {
 			didCloseGlobalStorage = true;
 		});
 
-		const applicationStorage = storageMainService.applicationStorage;
-		let didCloseApplicationStorage = false;
-		applicationStorage.onDidCloseStorage(() => {
-			didCloseApplicationStorage = true;
-		});
-
-		strictEqual(applicationStorage, storageMainService.applicationStorage); // same instance as long as not closed
-		strictEqual(globalStorage, storageMainService.globalStorage(profile)); // same instance as long as not closed
+		strictEqual(globalStorage, storageMainService.globalStorage); // same instance as long as not closed
+		strictEqual(profileStorage, storageMainService.profileStorage(profile)); // same instance as long as not closed
 		strictEqual(workspaceStorage, storageMainService.workspaceStorage(workspace)); // same instance as long as not closed
 
-		await applicationStorage.init();
 		await globalStorage.init();
+		await profileStorage.init();
 		await workspaceStorage.init();
 
 		await lifecycleMainService.fireOnWillShutdown();
 
-		strictEqual(didCloseApplicationStorage, true);
 		strictEqual(didCloseGlobalStorage, true);
+		strictEqual(didCloseProfileStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
 
-		const globalStorage2 = storageMainService.globalStorage(profile);
-		notStrictEqual(globalStorage, globalStorage2);
+		const profileStorage2 = storageMainService.profileStorage(profile);
+		notStrictEqual(profileStorage, profileStorage2);
 
 		const workspaceStorage2 = storageMainService.workspaceStorage(workspace);
 		notStrictEqual(workspaceStorage, workspaceStorage2);
@@ -227,24 +227,24 @@ suite('StorageMainService', function () {
 			didCloseWorkspaceStorage = true;
 		});
 
-		const globalStorage = storageMainService.globalStorage(profile);
+		const profileStorage = storageMainService.profileStorage(profile);
+		let didCloseProfileStorage = false;
+		profileStorage.onDidCloseStorage(() => {
+			didCloseProfileStorage = true;
+		});
+
+		const globalStorage = storageMainService.globalStorage;
 		let didCloseGlobalStorage = false;
 		globalStorage.onDidCloseStorage(() => {
 			didCloseGlobalStorage = true;
 		});
 
-		const applicationStorage = storageMainService.applicationStorage;
-		let didCloseApplicationStorage = false;
-		applicationStorage.onDidCloseStorage(() => {
-			didCloseApplicationStorage = true;
-		});
-
-		await applicationStorage.close();
 		await globalStorage.close();
+		await profileStorage.close();
 		await workspaceStorage.close();
 
-		strictEqual(didCloseApplicationStorage, true);
 		strictEqual(didCloseGlobalStorage, true);
+		strictEqual(didCloseProfileStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
 	});
 
@@ -259,28 +259,28 @@ suite('StorageMainService', function () {
 			didCloseWorkspaceStorage = true;
 		});
 
-		const globalStorage = storageMainService.globalStorage(profile);
+		const profileStorage = storageMainService.profileStorage(profile);
+		let didCloseProfileStorage = false;
+		profileStorage.onDidCloseStorage(() => {
+			didCloseProfileStorage = true;
+		});
+
+		const globalStorage = storageMainService.globalStorage;
 		let didCloseGlobalStorage = false;
 		globalStorage.onDidCloseStorage(() => {
 			didCloseGlobalStorage = true;
 		});
 
-		const applicationStorage = storageMainService.applicationStorage;
-		let didCloseApplicationStorage = false;
-		applicationStorage.onDidCloseStorage(() => {
-			didCloseApplicationStorage = true;
-		});
-
-		applicationStorage.init();
 		globalStorage.init();
+		profileStorage.init();
 		workspaceStorage.init();
 
-		await applicationStorage.close();
 		await globalStorage.close();
+		await profileStorage.close();
 		await workspaceStorage.close();
 
-		strictEqual(didCloseApplicationStorage, true);
 		strictEqual(didCloseGlobalStorage, true);
+		strictEqual(didCloseProfileStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
 	});
 });
