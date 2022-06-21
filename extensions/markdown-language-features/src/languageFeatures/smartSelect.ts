@@ -53,7 +53,7 @@ export class MdSmartSelect implements vscode.SelectionRangeProvider {
 	}
 
 	private async getHeaderSelectionRange(document: SkinnyTextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
-		const toc = await this.tocProvider.get(document.uri);
+		const toc = await this.tocProvider.getForDocument(document);
 
 		const headerInfo = getHeadersForPosition(toc.entries, position);
 

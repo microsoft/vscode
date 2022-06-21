@@ -5,10 +5,11 @@
 
 import * as vscode from 'vscode';
 import { MdTableOfContentsProvider, TableOfContents } from '../tableOfContents';
-import { equals } from '../util/arrays';
-import { Disposable } from '../util/dispose';
-import { ResourceMap } from '../util/resourceMap';
+import { equals } from './arrays';
+import { Disposable } from './dispose';
+import { ResourceMap } from './resourceMap';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
+import { Delayer } from './async';
 
 /**
  * Check if the items in a table of contents have changed.
@@ -27,14 +28,21 @@ export class MdTableOfContentsWatcher extends Disposable {
 		readonly toc: TableOfContents;
 	}>();
 
+	private readonly _pending = new ResourceMap<void>();
+
 	private readonly _onTocChanged = this._register(new vscode.EventEmitter<{ readonly uri: vscode.Uri }>);
 	public readonly onTocChanged = this._onTocChanged.event;
+
+	private readonly delayer: Delayer<void>;
 
 	public constructor(
 		private readonly workspaceContents: MdWorkspaceContents,
 		private readonly tocProvider: MdTableOfContentsProvider,
+		private readonly delay: number,
 	) {
 		super();
+
+		this.delayer = this._register(new Delayer<void>(delay));
 
 		this._register(this.workspaceContents.onDidChangeMarkdownDocument(this.onDidChangeDocument, this));
 		this._register(this.workspaceContents.onDidCreateMarkdownDocument(this.onDidCreateDocument, this));
@@ -47,17 +55,34 @@ export class MdTableOfContentsWatcher extends Disposable {
 	}
 
 	private async onDidChangeDocument(document: SkinnyTextDocument) {
-		const existing = this._files.get(document.uri);
-		const newToc = await this.tocProvider.getForDocument(document);
-
-		if (!existing || hasTableOfContentsChanged(existing.toc, newToc)) {
-			this._onTocChanged.fire({ uri: document.uri });
+		if (this.delay > 0) {
+			this._pending.set(document.uri);
+			this.delayer.trigger(() => this.flushPending());
+		} else {
+			this.updateForResource(document.uri);
 		}
-
-		this._files.set(document.uri, { toc: newToc });
 	}
 
 	private onDidDeleteDocument(resource: vscode.Uri) {
 		this._files.delete(resource);
+		this._pending.delete(resource);
+	}
+
+	private async flushPending() {
+		const pending = [...this._pending.keys()];
+		this._pending.clear();
+
+		return Promise.all(pending.map(resource => this.updateForResource(resource)));
+	}
+
+	private async updateForResource(resource: vscode.Uri) {
+		const existing = this._files.get(resource);
+		const newToc = await this.tocProvider.get(resource);
+
+		if (!existing || hasTableOfContentsChanged(existing.toc, newToc)) {
+			this._onTocChanged.fire({ uri: resource });
+		}
+
+		this._files.set(resource, { toc: newToc });
 	}
 }

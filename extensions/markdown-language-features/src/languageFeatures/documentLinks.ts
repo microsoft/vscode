@@ -427,12 +427,17 @@ export class MdLinkComputer {
 	}
 }
 
+interface MdDocumentLinks {
+	readonly links: readonly MdLink[];
+	readonly definitions: LinkDefinitionSet;
+}
+
 /**
  * Stateful object which provides links for markdown files the workspace.
  */
 export class MdLinkProvider extends Disposable {
 
-	private readonly _linkCache: MdDocumentInfoCache<readonly MdLink[]>;
+	private readonly _linkCache: MdDocumentInfoCache<MdDocumentLinks>;
 
 	private readonly linkComputer: MdLinkComputer;
 
@@ -443,21 +448,19 @@ export class MdLinkProvider extends Disposable {
 	) {
 		super();
 		this.linkComputer = new MdLinkComputer(tokenizer);
-		this._linkCache = this._register(new MdDocumentInfoCache(workspaceContents, doc => {
+		this._linkCache = this._register(new MdDocumentInfoCache(workspaceContents, async doc => {
 			logger.verbose('LinkProvider', `compute - ${doc.uri}`);
-			return this.linkComputer.getAllLinks(doc, noopToken);
+
+			const links = await this.linkComputer.getAllLinks(doc, noopToken);
+			return {
+				links,
+				definitions: new LinkDefinitionSet(links),
+			};
 		}));
 	}
 
-	public async getLinks(document: SkinnyTextDocument): Promise<{
-		readonly links: readonly MdLink[];
-		readonly definitions: LinkDefinitionSet;
-	}> {
-		const links = (await this._linkCache.get(document.uri)) ?? [];
-		return {
-			links,
-			definitions: new LinkDefinitionSet(links),
-		};
+	public async getLinks(document: SkinnyTextDocument): Promise<MdDocumentLinks> {
+		return this._linkCache.getForDocument(document);
 	}
 }
 

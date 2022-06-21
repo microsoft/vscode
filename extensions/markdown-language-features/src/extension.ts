@@ -44,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
 	const commandManager = new CommandManager();
 
-	const engine = new MarkdownItEngine(contributions, githubSlugifier);
+	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
 	const workspaceContents = new VsCodeMdWorkspaceContents();
 	const parser = new MdParsingProvider(engine, workspaceContents);
 	const tocProvider = new MdTableOfContentsProvider(parser, workspaceContents, logger);
