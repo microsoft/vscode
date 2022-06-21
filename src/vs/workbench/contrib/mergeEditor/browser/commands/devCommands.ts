@@ -127,7 +127,6 @@ export class MergeEditorOpenContents extends Action2 {
 		async function setLanguageId(uri: URI, languageId: string): Promise<void> {
 			const ref = await textModelService.createModelReference(uri);
 			ref.object.textEditorModel.setMode(languageId);
-			ref.dispose();
 		}
 
 		await Promise.all([
