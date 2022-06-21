@@ -78,9 +78,10 @@ export const DEBUG_START_LABEL = nls.localize('startDebug', "Start Debugging");
 export const DEBUG_RUN_LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 export const NEXT_DEBUG_CONSOLE_LABEL = nls.localize('nextDebugConsole', "Focus Next Debug Console");
 export const PREV_DEBUG_CONSOLE_LABEL = nls.localize('prevDebugConsole', "Focus Previous Debug Console");
+export const SELECT_DEBUG_CONSOLE_LABEL = nls.localize('selectDebugConsole', "Select Debug Console");
 
-export const DEBUG_QUICK_PICK_PREFIX = 'debug ';
-export const DEBUG_CONSOLE_QUICK_PICK_PREFIX = 'debugcons ';
+export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
+export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
 
 interface CallStackContext {
 	sessionId: string;
@@ -475,7 +476,7 @@ CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show(DEBUG_QUICK_PICK_PREFIX);
+		quickInputService.quickAccess.show(DEBUG_QUICK_ACCESS_PREFIX);
 	}
 });
 
@@ -483,7 +484,7 @@ CommandsRegistry.registerCommand({
 	id: SELECT_DEBUG_CONSOLE_ID,
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show(DEBUG_CONSOLE_QUICK_PICK_PREFIX);
+		quickInputService.quickAccess.show(DEBUG_CONSOLE_QUICK_ACCESS_PREFIX);
 	}
 });
 

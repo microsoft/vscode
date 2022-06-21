@@ -11,10 +11,19 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
-import { DEBUG_CONSOLE_QUICK_PICK_PREFIX, SELECT_AND_START_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, SELECT_AND_START_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { getStateLabel, IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
+
+	constructor(
+		@IDebugService private readonly _debugService: IDebugService,
+		@IViewsService private readonly _viewsService: IViewsService,
+		@ICommandService private readonly _commandService: ICommandService,
+	) {
+		super(DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true });
+	}
+
 	protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Picks<IPickerQuickAccessItem> | Promise<Picks<IPickerQuickAccessItem>> | FastAndSlowPicks<IPickerQuickAccessItem> | null {
 		const debugConsolePicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
@@ -39,19 +48,9 @@ export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQu
 		return debugConsolePicks;
 	}
 
-	static PREFIX = DEBUG_CONSOLE_QUICK_PICK_PREFIX;
-
-	constructor(
-		@IDebugService private readonly _debugService: IDebugService,
-		@IViewsService private readonly _viewsService: IViewsService,
-		@ICommandService private readonly _commandService: ICommandService,
-	) {
-		super(DebugConsoleQuickAccess.PREFIX, { canAcceptInBackground: true });
-	}
-
 	private _createPick(session: IDebugSession, sessionIndex: number, filter: string): IPickerQuickAccessItem | undefined {
-		const iconId = Codicon.debug.id;
-		const label = `$(${iconId}) ${sessionIndex + 1}: ${session.name}`;
+		const iconId = Codicon.debugConsole.id;
+		const label = `$(${iconId}) ${session.name}`;
 
 		const highlights = matchesFuzzy(filter, label, true);
 		if (highlights) {
