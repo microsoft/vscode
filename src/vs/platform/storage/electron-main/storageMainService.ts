@@ -119,6 +119,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			}
 		}));
 
+		// Prepare storage location as needed
 		this._register(this.userDataProfilesService.willCreateProfile(e => {
 			e.join((async () => {
 				if (!(await this.fileService.exists(e.profile.globalStorageHome))) {

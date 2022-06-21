@@ -27,7 +27,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	private profileStorage: IStorage | undefined;
 	private profileStorageDatabase: IIndexedDBStorageDatabase | undefined;
-	private profileStorageProfile: IUserDataProfile;
+	private profileStorageProfile = this.userDataProfileService.currentProfile;
 	private readonly profileStorageDisposables = this._register(new DisposableStore());
 
 	private workspaceStorage: IStorage | undefined;
@@ -43,13 +43,16 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	constructor(
 		private readonly payload: IAnyWorkspaceIdentifier,
-		userDataProfileService: IUserDataProfileService,
+		private readonly userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
 
-		this.profileStorageProfile = userDataProfileService.currentProfile;
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.switchToProfile(e.profile, e.preserveData))));
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.switchToProfile(e.profile, e.preserveData))));
 	}
 
 	private getId(scope: StorageScope): string {
