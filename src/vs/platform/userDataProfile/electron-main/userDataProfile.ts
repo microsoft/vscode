@@ -8,14 +8,13 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { revive } from 'vs/base/common/marshalling';
 import { UriDto } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ProfileOptions, DefaultOptions, IUserDataProfile, IUserDataProfilesService, UserDataProfilesService, reviveProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UseDefaultProfileFlags, IUserDataProfile, IUserDataProfilesService, UserDataProfilesService, reviveProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { Promises } from 'vs/base/common/async';
 
@@ -44,7 +43,7 @@ type UserDataProfilesObject = {
 type StoredUserDataProfile = {
 	name: string;
 	location: URI;
-	options: ProfileOptions;
+	useDefaultFlags?: UseDefaultProfileFlags;
 };
 
 type StoredWorkspaceInfo = {
@@ -70,19 +69,19 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 	) {
-		super(toUserDataProfile(localize('defaultProfile', "Default"), environmentService.userRoamingDataHome, { ...DefaultOptions, extensions: false }, true), environmentService, fileService, logService);
+		super(undefined, environmentService, fileService, logService);
 	}
 
 	init(): void {
 		if (this.storedProfiles.length) {
-			this._defaultProfile = toUserDataProfile(this.defaultProfile.name, this.defaultProfile.location, DefaultOptions, true);
+			this._defaultProfile = this.createDefaultUserDataProfile(true);
 		}
 	}
 
 	private _profilesObject: UserDataProfilesObject | undefined;
 	private get profilesObject(): UserDataProfilesObject {
 		if (!this._profilesObject) {
-			const profiles = this.storedProfiles.map<IUserDataProfile>(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.options, this.defaultProfile));
+			const profiles = this.storedProfiles.map<IUserDataProfile>(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.useDefaultFlags));
 			profiles.unshift(this.defaultProfile);
 			const workspaces = this.storedWorskpaceInfos.reduce((workspaces, workspaceProfileInfo) => {
 				const profile = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, workspaceProfileInfo.profile));
@@ -106,7 +105,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		return this.profilesObject.workspaces.get(this.getWorkspace(workspaceIdentifier)) ?? this.defaultProfile;
 	}
 
-	override async createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
+	override async createProfile(profile: IUserDataProfile, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
 		profile = reviveProfile(profile, this.profilesHome.scheme);
 		if (this.storedProfiles.some(p => p.name === profile.name)) {
 			throw new Error(`Profile with name ${profile.name} already exists`);
@@ -125,7 +124,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		});
 		await Promises.settled(joiners);
 
-		const storedProfile: StoredUserDataProfile = { name: profile.name, location: profile.location, options };
+		const storedProfile: StoredUserDataProfile = { name: profile.name, location: profile.location, useDefaultFlags: profile.useDefaultFlags };
 		const storedProfiles = [...this.storedProfiles, storedProfile];
 		this.storedProfiles = storedProfiles;
 		if (workspaceIdentifier) {

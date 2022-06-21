@@ -550,6 +550,18 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.switchToWorkspace(to, preserveData);
 	}
 
+	protected canSwitchProfile(from: IUserDataProfile, to: IUserDataProfile): boolean {
+		if (from.id === to.id) {
+			return false; // both profiles are same
+		}
+
+		if (to.isDefault || to.useDefaultFlags?.uiState === from.isDefault || from.useDefaultFlags?.uiState) {
+			return false; // both profiles are using default
+		}
+
+		return true;
+	}
+
 	protected switchData(oldStorage: Map<string, string>, newStorage: IStorage, scope: StorageScope, preserveData: boolean): void {
 		this.withPausedEmitters(() => {
 

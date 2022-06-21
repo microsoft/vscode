@@ -148,6 +148,10 @@ export class NativeStorageService extends AbstractStorageService {
 	}
 
 	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+		if (this.profileStorageProfile && !this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
+			return;
+		}
+
 		const oldProfileStorage = this.profileStorage;
 		const oldItems = oldProfileStorage.items;
 
