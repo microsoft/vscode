@@ -106,9 +106,8 @@ function extractEditor(options) {
         'vs/css.ts',
         'vs/loader.js',
         'vs/loader.d.ts',
-        'vs/nls.build.js',
-        'vs/nls.d.ts',
-        'vs/nls.js',
+        'vs/nls.build.ts',
+        'vs/nls.ts',
         'vs/nls.mock.ts',
     ].forEach(copyFile);
 }

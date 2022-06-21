@@ -62,6 +62,34 @@ export const diffInput1 = registerColor(
 	)
 );
 
+export const diff = registerColor(
+	'mergeEditor.diff',
+	{
+		dark: '#d3d3d321',
+		light: '#d3d3d321',
+		hcDark: '#d3d3d321',
+		hcLight: '#d3d3d321',
+	},
+	localize(
+		'mergeEditor.diff',
+		'The foreground color for changes in the result.'
+	)
+);
+
+export const diffWord = registerColor(
+	'mergeEditor.diff.word',
+	{
+		dark: '#e571db21',
+		light: '#e571db21',
+		hcDark: '#e571db21',
+		hcLight: '#e571db21',
+	},
+	localize(
+		'mergeEditor.diff.word',
+		'The foreground color for word changes in the result.'
+	)
+);
+
 export const diffInput2 = registerColor(
 	'mergeEditor.diff.input2',
 	{
@@ -75,3 +103,33 @@ export const diffInput2 = registerColor(
 		'The foreground color for changed words in input 2.'
 	)
 );
+
+export const handledConflictMinimapOverViewRulerColor = registerColor(
+	'mergeEditor.conflict-handled.minimapOverViewRuler',
+	{
+		dark: '#adaca8ee',
+		light: '#adaca8ee',
+		hcDark: '#adaca8ee',
+		hcLight: '#adaca8ee',
+	},
+	localize(
+		'mergeEditor.conflict-unhandled.minimapOverViewRuler',
+		'The foreground color for changes in input 1.'
+	)
+);
+
+
+export const unhandledConflictMinimapOverViewRulerColor = registerColor(
+	'mergeEditor.conflict-unhandled.minimapOverViewRuler',
+	{
+		dark: '#fcba03FF',
+		light: '#fcba03FF',
+		hcDark: '#fcba03FF',
+		hcLight: '#fcba03FF',
+	},
+	localize(
+		'mergeEditor.conflict-unhandled.minimapOverViewRuler',
+		'The foreground color for changes in input 1.'
+	)
+);
+

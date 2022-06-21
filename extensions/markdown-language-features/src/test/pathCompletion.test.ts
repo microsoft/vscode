@@ -6,19 +6,22 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkComputer } from '../languageFeatures/documentLinkProvider';
-import { MdPathCompletionProvider } from '../languageFeatures/pathCompletions';
+import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
+import { MdVsCodePathCompletionProvider } from '../languageFeatures/pathCompletions';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
+import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
 import { CURSOR, getCursorPositions, joinLines, workspacePath } from './util';
 
 
 function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string) {
 	const doc = new InMemoryDocument(resource, fileContents);
+	const workspace = new InMemoryWorkspaceMarkdownDocuments([doc]);
+
 	const engine = createNewMarkdownEngine();
-	const linkComputer = new MdLinkComputer(engine);
-	const provider = new MdPathCompletionProvider(engine, linkComputer);
+	const linkProvider = new MdLinkProvider(engine, workspace);
+	const provider = new MdVsCodePathCompletionProvider(engine, linkProvider);
 	const cursorPositions = getCursorPositions(fileContents, doc);
 	return provider.provideCompletionItems(doc, cursorPositions[0], noopToken, {
 		triggerCharacter: undefined,

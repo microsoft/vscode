@@ -740,7 +740,7 @@ export class SettingsEditor2 extends EditorPane {
 			orientation: Orientation.HORIZONTAL,
 			proportionalLayout: true
 		});
-		const startingWidth = this.storageService.getNumber('settingsEditor2.splitViewWidth', StorageScope.GLOBAL, SettingsEditor2.TOC_RESET_WIDTH);
+		const startingWidth = this.storageService.getNumber('settingsEditor2.splitViewWidth', StorageScope.PROFILE, SettingsEditor2.TOC_RESET_WIDTH);
 		this.splitView.addView({
 			onDidChange: Event.None,
 			element: this.tocTreeContainer,
@@ -768,7 +768,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 		this._register(this.splitView.onDidSashChange(() => {
 			const width = this.splitView.getViewSize(0);
-			this.storageService.store('settingsEditor2.splitViewWidth', width, StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store('settingsEditor2.splitViewWidth', width, StorageScope.PROFILE, StorageTarget.USER);
 		}));
 		const borderColor = this.theme.getColor(settingsSashBorder)!;
 		this.splitView.style({ separatorBorder: borderColor });

@@ -69,7 +69,7 @@ import { errorIcon, infoIcon, preReleaseIcon, verifiedPublisherIcon as verifiedP
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import semver = require('vs/base/common/semver/semver');
+import * as semver from 'vs/base/common/semver/semver';
 
 class NavBar extends Disposable {
 

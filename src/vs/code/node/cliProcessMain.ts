@@ -134,7 +134,7 @@ class CliMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(undefined, undefined, environmentService, fileService, logService);
+		const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, fileService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Policy

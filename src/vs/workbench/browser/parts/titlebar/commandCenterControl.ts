@@ -24,7 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
+import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, PANEL_BORDER, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 export class CommandCenterControl {
@@ -186,7 +186,7 @@ colors.registerColor(
 	localize('commandCenter-background', "Background color of the command center"),
 	false
 );
-const activeBackground = colors.registerColor(
+colors.registerColor(
 	'commandCenter.activeBackground',
 	{ dark: MENUBAR_SELECTION_BACKGROUND, hcDark: MENUBAR_SELECTION_BACKGROUND, light: MENUBAR_SELECTION_BACKGROUND, hcLight: MENUBAR_SELECTION_BACKGROUND },
 	localize('commandCenter-activeBackground', "Active background color of the command center"),
@@ -194,8 +194,7 @@ const activeBackground = colors.registerColor(
 );
 // border: defaults to active background
 colors.registerColor(
-	'commandCenter.border',
-	{ dark: activeBackground, hcDark: colors.inputBorder, light: activeBackground, hcLight: colors.inputBorder },
+	'commandCenter.border', { dark: PANEL_BORDER, hcDark: PANEL_BORDER, light: PANEL_BORDER, hcLight: PANEL_BORDER },
 	localize('commandCenter-border', "Border color of the command center"),
 	false
 );

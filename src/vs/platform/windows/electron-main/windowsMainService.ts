@@ -1331,6 +1331,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
+			editSessionId: this.environmentMainService.editSessionId,
 		};
 
 		let window: ICodeWindow | undefined;
