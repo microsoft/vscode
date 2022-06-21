@@ -9,16 +9,20 @@ import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/stora
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
-export class StorageService extends NativeStorageService {
+export class NativeWorkbenchStorageService extends NativeStorageService {
 
 	constructor(
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
-		userDataProfileService: IUserDataProfileService,
+		private readonly userDataProfileService: IUserDataProfileService,
 		mainProcessService: IMainProcessService,
 		environmentService: IEnvironmentService
 	) {
 		super(workspace, userDataProfileService, mainProcessService, environmentService);
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.switchToProfile(e.profile, e.preserveData))));
+
+		this.registerListeners();
 	}
 
+	private registerListeners(): void {
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.switchToProfile(e.profile, e.preserveData))));
+	}
 }
