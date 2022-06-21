@@ -179,9 +179,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._shellIntegrationAddon);
 	}
 
-	// private _createDecorationAddon(): void {
-	// }
-
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._getSerializeAddonConstructor();
