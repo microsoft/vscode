@@ -7,12 +7,13 @@ import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { noBreakWhitespace } from 'vs/base/common/strings';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { autorun, derivedObservable, IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { InputState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { applyObservableDecorations, h } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
 import { CodeEditorView, ICodeEditorViewOptions } from './codeEditorView';
 
@@ -34,7 +35,8 @@ export class InputCodeEditorView extends CodeEditorView {
 
 
 				const blockClassNames = ['merge-editor-block'];
-				if (model.isHandled(modifiedBaseRange).read(reader)) {
+				const isHandled = model.isHandled(modifiedBaseRange).read(reader);
+				if (isHandled) {
 					blockClassNames.push('handled');
 				}
 				if (modifiedBaseRange === activeModifiedBaseRange) {
@@ -47,7 +49,15 @@ export class InputCodeEditorView extends CodeEditorView {
 					options: {
 						isWholeLine: true,
 						blockClassName: blockClassNames.join(' '),
-						description: 'Base Range Projection'
+						description: 'Base Range Projection',
+						minimap: {
+							position: MinimapPosition.Gutter,
+							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+						},
+						overviewRuler: {
+							position: OverviewRulerLane.Center,
+							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+						}
 					}
 				});
 

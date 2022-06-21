@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CompareResult } from 'vs/base/common/arrays';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { autorun, derivedObservable } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { CodeEditorView, ICodeEditorViewOptions } from './codeEditorView';
 
 export class ResultCodeEditorView extends CodeEditorView {
@@ -40,7 +41,8 @@ export class ResultCodeEditorView extends CodeEditorView {
 				const range = model.getRangeInResult(modifiedBaseRange.baseRange, reader).toInclusiveRange();
 				if (range) {
 					const blockClassNames = ['merge-editor-block'];
-					if (model.isHandled(modifiedBaseRange).read(reader)) {
+					const isHandled = model.isHandled(modifiedBaseRange).read(reader);
+					if (isHandled) {
 						blockClassNames.push('handled');
 					}
 					if (modifiedBaseRange === activeModifiedBaseRange) {
@@ -53,7 +55,15 @@ export class ResultCodeEditorView extends CodeEditorView {
 						options: {
 							isWholeLine: true,
 							blockClassName: blockClassNames.join(' '),
-							description: 'Result Diff'
+							description: 'Result Diff',
+							minimap: {
+								position: MinimapPosition.Gutter,
+								color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+							},
+							overviewRuler: {
+								position: OverviewRulerLane.Center,
+								color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+							}
 						}
 					});
 				}
