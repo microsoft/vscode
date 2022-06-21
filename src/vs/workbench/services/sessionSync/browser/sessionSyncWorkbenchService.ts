@@ -211,7 +211,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 					description: this.authenticationService.getLabel(provider.id),
 					session: { ...session, providerId: provider.id }
 				};
-				accounts.set(item.label, item);
+				accounts.set(item.session.account.id, item);
 				if (this.existingSessionId === session.id) {
 					currentSession = item;
 				}
@@ -219,7 +219,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		}
 
 		if (currentSession !== undefined) {
-			accounts.set(currentSession.label, currentSession);
+			accounts.set(currentSession.session.account.id, currentSession);
 		}
 
 		return [...accounts.values()];
