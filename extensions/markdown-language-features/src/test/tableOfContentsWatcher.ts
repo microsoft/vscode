@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents } from '../tableOfContents';
-import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
+import { MdTableOfContentsProvider, TableOfContents } from '../tableOfContents';
 import { equals } from '../util/arrays';
 import { Disposable } from '../util/dispose';
 import { ResourceMap } from '../util/resourceMap';
+import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 
 /**
  * Check if the items in a table of contents have changed.
@@ -32,8 +31,8 @@ export class MdTableOfContentsWatcher extends Disposable {
 	public readonly onTocChanged = this._onTocChanged.event;
 
 	public constructor(
-		private readonly engine: MarkdownEngine,
 		private readonly workspaceContents: MdWorkspaceContents,
+		private readonly tocProvider: MdTableOfContentsProvider,
 	) {
 		super();
 
@@ -43,13 +42,13 @@ export class MdTableOfContentsWatcher extends Disposable {
 	}
 
 	private async onDidCreateDocument(document: SkinnyTextDocument) {
-		const toc = await TableOfContents.create(this.engine, document);
+		const toc = await this.tocProvider.getForDocument(document);
 		this._files.set(document.uri, { toc });
 	}
 
 	private async onDidChangeDocument(document: SkinnyTextDocument) {
 		const existing = this._files.get(document.uri);
-		const newToc = await TableOfContents.create(this.engine, document);
+		const newToc = await this.tocProvider.getForDocument(document);
 
 		if (!existing || hasTableOfContentsChanged(existing.toc, newToc)) {
 			this._onTocChanged.fire({ uri: document.uri });

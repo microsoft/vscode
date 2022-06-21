@@ -6,11 +6,11 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { MdSmartSelect } from '../languageFeatures/smartSelect';
-import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from '../util/inMemoryDocument';
-import { CURSOR, getCursorPositions, joinLines } from './util';
 import { MdTableOfContentsProvider } from '../tableOfContents';
+import { InMemoryDocument } from '../util/inMemoryDocument';
+import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { CURSOR, getCursorPositions, joinLines } from './util';
 
 const testFileName = vscode.Uri.file('test.md');
 
