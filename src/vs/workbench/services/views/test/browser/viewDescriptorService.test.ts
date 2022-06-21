@@ -116,8 +116,8 @@ suite('ViewDescriptorService', () => {
 		viewDescriptorService.moveViewsToContainer(viewDescriptors.slice(2), sidebarContainer);
 		viewDescriptorService.moveViewsToContainer(viewDescriptors.slice(0, 2), panelContainer);
 
-		let sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
-		let panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
+		const sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
+		const panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
 
 		assert.strictEqual(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar should have 2 views');
 		assert.strictEqual(panelViews.activeViewDescriptors.length, 2, 'Panel should have 1 view');

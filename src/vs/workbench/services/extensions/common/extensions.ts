@@ -324,7 +324,7 @@ export class ExtensionIdentifierSet implements Set<ExtensionIdentifier> {
 	}
 
 	*entries(): IterableIterator<[ExtensionIdentifier, ExtensionIdentifier]> {
-		for (let [_key, value] of this._map) {
+		for (const [_key, value] of this._map) {
 			yield [value, value];
 		}
 	}

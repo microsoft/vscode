@@ -56,7 +56,7 @@ export class TelemetryService implements ITelemetryService {
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
 
-		for (let piiPath of this._piiPaths) {
+		for (const piiPath of this._piiPaths) {
 			this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath), 'gi'));
 		}
 
@@ -90,10 +90,10 @@ export class TelemetryService implements ITelemetryService {
 		const values = await this._commonProperties;
 
 		// well known properties
-		let sessionId = values['sessionID'];
-		let machineId = values['common.machineId'];
-		let firstSessionDate = values['common.firstSessionDate'];
-		let msftInternal = values['common.msftInternal'];
+		const sessionId = values['sessionID'];
+		const machineId = values['common.machineId'];
+		const firstSessionDate = values['common.firstSessionDate'];
+		const msftInternal = values['common.msftInternal'];
 
 		return { sessionId, machineId, firstSessionDate, msftInternal };
 	}
@@ -158,7 +158,7 @@ export class TelemetryService implements ITelemetryService {
 		let updatedStack = stack;
 
 		const cleanUpIndexes: [number, number][] = [];
-		for (let regexp of this._cleanupPatterns) {
+		for (const regexp of this._cleanupPatterns) {
 			while (true) {
 				const result = regexp.exec(stack);
 				if (!result) {
@@ -209,7 +209,7 @@ export class TelemetryService implements ITelemetryService {
 		// Check for common user data in the telemetry events
 		for (const secretRegex of userDataRegexes) {
 			if (secretRegex.regex.test(value)) {
-				return `<REDACTED: ${secretRegex.label}`;
+				return `<REDACTED: ${secretRegex.label}>`;
 			}
 		}
 
@@ -226,7 +226,7 @@ export class TelemetryService implements ITelemetryService {
 		}
 
 		// sanitize with configured cleanup patterns
-		for (let regexp of this._cleanupPatterns) {
+		for (const regexp of this._cleanupPatterns) {
 			updatedProperty = updatedProperty.replace(regexp, '');
 		}
 

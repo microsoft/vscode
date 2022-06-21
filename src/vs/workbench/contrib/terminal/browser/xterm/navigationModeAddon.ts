@@ -12,7 +12,8 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 	private _terminal: Terminal | undefined;
 
 	constructor(
-		private _navigationModeContextKey: IContextKey<boolean>
+		private _navigationModeContextKey: IContextKey<boolean>,
+		private _navigationModeActiveContextKey: IContextKey<boolean>
 	) { }
 
 	activate(terminal: Terminal): void {
@@ -27,13 +28,14 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		}
 		this._terminal.scrollToBottom();
 		this._terminal.focus();
+		this._navigationModeActiveContextKey.set(false);
 	}
 
 	focusPreviousLine(): void {
 		if (!this._terminal || !this._terminal.element) {
 			return;
 		}
-
+		this._navigationModeActiveContextKey.set(true);
 		// Focus previous row if a row is already focused
 		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
 			const element = <HTMLElement | null>document.activeElement.previousElementSibling;
@@ -76,7 +78,7 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		if (!this._terminal || !this._terminal.element) {
 			return;
 		}
-
+		this._navigationModeActiveContextKey.set(true);
 		// Focus previous row if a row is already focused
 		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
 			const element = <HTMLElement | null>document.activeElement.nextElementSibling;

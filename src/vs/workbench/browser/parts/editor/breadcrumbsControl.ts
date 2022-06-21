@@ -130,7 +130,7 @@ class FileItem extends BreadcrumbsItem {
 
 	render(container: HTMLElement): void {
 		// file/folder
-		let label = this._instantiationService.createInstance(ResourceLabel, container, {});
+		const label = this._instantiationService.createInstance(ResourceLabel, container, {});
 		label.element.setFile(this.element.uri, {
 			hidePath: true,
 			hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
@@ -389,11 +389,11 @@ export class BreadcrumbsControl {
 					picker = this._instantiationService.createInstance(BreadcrumbsOutlinePicker, parent, event.item.model.resource);
 				}
 
-				let selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
-				let zoomListener = PixelRatio.onDidChange(() => this._contextViewService.hideContextView({ source: this }));
+				const selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
+				const zoomListener = PixelRatio.onDidChange(() => this._contextViewService.hideContextView({ source: this }));
 
-				let focusTracker = dom.trackFocus(parent);
-				let blurListener = focusTracker.onDidBlur(() => {
+				const focusTracker = dom.trackFocus(parent);
+				const blurListener = focusTracker.onDidBlur(() => {
 					this._breadcrumbsPickerIgnoreOnceItem = this._widget.isDOMFocused() ? event.item : undefined;
 					this._contextViewService.hideContextView({ source: this });
 				});
@@ -411,15 +411,15 @@ export class BreadcrumbsControl {
 			},
 			getAnchor: () => {
 				if (!pickerAnchor) {
-					let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
+					const maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
 					let maxHeight = Math.min(window.innerHeight * 0.7, 300);
 
-					let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
-					let pickerArrowSize = 8;
+					const pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
+					const pickerArrowSize = 8;
 					let pickerArrowOffset: number;
 
-					let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
-					let y = data.top + data.height + pickerArrowSize;
+					const data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
+					const y = data.top + data.height + pickerArrowSize;
 					if (y + maxHeight >= window.innerHeight) {
 						maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
 					}
@@ -428,7 +428,7 @@ export class BreadcrumbsControl {
 						x = maxInnerWidth - pickerWidth;
 					}
 					if (event.payload instanceof StandardMouseEvent) {
-						let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
+						const maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
 						pickerArrowOffset = event.payload.posx - x;
 						if (pickerArrowOffset > maxPickerArrowOffset) {
 							x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
@@ -469,8 +469,8 @@ export class BreadcrumbsControl {
 				await this._editorService.openEditor({ resource: element.uri, options: { pinned } }, group);
 			} else {
 				// show next picker
-				let items = this._widget.getItems();
-				let idx = items.indexOf(event.item);
+				const items = this._widget.getItems();
+				const idx = items.indexOf(event.item);
 				this._widget.setFocused(items[idx + 1]);
 				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 			}
@@ -514,8 +514,8 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		let config = accessor.get(IConfigurationService);
-		let value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
+		const config = accessor.get(IConfigurationService);
+		const value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
 		BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
 	}
 

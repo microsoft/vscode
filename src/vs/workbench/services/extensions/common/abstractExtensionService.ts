@@ -11,7 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -25,7 +25,7 @@ import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IExtensionManagementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -108,7 +108,7 @@ class Lock {
 		this._isLocked = true;
 		let customerHoldsLock = true;
 
-		let logLongRunningCustomerTimeout = setTimeout(() => {
+		const logLongRunningCustomerTimeout = setTimeout(() => {
 			if (customerHoldsLock) {
 				console.warn(`The customer named ${customer.name} has been holding on to the lock for 30s. This might be a problem.`);
 			}
@@ -181,7 +181,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IWorkbenchExtensionEnablementService protected readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService protected readonly _fileService: IFileService,
 		@IProductService protected readonly _productService: IProductService,
-		@IExtensionManagementService protected readonly _extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionManagementService protected readonly _extensionManagementService: IWorkbenchExtensionManagementService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService protected readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
@@ -221,8 +221,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
 
 		this._register(this._extensionEnablementService.onEnablementChanged((extensions) => {
-			let toAdd: IExtension[] = [];
-			let toRemove: IExtension[] = [];
+			const toAdd: IExtension[] = [];
+			const toRemove: IExtension[] = [];
 			for (const extension of extensions) {
 				if (this._safeInvokeIsEnabled(extension)) {
 					// an extension has been enabled
@@ -234,6 +234,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 			this._handleDeltaExtensions(new DeltaExtensionsQueueItem(toAdd, toRemove));
 		}));
+
+		this._register(this._extensionManagementService.onDidChangeProfileExtensions(({ added, removed }) => this._handleDeltaExtensions(new DeltaExtensionsQueueItem(added, removed))));
 
 		this._register(this._extensionManagementService.onDidInstallExtensions((result) => {
 			const extensions: IExtension[] = [];
@@ -538,7 +540,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[] | IExtension[]): Promise<void> {
-		let toAdd: IExtensionDescription[] = [];
+		const toAdd: IExtensionDescription[] = [];
 		for (let i = 0, len = _toAdd.length; i < len; i++) {
 			const extension = _toAdd[i];
 
@@ -813,7 +815,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	//#region Stopping / Starting / Restarting
 
 	public stopExtensionHosts(): void {
-		let previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
+		const previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		this._extensionHostActiveExtensions.forEach((value) => {
 			previouslyActivatedExtensionIds.push(value);
 		});
@@ -1056,7 +1058,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
-		let result: { [id: string]: IExtensionsStatus } = Object.create(null);
+		const result: { [id: string]: IExtensionsStatus } = Object.create(null);
 		if (this._registry) {
 			const extensions = this._registry.getAllExtensionDescriptions();
 			for (const extension of extensions) {
@@ -1099,7 +1101,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	// --- impl
 
 	protected _checkEnableProposedApi(extensions: IExtensionDescription[]): void {
-		for (let extension of extensions) {
+		for (const extension of extensions) {
 			this._proposedApiController.updateEnabledApiProposals(extension);
 		}
 	}
@@ -1157,9 +1159,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
 		const affectedExtensionPoints: { [extPointName: string]: boolean } = Object.create(null);
-		for (let extensionDescription of affectedExtensions) {
+		for (const extensionDescription of affectedExtensions) {
 			if (extensionDescription.contributes) {
-				for (let extPointName in extensionDescription.contributes) {
+				for (const extPointName in extensionDescription.contributes) {
 					if (hasOwnProperty.call(extensionDescription.contributes, extPointName)) {
 						affectedExtensionPoints[extPointName] = true;
 					}
@@ -1209,6 +1211,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
 			type ExtensionsMessageClassification = {
+				owner: 'alexdima';
+				comment: 'A validation message for an extension';
 				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				extensionPointId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -1283,6 +1287,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
 		type ExtensionActivationErrorClassification = {
+			owner: 'alexdima';
+			comment: 'An extension failed to activate';
 			extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			error: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
 		};

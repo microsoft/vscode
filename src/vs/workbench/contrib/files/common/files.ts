@@ -98,6 +98,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			badges: boolean;
 		};
 		incrementalNaming: 'simple' | 'smart';
+		excludeGitIgnore: boolean;
 		fileNesting: {
 			enabled: boolean;
 			expand: boolean;

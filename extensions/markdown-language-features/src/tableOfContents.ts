@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { MdDocumentInfoCache } from './languageFeatures/workspaceCache';
 import { MarkdownEngine } from './markdownEngine';
-import { githubSlugifier, Slug } from './slugify';
+import { githubSlugifier, Slug, Slugifier } from './slugify';
+import { Disposable } from './util/dispose';
 import { isMarkdownFile } from './util/file';
-import { SkinnyTextDocument } from './workspaceContents';
+import { MdWorkspaceContents, SkinnyTextDocument } from './workspaceContents';
 
 export interface TocEntry {
 	readonly slug: Slug;
@@ -63,7 +65,7 @@ export class TableOfContents {
 
 	public static async create(engine: MarkdownEngine, document: SkinnyTextDocument,): Promise<TableOfContents> {
 		const entries = await this.buildToc(engine, document);
-		return new TableOfContents(entries);
+		return new TableOfContents(entries, engine.slugifier);
 	}
 
 	public static async createForDocumentOrNotebook(engine: MarkdownEngine, document: SkinnyTextDocument): Promise<TableOfContents> {
@@ -80,7 +82,7 @@ export class TableOfContents {
 					}
 				}
 
-				return new TableOfContents(entries);
+				return new TableOfContents(entries, engine.slugifier);
 			}
 		}
 
@@ -101,11 +103,11 @@ export class TableOfContents {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
 
-			let slug = githubSlugifier.fromHeading(line.text);
+			let slug = engine.slugifier.fromHeading(line.text);
 			const existingSlugEntry = existingSlugEntries.get(slug.value);
 			if (existingSlugEntry) {
 				++existingSlugEntry.count;
-				slug = githubSlugifier.fromHeading(slug.value + '-' + existingSlugEntry.count);
+				slug = engine.slugifier.fromHeading(slug.value + '-' + existingSlugEntry.count);
 			} else {
 				existingSlugEntries.set(slug.value, { count: 0 });
 			}
@@ -161,12 +163,34 @@ export class TableOfContents {
 		return header.replace(/^\s*#+\s*(.*?)(\s+#+)?$/, (_, word) => word.trim());
 	}
 
+	public static readonly empty = new TableOfContents([], githubSlugifier);
+
 	private constructor(
 		public readonly entries: readonly TocEntry[],
+		private readonly slugifier: Slugifier,
 	) { }
 
 	public lookup(fragment: string): TocEntry | undefined {
-		const slug = githubSlugifier.fromHeading(fragment);
+		const slug = this.slugifier.fromHeading(fragment);
 		return this.entries.find(entry => entry.slug.equals(slug));
+	}
+}
+
+export class MdTableOfContentsProvider extends Disposable {
+
+	private readonly _cache: MdDocumentInfoCache<TableOfContents>;
+
+	constructor(
+		engine: MarkdownEngine,
+		workspaceContents: MdWorkspaceContents,
+	) {
+		super();
+		this._cache = this._register(new MdDocumentInfoCache<TableOfContents>(workspaceContents, doc => {
+			return TableOfContents.create(engine, doc);
+		}));
+	}
+
+	public async get(resource: vscode.Uri): Promise<TableOfContents> {
+		return (await this._cache.get(resource)) ?? TableOfContents.empty;
 	}
 }

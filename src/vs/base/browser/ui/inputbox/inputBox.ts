@@ -159,9 +159,9 @@ export class InputBox extends Widget {
 
 		this.element = dom.append(container, $('.monaco-inputbox.idle'));
 
-		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
+		const tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
-		let wrapper = dom.append(this.element, $('.ibwrapper'));
+		const wrapper = dom.append(this.element, $('.ibwrapper'));
 		this.input = dom.append(wrapper, $(tagName + '.input.empty'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
@@ -458,7 +458,7 @@ export class InputBox extends Widget {
 		}
 
 		let div: HTMLElement;
-		let layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
+		const layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
 
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.element,

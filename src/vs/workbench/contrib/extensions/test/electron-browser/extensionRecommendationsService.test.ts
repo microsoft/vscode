@@ -194,7 +194,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		uninstallEvent: Emitter<IExtensionIdentifier>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 	let prompted: boolean;
-	let promptedEmitter = new Emitter<void>();
+	const promptedEmitter = new Emitter<void>();
 	let onModelAddedEvent: Emitter<ITextModel>;
 	let experimentService: TestExperimentService;
 
@@ -218,7 +218,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			onDidUninstallExtension: didUninstallEvent.event,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
-			async getExtensionsControlManifest() { return { malicious: [] }; },
+			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
 			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
 		});
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{

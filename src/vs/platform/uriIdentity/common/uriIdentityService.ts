@@ -75,7 +75,7 @@ export class UriIdentityService implements IUriIdentityService {
 		}
 
 		// (2) find the uri in its canonical form or use this uri to define it
-		let item = this._canonicalUris.get(uri);
+		const item = this._canonicalUris.get(uri);
 		if (item) {
 			return item.touch().uri.with({ fragment: uri.fragment });
 		}

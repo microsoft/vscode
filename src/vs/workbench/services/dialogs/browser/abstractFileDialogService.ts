@@ -323,8 +323,13 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 			const filter: IFilter = { name: languageName, extensions: distinct(extensions).slice(0, 10).map(e => trim(e, '.')) };
 
-			if (!matchingFilter && extensions.indexOf(ext || PLAINTEXT_EXTENSION /* https://github.com/microsoft/vscode/issues/115860 */) >= 0) {
+			if (!matchingFilter && extensions.includes(ext || PLAINTEXT_EXTENSION /* https://github.com/microsoft/vscode/issues/115860 */)) {
 				matchingFilter = filter;
+
+				const trimmedExt = trim(ext || PLAINTEXT_EXTENSION, '.');
+				if (!filter.extensions.includes(trimmedExt)) {
+					filter.extensions.push(trimmedExt);
+				}
 
 				return null; // first matching filter will be added to the top
 			}

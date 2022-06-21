@@ -144,7 +144,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		const all = this._languageStatusService.getLanguageStatus(editor.getModel());
 		const combined: ILanguageStatus[] = [];
 		const dedicated: ILanguageStatus[] = [];
-		for (let item of all) {
+		for (const item of all) {
 			if (this._dedicated.has(item.id)) {
 				dedicated.push(item);
 			}
@@ -344,7 +344,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	}
 
 	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
-		for (let node of parseLinkedText(text).nodes) {
+		for (const node of parseLinkedText(text).nodes) {
 			if (typeof node === 'string') {
 				const parts = renderLabelWithIcons(node);
 				dom.append(target, ...parts);

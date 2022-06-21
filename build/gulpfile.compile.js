@@ -15,7 +15,7 @@ const compileBuildTask = task.define('compile-build',
 	task.series(
 		util.rimraf('out-build'),
 		util.buildWebNodePaths('out-build'),
-		compilation.compileTask('src', 'out-build', true)
+		compilation.compileTask('src', 'out-build', true, false)
 	)
 );
 gulp.task(compileBuildTask);

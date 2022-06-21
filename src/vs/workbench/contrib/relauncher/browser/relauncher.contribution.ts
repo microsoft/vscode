@@ -6,7 +6,7 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowsConfiguration } from 'vs/platform/window/common/window';
+import { IWindowsConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isMacintosh, isNative, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isNative, isLinux, isWindows } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -26,11 +26,13 @@ interface IConfiguration extends IWindowsConfiguration {
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
+	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean } } };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
 	private titleBarStyle: 'native' | 'custom' | undefined;
+	private windowControlsOverlayEnabled: boolean | undefined;
 	private nativeTabs: boolean | undefined;
 	private nativeFullScreen: boolean | undefined;
 	private clickThroughInactive: boolean | undefined;
@@ -60,6 +62,13 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				this.titleBarStyle = config.window.titleBarStyle;
 				changed = true;
 			}
+
+			// Windows: Window Controls Overlay
+			if (isWindows && typeof config.window?.experimental?.windowControlsOverlay?.enabled === 'boolean' && config.window?.experimental?.windowControlsOverlay?.enabled !== this.windowControlsOverlayEnabled) {
+				this.windowControlsOverlayEnabled = config.window.experimental.windowControlsOverlay.enabled;
+				changed = true;
+			}
+
 
 			// macOS: Native tabs
 			if (isMacintosh && typeof config.window?.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {

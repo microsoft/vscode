@@ -45,7 +45,7 @@ async function main() {
 		force: true
 	});
 
-	let productJson = await fs.readJson(productJsonPath);
+	const productJson = await fs.readJson(productJsonPath);
 	Object.assign(productJson, {
 		darwinUniversalAssetId: 'darwin-universal'
 	});

@@ -15,7 +15,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -199,7 +200,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	let disposables: DisposableStore;
 	let model: TextModel;
 	const languageFeaturesService = new LanguageFeaturesService();
-	let registry = languageFeaturesService.completionProvider;
+	const registry = languageFeaturesService.completionProvider;
 
 	setup(function () {
 		disposables = new DisposableStore();

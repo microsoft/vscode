@@ -148,7 +148,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		if (!triggerCharacterLow) {
 			const endsInWhitespace = /\s/.test(lineContentLow[position.column - 2]);
 			if (endsInWhitespace || !lineContentLow /*empty line*/) {
-				for (let snippet of snippets) {
+				for (const snippet of snippets) {
 					const insert = Range.fromPositions(position);
 					const replace = lineContentLow.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
 					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
@@ -160,7 +160,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// dismbiguate suggestions with same labels
 		suggestions.sort(SnippetCompletion.compareByLabel);
 		for (let i = 0; i < suggestions.length; i++) {
-			let item = suggestions[i];
+			const item = suggestions[i];
 			let to = i + 1;
 			for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
 				suggestions[to].label.label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.label, suggestions[to].snippet.name);

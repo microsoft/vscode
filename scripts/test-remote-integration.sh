@@ -47,16 +47,17 @@ else
 	# Run from a built: need to compile all test extensions
 	# because we run extension tests from their source folders
 	# and the build bundles extensions into .build webpacked
-	yarn gulp 	compile-extension:vscode-api-tests \
-				compile-extension:vscode-test-resolver \
-				compile-extension:markdown-language-features \
-				compile-extension:typescript-language-features \
-				compile-extension:emmet \
-				compile-extension:git \
-				compile-extension:ipynb \
-				compile-extension:microsoft-authentication \
-				compile-extension:github-authentication \
-				compile-extension-media
+	# yarn gulp 	compile-extension:vscode-api-tests \
+	#			compile-extension:vscode-test-resolver \
+	#			compile-extension:markdown-language-features \
+	#			compile-extension:typescript-language-features \
+	#			compile-extension:emmet \
+	#			compile-extension:git \
+	#			compile-extension:ipynb \
+	#			compile-extension:configuration-editing \
+	#			compile-extension:microsoft-authentication \
+	#			compile-extension:github-authentication \
+	#			compile-extension-media
 
 	# Configuration for more verbose output
 	export VSCODE_CLI=1
@@ -132,6 +133,11 @@ echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --folder-uri=$AUTHORITY$(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$REMOTE_VSCODE/ipynb --extensionTestsPath=$REMOTE_VSCODE/ipynb/out/test $API_TESTS_EXTRA_ARGS $EXTRA_INTEGRATION_TEST_ARGUMENTS
 kill_app
 
+echo
+echo "### Configuration editing tests"
+echo
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS --folder-uri=$AUTHORITY$(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$REMOTE_VSCODE/configuration-editing --extensionTestsPath=$REMOTE_VSCODE/configuration-editing/out/test $API_TESTS_EXTRA_ARGS $EXTRA_INTEGRATION_TEST_ARGUMENTS
+kill_app
 
 # Cleanup
 

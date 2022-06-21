@@ -640,9 +640,7 @@ export class DefaultSettings extends Disposable {
 				settingsGroup.sections[settingsGroup.sections.length - 1].settings = configurationSettings;
 			}
 		}
-		if (config.allOf) {
-			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup, seenSettings));
-		}
+		config.allOf?.forEach(c => this.parseConfig(c, result, configurations, settingsGroup, seenSettings));
 		return result;
 	}
 
@@ -707,15 +705,17 @@ export class DefaultSettings extends Disposable {
 					});
 				}
 
-				const registeredConfigurationProp = prop as IRegisteredConfigurationPropertySchema;
-				let defaultValueSource: string | IExtensionInfo | undefined;
-				if (registeredConfigurationProp && registeredConfigurationProp.defaultValueSource) {
-					defaultValueSource = registeredConfigurationProp.defaultValueSource;
-				}
-
 				let isLanguageTagSetting = false;
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 					isLanguageTagSetting = true;
+				}
+
+				let defaultValueSource: string | IExtensionInfo | undefined;
+				if (!isLanguageTagSetting) {
+					const registeredConfigurationProp = prop as IRegisteredConfigurationPropertySchema;
+					if (registeredConfigurationProp && registeredConfigurationProp.defaultValueSource) {
+						defaultValueSource = registeredConfigurationProp.defaultValueSource;
+					}
 				}
 
 				result.push({
@@ -749,7 +749,7 @@ export class DefaultSettings extends Disposable {
 					allKeysAreBoolean,
 					editPresentation: prop.editPresentation,
 					order: prop.order,
-					defaultValueSource,
+					nonLanguageSpecificDefaultValueSource: defaultValueSource,
 					isLanguageTagSetting,
 					categoryLabel,
 					categoryOrder

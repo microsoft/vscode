@@ -25,7 +25,7 @@ export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvide
 	const providers = registry.ordered(model).reverse();
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
 		if (Array.isArray(result)) {
-			for (let colorInfo of result) {
+			for (const colorInfo of result) {
 				colors.push({ colorInfo, provider });
 			}
 		}
@@ -54,7 +54,7 @@ CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (acce
 	const providers = colorProviderRegistry.ordered(model).reverse();
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, CancellationToken.None)).then(result => {
 		if (Array.isArray(result)) {
-			for (let ci of result) {
+			for (const ci of result) {
 				rawCIs.push({ range: ci.range, color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] });
 			}
 		}

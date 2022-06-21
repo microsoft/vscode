@@ -17,7 +17,7 @@ function sendInitializeRequest(debugAdapter: StreamDebugAdapter): Promise<DebugP
 	return new Promise((resolve, reject) => {
 		debugAdapter.sendRequest('initialize', { adapterID: 'test' }, (result) => {
 			resolve(result);
-		});
+		}, 3000);
 	});
 }
 

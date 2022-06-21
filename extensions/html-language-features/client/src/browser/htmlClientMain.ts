@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, ExtensionContext, Uri } from 'vscode';
-import { LanguageClientOptions } from 'vscode-languageclient';
+import { BaseLanguageClient, LanguageClientOptions } from 'vscode-languageclient';
 import { startClient, LanguageClientConstructor } from '../htmlClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
 
@@ -15,8 +15,10 @@ declare const TextDecoder: {
 	new(encoding?: string): { decode(buffer: ArrayBuffer): string };
 };
 
+let client: BaseLanguageClient | undefined;
+
 // this method is called when vs code is activated
-export function activate(context: ExtensionContext) {
+export async function activate(context: ExtensionContext) {
 	const serverMain = Uri.joinPath(context.extensionUri, 'server/dist/browser/htmlServerMain.js');
 	try {
 		const worker = new Worker(serverMain.toString());
@@ -31,9 +33,17 @@ export function activate(context: ExtensionContext) {
 			}
 		};
 
-		startClient(context, newLanguageClient, { TextDecoder, timer });
+		client = await startClient(context, newLanguageClient, { TextDecoder, timer });
 
 	} catch (e) {
 		console.log(e);
 	}
 }
+
+export async function deactivate(): Promise<void> {
+	if (client) {
+		await client.stop();
+		client = undefined;
+	}
+}
+

@@ -26,7 +26,7 @@ suite('CommandService', function () {
 
 		let lastEvent: string;
 
-		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
+		const service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 			override activateByEvent(activationEvent: string): Promise<void> {
 				lastEvent = activationEvent;
 				return super.activateByEvent(activationEvent);
@@ -51,7 +51,7 @@ suite('CommandService', function () {
 			}
 		};
 
-		let service = new CommandService(new InstantiationService(), extensionService, new NullLogService());
+		const service = new CommandService(new InstantiationService(), extensionService, new NullLogService());
 
 		await extensionService.whenInstalledExtensionsRegistered();
 
@@ -63,9 +63,9 @@ suite('CommandService', function () {
 	test('!onReady, but executeCommand', function () {
 
 		let callCounter = 0;
-		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+		const reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 
-		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
+		const service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 			override whenInstalledExtensionsRegistered() {
 				return new Promise<boolean>(_resolve => { /*ignore*/ });
 			}
@@ -82,16 +82,16 @@ suite('CommandService', function () {
 		let resolveFunc: Function;
 		const whenInstalledExtensionsRegistered = new Promise<boolean>(_resolve => { resolveFunc = _resolve; });
 
-		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
+		const service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 			override whenInstalledExtensionsRegistered() {
 				return whenInstalledExtensionsRegistered;
 			}
 		}, new NullLogService());
 
-		let r = service.executeCommand('bar');
+		const r = service.executeCommand('bar');
 		assert.strictEqual(callCounter, 0);
 
-		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+		const reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 		resolveFunc!(true);
 
 		return r.then(() => {
@@ -104,8 +104,8 @@ suite('CommandService', function () {
 
 		let callCounter = 0;
 		const disposable = new DisposableStore();
-		let events: string[] = [];
-		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
+		const events: string[] = [];
+		const service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 
 			override activateByEvent(event: string): Promise<void> {
 				events.push(event);
@@ -115,7 +115,7 @@ suite('CommandService', function () {
 				if (event.indexOf('onCommand:') === 0) {
 					return new Promise(resolve => {
 						setTimeout(() => {
-							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
+							const reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
 								callCounter += 1;
 							});
 							disposable.add(reg);
@@ -137,10 +137,10 @@ suite('CommandService', function () {
 	});
 
 	test('issue #71471: wait for onCommand activation even if a command is registered', () => {
-		let expectedOrder: string[] = ['registering command', 'resolving activation event', 'executing command'];
-		let actualOrder: string[] = [];
+		const expectedOrder: string[] = ['registering command', 'resolving activation event', 'executing command'];
+		const actualOrder: string[] = [];
 		const disposables = new DisposableStore();
-		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
+		const service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 
 			override activateByEvent(event: string): Promise<void> {
 				if (event === '*') {
@@ -151,7 +151,7 @@ suite('CommandService', function () {
 						setTimeout(() => {
 							// Register the command after some time
 							actualOrder.push('registering command');
-							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
+							const reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
 								actualOrder.push('executing command');
 							});
 							disposables.add(reg);

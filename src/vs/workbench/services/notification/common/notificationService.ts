@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions } from 'vs/platform/notification/common/notification';
 import { NotificationsModel, ChoiceAction, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -96,9 +96,9 @@ export class NotificationService extends Disposable implements INotificationServ
 		const toDispose = new DisposableStore();
 
 		// Handle neverShowAgain option accordingly
-		let handle: INotificationHandle;
+
 		if (notification.neverShowAgain) {
-			const scope = notification.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+			const scope = this.toStorageScope(notification.neverShowAgain);
 			const id = notification.neverShowAgain.id;
 
 			// If the user already picked to not show the notification
@@ -134,7 +134,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		}
 
 		// Show notification
-		handle = this.model.addNotification(notification);
+		const handle = this.model.addNotification(notification);
 
 		// Cleanup when notification gets disposed
 		Event.once(handle.onDidClose)(() => toDispose.dispose());
@@ -142,12 +142,25 @@ export class NotificationService extends Disposable implements INotificationServ
 		return handle;
 	}
 
+	private toStorageScope(options: INeverShowAgainOptions): StorageScope {
+		switch (options.scope) {
+			case NeverShowAgainScope.APPLICATION:
+				return StorageScope.APPLICATION;
+			case NeverShowAgainScope.GLOBAL:
+				return StorageScope.GLOBAL;
+			case NeverShowAgainScope.WORKSPACE:
+				return StorageScope.WORKSPACE;
+			default:
+				return StorageScope.APPLICATION;
+		}
+	}
+
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		const toDispose = new DisposableStore();
 
 		// Handle neverShowAgain option accordingly
 		if (options?.neverShowAgain) {
-			const scope = options.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+			const scope = this.toStorageScope(options.neverShowAgain);
 			const id = options.neverShowAgain.id;
 
 			// If the user already picked to not show the notification
@@ -171,7 +184,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		}
 
 		let choiceClicked = false;
-		let handle: INotificationHandle;
+
 
 		// Convert choices into primary/secondary actions
 		const primaryActions: IAction[] = [];
@@ -199,7 +212,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 		// Show notification with actions
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		handle = this.notify({ severity, message, actions, sticky: options?.sticky, silent: options?.silent });
+		const handle = this.notify({ severity, message, actions, sticky: options?.sticky, silent: options?.silent });
 
 		Event.once(handle.onDidClose)(() => {
 

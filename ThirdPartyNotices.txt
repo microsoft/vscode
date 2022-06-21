@@ -11,7 +11,7 @@ This project incorporates components from the projects listed below. The origina
 4.	atom/language-java version 0.32.1 (https://github.com/atom/language-java)
 5.	atom/language-sass version 0.62.1 (https://github.com/atom/language-sass)
 6.	atom/language-shellscript version 0.28.2 (https://github.com/atom/language-shellscript)
-7.	atom/language-xml version 0.14.0 (https://github.com/atom/language-xml)
+7.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
 8.	better-go-syntax version 1.0.0 (https://github.com/jeff-hykin/better-go-syntax/ )
 9.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
 10.	daaain/Handlebars version 1.8.0 (https://github.com/daaain/Handlebars)
@@ -32,15 +32,15 @@ This project incorporates components from the projects listed below. The origina
 25.	James-Yu/LaTeX-Workshop version 8.19.1 (https://github.com/James-Yu/LaTeX-Workshop)
 26.	jeff-hykin/cpp-textmate-grammar version 1.12.11 (https://github.com/jeff-hykin/cpp-textmate-grammar)
 27.	jeff-hykin/cpp-textmate-grammar version 1.15.6 (https://github.com/jeff-hykin/cpp-textmate-grammar)
-28.	jlelong/vscode-latex-basics version 1.2.0 (https://github.com/jlelong/vscode-latex-basics)
+28.	jlelong/vscode-latex-basics version 1.3.0 (https://github.com/jlelong/vscode-latex-basics)
 29.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
 30.	JuliaEditorSupport/atom-language-julia version 0.22.1 (https://github.com/JuliaEditorSupport/atom-language-julia)
 31.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 32.	language-docker (https://github.com/moby/moby)
 33.	language-less version 0.34.2 (https://github.com/atom/language-less)
-34.	language-php version 0.48.0 (https://github.com/atom/language-php)
+34.	language-php version 0.48.1 (https://github.com/atom/language-php)
 35.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
-36.	marked version 3.0.2 (https://github.com/markedjs/marked)
+36.	marked version 4.0.16 (https://github.com/markedjs/marked)
 37.	mdn-data version 1.1.12 (https://github.com/mdn/data)
 38.	microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/microsoft/TypeScript-TmLanguage)
 39.	microsoft/vscode-JSON.tmLanguage (https://github.com/microsoft/vscode-JSON.tmLanguage)
@@ -1072,7 +1072,7 @@ END OF HTML 5.1 W3C Working Draft NOTICES AND INFORMATION
 =========================================
 MIT License
 
-Copyright (c) 2021 REditorSupport
+Copyright (c) 2022 REditorSupport
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

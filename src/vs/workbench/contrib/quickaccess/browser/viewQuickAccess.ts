@@ -240,7 +240,7 @@ export class QuickAccessViewPickerAction extends Action2 {
 			id: QuickAccessViewPickerAction.ID,
 			title: { value: localize('quickOpenView', "Quick Open View"), original: 'Quick Open View' },
 			category: CATEGORIES.View,
-			f1: true,
+			f1: false, // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: undefined,

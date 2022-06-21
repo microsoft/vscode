@@ -86,7 +86,7 @@ suite('ExtHostMessageService', function () {
 
 	test('propagte handle on select', async function () {
 
-		let service = new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
+		const service = new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
 			assert.strictEqual(notification.actions!.primary!.length, 1);
 			queueMicrotask(() => notification.actions!.primary![0].run());
 		}), emptyCommandService, new TestDialogService());

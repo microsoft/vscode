@@ -43,21 +43,21 @@ export class HiddenRangeModel {
 
 	private updateHiddenRanges(): void {
 		let updateHiddenAreas = false;
-		let newHiddenAreas: IRange[] = [];
+		const newHiddenAreas: IRange[] = [];
 		let i = 0; // index into hidden
 		let k = 0;
 
 		let lastCollapsedStart = Number.MAX_VALUE;
 		let lastCollapsedEnd = -1;
 
-		let ranges = this._foldingModel.regions;
+		const ranges = this._foldingModel.regions;
 		for (; i < ranges.length; i++) {
 			if (!ranges.isCollapsed(i)) {
 				continue;
 			}
 
-			let startLineNumber = ranges.getStartLineNumber(i) + 1; // the first line is not hidden
-			let endLineNumber = ranges.getEndLineNumber(i);
+			const startLineNumber = ranges.getStartLineNumber(i) + 1; // the first line is not hidden
+			const endLineNumber = ranges.getEndLineNumber(i);
 			if (lastCollapsedStart <= startLineNumber && endLineNumber <= lastCollapsedEnd) {
 				// ignore ranges contained in collapsed regions
 				continue;
@@ -83,8 +83,8 @@ export class HiddenRangeModel {
 		if (!Array.isArray(state) || state.length === 0) {
 			return false;
 		}
-		let hiddenRanges: IRange[] = [];
-		for (let r of state) {
+		const hiddenRanges: IRange[] = [];
+		for (const r of state) {
 			if (!r.startLineNumber || !r.endLineNumber) {
 				return false;
 			}
@@ -117,10 +117,10 @@ export class HiddenRangeModel {
 
 	public adjustSelections(selections: Selection[]): boolean {
 		let hasChanges = false;
-		let editorModel = this._foldingModel.textModel;
+		const editorModel = this._foldingModel.textModel;
 		let lastRange: IRange | null = null;
 
-		let adjustLine = (line: number) => {
+		const adjustLine = (line: number) => {
 			if (!lastRange || !isInside(line, lastRange)) {
 				lastRange = findRange(this._hiddenRanges, line);
 			}
@@ -131,12 +131,12 @@ export class HiddenRangeModel {
 		};
 		for (let i = 0, len = selections.length; i < len; i++) {
 			let selection = selections[i];
-			let adjustedStartLine = adjustLine(selection.startLineNumber);
+			const adjustedStartLine = adjustLine(selection.startLineNumber);
 			if (adjustedStartLine) {
 				selection = selection.setStartPosition(adjustedStartLine, editorModel.getLineMaxColumn(adjustedStartLine));
 				hasChanges = true;
 			}
-			let adjustedEndLine = adjustLine(selection.endLineNumber);
+			const adjustedEndLine = adjustLine(selection.endLineNumber);
 			if (adjustedEndLine) {
 				selection = selection.setEndPosition(adjustedEndLine, editorModel.getLineMaxColumn(adjustedEndLine));
 				hasChanges = true;
@@ -163,7 +163,7 @@ function isInside(line: number, range: IRange) {
 	return line >= range.startLineNumber && line <= range.endLineNumber;
 }
 function findRange(ranges: IRange[], line: number): IRange | null {
-	let i = findFirstInSorted(ranges, r => line < r.startLineNumber) - 1;
+	const i = findFirstInSorted(ranges, r => line < r.startLineNumber) - 1;
 	if (i >= 0 && ranges[i].endLineNumber >= line) {
 		return ranges[i];
 	}

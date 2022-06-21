@@ -79,18 +79,20 @@ export class ReleaseNotesManager {
 			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
 			this._currentReleaseNotes = this._webviewWorkbenchService.createWebview(
-				generateUuid(),
+				{
+					id: generateUuid(),
+					options: {
+						tryRestoreScrollPosition: true,
+						enableFindWidget: true,
+					},
+					contentOptions: {
+						localResourceRoots: []
+					},
+					extension: undefined
+				},
 				'releaseNotes',
 				title,
-				{ group: ACTIVE_GROUP, preserveFocus: false },
-				{
-					tryRestoreScrollPosition: true,
-					enableFindWidget: true,
-				},
-				{
-					localResourceRoots: []
-				},
-				undefined);
+				{ group: ACTIVE_GROUP, preserveFocus: false });
 
 			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
 			this._currentReleaseNotes.onWillDispose(() => { this._currentReleaseNotes = undefined; });

@@ -256,7 +256,7 @@ export class ExtHostConfigProvider {
 					return {
 						key,
 
-						defaultValue: config.default?.value,
+						defaultValue: config.policy?.value ?? config.default?.value,
 						globalValue: config.user?.value,
 						workspaceValue: config.workspace?.value,
 						workspaceFolderValue: config.workspaceFolder?.value,

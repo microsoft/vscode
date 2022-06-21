@@ -77,7 +77,8 @@ export class TerminalViewPane extends ViewPane {
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
-		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
@@ -170,12 +171,12 @@ export class TerminalViewPane extends ViewPane {
 				// defer focusing the panel to the focus() call
 				// to prevent overriding preserveFocus for extensions
 				this._terminalGroupService.showPanel(false);
-				if (hadTerminals) {
-					this._terminalGroupService.activeGroup?.setVisible(visible);
-				}
 			} else {
-				this._terminalGroupService.activeGroup?.setVisible(false);
+				for (const instance of this._terminalGroupService.instances) {
+					instance.resetFocusContextKey();
+				}
 			}
+			this._terminalGroupService.updateVisibility();
 		}));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 	}
@@ -230,7 +231,7 @@ export class TerminalViewPane extends ViewPane {
 				}
 
 				const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
-				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService);
+				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService);
 				this._updateTabActionBar(this._terminalProfileService.availableProfiles);
 				return this._tabButtons;
 			}
@@ -368,9 +369,9 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService
@@ -391,7 +392,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			_commandService
 		), {
 			draggable: true
-		}, keybindingService, notificationService, contextKeyService);
+		}, keybindingService, notificationService, contextKeyService, themeService);
 
 		// Register listeners to update the tab
 		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this.updateLabel(e)));
@@ -520,7 +521,7 @@ function getSingleTabLabel(instance: ITerminalInstance | undefined, separator: s
 	if (!instance || !instance.title) {
 		return '';
 	}
-	let iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
+	const iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
 	const label = `$(${icon?.id || iconClass}) ${getSingleTabTitle(instance, separator)}`;
 
 	const primaryStatus = instance.statusList.primary;

@@ -306,7 +306,7 @@ function _rreaddir(dirPath: string, prepend: string, result: string[]): void {
 }
 
 export function rreddir(dirPath: string): string[] {
-	let result: string[] = [];
+	const result: string[] = [];
 	_rreaddir(dirPath, '', result);
 	return result;
 }
@@ -415,6 +415,13 @@ export function acquireWebNodePaths() {
 		nodePaths[key] = entryPoint;
 	}
 
+	// @TODO lramos15 can we make this dynamic like the rest of the node paths
+	// Add these paths as well for 1DS SDK dependencies.
+	// Not sure why given the 1DS entrypoint then requires these modules
+	// they are not fetched from the right location and instead are fetched from out/
+	nodePaths['@microsoft/dynamicproto-js'] = 'lib/dist/umd/dynamicproto-js.min.js';
+	nodePaths['@microsoft/applicationinsights-shims'] = 'dist/umd/applicationinsights-shims.min.js';
+	nodePaths['@microsoft/applicationinsights-core-js'] = 'browser/applicationinsights-core-js.min.js';
 	return nodePaths;
 }
 
@@ -423,7 +430,7 @@ export function createExternalLoaderConfig(webEndpoint?: string, commit?: string
 		return undefined;
 	}
 	webEndpoint = webEndpoint + `/${quality}/${commit}`;
-	let nodePaths = acquireWebNodePaths();
+	const nodePaths = acquireWebNodePaths();
 	Object.keys(nodePaths).map(function (key, _) {
 		nodePaths[key] = `${webEndpoint}/node_modules/${key}/${nodePaths[key]}`;
 	});

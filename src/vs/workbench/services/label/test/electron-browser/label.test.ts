@@ -9,16 +9,16 @@ import { URI } from 'vs/base/common/uri';
 import { sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestNativePathService, TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLifecycleService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('URI Label', () => {
 
 	let labelService: LabelService;
 
 	setup(() => {
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestNativePathService(), new TestRemoteAgentService());
+		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestNativePathService(), new TestRemoteAgentService(), new TestStorageService(), new TestLifecycleService());
 	});
 
 	test('file scheme', function () {

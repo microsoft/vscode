@@ -298,11 +298,6 @@
 	padding: 10px 0;
 }
 
-.review-widget .body .edit-container .form-actions {
-	display: flex;
-	justify-content: flex-end;
-}
-
 .review-widget .body .edit-textarea {
 	height: 90px;
 	margin: 5px 0 10px 0;
@@ -316,7 +311,7 @@
 	margin-bottom: 5px;
 }
 
-.review-widget .body .comment-form .monaco-text-button {
+.review-widget .body .form-actions .monaco-text-button {
 	float: right;
 }
 

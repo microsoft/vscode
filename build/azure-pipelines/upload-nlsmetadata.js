@@ -19,7 +19,6 @@ function main() {
             fileName: 'combined.nls.metadata.json',
             jsonSpace: '',
             edit: (parsedJson, file) => {
-                let key;
                 if (file.base === 'out-vscode-web-min') {
                     return { vscode: parsedJson };
                 }
@@ -63,7 +62,7 @@ function main() {
                         break;
                     }
                 }
-                key = 'vscode.' + file.relative.split('/')[0];
+                const key = 'vscode.' + file.relative.split('/')[0];
                 return { [key]: parsedJson };
             },
         }))

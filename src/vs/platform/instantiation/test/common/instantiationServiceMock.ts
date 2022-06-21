@@ -43,12 +43,12 @@ export class TestInstantiationService extends InstantiationService {
 	public stub<T, V>(service: ServiceIdentifier<T>, obj: Partial<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
 	public stub<T, V>(service: ServiceIdentifier<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
 	public stub<T>(serviceIdentifier: ServiceIdentifier<T>, arg2: any, arg3?: string, arg4?: any): sinon.SinonStub | sinon.SinonSpy {
-		let service = typeof arg2 !== 'string' ? arg2 : undefined;
-		let serviceMock: IServiceMock<any> = { id: serviceIdentifier, service: service };
-		let property = typeof arg2 === 'string' ? arg2 : arg3;
-		let value = typeof arg2 === 'string' ? arg3 : arg4;
+		const service = typeof arg2 !== 'string' ? arg2 : undefined;
+		const serviceMock: IServiceMock<any> = { id: serviceIdentifier, service: service };
+		const property = typeof arg2 === 'string' ? arg2 : arg3;
+		const value = typeof arg2 === 'string' ? arg3 : arg4;
 
-		let stubObject = <any>this._create(serviceMock, { stub: true }, service && !property);
+		const stubObject = <any>this._create(serviceMock, { stub: true }, service && !property);
 		if (property) {
 			if (stubObject[property]) {
 				if (stubObject[property].hasOwnProperty('restore')) {
@@ -80,7 +80,7 @@ export class TestInstantiationService extends InstantiationService {
 	}
 
 	public spy<T>(service: ServiceIdentifier<T>, fnProperty: string): sinon.SinonSpy {
-		let spy = sinon.spy();
+		const spy = sinon.spy();
 		this.stub(service, fnProperty, spy);
 		return spy;
 	}
@@ -89,7 +89,7 @@ export class TestInstantiationService extends InstantiationService {
 	private _create<T>(ctor: any, options: SinonOptions): any;
 	private _create(arg1: any, options: SinonOptions, reset: boolean = false): any {
 		if (this.isServiceMock(arg1)) {
-			let service = this._getOrCreateService(arg1, options, reset);
+			const service = this._getOrCreateService(arg1, options, reset);
 			this._serviceCollection.set(arg1.id, service);
 			return service;
 		}
@@ -97,7 +97,7 @@ export class TestInstantiationService extends InstantiationService {
 	}
 
 	private _getOrCreateService<T>(serviceMock: IServiceMock<T>, opts: SinonOptions, reset?: boolean): any {
-		let service: any = this._serviceCollection.get(serviceMock.id);
+		const service: any = this._serviceCollection.get(serviceMock.id);
 		if (!reset && service) {
 			if (opts.mock && service['sinonOptions'] && !!service['sinonOptions'].mock) {
 				return service;
@@ -111,7 +111,7 @@ export class TestInstantiationService extends InstantiationService {
 
 	private _createService(serviceMock: IServiceMock<any>, opts: SinonOptions): any {
 		serviceMock.service = serviceMock.service ? serviceMock.service : this._servciesMap.get(serviceMock.id);
-		let service = opts.mock ? sinon.mock(serviceMock.service) : this._createStub(serviceMock.service);
+		const service = opts.mock ? sinon.mock(serviceMock.service) : this._createStub(serviceMock.service);
 		service['sinonOptions'] = opts;
 		return service;
 	}

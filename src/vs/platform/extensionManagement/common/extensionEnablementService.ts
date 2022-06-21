@@ -57,7 +57,7 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 	}
 
 	private _addToDisabledExtensions(identifier: IExtensionIdentifier): boolean {
-		let disabledExtensions = this.getDisabledExtensions();
+		const disabledExtensions = this.getDisabledExtensions();
 		if (disabledExtensions.every(e => !areSameExtensions(e, identifier))) {
 			disabledExtensions.push(identifier);
 			this._setDisabledExtensions(disabledExtensions);
@@ -67,7 +67,7 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 	}
 
 	private _removeFromDisabledExtensions(identifier: IExtensionIdentifier): boolean {
-		let disabledExtensions = this.getDisabledExtensions();
+		const disabledExtensions = this.getDisabledExtensions();
 		for (let index = 0; index < disabledExtensions.length; index++) {
 			const disabledExtension = disabledExtensions[index];
 			if (areSameExtensions(disabledExtension, identifier)) {
@@ -119,7 +119,7 @@ export class StorageManager extends Disposable {
 	}
 
 	set(key: string, value: IExtensionIdentifier[], scope: StorageScope): void {
-		let newValue: string = JSON.stringify(value.map(({ id, uuid }) => (<IExtensionIdentifier>{ id, uuid })));
+		const newValue: string = JSON.stringify(value.map(({ id, uuid }) => (<IExtensionIdentifier>{ id, uuid })));
 		const oldValue = this._get(key, scope);
 		if (oldValue !== newValue) {
 			if (scope === StorageScope.GLOBAL) {

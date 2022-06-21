@@ -46,7 +46,7 @@ export function setup(logger: Logger) {
 			await app.workbench.search.removeFileMatch('app.js', '2 results in 2 files');
 		});
 
-		it('replaces first search result with a replace term', async function () {
+		it.skip('replaces first search result with a replace term', async function () { // TODO@roblourens https://github.com/microsoft/vscode/issues/137195
 			const app = this.app as Application;
 
 			await app.workbench.search.searchFor('body');

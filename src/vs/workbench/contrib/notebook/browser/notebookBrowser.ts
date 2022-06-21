@@ -122,6 +122,7 @@ export interface ICommonCellInfo {
 
 export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
+	readonly focusEditorLine?: number;
 }
 
 //#endregion
@@ -276,8 +277,15 @@ export interface INotebookDeltaCellStatusBarItems {
 	items: INotebookCellStatusBarItem[];
 }
 
+
+export enum CellRevealType {
+	NearTopIfOutsideViewport,
+	CenterIfOutsideViewport
+}
+
 export interface INotebookEditorOptions extends ITextEditorOptions {
 	readonly cellOptions?: ITextResourceEditorInput;
+	readonly cellRevealType?: CellRevealType;
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
 	readonly viewState?: INotebookEditorViewState;
@@ -406,8 +414,6 @@ export interface INotebookEditor {
 	setFocus(focus: ICellRange): void;
 	getId(): string;
 
-	cursorNavigationMode: boolean;
-
 	_getViewModel(): INotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
 	dispose(): void;
@@ -441,12 +447,12 @@ export interface INotebookEditor {
 	 */
 	getLayoutInfo(): NotebookLayoutInfo;
 
-	getVisibleRangesPlusViewportBelow(): ICellRange[];
+	getVisibleRangesPlusViewportAboveAndBelow(): ICellRange[];
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
-	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
+	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): Promise<void>;
 
 	/**
 	 * Execute the given notebook cells
@@ -586,16 +592,6 @@ export interface INotebookEditor {
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
 	/**
-	 * Set decoration key on cells in the range
-	 */
-	setEditorDecorations(key: string, range: ICellRange): void;
-
-	/**
-	 * Remove decoration key from the notebook editor
-	 */
-	removeEditorDecorations(key: string): void;
-
-	/**
 	 * Get a contribution of this editor.
 	 * @id Unique identifier of the contribution.
 	 * @return The contribution or null if contribution not found.
@@ -704,7 +700,8 @@ export enum CellEditState {
 
 export enum CellFocusMode {
 	Container,
-	Editor
+	Editor,
+	Output
 }
 
 export enum CursorAtBoundary {

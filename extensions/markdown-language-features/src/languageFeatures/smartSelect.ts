@@ -5,7 +5,7 @@
 import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents, TocEntry } from '../tableOfContents';
+import { MdTableOfContentsProvider, TocEntry } from '../tableOfContents';
 import { SkinnyTextDocument } from '../workspaceContents';
 
 interface MarkdownItTokenWithMap extends Token {
@@ -15,7 +15,8 @@ interface MarkdownItTokenWithMap extends Token {
 export class MdSmartSelect implements vscode.SelectionRangeProvider {
 
 	constructor(
-		private readonly engine: MarkdownEngine
+		private readonly engine: MarkdownEngine,
+		private readonly tocProvider: MdTableOfContentsProvider,
 	) { }
 
 	public async provideSelectionRanges(document: SkinnyTextDocument, positions: vscode.Position[], _token: vscode.CancellationToken): Promise<vscode.SelectionRange[] | undefined> {
@@ -54,7 +55,7 @@ export class MdSmartSelect implements vscode.SelectionRangeProvider {
 	}
 
 	private async getHeaderSelectionRange(document: SkinnyTextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
-		const toc = await TableOfContents.create(this.engine, document);
+		const toc = await this.tocProvider.get(document.uri);
 
 		const headerInfo = getHeadersForPosition(toc.entries, position);
 
@@ -240,7 +241,7 @@ function isBlockElement(token: Token): boolean {
 function getFirstChildHeader(document: SkinnyTextDocument, header?: TocEntry, toc?: readonly TocEntry[]): vscode.Position | undefined {
 	let childRange: vscode.Position | undefined;
 	if (header && toc) {
-		let children = toc.filter(t => header.sectionLocation.range.contains(t.sectionLocation.range) && t.sectionLocation.range.start.line > header.sectionLocation.range.start.line).sort((t1, t2) => t1.line - t2.line);
+		const children = toc.filter(t => header.sectionLocation.range.contains(t.sectionLocation.range) && t.sectionLocation.range.start.line > header.sectionLocation.range.start.line).sort((t1, t2) => t1.line - t2.line);
 		if (children.length > 0) {
 			childRange = children[0].sectionLocation.range.start;
 			const lineText = document.lineAt(childRange.line - 1).text;
@@ -248,4 +249,12 @@ function getFirstChildHeader(document: SkinnyTextDocument, header?: TocEntry, to
 		}
 	}
 	return undefined;
+}
+
+export function registerSmartSelectSupport(
+	selector: vscode.DocumentSelector,
+	engine: MarkdownEngine,
+	tocProvider: MdTableOfContentsProvider,
+): vscode.Disposable {
+	return vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine, tocProvider));
 }

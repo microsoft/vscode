@@ -163,7 +163,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		const editorContainer = document.createElement('div');
 		editorContainer.classList.add('editor');
 		container.appendChild(editorContainer);
-		let editorOptions: IEditorOptions = {
+		const editorOptions: IEditorOptions = {
 			scrollBeyondLastLine: false,
 			scrollbar: {
 				verticalScrollbarSize: 14,
@@ -320,7 +320,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		this._editor.setModel(value.object.textEditorModel);
 
 		// set decorations for caller ranges (if in the same file)
-		let decorations: IModelDeltaDecoration[] = [];
+		const decorations: IModelDeltaDecoration[] = [];
 		let fullRange: IRange | undefined;
 		let locations = element.locations;
 		if (!locations) {
@@ -334,8 +334,8 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		}
 		if (fullRange) {
 			this._editor.revealRangeInCenter(fullRange, ScrollType.Immediate);
-			const ids = this._editor.deltaDecorations([], decorations);
-			this._previewDisposable.add(toDisposable(() => this._editor.deltaDecorations(ids, [])));
+			const decorationsCollection = this._editor.createDecorationsCollection(decorations);
+			this._previewDisposable.add(toDisposable(() => decorationsCollection.clear()));
 		}
 		this._previewDisposable.add(value);
 
