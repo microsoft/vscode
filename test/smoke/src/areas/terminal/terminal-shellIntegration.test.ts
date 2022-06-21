@@ -22,10 +22,6 @@ export function setup() {
 			await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 		});
 
-		after(async function () {
-			await settingsEditor.clearUserSettings();
-		});
-
 		async function createShellIntegrationProfile() {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, process.platform === 'win32' ? 'PowerShell' : 'bash');
 		}
@@ -34,6 +30,9 @@ export function setup() {
 		(process.platform === 'win32' ? describe.skip : describe)(`Process-based tests`, function () {
 			before(async function () {
 				await setTerminalTestSettings(app, [['terminal.integrated.shellIntegration.enabled', 'true']]);
+			});
+			after(async function () {
+				await settingsEditor.clearUserSettings();
 			});
 			describe('Decorations', function () {
 				describe('Should show default icons', function () {
@@ -75,6 +74,9 @@ export function setup() {
 		describe('Write data-based tests', () => {
 			before(async function () {
 				await setTerminalTestSettings(app);
+			});
+			after(async function () {
+				await settingsEditor.clearUserSettings();
 			});
 			beforeEach(async function () {
 				// Create the simplest system profile to get as little process interaction as possible
