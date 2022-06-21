@@ -54,100 +54,118 @@ export class ActionButtonCommand {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButtonCommitChanges = config.get<boolean>('showCommitActionButton', false);
 		const showActionButtonUnpublishedChanges = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
-		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
-		const postCommitCommand = config.get<string>('postCommitCommand');
 
 		let actionButton: SourceControlActionButton | undefined;
 
 		if (this.state.repositoryHasNoChanges) {
 			if (showActionButtonUnpublishedChanges === 'always' || showActionButtonUnpublishedChanges === 'whenEmpty') {
 				if (this.state.HEAD.upstream) {
-					if (this.state.HEAD.ahead) {
-						// Sync Changes
-						const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-						const rebaseWhenSync = config.get<string>('rebaseWhenSync');
-
-						const ahead = `${this.state.HEAD.ahead}$(arrow-up)`;
-						const behind = this.state.HEAD.behind ? `${this.state.HEAD.behind}$(arrow-down) ` : '';
-						const icon = this.state.isActionRunning ? '$(sync~spin)' : '$(sync)';
-
-						actionButton = {
-							command: {
-								command: this.state.isActionRunning ? '' : rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-								title: localize('scm button sync title', "{0} {1}{2}", icon, behind, ahead),
-								tooltip: this.state.isActionRunning ?
-									localize('syncing changes', "Synchronizing Changes...")
-									: this.repository.syncTooltip,
-								arguments: [this.repository.sourceControl],
-							},
-							description: localize('scm button sync description', "{0} Sync Changes {1}{2}", icon, behind, ahead)
-						};
-					}
+					// Sync Changes
+					actionButton = this.getSyncChangesActionButton();
 				} else {
 					// Publish Branch
-					actionButton = {
-						command: {
-							command: this.state.isActionRunning ? '' : 'git.publish',
-							title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
-							tooltip: this.state.isActionRunning ?
-								localize('scm button publish branch running', "Publishing Branch...") :
-								localize('scm button publish branch', "Publish Branch"),
-							arguments: [this.repository.sourceControl],
-						}
-					};
+					actionButton = this.getPublishBranchActionButton();
 				}
 			}
 		} else {
 			if (showActionButtonCommitChanges) {
-				let title: string, tooltip: string;
-				let description: string | undefined = undefined;
-
-				if (this.repository.isBranchProtected() && branchProtectionPrompt === 'alwaysCommitToNewBranch') {
-					title = localize('scm button commit to new branch title', "$(git-branch) Commit");
-					description = localize('scm button commit to new branch description', "$(git-branch) Commit to New Branch");
-					tooltip = this.state.isActionRunning ?
-						localize('scm button committing to new branch tooltip', "Committing to new Branch...") :
-						localize('scm button commit to new branch tooltip', "Commit to New Branch");
-				} else {
-					switch (postCommitCommand) {
-						case 'push': {
-							title = localize('scm button commit and push title', "$(arrow-up) Commit & Push");
-							tooltip = this.state.isActionRunning ?
-								localize('scm button committing pushing tooltip', "Committing & Pushing Changes...") :
-								localize('scm button commit push tooltip', "Commit & Push Changes");
-							break;
-						}
-						case 'sync': {
-							title = localize('scm button commit and sync title', "$(sync) Commit & Sync");
-							tooltip = this.state.isActionRunning ?
-								localize('scm button committing synching tooltip', "Committing & Synching Changes...") :
-								localize('scm button commit sync tooltip', "Commit & Sync Changes");
-							break;
-						}
-						default: {
-							title = localize('scm button commit title', "$(check) Commit");
-							tooltip = this.state.isActionRunning ?
-								localize('scm button committing tooltip', "Committing Changes...") :
-								localize('scm button commit tooltip', "Commit Changes");
-							break;
-						}
-					}
-				}
-
-				// Commit
-				actionButton = {
-					command: {
-						command: this.state.isActionRunning ? '' : 'git.commit',
-						title: title,
-						tooltip: tooltip,
-						arguments: [this.repository.sourceControl],
-					},
-					description: description
-				};
+				// Commit Changes
+				actionButton = this.getCommitActionButton();
 			}
 		}
 
 		return actionButton;
+	}
+
+	private getCommitActionButton(): SourceControlActionButton {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
+		const postCommitCommand = config.get<string>('postCommitCommand');
+
+		let title: string, tooltip: string;
+		let description: string | undefined = undefined;
+
+		// Branch protection
+		if (this.repository.isBranchProtected() && branchProtectionPrompt === 'alwaysCommitToNewBranch') {
+			title = localize('scm button commit to new branch title', "$(git-branch) Commit");
+			description = localize('scm button commit to new branch description', "$(git-branch) Commit to New Branch");
+			tooltip = this.state.isActionRunning ?
+				localize('scm button committing to new branch tooltip', "Committing to new Branch...") :
+				localize('scm button commit to new branch tooltip', "Commit to New Branch");
+		} else {
+			// Post commit command
+			switch (postCommitCommand) {
+				case 'push': {
+					title = localize('scm button commit and push title', "$(arrow-up) Commit & Push");
+					tooltip = this.state.isActionRunning ?
+						localize('scm button committing pushing tooltip', "Committing & Pushing Changes...") :
+						localize('scm button commit push tooltip', "Commit & Push Changes");
+					break;
+				}
+				case 'sync': {
+					title = localize('scm button commit and sync title', "$(sync) Commit & Sync");
+					tooltip = this.state.isActionRunning ?
+						localize('scm button committing synching tooltip', "Committing & Synching Changes...") :
+						localize('scm button commit sync tooltip', "Commit & Sync Changes");
+					break;
+				}
+				default: {
+					title = localize('scm button commit title', "$(check) Commit");
+					tooltip = this.state.isActionRunning ?
+						localize('scm button committing tooltip', "Committing Changes...") :
+						localize('scm button commit tooltip', "Commit Changes");
+					break;
+				}
+			}
+		}
+
+		return {
+			command: {
+				command: this.state.isActionRunning ? '' : 'git.commit',
+				title: title,
+				tooltip: tooltip,
+				arguments: [this.repository.sourceControl],
+			},
+			description: description
+		};
+	}
+
+	private getPublishBranchActionButton(): SourceControlActionButton {
+		return {
+			command: {
+				command: this.state.isActionRunning ? '' : 'git.publish',
+				title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
+				tooltip: this.state.isActionRunning ?
+					localize('scm button publish branch running', "Publishing Branch...") :
+					localize('scm button publish branch', "Publish Branch"),
+				arguments: [this.repository.sourceControl],
+			}
+		};
+	}
+
+	private getSyncChangesActionButton(): SourceControlActionButton | undefined {
+		if (this.state.HEAD?.ahead) {
+			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+			const rebaseWhenSync = config.get<string>('rebaseWhenSync');
+
+			const ahead = `${this.state.HEAD!.ahead}$(arrow-up)`;
+			const behind = this.state.HEAD!.behind ? `${this.state.HEAD.behind}$(arrow-down) ` : '';
+			const icon = this.state.isActionRunning ? '$(sync~spin)' : '$(sync)';
+
+			return {
+				command: {
+					command: this.state.isActionRunning ? '' : rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
+					title: localize('scm button sync title', "{0} {1}{2}", icon, behind, ahead),
+					tooltip: this.state.isActionRunning ?
+						localize('syncing changes', "Synchronizing Changes...")
+						: this.repository.syncTooltip,
+					arguments: [this.repository.sourceControl],
+				},
+				description: localize('scm button sync description', "{0} Sync Changes {1}{2}", icon, behind, ahead)
+			};
+		}
+
+		return undefined;
 	}
 
 	private onDidChangeOperations(): void {
