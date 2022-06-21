@@ -38,7 +38,7 @@ export class MdTableOfContentsWatcher extends Disposable {
 	public constructor(
 		private readonly workspaceContents: MdWorkspaceContents,
 		private readonly tocProvider: MdTableOfContentsProvider,
-		delay: number,
+		private readonly delay: number,
 	) {
 		super();
 
@@ -55,10 +55,12 @@ export class MdTableOfContentsWatcher extends Disposable {
 	}
 
 	private async onDidChangeDocument(document: SkinnyTextDocument) {
-		this._pending.set(document.uri);
-		this.delayer.trigger(async () => {
-			this.flushPending();
-		});
+		if (this.delay > 0) {
+			this._pending.set(document.uri);
+			this.delayer.trigger(() => this.flushPending());
+		} else {
+			this.updateForResource(document.uri);
+		}
 	}
 
 	private onDidDeleteDocument(resource: vscode.Uri) {
@@ -70,15 +72,17 @@ export class MdTableOfContentsWatcher extends Disposable {
 		const pending = [...this._pending.keys()];
 		this._pending.clear();
 
-		return Promise.all(pending.map(async resource => {
-			const existing = this._files.get(resource);
-			const newToc = await this.tocProvider.get(resource);
+		return Promise.all(pending.map(resource => this.updateForResource(resource)));
+	}
 
-			if (!existing || hasTableOfContentsChanged(existing.toc, newToc)) {
-				this._onTocChanged.fire({ uri: resource });
-			}
+	private async updateForResource(resource: vscode.Uri) {
+		const existing = this._files.get(resource);
+		const newToc = await this.tocProvider.get(resource);
 
-			this._files.set(resource, { toc: newToc });
-		}));
+		if (!existing || hasTableOfContentsChanged(existing.toc, newToc)) {
+			this._onTocChanged.fire({ uri: resource });
+		}
+
+		this._files.set(resource, { toc: newToc });
 	}
 }
