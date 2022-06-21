@@ -44,7 +44,7 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 	}
 
 	private getStoredValue(): IColorScheme | undefined {
-		const stored = this.storageService.get(NativeHostColorSchemeService.STORAGE_KEY, StorageScope.GLOBAL);
+		const stored = this.storageService.get(NativeHostColorSchemeService.STORAGE_KEY, StorageScope.PROFILE);
 		if (stored) {
 			try {
 				const scheme = JSON.parse(stored);
@@ -63,7 +63,7 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 
 			this.dark = dark;
 			this.highContrast = highContrast;
-			this.storageService.store(NativeHostColorSchemeService.STORAGE_KEY, JSON.stringify({ highContrast, dark }), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(NativeHostColorSchemeService.STORAGE_KEY, JSON.stringify({ highContrast, dark }), StorageScope.PROFILE, StorageTarget.MACHINE);
 			this._onDidChangeColorScheme.fire();
 		}
 	}

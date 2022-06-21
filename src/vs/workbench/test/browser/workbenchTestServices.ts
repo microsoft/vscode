@@ -1662,9 +1662,9 @@ export class TestEditorPart extends EditorPart {
 			delete workspaceMemento[key];
 		}
 
-		const globalMemento = this.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		for (const key of Object.keys(globalMemento)) {
-			delete globalMemento[key];
+		const profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		for (const key of Object.keys(profileMemento)) {
+			delete profileMemento[key];
 		}
 	}
 }

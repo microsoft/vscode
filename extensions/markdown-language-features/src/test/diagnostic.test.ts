@@ -75,6 +75,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 }
 
 class MemoryDiagnosticReporter extends DiagnosticReporter {
+
 	private readonly diagnostics = new ResourceMap<readonly vscode.Diagnostic[]>();
 
 	override dispose(): void {
@@ -89,6 +90,10 @@ class MemoryDiagnosticReporter extends DiagnosticReporter {
 
 	set(uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]): void {
 		this.diagnostics.set(uri, diagnostics);
+	}
+
+	areDiagnosticsEnabled(_uri: vscode.Uri): boolean {
+		return true;
 	}
 
 	delete(uri: vscode.Uri): void {
@@ -435,12 +440,12 @@ suite('Markdown: Diagnostics manager', () => {
 		const tocProvider = new MdTableOfContentsProvider(engine, workspace);
 		const referencesProvider = new MdReferencesProvider(engine, workspace, tocProvider);
 		const manager = new DiagnosticManager(
-			engine,
 			workspace,
 			new DiagnosticComputer(workspace, linkProvider, tocProvider),
 			configuration,
 			reporter,
 			referencesProvider,
+			tocProvider,
 			0);
 		_disposables.push(manager, referencesProvider);
 		return manager;

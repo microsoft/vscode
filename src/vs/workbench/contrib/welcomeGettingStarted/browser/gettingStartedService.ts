@@ -167,10 +167,10 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		this.metadata = new Map(
 			JSON.parse(
-				this.storageService.get(walkthroughMetadataConfigurationKey, StorageScope.GLOBAL, '[]')));
+				this.storageService.get(walkthroughMetadataConfigurationKey, StorageScope.PROFILE, '[]')));
 
 		this.memento = new Memento('gettingStartedService', this.storageService);
-		this.stepProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		this.stepProgress = this.memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 
 		walkthroughsExtensionPoint.setHandler(async (_, { added, removed }) => {
 			await Promise.all(
@@ -273,7 +273,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			this.metadata.set(id, { ...prior, manaullyOpened: true, stepIDs: walkthrough.steps.map(s => s.id) });
 		}
 
-		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private async registerExtensionWalkthroughContributions(extension: IExtensionDescription) {
@@ -423,7 +423,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			this._onDidAddWalkthrough.fire(this.resolveWalkthrough(walkthoughDescriptor));
 		}));
 
-		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.PROFILE, StorageTarget.USER);
 
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
@@ -703,17 +703,17 @@ registerAction2(class extends Action2 {
 		storageService.store(
 			hiddenEntriesConfigurationKey,
 			JSON.stringify([]),
-			StorageScope.GLOBAL,
+			StorageScope.PROFILE,
 			StorageTarget.USER);
 
 		storageService.store(
 			walkthroughMetadataConfigurationKey,
 			JSON.stringify([]),
-			StorageScope.GLOBAL,
+			StorageScope.PROFILE,
 			StorageTarget.USER);
 
 		const memento = new Memento('gettingStartedService', accessor.get(IStorageService));
-		const record = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		const record = memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 		for (const key in record) {
 			if (Object.prototype.hasOwnProperty.call(record, key)) {
 				try {

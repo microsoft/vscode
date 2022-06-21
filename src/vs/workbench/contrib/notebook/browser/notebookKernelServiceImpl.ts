@@ -131,7 +131,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			// ignore
 		}
 		try {
-			const data = JSON.parse(this._storageService.get(NotebookKernelService._storageTypeBinding, StorageScope.GLOBAL, '[]'));
+			const data = JSON.parse(this._storageService.get(NotebookKernelService._storageTypeBinding, StorageScope.PROFILE, '[]'));
 			this._typeBindings.fromJSON(data);
 		} catch {
 			// ignore
@@ -174,7 +174,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		this._persistSoonHandle?.dispose();
 		this._persistSoonHandle = runWhenIdle(() => {
 			this._storageService.store(NotebookKernelService._storageNotebookBinding, JSON.stringify(this._notebookBindings), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			this._storageService.store(NotebookKernelService._storageTypeBinding, JSON.stringify(this._typeBindings), StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(NotebookKernelService._storageTypeBinding, JSON.stringify(this._typeBindings), StorageScope.PROFILE, StorageTarget.USER);
 		}, 100);
 	}
 

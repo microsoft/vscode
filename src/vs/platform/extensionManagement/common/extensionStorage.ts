@@ -68,13 +68,13 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 			}
 		}
 		for (const key of extensionVersionsToRemove) {
-			storageService.remove(key, StorageScope.GLOBAL);
+			storageService.remove(key, StorageScope.PROFILE);
 		}
 	}
 
 	private static readAllExtensionsWithKeysForSync(storageService: IStorageService): Map<string, string[]> {
 		const extensionsWithKeysForSync = new Map<string, string[]>();
-		const keys = storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		const keys = storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE);
 		for (const key of keys) {
 			const extensionIdWithVersion = ExtensionStorageService.fromKey(key);
 			if (extensionIdWithVersion) {
@@ -104,7 +104,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 	}
 
 	private onDidChangeStorageValue(e: IStorageValueChangeEvent): void {
-		if (e.scope !== StorageScope.GLOBAL) {
+		if (e.scope !== StorageScope.PROFILE) {
 			return;
 		}
 
@@ -117,7 +117,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		// Keys for sync of an extension has changed
 		const extensionIdWithVersion = ExtensionStorageService.fromKey(e.key);
 		if (extensionIdWithVersion) {
-			if (this.storageService.get(e.key, StorageScope.GLOBAL) === undefined) {
+			if (this.storageService.get(e.key, StorageScope.PROFILE) === undefined) {
 				this.extensionsWithKeysForSync.delete(extensionIdWithVersion.id.toLowerCase());
 			} else {
 				let versions = this.extensionsWithKeysForSync.get(extensionIdWithVersion.id.toLowerCase());
@@ -142,7 +142,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined {
 		const extensionId = this.getExtensionId(extension);
-		const jsonValue = this.storageService.get(extensionId, global ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+		const jsonValue = this.storageService.get(extensionId, global ? StorageScope.PROFILE : StorageScope.WORKSPACE);
 		if (jsonValue) {
 			try {
 				return JSON.parse(jsonValue);
@@ -159,19 +159,19 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void {
 		const extensionId = this.getExtensionId(extension);
 		if (state === undefined) {
-			this.storageService.remove(extensionId, global ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+			this.storageService.remove(extensionId, global ? StorageScope.PROFILE : StorageScope.WORKSPACE);
 		} else {
-			this.storageService.store(extensionId, JSON.stringify(state), global ? StorageScope.GLOBAL : StorageScope.WORKSPACE, StorageTarget.MACHINE /* Extension state is synced separately through extensions */);
+			this.storageService.store(extensionId, JSON.stringify(state), global ? StorageScope.PROFILE : StorageScope.WORKSPACE, StorageTarget.MACHINE /* Extension state is synced separately through extensions */);
 		}
 	}
 
 	setKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion, keys: string[]): void {
-		this.storageService.store(ExtensionStorageService.toKey(extensionIdWithVersion), JSON.stringify(keys), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(ExtensionStorageService.toKey(extensionIdWithVersion), JSON.stringify(keys), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	getKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion): string[] | undefined {
 		const extensionKeysForSyncFromProduct = this.productService.extensionSyncedKeys?.[extensionIdWithVersion.id.toLowerCase()];
-		const extensionKeysForSyncFromStorageValue = this.storageService.get(ExtensionStorageService.toKey(extensionIdWithVersion), StorageScope.GLOBAL);
+		const extensionKeysForSyncFromStorageValue = this.storageService.get(ExtensionStorageService.toKey(extensionIdWithVersion), StorageScope.PROFILE);
 		const extensionKeysForSyncFromStorage = extensionKeysForSyncFromStorageValue ? JSON.parse(extensionKeysForSyncFromStorageValue) : undefined;
 
 		return extensionKeysForSyncFromStorage && extensionKeysForSyncFromProduct

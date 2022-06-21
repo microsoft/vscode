@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
-import { MarkdownEngine } from '../markdownEngine';
+import { IMdParser } from '../markdownEngine';
 import { coalesce } from '../util/arrays';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
@@ -131,11 +131,14 @@ export type MdLink = MdInlineLink | MdLinkDefinition;
 
 function extractDocumentLink(
 	document: SkinnyTextDocument,
-	pre: number,
-	link: string,
+	pre: string,
+	rawLink: string,
 	matchIndex: number | undefined
 ): MdLink | undefined {
-	const offset = (matchIndex || 0) + pre;
+	const isAngleBracketLink = rawLink.startsWith('<');
+	const link = stripAngleBrackets(rawLink);
+
+	const offset = (matchIndex || 0) + pre.length + (isAngleBracketLink ? 1 : 0);
 	const linkStart = document.positionAt(offset);
 	const linkEnd = document.positionAt(offset + link.length);
 	try {
@@ -185,20 +188,36 @@ function stripAngleBrackets(link: string) {
 	return link.replace(angleBracketLinkRe, '$1');
 }
 
-/**
- * Matches `[text](link)`
- */
-const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]]|\][^(])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*("[^"]*"|'[^']*'|\([^\(\)]*\))?\s*\)/g;
+const r = String.raw;
 
 /**
- * Matches `[text](<link>)`
+ * Matches `[text](link)` or `[text](<link>)`
  */
-const linkPatternAngle = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]]|\][^(])*\])\(\s*<)(([^<>]|\([^\s\(\)]*?\))+)>\s*("[^"]*"|'[^']*'|\([^\(\)]*\))?\s*\)/g;
+const linkPattern = new RegExp(
+	// text
+	r`(\[` + // open prefix match -->
+	/**/r`(?:` +
+	/*****/r`[^\[\]\\]|` + // Non-bracket chars, or...
+	/*****/r`\\.|` + // Escaped char, or...
+	/*****/r`\[[^\[\]]*\]` + // Matched bracket pair
+	/**/r`)*` +
+	r`\]` +
 
+	// Destination
+	r`\(\s*)` + // <-- close prefix match
+	/**/r`(` +
+	/*****/r`[^\s\(\)\<](?:[^\s\(\)]|\([^\s\(\)]*?\))*|` + // Link without whitespace, or...
+	/*****/r`<[^<>]*>` + // In angle brackets
+	/**/r`)` +
+
+	// Title
+	/**/r`\s*(?:"[^"]*"|'[^']*'|\([^\(\)]*\))?\s*` +
+	r`\)`,
+	'g');
 
 /**
- * Matches `[text][ref]` or `[shorthand]`
- */
+* Matches `[text][ref]` or `[shorthand]`
+*/
 const referenceLinkPattern = /(^|[^\]\\])(?:(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]|\[\s*?([^\s\]]*?)\])(?![\:\(]))/gm;
 
 /**
@@ -214,8 +233,8 @@ const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>
 const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
 
 class NoLinkRanges {
-	public static async compute(document: SkinnyTextDocument, engine: MarkdownEngine): Promise<NoLinkRanges> {
-		const tokens = await engine.parse(document);
+	public static async compute(tokenizer: IMdParser, document: SkinnyTextDocument): Promise<NoLinkRanges> {
+		const tokens = await tokenizer.tokenize(document);
 		const multiline = tokens.filter(t => (t.type === 'code_block' || t.type === 'fence' || t.type === 'html_block') && !!t.map).map(t => t.map) as [number, number][];
 
 		const text = document.getText();
@@ -241,7 +260,7 @@ class NoLinkRanges {
 
 	contains(range: vscode.Range): boolean {
 		return this.multiline.some(interval => range.start.line >= interval[0] && range.start.line < interval[1]) ||
-			this.inline.some(position => position.intersection(range));
+			this.inline.some(inlineRange => inlineRange.contains(range.start));
 	}
 }
 
@@ -251,11 +270,11 @@ class NoLinkRanges {
 export class MdLinkComputer {
 
 	constructor(
-		private readonly engine: MarkdownEngine
+		private readonly tokenizer: IMdParser,
 	) { }
 
 	public async getAllLinks(document: SkinnyTextDocument, token: vscode.CancellationToken): Promise<MdLink[]> {
-		const noLinkRanges = await NoLinkRanges.compute(document, this.engine);
+		const noLinkRanges = await NoLinkRanges.compute(this.tokenizer, document);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -270,36 +289,23 @@ export class MdLinkComputer {
 
 	private *getInlineLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
-
-		for (const match of text.matchAll(linkPatternAngle)) {
-			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
-			if (matchImageData && !noLinkRanges.contains(matchImageData.source.hrefRange)) {
-				yield matchImageData;
-			}
-			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
-			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
-				yield matchLinkData;
-			}
-		}
-
 		for (const match of text.matchAll(linkPattern)) {
-			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
-			if (matchImageData && !noLinkRanges.contains(matchImageData.source.hrefRange)) {
-				yield matchImageData;
-			}
-
-			if (match[5] !== undefined && match[5].startsWith('<')) {
-				continue;
-			}
-
-			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
+			const matchLinkData = extractDocumentLink(document, match[1], match[2], match.index);
 			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
 				yield matchLinkData;
+
+				// Also check link destination for links
+				for (const innerMatch of match[1].matchAll(linkPattern)) {
+					const innerData = extractDocumentLink(document, innerMatch[1], innerMatch[2], (match.index ?? 0) + (innerMatch.index ?? 0));
+					if (innerData) {
+						yield innerData;
+					}
+				}
 			}
 		}
 	}
 
-	private *getAutoLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
+	private * getAutoLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 
 		for (const match of text.matchAll(autoLinkPattern)) {
@@ -430,11 +436,11 @@ export class MdLinkProvider extends Disposable {
 	private readonly linkComputer: MdLinkComputer;
 
 	constructor(
-		engine: MarkdownEngine,
+		tokenizer: IMdParser,
 		workspaceContents: MdWorkspaceContents,
 	) {
 		super();
-		this.linkComputer = new MdLinkComputer(engine);
+		this.linkComputer = new MdLinkComputer(tokenizer);
 		this._linkCache = this._register(new MdDocumentInfoCache(workspaceContents, doc => this.linkComputer.getAllLinks(doc, noopToken)));
 	}
 
