@@ -30,10 +30,6 @@ export function setup() {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, process.platform === 'win32' ? 'PowerShell' : 'bash');
 		}
 
-		async function createSimpleProfile() {
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, process.platform === 'win32' ? 'Command Prompt' : 'sh');
-		}
-
 		// TODO: Some agents may not have pwsh installed?
 		(process.platform === 'win32' ? describe.skip : describe)(`Process-based tests`, function () {
 			before(async function () {
@@ -82,7 +78,7 @@ export function setup() {
 			});
 			beforeEach(async function () {
 				// Create the simplest system profile to get as little process interaction as possible
-				await createSimpleProfile();
+				await terminal.createTerminal();
 				// Erase all content and reset cursor to top
 				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
 			});
