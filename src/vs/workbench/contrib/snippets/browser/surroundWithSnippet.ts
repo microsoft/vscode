@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
@@ -14,6 +14,15 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { pickSnippet } from 'vs/workbench/contrib/snippets/browser/snippetPicker';
 import { ISnippetsService } from './snippets.contribution';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ITextModel } from 'vs/editor/common/model';
+import { CodeAction, CodeActionProvider, CodeActionContext, CodeActionList } from 'vs/editor/common/languages';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 
 const options = {
 	id: 'editor.action.surroundWithSnippet',
@@ -91,3 +100,40 @@ class SurroundWithSnippetEditorAction extends EditorAction2 {
 }
 
 registerAction2(SurroundWithSnippetEditorAction);
+
+
+export class SurroundWithSnippetCodeActionProvider extends Disposable implements CodeActionProvider {
+	private static readonly codeAction: CodeAction = {
+		kind: CodeActionKind.QuickFix.value,
+		title: options.title.value,
+		command: {
+			id: options.id,
+			title: options.title.value,
+		},
+	};
+
+	private core: SurroundWithSnippet;
+
+	constructor(
+		editor: ICodeEditor,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IInstantiationService instaService: IInstantiationService,
+	) {
+		super();
+		this.core = instaService.createInstance(SurroundWithSnippet, editor);
+		this._register(languageFeaturesService.codeActionProvider.register('*', this));
+	}
+
+	async provideCodeActions(model: ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): Promise<CodeActionList> {
+		if (!this.core.canExecute()) {
+			return { actions: [], dispose: () => { } };
+		}
+		const snippets = await this.core.getSurroundableSnippets();
+		return {
+			actions: snippets.length ? [SurroundWithSnippetCodeActionProvider.codeAction] : [],
+			dispose: () => { }
+		};
+	}
+}
+
+registerEditorContribution(options.id, SurroundWithSnippetCodeActionProvider);
