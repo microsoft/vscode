@@ -9,13 +9,13 @@ import * as nls from 'vscode-nls';
 import { CommandManager } from '../commandManager';
 import { ILogger } from '../logging';
 import { MdTableOfContentsProvider } from '../tableOfContents';
-import { MdTableOfContentsWatcher } from '../test/tableOfContentsWatcher';
 import { Delayer } from '../util/async';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile, looksLikeMarkdownPath } from '../util/file';
 import { Limiter } from '../util/limiter';
 import { ResourceMap } from '../util/resourceMap';
+import { MdTableOfContentsWatcher } from '../util/tableOfContentsWatcher';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinks';
 import { MdReferencesProvider, tryResolveLinkPath } from './references';
@@ -347,7 +347,7 @@ export class DiagnosticManager extends Disposable {
 			}
 		}));
 
-		this.tableOfContentsWatcher = this._register(new MdTableOfContentsWatcher(workspaceContents, tocProvider));
+		this.tableOfContentsWatcher = this._register(new MdTableOfContentsWatcher(workspaceContents, tocProvider, delay));
 		this._register(this.tableOfContentsWatcher.onTocChanged(async e => {
 			// When the toc of a document changes, revalidate every file that linked to it too
 			const triggered = new ResourceMap<void>();
@@ -491,7 +491,7 @@ export class DiagnosticComputer {
 			return [];
 		}
 
-		const toc = await this.tocProvider.get(doc.uri);
+		const toc = await this.tocProvider.getForDocument(doc);
 		if (token.isCancellationRequested) {
 			return [];
 		}

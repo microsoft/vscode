@@ -453,7 +453,7 @@ export class MdLinkProvider extends Disposable {
 		readonly links: readonly MdLink[];
 		readonly definitions: LinkDefinitionSet;
 	}> {
-		const links = (await this._linkCache.get(document.uri)) ?? [];
+		const links = await this._linkCache.getForDocument(document);
 		return {
 			links,
 			definitions: new LinkDefinitionSet(links),
