@@ -32,7 +32,6 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/common/c
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { IWorkbenchConstructionOptions, IWorkbench, ITunnel } from 'vs/workbench/browser/web.api';
-import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogger } from 'vs/platform/log/common/fileLog';
@@ -80,6 +79,7 @@ import { DisposableTunnel } from 'vs/platform/tunnel/common/tunnel';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { BrowserStorageService } from 'vs/workbench/services/storage/browser/storageService';
 
 export class BrowserMain extends Disposable {
 
@@ -262,6 +262,7 @@ export class BrowserMain extends Disposable {
 		// User Data Profiles
 		const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, fileService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
+
 		const userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService.defaultProfile);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
@@ -455,7 +456,7 @@ export class BrowserMain extends Disposable {
 	}
 
 	private async createStorageService(payload: IAnyWorkspaceIdentifier, logService: ILogService, userDataProfileService: IUserDataProfileService): Promise<IStorageService> {
-		const storageService = new BrowserStorageService(payload, userDataProfileService.currentProfile, logService);
+		const storageService = new BrowserStorageService(payload, userDataProfileService, logService);
 
 		try {
 			await storageService.initialize();
