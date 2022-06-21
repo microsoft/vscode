@@ -139,8 +139,8 @@ export class MergeEditorOpenContents extends Action2 {
 		const input = instaService.createInstance(
 			MergeEditorInput,
 			baseUri,
-			{ uri: input1Uri, description: 'Input 1', detail: '(from JSON)' },
-			{ uri: input2Uri, description: 'Input 2', detail: '(from JSON)' },
+			{ uri: input1Uri, title: 'Input 1', description: 'Input 1', detail: '(from JSON)' },
+			{ uri: input2Uri, title: 'Input 2', description: 'Input 2', detail: '(from JSON)' },
 			resultUri,
 		);
 		editorService.openEditor(input);

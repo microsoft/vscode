@@ -230,8 +230,8 @@ export class MergeEditor extends AbstractTextEditor<any> {
 
 		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView);
 
-		this.input1View.setModel(viewModel, model.input1, localize('yours', 'Yours'), model.input1Detail, model.input1Description);
-		this.input2View.setModel(viewModel, model.input2, localize('theirs', 'Theirs',), model.input2Detail, model.input2Description);
+		this.input1View.setModel(viewModel, model.input1, model.input1Title || localize('input1', 'Input 1'), model.input1Detail, model.input1Description);
+		this.input2View.setModel(viewModel, model.input2, model.input2Title || localize('input2', 'Input 2',), model.input2Detail, model.input2Description);
 		this.inputResultView.setModel(viewModel, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
 		this._ctxBaseResourceScheme.set(model.base.uri.scheme);
 
