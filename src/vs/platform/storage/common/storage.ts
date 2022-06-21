@@ -555,7 +555,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 			return false; // both profiles are same
 		}
 
-		if (to.isDefault || to.useDefaultFlags?.uiState === from.isDefault || from.useDefaultFlags?.uiState) {
+		if (isProfileUsingDefaultStorage(to) === isProfileUsingDefaultStorage(from)) {
 			return false; // both profiles are using default
 		}
 
@@ -603,6 +603,10 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	protected abstract switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
 	protected abstract switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
+}
+
+export function isProfileUsingDefaultStorage(profile: IUserDataProfile): boolean {
+	return profile.isDefault || !!profile.useDefaultFlags?.uiState;
 }
 
 export class InMemoryStorageService extends AbstractStorageService {
