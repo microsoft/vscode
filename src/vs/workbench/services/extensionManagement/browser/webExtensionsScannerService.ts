@@ -671,24 +671,31 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async readInstalledExtensions(): Promise<IWebExtension[]> {
-		const webExtensions = await this.withWebExtensions(this.installedExtensionsResource);
+		await this.migratePackageNLSUris();
+		return this.withWebExtensions(this.installedExtensionsResource);
+	}
 
-		// TODO: @TylerLeonhardt/@Sandy081: Delete after 6 months
-		if (webExtensions.some(e => !e.packageNLSUris && e.packageNLSUri)) {
-			return this.withWebExtensions(this.installedExtensionsResource, async (extensions) => {
-				for (const e of webExtensions) {
-					if (!e.packageNLSUris && e.packageNLSUri) {
-						e.fallbackPackageNLSUri = e.packageNLSUri;
-						const extensionResources = await this.listExtensionResources(e.location);
-						e.packageNLSUris = this.getNLSResourceMapFromResources(extensionResources);
-						e.packageNLSUri = undefined;
-					}
+	// TODO: @TylerLeonhardt/@Sandy081: Delete after 6 months
+	private _migratePackageNLSUrisPromise: Promise<void> | undefined;
+	private migratePackageNLSUris(): Promise<void> {
+		if (!this._migratePackageNLSUrisPromise) {
+			this._migratePackageNLSUrisPromise = (async () => {
+				const webExtensions = await this.withWebExtensions(this.installedExtensionsResource);
+				if (webExtensions.some(e => !e.packageNLSUris && e.packageNLSUri)) {
+					const migratedExtensions = await Promise.all(webExtensions.map(async e => {
+						if (!e.packageNLSUris && e.packageNLSUri) {
+							e.fallbackPackageNLSUri = e.packageNLSUri;
+							const extensionResources = await this.listExtensionResources(e.location);
+							e.packageNLSUris = this.getNLSResourceMapFromResources(extensionResources);
+							e.packageNLSUri = undefined;
+						}
+						return e;
+					}));
+					await this.withWebExtensions(this.installedExtensionsResource, () => migratedExtensions);
 				}
-				return webExtensions;
-			});
+			})();
 		}
-
-		return webExtensions;
+		return this._migratePackageNLSUrisPromise;
 	}
 
 	private writeInstalledExtensions(updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
@@ -711,7 +718,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return this.withWebExtensions(this.systemExtensionsCacheResource, updateFn);
 	}
 
-	private async withWebExtensions(file: URI | undefined, updateFn?: (extensions: IWebExtension[]) => IWebExtension[] | Promise<IWebExtension[]>): Promise<IWebExtension[]> {
+	private async withWebExtensions(file: URI | undefined, updateFn?: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
 		if (!file) {
 			return [];
 		}
@@ -754,7 +761,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 			// Update
 			if (updateFn) {
-				webExtensions = await updateFn(webExtensions);
+				webExtensions = updateFn(webExtensions);
 				function toStringDictionary(dictionary: Map<string, URI> | undefined): IStringDictionary<UriComponents> | undefined {
 					if (!dictionary) {
 						return undefined;
