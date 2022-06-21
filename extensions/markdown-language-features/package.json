@@ -419,7 +419,7 @@
           "type": "boolean",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteLinks.enabled%",
-          "default": false,
+          "default": true,
           "tags": [
             "experimental"
           ]
