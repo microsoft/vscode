@@ -1277,6 +1277,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 
 	override dispose(immediate?: boolean): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 		dispose(this._linkManager);
 		this._linkManager = undefined;
@@ -1315,10 +1320,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// hasn't happened yet
 		this._onProcessExit(undefined);
 
-		if (!this._isDisposed) {
-			this._isDisposed = true;
-			this._onDisposed.fire(this);
-		}
+		this._onDisposed.fire(this);
+
 		super.dispose();
 	}
 
