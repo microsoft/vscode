@@ -15,6 +15,13 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 export class LoadedScriptQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
+	constructor(
+		@IDebugService private readonly _debugService: IDebugService,
+		@IEditorService private readonly _editorService: IEditorService,
+	) {
+		super(LOADED_SCRIPTS_QUICK_PICK_PREFIX, { canAcceptInBackground: true });
+	}
+
 	protected _getLabelName(source: Source) {
 		const posOfForwardSlash = source.name.lastIndexOf('/');
 		const posOfBackSlash = source.name.lastIndexOf('\\');
@@ -23,6 +30,7 @@ export class LoadedScriptQuickAccess extends PickerQuickAccessProvider<IPickerQu
 		const label = source.name.substring(delimeterPos + 1);
 		return label;
 	}
+
 	protected _getPicksFromSession(session: IDebugSession, filter: string): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
 
 		return new Promise((resolve, reject) => {
@@ -59,15 +67,6 @@ export class LoadedScriptQuickAccess extends PickerQuickAccessProvider<IPickerQu
 			}
 		}
 		return loadedScriptPicks;
-	}
-
-	static PREFIX = LOADED_SCRIPTS_QUICK_PICK_PREFIX;
-
-	constructor(
-		@IDebugService private readonly _debugService: IDebugService,
-		@IEditorService private readonly _editorService: IEditorService,
-	) {
-		super(LoadedScriptQuickAccess.PREFIX, { canAcceptInBackground: true });
 	}
 
 	private _createPick(source: Source, filter: string): IPickerQuickAccessItem | undefined {
