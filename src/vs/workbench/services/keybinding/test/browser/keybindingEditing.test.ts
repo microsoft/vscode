@@ -28,7 +28,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DefaultOptions, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
@@ -66,7 +66,7 @@ suite('KeybindingsEditing', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
-		const profile = toUserDataProfile('temp', environmentService.userRoamingDataHome, DefaultOptions, true);
+		const profile = toUserDataProfile('temp', environmentService.userRoamingDataHome);
 		userDataProfileService = new UserDataProfileService(profile, profile);
 
 		instantiationService = workbenchInstantiationService({
