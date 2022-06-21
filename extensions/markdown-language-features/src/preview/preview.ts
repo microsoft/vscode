@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
-import { Logger } from '../logger';
+import { ILogger } from '../logging';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { Disposable } from '../util/dispose';
@@ -118,7 +118,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		private readonly delegate: MarkdownPreviewDelegate,
 		private readonly _contentProvider: MdDocumentRenderer,
 		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
-		private readonly _logger: Logger,
+		private readonly _logger: ILogger,
 		private readonly _contributionProvider: MarkdownContributionProvider,
 		private readonly _tocProvider: MdTableOfContentsProvider,
 	) {
@@ -269,7 +269,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			return;
 		}
 
-		this._logger.log('updateForView', { markdownFile: this._resource });
+		this._logger.verbose('MarkdownPreview', 'updateForView', { markdownFile: this._resource });
 		this.line = topLine;
 		this.postMessage({
 			type: 'updateView',
@@ -502,7 +502,7 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 		contentProvider: MdDocumentRenderer,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		topmostLineMonitor: TopmostLineMonitor,
-		logger: Logger,
+		logger: ILogger,
 		contributionProvider: MarkdownContributionProvider,
 		tocProvider: MdTableOfContentsProvider,
 		scrollLine?: number,
@@ -518,7 +518,7 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 		contentProvider: MdDocumentRenderer,
 		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
 		topmostLineMonitor: TopmostLineMonitor,
-		logger: Logger,
+		logger: ILogger,
 		contributionProvider: MarkdownContributionProvider,
 		tocProvider: MdTableOfContentsProvider,
 		scrollLine?: number,
@@ -613,7 +613,7 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		webview: vscode.WebviewPanel,
 		contentProvider: MdDocumentRenderer,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
-		logger: Logger,
+		logger: ILogger,
 		topmostLineMonitor: TopmostLineMonitor,
 		contributionProvider: MarkdownContributionProvider,
 		tocProvider: MdTableOfContentsProvider,
@@ -629,7 +629,7 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		previewColumn: vscode.ViewColumn,
 		contentProvider: MdDocumentRenderer,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
-		logger: Logger,
+		logger: ILogger,
 		topmostLineMonitor: TopmostLineMonitor,
 		contributionProvider: MarkdownContributionProvider,
 		tocProvider: MdTableOfContentsProvider,
@@ -650,7 +650,7 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		input: DynamicPreviewInput,
 		private readonly _contentProvider: MdDocumentRenderer,
 		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
-		private readonly _logger: Logger,
+		private readonly _logger: ILogger,
 		private readonly _topmostLineMonitor: TopmostLineMonitor,
 		private readonly _contributionProvider: MarkdownContributionProvider,
 		private readonly _tocProvider: MdTableOfContentsProvider,

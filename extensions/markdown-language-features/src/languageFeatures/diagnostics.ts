@@ -7,6 +7,7 @@ import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { CommandManager } from '../commandManager';
+import { ILogger } from '../logging';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { MdTableOfContentsWatcher } from '../test/tableOfContentsWatcher';
 import { Delayer } from '../util/async';
@@ -310,6 +311,7 @@ export class DiagnosticManager extends Disposable {
 		private readonly reporter: DiagnosticReporter,
 		private readonly referencesProvider: MdReferencesProvider,
 		tocProvider: MdTableOfContentsProvider,
+		private readonly logger: ILogger,
 		delay = 300,
 	) {
 		super();
@@ -367,6 +369,8 @@ export class DiagnosticManager extends Disposable {
 	}
 
 	private async recomputeDiagnosticState(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<{ diagnostics: readonly vscode.Diagnostic[]; links: readonly MdLink[]; config: DiagnosticOptions }> {
+		this.logger.verbose('DiagnosticManager', `recomputeDiagnosticState - ${doc.uri}`);
+
 		const config = this.configuration.getOptions(doc.uri);
 		if (!config.enabled) {
 			return { diagnostics: [], links: [], config };
@@ -642,6 +646,7 @@ export function registerDiagnosticSupport(
 	commandManager: CommandManager,
 	referenceProvider: MdReferencesProvider,
 	tocProvider: MdTableOfContentsProvider,
+	logger: ILogger,
 ): vscode.Disposable {
 	const configuration = new VSCodeDiagnosticConfiguration();
 	const manager = new DiagnosticManager(
@@ -650,7 +655,8 @@ export function registerDiagnosticSupport(
 		configuration,
 		new DiagnosticCollectionReporter(),
 		referenceProvider,
-		tocProvider);
+		tocProvider,
+		logger);
 	return vscode.Disposable.from(
 		configuration,
 		manager,

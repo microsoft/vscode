@@ -14,6 +14,7 @@ import { Disposable } from '../util/dispose';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/schemes';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { MdDocumentInfoCache } from '../util/workspaceCache';
+import { ILogger } from '../logging';
 
 const localize = nls.loadMessageBundle();
 
@@ -438,10 +439,14 @@ export class MdLinkProvider extends Disposable {
 	constructor(
 		tokenizer: IMdParser,
 		workspaceContents: MdWorkspaceContents,
+		logger: ILogger,
 	) {
 		super();
 		this.linkComputer = new MdLinkComputer(tokenizer);
-		this._linkCache = this._register(new MdDocumentInfoCache(workspaceContents, doc => this.linkComputer.getAllLinks(doc, noopToken)));
+		this._linkCache = this._register(new MdDocumentInfoCache(workspaceContents, doc => {
+			logger.verbose('LinkProvider', `compute - ${doc.uri}`);
+			return this.linkComputer.getAllLinks(doc, noopToken);
+		}));
 	}
 
 	public async getLinks(document: SkinnyTextDocument): Promise<{
