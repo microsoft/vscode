@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as nls from 'vs/nls';
 
 const LANGUAGE_DEFAULT = 'en';
 
@@ -90,6 +91,15 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 		// Get the configuration from requirejs
 		loaderConfiguration = globals.requirejs.s.contexts._.config;
 	}
+
+	// TODO @TylerLeonhardt pull availableLanguages from vs/nls
+	// DO NOT REMOVE.
+	nls.localize({
+		// Prevents the string from being localized.
+		comment: ['{Locked}'],
+		key: 'ensureLoaderPluginIsLoaded'
+	}, 'this ensures the nls loader plugin is loaded before resolving the true locale');
+
 	const configuredLocale = loaderConfiguration?.['vs/nls']?.['availableLanguages']?.['*'] as string | undefined;
 	_locale = configuredLocale || navigator.language;
 
