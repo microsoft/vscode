@@ -338,7 +338,7 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 	}
 
 	protected override renderActionBar(actionBar: ActionBar, expression: IExpression, data: IExpressionTemplateData) {
-		const contextKeyService = getContextForWatchExpressionMenu(this.contextKeyService, expression);
+		const contextKeyService = getContextForWatchExpressionMenu(this.contextKeyService);
 		const menu = this.menuService.createMenu(MenuId.DebugWatchContext, contextKeyService);
 
 		const primary: IAction[] = [];
@@ -354,13 +354,10 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 /**
  * Gets a context key overlay that has context for the given expression.
  */
-function getContextForWatchExpressionMenu(parentContext: IContextKeyService, expression: IExpression, additionalContext: [string, unknown][] = []) {
-	const contextKeys: [string, unknown][] = [
-		[CONTEXT_WATCH_ITEM_TYPE.key, 'expression'],
-		...additionalContext,
-	];
-
-	return parentContext.createOverlay(contextKeys);
+function getContextForWatchExpressionMenu(parentContext: IContextKeyService) {
+	return parentContext.createOverlay([
+		[CONTEXT_WATCH_ITEM_TYPE.key, 'expression']
+	]);
 }
 
 class WatchExpressionsAccessibilityProvider implements IListAccessibilityProvider<IExpression> {
