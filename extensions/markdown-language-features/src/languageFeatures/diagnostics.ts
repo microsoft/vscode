@@ -9,6 +9,7 @@ import * as nls from 'vscode-nls';
 import { CommandManager } from '../commandManager';
 import { ILogger } from '../logging';
 import { MdTableOfContentsProvider } from '../tableOfContents';
+import { ITextDocument } from '../types/textDocument';
 import { Delayer } from '../util/async';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
@@ -16,7 +17,7 @@ import { isMarkdownFile, looksLikeMarkdownPath } from '../util/file';
 import { Limiter } from '../util/limiter';
 import { ResourceMap } from '../util/resourceMap';
 import { MdTableOfContentsWatcher } from '../util/tableOfContentsWatcher';
-import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
+import { IMdWorkspace } from '../workspace';
 import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinks';
 import { MdReferencesProvider, tryResolveLinkPath } from './references';
 
@@ -305,7 +306,7 @@ export class DiagnosticManager extends Disposable {
 	public readonly ready: Promise<void>;
 
 	constructor(
-		private readonly workspaceContents: MdWorkspaceContents,
+		private readonly workspace: IMdWorkspace,
 		private readonly computer: DiagnosticComputer,
 		private readonly configuration: DiagnosticConfiguration,
 		private readonly reporter: DiagnosticReporter,
@@ -322,17 +323,17 @@ export class DiagnosticManager extends Disposable {
 			this.rebuild();
 		}));
 
-		this._register(workspaceContents.onDidCreateMarkdownDocument(doc => {
+		this._register(workspace.onDidCreateMarkdownDocument(doc => {
 			this.triggerDiagnostics(doc.uri);
 			// Links in other files may have become valid
 			this.triggerForReferencingFiles(doc.uri);
 		}));
 
-		this._register(workspaceContents.onDidChangeMarkdownDocument(doc => {
+		this._register(workspace.onDidChangeMarkdownDocument(doc => {
 			this.triggerDiagnostics(doc.uri);
 		}));
 
-		this._register(workspaceContents.onDidDeleteMarkdownDocument(uri => {
+		this._register(workspace.onDidDeleteMarkdownDocument(uri => {
 			this.triggerForReferencingFiles(uri);
 		}));
 
@@ -352,7 +353,7 @@ export class DiagnosticManager extends Disposable {
 			}
 		}));
 
-		this.tableOfContentsWatcher = this._register(new MdTableOfContentsWatcher(workspaceContents, tocProvider, delay / 2));
+		this.tableOfContentsWatcher = this._register(new MdTableOfContentsWatcher(workspace, tocProvider, delay / 2));
 		this._register(this.tableOfContentsWatcher.onTocChanged(e => {
 			return this.triggerForReferencingFiles(e.uri);
 		}));
@@ -379,7 +380,7 @@ export class DiagnosticManager extends Disposable {
 		this.pendingDiagnostics.clear();
 	}
 
-	private async recomputeDiagnosticState(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<{ diagnostics: readonly vscode.Diagnostic[]; links: readonly MdLink[]; config: DiagnosticOptions }> {
+	private async recomputeDiagnosticState(doc: ITextDocument, token: vscode.CancellationToken): Promise<{ diagnostics: readonly vscode.Diagnostic[]; links: readonly MdLink[]; config: DiagnosticOptions }> {
 		this.logger.verbose('DiagnosticManager', `recomputeDiagnosticState - ${doc.uri}`);
 
 		const config = this.configuration.getOptions(doc.uri);
@@ -394,7 +395,7 @@ export class DiagnosticManager extends Disposable {
 		this.pendingDiagnostics.clear();
 
 		await Promise.all(pending.map(async resource => {
-			const doc = await this.workspaceContents.getOrLoadMarkdownDocument(resource);
+			const doc = await this.workspace.getOrLoadMarkdownDocument(resource);
 			if (doc) {
 				await this.inFlightDiagnostics.trigger(doc.uri, async (token) => {
 					if (this.reporter.areDiagnosticsEnabled(doc.uri)) {
@@ -419,7 +420,7 @@ export class DiagnosticManager extends Disposable {
 			(async () => {
 				// TODO: This pulls in all md files in the workspace. Instead we only care about opened text documents.
 				// Need a new way to handle that.
-				const allDocs = await this.workspaceContents.getAllMarkdownDocuments();
+				const allDocs = await this.workspace.getAllMarkdownDocuments();
 				await Promise.all(Array.from(allDocs, doc => this.triggerDiagnostics(doc.uri)));
 			})()
 		);
@@ -475,12 +476,12 @@ class FileLinkMap {
 export class DiagnosticComputer {
 
 	constructor(
-		private readonly workspaceContents: MdWorkspaceContents,
+		private readonly workspace: IMdWorkspace,
 		private readonly linkProvider: MdLinkProvider,
 		private readonly tocProvider: MdTableOfContentsProvider,
 	) { }
 
-	public async getDiagnostics(doc: SkinnyTextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<{ readonly diagnostics: vscode.Diagnostic[]; readonly links: readonly MdLink[] }> {
+	public async getDiagnostics(doc: ITextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<{ readonly diagnostics: vscode.Diagnostic[]; readonly links: readonly MdLink[] }> {
 		const { links, definitions } = await this.linkProvider.getLinks(doc);
 		if (token.isCancellationRequested || !options.enabled) {
 			return { links, diagnostics: [] };
@@ -496,7 +497,7 @@ export class DiagnosticComputer {
 		};
 	}
 
-	private async validateFragmentLinks(doc: SkinnyTextDocument, options: DiagnosticOptions, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+	private async validateFragmentLinks(doc: ITextDocument, options: DiagnosticOptions, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
 		const severity = toSeverity(options.validateFragmentLinks);
 		if (typeof severity === 'undefined') {
 			return [];
@@ -567,7 +568,7 @@ export class DiagnosticComputer {
 						return;
 					}
 
-					const resolvedHrefPath = await tryResolveLinkPath(path, this.workspaceContents);
+					const resolvedHrefPath = await tryResolveLinkPath(path, this.workspace);
 					if (!resolvedHrefPath) {
 						const msg = localize('invalidPathLink', 'File does not exist at path: {0}', path.fsPath);
 						for (const link of links) {
@@ -595,7 +596,7 @@ export class DiagnosticComputer {
 	}
 
 	private isMarkdownPath(resolvedHrefPath: vscode.Uri) {
-		return this.workspaceContents.hasMarkdownDocument(resolvedHrefPath) || looksLikeMarkdownPath(resolvedHrefPath);
+		return this.workspace.hasMarkdownDocument(resolvedHrefPath) || looksLikeMarkdownPath(resolvedHrefPath);
 	}
 
 	private isIgnoredLink(options: DiagnosticOptions, link: string): boolean {
@@ -652,7 +653,7 @@ class AddToIgnoreLinksQuickFixProvider implements vscode.CodeActionProvider {
 
 export function registerDiagnosticSupport(
 	selector: vscode.DocumentSelector,
-	workspaceContents: MdWorkspaceContents,
+	workspace: IMdWorkspace,
 	linkProvider: MdLinkProvider,
 	commandManager: CommandManager,
 	referenceProvider: MdReferencesProvider,
@@ -661,8 +662,8 @@ export function registerDiagnosticSupport(
 ): vscode.Disposable {
 	const configuration = new VSCodeDiagnosticConfiguration();
 	const manager = new DiagnosticManager(
-		workspaceContents,
-		new DiagnosticComputer(workspaceContents, linkProvider, tocProvider),
+		workspace,
+		new DiagnosticComputer(workspace, linkProvider, tocProvider),
 		configuration,
 		new DiagnosticCollectionReporter(),
 		referenceProvider,

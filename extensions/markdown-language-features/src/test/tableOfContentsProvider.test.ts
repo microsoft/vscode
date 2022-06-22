@@ -7,14 +7,14 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { TableOfContents } from '../tableOfContents';
+import { ITextDocument } from '../types/textDocument';
 import { InMemoryDocument } from '../util/inMemoryDocument';
-import { SkinnyTextDocument } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 
 
 const testFileName = vscode.Uri.file('test.md');
 
-function createToc(doc: SkinnyTextDocument): Promise<TableOfContents> {
+function createToc(doc: ITextDocument): Promise<TableOfContents> {
 	const engine = createNewMarkdownEngine();
 	return TableOfContents.create(engine, doc);
 }
