@@ -65,7 +65,7 @@ export class ActionButtonCommand {
 		return {
 			command: {
 				command: 'git.publish',
-				title: localize('scm publish action button title', "{0} Publish Branch", '$(cloud-upload)'),
+				title: localize('scm publish branch action button title', "{0} Publish Branch", '$(cloud-upload)'),
 				tooltip: this.state.isActionRunning ?
 					localize('scm button publish branch running', "Publishing Branch...") :
 					localize('scm button publish branch', "Publish Branch"),
