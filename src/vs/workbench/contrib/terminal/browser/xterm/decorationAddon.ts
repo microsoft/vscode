@@ -188,7 +188,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 		}));
 		// Current command invalidated
-		this._commandDetectionListeners.push(capability.onCurrentCommandInvalidated(() => this._clearPlaceholder()));
+		this._commandDetectionListeners.push(capability.onCurrentCommandInvalidated((mostRecent) => {
+			if (mostRecent) {
+				const lastDecoration = Array.from(this._decorations.entries())[this._decorations.size - 1];
+				lastDecoration[1].decoration.dispose();
+			} else {
+				this._clearPlaceholder();
+			}
+		}));
 	}
 
 	activate(terminal: Terminal): void {

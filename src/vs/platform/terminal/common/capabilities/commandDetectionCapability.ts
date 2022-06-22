@@ -80,7 +80,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly onCommandFinished = this._onCommandFinished.event;
 	private readonly _onCommandInvalidated = new Emitter<ITerminalCommand[]>();
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
-	private readonly _onCurrentCommandInvalidated = new Emitter<void>();
+	private readonly _onCurrentCommandInvalidated = new Emitter<boolean>();
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
 
 	constructor(
@@ -120,7 +120,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY < this._currentCommand.commandStartMarker.line) {
 				this._clearCommandsInViewport();
 				this._currentCommand.isInvalid = true;
-				this._onCurrentCommandInvalidated.fire();
+				this._onCurrentCommandInvalidated.fire(false);
 			}
 		}
 	}
@@ -137,7 +137,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
 					this._clearCommandsInViewport();
 					this._currentCommand.isInvalid = true;
-					this._onCurrentCommandInvalidated.fire();
+					this._onCurrentCommandInvalidated.fire(false);
 				}
 			}
 		});
@@ -399,6 +399,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._evaluateCommandMarkersWindows();
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
+	}
+
+	invalidateCurrentCommand(): void {
+		this._onCurrentCommandInvalidated.fire(true);
 	}
 
 	handleCommandFinished(exitCode: number | undefined, generic?: IGenericCommandProperties): void {

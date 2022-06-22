@@ -14,6 +14,7 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -54,6 +55,7 @@ export class TaskTerminalStatus extends Disposable {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
 		problemMatcher.onDidFindMatch(() => terminal.addGenericMarker('First error'));
+		problemMatcher.onDidInvalidateMatch(() => terminal.capabilities.get(TerminalCapability.CommandDetection)?.invalidateCurrentCommand());
 		this.terminalMap.set(task._id, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
 

@@ -93,7 +93,7 @@ export interface ICommandDetectionCapability {
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
-	readonly onCurrentCommandInvalidated: Event<void>;
+	readonly onCurrentCommandInvalidated: Event<boolean>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
 	setIsCommandStorageDisabled(): void;
@@ -111,6 +111,7 @@ export interface ICommandDetectionCapability {
 	handleGenericCommand(properties: IGenericCommandProperties): void;
 	handleCommandExecuted(): void;
 	handleCommandFinished(exitCode: number | undefined, generic?: IGenericCommandProperties): void;
+	invalidateCurrentCommand(): void;
 	/**
 	 * Set the command line explicitly.
 	 */
