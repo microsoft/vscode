@@ -19,6 +19,7 @@ import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isWindows } from 'vs/base/common/platform';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { UriList } from 'vs/editor/browser/dnd';
 import { CodeDataTransfers, createDraggedEditorInputFromRawResourcesData, Extensions, extractEditorsAndFilesDropData, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat } from 'vs/platform/dnd/browser/dnd';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -60,7 +61,7 @@ export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise
 	if (dataTransfer.has(resourcesKey)) {
 		try {
 			const asString = await dataTransfer.get(resourcesKey)?.asString();
-			const rawResourcesData = JSON.stringify(asString?.split('\n').filter(value => !value.startsWith('#')));
+			const rawResourcesData = JSON.stringify(UriList.parse(asString ?? ''));
 			editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
 		} catch (error) {
 			// Invalid transfer
@@ -68,11 +69,6 @@ export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise
 	}
 
 	return editors;
-}
-
-export function convertResourceUrlsToUriList(resourceUrls: string): string {
-	const asJson: URI[] = JSON.parse(resourceUrls);
-	return asJson.map(uri => uri.toString()).join('\n');
 }
 
 export interface IResourcesDropHandlerOptions {
