@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
-import { MarkdownEngine } from '../markdownEngine';
+import { IMdParser } from '../markdownEngine';
 import { MdTableOfContentsProvider, TocEntry } from '../tableOfContents';
 import { SkinnyTextDocument } from '../workspaceContents';
 
@@ -15,7 +15,7 @@ interface MarkdownItTokenWithMap extends Token {
 export class MdSmartSelect implements vscode.SelectionRangeProvider {
 
 	constructor(
-		private readonly engine: MarkdownEngine,
+		private readonly parser: IMdParser,
 		private readonly tocProvider: MdTableOfContentsProvider,
 	) { }
 
@@ -37,9 +37,7 @@ export class MdSmartSelect implements vscode.SelectionRangeProvider {
 	}
 
 	private async getBlockSelectionRange(document: SkinnyTextDocument, position: vscode.Position, headerRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
-
-		const tokens = await this.engine.parse(document);
-
+		const tokens = await this.parser.tokenize(document);
 		const blockTokens = getBlockTokensForPosition(tokens, position, headerRange);
 
 		if (blockTokens.length === 0) {
@@ -55,7 +53,7 @@ export class MdSmartSelect implements vscode.SelectionRangeProvider {
 	}
 
 	private async getHeaderSelectionRange(document: SkinnyTextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
-		const toc = await this.tocProvider.get(document.uri);
+		const toc = await this.tocProvider.getForDocument(document);
 
 		const headerInfo = getHeadersForPosition(toc.entries, position);
 
@@ -253,8 +251,8 @@ function getFirstChildHeader(document: SkinnyTextDocument, header?: TocEntry, to
 
 export function registerSmartSelectSupport(
 	selector: vscode.DocumentSelector,
-	engine: MarkdownEngine,
+	parser: IMdParser,
 	tocProvider: MdTableOfContentsProvider,
 ): vscode.Disposable {
-	return vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine, tocProvider));
+	return vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(parser, tocProvider));
 }

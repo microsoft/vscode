@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { MdDocumentInfoCache } from './languageFeatures/workspaceCache';
-import { MarkdownEngine } from './markdownEngine';
+import { ILogger } from './logging';
+import { IMdParser } from './markdownEngine';
 import { githubSlugifier, Slug, Slugifier } from './slugify';
 import { Disposable } from './util/dispose';
 import { isMarkdownFile } from './util/file';
+import { MdDocumentInfoCache } from './util/workspaceCache';
 import { MdWorkspaceContents, SkinnyTextDocument } from './workspaceContents';
 
 export interface TocEntry {
@@ -63,12 +64,12 @@ export interface TocEntry {
 
 export class TableOfContents {
 
-	public static async create(engine: MarkdownEngine, document: SkinnyTextDocument,): Promise<TableOfContents> {
-		const entries = await this.buildToc(engine, document);
-		return new TableOfContents(entries, engine.slugifier);
+	public static async create(parser: IMdParser, document: SkinnyTextDocument,): Promise<TableOfContents> {
+		const entries = await this.buildToc(parser, document);
+		return new TableOfContents(entries, parser.slugifier);
 	}
 
-	public static async createForDocumentOrNotebook(engine: MarkdownEngine, document: SkinnyTextDocument): Promise<TableOfContents> {
+	public static async createForDocumentOrNotebook(parser: IMdParser, document: SkinnyTextDocument): Promise<TableOfContents> {
 		if (document.uri.scheme === 'vscode-notebook-cell') {
 			const notebook = vscode.workspace.notebookDocuments
 				.find(notebook => notebook.getCells().some(cell => cell.document === document));
@@ -78,20 +79,20 @@ export class TableOfContents {
 
 				for (const cell of notebook.getCells()) {
 					if (cell.kind === vscode.NotebookCellKind.Markup && isMarkdownFile(cell.document)) {
-						entries.push(...(await this.buildToc(engine, cell.document)));
+						entries.push(...(await this.buildToc(parser, cell.document)));
 					}
 				}
 
-				return new TableOfContents(entries, engine.slugifier);
+				return new TableOfContents(entries, parser.slugifier);
 			}
 		}
 
-		return this.create(engine, document);
+		return this.create(parser, document);
 	}
 
-	private static async buildToc(engine: MarkdownEngine, document: SkinnyTextDocument): Promise<TocEntry[]> {
+	private static async buildToc(parser: IMdParser, document: SkinnyTextDocument): Promise<TocEntry[]> {
 		const toc: TocEntry[] = [];
-		const tokens = await engine.parse(document);
+		const tokens = await parser.tokenize(document);
 
 		const existingSlugEntries = new Map<string, { count: number }>();
 
@@ -103,11 +104,11 @@ export class TableOfContents {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
 
-			let slug = engine.slugifier.fromHeading(line.text);
+			let slug = parser.slugifier.fromHeading(line.text);
 			const existingSlugEntry = existingSlugEntries.get(slug.value);
 			if (existingSlugEntry) {
 				++existingSlugEntry.count;
-				slug = engine.slugifier.fromHeading(slug.value + '-' + existingSlugEntry.count);
+				slug = parser.slugifier.fromHeading(slug.value + '-' + existingSlugEntry.count);
 			} else {
 				existingSlugEntries.set(slug.value, { count: 0 });
 			}
@@ -181,16 +182,22 @@ export class MdTableOfContentsProvider extends Disposable {
 	private readonly _cache: MdDocumentInfoCache<TableOfContents>;
 
 	constructor(
-		engine: MarkdownEngine,
+		parser: IMdParser,
 		workspaceContents: MdWorkspaceContents,
+		private readonly logger: ILogger,
 	) {
 		super();
 		this._cache = this._register(new MdDocumentInfoCache<TableOfContents>(workspaceContents, doc => {
-			return TableOfContents.create(engine, doc);
+			this.logger.verbose('TableOfContentsProvider', `create - ${doc.uri}`);
+			return TableOfContents.create(parser, doc);
 		}));
 	}
 
 	public async get(resource: vscode.Uri): Promise<TableOfContents> {
-		return (await this._cache.get(resource)) ?? TableOfContents.empty;
+		return await this._cache.get(resource) ?? TableOfContents.empty;
+	}
+
+	public getForDocument(doc: SkinnyTextDocument): Promise<TableOfContents> {
+		return this._cache.getForDocument(doc);
 	}
 }

@@ -32,16 +32,16 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 
 registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
-const applyLatestCommand = {
-	id: 'workbench.experimental.sessionSync.actions.applyLatest',
-	title: localize('apply latest', "{0}: Apply Latest Edit Session", EDIT_SESSION_SYNC_TITLE),
+const resumeLatestCommand = {
+	id: 'workbench.experimental.editSessions.actions.resumeLatest',
+	title: localize('resume latest', "{0}: Resume Latest Edit Session", EDIT_SESSION_SYNC_TITLE),
 };
-const storeLatestCommand = {
-	id: 'workbench.experimental.sessionSync.actions.storeLatest',
-	title: localize('store latest', "{0}: Store Latest Edit Session", EDIT_SESSION_SYNC_TITLE),
+const storeCurrentCommand = {
+	id: 'workbench.experimental.editSessions.actions.storeCurrent',
+	title: localize('store current', "{0}: Store Current Edit Session", EDIT_SESSION_SYNC_TITLE),
 };
 const continueEditSessionCommand = {
-	id: '_workbench.experimental.sessionSync.actions.continueEditSession',
+	id: '_workbench.experimental.editSessions.actions.continueEditSession',
 	title: localize('continue edit session', "{0}: Continue Edit Session", EDIT_SESSION_SYNC_TITLE),
 };
 const queryParamName = 'editSessionId';
@@ -68,11 +68,11 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		if (this.environmentService.editSessionId !== undefined) {
-			void this.applyEditSession(this.environmentService.editSessionId).then(() => this.environmentService.editSessionId = undefined);
+			void this.applyEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
 		}
 
 		this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('workbench.experimental.sessionSync.enabled')) {
+			if (e.affectsConfiguration('workbench.experimental.editSessions.enabled')) {
 				this.registerActions();
 			}
 		});
@@ -81,7 +81,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private registerActions() {
-		if (this.registered || this.configurationService.getValue('workbench.experimental.sessionSync.enabled') !== true) {
+		if (this.registered || this.configurationService.getValue('workbench.experimental.editSessions.enabled') !== true) {
 			return;
 		}
 
@@ -113,8 +113,6 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 					workspaceUri = workspaceUri.with({
 						query: workspaceUri.query.length > 0 ? (workspaceUri + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
 					});
-
-					that.environmentService.editSessionId = ref;
 				} else {
 					that.logService.warn(`Edit Sessions: Failed to store edit session when invoking ${continueEditSessionCommand.id}.`);
 				}
@@ -131,8 +129,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class ApplyLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					id: applyLatestCommand.id,
-					title: applyLatestCommand.title,
+					id: resumeLatestCommand.id,
+					title: resumeLatestCommand.title,
 					menu: {
 						id: MenuId.CommandPalette,
 					}
@@ -153,8 +151,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class StoreLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					id: storeLatestCommand.id,
-					title: storeLatestCommand.title,
+					id: storeCurrentCommand.id,
+					title: storeCurrentCommand.title,
 					menu: {
 						id: MenuId.CommandPalette,
 					}
@@ -175,10 +173,12 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			this.logService.info(`Edit Sessions: Applying edit session with ref ${ref}.`);
 		}
 
-		const editSession = await this.sessionSyncWorkbenchService.read(ref);
-		if (!editSession) {
+		const data = await this.sessionSyncWorkbenchService.read(ref);
+		if (!data) {
 			return;
 		}
+		const editSession = data.editSession;
+		ref = data.ref;
 
 		if (editSession.version > EditSessionSchemaVersion) {
 			this.notificationService.error(localize('client too old', "Please upgrade to a newer version of {0} to apply this edit session.", this.productService.nameLong));
@@ -230,6 +230,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 					await this.fileService.del(uri);
 				}
 			}
+
+			await this.sessionSyncWorkbenchService.delete(ref);
 		} catch (ex) {
 			this.logService.error('Edit Sessions:', (ex as Error).toString());
 			this.notificationService.error(localize('apply failed', "Failed to apply your edit session."));

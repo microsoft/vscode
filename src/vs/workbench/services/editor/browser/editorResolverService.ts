@@ -69,8 +69,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	) {
 		super();
 		// Read in the cache on statup
-		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorResolverService.cacheStorageID, StorageScope.GLOBAL, JSON.stringify([]))));
-		this.storageService.remove(EditorResolverService.cacheStorageID, StorageScope.GLOBAL);
+		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorResolverService.cacheStorageID, StorageScope.PROFILE, JSON.stringify([]))));
+		this.storageService.remove(EditorResolverService.cacheStorageID, StorageScope.PROFILE);
 		this.convertOldAssociationFormat();
 
 		this._register(this.storageService.onWillSaveState(() => {
@@ -546,13 +546,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			[key: string]: string[];
 		};
 		const editors = this.findMatchingEditors(resource);
-		const storedChoices: StoredChoice = JSON.parse(this.storageService.get(EditorResolverService.conflictingDefaultsStorageID, StorageScope.GLOBAL, '{}'));
+		const storedChoices: StoredChoice = JSON.parse(this.storageService.get(EditorResolverService.conflictingDefaultsStorageID, StorageScope.PROFILE, '{}'));
 		const globForResource = `*${extname(resource)}`;
 		// Writes to the storage service that a choice has been made for the currently installed editors
 		const writeCurrentEditorsToStorage = () => {
 			storedChoices[globForResource] = [];
 			editors.forEach(editor => storedChoices[globForResource].push(editor.editorInfo.id));
-			this.storageService.store(EditorResolverService.conflictingDefaultsStorageID, JSON.stringify(storedChoices), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(EditorResolverService.conflictingDefaultsStorageID, JSON.stringify(storedChoices), StorageScope.PROFILE, StorageTarget.MACHINE);
 		};
 
 		// If the user has already made a choice for this editor we don't want to ask them again
@@ -783,7 +783,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				cacheStorage.add(association.filenamePattern);
 			}
 		}
-		this.storageService.store(EditorResolverService.cacheStorageID, JSON.stringify(Array.from(cacheStorage)), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(EditorResolverService.cacheStorageID, JSON.stringify(Array.from(cacheStorage)), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private resourceMatchesCache(resource: URI): boolean {

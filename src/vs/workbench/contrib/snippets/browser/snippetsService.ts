@@ -139,7 +139,7 @@ class SnippetEnablement {
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 
-		const raw = _storageService.get(SnippetEnablement._key, StorageScope.GLOBAL, '');
+		const raw = _storageService.get(SnippetEnablement._key, StorageScope.PROFILE, '');
 		let data: string[] | undefined;
 		try {
 			data = JSON.parse(raw);
@@ -162,7 +162,7 @@ class SnippetEnablement {
 			changed = true;
 		}
 		if (changed) {
-			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 }

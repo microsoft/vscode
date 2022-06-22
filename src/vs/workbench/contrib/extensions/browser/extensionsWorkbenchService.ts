@@ -1201,7 +1201,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return false;
 	}
 
-	install(extension: URI | IExtension, installOptions?: InstallOptions | InstallVSIXOptions): Promise<IExtension> {
+	install(extension: URI | IExtension, installOptions?: InstallOptions | InstallVSIXOptions, progressLocation?: ProgressLocation): Promise<IExtension> {
 		if (extension instanceof URI) {
 			return this.installWithProgress(() => this.installFromVSIX(extension, installOptions));
 		}
@@ -1216,7 +1216,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return Promise.reject(new Error('Missing gallery'));
 		}
 
-		return this.installWithProgress(() => this.installFromGallery(extension, gallery, installOptions), gallery.displayName);
+		return this.installWithProgress(() => this.installFromGallery(extension, gallery, installOptions), gallery.displayName, progressLocation);
 	}
 
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void> {
@@ -1314,10 +1314,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return extension;
 	}
 
-	private installWithProgress<T>(installTask: () => Promise<T>, extensionName?: string): Promise<T> {
+	private installWithProgress<T>(installTask: () => Promise<T>, extensionName?: string, progressLocation?: ProgressLocation): Promise<T> {
 		const title = extensionName ? nls.localize('installing named extension', "Installing '{0}' extension....", extensionName) : nls.localize('installing extension', 'Installing extension....');
 		return this.progressService.withProgress({
-			location: ProgressLocation.Extensions,
+			location: progressLocation ?? ProgressLocation.Extensions,
 			title
 		}, () => installTask());
 	}
@@ -1572,14 +1572,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private _ignoredAutoUpdateExtensions: string[] | undefined;
 	private get ignoredAutoUpdateExtensions(): string[] {
 		if (!this._ignoredAutoUpdateExtensions) {
-			this._ignoredAutoUpdateExtensions = JSON.parse(this.storageService.get('extensions.ignoredAutoUpdateExtension', StorageScope.GLOBAL, '[]') || '[]');
+			this._ignoredAutoUpdateExtensions = JSON.parse(this.storageService.get('extensions.ignoredAutoUpdateExtension', StorageScope.PROFILE, '[]') || '[]');
 		}
 		return this._ignoredAutoUpdateExtensions!;
 	}
 
 	private set ignoredAutoUpdateExtensions(extensionIds: string[]) {
 		this._ignoredAutoUpdateExtensions = distinct(extensionIds.map(id => id.toLowerCase()));
-		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private ignoreAutoUpdate(extensionKey: ExtensionKey): void {

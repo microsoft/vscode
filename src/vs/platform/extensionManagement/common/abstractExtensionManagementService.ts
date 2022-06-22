@@ -238,7 +238,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 								} catch (error) { /* ignore */ }
 							}
 						}
-						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source });
+						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source, context: options.context });
 					} catch (error) {
 						if (!URI.isUri(task.source)) {
 							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', { extensionData: getGalleryExtensionTelemetryData(task.source), duration: new Date().getTime() - startTime, error });
@@ -277,7 +277,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				}
 			}
 
-			this._onDidInstallExtensions.fire(allInstallExtensionTasks.map(({ task }) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source })));
+			this._onDidInstallExtensions.fire(allInstallExtensionTasks.map(({ task }) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source, context: options.context })));
 			throw error;
 		} finally {
 			/* Remove the gallery tasks from the cache */

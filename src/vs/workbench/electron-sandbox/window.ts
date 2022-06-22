@@ -215,7 +215,7 @@ export class NativeWindow extends Disposable {
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
-			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.APPLICATION);
 			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
 				[
 					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
@@ -245,9 +245,9 @@ export class NativeWindow extends Disposable {
 
 				// Update state based on checkbox
 				if (result.checkboxChecked) {
-					this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
+					this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				} else {
-					this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+					this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.APPLICATION);
 				}
 
 				// Reply back to main side with credentials

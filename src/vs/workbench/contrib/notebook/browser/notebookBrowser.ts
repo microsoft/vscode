@@ -49,6 +49,18 @@ export const JUPYTER_EXTENSION_ID = 'ms-toolsai.jupyter';
 export const KERNEL_EXTENSIONS = new Map<string, string>([
 	[IPYNB_VIEW_TYPE, JUPYTER_EXTENSION_ID],
 ]);
+// @TODO lramos15, place this in a similar spot to our normal recommendations.
+export const KERNEL_RECOMMENDATIONS = new Map<string, Map<string, INotebookExtensionRecommendation>>();
+KERNEL_RECOMMENDATIONS.set(IPYNB_VIEW_TYPE, new Map<string, INotebookExtensionRecommendation>());
+KERNEL_RECOMMENDATIONS.get(IPYNB_VIEW_TYPE)?.set('python', {
+	extensionId: 'ms-python.python',
+	displayName: 'Python + Jupyter',
+});
+
+export interface INotebookExtensionRecommendation {
+	extensionId: string;
+	displayName?: string;
+}
 
 //#endregion
 
@@ -331,6 +343,7 @@ export interface INotebookEditorViewState {
 	focus?: number;
 	editorFocused?: boolean;
 	contributionsState?: { [id: string]: unknown };
+	selectedKernelId?: string;
 }
 
 export interface ICellModelDecorations {

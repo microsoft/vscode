@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import * as uri from 'vscode-uri';
-import { MarkdownEngine } from '../markdownEngine';
+import { ILogger } from '../logging';
+import { IMdParser } from '../markdownEngine';
 import { MdTableOfContentsProvider, TocEntry } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { looksLikeMarkdownPath } from '../util/file';
+import { MdWorkspaceInfoCache } from '../util/workspaceCache';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalHref, MdLink, MdLinkComputer } from './documentLinkProvider';
-import { MdWorkspaceInfoCache } from './workspaceCache';
+import { InternalHref, MdLink, MdLinkComputer } from './documentLinks';
 
 
 /**
@@ -68,18 +69,21 @@ export class MdReferencesProvider extends Disposable {
 	private readonly _linkComputer: MdLinkComputer;
 
 	public constructor(
-		private readonly engine: MarkdownEngine,
+		private readonly parser: IMdParser,
 		private readonly workspaceContents: MdWorkspaceContents,
 		private readonly tocProvider: MdTableOfContentsProvider,
+		private readonly logger: ILogger,
 	) {
 		super();
 
-		this._linkComputer = new MdLinkComputer(engine);
+		this._linkComputer = new MdLinkComputer(parser);
 		this._linkCache = this._register(new MdWorkspaceInfoCache(workspaceContents, doc => this._linkComputer.getAllLinks(doc, noopToken)));
 	}
 
 	public async getReferencesAtPosition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
-		const toc = await this.tocProvider.get(document.uri);
+		this.logger.verbose('ReferencesProvider', `getReferencesAtPosition: ${document.uri}`);
+
+		const toc = await this.tocProvider.getForDocument(document);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -93,6 +97,8 @@ export class MdReferencesProvider extends Disposable {
 	}
 
 	public async getAllReferencesToFile(resource: vscode.Uri, _token: vscode.CancellationToken): Promise<MdReference[]> {
+		this.logger.verbose('ReferencesProvider', `getAllReferencesToFile: ${resource}`);
+
 		const allLinksInWorkspace = (await this._linkCache.values()).flat();
 		return Array.from(this.findAllLinksToFile(resource, allLinksInWorkspace, undefined));
 	}
@@ -114,7 +120,7 @@ export class MdReferencesProvider extends Disposable {
 		for (const link of links) {
 			if (link.href.kind === 'internal'
 				&& this.looksLikeLinkToDoc(link.href, document.uri)
-				&& this.engine.slugifier.fromHeading(link.href.fragment).value === header.slug.value
+				&& this.parser.slugifier.fromHeading(link.href.fragment).value === header.slug.value
 			) {
 				references.push({
 					kind: 'link',
@@ -204,7 +210,7 @@ export class MdReferencesProvider extends Disposable {
 					continue;
 				}
 
-				if (this.engine.slugifier.fromHeading(link.href.fragment).equals(this.engine.slugifier.fromHeading(sourceLink.href.fragment))) {
+				if (this.parser.slugifier.fromHeading(link.href.fragment).equals(this.parser.slugifier.fromHeading(sourceLink.href.fragment))) {
 					const isTriggerLocation = sourceLink.source.resource.fsPath === link.source.resource.fsPath && sourceLink.source.hrefRange.isEqual(link.source.hrefRange);
 					references.push({
 						kind: 'link',

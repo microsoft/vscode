@@ -75,7 +75,7 @@ class PersistedWidgetSize {
 	}
 
 	restore(): dom.Dimension | undefined {
-		const raw = this._service.get(this._key, StorageScope.GLOBAL) ?? '';
+		const raw = this._service.get(this._key, StorageScope.PROFILE) ?? '';
 		try {
 			const obj = JSON.parse(raw);
 			if (dom.Dimension.is(obj)) {
@@ -88,11 +88,11 @@ class PersistedWidgetSize {
 	}
 
 	store(size: dom.Dimension) {
-		this._service.store(this._key, JSON.stringify(size), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._service.store(this._key, JSON.stringify(size), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	reset(): void {
-		this._service.remove(this._key, StorageScope.GLOBAL);
+		this._service.remove(this._key, StorageScope.PROFILE);
 	}
 }
 
@@ -865,11 +865,11 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	private _isDetailsVisible(): boolean {
-		return this._storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
+		return this._storageService.getBoolean('expandSuggestionDocs', StorageScope.PROFILE, false);
 	}
 
 	private _setDetailsVisible(value: boolean) {
-		this._storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL, StorageTarget.USER);
+		this._storageService.store('expandSuggestionDocs', value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	forceRenderingAbove() {

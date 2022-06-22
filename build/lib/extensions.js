@@ -246,7 +246,6 @@ const excludedExtensions = [
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',
     'vscode-notebook-tests',
-    'vscode-custom-editor-tests',
 ];
 const marketplaceWebExtensionsExclude = new Set([
     'ms-vscode.node-debug',
