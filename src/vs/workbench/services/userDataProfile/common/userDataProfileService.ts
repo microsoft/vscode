@@ -31,10 +31,15 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 	}
 
 	async updateCurrentProfile(userDataProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+		if (this._currentProfile.id === userDataProfile.id) {
+			return;
+		}
+		const previous = this._currentProfile;
 		this._currentProfile = userDataProfile;
 		const joiners: Promise<void>[] = [];
 		this._onDidChangeCurrentProfile.fire({
 			preserveData,
+			previous,
 			profile: userDataProfile,
 			join(promise) {
 				joiners.push(promise);
