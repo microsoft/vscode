@@ -1398,7 +1398,7 @@ export class Repository {
 	}
 
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const args = ['commit', '--quiet'];
+		const args = ['commit', '--quiet', '--allow-empty-message'];
 		const options: SpawnOptions = {};
 
 		if (message) {
@@ -1428,7 +1428,6 @@ export class Repository {
 				}
 			}
 
-			args.push('--allow-empty-message');
 		}
 
 		if (opts.signoff) {
