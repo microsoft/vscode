@@ -252,7 +252,8 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'file/share',
 		id: MenuId.MenubarShare,
-		description: localize('menus.share', "Share submenu shown in the top level File menu.")
+		description: localize('menus.share', "Share submenu shown in the top level File menu."),
+		proposed: 'contribShareMenu'
 	},
 	{
 		key: 'editor/inlineCompletions/actions',

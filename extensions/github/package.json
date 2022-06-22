@@ -25,6 +25,9 @@
       "supported": true
     }
   },
+  "enabledApiProposals": [
+	"contribShareMenu"
+  ],
   "contributes": {
     "commands": [
       {
