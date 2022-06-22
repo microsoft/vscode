@@ -998,8 +998,8 @@ export class MenuBar extends Disposable {
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.top = `${buttonBoundingRect.bottom}px`;
-			menuHolder.style.left = `${buttonBoundingRect.left}px`;
+			menuHolder.style.top = `calc(${buttonBoundingRect.bottom}px / var(--zoom-factor))`;
+			menuHolder.style.left = `calc(${buttonBoundingRect.left}px / var(--zoom-factor))`;
 		}
 
 		customMenu.buttonElement.appendChild(menuHolder);
