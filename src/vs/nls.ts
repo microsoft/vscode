@@ -41,7 +41,7 @@ interface IBoundLocalizeFunc {
 
 interface IConsumerAPI {
 	localize: ILocalizeFunc | IBoundLocalizeFunc;
-	getAvailableLanguages: () => INLSPluginConfigAvailableLanguages | undefined;
+	getConfiguredDefaultLocale(stringFromLocalizeCall: string): string | undefined;
 }
 
 function _format(message: string, args: (string | number | boolean | undefined | null)[]): string {
@@ -127,8 +127,15 @@ export function localize(data: ILocalizeInfo | string, message: string, ...args:
 	return _format(message, args);
 }
 
-export function getAvailableLanguages(): INLSPluginConfigAvailableLanguages | undefined;
-export function getAvailableLanguages(): INLSPluginConfigAvailableLanguages | undefined {
+/**
+ *
+ * @param stringFromLocalizeCall You must pass in a string that was returned from a `nls.localize()` call
+ * in order to ensure the loader plugin has been initialized before this function is called.
+ */
+export function getConfiguredDefaultLocale(stringFromLocalizeCall: string): string | undefined;
+export function getConfiguredDefaultLocale(_: string): string | undefined {
+	// This returns undefined because this implementation isn't used and is overwritten by the loader
+	// when loaded.
 	return undefined;
 }
 
@@ -139,10 +146,10 @@ export function setPseudoTranslation(value: boolean) {
 /**
  * Invoked in a built product at run-time
  */
-export function create(key: string, data: IBundledStrings): IConsumerAPI {
+export function create(key: string, data: IBundledStrings & IConsumerAPI): IConsumerAPI {
 	return {
 		localize: createScopedLocalize(data[key]),
-		getAvailableLanguages: data.getAvailableLanguages as any ?? (() => undefined)
+		getConfiguredDefaultLocale: data.getConfiguredDefaultLocale ?? ((_: string) => undefined)
 	};
 }
 
@@ -154,7 +161,7 @@ export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoa
 	if (!name || name.length === 0) {
 		return load({
 			localize: localize,
-			getAvailableLanguages: () => pluginConfig.availableLanguages
+			getConfiguredDefaultLocale: () => pluginConfig.availableLanguages?.['*']
 		});
 	}
 	const language = pluginConfig.availableLanguages ? findLanguageForModule(pluginConfig.availableLanguages, name) : null;
@@ -169,7 +176,7 @@ export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoa
 		} else {
 			(messages as any as IConsumerAPI).localize = createScopedLocalize(messages[name]);
 		}
-		(messages as any as IConsumerAPI).getAvailableLanguages = () => pluginConfig.availableLanguages;
+		(messages as any as IConsumerAPI).getConfiguredDefaultLocale = () => pluginConfig.availableLanguages?.['*'];
 		load(messages);
 	};
 	if (typeof pluginConfig.loadBundle === 'function') {

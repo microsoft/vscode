@@ -25,6 +25,6 @@ export function localize(data: ILocalizeInfo | string, message: string, ...args:
 	return _format(message, args);
 }
 
-export function getAvailableLanguages() {
+export function getConfiguredDefaultLocale(_: string) {
 	return undefined;
 }

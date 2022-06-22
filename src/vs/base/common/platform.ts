@@ -82,15 +82,14 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
 
-	// TODO @TylerLeonhardt pull availableLanguages from vs/nls
-	// DO NOT REMOVE.
-	nls.localize({
-		// Prevents the string from being localized.
-		comment: ['{Locked}'],
-		key: 'ensureLoaderPluginIsLoaded'
-	}, 'this ensures the nls loader plugin is loaded before resolving the true locale');
-	const configuredLocale = nls.getAvailableLanguages()?.['*'];
-	console.log(configuredLocale);
+	const configuredLocale = nls.getConfiguredDefaultLocale(
+		// This call _must_ be done in the file that calls `nls.getConfiguredDefaultLocale`
+		// to ensure that the NLS AMD Loader plugin has been loaded and configured.
+		// This is because the loader plugin decides what the default locale is based on
+		// how it's able to resolve the strings.
+		nls.localize({ key: 'ensureLoaderPluginIsLoaded', comment: ['{Locked}'] }, '_')
+	);
+
 	_locale = configuredLocale || navigator.language;
 
 	_language = _locale;

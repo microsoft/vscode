@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INLSPluginConfigAvailableLanguages } from 'vs/nls';
-
 const buildMap: { [name: string]: string[] } = {};
 const buildMapKeys: { [name: string]: string[] } = {};
 const entryPoints: { [entryPoint: string]: string[] } = {};
@@ -18,7 +16,7 @@ export function localize(data: ILocalizeInfo | string, message: string, ...args:
 	throw new Error(`Not supported at build time!`);
 }
 
-export function getAvailableLanguages(): INLSPluginConfigAvailableLanguages | undefined {
+export function getConfiguredDefaultLocale(): string | undefined {
 	throw new Error(`Not supported at build time!`);
 }
 
@@ -27,7 +25,7 @@ export function getAvailableLanguages(): INLSPluginConfigAvailableLanguages | un
  */
 export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoader.IPluginLoadCallback, config: AMDLoader.IConfigurationOptions): void {
 	if (!name || name.length === 0) {
-		load({ localize, getAvailableLanguages });
+		load({ localize, getConfiguredDefaultLocale });
 	} else {
 		req([name + '.nls', name + '.nls.keys'], function (messages: string[], keys: string[]) {
 			buildMap[name] = messages;
