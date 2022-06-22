@@ -68,8 +68,8 @@ export class ConfigurationCache implements IConfigurationCache {
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 function aUserDataProfileService(environmentService: IEnvironmentService): IUserDataProfileService {
-	const profile = toUserDataProfile('temp', environmentService.userRoamingDataHome);
-	return new UserDataProfileService({ ...profile, isDefault: true }, profile);
+	const profile = { ...toUserDataProfile('temp', environmentService.userRoamingDataHome), isDefault: true };
+	return new UserDataProfileService(profile, profile);
 }
 
 suite('WorkspaceContextService - Folder', () => {
