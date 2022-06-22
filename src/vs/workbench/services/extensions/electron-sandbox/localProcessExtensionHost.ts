@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -633,6 +633,10 @@ export class ExtHostMessagePortCommunication extends Disposable implements IExtH
 			}, 60 * 1000);
 
 			portPromise.then((port) => {
+				this._register(toDisposable(() => {
+					// Close the message port when the extension host is disposed
+					port.close();
+				}));
 				clearTimeout(handle);
 
 				const onMessage = new BufferedEmitter<VSBuffer>();
