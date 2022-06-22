@@ -9,7 +9,7 @@ import { MdSmartSelect } from '../languageFeatures/smartSelect';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { InMemoryMdWorkspace } from './inMemoryWorkspace';
 import { nulLogger } from './nulLogging';
 import { CURSOR, getCursorPositions, joinLines } from './util';
 
@@ -723,7 +723,7 @@ function assertLineNumbersEqual(selectionRange: vscode.SelectionRange, startLine
 
 function getSelectionRangesForDocument(contents: string, pos?: vscode.Position[]): Promise<vscode.SelectionRange[] | undefined> {
 	const doc = new InMemoryDocument(testFileName, contents);
-	const workspace = new InMemoryWorkspaceMarkdownDocuments([doc]);
+	const workspace = new InMemoryMdWorkspace([doc]);
 	const engine = createNewMarkdownEngine();
 	const provider = new MdSmartSelect(engine, new MdTableOfContentsProvider(engine, workspace, nulLogger));
 	const positions = pos ? pos : getCursorPositions(contents, doc);

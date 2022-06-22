@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
-import { MdWorkspaceContents } from '../workspaceContents';
-import { MdDocumentSymbolProvider } from './documentSymbols';
 import { MdWorkspaceInfoCache } from '../util/workspaceCache';
+import { IMdWorkspace } from '../workspace';
+import { MdDocumentSymbolProvider } from './documentSymbols';
 
 export class MdWorkspaceSymbolProvider extends Disposable implements vscode.WorkspaceSymbolProvider {
 
@@ -15,11 +15,11 @@ export class MdWorkspaceSymbolProvider extends Disposable implements vscode.Work
 
 	public constructor(
 		symbolProvider: MdDocumentSymbolProvider,
-		workspaceContents: MdWorkspaceContents,
+		workspace: IMdWorkspace,
 	) {
 		super();
 
-		this._cache = this._register(new MdWorkspaceInfoCache(workspaceContents, doc => symbolProvider.provideDocumentSymbolInformation(doc)));
+		this._cache = this._register(new MdWorkspaceInfoCache(workspace, doc => symbolProvider.provideDocumentSymbolInformation(doc)));
 	}
 
 	public async provideWorkspaceSymbols(query: string): Promise<vscode.SymbolInformation[]> {
@@ -29,8 +29,8 @@ export class MdWorkspaceSymbolProvider extends Disposable implements vscode.Work
 }
 
 export function registerWorkspaceSymbolSupport(
-	workspaceContents: MdWorkspaceContents,
+	workspace: IMdWorkspace,
 	symbolProvider: MdDocumentSymbolProvider,
 ): vscode.Disposable {
-	return vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, workspaceContents));
+	return vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, workspace));
 }
