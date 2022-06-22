@@ -342,6 +342,7 @@ export interface ITerminalCommand {
 	marker?: IXtermMarker;
 	hasOutput: boolean;
 	getOutput(): string | undefined;
+	generic?: boolean;
 }
 
 export interface INavigationMode {

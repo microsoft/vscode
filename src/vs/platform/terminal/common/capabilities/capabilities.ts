@@ -105,11 +105,12 @@ export interface ICommandDetectionCapability {
 	handlePromptStart(): void;
 	handleContinuationStart(): void;
 	handleContinuationEnd(): void;
-	handleRightPromptStart(): void;
+	handleRightPromptStart(generic?: boolean): void;
 	handleRightPromptEnd(): void;
 	handleCommandStart(): void;
+	handleGenericCommand(): void;
 	handleCommandExecuted(): void;
-	handleCommandFinished(exitCode: number | undefined): void;
+	handleCommandFinished(exitCode: number | undefined, generic?: boolean): void;
 	/**
 	 * Set the command line explicitly.
 	 */
@@ -141,6 +142,7 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	getOutput(): string | undefined;
 	hasOutput: boolean;
+	generic?: boolean;
 }
 
 /**

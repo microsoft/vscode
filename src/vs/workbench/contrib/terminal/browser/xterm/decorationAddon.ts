@@ -228,7 +228,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
-		if (!this._terminal) {
+		if (!this._terminal || (beforeCommandExecution && command.generic)) {
 			return undefined;
 		}
 		if (!command.marker) {
@@ -268,7 +268,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
 				// first render or buffer was cleared
 				this._updateLayout(element);
-				this._updateClasses(element, command.exitCode);
+				this._updateClasses(element, command.exitCode, command.generic);
 			}
 		});
 		return decoration;

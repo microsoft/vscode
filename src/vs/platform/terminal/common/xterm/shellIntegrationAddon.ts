@@ -270,9 +270,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		const [command,] = data.split(';');
 		switch (command) {
-
 			case ITermOscPt.SetMark: {
-				this._onRequestCreateGenericMarker.fire();
+				this._createOrGetCommandDetection(this._terminal).handleGenericCommand();
 			}
 		}
 
