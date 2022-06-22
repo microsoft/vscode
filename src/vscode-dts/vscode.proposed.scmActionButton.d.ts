@@ -9,6 +9,7 @@ declare module 'vscode' {
 	export interface SourceControlActionButton {
 		command: Command;
 		description?: string;
+		enabled: boolean;
 	}
 
 	export interface SourceControl {

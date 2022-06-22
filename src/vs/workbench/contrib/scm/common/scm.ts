@@ -100,6 +100,7 @@ export interface ISCMInputChangeEvent {
 export interface ISCMActionButtonDescriptor {
 	command: Command;
 	description?: string;
+	enabled: boolean;
 }
 
 export interface ISCMActionButton {
