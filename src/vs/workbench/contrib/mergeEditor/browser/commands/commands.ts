@@ -13,20 +13,19 @@ import { ctxIsMergeEditor, ctxUsesColumnLayout, MergeEditor } from 'vs/workbench
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OpenMergeEditor extends Action2 {
-
 	constructor() {
 		super({
 			id: '_open.mergeEditor',
 			title: localize('title', "Open Merge Editor"),
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const validatedArgs = IRelaxedOpenArgs.validate(args[0]);
 
 		const instaService = accessor.get(IInstantiationService);
 		const input = instaService.createInstance(
 			MergeEditorInput,
-			validatedArgs.ancestor,
+			validatedArgs.base,
 			validatedArgs.input1,
 			validatedArgs.input2,
 			validatedArgs.output,
@@ -36,6 +35,44 @@ export class OpenMergeEditor extends Action2 {
 }
 
 namespace IRelaxedOpenArgs {
+	export function validate(obj: unknown): {
+		base: URI;
+		input1: MergeEditorInputData;
+		input2: MergeEditorInputData;
+		output: URI;
+	} {
+		if (!obj || typeof obj !== 'object') {
+			throw new TypeError('invalid argument');
+		}
+
+		const o = obj as IRelaxedOpenArgs;
+		const base = toUri(o.base);
+		const output = toUri(o.output);
+		const input1 = toInputData(o.input1);
+		const input2 = toInputData(o.input2);
+		return { base, input1, input2, output };
+	}
+
+	function toInputData(obj: unknown): MergeEditorInputData {
+		if (typeof obj === 'string') {
+			return new MergeEditorInputData(URI.parse(obj, true), undefined, undefined, undefined);
+		}
+		if (!obj || typeof obj !== 'object') {
+			throw new TypeError('invalid argument');
+		}
+
+		if (isUriComponents(obj)) {
+			return new MergeEditorInputData(URI.revive(obj), undefined, undefined, undefined);
+		}
+
+		const o = obj as IRelaxedInputData;
+		const title = o.title;
+		const uri = toUri(o.uri);
+		const detail = o.detail;
+		const description = o.description;
+		return new MergeEditorInputData(uri, title, detail, description);
+	}
+
 	function toUri(obj: unknown): URI {
 		if (typeof obj === 'string') {
 			return URI.parse(obj, true);
@@ -49,59 +86,23 @@ namespace IRelaxedOpenArgs {
 		if (!obj || typeof obj !== 'object') {
 			return false;
 		}
-		return typeof (<UriComponents>obj).scheme === 'string'
-			&& typeof (<UriComponents>obj).authority === 'string'
-			&& typeof (<UriComponents>obj).path === 'string'
-			&& typeof (<UriComponents>obj).query === 'string'
-			&& typeof (<UriComponents>obj).fragment === 'string';
-	}
-
-	function toInputResource(obj: unknown): MergeEditorInputData {
-		if (typeof obj === 'string') {
-			return new MergeEditorInputData(URI.parse(obj, true), undefined, undefined, undefined);
-		}
-		if (!obj || typeof obj !== 'object') {
-			throw new TypeError('invalid argument');
-		}
-
-		if (isUriComponents(obj)) {
-			return new MergeEditorInputData(URI.revive(obj), undefined, undefined, undefined);
-		}
-
-		const title = (<IRelaxedInputData>obj).title;
-		const uri = toUri((<IRelaxedInputData>obj).uri);
-		const detail = (<IRelaxedInputData>obj).detail;
-		const description = (<IRelaxedInputData>obj).description;
-		return new MergeEditorInputData(uri, title, detail, description);
-	}
-
-	export function validate(obj: unknown): IOpenEditorArgs {
-		if (!obj || typeof obj !== 'object') {
-			throw new TypeError('invalid argument');
-		}
-		const ancestor = toUri((<IRelaxedOpenArgs>obj).ancestor);
-		const output = toUri((<IRelaxedOpenArgs>obj).output);
-		const input1 = toInputResource((<IRelaxedOpenArgs>obj).input1);
-		const input2 = toInputResource((<IRelaxedOpenArgs>obj).input2);
-		return { ancestor, input1, input2, output };
+		const o = obj as UriComponents;
+		return typeof o.scheme === 'string'
+			&& typeof o.authority === 'string'
+			&& typeof o.path === 'string'
+			&& typeof o.query === 'string'
+			&& typeof o.fragment === 'string';
 	}
 }
 
 type IRelaxedInputData = { uri: UriComponents; title?: string; detail?: string; description?: string };
 
 type IRelaxedOpenArgs = {
-	ancestor: UriComponents | string;
+	base: UriComponents | string;
 	input1: IRelaxedInputData | string;
 	input2: IRelaxedInputData | string;
 	output: UriComponents | string;
 };
-
-interface IOpenEditorArgs {
-	ancestor: URI;
-	input1: MergeEditorInputData;
-	input2: MergeEditorInputData;
-	output: URI;
-}
 
 export class ToggleLayout extends Action2 {
 	constructor() {
