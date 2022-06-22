@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { env } from 'vs/base/common/process';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { join } from 'vs/base/common/path';
+import { URI } from 'vs/base/common/uri';
 
 /**
  * Tracks a list of generic entries.
@@ -75,12 +79,17 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	constructor(
 		private readonly _storageDataKey: string,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 
 		// Init cache
 		this._entries = new LRUCache<string, T>(this._getHistoryLimit());
+
+		this._fetchBashHistory().then(e => {
+			console.log('bash history result', Array.from(e!));
+		});
 
 		// Listen for config changes to set history limit
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -178,5 +187,50 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 
 	private _getEntriesStorageKey() {
 		return `${StorageKeys.Entries}.${this._storageDataKey}`;
+	}
+
+	private async _fetchBashHistory(): Promise<IterableIterator<string> | undefined> {
+		const homeDir = env['HOME'];
+		if (!homeDir) {
+			return undefined;
+		}
+		// TODO: Remote URI
+		const content = await this._fileService.readFile(URI.file(join(homeDir, '.bash_history')));
+		if (content === undefined) {
+			return undefined;
+		}
+		// .bash_history does not differentiate wrapped commands from multiple commands. Parse
+		// the output to get the
+		const fileLines = content.value.toString().split('\n');
+		const result: Set<string> = new Set();
+		let currentLine: string;
+		let currentCommand: string | undefined = undefined;
+		let wrapChar: string | undefined = undefined;
+		for (let i = 0; i < fileLines.length; i++) {
+			currentLine = fileLines[i];
+			if (currentCommand === undefined) {
+				currentCommand = currentLine;
+			} else {
+				currentCommand += `\n${currentLine}`;
+			}
+			for (let c = 0; c < currentLine.length; c++) {
+				if (wrapChar) {
+					if (currentLine[c] === wrapChar) {
+						wrapChar = undefined;
+					}
+				} else {
+					if (currentLine[c].match(/['"]/)) {
+						wrapChar = currentLine[c];
+					}
+				}
+			}
+			if (wrapChar === undefined) {
+				// TODO: Should the commands be trimmed here and elsewhere?
+				result.add(currentCommand);
+				currentCommand = undefined;
+			}
+		}
+
+		return result.values();
 	}
 }
