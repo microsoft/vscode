@@ -7,14 +7,15 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
+import { ILogger } from '../logging';
 import { IMdParser } from '../markdownEngine';
+import { ITextDocument } from '../types/textDocument';
 import { coalesce } from '../util/arrays';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/schemes';
-import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { MdDocumentInfoCache } from '../util/workspaceCache';
-import { ILogger } from '../logging';
+import { IMdWorkspace } from '../workspace';
 
 const localize = nls.loadMessageBundle();
 
@@ -38,7 +39,7 @@ export type LinkHref = ExternalHref | InternalHref | ReferenceHref;
 
 
 function parseLink(
-	document: SkinnyTextDocument,
+	document: ITextDocument,
 	link: string,
 ): ExternalHref | InternalHref | undefined {
 	const cleanLink = stripAngleBrackets(link);
@@ -91,7 +92,7 @@ function parseLink(
 	};
 }
 
-function getWorkspaceFolder(document: SkinnyTextDocument) {
+function getWorkspaceFolder(document: ITextDocument) {
 	return vscode.workspace.getWorkspaceFolder(document.uri)?.uri
 		|| vscode.workspace.workspaceFolders?.[0]?.uri;
 }
@@ -131,7 +132,7 @@ export interface MdLinkDefinition {
 export type MdLink = MdInlineLink | MdLinkDefinition;
 
 function extractDocumentLink(
-	document: SkinnyTextDocument,
+	document: ITextDocument,
 	pre: string,
 	rawLink: string,
 	matchIndex: number | undefined
@@ -170,7 +171,7 @@ function getFragmentRange(text: string, start: vscode.Position, end: vscode.Posi
 	return new vscode.Range(start.translate({ characterDelta: index + 1 }), end);
 }
 
-function getLinkSourceFragmentInfo(document: SkinnyTextDocument, link: string, linkStart: vscode.Position, linkEnd: vscode.Position): { fragmentRange: vscode.Range | undefined; pathText: string } {
+function getLinkSourceFragmentInfo(document: ITextDocument, link: string, linkStart: vscode.Position, linkEnd: vscode.Position): { fragmentRange: vscode.Range | undefined; pathText: string } {
 	const fragmentRange = getFragmentRange(link, linkStart, linkEnd);
 	return {
 		pathText: document.getText(new vscode.Range(linkStart, fragmentRange ? fragmentRange.start.translate(0, -1) : linkEnd)),
@@ -234,7 +235,7 @@ const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>
 const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
 
 class NoLinkRanges {
-	public static async compute(tokenizer: IMdParser, document: SkinnyTextDocument): Promise<NoLinkRanges> {
+	public static async compute(tokenizer: IMdParser, document: ITextDocument): Promise<NoLinkRanges> {
 		const tokens = await tokenizer.tokenize(document);
 		const multiline = tokens.filter(t => (t.type === 'code_block' || t.type === 'fence' || t.type === 'html_block') && !!t.map).map(t => t.map) as [number, number][];
 
@@ -274,7 +275,7 @@ export class MdLinkComputer {
 		private readonly tokenizer: IMdParser,
 	) { }
 
-	public async getAllLinks(document: SkinnyTextDocument, token: vscode.CancellationToken): Promise<MdLink[]> {
+	public async getAllLinks(document: ITextDocument, token: vscode.CancellationToken): Promise<MdLink[]> {
 		const noLinkRanges = await NoLinkRanges.compute(this.tokenizer, document);
 		if (token.isCancellationRequested) {
 			return [];
@@ -288,7 +289,7 @@ export class MdLinkComputer {
 		]);
 	}
 
-	private *getInlineLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
+	private *getInlineLinks(document: ITextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 		for (const match of text.matchAll(linkPattern)) {
 			const matchLinkData = extractDocumentLink(document, match[1], match[2], match.index);
@@ -306,7 +307,7 @@ export class MdLinkComputer {
 		}
 	}
 
-	private * getAutoLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
+	private * getAutoLinks(document: ITextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 
 		for (const match of text.matchAll(autoLinkPattern)) {
@@ -334,7 +335,7 @@ export class MdLinkComputer {
 		}
 	}
 
-	private *getReferenceLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
+	private *getReferenceLinks(document: ITextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
@@ -382,7 +383,7 @@ export class MdLinkComputer {
 		}
 	}
 
-	private *getLinkDefinitions(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLinkDefinition> {
+	private *getLinkDefinitions(document: ITextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLinkDefinition> {
 		const text = document.getText();
 		for (const match of text.matchAll(definitionPattern)) {
 			const pre = match[1];
@@ -443,12 +444,12 @@ export class MdLinkProvider extends Disposable {
 
 	constructor(
 		tokenizer: IMdParser,
-		workspaceContents: MdWorkspaceContents,
+		workspace: IMdWorkspace,
 		logger: ILogger,
 	) {
 		super();
 		this.linkComputer = new MdLinkComputer(tokenizer);
-		this._linkCache = this._register(new MdDocumentInfoCache(workspaceContents, async doc => {
+		this._linkCache = this._register(new MdDocumentInfoCache(workspace, async doc => {
 			logger.verbose('LinkProvider', `compute - ${doc.uri}`);
 
 			const links = await this.linkComputer.getAllLinks(doc, noopToken);
@@ -459,7 +460,7 @@ export class MdLinkProvider extends Disposable {
 		}));
 	}
 
-	public async getLinks(document: SkinnyTextDocument): Promise<MdDocumentLinks> {
+	public async getLinks(document: ITextDocument): Promise<MdDocumentLinks> {
 		return this._linkCache.getForDocument(document);
 	}
 }
@@ -491,7 +492,7 @@ export class MdVsCodeLinkProvider implements vscode.DocumentLinkProvider {
 	) { }
 
 	public async provideDocumentLinks(
-		document: SkinnyTextDocument,
+		document: ITextDocument,
 		token: vscode.CancellationToken
 	): Promise<vscode.DocumentLink[]> {
 		const { links, definitions } = await this._linkProvider.getLinks(document);

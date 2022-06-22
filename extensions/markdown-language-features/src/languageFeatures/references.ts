@@ -7,11 +7,12 @@ import * as uri from 'vscode-uri';
 import { ILogger } from '../logging';
 import { IMdParser } from '../markdownEngine';
 import { MdTableOfContentsProvider, TocEntry } from '../tableOfContents';
+import { ITextDocument } from '../types/textDocument';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { looksLikeMarkdownPath } from '../util/file';
 import { MdWorkspaceInfoCache } from '../util/workspaceCache';
-import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
+import { IMdWorkspace } from '../workspace';
 import { InternalHref, MdLink, MdLinkComputer } from './documentLinks';
 
 
@@ -70,17 +71,17 @@ export class MdReferencesProvider extends Disposable {
 
 	public constructor(
 		private readonly parser: IMdParser,
-		private readonly workspaceContents: MdWorkspaceContents,
+		private readonly workspace: IMdWorkspace,
 		private readonly tocProvider: MdTableOfContentsProvider,
 		private readonly logger: ILogger,
 	) {
 		super();
 
 		this._linkComputer = new MdLinkComputer(parser);
-		this._linkCache = this._register(new MdWorkspaceInfoCache(workspaceContents, doc => this._linkComputer.getAllLinks(doc, noopToken)));
+		this._linkCache = this._register(new MdWorkspaceInfoCache(workspace, doc => this._linkComputer.getAllLinks(doc, noopToken)));
 	}
 
-	public async getReferencesAtPosition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
+	public async getReferencesAtPosition(document: ITextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
 		this.logger.verbose('ReferencesProvider', `getReferencesAtPosition: ${document.uri}`);
 
 		const toc = await this.tocProvider.getForDocument(document);
@@ -103,7 +104,7 @@ export class MdReferencesProvider extends Disposable {
 		return Array.from(this.findAllLinksToFile(resource, allLinksInWorkspace, undefined));
 	}
 
-	private async getReferencesToHeader(document: SkinnyTextDocument, header: TocEntry): Promise<MdReference[]> {
+	private async getReferencesToHeader(document: ITextDocument, header: TocEntry): Promise<MdReference[]> {
 		const links = (await this._linkCache.values()).flat();
 
 		const references: MdReference[] = [];
@@ -135,7 +136,7 @@ export class MdReferencesProvider extends Disposable {
 		return references;
 	}
 
-	private async getReferencesToLinkAtPosition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
+	private async getReferencesToLinkAtPosition(document: ITextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
 		const docLinks = await this._linkComputer.getAllLinks(document, token);
 
 		for (const link of docLinks) {
@@ -184,7 +185,7 @@ export class MdReferencesProvider extends Disposable {
 			return references;
 		}
 
-		const resolvedResource = await tryResolveLinkPath(sourceLink.href.path, this.workspaceContents);
+		const resolvedResource = await tryResolveLinkPath(sourceLink.href.path, this.workspace);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -229,7 +230,7 @@ export class MdReferencesProvider extends Disposable {
 	}
 
 	private isMarkdownPath(resolvedHrefPath: vscode.Uri) {
-		return this.workspaceContents.hasMarkdownDocument(resolvedHrefPath) || looksLikeMarkdownPath(resolvedHrefPath);
+		return this.workspace.hasMarkdownDocument(resolvedHrefPath) || looksLikeMarkdownPath(resolvedHrefPath);
 	}
 
 	private looksLikeLinkToDoc(href: InternalHref, targetDoc: vscode.Uri) {
@@ -306,7 +307,7 @@ export class MdVsCodeReferencesProvider implements vscode.ReferenceProvider {
 		private readonly referencesProvider: MdReferencesProvider
 	) { }
 
-	async provideReferences(document: SkinnyTextDocument, position: vscode.Position, context: vscode.ReferenceContext, token: vscode.CancellationToken): Promise<vscode.Location[]> {
+	async provideReferences(document: ITextDocument, position: vscode.Position, context: vscode.ReferenceContext, token: vscode.CancellationToken): Promise<vscode.Location[]> {
 		const allRefs = await this.referencesProvider.getReferencesAtPosition(document, position, token);
 		return allRefs
 			.filter(ref => context.includeDeclaration || !ref.isDefinition)
@@ -321,15 +322,15 @@ export function registerReferencesSupport(
 	return vscode.languages.registerReferenceProvider(selector, new MdVsCodeReferencesProvider(referencesProvider));
 }
 
-export async function tryResolveLinkPath(originalUri: vscode.Uri, workspaceContents: MdWorkspaceContents): Promise<vscode.Uri | undefined> {
-	if (await workspaceContents.pathExists(originalUri)) {
+export async function tryResolveLinkPath(originalUri: vscode.Uri, workspace: IMdWorkspace): Promise<vscode.Uri | undefined> {
+	if (await workspace.pathExists(originalUri)) {
 		return originalUri;
 	}
 
 	// We don't think the file exists. If it doesn't already have an extension, try tacking on a `.md` and using that instead
 	if (uri.Utils.extname(originalUri) === '') {
 		const dotMdResource = originalUri.with({ path: originalUri.path + '.md' });
-		if (await workspaceContents.pathExists(dotMdResource)) {
+		if (await workspace.pathExists(dotMdResource)) {
 			return dotMdResource;
 		}
 	}
