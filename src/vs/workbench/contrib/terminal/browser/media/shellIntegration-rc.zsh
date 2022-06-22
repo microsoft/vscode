@@ -67,6 +67,8 @@ __vsc_command_complete() {
 			builtin printf "\033]633;D;%s\007" "$__vsc_status"
 			__vsc_last_history_id=$__vsc_history_id
 		fi
+	else
+		builtin printf "\033]633;D\007"
 	fi
 	__vsc_update_cwd
 }
