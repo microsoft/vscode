@@ -452,6 +452,7 @@ export class GitpodWorkspaceTreeDataProvider implements vscode.TreeDataProvider<
 					port.contextValue = (exposed.visibility === PortVisibility.PUBLIC ? 'public-' : 'private-') + port.contextValue;
 				}
 				if (port.tunnel) {
+					port.contextValue = 'tunneled-' + port.contextValue;
 					port.contextValue = (isPortTunnelPublic ? 'network-' : 'host-') + port.contextValue;
 				}
 				if (!accessible && portStatus.getAutoExposure() === PortAutoExposure.FAILED) {
