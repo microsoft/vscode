@@ -83,7 +83,7 @@ export class MdReferencesProvider extends Disposable {
 	public async getReferencesAtPosition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
 		this.logger.verbose('ReferencesProvider', `getReferencesAtPosition: ${document.uri}`);
 
-		const toc = await this.tocProvider.get(document.uri);
+		const toc = await this.tocProvider.getForDocument(document);
 		if (token.isCancellationRequested) {
 			return [];
 		}

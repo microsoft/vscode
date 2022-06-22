@@ -40,7 +40,7 @@ async function getComputedDiagnostics(doc: InMemoryDocument, workspace: MdWorksp
 }
 
 function assertDiagnosticsEqual(actual: readonly vscode.Diagnostic[], expectedRanges: readonly vscode.Range[]) {
-	assert.strictEqual(actual.length, expectedRanges.length);
+	assert.strictEqual(actual.length, expectedRanges.length, "Diagnostic count equal");
 
 	for (let i = 0; i < actual.length; ++i) {
 		assertRangeEqual(actual[i].range, expectedRanges[i], `Range ${i} to be equal`);
@@ -449,7 +449,7 @@ suite('Markdown: Diagnostics manager', () => {
 			tocProvider,
 			nulLogger,
 			0);
-		_disposables.push(manager, referencesProvider);
+		_disposables.push(linkProvider, tocProvider, referencesProvider, manager);
 		return manager;
 	}
 
@@ -553,5 +553,41 @@ suite('Markdown: Diagnostics manager', () => {
 		assertDiagnosticsEqual(reporter.get(doc2Uri), [
 			new vscode.Range(2, 7, 2, 17),
 		]);
+	});
+
+	test('Should revalidate linked files when file is deleted/created', async () => {
+		const doc1Uri = workspacePath('doc1.md');
+		const doc1 = new InMemoryDocument(doc1Uri, joinLines(
+			`[text](/doc2.md)`,
+			`[text](/doc2.md#header)`,
+		));
+		const doc2Uri = workspacePath('doc2.md');
+		const doc2 = new InMemoryDocument(doc2Uri, joinLines(
+			`# Header`
+		));
+
+		const workspace = new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]);
+		const reporter = new MemoryDiagnosticReporter();
+
+		const manager = createDiagnosticsManager(workspace, new MemoryDiagnosticConfiguration({}), reporter);
+		await manager.ready;
+
+		// Check initial state
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), []);
+
+		// Edit header
+		workspace.deleteDocument(doc2Uri);
+
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
+			new vscode.Range(0, 7, 0, 15),
+			new vscode.Range(1, 7, 1, 22),
+		]);
+
+		// Revert to original file
+		workspace.createDocument(doc2);
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), []);
 	});
 });

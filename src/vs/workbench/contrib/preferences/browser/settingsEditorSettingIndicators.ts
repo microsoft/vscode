@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { ITooltipMarkdownString, IUpdatableHoverOptions, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { ICustomHover, ITooltipMarkdownString, IUpdatableHoverOptions, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -153,15 +153,17 @@ export class SettingsTreeIndicatorsLabel {
 					},
 					markdownNotSupportedFallback: contentFallback
 				};
+				let hover: ICustomHover | undefined = undefined;
 				const options: IUpdatableHoverOptions = {
 					linkHandler: (scope: string) => {
 						onDidClickOverrideElement.fire({
 							targetKey: element.setting.key,
 							scope
 						});
+						hover!.dispose();
 					}
 				};
-				setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
+				hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
 			}
 		}
 		this.render();

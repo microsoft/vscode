@@ -1893,6 +1893,26 @@
           "default": [],
           "scope": "resource"
         },
+        "git.branchProtectionIndicator": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "%config.branchProtectionIndicator%",
+          "properties": {
+            "quickOpen": {
+              "type": "boolean",
+              "description": "%config.branchProtectionIndicator.quickOpen%"
+            },
+            "statusBar": {
+              "type": "boolean",
+              "description": "%config.branchProtectionIndicator.statusBar%"
+            }
+          },
+          "default": {
+            "quickOpen": true,
+            "statusBar": true
+          },
+          "scope": "resource"
+        },
         "git.branchProtectionPrompt": {
           "type": "string",
           "description": "%config.branchProtectionPrompt%",
@@ -2031,7 +2051,6 @@
         },
         "git.useEditorAsCommitInput": {
           "type": "boolean",
-          "scope": "resource",
           "description": "%config.useEditorAsCommitInput%",
           "default": true
         },
@@ -2349,7 +2368,8 @@
         "git.requireGitUserConfig": {
           "type": "boolean",
           "description": "%config.requireGitUserConfig%",
-          "default": true
+          "default": true,
+          "scope": "resource"
         },
         "git.showCommitInput": {
           "type": "boolean",
@@ -2359,13 +2379,11 @@
         },
         "git.terminalAuthentication": {
           "type": "boolean",
-          "scope": "resource",
           "default": true,
           "description": "%config.terminalAuthentication%"
         },
         "git.terminalGitEditor": {
           "type": "boolean",
-          "scope": "resource",
           "default": true,
           "description": "%config.terminalGitEditor%"
         },
@@ -2467,7 +2485,6 @@
             "type": "string"
           },
           "default": [],
-          "scope": "resource",
           "markdownDescription": "%config.commandsToLog%"
         },
         "git.logLevel": {

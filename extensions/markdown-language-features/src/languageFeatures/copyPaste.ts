@@ -15,7 +15,7 @@ export function registerPasteSupport(selector: vscode.DocumentSelector) {
 			dataTransfer: vscode.DataTransfer,
 			token: vscode.CancellationToken,
 		): Promise<vscode.DocumentPasteEdit | undefined> {
-			const enabled = vscode.workspace.getConfiguration('markdown', document).get('experimental.editor.pasteLinks.enabled', false);
+			const enabled = vscode.workspace.getConfiguration('markdown', document).get('experimental.editor.pasteLinks.enabled', true);
 			if (!enabled) {
 				return;
 			}

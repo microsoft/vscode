@@ -123,7 +123,7 @@ registerAction2(class RemoveProfileAction extends Action2 {
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 
-		const profiles = userDataProfilesService.profiles.filter(p => p.name !== userDataProfileService.currentProfile.name && p.name !== userDataProfilesService.defaultProfile.name);
+		const profiles = userDataProfilesService.profiles.filter(p => p.id !== userDataProfileService.currentProfile.id && !p.isDefault);
 		if (profiles.length) {
 			const pick = await quickInputService.pick(profiles.map(profile => ({ label: profile.name, profile })), { placeHolder: localize('pick profile', "Select Settings Profile") });
 			if (pick) {
@@ -153,8 +153,9 @@ registerAction2(class SwitchProfileAction extends Action2 {
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 
-		if (userDataProfilesService.profiles) {
-			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = userDataProfilesService.profiles.map(profile => ({
+		const profiles = userDataProfilesService.profiles.filter(p => p.id !== userDataProfileService.currentProfile.id);
+		if (profiles.length) {
+			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = profiles.map(profile => ({
 				label: profile.name!,
 				description: profile.name === userDataProfileService.currentProfile.name ? localize('current', "Current") : undefined,
 				profile

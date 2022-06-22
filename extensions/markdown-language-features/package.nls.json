@@ -29,7 +29,7 @@
 	"configuration.markdown.links.openLocation.beside": "Open links beside the active editor.",
 	"configuration.markdown.suggest.paths.enabled.description": "Enable/disable path suggestions for markdown links",
 	"configuration.markdown.editor.drop.enabled": "Enable/disable dropping into the markdown editor to insert shift. Requires enabling `#workbench.experimental.editor.dropIntoEditor.enabled#`.",
-	"configuration.markdown.editor.pasteLinks.enabled": "Enable/disable pasting files into a Markdown editor inserts Markdown links.",
+	"configuration.markdown.editor.pasteLinks.enabled": "Enable/disable pasting files into a Markdown editor inserts Markdown links. Requires enabling `#editor.experimental.pasteActions.enabled#`.",
 	"configuration.markdown.experimental.validate.enabled.description": "Enable/disable all error reporting in Markdown files.",
 	"configuration.markdown.experimental.validate.referenceLinks.enabled.description": "Validate reference links in Markdown files, e.g. `[link][ref]`.  Requires enabling `#markdown.experimental.validate.enabled#`.",
 	"configuration.markdown.experimental.validate.fragmentLinks.enabled.description": "Validate fragment links to headers in the current Markdown file, e.g. `[link](#header)`. Requires enabling `#markdown.experimental.validate.enabled#`.",

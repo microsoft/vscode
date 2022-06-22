@@ -100,6 +100,9 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
 			throw new Error(`Profile ${profile.name} does not exist`);
 		}
+		if (this.userDataProfileService.currentProfile.id === profile.id) {
+			return;
+		}
 		await this.userDataProfilesService.setProfileForWorkspace(profile, workspaceIdentifier);
 		await this.enterProfile(profile, false);
 	}

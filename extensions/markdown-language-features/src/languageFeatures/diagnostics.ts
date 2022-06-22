@@ -9,13 +9,13 @@ import * as nls from 'vscode-nls';
 import { CommandManager } from '../commandManager';
 import { ILogger } from '../logging';
 import { MdTableOfContentsProvider } from '../tableOfContents';
-import { MdTableOfContentsWatcher } from '../test/tableOfContentsWatcher';
 import { Delayer } from '../util/async';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile, looksLikeMarkdownPath } from '../util/file';
 import { Limiter } from '../util/limiter';
 import { ResourceMap } from '../util/resourceMap';
+import { MdTableOfContentsWatcher } from '../util/tableOfContentsWatcher';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinks';
 import { MdReferencesProvider, tryResolveLinkPath } from './references';
@@ -324,10 +324,16 @@ export class DiagnosticManager extends Disposable {
 
 		this._register(workspaceContents.onDidCreateMarkdownDocument(doc => {
 			this.triggerDiagnostics(doc.uri);
+			// Links in other files may have become valid
+			this.triggerForReferencingFiles(doc.uri);
 		}));
 
 		this._register(workspaceContents.onDidChangeMarkdownDocument(doc => {
 			this.triggerDiagnostics(doc.uri);
+		}));
+
+		this._register(workspaceContents.onDidDeleteMarkdownDocument(uri => {
+			this.triggerForReferencingFiles(uri);
 		}));
 
 		this._register(vscode.workspace.onDidCloseTextDocument(({ uri }) => {
@@ -336,7 +342,6 @@ export class DiagnosticManager extends Disposable {
 			this.linkWatcher.deleteDocument(uri);
 			this.reporter.delete(uri);
 		}));
-
 
 		this._register(this.linkWatcher.onDidChangeLinkedToFile(changedDocuments => {
 			for (const resource of changedDocuments) {
@@ -347,20 +352,26 @@ export class DiagnosticManager extends Disposable {
 			}
 		}));
 
-		this.tableOfContentsWatcher = this._register(new MdTableOfContentsWatcher(workspaceContents, tocProvider));
-		this._register(this.tableOfContentsWatcher.onTocChanged(async e => {
-			// When the toc of a document changes, revalidate every file that linked to it too
-			const triggered = new ResourceMap<void>();
-			for (const ref of await this.referencesProvider.getAllReferencesToFile(e.uri, noopToken)) {
-				const file = ref.location.uri;
-				if (!triggered.has(file)) {
-					this.triggerDiagnostics(file);
-					triggered.set(file);
-				}
-			}
+		this.tableOfContentsWatcher = this._register(new MdTableOfContentsWatcher(workspaceContents, tocProvider, delay / 2));
+		this._register(this.tableOfContentsWatcher.onTocChanged(e => {
+			return this.triggerForReferencingFiles(e.uri);
 		}));
 
 		this.ready = this.rebuild();
+	}
+
+	private triggerForReferencingFiles(uri: vscode.Uri): Promise<void> {
+		return this.reporter.addWorkItem(
+			(async () => {
+				const triggered = new ResourceMap<Promise<void>>();
+				for (const ref of await this.referencesProvider.getAllReferencesToFile(uri, noopToken)) {
+					const file = ref.location.uri;
+					if (!triggered.has(file)) {
+						triggered.set(file, this.triggerDiagnostics(file));
+					}
+				}
+				await Promise.all(triggered.values());
+			})());
 	}
 
 	public override dispose() {
@@ -491,7 +502,7 @@ export class DiagnosticComputer {
 			return [];
 		}
 
-		const toc = await this.tocProvider.get(doc.uri);
+		const toc = await this.tocProvider.getForDocument(doc);
 		if (token.isCancellationRequested) {
 			return [];
 		}

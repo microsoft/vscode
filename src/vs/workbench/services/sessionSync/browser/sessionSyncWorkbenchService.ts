@@ -265,14 +265,14 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	}
 
 	private get existingSessionId() {
-		return this.storageService.get(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.PROFILE);
+		return this.storageService.get(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.APPLICATION);
 	}
 
 	private set existingSessionId(sessionId: string | undefined) {
 		if (sessionId === undefined) {
-			this.storageService.remove(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.PROFILE);
+			this.storageService.remove(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.APPLICATION);
 		} else {
-			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.PROFILE, StorageTarget.USER);
+			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.APPLICATION, StorageTarget.USER);
 		}
 	}
 
@@ -283,7 +283,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 
 	private async onDidChangeStorage(e: IStorageValueChangeEvent): Promise<void> {
 		if (e.key === SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY
-			&& e.scope === StorageScope.PROFILE
+			&& e.scope === StorageScope.APPLICATION
 			&& this.#authenticationInfo?.sessionId !== this.existingSessionId
 		) {
 			this.#authenticationInfo = undefined;

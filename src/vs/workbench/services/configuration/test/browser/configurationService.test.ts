@@ -68,7 +68,7 @@ export class ConfigurationCache implements IConfigurationCache {
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 function aUserDataProfileService(environmentService: IEnvironmentService): IUserDataProfileService {
-	const profile = toUserDataProfile('temp', environmentService.userRoamingDataHome);
+	const profile = { ...toUserDataProfile('temp', environmentService.userRoamingDataHome), isDefault: true };
 	return new UserDataProfileService(profile, profile);
 }
 
@@ -683,7 +683,7 @@ suite('WorkspaceService - Initialization', () => {
 
 suite('WorkspaceConfigurationService - Folder', () => {
 
-	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: IWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService;
+	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: IWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, instantiationService: TestInstantiationService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const disposables: DisposableStore = new DisposableStore();
 
@@ -751,7 +751,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		const folder = joinPath(ROOT, 'a');
 		await fileService.createFolder(folder);
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		environmentService.policyFile = joinPath(folder, 'policies.json');
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
@@ -1028,6 +1028,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('inspect', async () => {
 		let actual = testObject.inspect('something.missing');
 		assert.strictEqual(actual.defaultValue, undefined);
+		assert.strictEqual(actual.application, undefined);
 		assert.strictEqual(actual.userValue, undefined);
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
@@ -1035,6 +1036,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 		actual = testObject.inspect('configurationService.folder.testSetting');
 		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
 		assert.strictEqual(actual.userValue, undefined);
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
@@ -1044,6 +1046,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		await testObject.reloadConfiguration();
 		actual = testObject.inspect('configurationService.folder.testSetting');
 		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
 		assert.strictEqual(actual.userValue, 'userValue');
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
@@ -1053,6 +1056,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		await testObject.reloadConfiguration();
 		actual = testObject.inspect('configurationService.folder.testSetting');
 		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
 		assert.strictEqual(actual.userValue, 'userValue');
 		assert.strictEqual(actual.workspaceValue, 'workspaceValue');
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
@@ -1368,6 +1372,164 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 	});
+});
+
+suite('WorkspaceConfigurationService - Profiles', () => {
+
+	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: IWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, instantiationService: TestInstantiationService;
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	const disposables: DisposableStore = new DisposableStore();
+
+	suiteSetup(() => {
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.profiles.applicationSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				},
+				'configurationService.profiles.testSetting': {
+					'type': 'string',
+					'default': 'isSet',
+				},
+				'configurationService.profiles.applicationSetting2': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				},
+				'configurationService.profiles.testSetting2': {
+					'type': 'string',
+					'default': 'isSet',
+				},
+			}
+		});
+	});
+
+	setup(async () => {
+		const logService = new NullLogService();
+		fileService = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+
+		const folder = joinPath(ROOT, 'a');
+		await fileService.createFolder(folder);
+
+		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		environmentService = TestEnvironmentService;
+		environmentService.policyFile = joinPath(folder, 'policies.json');
+		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
+		instantiationService.stub(IRemoteAgentService, remoteAgentService);
+		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
+		userDataProfileService = new UserDataProfileService({ ...toUserDataProfile('default', environmentService.userRoamingDataHome), isDefault: true }, toUserDataProfile('custom', joinPath(environmentService.userRoamingDataHome, 'profiles', 'temp')));
+		instantiationService.stub(IUserDataProfileService, userDataProfileService);
+		workspaceService = testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService(), new FilePolicyService(environmentService.policyFile, fileService, logService)));
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IWorkspaceContextService, testObject);
+		instantiationService.stub(IConfigurationService, testObject);
+		instantiationService.stub(IEnvironmentService, environmentService);
+
+		await fileService.writeFile(userDataProfileService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting2": "applicationValue", "configurationService.profiles.testSetting2": "userValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting2": "profileValue", "configurationService.profiles.testSetting2": "profileValue" }'));
+		await workspaceService.initialize(convertToWorkspacePayload(folder));
+		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
+		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
+		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		workspaceService.acquireInstantiationService(instantiationService);
+	});
+
+	teardown(() => disposables.clear());
+
+	test('initialize', async () => {
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'profileValue');
+	});
+
+	test('inspect', async () => {
+		let actual = testObject.inspect('something.missing');
+		assert.strictEqual(actual.defaultValue, undefined);
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, undefined);
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, undefined);
+
+		actual = testObject.inspect('configurationService.profiles.applicationSetting');
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, undefined);
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, 'isSet');
+
+		await fileService.writeFile(userDataProfileService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "applicationValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "profileValue" }'));
+		await testObject.reloadConfiguration();
+		actual = testObject.inspect('configurationService.profiles.applicationSetting');
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.applicationValue, 'applicationValue');
+		assert.strictEqual(actual.userValue, undefined);
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, 'applicationValue');
+
+		await fileService.writeFile(userDataProfileService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting": "applicationValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting": "profileValue" }'));
+		await testObject.reloadConfiguration();
+		actual = testObject.inspect('configurationService.profiles.testSetting');
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.applicationValue, undefined);
+		assert.strictEqual(actual.userValue, 'profileValue');
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, 'profileValue');
+	});
+
+	test('update application scope setting', async () => {
+		await testObject.updateValue('configurationService.profiles.applicationSetting', 'applicationValue');
+
+		assert.deepStrictEqual(JSON.parse((await fileService.readFile(userDataProfileService.defaultProfile.settingsResource)).value.toString()), { 'configurationService.profiles.applicationSetting': 'applicationValue', 'configurationService.profiles.applicationSetting2': 'applicationValue', 'configurationService.profiles.testSetting2': 'userValue' });
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
+	});
+
+	test('update normal setting', async () => {
+		await testObject.updateValue('configurationService.profiles.testSetting', 'profileValue');
+
+		assert.deepStrictEqual(JSON.parse((await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString()), { 'configurationService.profiles.testSetting': 'profileValue', 'configurationService.profiles.testSetting2': 'profileValue', 'configurationService.profiles.applicationSetting2': 'profileValue' });
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'profileValue');
+	});
+
+	test('switch to default profile', async () => {
+		await fileService.writeFile(userDataProfileService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "applicationValue", "configurationService.profiles.testSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "profileValue", "configurationService.profiles.testSetting": "profileValue" }'));
+		await testObject.reloadConfiguration();
+
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await userDataProfileService.updateCurrentProfile(userDataProfileService.defaultProfile, false);
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual(changeEvent.affectedKeys, ['configurationService.profiles.testSetting']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'userValue');
+	});
+
+	test('switch to non default profile', async () => {
+		await fileService.writeFile(userDataProfileService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "applicationValue", "configurationService.profiles.testSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "profileValue", "configurationService.profiles.testSetting": "profileValue" }'));
+		await testObject.reloadConfiguration();
+
+		const profile = toUserDataProfile('custom2', joinPath(environmentService.userRoamingDataHome, 'profiles', 'custom2'));
+		await fileService.writeFile(profile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "profileValue2", "configurationService.profiles.testSetting": "profileValue2" }'));
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await userDataProfileService.updateCurrentProfile(profile, false);
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual(changeEvent.affectedKeys, ['configurationService.profiles.testSetting']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'profileValue2');
+	});
+
 });
 
 suite('WorkspaceConfigurationService-Multiroot', () => {
