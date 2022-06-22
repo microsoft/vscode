@@ -622,7 +622,7 @@ export class TerminalService implements ITerminalService {
 
 		// Force dispose of all terminal instances
 		for (const instance of this.instances) {
-			instance.dispose();
+			instance.dispose(true);
 		}
 
 		// Clear terminal layout info only when not persisting
