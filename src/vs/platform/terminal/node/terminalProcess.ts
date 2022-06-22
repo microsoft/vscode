@@ -98,7 +98,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
 		overrideDimensions: undefined,
-		failedShellIntegrationActivation: false
+		failedShellIntegrationActivation: false,
+		usedShellIntegrationInjection: undefined
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -202,6 +203,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._options.shellIntegration.enabled) {
 			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration, this._logService);
 			if (injection) {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
 				if (injection.envMixin) {
 					for (const [key, value] of Object.entries(injection.envMixin)) {
 						this._ptyOptions.env ||= {};

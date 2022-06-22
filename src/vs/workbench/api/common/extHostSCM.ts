@@ -540,7 +540,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				secondaryCommands: actionButton.secondaryCommands?.map(c => {
 					return { ...this._commands.converter.toInternal(c, this._actionButtonDisposables.value!), group: c.group };
 				}),
-				description: actionButton.description
+				description: actionButton.description,
+				enabled: actionButton.enabled
 			} : undefined;
 		this.#proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
 	}

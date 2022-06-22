@@ -21,6 +21,7 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 		endpointUrl: 'https://mobile.events.data.microsoft.com/OneCollector/1.0',
 		loggingLevelTelemetry: 0,
 		loggingLevelConsole: 0,
+		extensionConfig: {},
 		channels: [[
 			collectorChannelPlugin
 		]]

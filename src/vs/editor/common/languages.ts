@@ -736,9 +736,9 @@ export interface DocumentPasteEditProvider {
 
 	readonly pasteMimeTypes: readonly string[];
 
-	prepareDocumentPaste?(model: model.ITextModel, selections: readonly Selection[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
+	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
 
-	provideDocumentPasteEdits(model: model.ITextModel, selections: readonly Selection[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
+	provideDocumentPasteEdits(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
 }
 
 /**

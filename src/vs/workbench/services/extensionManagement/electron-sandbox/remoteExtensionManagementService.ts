@@ -21,9 +21,10 @@ import { IExtensionManagementServer } from 'vs/workbench/services/extensionManag
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { NativeProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/profileAwareExtensionManagementService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
-export class NativeRemoteExtensionManagementService extends ExtensionManagementChannelClient implements IExtensionManagementService {
+export class NativeRemoteExtensionManagementService extends NativeProfileAwareExtensionManagementService implements IExtensionManagementService {
 
 	constructor(
 		channel: IChannel,
@@ -34,8 +35,9 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 		@IProductService private readonly productService: IProductService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(channel);
+		super(channel, undefined, uriIdentityService);
 	}
 
 	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {

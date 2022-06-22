@@ -232,7 +232,7 @@ export class CommandsHistory extends Disposable {
 	}
 
 	private load(): void {
-		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE, StorageScope.GLOBAL);
+		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE, StorageScope.PROFILE);
 		let serializedCache: ISerializedCommandHistory | undefined;
 		if (raw) {
 			try {
@@ -253,7 +253,7 @@ export class CommandsHistory extends Disposable {
 			entries.forEach(entry => cache.set(entry.key, entry.value));
 		}
 
-		CommandsHistory.counter = this.storageService.getNumber(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, CommandsHistory.counter);
+		CommandsHistory.counter = this.storageService.getNumber(CommandsHistory.PREF_KEY_COUNTER, StorageScope.PROFILE, CommandsHistory.counter);
 	}
 
 	push(commandId: string): void {
@@ -278,8 +278,8 @@ export class CommandsHistory extends Disposable {
 		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
 		CommandsHistory.cache.forEach((value, key) => serializedCache.entries.push({ key, value }));
 
-		storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL, StorageTarget.USER);
-		storageService.store(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.GLOBAL, StorageTarget.USER);
+		storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	static getConfiguredCommandHistoryLength(configurationService: IConfigurationService): number {

@@ -20,7 +20,7 @@ import {
 } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import { DebugService } from 'vs/workbench/contrib/debug/browser/debugService';
-import { ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID, DEBUG_RUN_LABEL, DEBUG_RUN_COMMAND_ID, EDIT_EXPRESSION_COMMAND_ID, REMOVE_EXPRESSION_COMMAND_ID, SELECT_AND_START_ID, SELECT_AND_START_LABEL, SET_EXPRESSION_COMMAND_ID, DISCONNECT_AND_SUSPEND_ID, DISCONNECT_AND_SUSPEND_LABEL, NEXT_DEBUG_CONSOLE_ID, NEXT_DEBUG_CONSOLE_LABEL, PREV_DEBUG_CONSOLE_ID, PREV_DEBUG_CONSOLE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID, DEBUG_RUN_LABEL, DEBUG_RUN_COMMAND_ID, EDIT_EXPRESSION_COMMAND_ID, REMOVE_EXPRESSION_COMMAND_ID, SELECT_AND_START_ID, SELECT_AND_START_LABEL, SET_EXPRESSION_COMMAND_ID, DISCONNECT_AND_SUSPEND_ID, DISCONNECT_AND_SUSPEND_LABEL, NEXT_DEBUG_CONSOLE_ID, NEXT_DEBUG_CONSOLE_LABEL, PREV_DEBUG_CONSOLE_ID, PREV_DEBUG_CONSOLE_LABEL, SELECT_DEBUG_CONSOLE_ID, SELECT_DEBUG_CONSOLE_LABEL, DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, DEBUG_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
@@ -57,6 +57,7 @@ import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassem
 import { DebugLifecycle } from 'vs/workbench/contrib/debug/common/debugLifecycle';
 import { Icon } from 'vs/platform/action/common/action';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { DebugConsoleQuickAccess } from 'vs/workbench/contrib/debug/browser/debugConsoleQuickAccess';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -77,10 +78,19 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 // Register Quick Access
 Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
 	ctor: StartDebugQuickAccessProvider,
-	prefix: StartDebugQuickAccessProvider.PREFIX,
+	prefix: DEBUG_QUICK_ACCESS_PREFIX,
 	contextKey: 'inLaunchConfigurationsPicker',
 	placeholder: nls.localize('startDebugPlaceholder', "Type the name of a launch configuration to run."),
 	helpEntries: [{ description: nls.localize('startDebuggingHelp', "Start Debugging"), commandId: SELECT_AND_START_ID }]
+});
+
+// Register quick access for debug console
+Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
+	ctor: DebugConsoleQuickAccess,
+	prefix: DEBUG_CONSOLE_QUICK_ACCESS_PREFIX,
+	contextKey: 'inDebugConsolePicker',
+	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a debug console to open."),
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Debug Consoles"), commandId: SELECT_DEBUG_CONSOLE_ID }]
 });
 
 
@@ -122,6 +132,7 @@ registerDebugCommandPaletteItem(DEBUG_RUN_COMMAND_ID, DEBUG_RUN_LABEL, ContextKe
 registerDebugCommandPaletteItem(SELECT_AND_START_ID, SELECT_AND_START_LABEL, ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))));
 registerDebugCommandPaletteItem(NEXT_DEBUG_CONSOLE_ID, NEXT_DEBUG_CONSOLE_LABEL);
 registerDebugCommandPaletteItem(PREV_DEBUG_CONSOLE_ID, PREV_DEBUG_CONSOLE_LABEL);
+registerDebugCommandPaletteItem(SELECT_DEBUG_CONSOLE_ID, SELECT_DEBUG_CONSOLE_LABEL);
 
 
 // Debug callstack context menu

@@ -11,8 +11,6 @@
  * @author Michael Ficarra
  */
 
-'use strict';
-
 import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/experimental-utils';
 import * as ESTree from 'estree';

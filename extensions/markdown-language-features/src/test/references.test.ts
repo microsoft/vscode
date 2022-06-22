@@ -13,12 +13,13 @@ import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
 import { joinLines, workspacePath } from './util';
 
 
 function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspace: MdWorkspaceContents) {
 	const engine = createNewMarkdownEngine();
-	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace));
+	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
 	const provider = new MdVsCodeReferencesProvider(computer);
 	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
 }

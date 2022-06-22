@@ -10,6 +10,7 @@ declare module 'vscode' {
 		command: Command;
 		secondaryCommands?: Command[][];
 		description?: string;
+		enabled: boolean;
 	}
 
 	export interface SourceControl {

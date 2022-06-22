@@ -105,7 +105,6 @@ import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } fro
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
-// import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 
 class SharedProcessMain extends Disposable {
 

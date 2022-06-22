@@ -58,20 +58,21 @@ namespace IRelaxedOpenArgs {
 
 	function toInputResource(obj: unknown): MergeEditorInputData {
 		if (typeof obj === 'string') {
-			return new MergeEditorInputData(URI.parse(obj, true), undefined, undefined);
+			return new MergeEditorInputData(URI.parse(obj, true), undefined, undefined, undefined);
 		}
 		if (!obj || typeof obj !== 'object') {
 			throw new TypeError('invalid argument');
 		}
 
 		if (isUriComponents(obj)) {
-			return new MergeEditorInputData(URI.revive(obj), undefined, undefined);
+			return new MergeEditorInputData(URI.revive(obj), undefined, undefined, undefined);
 		}
 
+		const title = (<IRelaxedInputData>obj).title;
 		const uri = toUri((<IRelaxedInputData>obj).uri);
 		const detail = (<IRelaxedInputData>obj).detail;
 		const description = (<IRelaxedInputData>obj).description;
-		return new MergeEditorInputData(uri, detail, description);
+		return new MergeEditorInputData(uri, title, detail, description);
 	}
 
 	export function validate(obj: unknown): IOpenEditorArgs {
@@ -86,7 +87,7 @@ namespace IRelaxedOpenArgs {
 	}
 }
 
-type IRelaxedInputData = { uri: UriComponents; detail?: string; description?: string };
+type IRelaxedInputData = { uri: UriComponents; title?: string; detail?: string; description?: string };
 
 type IRelaxedOpenArgs = {
 	ancestor: UriComponents | string;

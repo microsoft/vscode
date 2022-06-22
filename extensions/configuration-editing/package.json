@@ -79,6 +79,10 @@
         "url": "vscode://schemas/settings/user"
       },
       {
+        "fileMatch": "%APP_SETTINGS_HOME%/profiles/*/settings.json",
+        "url": "vscode://schemas/settings/profile"
+      },
+      {
         "fileMatch": "%MACHINE_SETTINGS_HOME%/settings.json",
         "url": "vscode://schemas/settings/machine"
       },

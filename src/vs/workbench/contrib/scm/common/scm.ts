@@ -101,6 +101,7 @@ export interface ISCMActionButtonDescriptor {
 	command: Command;
 	secondaryCommands?: (Command & { group?: string })[];
 	description?: string;
+	enabled: boolean;
 }
 
 export interface ISCMActionButton {
