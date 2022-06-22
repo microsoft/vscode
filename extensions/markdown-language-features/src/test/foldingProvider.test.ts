@@ -6,9 +6,12 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdFoldingProvider } from '../languageFeatures/foldingProvider';
+import { MdFoldingProvider } from '../languageFeatures/folding';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
+import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
 import { joinLines } from './util';
 
 const testFileName = vscode.Uri.file('test.md');
@@ -218,6 +221,8 @@ suite('markdown.FoldingProvider', () => {
 
 async function getFoldsForDocument(contents: string) {
 	const doc = new InMemoryDocument(testFileName, contents);
-	const provider = new MdFoldingProvider(createNewMarkdownEngine());
+	const workspace = new InMemoryWorkspaceMarkdownDocuments([doc]);
+	const engine = createNewMarkdownEngine();
+	const provider = new MdFoldingProvider(engine, new MdTableOfContentsProvider(engine, workspace, nulLogger));
 	return await provider.provideFoldingRanges(doc, {}, new vscode.CancellationTokenSource().token);
 }

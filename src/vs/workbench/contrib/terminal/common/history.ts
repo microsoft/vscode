@@ -92,7 +92,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 		// Listen to cache changes from other windows
 		this._storageService.onDidChangeValue(e => {
 			if (e.key === this._getTimestampStorageKey() && !this._isStale) {
-				this._isStale = this._storageService.getNumber(this._getTimestampStorageKey(), StorageScope.GLOBAL, 0) !== this._timestamp;
+				this._isStale = this._storageService.getNumber(this._getTimestampStorageKey(), StorageScope.APPLICATION, 0) !== this._timestamp;
 			}
 		});
 	}
@@ -133,7 +133,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	}
 
 	private _loadState() {
-		this._timestamp = this._storageService.getNumber(this._getTimestampStorageKey(), StorageScope.GLOBAL, 0);
+		this._timestamp = this._storageService.getNumber(this._getTimestampStorageKey(), StorageScope.APPLICATION, 0);
 
 		// Load global entries plus
 		const serialized = this._loadPersistedState();
@@ -145,7 +145,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	}
 
 	private _loadPersistedState(): ISerializedCache<T> | undefined {
-		const raw = this._storageService.get(this._getEntriesStorageKey(), StorageScope.GLOBAL);
+		const raw = this._storageService.get(this._getEntriesStorageKey(), StorageScope.APPLICATION);
 		if (raw === undefined || raw.length === 0) {
 			return undefined;
 		}
@@ -162,9 +162,9 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	private _saveState() {
 		const serialized: ISerializedCache<T> = { entries: [] };
 		this._entries.forEach((value, key) => serialized.entries.push({ key, value }));
-		this._storageService.store(this._getEntriesStorageKey(), JSON.stringify(serialized), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._storageService.store(this._getEntriesStorageKey(), JSON.stringify(serialized), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this._timestamp = Date.now();
-		this._storageService.store(this._getTimestampStorageKey(), this._timestamp, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._storageService.store(this._getTimestampStorageKey(), this._timestamp, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	private _getHistoryLimit() {

@@ -6,21 +6,21 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkComputer } from '../languageFeatures/documentLinkProvider';
-import { MdReferencesProvider } from '../languageFeatures/references';
-import { githubSlugifier } from '../slugify';
+import { MdReferencesProvider, MdVsCodeReferencesProvider } from '../languageFeatures/references';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
 import { joinLines, workspacePath } from './util';
 
 
-function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspaceContents: MdWorkspaceContents) {
+function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspace: MdWorkspaceContents) {
 	const engine = createNewMarkdownEngine();
-	const linkComputer = new MdLinkComputer(engine);
-	const provider = new MdReferencesProvider(linkComputer, workspaceContents, engine, githubSlugifier);
+	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
+	const provider = new MdVsCodeReferencesProvider(computer);
 	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
 }
 

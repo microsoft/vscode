@@ -548,12 +548,7 @@ export interface IConfigurationProperties {
 	/**
 	 * The icon for this task in the terminal tabs list
 	 */
-	icon?: string;
-
-	/**
-	 * The icon's color in the terminal tabs list
-	 */
-	color?: string;
+	icon?: { id: string; color?: string };
 }
 
 export enum RunOnOptions {
@@ -914,6 +909,11 @@ export class ContributedTask extends CommonTask {
 	 */
 	command: ICommandConfiguration;
 
+	/**
+	 * The icon for the task
+	 */
+	icon: { id: string; color?: string } | undefined;
+
 	public constructor(id: string, source: IExtensionTaskSource, label: string, type: string | undefined, defines: KeyedTaskIdentifier,
 		command: ICommandConfiguration, hasDefinedMatchers: boolean, runOptions: IRunOptions,
 		configurationProperties: IConfigurationProperties) {
@@ -921,6 +921,7 @@ export class ContributedTask extends CommonTask {
 		this.defines = defines;
 		this.hasDefinedMatchers = hasDefinedMatchers;
 		this.command = command;
+		this.icon = configurationProperties.icon;
 	}
 
 	public override clone(): ContributedTask {

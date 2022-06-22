@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue } from '../../../../automation';
+import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue, TerminalCommandId } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
@@ -16,34 +16,39 @@ export function setup() {
 			app = this.app as Application;
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
-			await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.enabled', 'true');
-			await setTerminalTestSettings(app);
 		});
 
-		after(async function () {
-			await settingsEditor.clearUserSettings();
+		afterEach(async function () {
+			await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 		});
 
 		async function createShellIntegrationProfile() {
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, process.platform === 'win32' ? 'PowerShell' : 'bash');
 		}
 
-		// TODO: These are currently flaky https://github.com/microsoft/vscode/issues/150478
-		describe.skip('Shell integration', function () {
+		// TODO: Some agents may not have pwsh installed?
+		(process.platform === 'win32' ? describe.skip : describe)(`Process-based tests`, function () {
+			before(async function () {
+				await setTerminalTestSettings(app, [['terminal.integrated.shellIntegration.enabled', 'true']]);
+			});
+			after(async function () {
+				await settingsEditor.clearUserSettings();
+			});
 			describe('Decorations', function () {
 				describe('Should show default icons', function () {
+
 					it('Placeholder', async () => {
 						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 					});
 					it('Success', async () => {
 						await createShellIntegrationProfile();
-						await terminal.runCommandInTerminal(`ls`);
+						await terminal.runCommandInTerminal(`echo "success"`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
 					});
 					it('Error', async () => {
 						await createShellIntegrationProfile();
-						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await terminal.runCommandInTerminal(`false`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
 					});
 				});
@@ -51,15 +56,83 @@ export function setup() {
 					it('Should update and show custom icons', async () => {
 						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
-						await terminal.runCommandInTerminal(`ls`);
-						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await terminal.runCommandInTerminal(`echo "foo"`);
+						await terminal.runCommandInTerminal(`bar`);
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
 						await terminal.assertCommandDecorations(undefined, { updatedIcon: "zap", count: 3 });
+						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 					});
 				});
 			});
 		});
+
+		// These are integration tests that only test the UI side by simulating process writes.
+		// Because of this, they do not test the shell integration scripts, only what the scripts
+		// are expected to write.
+		describe('Write data-based tests', () => {
+			before(async function () {
+				await setTerminalTestSettings(app);
+			});
+			after(async function () {
+				await settingsEditor.clearUserSettings();
+			});
+			beforeEach(async function () {
+				// Create the simplest system profile to get as little process interaction as possible
+				await terminal.createTerminal();
+				// Erase all content and reset cursor to top
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
+			});
+			describe('VS Code sequences', () => {
+				it('should handle the simple case', async () => {
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}exitcode 0`);
+					await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('C')}Success\\r\\n${vsc('D;0')}`);
+					await terminal.assertCommandDecorations({ placeholder: 0, success: 1, error: 0 });
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}exitcode 1`);
+					await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('C')}Failure\\r\\n${vsc('D;1')}`);
+					await terminal.assertCommandDecorations({ placeholder: 0, success: 1, error: 1 });
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}`);
+					await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
+				});
+			});
+			// TODO: This depends on https://github.com/microsoft/vscode/issues/146587
+			describe.skip('Final Term sequences', () => {
+				it('should handle the simple case', async () => {
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${ft('A')}Prompt> ${ft('B')}exitcode 0`);
+					await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${ft('C')}Success\\r\\n${ft('D;0')}`);
+					await terminal.assertCommandDecorations({ placeholder: 0, success: 1, error: 0 });
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${ft('A')}Prompt> ${ft('B')}exitcode 1`);
+					await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${ft('C')}Failure\\r\\n${ft('D;1')}`);
+					await terminal.assertCommandDecorations({ placeholder: 0, success: 1, error: 1 });
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${ft('A')}Prompt> ${ft('B')}exitcode 1`);
+					await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
+				});
+			});
+		});
 	});
+}
+
+function ft(data: string) {
+	return setTextParams(`133;${data}`);
+}
+
+function vsc(data: string) {
+	return setTextParams(`633;${data}`);
+}
+
+function setTextParams(data: string) {
+	return osc(`${data}\\x07`);
+}
+
+function osc(data: string) {
+	return `\\x1b]${data}`;
+}
+
+function csi(data: string) {
+	return `\\x1b[${data}`;
 }

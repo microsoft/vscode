@@ -9,6 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
+import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -72,6 +73,12 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 	 * The promise is resolved immediately if the window is not remote.
 	 */
 	whenRemoteConfigurationLoaded(): Promise<void>;
+
+	/**
+	 * Initialize configuration service for the given workspace
+	 * @param arg workspace Identifier
+	 */
+	initialize(arg: IAnyWorkspaceIdentifier): Promise<void>;
 }
 
 export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';

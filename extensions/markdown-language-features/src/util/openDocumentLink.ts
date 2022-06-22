@@ -6,8 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as uri from 'vscode-uri';
-import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents } from '../tableOfContents';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { isMarkdownFile } from './file';
 
 export interface OpenDocumentLinkArgs {
@@ -37,10 +36,10 @@ export function resolveDocumentLink(href: string, markdownFile: vscode.Uri): vsc
 	return vscode.Uri.joinPath(dirnameUri, hrefPath).with({ fragment });
 }
 
-export async function openDocumentLink(engine: MarkdownEngine, targetResource: vscode.Uri, fromResource: vscode.Uri): Promise<void> {
+export async function openDocumentLink(tocProvider: MdTableOfContentsProvider, targetResource: vscode.Uri, fromResource: vscode.Uri): Promise<void> {
 	const column = getViewColumn(fromResource);
 
-	if (await tryNavigateToFragmentInActiveEditor(engine, targetResource)) {
+	if (await tryNavigateToFragmentInActiveEditor(tocProvider, targetResource)) {
 		return;
 	}
 
@@ -58,7 +57,7 @@ export async function openDocumentLink(engine: MarkdownEngine, targetResource: v
 			try {
 				const stat = await vscode.workspace.fs.stat(dotMdResource);
 				if (stat.type === vscode.FileType.File) {
-					await tryOpenMdFile(engine, dotMdResource, column);
+					await tryOpenMdFile(tocProvider, dotMdResource, column);
 					return;
 				}
 			} catch {
@@ -69,19 +68,19 @@ export async function openDocumentLink(engine: MarkdownEngine, targetResource: v
 		return vscode.commands.executeCommand('revealInExplorer', targetResource);
 	}
 
-	await tryOpenMdFile(engine, targetResource, column);
+	await tryOpenMdFile(tocProvider, targetResource, column);
 }
 
-async function tryOpenMdFile(engine: MarkdownEngine, resource: vscode.Uri, column: vscode.ViewColumn): Promise<boolean> {
+async function tryOpenMdFile(tocProvider: MdTableOfContentsProvider, resource: vscode.Uri, column: vscode.ViewColumn): Promise<boolean> {
 	await vscode.commands.executeCommand('vscode.open', resource.with({ fragment: '' }), column);
-	return tryNavigateToFragmentInActiveEditor(engine, resource);
+	return tryNavigateToFragmentInActiveEditor(tocProvider, resource);
 }
 
-async function tryNavigateToFragmentInActiveEditor(engine: MarkdownEngine, resource: vscode.Uri): Promise<boolean> {
+async function tryNavigateToFragmentInActiveEditor(tocProvider: MdTableOfContentsProvider, resource: vscode.Uri): Promise<boolean> {
 	const activeEditor = vscode.window.activeTextEditor;
 	if (activeEditor?.document.uri.fsPath === resource.fsPath) {
 		if (isMarkdownFile(activeEditor.document)) {
-			if (await tryRevealLineUsingTocFragment(engine, activeEditor, resource.fragment)) {
+			if (await tryRevealLineUsingTocFragment(tocProvider, activeEditor, resource.fragment)) {
 				return true;
 			}
 		}
@@ -103,8 +102,8 @@ function getViewColumn(resource: vscode.Uri): vscode.ViewColumn {
 	}
 }
 
-async function tryRevealLineUsingTocFragment(engine: MarkdownEngine, editor: vscode.TextEditor, fragment: string): Promise<boolean> {
-	const toc = await TableOfContents.create(engine, editor.document);
+async function tryRevealLineUsingTocFragment(tocProvider: MdTableOfContentsProvider, editor: vscode.TextEditor, fragment: string): Promise<boolean> {
+	const toc = await tocProvider.getForDocument(editor.document);
 	const entry = toc.lookup(fragment);
 	if (entry) {
 		const lineStart = new vscode.Range(entry.line, 0, entry.line, 0);

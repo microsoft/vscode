@@ -1483,6 +1483,7 @@ declare namespace monaco.editor {
 		 * CSS class name describing the decoration.
 		 */
 		className?: string | null;
+		blockClassName?: string | null;
 		/**
 		 * Message to be rendered when hovering over the glyph margin decoration.
 		 */

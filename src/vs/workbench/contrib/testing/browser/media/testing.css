@@ -21,6 +21,10 @@
 	align-items: center;
 }
 
+.test-explorer .test-item .label {
+	white-space: pre-wrap;
+}
+
 .test-explorer .test-item,
 .test-output-peek-tree .test-peek-item {
 	display: flex;

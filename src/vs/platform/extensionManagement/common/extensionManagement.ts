@@ -352,6 +352,7 @@ export interface InstallExtensionResult {
 	readonly operation: InstallOperation;
 	readonly source?: URI | IGalleryExtension;
 	readonly local?: ILocalExtension;
+	readonly context?: IStringDictionary<any>;
 }
 
 export interface DidUninstallExtensionEvent {
@@ -384,7 +385,18 @@ export class ExtensionManagementError extends Error {
 	}
 }
 
-export type InstallOptions = { isBuiltin?: boolean; isMachineScoped?: boolean; donotIncludePackAndDependencies?: boolean; installGivenVersion?: boolean; installPreReleaseVersion?: boolean; operation?: InstallOperation };
+export type InstallOptions = {
+	isBuiltin?: boolean;
+	isMachineScoped?: boolean;
+	donotIncludePackAndDependencies?: boolean;
+	installGivenVersion?: boolean;
+	installPreReleaseVersion?: boolean;
+	operation?: InstallOperation;
+	/**
+	 * Context passed through to InstallExtensionResult
+	 */
+	context?: IStringDictionary<any>;
+};
 export type InstallVSIXOptions = Omit<InstallOptions, 'installGivenVersion'> & { installOnlyNewlyAddedFromExtensionPack?: boolean };
 export type UninstallOptions = { donotIncludePack?: boolean; donotCheckDependents?: boolean };
 

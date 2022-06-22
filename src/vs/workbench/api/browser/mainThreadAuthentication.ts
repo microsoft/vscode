@@ -70,7 +70,7 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		quickPick.onDidAccept(() => {
 			const updatedAllowedList = quickPick.items
 				.map(i => (i as TrustedExtensionsQuickPickItem).extension);
-			this.storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.PROFILE, StorageTarget.USER);
 
 			quickPick.dispose();
 		});
@@ -116,7 +116,7 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 			const removeSessionPromises = sessions.map(session => this.removeSession(session.id));
 			await Promise.all(removeSessionPromises);
 			removeAccountUsage(this.storageService, this.id, accountName);
-			this.storageService.remove(`${this.id}-${accountName}`, StorageScope.GLOBAL);
+			this.storageService.remove(`${this.id}-${accountName}`, StorageScope.PROFILE);
 		}
 	}
 
@@ -201,7 +201,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	private async setTrustedExtensionAndAccountPreference(providerId: string, accountName: string, extensionId: string, extensionName: string, sessionId: string): Promise<void> {
 		this.authenticationService.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
-		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 	}
 
@@ -224,9 +224,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (!options.forceNewSession && sessions.length) {
 			if (supportsMultipleAccounts) {
 				if (options.clearSessionPreference) {
-					this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
+					this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.PROFILE);
 				} else {
-					const existingSessionPreference = this.storageService.get(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
+					const existingSessionPreference = this.storageService.get(`${extensionName}-${providerId}`, StorageScope.PROFILE);
 					if (existingSessionPreference) {
 						const matchingSession = sessions.find(session => session.id === existingSessionPreference);
 						if (matchingSession && this.authenticationService.isAccessAllowed(providerId, matchingSession.account.label, extensionId)) {

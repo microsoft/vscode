@@ -16,7 +16,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { ICommandTracker, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICommandTracker, IInternalXtermTerminal, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -50,7 +50,7 @@ let SerializeAddon: typeof SerializeAddonType;
  * Wraps the xterm object with additional functionality. Interaction with the backing process is out
  * of the scope of this class.
  */
-export class XtermTerminal extends DisposableStore implements IXtermTerminal {
+export class XtermTerminal extends DisposableStore implements IXtermTerminal, IInternalXtermTerminal {
 	/** The raw xterm.js instance */
 	readonly raw: RawXtermTerminal;
 
@@ -61,7 +61,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	// Always on addons
 	private _commandNavigationAddon: CommandNavigationAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
-	private _decorationAddon: DecorationAddon | undefined;
+	private _decorationAddon: DecorationAddon;
 
 	// Optional addons
 	private _searchAddon?: SearchAddonType;
@@ -155,17 +155,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
 				this._updateUnicodeVersion();
 			}
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) ||
-				e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled)) {
-				this._updateShellIntegrationAddons();
-			}
 		}));
 
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
 				this._updateTheme();
-				this._decorationAddon?.refreshLayouts();
+				this._decorationAddon.refreshLayouts();
 			}
 		}));
 
@@ -176,15 +172,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._updateUnicodeVersion();
 		this._commandNavigationAddon = this._instantiationService.createInstance(CommandNavigationAddon, _capabilities);
 		this.raw.loadAddon(this._commandNavigationAddon);
-		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
-		this.raw.loadAddon(this._shellIntegrationAddon);
-		this._updateShellIntegrationAddons();
-	}
-
-	private _createDecorationAddon(): void {
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
 		this.raw.loadAddon(this._decorationAddon);
+		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
+		this.raw.loadAddon(this._shellIntegrationAddon);
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -452,7 +444,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			// }, 5000);
 		} catch (e) {
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
-			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.GLOBAL, false);
+			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.APPLICATION, false);
 			// if it's already set to dom, no need to measure render time
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
 				this._measureRenderTime();
@@ -529,7 +521,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 						{
 							label: localize('dontShowAgain', "Don't Show Again"),
 							isSecondary: true,
-							run: () => this._storageService.store(TerminalStorageKeys.NeverMeasureRenderTime, true, StorageScope.GLOBAL, StorageTarget.MACHINE)
+							run: () => this._storageService.store(TerminalStorageKeys.NeverMeasureRenderTime, true, StorageScope.APPLICATION, StorageTarget.MACHINE)
 						} as IPromptChoice
 					];
 					this._notificationService.prompt(
@@ -612,21 +604,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 	}
 
-	private _updateShellIntegrationAddons(): void {
-		const shellIntegrationEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
-		const decorationsEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
-		if (shellIntegrationEnabled) {
-			if (decorationsEnabled && !this._decorationAddon) {
-				this._createDecorationAddon();
-			} else if (this._decorationAddon && !decorationsEnabled) {
-				this._decorationAddon.dispose();
-				this._decorationAddon = undefined;
-			}
-			return;
-		}
-		if (this._decorationAddon) {
-			this._decorationAddon.dispose();
-			this._decorationAddon = undefined;
-		}
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	_writeText(data: string): void {
+		this.raw.write(data);
 	}
 }

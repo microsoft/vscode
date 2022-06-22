@@ -21,6 +21,7 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 		endpointUrl: 'https://mobile.events.data.microsoft.com/OneCollector/1.0',
 		loggingLevelTelemetry: 0,
 		loggingLevelConsole: 0,
+		extensionConfig: {},
 		channels: [[
 			collectorChannelPlugin
 		]]
@@ -67,10 +68,10 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 	appInsightsCore.initialize(coreConfig, []);
 
 	appInsightsCore.addTelemetryInitializer((envelope) => {
-		if (envelope.tags) {
-			// Sets it to be internal only based on Windows UTC flagging
-			envelope.tags['utc.flags'] = 0x0000811ECD;
-		}
+		envelope['ext'] = envelope['ext'] ?? {};
+		envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
+		// Sets it to be internal only based on Windows UTC flagging
+		envelope['ext']['utc']['flags'] = 0x0000811ECD;
 	});
 
 	return appInsightsCore;

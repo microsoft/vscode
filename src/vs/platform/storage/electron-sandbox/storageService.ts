@@ -4,93 +4,99 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Promises } from 'vs/base/common/async';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { AbstractStorageService, isProfileUsingDefaultStorage, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient, WorkspaceStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class NativeStorageService extends AbstractStorageService {
 
-	// Application Storage is readonly and shared across
-	// windows and profiles.
 	private readonly applicationStorage: IStorage;
+	private readonly applicationStorageProfile: IUserDataProfile;
 
-	// Global Storage is readonly and shared across windows
-	// under the same profile.
-	private readonly globalStorage: IStorage;
+	private profileStorage: IStorage;
+	private profileStorageProfile: IUserDataProfile | undefined = undefined;
+	private readonly profileStorageDisposables = this._register(new DisposableStore());
 
-	// Workspace Storage is scoped to a window but can change
-	// in the current window, when entering a workspace!
 	private workspaceStorage: IStorage | undefined = undefined;
 	private workspaceStorageId: string | undefined = undefined;
-	private workspaceStorageDisposable = this._register(new MutableDisposable());
+	private readonly workspaceStorageDisposables = this._register(new DisposableStore());
 
 	constructor(
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
+		{ defaultProfile, currentProfile }: { defaultProfile: IUserDataProfile; currentProfile: IUserDataProfile },
 		private readonly mainProcessService: IMainProcessService,
-		private readonly userDataProfilesService: IUserDataProfilesService,
-		private readonly environmentService: IEnvironmentService,
+		private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
+		this.applicationStorageProfile = defaultProfile;
+
 		this.applicationStorage = this.createApplicationStorage();
-		this.globalStorage = this.createGlobalStorage();
+		this.profileStorage = this.createProfileStorage(currentProfile);
 		this.workspaceStorage = this.createWorkspaceStorage(workspace);
 	}
 
 	private createApplicationStorage(): IStorage {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, undefined);
-		const applicationStorage = new Storage(storageDataBaseClient.applicationStorage);
+		const storageDataBaseClient = this._register(new ApplicationStorageDatabaseClient(this.mainProcessService.getChannel('storage')));
+		const applicationStorage = this._register(new Storage(storageDataBaseClient));
 
 		this._register(applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
 
 		return applicationStorage;
 	}
 
-	private createGlobalStorage(): IStorage {
-		let globalStorage: IStorage;
+	private createProfileStorage(profile: IUserDataProfile): IStorage {
 
-		if (this.userDataProfilesService.currentProfile.isDefault) {
+		// First clear any previously associated disposables
+		this.profileStorageDisposables.clear();
 
-			// If we are in default profile, the global storage is
+		// Remember profile associated to profile storage
+		this.profileStorageProfile = profile;
+
+		let profileStorage: IStorage;
+		if (isProfileUsingDefaultStorage(profile)) {
+
+			// If we are using default profile storage, the profile storage is
 			// actually the same as application storage. As such we
 			// avoid creating the storage library a second time on
 			// the same DB.
 
-			globalStorage = this.applicationStorage;
+			profileStorage = this.applicationStorage;
 		} else {
-			const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, undefined);
-			globalStorage = new Storage(storageDataBaseClient.globalStorage);
+			const storageDataBaseClient = this.profileStorageDisposables.add(new ProfileStorageDatabaseClient(this.mainProcessService.getChannel('storage'), profile));
+			profileStorage = this.profileStorageDisposables.add(new Storage(storageDataBaseClient));
 		}
 
-		this._register(globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		this.profileStorageDisposables.add(profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
 
-		return globalStorage;
+		return profileStorage;
 	}
 
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorage;
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined;
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), this.userDataProfilesService, workspace);
 
-		if (storageDataBaseClient.workspaceStorage) {
-			const workspaceStorage = new Storage(storageDataBaseClient.workspaceStorage);
+		// First clear any previously associated disposables
+		this.workspaceStorageDisposables.clear();
 
-			this.workspaceStorageDisposable.value = workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key));
-			this.workspaceStorageId = workspace?.id;
+		// Remember workspace ID for logging later
+		this.workspaceStorageId = workspace?.id;
 
-			return workspaceStorage;
-		} else {
-			this.workspaceStorageDisposable.clear();
-			this.workspaceStorageId = undefined;
+		let workspaceStorage: IStorage | undefined = undefined;
+		if (workspace) {
+			const storageDataBaseClient = this.workspaceStorageDisposables.add(new WorkspaceStorageDatabaseClient(this.mainProcessService.getChannel('storage'), workspace));
+			workspaceStorage = this.workspaceStorageDisposables.add(new Storage(storageDataBaseClient));
 
-			return undefined;
+			this.workspaceStorageDisposables.add(workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
 		}
+
+		return workspaceStorage;
 	}
 
 	protected async doInitialize(): Promise<void> {
@@ -98,7 +104,7 @@ export class NativeStorageService extends AbstractStorageService {
 		// Init all storage locations
 		await Promises.settled([
 			this.applicationStorage.init(),
-			this.globalStorage.init(),
+			this.profileStorage.init(),
 			this.workspaceStorage?.init() ?? Promise.resolve()
 		]);
 	}
@@ -107,8 +113,8 @@ export class NativeStorageService extends AbstractStorageService {
 		switch (scope) {
 			case StorageScope.APPLICATION:
 				return this.applicationStorage;
-			case StorageScope.GLOBAL:
-				return this.globalStorage;
+			case StorageScope.PROFILE:
+				return this.profileStorage;
 			default:
 				return this.workspaceStorage;
 		}
@@ -117,9 +123,9 @@ export class NativeStorageService extends AbstractStorageService {
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		switch (scope) {
 			case StorageScope.APPLICATION:
-				return this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath;
-			case StorageScope.GLOBAL:
-				return this.userDataProfilesService.currentProfile.globalStorageHome.fsPath;
+				return this.applicationStorageProfile.globalStorageHome.fsPath;
+			case StorageScope.PROFILE:
+				return this.profileStorageProfile?.globalStorageHome.fsPath;
 			default:
 				return this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
 		}
@@ -136,30 +142,45 @@ export class NativeStorageService extends AbstractStorageService {
 		// Do it
 		await Promises.settled([
 			this.applicationStorage.close(),
-			this.globalStorage.close(),
+			this.profileStorage.close(),
 			this.workspaceStorage?.close() ?? Promise.resolve()
 		]);
 	}
 
-	async migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
+	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+		if (this.profileStorageProfile && !this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
+			return;
+		}
 
-		// Keep current workspace storage items around to restore
+		const oldProfileStorage = this.profileStorage;
+		const oldItems = oldProfileStorage.items;
+
+		// Close old profile storage but only if this is
+		// different from application storage!
+		if (oldProfileStorage !== this.applicationStorage) {
+			await oldProfileStorage.close();
+		}
+
+		// Create new profile storage & init
+		this.profileStorage = this.createProfileStorage(toProfile);
+		await this.profileStorage.init();
+
+		// Handle data switch and eventing
+		this.switchData(oldItems, this.profileStorage, StorageScope.PROFILE, preserveData);
+	}
+
+	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
 		const oldWorkspaceStorage = this.workspaceStorage;
 		const oldItems = oldWorkspaceStorage?.items ?? new Map();
 
-		// Close current which will change to new workspace storage
-		if (oldWorkspaceStorage) {
-			await oldWorkspaceStorage.close();
-			oldWorkspaceStorage.dispose();
-		}
+		// Close old workspace storage
+		await oldWorkspaceStorage?.close();
 
 		// Create new workspace storage & init
 		this.workspaceStorage = this.createWorkspaceStorage(toWorkspace);
 		await this.workspaceStorage.init();
 
-		// Copy over previous keys
-		for (const [key, value] of oldItems) {
-			this.workspaceStorage.set(key, value);
-		}
+		// Handle data switch and eventing
+		this.switchData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE, preserveData);
 	}
 }

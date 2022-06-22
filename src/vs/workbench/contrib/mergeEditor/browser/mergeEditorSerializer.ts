@@ -25,8 +25,8 @@ export class MergeEditorSerializer implements IEditorSerializer {
 			return instantiationService.createInstance(
 				MergeEditorInput,
 				data.anchestor,
-				new MergeEditorInputData(data.inputOne.uri, data.inputOne.detail, data.inputOne.description),
-				new MergeEditorInputData(data.inputTwo.uri, data.inputTwo.detail, data.inputTwo.description),
+				new MergeEditorInputData(data.inputOne.uri, data.inputOne.title, data.inputOne.detail, data.inputOne.description),
+				new MergeEditorInputData(data.inputTwo.uri, data.inputTwo.title, data.inputTwo.detail, data.inputTwo.description),
 				data.result
 			);
 		} catch (err) {

@@ -126,6 +126,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
 		}
 
+		if (typeof this.selectBoxOptions.ariaDescription === 'string') {
+			this.selectElement.setAttribute('aria-description', this.selectBoxOptions.ariaDescription);
+		}
+
 		this._onDidSelect = new Emitter<ISelectData>();
 		this._register(this._onDidSelect);
 

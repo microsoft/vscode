@@ -4,18 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResourceMap } from 'vs/base/common/map';
+import { Emitter, Event } from 'vs/base/common/event';
 import { revive } from 'vs/base/common/marshalling';
 import { UriDto } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ProfileOptions, DefaultOptions, IUserDataProfile, IUserDataProfilesService, UserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UseDefaultProfileFlags, IUserDataProfile, IUserDataProfilesService, UserDataProfilesService, reviveProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Promises } from 'vs/base/common/async';
 
-type UserDataProfiles = {
+export type WillCreateProfileEvent = {
+	profile: IUserDataProfile;
+	join(promise: Promise<void>): void;
+};
+
+export type WillRemoveProfileEvent = {
+	profile: IUserDataProfile;
+	join(promise: Promise<void>): void;
+};
+
+export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
+export interface IUserDataProfilesMainService extends IUserDataProfilesService {
+	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
+	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
+	getAllProfiles(): Promise<IUserDataProfile[]>;
+}
+
+type UserDataProfilesObject = {
 	profiles: IUserDataProfile[];
 	workspaces: ResourceMap<IUserDataProfile>;
 };
@@ -23,7 +43,7 @@ type UserDataProfiles = {
 type StoredUserDataProfile = {
 	name: string;
 	location: URI;
-	options: ProfileOptions;
+	useDefaultFlags?: UseDefaultProfileFlags;
 };
 
 type StoredWorkspaceInfo = {
@@ -31,10 +51,16 @@ type StoredWorkspaceInfo = {
 	profile: URI;
 };
 
-export class UserDataProfilesMainService extends UserDataProfilesService implements IUserDataProfilesService {
+export class UserDataProfilesMainService extends UserDataProfilesService implements IUserDataProfilesMainService {
 
 	private static readonly PROFILES_KEY = 'userDataProfiles';
 	private static readonly WORKSPACE_PROFILE_INFO_KEY = 'workspaceAndProfileInfo';
+
+	private readonly _onWillCreateProfile = this._register(new Emitter<WillCreateProfileEvent>());
+	readonly onWillCreateProfile = this._onWillCreateProfile.event;
+
+	private readonly _onWillRemoveProfile = this._register(new Emitter<WillRemoveProfileEvent>());
+	readonly onWillRemoveProfile = this._onWillRemoveProfile.event;
 
 	constructor(
 		@IStateMainService private readonly stateMainService: IStateMainService,
@@ -43,19 +69,19 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 	) {
-		super(undefined, undefined, environmentService, fileService, logService);
+		super(undefined, environmentService, fileService, logService);
 	}
 
 	init(): void {
 		if (this.storedProfiles.length) {
-			this._defaultProfile = this.toUserDataProfile(this.defaultProfile.name, this.defaultProfile.location, DefaultOptions, true);
+			this._defaultProfile = this.createDefaultUserDataProfile(true);
 		}
 	}
 
-	private _profiles: UserDataProfiles | undefined;
-	private get profiles(): UserDataProfiles {
-		if (!this._profiles) {
-			const profiles = this.storedProfiles.map(storedProfile => this.toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.options, this.defaultProfile));
+	private _profilesObject: UserDataProfilesObject | undefined;
+	private get profilesObject(): UserDataProfilesObject {
+		if (!this._profilesObject) {
+			const profiles = this.storedProfiles.map<IUserDataProfile>(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.useDefaultFlags));
 			profiles.unshift(this.defaultProfile);
 			const workspaces = this.storedWorskpaceInfos.reduce((workspaces, workspaceProfileInfo) => {
 				const profile = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, workspaceProfileInfo.profile));
@@ -64,31 +90,47 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 				}
 				return workspaces;
 			}, new ResourceMap<IUserDataProfile>());
-			this._profiles = { profiles: profiles, workspaces: workspaces };
+			this._profilesObject = { profiles: profiles, workspaces: workspaces };
 		}
-		return this._profiles;
+		return this._profilesObject;
 	}
 
-	override async getAllProfiles(): Promise<IUserDataProfile[]> {
-		return this.profiles.profiles;
+	override get profiles(): IUserDataProfile[] { return this.profilesObject.profiles; }
+
+	async getAllProfiles(): Promise<IUserDataProfile[]> {
+		return this.profiles;
 	}
 
 	override getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile {
-		return this.profiles.workspaces.get(this.getWorkspace(workspaceIdentifier)) ?? this.defaultProfile;
+		return this.profilesObject.workspaces.get(this.getWorkspace(workspaceIdentifier)) ?? this.defaultProfile;
 	}
 
-	override async createProfile(profile: IUserDataProfile, options: ProfileOptions, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
+	override async createProfile(profile: IUserDataProfile, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
 		profile = reviveProfile(profile, this.profilesHome.scheme);
 		if (this.storedProfiles.some(p => p.name === profile.name)) {
 			throw new Error(`Profile with name ${profile.name} already exists`);
 		}
-		const storedProfile: StoredUserDataProfile = { name: profile.name, location: profile.location, options };
+
+		if (!(await this.fileService.exists(this.profilesHome))) {
+			await this.fileService.createFolder(this.profilesHome);
+		}
+
+		const joiners: Promise<void>[] = [];
+		this._onWillCreateProfile.fire({
+			profile,
+			join(promise) {
+				joiners.push(promise);
+			}
+		});
+		await Promises.settled(joiners);
+
+		const storedProfile: StoredUserDataProfile = { name: profile.name, location: profile.location, useDefaultFlags: profile.useDefaultFlags };
 		const storedProfiles = [...this.storedProfiles, storedProfile];
 		this.storedProfiles = storedProfiles;
 		if (workspaceIdentifier) {
 			await this.setProfileForWorkspace(profile, workspaceIdentifier);
 		}
-		return this.profiles.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+		return this.profilesObject.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
 	}
 
 	override async setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
@@ -99,7 +141,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 			storedWorkspaceInfos.push({ workspace, profile: profile.location });
 		}
 		this.storedWorskpaceInfos = storedWorkspaceInfos;
-		return this.profiles.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+		return this.profilesObject.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
 	}
 
 	private getWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier) {
@@ -114,6 +156,22 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		if (!this.storedProfiles.some(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))) {
 			throw new Error(`Profile with name ${profile.name} does not exist`);
 		}
+
+		const joiners: Promise<void>[] = [];
+		this._onWillRemoveProfile.fire({
+			profile,
+			join(promise) {
+				joiners.push(promise);
+			}
+		});
+		await Promises.settled(joiners);
+
+		if (this.profiles.length === 2) {
+			await this.fileService.del(this.profilesHome, { recursive: true });
+		} else {
+			await this.fileService.del(profile.location, { recursive: true });
+		}
+
 		this.storedWorskpaceInfos = this.storedWorskpaceInfos.filter(p => !this.uriIdentityService.extUri.isEqual(p.profile, profile.location));
 		this.storedProfiles = this.storedProfiles.filter(p => !this.uriIdentityService.extUri.isEqual(p.location, profile.location));
 	}
@@ -124,7 +182,8 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 
 	private set storedProfiles(storedProfiles: StoredUserDataProfile[]) {
 		this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles);
-		this._profiles = undefined;
+		this._profilesObject = undefined;
+		this._onDidChangeProfiles.fire(this.profiles);
 	}
 
 	private get storedWorskpaceInfos(): StoredWorkspaceInfo[] {
@@ -133,7 +192,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 
 	private set storedWorskpaceInfos(storedWorkspaceInfos: StoredWorkspaceInfo[]) {
 		this.stateMainService.setItem(UserDataProfilesMainService.WORKSPACE_PROFILE_INFO_KEY, storedWorkspaceInfos);
-		this._profiles = undefined;
+		this._profilesObject = undefined;
 	}
 
 }
