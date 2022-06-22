@@ -9,13 +9,13 @@ import * as vscode from 'vscode';
 import { TableOfContents } from '../tableOfContents';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { SkinnyTextDocument } from '../workspaceContents';
-import { createNewMarkdownEngine } from './engine';
+import { createTestMarkdownEngine } from './mocks';
 
 
 const testFileName = vscode.Uri.file('test.md');
 
 function createToc(doc: SkinnyTextDocument): Promise<TableOfContents> {
-	const engine = createNewMarkdownEngine();
+	const engine = createTestMarkdownEngine();
 	return TableOfContents.create(engine, doc);
 }
 

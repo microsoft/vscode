@@ -169,6 +169,8 @@ async function withFileContents(file: vscode.Uri, contents: string): Promise<voi
 }
 
 async function executeLink(link: vscode.DocumentLink) {
+	assert.ok(link);
+
 	debugLog('executeingLink', link.target?.toString(), Date.now());
 
 	const args = JSON.parse(decodeURIComponent(link.target!.query));

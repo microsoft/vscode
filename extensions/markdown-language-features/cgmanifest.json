@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "tree-sitter-markdown",
+					"repositoryUrl": "https://github.com/ikatyang/tree-sitter-markdown",
+					"commitHash": "8b8b77af0493e26d378135a3e7f5ae25b555b375"
+				}
+			},
+			"license": "MIT",
+			"version": "0.7.1"
+		}
+	],
+	"version": 1
+}

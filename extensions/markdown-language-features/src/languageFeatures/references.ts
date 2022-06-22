@@ -66,17 +66,16 @@ export type MdReference = MdLinkReference | MdHeaderReference;
 export class MdReferencesProvider extends Disposable {
 
 	private readonly _linkCache: MdWorkspaceInfoCache<readonly MdLink[]>;
-	private readonly _linkComputer: MdLinkComputer;
 
 	public constructor(
 		private readonly parser: IMdParser,
 		private readonly workspaceContents: MdWorkspaceContents,
 		private readonly tocProvider: MdTableOfContentsProvider,
+		private readonly _linkComputer: MdLinkComputer,
 		private readonly logger: ILogger,
 	) {
 		super();
 
-		this._linkComputer = new MdLinkComputer(parser);
 		this._linkCache = this._register(new MdWorkspaceInfoCache(workspaceContents, doc => this._linkComputer.getAllLinks(doc, noopToken)));
 	}
 

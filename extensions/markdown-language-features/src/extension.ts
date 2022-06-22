@@ -9,7 +9,7 @@ import * as commands from './commands/index';
 import { registerPasteSupport } from './languageFeatures/copyPaste';
 import { registerDefinitionSupport } from './languageFeatures/definitions';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
-import { MdLinkProvider, registerDocumentLinkSupport } from './languageFeatures/documentLinks';
+import { MdLinkComputer, MdLinkProvider, registerDocumentLinkSupport } from './languageFeatures/documentLinks';
 import { MdDocumentSymbolProvider, registerDocumentSymbolSupport } from './languageFeatures/documentSymbols';
 import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
@@ -28,6 +28,7 @@ import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, Pr
 import { githubSlugifier } from './slugify';
 import { MdTableOfContentsProvider } from './tableOfContents';
 import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
+import { loadMarkdownTreeSitter } from './treesitter';
 import { MdWorkspaceContents, VsCodeMdWorkspaceContents } from './workspaceContents';
 
 
@@ -54,7 +55,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, tocProvider);
 	context.subscriptions.push(previewManager);
 
-	context.subscriptions.push(registerMarkdownLanguageFeatures(parser, workspaceContents, commandManager, tocProvider, logger));
+	context.subscriptions.push(registerMarkdownLanguageFeatures(context, parser, workspaceContents, commandManager, tocProvider, logger));
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine, tocProvider));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
@@ -63,6 +64,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 function registerMarkdownLanguageFeatures(
+	context: vscode.ExtensionContext,
 	parser: IMdParser,
 	workspaceContents: MdWorkspaceContents,
 	commandManager: CommandManager,
@@ -71,8 +73,12 @@ function registerMarkdownLanguageFeatures(
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
-	const linkProvider = new MdLinkProvider(parser, workspaceContents, logger);
-	const referencesProvider = new MdReferencesProvider(parser, workspaceContents, tocProvider, logger);
+	const linkComputer = new MdLinkComputer(() => {
+		return loadMarkdownTreeSitter(vscode.Uri.joinPath(context.extensionUri, 'tree-sitter-markdown.wasm'));
+	});
+
+	const linkProvider = new MdLinkProvider(workspaceContents, linkComputer, logger);
+	const referencesProvider = new MdReferencesProvider(parser, workspaceContents, tocProvider, linkComputer, logger);
 	const symbolProvider = new MdDocumentSymbolProvider(tocProvider, logger);
 
 	return vscode.Disposable.from(

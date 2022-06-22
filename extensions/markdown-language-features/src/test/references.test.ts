@@ -11,15 +11,14 @@ import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
-import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { nulLogger } from './nulLogging';
+import { createTestLinkComputer, createTestMarkdownEngine, nulLogger } from './mocks';
 import { joinLines, workspacePath } from './util';
 
 
 function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspace: MdWorkspaceContents) {
-	const engine = createNewMarkdownEngine();
-	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
+	const engine = createTestMarkdownEngine();
+	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), createTestLinkComputer(engine), nulLogger);
 	const provider = new MdVsCodeReferencesProvider(computer);
 	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
 }
@@ -170,13 +169,14 @@ suite('markdown: find all references', () => {
 		const doc = new InMemoryDocument(uri, joinLines(
 			`# A b C`,
 			`[text][bla]`,
+			``,
 			`[bla]: #a-b-c`, // trigger here
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(2, 9), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const refs = await getReferences(doc, new vscode.Position(3, 9), new InMemoryWorkspaceMarkdownDocuments([doc]));
 		assertReferencesEqual(refs!,
 			{ uri, line: 0 }, // Header definition
-			{ uri, line: 2 },
+			{ uri, line: 3 },
 		);
 	});
 

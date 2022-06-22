@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogger } from '../logging';
+import * as vscode from 'vscode';
+import Parser = require('web-tree-sitter');
 
-export const nulLogger = new class implements ILogger {
-	verbose(): void {
-		// noop
-	}
-};
+export async function loadMarkdownTreeSitter(path: vscode.Uri): Promise<Parser> {
+	await Parser.init();
+	const language = await Parser.Language.load(path.fsPath);
+	const parser = new Parser();
+	parser.setLanguage(language);
+	return parser;
+}

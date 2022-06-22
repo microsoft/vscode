@@ -3,19 +3,3 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { MarkdownItEngine } from '../markdownEngine';
-import { MarkdownContributionProvider, MarkdownContributions } from '../markdownExtensions';
-import { githubSlugifier } from '../slugify';
-import { Disposable } from '../util/dispose';
-import { nulLogger } from './nulLogging';
-
-const emptyContributions = new class extends Disposable implements MarkdownContributionProvider {
-	readonly extensionUri = vscode.Uri.file('/');
-	readonly contributions = MarkdownContributions.Empty;
-	readonly onContributionsChanged = this._register(new vscode.EventEmitter<this>()).event;
-};
-
-export function createNewMarkdownEngine(): MarkdownItEngine {
-	return new MarkdownItEngine(emptyContributions, githubSlugifier, nulLogger);
-}

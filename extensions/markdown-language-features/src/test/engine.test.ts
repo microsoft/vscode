@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from '../util/inMemoryDocument';
+import { createTestMarkdownEngine } from './mocks';
 
 
 const testFileName = vscode.Uri.file('test.md');
@@ -20,12 +20,12 @@ suite('markdown.engine', () => {
 
 		test('Renders a document', async () => {
 			const doc = new InMemoryDocument(testFileName, input);
-			const engine = createNewMarkdownEngine();
+			const engine = createTestMarkdownEngine();
 			assert.strictEqual((await engine.render(doc)).html, output);
 		});
 
 		test('Renders a string', async () => {
-			const engine = createNewMarkdownEngine();
+			const engine = createTestMarkdownEngine();
 			assert.strictEqual((await engine.render(input)).html, output);
 		});
 	});
@@ -34,7 +34,7 @@ suite('markdown.engine', () => {
 		const input = '![](img.png) [](no-img.png) ![](http://example.org/img.png) ![](img.png) ![](./img2.png)';
 
 		test('Extracts all images', async () => {
-			const engine = createNewMarkdownEngine();
+			const engine = createTestMarkdownEngine();
 			assert.deepStrictEqual((await engine.render(input)), {
 				html: '<p data-line="0" class="code-line" dir="auto">'
 					+ '<img src="img.png" alt="" class="loading" id="image-hash--754511435" data-src="img.png"> '

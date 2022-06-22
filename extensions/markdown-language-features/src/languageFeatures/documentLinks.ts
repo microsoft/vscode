@@ -7,14 +7,14 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
-import { IMdParser } from '../markdownEngine';
+import { ILogger } from '../logging';
 import { coalesce } from '../util/arrays';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/schemes';
-import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { MdDocumentInfoCache } from '../util/workspaceCache';
-import { ILogger } from '../logging';
+import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
+import Parser = require('web-tree-sitter');
 
 const localize = nls.loadMessageBundle();
 
@@ -41,8 +41,7 @@ function parseLink(
 	document: SkinnyTextDocument,
 	link: string,
 ): ExternalHref | InternalHref | undefined {
-	const cleanLink = stripAngleBrackets(link);
-	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(cleanLink);
+	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
 	if (externalSchemeUri) {
 		// Normalize VS Code links to target currently running version
 		if (isOfScheme(Schemes.vscode, link) || isOfScheme(Schemes['vscode-insiders'], link)) {
@@ -51,9 +50,9 @@ function parseLink(
 		return { kind: 'external', uri: externalSchemeUri };
 	}
 
-	if (/^[a-z\-][a-z\-]+:/i.test(cleanLink)) {
+	if (/^[a-z\-][a-z\-]+:/i.test(link)) {
 		// Looks like a uri
-		return { kind: 'external', uri: vscode.Uri.parse(cleanLink) };
+		return { kind: 'external', uri: vscode.Uri.parse(link) };
 	}
 
 	// Assume it must be an relative or absolute file path
@@ -130,139 +129,27 @@ export interface MdLinkDefinition {
 
 export type MdLink = MdInlineLink | MdLinkDefinition;
 
-function extractDocumentLink(
-	document: SkinnyTextDocument,
-	pre: string,
-	rawLink: string,
-	matchIndex: number | undefined
-): MdLink | undefined {
-	const isAngleBracketLink = rawLink.startsWith('<');
-	const link = stripAngleBrackets(rawLink);
-
-	const offset = (matchIndex || 0) + pre.length + (isAngleBracketLink ? 1 : 0);
-	const linkStart = document.positionAt(offset);
-	const linkEnd = document.positionAt(offset + link.length);
-	try {
-		const linkTarget = parseLink(document, link);
-		if (!linkTarget) {
-			return undefined;
-		}
-		return {
-			kind: 'link',
-			href: linkTarget,
-			source: {
-				text: link,
-				resource: document.uri,
-				hrefRange: new vscode.Range(linkStart, linkEnd),
-				...getLinkSourceFragmentInfo(document, link, linkStart, linkEnd),
-			}
-		};
-	} catch {
-		return undefined;
-	}
-}
-
-function getFragmentRange(text: string, start: vscode.Position, end: vscode.Position): vscode.Range | undefined {
+function getFragmentRange(text: string, linkRange: vscode.Range): vscode.Range | undefined {
 	const index = text.indexOf('#');
 	if (index < 0) {
 		return undefined;
 	}
-	return new vscode.Range(start.translate({ characterDelta: index + 1 }), end);
+	return new vscode.Range(linkRange.start.translate({ characterDelta: index + 1 }), linkRange.end);
 }
 
-function getLinkSourceFragmentInfo(document: SkinnyTextDocument, link: string, linkStart: vscode.Position, linkEnd: vscode.Position): { fragmentRange: vscode.Range | undefined; pathText: string } {
-	const fragmentRange = getFragmentRange(link, linkStart, linkEnd);
+function getLinkSourceFragmentInfo(document: SkinnyTextDocument, link: string, linkRange: vscode.Range): { fragmentRange: vscode.Range | undefined; pathText: string } {
+	const fragmentRange = getFragmentRange(link, linkRange);
 	return {
-		pathText: document.getText(new vscode.Range(linkStart, fragmentRange ? fragmentRange.start.translate(0, -1) : linkEnd)),
+		pathText: document.getText(new vscode.Range(linkRange.start, fragmentRange ? fragmentRange.start.translate(0, -1) : linkRange.end)),
 		fragmentRange,
 	};
 }
 
-const angleBracketLinkRe = /^<(.*)>$/;
+type TreeSitterLoader = () => Promise<Parser>;
 
-/**
- * Used to strip brackets from the markdown link
- *
- * <http://example.com> will be transformed to http://example.com
-*/
-function stripAngleBrackets(link: string) {
-	return link.replace(angleBracketLinkRe, '$1');
-}
-
-const r = String.raw;
-
-/**
- * Matches `[text](link)` or `[text](<link>)`
- */
-const linkPattern = new RegExp(
-	// text
-	r`(\[` + // open prefix match -->
-	/**/r`(?:` +
-	/*****/r`[^\[\]\\]|` + // Non-bracket chars, or...
-	/*****/r`\\.|` + // Escaped char, or...
-	/*****/r`\[[^\[\]]*\]` + // Matched bracket pair
-	/**/r`)*` +
-	r`\]` +
-
-	// Destination
-	r`\(\s*)` + // <-- close prefix match
-	/**/r`(` +
-	/*****/r`[^\s\(\)\<](?:[^\s\(\)]|\([^\s\(\)]*?\))*|` + // Link without whitespace, or...
-	/*****/r`<[^<>]*>` + // In angle brackets
-	/**/r`)` +
-
-	// Title
-	/**/r`\s*(?:"[^"]*"|'[^']*'|\([^\(\)]*\))?\s*` +
-	r`\)`,
-	'g');
-
-/**
-* Matches `[text][ref]` or `[shorthand]`
-*/
-const referenceLinkPattern = /(^|[^\]\\])(?:(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]|\[\s*?([^\s\]]*?)\])(?![\:\(]))/gm;
-
-/**
- * Matches `<http://example.com>`
- */
-const autoLinkPattern = /\<(\w+:[^\>\s]+)\>/g;
-
-/**
- * Matches `[text]: link`
- */
-const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
-
-const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
-
-class NoLinkRanges {
-	public static async compute(tokenizer: IMdParser, document: SkinnyTextDocument): Promise<NoLinkRanges> {
-		const tokens = await tokenizer.tokenize(document);
-		const multiline = tokens.filter(t => (t.type === 'code_block' || t.type === 'fence' || t.type === 'html_block') && !!t.map).map(t => t.map) as [number, number][];
-
-		const text = document.getText();
-		const inline = [...text.matchAll(inlineCodePattern)].map(match => {
-			const start = match.index || 0;
-			return new vscode.Range(document.positionAt(start), document.positionAt(start + match[0].length));
-		});
-
-		return new NoLinkRanges(multiline, inline);
-	}
-
-	private constructor(
-		/**
-		 * code blocks and fences each represented by [line_start,line_end).
-		 */
-		public readonly multiline: ReadonlyArray<[number, number]>,
-
-		/**
-		 * Inline code spans where links should not be detected
-		 */
-		public readonly inline: readonly vscode.Range[]
-	) { }
-
-	contains(range: vscode.Range): boolean {
-		return this.multiline.some(interval => range.start.line >= interval[0] && range.start.line < interval[1]) ||
-			this.inline.some(inlineRange => inlineRange.contains(range.start));
-	}
+interface TreeSitterState {
+	readonly parser: Parser;
+	readonly linkQuery: Parser.Query;
 }
 
 /**
@@ -270,108 +157,136 @@ class NoLinkRanges {
  */
 export class MdLinkComputer {
 
+	private readonly _treeSitter: Promise<TreeSitterState>;
+
 	constructor(
-		private readonly tokenizer: IMdParser,
-	) { }
+		loadParser: TreeSitterLoader,
+	) {
+		this._treeSitter = loadParser().then((parser): TreeSitterState => {
+			const linkQuery = parser.getLanguage().query(`([
+				(link) @link_destination
+				(image) @link_destination
+
+				(uri_autolink (text) @uri_autolink)
+
+				(link_reference_definition) @link_definition
+			])`);
+			return { parser, linkQuery };
+		});
+	}
 
 	public async getAllLinks(document: SkinnyTextDocument, token: vscode.CancellationToken): Promise<MdLink[]> {
-		const noLinkRanges = await NoLinkRanges.compute(this.tokenizer, document);
+		const treeSitter = await this._treeSitter;
 		if (token.isCancellationRequested) {
 			return [];
 		}
-
-		return Array.from([
-			...this.getInlineLinks(document, noLinkRanges),
-			...this.getReferenceLinks(document, noLinkRanges),
-			...this.getLinkDefinitions(document, noLinkRanges),
-			...this.getAutoLinks(document, noLinkRanges),
-		]);
+		return Array.from(this.getInlineLinks(document, treeSitter));
 	}
 
-	private *getInlineLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
-		const text = document.getText();
-		for (const match of text.matchAll(linkPattern)) {
-			const matchLinkData = extractDocumentLink(document, match[1], match[2], match.index);
-			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
-				yield matchLinkData;
+	private *getInlineLinks(document: SkinnyTextDocument, ts: TreeSitterState): Iterable<MdLink> {
+		const tree = ts.parser.parse(document.getText() + '\n'); // Add new line to work around https://github.com/ikatyang/tree-sitter-markdown/issues
 
-				// Also check link destination for links
-				for (const innerMatch of match[1].matchAll(linkPattern)) {
-					const innerData = extractDocumentLink(document, innerMatch[1], innerMatch[2], (match.index ?? 0) + (innerMatch.index ?? 0));
-					if (innerData) {
-						yield innerData;
+		const captures = ts.linkQuery.captures(tree.rootNode);
+		for (const capture of captures) {
+			switch (capture.name) {
+				case 'link_destination': {
+					const link = this.extractLink(document, capture.node);
+					if (link) {
+						yield link;
 					}
+					break;
+				}
+				case 'uri_autolink': {
+					const link = this.extractAutoLink(document, capture.node);
+					if (link) {
+						yield link;
+					}
+					break;
+				}
+				case 'link_definition': {
+					const link = this.extractLinkDefinition(document, capture.node);
+					if (link) {
+						yield link;
+					}
+					break;
 				}
 			}
 		}
 	}
 
-	private * getAutoLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
-		const text = document.getText();
+	private extractLink(document: SkinnyTextDocument, node: Parser.SyntaxNode): MdLink | undefined {
+		if (node.child(0)?.type === 'link_destination' || node.child(1)?.type === 'link_destination') {
+			const link = node.child(0)?.type === 'link_destination' ? node.child(0)?.child(0) : node.child(1)!.child(0);
+			if (!link) {
+				return;
+			}
 
-		for (const match of text.matchAll(autoLinkPattern)) {
-			const link = match[1];
-			const linkTarget = parseLink(document, link);
-			if (linkTarget) {
-				const offset = (match.index ?? 0) + 1;
-				const linkStart = document.positionAt(offset);
-				const linkEnd = document.positionAt(offset + link.length);
-				const hrefRange = new vscode.Range(linkStart, linkEnd);
-				if (noLinkRanges.contains(hrefRange)) {
-					continue;
+			const linkTarget = parseLink(document, link.text);
+			if (!linkTarget) {
+				return;
+			}
+
+			const range = getNodeRange(link);
+			return {
+				kind: 'link',
+				href: linkTarget,
+				source: {
+					text: link.text,
+					resource: document.uri,
+					hrefRange: range,
+					...getLinkSourceFragmentInfo(document, link.text, range),
 				}
-				yield {
-					kind: 'link',
-					href: linkTarget,
-					source: {
-						text: link,
-						resource: document.uri,
-						hrefRange: new vscode.Range(linkStart, linkEnd),
-						...getLinkSourceFragmentInfo(document, link, linkStart, linkEnd),
-					}
-				};
+			};
+		} else if (node.child(1)?.type === 'link_label') { // Reference link
+			const referenceNode = node.child(1)!.child(0);
+			if (!referenceNode) {
+				return;
 			}
-		}
-	}
+			const reference = referenceNode!.text;
 
-	private *getReferenceLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
-		const text = document.getText();
-		for (const match of text.matchAll(referenceLinkPattern)) {
-			let linkStart: vscode.Position;
-			let linkEnd: vscode.Position;
-			let reference = match[4];
-			if (reference) { // [text][ref]
-				const pre = match[2];
-				const offset = ((match.index ?? 0) + match[1].length) + pre.length;
-				linkStart = document.positionAt(offset);
-				linkEnd = document.positionAt(offset + reference.length);
-			} else if (match[5]) { // [ref][], [ref]
-				reference = match[5];
-				const offset = ((match.index ?? 0) + match[1].length) + 1;
-				linkStart = document.positionAt(offset);
-				const line = document.lineAt(linkStart.line);
-				// See if link looks like a checkbox
-				const checkboxMatch = line.text.match(/^\s*[\-\*]\s*\[x\]/i);
-				if (checkboxMatch && linkStart.character <= checkboxMatch[0].length) {
-					continue;
-				}
-				linkEnd = document.positionAt(offset + reference.length);
-			} else {
-				continue;
+			const linkStart = new vscode.Position(referenceNode.startPosition.row, referenceNode.startPosition.column);
+
+			const line = document.lineAt(linkStart.line);
+			// See if link looks like a checkbox
+			const checkboxMatch = line.text.match(/^\s*[\-\*]\s*\[x\]/i);
+			if (checkboxMatch && linkStart.character <= checkboxMatch[0].length) {
+				return;
 			}
 
-			const hrefRange = new vscode.Range(linkStart, linkEnd);
-			if (noLinkRanges.contains(hrefRange)) {
-				continue;
-			}
-
-			yield {
+			return {
 				kind: 'link',
 				source: {
 					text: reference,
 					pathText: reference,
 					resource: document.uri,
-					hrefRange,
+					hrefRange: getNodeRange(referenceNode),
+					fragmentRange: undefined,
+				},
+				href: {
+					kind: 'reference',
+					ref: reference,
+				}
+			};
+		} else if (node.childCount === 1 && node.child(0)?.type === 'link_text') { // reference link shorthand
+			const referenceNode = node.child(0)!;
+			const reference = referenceNode!.text;
+
+			const linkStart = new vscode.Position(referenceNode.startPosition.row, referenceNode.startPosition.column);
+
+			const line = document.lineAt(linkStart.line);
+			// See if link looks like a checkbox
+			const checkboxMatch = line.text.match(/^\s*[\-\*]\s*\[x\]/i);
+			if (checkboxMatch && linkStart.character <= checkboxMatch[0].length) {
+				return;
+			}
+
+			return {
+				kind: 'link',
+				source: {
+					text: reference,
+					pathText: reference,
+					resource: document.uri,
+					hrefRange: getNodeRange(referenceNode),
 					fragmentRange: undefined,
 				},
 				href: {
@@ -380,50 +295,56 @@ export class MdLinkComputer {
 				}
 			};
 		}
+
+		return undefined;
 	}
 
-	private *getLinkDefinitions(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLinkDefinition> {
-		const text = document.getText();
-		for (const match of text.matchAll(definitionPattern)) {
-			const pre = match[1];
-			const reference = match[2];
-			const link = match[3].trim();
-			const offset = (match.index || 0) + pre.length;
-
-			const refStart = document.positionAt((match.index ?? 0) + 1);
-			const refRange = new vscode.Range(refStart, refStart.translate({ characterDelta: reference.length }));
-
-			let linkStart: vscode.Position;
-			let linkEnd: vscode.Position;
-			let text: string;
-			if (angleBracketLinkRe.test(link)) {
-				linkStart = document.positionAt(offset + 1);
-				linkEnd = document.positionAt(offset + link.length - 1);
-				text = link.substring(1, link.length - 1);
-			} else {
-				linkStart = document.positionAt(offset);
-				linkEnd = document.positionAt(offset + link.length);
-				text = link;
-			}
-			const hrefRange = new vscode.Range(linkStart, linkEnd);
-			if (noLinkRanges.contains(hrefRange)) {
-				continue;
-			}
-			const target = parseLink(document, text);
-			if (target) {
-				yield {
-					kind: 'definition',
-					source: {
-						text: link,
-						resource: document.uri,
-						hrefRange,
-						...getLinkSourceFragmentInfo(document, link, linkStart, linkEnd),
-					},
-					ref: { text: reference, range: refRange },
-					href: target,
-				};
-			}
+	private extractAutoLink(document: SkinnyTextDocument, node: Parser.SyntaxNode): MdLink | undefined {
+		const linkTarget = parseLink(document, node.text);
+		if (!linkTarget) {
+			return undefined;
 		}
+
+		const hrefRange = getNodeRange(node);
+		return {
+			kind: 'link',
+			href: linkTarget,
+			source: {
+				text: node.text,
+				resource: document.uri,
+				hrefRange: hrefRange,
+				...getLinkSourceFragmentInfo(document, node.text, hrefRange),
+			}
+		};
+	}
+
+	private extractLinkDefinition(document: SkinnyTextDocument, node: Parser.SyntaxNode): MdLink | undefined {
+		const labelNode = node.child(0)?.child(0);
+		if (!labelNode || labelNode.text.startsWith('^')) {
+			return;
+		}
+
+		const destinationNode = node.child(1)?.child(0);
+		if (!destinationNode) {
+			return;
+		}
+
+		const target = parseLink(document, destinationNode.text);
+		if (!target) {
+			return;
+		}
+		const hrefRange = getNodeRange(destinationNode);
+		return {
+			kind: 'definition',
+			source: {
+				text: destinationNode.text,
+				resource: document.uri,
+				hrefRange,
+				...getLinkSourceFragmentInfo(document, destinationNode.text, hrefRange),
+			},
+			ref: { text: labelNode.text, range: getNodeRange(labelNode) },
+			href: target,
+		};
 	}
 }
 
@@ -439,19 +360,16 @@ export class MdLinkProvider extends Disposable {
 
 	private readonly _linkCache: MdDocumentInfoCache<MdDocumentLinks>;
 
-	private readonly linkComputer: MdLinkComputer;
-
 	constructor(
-		tokenizer: IMdParser,
 		workspaceContents: MdWorkspaceContents,
+		linkComputer: MdLinkComputer,
 		logger: ILogger,
 	) {
 		super();
-		this.linkComputer = new MdLinkComputer(tokenizer);
 		this._linkCache = this._register(new MdDocumentInfoCache(workspaceContents, async doc => {
 			logger.verbose('LinkProvider', `compute - ${doc.uri}`);
 
-			const links = await this.linkComputer.getAllLinks(doc, noopToken);
+			const links = await linkComputer.getAllLinks(doc, noopToken);
 			return {
 				links,
 				definitions: new LinkDefinitionSet(links),
@@ -527,6 +445,12 @@ export class MdVsCodeLinkProvider implements vscode.DocumentLinkProvider {
 			}
 		}
 	}
+}
+
+function getNodeRange(node: Parser.SyntaxNode): vscode.Range {
+	const linkStart = new vscode.Position(node.startPosition.row, node.startPosition.column);
+	const linkEnd = new vscode.Position(node.endPosition.row, node.endPosition.column);
+	return new vscode.Range(linkStart, linkEnd);
 }
 
 export function registerDocumentLinkSupport(

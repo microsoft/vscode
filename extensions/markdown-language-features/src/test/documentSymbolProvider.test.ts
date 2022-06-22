@@ -8,16 +8,15 @@ import 'mocha';
 import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbols';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { InMemoryDocument } from '../util/inMemoryDocument';
-import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { nulLogger } from './nulLogging';
+import { createTestMarkdownEngine, nulLogger } from './mocks';
 import { workspacePath } from './util';
 
 
 function getSymbolsForFile(fileContents: string) {
 	const doc = new InMemoryDocument(workspacePath('test.md'), fileContents);
 	const workspace = new InMemoryWorkspaceMarkdownDocuments([doc]);
-	const engine = createNewMarkdownEngine();
+	const engine = createTestMarkdownEngine();
 	const provider = new MdDocumentSymbolProvider(new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
 	return provider.provideDocumentSymbols(doc);
 }

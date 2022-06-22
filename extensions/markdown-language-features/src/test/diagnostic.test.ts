@@ -15,9 +15,8 @@ import { disposeAll } from '../util/dispose';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { ResourceMap } from '../util/resourceMap';
 import { MdWorkspaceContents } from '../workspaceContents';
-import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { nulLogger } from './nulLogging';
+import { createTestMarkdownEngine, createTestLinkComputer, nulLogger } from './mocks';
 import { assertRangeEqual, joinLines, workspacePath } from './util';
 
 const defaultDiagnosticsOptions = Object.freeze<DiagnosticOptions>({
@@ -30,8 +29,8 @@ const defaultDiagnosticsOptions = Object.freeze<DiagnosticOptions>({
 });
 
 async function getComputedDiagnostics(doc: InMemoryDocument, workspace: MdWorkspaceContents, options: Partial<DiagnosticOptions> = {}): Promise<vscode.Diagnostic[]> {
-	const engine = createNewMarkdownEngine();
-	const linkProvider = new MdLinkProvider(engine, workspace, nulLogger);
+	const engine = createTestMarkdownEngine();
+	const linkProvider = new MdLinkProvider(workspace, createTestLinkComputer(engine), nulLogger);
 	const tocProvider = new MdTableOfContentsProvider(engine, workspace, nulLogger);
 	const computer = new DiagnosticComputer(workspace, linkProvider, tocProvider);
 	return (
@@ -121,6 +120,7 @@ suite('markdown: Diagnostic Computer', () => {
 		const doc = new InMemoryDocument(workspacePath('doc.md'), joinLines(
 			`[bad](/no/such/file.md)`,
 			`[good](/doc.md)`,
+			``,
 			`[good-ref]: /doc.md`,
 			`[bad-ref]: /no/such/file.md`,
 		));
@@ -128,7 +128,7 @@ suite('markdown: Diagnostic Computer', () => {
 		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
 		assertDiagnosticsEqual(diagnostics, [
 			new vscode.Range(0, 6, 0, 22),
-			new vscode.Range(3, 11, 3, 27),
+			new vscode.Range(4, 11, 4, 27),
 		]);
 	});
 
@@ -138,6 +138,7 @@ suite('markdown: Diagnostic Computer', () => {
 			`# Good Header`,
 			`[bad](#no-such-header)`,
 			`[good](#good-header)`,
+			``,
 			`[good-ref]: #good-header`,
 			`[bad-ref]: #no-such-header`,
 		));
@@ -145,7 +146,7 @@ suite('markdown: Diagnostic Computer', () => {
 		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
 		assertDiagnosticsEqual(diagnostics, [
 			new vscode.Range(2, 6, 2, 21),
-			new vscode.Range(5, 11, 5, 26),
+			new vscode.Range(6, 11, 6, 26),
 		]);
 	});
 
@@ -231,6 +232,7 @@ suite('markdown: Diagnostic Computer', () => {
 		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
 			`[text](/no-such-file)`,
 			`![img](/no-such-file)`,
+			``,
 			`[text]: /no-such-file`,
 		));
 
@@ -436,10 +438,10 @@ suite('Markdown: Diagnostics manager', () => {
 		configuration = new MemoryDiagnosticConfiguration({}),
 		reporter: DiagnosticReporter = new DiagnosticCollectionReporter(),
 	) {
-		const engine = createNewMarkdownEngine();
-		const linkProvider = new MdLinkProvider(engine, workspace, nulLogger);
+		const engine = createTestMarkdownEngine();
+		const linkProvider = new MdLinkProvider(workspace, createTestLinkComputer(engine), nulLogger);
 		const tocProvider = new MdTableOfContentsProvider(engine, workspace, nulLogger);
-		const referencesProvider = new MdReferencesProvider(engine, workspace, tocProvider, nulLogger);
+		const referencesProvider = new MdReferencesProvider(engine, workspace, tocProvider, createTestLinkComputer(engine), nulLogger);
 		const manager = new DiagnosticManager(
 			workspace,
 			new DiagnosticComputer(workspace, linkProvider, tocProvider),

@@ -11,15 +11,14 @@ import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
-import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { nulLogger } from './nulLogging';
+import { createTestMarkdownEngine, createTestLinkComputer, nulLogger } from './mocks';
 import { joinLines, workspacePath } from './util';
 
 
 function getFileReferences(resource: vscode.Uri, workspace: MdWorkspaceContents) {
-	const engine = createNewMarkdownEngine();
-	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
+	const engine = createTestMarkdownEngine();
+	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), createTestLinkComputer(engine), nulLogger);
 	return computer.getAllReferencesToFile(resource, noopToken);
 }
 
