@@ -38,8 +38,11 @@ const editorEntryPoints = [
 		name: 'vs/base/common/worker/simpleWorker',
 		include: ['vs/editor/common/services/editorSimpleWorker'],
 		exclude: ['vs/nls'],
-		prepend: [{ path: 'vs/loader.js' }],
-		append: [{ path: 'vs/base/worker/workerMain' }],
+		prepend: [
+			{ path: 'vs/loader.js' },
+			{ path: 'vs/nls.js', amdModuleId: 'vs/nls' },
+			{ path: 'vs/base/worker/workerMain.js' }
+		],
 		dest: 'vs/base/worker/workerMain.js'
 	}
 ];

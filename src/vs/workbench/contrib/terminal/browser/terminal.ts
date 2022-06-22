@@ -925,6 +925,17 @@ export interface IXtermTerminal {
 	 * Clears the active search result decorations
 	 */
 	clearActiveSearchDecoration(): void;
+
+}
+
+export interface IInternalXtermTerminal {
+	/**
+	 * Writes text directly to the terminal, bypassing the process.
+	 *
+	 * **WARNING:** This should never be used outside of the terminal component and only for
+	 * developer purposed inside the terminal component.
+	 */
+	_writeText(data: string): void; // eslint-disable-line @typescript-eslint/naming-convention
 }
 
 export interface IRequestAddInstanceToGroupEvent {

@@ -6,11 +6,12 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { MdSmartSelect } from '../languageFeatures/smartSelect';
-import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from '../util/inMemoryDocument';
-import { CURSOR, getCursorPositions, joinLines } from './util';
 import { MdTableOfContentsProvider } from '../tableOfContents';
-import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { InMemoryDocument } from '../util/inMemoryDocument';
+import { createNewMarkdownEngine } from './engine';
+import { InMemoryMdWorkspace } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
+import { CURSOR, getCursorPositions, joinLines } from './util';
 
 const testFileName = vscode.Uri.file('test.md');
 
@@ -722,9 +723,9 @@ function assertLineNumbersEqual(selectionRange: vscode.SelectionRange, startLine
 
 function getSelectionRangesForDocument(contents: string, pos?: vscode.Position[]): Promise<vscode.SelectionRange[] | undefined> {
 	const doc = new InMemoryDocument(testFileName, contents);
-	const workspace = new InMemoryWorkspaceMarkdownDocuments([doc]);
+	const workspace = new InMemoryMdWorkspace([doc]);
 	const engine = createNewMarkdownEngine();
-	const provider = new MdSmartSelect(engine, new MdTableOfContentsProvider(engine, workspace));
+	const provider = new MdSmartSelect(engine, new MdTableOfContentsProvider(engine, workspace, nulLogger));
 	const positions = pos ? pos : getCursorPositions(contents, doc);
 	return provider.provideSelectionRanges(doc, positions, new vscode.CancellationTokenSource().token);
 }

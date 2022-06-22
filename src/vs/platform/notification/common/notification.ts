@@ -48,7 +48,7 @@ export enum NeverShowAgainScope {
 	 * Will never show this notification on any workspace of the same
 	 * profile again.
 	 */
-	GLOBAL,
+	PROFILE,
 
 	/**
 	 * Will never show this notification on any workspace across all

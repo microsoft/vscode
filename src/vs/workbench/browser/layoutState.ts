@@ -54,19 +54,19 @@ export const LayoutStateKeys = {
 	}),
 
 	// Part Sizing
-	GRID_SIZE: new InitializationStateKey('grid.size', StorageScope.GLOBAL, StorageTarget.MACHINE, { width: 800, height: 600 }),
-	SIDEBAR_SIZE: new InitializationStateKey<number>('sideBar.size', StorageScope.GLOBAL, StorageTarget.MACHINE, 200),
-	AUXILIARYBAR_SIZE: new InitializationStateKey<number>('auxiliaryBar.size', StorageScope.GLOBAL, StorageTarget.MACHINE, 200),
-	PANEL_SIZE: new InitializationStateKey<number>('panel.size', StorageScope.GLOBAL, StorageTarget.MACHINE, 300),
+	GRID_SIZE: new InitializationStateKey('grid.size', StorageScope.PROFILE, StorageTarget.MACHINE, { width: 800, height: 600 }),
+	SIDEBAR_SIZE: new InitializationStateKey<number>('sideBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 200),
+	AUXILIARYBAR_SIZE: new InitializationStateKey<number>('auxiliaryBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 200),
+	PANEL_SIZE: new InitializationStateKey<number>('panel.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 
-	PANEL_LAST_NON_MAXIMIZED_HEIGHT: new RuntimeStateKey<number>('panel.lastNonMaximizedHeight', StorageScope.GLOBAL, StorageTarget.MACHINE, 300),
-	PANEL_LAST_NON_MAXIMIZED_WIDTH: new RuntimeStateKey<number>('panel.lastNonMaximizedWidth', StorageScope.GLOBAL, StorageTarget.MACHINE, 300),
+	PANEL_LAST_NON_MAXIMIZED_HEIGHT: new RuntimeStateKey<number>('panel.lastNonMaximizedHeight', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
+	PANEL_LAST_NON_MAXIMIZED_WIDTH: new RuntimeStateKey<number>('panel.lastNonMaximizedWidth', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('panel.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.USER, false),
 
 	// Part Positions
 	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.WORKSPACE, StorageTarget.USER, Position.LEFT),
 	PANEL_POSITION: new RuntimeStateKey<Position>('panel.position', StorageScope.WORKSPACE, StorageTarget.USER, Position.BOTTOM),
-	PANEL_ALIGNMENT: new RuntimeStateKey<PanelAlignment>('panel.alignment', StorageScope.GLOBAL, StorageTarget.USER, 'center'),
+	PANEL_ALIGNMENT: new RuntimeStateKey<PanelAlignment>('panel.alignment', StorageScope.PROFILE, StorageTarget.USER, 'center'),
 
 	// Part Visibility
 	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false, true),
@@ -170,7 +170,7 @@ export class LayoutStateModel extends Disposable {
 			let key: keyof typeof LayoutStateKeys;
 			for (key in LayoutStateKeys) {
 				const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
-				if (stateKey instanceof RuntimeStateKey && stateKey.scope === StorageScope.GLOBAL && stateKey.target === StorageTarget.USER) {
+				if (stateKey instanceof RuntimeStateKey && stateKey.scope === StorageScope.PROFILE && stateKey.target === StorageTarget.USER) {
 					if (`${LayoutStateModel.STORAGE_PREFIX}${stateKey.name}` === storageChangeEvent.key) {
 						const value = this.loadKeyFromStorage(stateKey) ?? stateKey.defaultValue;
 						if (this.stateCache.get(stateKey.name) !== value) {
@@ -191,7 +191,7 @@ export class LayoutStateModel extends Disposable {
 		for (key in LayoutStateKeys) {
 			const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
 			if ((workspace && stateKey.scope === StorageScope.WORKSPACE) ||
-				(global && stateKey.scope === StorageScope.GLOBAL)) {
+				(global && stateKey.scope === StorageScope.PROFILE)) {
 				// Don't write out specific keys while in zen mode
 				if (isZenMode && stateKey instanceof RuntimeStateKey && stateKey.zenModeIgnore) {
 					continue;
@@ -232,7 +232,7 @@ export class LayoutStateModel extends Disposable {
 		this.stateCache.set(key.name, value);
 		const isZenMode = this.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE);
 
-		if (key.scope === StorageScope.GLOBAL) {
+		if (key.scope === StorageScope.PROFILE) {
 			if (!isZenMode || !key.zenModeIgnore) {
 				this.saveKeyToStorage<T>(key);
 				this.updateLegacySettingsFromState(key, value);

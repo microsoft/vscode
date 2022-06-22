@@ -35,6 +35,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 		this.currentProfileContext = CONTEXT_CURRENT_PROFILE.bindTo(contextKeyService);
 		this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => this.currentProfileContext.set(this.userDataProfileService.currentProfile.id)));
 
 		this.updateStatus();
 		this._register(Event.any(this.workspaceContextService.onDidChangeWorkbenchState, this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfilesService.onDidChangeProfiles)(() => this.updateStatus()));

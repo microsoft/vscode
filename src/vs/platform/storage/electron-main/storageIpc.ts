@@ -20,7 +20,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 
 	private readonly onDidChangeApplicationStorageEmitter = this._register(new Emitter<ISerializableItemsChangeEvent>());
 
-	private readonly mapProfileToOnDidChangeGlobalStorageEmitter = new Map<string /* profile ID */, Emitter<ISerializableItemsChangeEvent>>();
+	private readonly mapProfileToOnDidChangeProfileStorageEmitter = new Map<string /* profile ID */, Emitter<ISerializableItemsChangeEvent>>();
 
 	constructor(
 		private logService: ILogService,
@@ -81,15 +81,15 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 					return this.onDidChangeApplicationStorageEmitter.event;
 				}
 
-				// With profile: global scope for the profile
-				let globalStorageChangeEmitter = this.mapProfileToOnDidChangeGlobalStorageEmitter.get(profile.id);
-				if (!globalStorageChangeEmitter) {
-					globalStorageChangeEmitter = this._register(new Emitter<ISerializableItemsChangeEvent>());
-					this.registerStorageChangeListeners(this.storageMainService.globalStorage(profile), globalStorageChangeEmitter);
-					this.mapProfileToOnDidChangeGlobalStorageEmitter.set(profile.id, globalStorageChangeEmitter);
+				// With profile: profile scope for the profile
+				let profileStorageChangeEmitter = this.mapProfileToOnDidChangeProfileStorageEmitter.get(profile.id);
+				if (!profileStorageChangeEmitter) {
+					profileStorageChangeEmitter = this._register(new Emitter<ISerializableItemsChangeEvent>());
+					this.registerStorageChangeListeners(this.storageMainService.profileStorage(profile), profileStorageChangeEmitter);
+					this.mapProfileToOnDidChangeProfileStorageEmitter.set(profile.id, profileStorageChangeEmitter);
 				}
 
-				return globalStorageChangeEmitter.event;
+				return profileStorageChangeEmitter.event;
 			}
 		}
 
@@ -135,7 +135,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 		if (workspace) {
 			storage = this.storageMainService.workspaceStorage(workspace);
 		} else if (profile) {
-			storage = this.storageMainService.globalStorage(profile);
+			storage = this.storageMainService.profileStorage(profile);
 		} else {
 			storage = this.storageMainService.applicationStorage;
 		}
@@ -143,7 +143,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 		try {
 			await storage.init();
 		} catch (error) {
-			this.logService.error(`StorageIPC#init: Unable to init ${workspace ? 'workspace' : profile ? 'global' : 'application'} storage due to ${error}`);
+			this.logService.error(`StorageIPC#init: Unable to init ${workspace ? 'workspace' : profile ? 'profile' : 'application'} storage due to ${error}`);
 		}
 
 		return storage;

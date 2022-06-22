@@ -738,8 +738,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				const input = this.instantiationService.createInstance(
 					MergeEditorInput,
 					conflict.baseResource,
-					{ description: localResourceName, detail: undefined, uri: conflict.localResource },
-					{ description: remoteResourceName, detail: undefined, uri: conflict.remoteResource },
+					{ title: localize('Yours', 'Yours'), description: localResourceName, detail: undefined, uri: conflict.localResource },
+					{ title: localize('Theirs', 'Theirs'), description: remoteResourceName, detail: undefined, uri: conflict.remoteResource },
 					conflict.previewResource,
 				);
 				await this.editorService.openEditor(input);
