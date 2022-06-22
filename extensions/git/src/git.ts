@@ -1401,7 +1401,7 @@ export class Repository {
 		const args = ['commit', '--quiet'];
 		const options: SpawnOptions = {};
 
-		if (message) {
+		if (message?.trim() !== '') {
 			options.input = message;
 			args.push('--file', '-');
 		}
@@ -1440,7 +1440,8 @@ export class Repository {
 		}
 
 		if (opts.empty) {
-			args.push('--allow-empty');
+			options.input = '';
+			args.push('--allow-empty', '--allow-empty-message', '--file', '-');
 		}
 
 		if (opts.noVerify) {
