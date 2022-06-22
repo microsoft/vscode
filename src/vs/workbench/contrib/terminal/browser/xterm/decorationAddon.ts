@@ -191,7 +191,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._commandDetectionListeners.push(capability.onCurrentCommandInvalidated((mostRecent) => {
 			if (mostRecent) {
 				const lastDecoration = Array.from(this._decorations.entries())[this._decorations.size - 1];
-				lastDecoration[1].decoration.dispose();
+				lastDecoration?.[1].decoration.dispose();
 			} else {
 				this._clearPlaceholder();
 			}

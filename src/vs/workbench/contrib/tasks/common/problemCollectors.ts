@@ -39,7 +39,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	private matchers: INumberDictionary<ILineMatcher[]>;
 	private activeMatcher: ILineMatcher | null;
-	private _numberOfMatches: number;
+	protected _numberOfMatches: number;
 	private _maxMarkerSeverity?: MarkerSeverity;
 	private buffer: string[];
 	private bufferLength: number;
@@ -522,8 +522,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		for (const background of this.backgroundPatterns) {
 			const matches = background.end.regexp.exec(line);
 			if (matches) {
-				//TODO:@meganrogge what should be used here - not hard coded
-				if (matches.input.includes('0 errors')) {
+				if (this._numberOfMatches === 0) {
 					this._onDidInvalidateMatch.fire();
 				}
 				if (this._activeBackgroundMatchers.has(background.key)) {
