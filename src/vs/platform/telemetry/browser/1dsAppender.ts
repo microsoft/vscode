@@ -107,7 +107,6 @@ export class OneDataSystemWebAppender implements ITelemetryAppender {
 			this._withAIClient((aiClient) => aiClient.track({
 				name: this._eventPrefix + '/' + eventName,
 				data: { ...data.properties, ...data.measurements },
-
 			}));
 		} catch { }
 	}

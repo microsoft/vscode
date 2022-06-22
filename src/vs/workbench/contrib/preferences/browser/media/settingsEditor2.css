@@ -351,8 +351,7 @@
 	font-style: italic;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored .codicon,
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-default-overridden .codicon {
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .codicon {
 	vertical-align: middle;
 	padding-left: 1px;
 }

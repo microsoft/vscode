@@ -5,10 +5,10 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
@@ -59,7 +59,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService({
 				id: 'local',
 				label: 'local',
-				extensionManagementService: <IExtensionManagementService>{
+				extensionManagementService: <IProfileAwareExtensionManagementService>{
 					onInstallExtension: new Emitter<InstallExtensionEvent>().event,
 					onDidInstallExtensions: new Emitter<readonly InstallExtensionResult[]>().event,
 					onUninstallExtension: new Emitter<IExtensionIdentifier>().event,
@@ -125,9 +125,10 @@ suite('ExtensionEnablementService Test', () => {
 		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService({
 			id: 'local',
 			label: 'local',
-			extensionManagementService: <IExtensionManagementService>{
+			extensionManagementService: <IProfileAwareExtensionManagementService>{
 				onDidInstallExtensions: didInstallEvent.event,
 				onDidUninstallExtension: didUninstallEvent.event,
+				onDidChangeProfileExtensions: Event.None,
 				getInstalled: () => Promise.resolve(installed)
 			},
 		}, null, null));
@@ -955,7 +956,7 @@ function anExtensionManagementServer(authority: string, instantiationService: Te
 	return {
 		id: authority,
 		label: authority,
-		extensionManagementService: instantiationService.get(IExtensionManagementService),
+		extensionManagementService: instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService,
 	};
 }
 

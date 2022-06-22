@@ -537,7 +537,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		const internal = actionButton !== undefined ?
 			{
 				command: this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
-				description: actionButton.description
+				description: actionButton.description,
+				enabled: actionButton.enabled
 			} : undefined;
 		this.#proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
 	}

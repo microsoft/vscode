@@ -35,7 +35,7 @@ export class GlobalStateProfile implements IResourceProfile {
 	private async getLocalGlobalState(): Promise<IGlobalState> {
 		const storage: IStringDictionary<string> = {};
 		for (const { key } of Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry).all) {
-			const value = this.storageService.get(key, StorageScope.GLOBAL);
+			const value = this.storageService.get(key, StorageScope.PROFILE);
 			if (value) {
 				storage[key] = value;
 			}
@@ -56,7 +56,7 @@ export class GlobalStateProfile implements IResourceProfile {
 		if (updatedStorageKeys.length) {
 			this.logService.trace(`Profile: Updating global state...`);
 			for (const key of updatedStorageKeys) {
-				this.storageService.store(key, globalState.storage[key], StorageScope.GLOBAL, StorageTarget.USER);
+				this.storageService.store(key, globalState.storage[key], StorageScope.PROFILE, StorageTarget.USER);
 			}
 			this.logService.info(`Profile: Updated global state`, updatedStorageKeys);
 		}

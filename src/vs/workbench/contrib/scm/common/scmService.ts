@@ -104,45 +104,45 @@ class SCMInput implements ISCMInput {
 		}
 
 		// Migrate from old format // TODO@joao: remove this migration code a few releases
-		const userKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.GLOBAL, StorageTarget.USER)), key => key.startsWith('scm/input:'));
+		const userKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.PROFILE, StorageTarget.USER)), key => key.startsWith('scm/input:'));
 
 		for (const key of userKeys) {
 			try {
-				const rawHistory = storageService.get(key, StorageScope.GLOBAL, '');
+				const rawHistory = storageService.get(key, StorageScope.PROFILE, '');
 				const history = JSON.parse(rawHistory);
 
 				if (Array.isArray(history)) {
 					if (history.length === 0 || (history.length === 1 && history[0] === '')) {
 						// remove empty histories
-						storageService.remove(key, StorageScope.GLOBAL);
+						storageService.remove(key, StorageScope.PROFILE);
 					} else {
 						// migrate existing histories to have a timestamp
-						storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.MACHINE);
+						storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.PROFILE, StorageTarget.MACHINE);
 					}
 				} else {
 					// move to MACHINE target
-					storageService.store(key, rawHistory, StorageScope.GLOBAL, StorageTarget.MACHINE);
+					storageService.store(key, rawHistory, StorageScope.PROFILE, StorageTarget.MACHINE);
 				}
 			} catch {
 				// remove unparseable entries
-				storageService.remove(key, StorageScope.GLOBAL);
+				storageService.remove(key, StorageScope.PROFILE);
 			}
 		}
 
 		// Garbage collect
-		const machineKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE)), key => key.startsWith('scm/input:'));
+		const machineKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE)), key => key.startsWith('scm/input:'));
 
 		for (const key of machineKeys) {
 			try {
-				const history = JSON.parse(storageService.get(key, StorageScope.GLOBAL, ''));
+				const history = JSON.parse(storageService.get(key, StorageScope.PROFILE, ''));
 
 				if (Array.isArray(history?.history) && Number.isInteger(history?.timestamp) && new Date().getTime() - history?.timestamp > 2592000000) {
 					// garbage collect after 30 days
-					storageService.remove(key, StorageScope.GLOBAL);
+					storageService.remove(key, StorageScope.PROFILE);
 				}
 			} catch {
 				// remove unparseable entries
-				storageService.remove(key, StorageScope.GLOBAL);
+				storageService.remove(key, StorageScope.PROFILE);
 			}
 		}
 
@@ -160,7 +160,7 @@ class SCMInput implements ISCMInput {
 
 		if (key) {
 			try {
-				history = JSON.parse(this.storageService.get(key, StorageScope.GLOBAL, '')).history;
+				history = JSON.parse(this.storageService.get(key, StorageScope.PROFILE, '')).history;
 				history = history?.map(s => s ?? '');
 			} catch {
 				// noop
@@ -189,9 +189,9 @@ class SCMInput implements ISCMInput {
 				const history = [...this.historyNavigator].map(s => s ?? '');
 
 				if (history.length === 0 || (history.length === 1 && history[0] === '')) {
-					storageService.remove(key, StorageScope.GLOBAL);
+					storageService.remove(key, StorageScope.PROFILE);
 				} else {
-					storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.MACHINE);
+					storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.PROFILE, StorageTarget.MACHINE);
 				}
 				this.didChangeHistory = false;
 			});

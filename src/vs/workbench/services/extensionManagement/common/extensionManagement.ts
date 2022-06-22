@@ -10,10 +10,17 @@ import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, I
 import { URI } from 'vs/base/common/uri';
 import { FileAccess } from 'vs/base/common/network';
 
+export type DidChangeProfileExtensionsEvent = { readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] };
+
+export interface IProfileAwareExtensionManagementService extends IExtensionManagementService {
+	onDidChangeProfileExtensions: Event<DidChangeProfileExtensionsEvent>;
+	switchExtensionsProfile(extensionsProfileResource: URI | undefined): Promise<void>;
+}
+
 export interface IExtensionManagementServer {
 	readonly id: string;
 	readonly label: string;
-	readonly extensionManagementService: IExtensionManagementService;
+	readonly extensionManagementService: IProfileAwareExtensionManagementService;
 }
 
 export const enum ExtensionInstallLocation {
@@ -37,6 +44,7 @@ export const DefaultIconPath = FileAccess.asBrowserUri('./media/defaultIcon.png'
 export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
 export type UninstallExtensionOnServerEvent = IExtensionIdentifier & { server: IExtensionManagementServer };
 export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { server: IExtensionManagementServer };
+export type DidChangeProfileExtensionsOnServerEvent = DidChangeProfileExtensionsEvent & { server: IExtensionManagementServer };
 
 export const IWorkbenchExtensionManagementService = refineServiceDecorator<IExtensionManagementService, IWorkbenchExtensionManagementService>(IExtensionManagementService);
 export interface IWorkbenchExtensionManagementService extends IExtensionManagementService {
@@ -46,6 +54,7 @@ export interface IWorkbenchExtensionManagementService extends IExtensionManageme
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
 	onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
+	onDidChangeProfileExtensions: Event<DidChangeProfileExtensionsOnServerEvent>;
 
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallVSIXOptions): Promise<ILocalExtension>;
 	installWebExtension(location: URI): Promise<ILocalExtension>;

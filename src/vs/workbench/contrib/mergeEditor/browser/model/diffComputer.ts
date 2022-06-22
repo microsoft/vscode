@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
+import { isDefined } from 'vs/base/common/types';
 import { Range } from 'vs/editor/common/core/range';
 import { ICharChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
+import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 
 export interface IDiffComputer {
 	computeDiff(textModel1: ITextModel, textModel2: ITextModel): Promise<IDiffComputerResult>;
@@ -52,7 +52,7 @@ function fromLineChange(lineChange: ILineChange, originalTextModel: ITextModel, 
 		modifiedRange = new LineRange(lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1);
 	}
 
-	let innerDiffs = lineChange.charChanges?.map(c => rangeMappingFromCharChange(c, originalTextModel, modifiedTextModel));
+	let innerDiffs = lineChange.charChanges?.map(c => rangeMappingFromCharChange(c, originalTextModel, modifiedTextModel)).filter(isDefined);
 	if (!innerDiffs) {
 		innerDiffs = [rangeMappingFromLineRanges(originalRange, modifiedRange)];
 	}
@@ -83,19 +83,19 @@ function rangeMappingFromLineRanges(originalRange: LineRange, modifiedRange: Lin
 	);
 }
 
-function rangeMappingFromCharChange(charChange: ICharChange, inputTextModel: ITextModel, modifiedTextModel: ITextModel): RangeMapping {
+function rangeMappingFromCharChange(charChange: ICharChange, inputTextModel: ITextModel, modifiedTextModel: ITextModel): RangeMapping | undefined {
 	return normalizeRangeMapping(new RangeMapping(
 		new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
 		new Range(charChange.modifiedStartLineNumber, charChange.modifiedStartColumn, charChange.modifiedEndLineNumber, charChange.modifiedEndColumn)
 	), inputTextModel, modifiedTextModel);
 }
 
-function normalizeRangeMapping(rangeMapping: RangeMapping, inputTextModel: ITextModel, outputTextModel: ITextModel): RangeMapping {
+function normalizeRangeMapping(rangeMapping: RangeMapping, inputTextModel: ITextModel, outputTextModel: ITextModel): RangeMapping | undefined {
 	const inputRangeEmpty = rangeMapping.inputRange.isEmpty();
 	const outputRangeEmpty = rangeMapping.outputRange.isEmpty();
 
 	if (inputRangeEmpty && outputRangeEmpty) {
-		throw new BugIndicatingError(); // This case makes no sense, but it is an edge case we need to rule out
+		return undefined;
 	}
 
 	const originalStartsAtEndOfLine = isAtEndOfLine(rangeMapping.inputRange.startLineNumber, rangeMapping.inputRange.startColumn, inputTextModel);

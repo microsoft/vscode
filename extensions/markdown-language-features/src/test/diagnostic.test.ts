@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { DiagnosticCollectionReporter, DiagnosticComputer, DiagnosticConfiguration, DiagnosticLevel, DiagnosticManager, DiagnosticOptions, DiagnosticReporter } from '../languageFeatures/diagnostics';
-import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
+import { MdLinkProvider } from '../languageFeatures/documentLinks';
 import { MdReferencesProvider } from '../languageFeatures/references';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
@@ -17,6 +17,7 @@ import { ResourceMap } from '../util/resourceMap';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
 import { assertRangeEqual, joinLines, workspacePath } from './util';
 
 const defaultDiagnosticsOptions = Object.freeze<DiagnosticOptions>({
@@ -30,8 +31,8 @@ const defaultDiagnosticsOptions = Object.freeze<DiagnosticOptions>({
 
 async function getComputedDiagnostics(doc: InMemoryDocument, workspace: MdWorkspaceContents, options: Partial<DiagnosticOptions> = {}): Promise<vscode.Diagnostic[]> {
 	const engine = createNewMarkdownEngine();
-	const linkProvider = new MdLinkProvider(engine, workspace);
-	const tocProvider = new MdTableOfContentsProvider(engine, workspace);
+	const linkProvider = new MdLinkProvider(engine, workspace, nulLogger);
+	const tocProvider = new MdTableOfContentsProvider(engine, workspace, nulLogger);
 	const computer = new DiagnosticComputer(workspace, linkProvider, tocProvider);
 	return (
 		await computer.getDiagnostics(doc, { ...defaultDiagnosticsOptions, ...options, }, noopToken)
@@ -75,6 +76,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 }
 
 class MemoryDiagnosticReporter extends DiagnosticReporter {
+
 	private readonly diagnostics = new ResourceMap<readonly vscode.Diagnostic[]>();
 
 	override dispose(): void {
@@ -89,6 +91,10 @@ class MemoryDiagnosticReporter extends DiagnosticReporter {
 
 	set(uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]): void {
 		this.diagnostics.set(uri, diagnostics);
+	}
+
+	areDiagnosticsEnabled(_uri: vscode.Uri): boolean {
+		return true;
 	}
 
 	delete(uri: vscode.Uri): void {
@@ -431,16 +437,17 @@ suite('Markdown: Diagnostics manager', () => {
 		reporter: DiagnosticReporter = new DiagnosticCollectionReporter(),
 	) {
 		const engine = createNewMarkdownEngine();
-		const linkProvider = new MdLinkProvider(engine, workspace);
-		const tocProvider = new MdTableOfContentsProvider(engine, workspace);
-		const referencesProvider = new MdReferencesProvider(engine, workspace, tocProvider);
+		const linkProvider = new MdLinkProvider(engine, workspace, nulLogger);
+		const tocProvider = new MdTableOfContentsProvider(engine, workspace, nulLogger);
+		const referencesProvider = new MdReferencesProvider(engine, workspace, tocProvider, nulLogger);
 		const manager = new DiagnosticManager(
-			engine,
 			workspace,
 			new DiagnosticComputer(workspace, linkProvider, tocProvider),
 			configuration,
 			reporter,
 			referencesProvider,
+			tocProvider,
+			nulLogger,
 			0);
 		_disposables.push(manager, referencesProvider);
 		return manager;

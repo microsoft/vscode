@@ -330,7 +330,14 @@ export class MenuBar extends Disposable {
 				triggerKeys.push(KeyCode.DownArrow);
 			} else {
 				triggerKeys.push(KeyCode.Space);
-				triggerKeys.push(this.options.compactMode === Direction.Right ? KeyCode.RightArrow : KeyCode.LeftArrow);
+
+				if (this.options.compactMode === Direction.Right) {
+					triggerKeys.push(KeyCode.RightArrow);
+				} else if (this.options.compactMode === Direction.Left) {
+					triggerKeys.push(KeyCode.LeftArrow);
+				} else if (this.options.compactMode === Direction.Down) {
+					triggerKeys.push(KeyCode.DownArrow);
+				}
 			}
 
 			if ((triggerKeys.some(k => event.equals(k)) && !this.isOpen)) {

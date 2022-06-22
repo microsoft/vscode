@@ -8,32 +8,29 @@ import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
 
-export type CreationOptions = {
-	settings?: boolean;
-	keybindings?: boolean;
-	tasks?: boolean;
-	snippets?: boolean;
-	extensions?: boolean;
-	uiState?: boolean;
-};
+export interface DidChangeUserDataProfileEvent {
+	readonly preserveData: boolean;
+	readonly profile: IUserDataProfile;
+	join(promise: Promise<void>): void;
+}
 
 export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
 export interface IUserDataProfileService {
 	readonly _serviceBrand: undefined;
 	readonly defaultProfile: IUserDataProfile;
-	readonly onDidChangeCurrentProfile: Event<IUserDataProfile>;
+	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
-	updateCurrentProfile(currentProfile: IUserDataProfile): void;
+	updateCurrentProfile(currentProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
 }
 
 export const IUserDataProfileManagementService = createDecorator<IUserDataProfileManagementService>('IUserDataProfileManagementService');
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
-	createAndEnterProfile(name: string, options?: CreationOptions, fromExisting?: boolean): Promise<void>;
-	createAndEnterProfileFromTemplate(name: string, template: IUserDataProfileTemplate, options?: CreationOptions): Promise<void>;
+	createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<void>;
+	createAndEnterProfileFromTemplate(name: string, template: IUserDataProfileTemplate, useDefaultFlags?: UseDefaultProfileFlags): Promise<void>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
 

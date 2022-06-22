@@ -75,7 +75,6 @@ __vsc_command_complete() {
 	fi
 	__vsc_update_cwd
 }
-
 __vsc_update_prompt() {
 	# in command execution
 	if [ "$__vsc_in_command_execution" = "1" ]; then

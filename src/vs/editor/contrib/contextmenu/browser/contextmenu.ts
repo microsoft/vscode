@@ -25,6 +25,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -44,7 +45,8 @@ export class ContextMenuController implements IEditorContribution {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IMenuService private readonly _menuService: IMenuService
+		@IMenuService private readonly _menuService: IMenuService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._editor = editor;
 
@@ -98,6 +100,10 @@ export class ContextMenuController implements IEditorContribution {
 		e.event.preventDefault();
 		e.event.stopPropagation();
 
+		if (e.target.type === MouseTargetType.SCROLLBAR) {
+			return this._showScrollbarContextMenu({ x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 });
+		}
+
 		if (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY && e.target.type !== MouseTargetType.TEXTAREA) {
 			return; // only support mouse click into text or native context menu key for now
 		}
@@ -136,11 +142,6 @@ export class ContextMenuController implements IEditorContribution {
 		}
 		if (!this._editor.hasModel()) {
 			return;
-		}
-
-		if (!this._contextMenuService) {
-			this._editor.focus();
-			return;	// We need the context menu service to function
 		}
 
 		// Find actions available for menu
@@ -253,6 +254,133 @@ export class ContextMenuController implements IEditorContribution {
 				this._editor.updateOptions({
 					hover: oldHoverSetting
 				});
+			}
+		});
+	}
+
+	private _showScrollbarContextMenu(anchor: IAnchor): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		const minimapOptions = this._editor.getOption(EditorOption.minimap);
+
+		let lastId = 0;
+		const createAction = (opts: { label: string; enabled?: boolean; checked?: boolean; run: () => void }): IAction => {
+			return {
+				id: `menu-action-${++lastId}`,
+				label: opts.label,
+				tooltip: '',
+				class: undefined,
+				enabled: (typeof opts.enabled === 'undefined' ? true : opts.enabled),
+				checked: opts.checked,
+				run: opts.run,
+				dispose: () => null
+			};
+		};
+		const createSubmenuAction = (label: string, actions: IAction[]): SubmenuAction => {
+			return new SubmenuAction(
+				`menu-action-${++lastId}`,
+				label,
+				actions,
+				undefined
+			);
+		};
+		const createEnumAction = <T>(label: string, enabled: boolean, configName: string, configuredValue: T, options: { label: string; value: T }[]): IAction => {
+			if (!enabled) {
+				return createAction({ label, enabled, run: () => { } });
+			}
+			const createRunner = (value: T) => {
+				return () => {
+					this._configurationService.updateValue(configName, value);
+				};
+			};
+			const actions: IAction[] = [];
+			for (const option of options) {
+				actions.push(createAction({
+					label: option.label,
+					checked: configuredValue === option.value,
+					run: createRunner(option.value)
+				}));
+			}
+			return createSubmenuAction(
+				label,
+				actions
+			);
+		};
+
+		const actions: IAction[] = [];
+		actions.push(createAction({
+			label: nls.localize('context.minimap.showMinimap', "Show Minimap"),
+			checked: minimapOptions.enabled,
+			run: () => {
+				this._configurationService.updateValue(`editor.minimap.enabled`, !minimapOptions.enabled);
+			}
+		}));
+		actions.push(new Separator());
+		actions.push(createAction({
+			label: nls.localize('context.minimap.renderCharacters', "Render Characters"),
+			enabled: minimapOptions.enabled,
+			checked: minimapOptions.renderCharacters,
+			run: () => {
+				this._configurationService.updateValue(`editor.minimap.renderCharacters`, !minimapOptions.renderCharacters);
+			}
+		}));
+		actions.push(createEnumAction<'proportional' | 'fill' | 'fit'>(
+			nls.localize('context.minimap.size', "Size"),
+			minimapOptions.enabled,
+			'editor.minimap.size',
+			minimapOptions.size,
+			[{
+				label: nls.localize('context.minimap.size.proportional', "Proportional"),
+				value: 'proportional'
+			}, {
+				label: nls.localize('context.minimap.size.fill', "Fill"),
+				value: 'fill'
+			}, {
+				label: nls.localize('context.minimap.size.fit', "Fit"),
+				value: 'fit'
+			}]
+		));
+		actions.push(createEnumAction<number>(
+			nls.localize('context.minimap.scale', "Scale"),
+			minimapOptions.enabled,
+			'editor.minimap.scale',
+			minimapOptions.scale,
+			[{
+				label: nls.localize('context.minimap.scale.1', "1"),
+				value: 1
+			}, {
+				label: nls.localize('context.minimap.scale.2', "2"),
+				value: 2
+			}, {
+				label: nls.localize('context.minimap.scale.3', "3"),
+				value: 3
+			}]
+		));
+		actions.push(createEnumAction<'always' | 'mouseover'>(
+			nls.localize('context.minimap.slider', "Slider"),
+			minimapOptions.enabled,
+			'editor.minimap.showSlider',
+			minimapOptions.showSlider,
+			[{
+				label: nls.localize('context.minimap.slider.mouseover', "Mouse Over"),
+				value: 'mouseover'
+			}, {
+				label: nls.localize('context.minimap.slider.always', "Always"),
+				value: 'always'
+			}]
+		));
+
+		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
+		this._contextMenuIsBeingShownCount++;
+		this._contextMenuService.showContextMenu({
+			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			onHide: (wasCancelled: boolean) => {
+				this._contextMenuIsBeingShownCount--;
+				this._editor.focus();
 			}
 		});
 	}

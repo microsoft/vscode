@@ -134,6 +134,14 @@ export class TitlebarPart extends Part implements ITitleService {
 					this.installMenubar();
 				}
 			}
+
+			// Trigger a re-install of the menubar with command center change
+			if (event.affectsConfiguration('window.commandCenter')) {
+				if (this.currentMenubarVisibility !== 'compact') {
+					this.uninstallMenubar();
+					this.installMenubar();
+				}
+			}
 		}
 
 		if (this.titleBarStyle !== 'native' && this.layoutControls && event.affectsConfiguration('workbench.layoutControl.enabled')) {
