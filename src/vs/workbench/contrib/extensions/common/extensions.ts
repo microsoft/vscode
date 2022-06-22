@@ -17,6 +17,7 @@ import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
+import { ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -101,7 +102,7 @@ export interface IExtensionsWorkbenchService {
 	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
 	canInstall(extension: IExtension): Promise<boolean>;
 	install(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension>;
-	install(extension: IExtension, installOptions?: InstallOptions): Promise<IExtension>;
+	install(extension: IExtension, installOptions?: InstallOptions, progressLocation?: ProgressLocation): Promise<IExtension>;
 	uninstall(extension: IExtension): Promise<void>;
 	installVersion(extension: IExtension, version: string, installOptions?: InstallOptions): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;

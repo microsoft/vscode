@@ -39,7 +39,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			const terminalGroup = terminalGroups[groupIndex];
 			for (let terminalIndex = 0; terminalIndex < terminalGroup.terminalInstances.length; terminalIndex++) {
 				const terminal = terminalGroup.terminalInstances[terminalIndex];
-				const pick = this._createPick(terminal, terminalIndex, filter, groupIndex);
+				const pick = this._createPick(terminal, terminalIndex, filter, { groupIndex, groupSize: terminalGroup.terminalInstances.length });
 				if (pick) {
 					terminalPicks.push(pick);
 				}
@@ -79,9 +79,14 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		return terminalPicks;
 	}
 
-	private _createPick(terminal: ITerminalInstance, terminalIndex: number, filter: string, groupIndex?: number): IPickerQuickAccessItem | undefined {
+	private _createPick(terminal: ITerminalInstance, terminalIndex: number, filter: string, groupInfo?: { groupIndex: number; groupSize: number }): IPickerQuickAccessItem | undefined {
 		const iconId = getIconId(terminal);
-		const label = groupIndex ? `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}` : `$(${iconId}) ${terminalIndex + 1}: ${terminal.title}`;
+		const index = groupInfo
+			? (groupInfo.groupSize > 1
+				? `${groupInfo.groupIndex + 1}.${terminalIndex + 1}`
+				: `${groupInfo.groupIndex + 1}`)
+			: `${terminalIndex + 1}`;
+		const label = `$(${iconId}) ${index}: ${terminal.title}`;
 		const iconClasses: string[] = [];
 		const colorClass = getColorClass(terminal);
 		if (colorClass) {

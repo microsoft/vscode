@@ -115,7 +115,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		this._register(_notebookService.onWillRemoveNotebookDocument(notebook => {
 			const kernelId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
 			if (kernelId) {
-				this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel: kernelId, newKernel: undefined });
+				this.selectKernelForNotebook(undefined, notebook);
 			}
 		}));
 		this._sourceMenu = this._register(this._menuService.createMenu(MenuId.NotebookKernelSource, contextKeyService));
@@ -131,7 +131,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			// ignore
 		}
 		try {
-			const data = JSON.parse(this._storageService.get(NotebookKernelService._storageTypeBinding, StorageScope.GLOBAL, '[]'));
+			const data = JSON.parse(this._storageService.get(NotebookKernelService._storageTypeBinding, StorageScope.PROFILE, '[]'));
 			this._typeBindings.fromJSON(data);
 		} catch {
 			// ignore
@@ -174,7 +174,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		this._persistSoonHandle?.dispose();
 		this._persistSoonHandle = runWhenIdle(() => {
 			this._storageService.store(NotebookKernelService._storageNotebookBinding, JSON.stringify(this._notebookBindings), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			this._storageService.store(NotebookKernelService._storageTypeBinding, JSON.stringify(this._typeBindings), StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(NotebookKernelService._storageTypeBinding, JSON.stringify(this._typeBindings), StorageScope.PROFILE, StorageTarget.USER);
 		}, 100);
 	}
 
@@ -287,7 +287,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 
 	// a notebook has one kernel, a kernel has N notebooks
 	// notebook <-1----N-> kernel
-	selectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void {
+	selectKernelForNotebook(kernel: INotebookKernel | undefined, notebook: INotebookTextModelLike): void {
 		const key = NotebookTextModelLikeId.str(notebook);
 		const oldKernel = this._notebookBindings.get(key);
 		if (oldKernel !== kernel?.id) {
@@ -296,7 +296,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			} else {
 				this._notebookBindings.delete(key);
 			}
-			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel.id });
+			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel?.id });
 			this._persistMementos();
 		}
 	}

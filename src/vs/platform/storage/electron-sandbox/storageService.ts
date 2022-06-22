@@ -9,8 +9,8 @@ import { joinPath } from 'vs/base/common/resources';
 import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { ApplicationStorageDatabaseClient, GlobalStorageDatabaseClient, WorkspaceStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
+import { AbstractStorageService, isProfileUsingDefaultStorage, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient, WorkspaceStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
@@ -19,9 +19,9 @@ export class NativeStorageService extends AbstractStorageService {
 	private readonly applicationStorage: IStorage;
 	private readonly applicationStorageProfile: IUserDataProfile;
 
-	private globalStorage: IStorage;
-	private globalStorageProfile: IUserDataProfile | undefined = undefined;
-	private readonly globalStorageDisposables = this._register(new DisposableStore());
+	private profileStorage: IStorage;
+	private profileStorageProfile: IUserDataProfile | undefined = undefined;
+	private readonly profileStorageDisposables = this._register(new DisposableStore());
 
 	private workspaceStorage: IStorage | undefined = undefined;
 	private workspaceStorageId: string | undefined = undefined;
@@ -38,7 +38,7 @@ export class NativeStorageService extends AbstractStorageService {
 		this.applicationStorageProfile = defaultProfile;
 
 		this.applicationStorage = this.createApplicationStorage();
-		this.globalStorage = this.createGlobalStorage(currentProfile);
+		this.profileStorage = this.createProfileStorage(currentProfile);
 		this.workspaceStorage = this.createWorkspaceStorage(workspace);
 	}
 
@@ -51,31 +51,31 @@ export class NativeStorageService extends AbstractStorageService {
 		return applicationStorage;
 	}
 
-	private createGlobalStorage(profile: IUserDataProfile): IStorage {
+	private createProfileStorage(profile: IUserDataProfile): IStorage {
 
 		// First clear any previously associated disposables
-		this.globalStorageDisposables.clear();
+		this.profileStorageDisposables.clear();
 
-		// Remember profile associated to global storage
-		this.globalStorageProfile = profile;
+		// Remember profile associated to profile storage
+		this.profileStorageProfile = profile;
 
-		let globalStorage: IStorage;
-		if (profile.isDefault) {
+		let profileStorage: IStorage;
+		if (isProfileUsingDefaultStorage(profile)) {
 
-			// If we are in default profile, the global storage is
+			// If we are using default profile storage, the profile storage is
 			// actually the same as application storage. As such we
 			// avoid creating the storage library a second time on
 			// the same DB.
 
-			globalStorage = this.applicationStorage;
+			profileStorage = this.applicationStorage;
 		} else {
-			const storageDataBaseClient = this.globalStorageDisposables.add(new GlobalStorageDatabaseClient(this.mainProcessService.getChannel('storage'), profile));
-			globalStorage = this.globalStorageDisposables.add(new Storage(storageDataBaseClient));
+			const storageDataBaseClient = this.profileStorageDisposables.add(new ProfileStorageDatabaseClient(this.mainProcessService.getChannel('storage'), profile));
+			profileStorage = this.profileStorageDisposables.add(new Storage(storageDataBaseClient));
 		}
 
-		this.globalStorageDisposables.add(globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		this.profileStorageDisposables.add(profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
 
-		return globalStorage;
+		return profileStorage;
 	}
 
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorage;
@@ -104,7 +104,7 @@ export class NativeStorageService extends AbstractStorageService {
 		// Init all storage locations
 		await Promises.settled([
 			this.applicationStorage.init(),
-			this.globalStorage.init(),
+			this.profileStorage.init(),
 			this.workspaceStorage?.init() ?? Promise.resolve()
 		]);
 	}
@@ -113,8 +113,8 @@ export class NativeStorageService extends AbstractStorageService {
 		switch (scope) {
 			case StorageScope.APPLICATION:
 				return this.applicationStorage;
-			case StorageScope.GLOBAL:
-				return this.globalStorage;
+			case StorageScope.PROFILE:
+				return this.profileStorage;
 			default:
 				return this.workspaceStorage;
 		}
@@ -124,8 +124,8 @@ export class NativeStorageService extends AbstractStorageService {
 		switch (scope) {
 			case StorageScope.APPLICATION:
 				return this.applicationStorageProfile.globalStorageHome.fsPath;
-			case StorageScope.GLOBAL:
-				return this.globalStorageProfile?.globalStorageHome.fsPath;
+			case StorageScope.PROFILE:
+				return this.profileStorageProfile?.globalStorageHome.fsPath;
 			default:
 				return this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
 		}
@@ -142,27 +142,31 @@ export class NativeStorageService extends AbstractStorageService {
 		// Do it
 		await Promises.settled([
 			this.applicationStorage.close(),
-			this.globalStorage.close(),
+			this.profileStorage.close(),
 			this.workspaceStorage?.close() ?? Promise.resolve()
 		]);
 	}
 
 	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
-		const oldGlobalStorage = this.globalStorage;
-		const oldItems = oldGlobalStorage.items;
-
-		// Close old global storage but only if this is
-		// different from application storage!
-		if (oldGlobalStorage !== this.applicationStorage) {
-			await oldGlobalStorage.close();
+		if (this.profileStorageProfile && !this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
+			return;
 		}
 
-		// Create new global storage & init
-		this.globalStorage = this.createGlobalStorage(toProfile);
-		await this.globalStorage.init();
+		const oldProfileStorage = this.profileStorage;
+		const oldItems = oldProfileStorage.items;
+
+		// Close old profile storage but only if this is
+		// different from application storage!
+		if (oldProfileStorage !== this.applicationStorage) {
+			await oldProfileStorage.close();
+		}
+
+		// Create new profile storage & init
+		this.profileStorage = this.createProfileStorage(toProfile);
+		await this.profileStorage.init();
 
 		// Handle data switch and eventing
-		this.switchData(oldItems, this.globalStorage, StorageScope.GLOBAL, preserveData);
+		this.switchData(oldItems, this.profileStorage, StorageScope.PROFILE, preserveData);
 	}
 
 	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {

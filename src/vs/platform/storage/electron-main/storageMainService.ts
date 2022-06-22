@@ -11,12 +11,13 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractStorageService, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ApplicationStorageMain, GlobalStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
+import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-//#region Storage Main Service (intent: make application, global and workspace storage accessible to windows from main process)
+//#region Storage Main Service (intent: make application, profile and workspace storage accessible to windows from main process)
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
@@ -34,13 +35,13 @@ export interface IStorageMainService {
 	applicationStorage: IStorageMain;
 
 	/**
-	 * Provides access to the global storage shared across all windows
+	 * Provides access to the profile storage shared across all windows
 	 * for the provided profile.
 	 *
 	 * Note: DO NOT use this for reading/writing from the main process!
 	 *       This is currently not supported.
 	 */
-	globalStorage(profile: IUserDataProfile): IStorageMain;
+	profileStorage(profile: IUserDataProfile): IStorageMain;
 
 	/**
 	 * Provides access to the workspace storage specific to a single window.
@@ -60,7 +61,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IFileService private readonly fileService: IFileService
 	) {
@@ -86,9 +87,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		this._register(this.lifecycleMainService.onWillLoadWindow(e => {
 
-			// Global Storage: Warmup when related window with profile loads
+			// Profile Storage: Warmup when related window with profile loads
 			if (e.window.profile) {
-				this.globalStorage(e.window.profile).init();
+				this.profileStorage(e.window.profile).init();
 			}
 
 			// Workspace Storage: Warmup when related window with workspace loads
@@ -107,14 +108,31 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			// Application Storage
 			e.join(this.applicationStorage.close());
 
-			// Global Storage(s)
-			for (const [, globalStorage] of this.mapProfileToStorage) {
-				e.join(globalStorage.close());
+			// Profile Storage(s)
+			for (const [, profileStorage] of this.mapProfileToStorage) {
+				e.join(profileStorage.close());
 			}
 
 			// Workspace Storage(s)
 			for (const [, workspaceStorage] of this.mapWorkspaceToStorage) {
 				e.join(workspaceStorage.close());
+			}
+		}));
+
+		// Prepare storage location as needed
+		this._register(this.userDataProfilesService.onWillCreateProfile(e => {
+			e.join((async () => {
+				if (!(await this.fileService.exists(e.profile.globalStorageHome))) {
+					await this.fileService.createFolder(e.profile.globalStorageHome);
+				}
+			})());
+		}));
+
+		// Close the storage of the profile that is being removed
+		this._register(this.userDataProfilesService.onWillRemoveProfile(e => {
+			const storage = this.mapProfileToStorage.get(e.profile.id);
+			if (storage) {
+				e.join(storage.close());
 			}
 		}));
 	}
@@ -137,33 +155,33 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	//#endregion
 
-	//#region Global Storage
+	//#region Profile Storage
 
 	private readonly mapProfileToStorage = new Map<string /* profile ID */, IStorageMain>();
 
-	globalStorage(profile: IUserDataProfile): IStorageMain {
-		if (profile.isDefault) {
-			return this.applicationStorage; // for default profile, use application storage
+	profileStorage(profile: IUserDataProfile): IStorageMain {
+		if (isProfileUsingDefaultStorage(profile)) {
+			return this.applicationStorage; // for profiles using default storage, use application storage
 		}
 
-		let globalStorage = this.mapProfileToStorage.get(profile.id);
-		if (!globalStorage) {
-			this.logService.trace(`StorageMainService: creating global storage (${profile.name})`);
+		let profileStorage = this.mapProfileToStorage.get(profile.id);
+		if (!profileStorage) {
+			this.logService.trace(`StorageMainService: creating profile storage (${profile.name})`);
 
-			globalStorage = this.createGlobalStorage(profile);
-			this.mapProfileToStorage.set(profile.id, globalStorage);
+			profileStorage = this.createProfileStorage(profile);
+			this.mapProfileToStorage.set(profile.id, profileStorage);
 
-			once(globalStorage.onDidCloseStorage)(() => {
-				this.logService.trace(`StorageMainService: closed global storage (${profile.name})`);
+			once(profileStorage.onDidCloseStorage)(() => {
+				this.logService.trace(`StorageMainService: closed profile storage (${profile.name})`);
 
 				this.mapProfileToStorage.delete(profile.id);
 			});
 		}
 
-		return globalStorage;
+		return profileStorage;
 	}
 
-	private createGlobalStorage(profile: IUserDataProfile): IStorageMain {
+	private createProfileStorage(profile: IUserDataProfile): IStorageMain {
 		if (this.shutdownReason === ShutdownReason.KILL) {
 
 			// Workaround for native crashes that we see when
@@ -173,7 +191,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			return new InMemoryStorageMain(this.logService, this.fileService);
 		}
 
-		return new GlobalStorageMain(profile, this.getStorageOptions(), this.logService, this.fileService);
+		return new ProfileStorageMain(profile, this.getStorageOptions(), this.logService, this.fileService);
 	}
 
 	//#endregion

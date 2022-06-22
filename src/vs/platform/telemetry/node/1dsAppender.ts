@@ -21,6 +21,7 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 		endpointUrl: 'https://mobile.events.data.microsoft.com/OneCollector/1.0',
 		loggingLevelTelemetry: 0,
 		loggingLevelConsole: 0,
+		extensionConfig: {},
 		channels: [[
 			collectorChannelPlugin
 		]]
@@ -135,7 +136,7 @@ export class OneDataSystemAppender implements ITelemetryAppender {
 		try {
 			this._withAIClient((aiClient) => aiClient.track({
 				name: this._eventPrefix + '/' + eventName,
-				data,
+				data: { ...data.properties, ...data.measurements },
 
 			}));
 		} catch { }
