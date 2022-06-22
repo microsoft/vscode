@@ -13,7 +13,8 @@ import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/schemes';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { MdDocumentInfoCache } from './workspaceCache';
+import { MdDocumentInfoCache } from '../util/workspaceCache';
+import { ILogger } from '../logging';
 
 const localize = nls.loadMessageBundle();
 
@@ -426,33 +427,40 @@ export class MdLinkComputer {
 	}
 }
 
+interface MdDocumentLinks {
+	readonly links: readonly MdLink[];
+	readonly definitions: LinkDefinitionSet;
+}
+
 /**
  * Stateful object which provides links for markdown files the workspace.
  */
 export class MdLinkProvider extends Disposable {
 
-	private readonly _linkCache: MdDocumentInfoCache<readonly MdLink[]>;
+	private readonly _linkCache: MdDocumentInfoCache<MdDocumentLinks>;
 
 	private readonly linkComputer: MdLinkComputer;
 
 	constructor(
 		tokenizer: IMdParser,
 		workspaceContents: MdWorkspaceContents,
+		logger: ILogger,
 	) {
 		super();
 		this.linkComputer = new MdLinkComputer(tokenizer);
-		this._linkCache = this._register(new MdDocumentInfoCache(workspaceContents, doc => this.linkComputer.getAllLinks(doc, noopToken)));
+		this._linkCache = this._register(new MdDocumentInfoCache(workspaceContents, async doc => {
+			logger.verbose('LinkProvider', `compute - ${doc.uri}`);
+
+			const links = await this.linkComputer.getAllLinks(doc, noopToken);
+			return {
+				links,
+				definitions: new LinkDefinitionSet(links),
+			};
+		}));
 	}
 
-	public async getLinks(document: SkinnyTextDocument): Promise<{
-		readonly links: readonly MdLink[];
-		readonly definitions: LinkDefinitionSet;
-	}> {
-		const links = (await this._linkCache.get(document.uri)) ?? [];
-		return {
-			links,
-			definitions: new LinkDefinitionSet(links),
-		};
+	public async getLinks(document: SkinnyTextDocument): Promise<MdDocumentLinks> {
+		return this._linkCache.getForDocument(document);
 	}
 }
 

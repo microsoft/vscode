@@ -44,7 +44,9 @@ import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/util
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { InputCodeEditorView, ResultCodeEditorView } from './codeEditorView';
+import { InputCodeEditorView } from './editors/inputCodeEditorView';
+import { ResultCodeEditorView } from './editors/resultCodeEditorView';
+import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false);
 export const ctxUsesColumnLayout = new RawContextKey<boolean>('mergeEditorUsesColumnLayout', false);
@@ -226,9 +228,11 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		const model = await input.resolve();
 		this._model = model;
 
-		this.input1View.setModel(model, model.input1, localize('yours', 'Yours'), model.input1Detail, model.input1Description);
-		this.input2View.setModel(model, model.input2, localize('theirs', 'Theirs',), model.input2Detail, model.input2Description);
-		this.inputResultView.setModel(model, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
+		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView);
+
+		this.input1View.setModel(viewModel, model.input1, model.input1Title || localize('input1', 'Input 1'), model.input1Detail, model.input1Description);
+		this.input2View.setModel(viewModel, model.input2, model.input2Title || localize('input2', 'Input 2',), model.input2Detail, model.input2Description);
+		this.inputResultView.setModel(viewModel, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
 		this._ctxBaseResourceScheme.set(model.base.uri.scheme);
 
 		this._sessionDisposables.add(autorunWithStore((reader, store) => {

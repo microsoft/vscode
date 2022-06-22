@@ -417,20 +417,20 @@ export class CommandCenter {
 		}
 
 
-		type InputData = { uri: Uri; detail?: string; description?: string };
+		type InputData = { uri: Uri; title?: string; detail?: string; description?: string };
 		const mergeUris = toMergeUris(uri);
-		const input1: InputData = { uri: mergeUris.ours };
-		const input2: InputData = { uri: mergeUris.theirs };
+		const ours: InputData = { uri: mergeUris.ours, title: localize('Yours', 'Yours') };
+		const theirs: InputData = { uri: mergeUris.theirs, title: localize('Theirs', 'Theirs') };
 
 		try {
 			const [head, mergeHead] = await Promise.all([repo.getCommit('HEAD'), repo.getCommit('MERGE_HEAD')]);
 			// ours (current branch and commit)
-			input1.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
-			input1.description = head.hash.substring(0, 7);
+			ours.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
+			ours.description = head.hash.substring(0, 7);
 
 			// theirs
-			input2.detail = mergeHead.refNames.join(', ');
-			input2.description = mergeHead.hash.substring(0, 7);
+			theirs.detail = mergeHead.refNames.join(', ');
+			theirs.description = mergeHead.hash.substring(0, 7);
 
 		} catch (error) {
 			// not so bad, can continue with just uris
@@ -440,8 +440,8 @@ export class CommandCenter {
 
 		const options = {
 			ancestor: mergeUris.base,
-			input1,
-			input2,
+			input1: theirs,
+			input2: ours,
 			output: uri
 		};
 

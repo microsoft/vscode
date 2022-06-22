@@ -7,16 +7,17 @@ import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { CommandManager } from '../commandManager';
+import { ILogger } from '../logging';
 import { MdTableOfContentsProvider } from '../tableOfContents';
-import { MdTableOfContentsWatcher } from '../test/tableOfContentsWatcher';
 import { Delayer } from '../util/async';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile, looksLikeMarkdownPath } from '../util/file';
 import { Limiter } from '../util/limiter';
 import { ResourceMap } from '../util/resourceMap';
+import { MdTableOfContentsWatcher } from '../util/tableOfContentsWatcher';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinkProvider';
+import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinks';
 import { MdReferencesProvider, tryResolveLinkPath } from './references';
 
 const localize = nls.loadMessageBundle();
@@ -310,6 +311,7 @@ export class DiagnosticManager extends Disposable {
 		private readonly reporter: DiagnosticReporter,
 		private readonly referencesProvider: MdReferencesProvider,
 		tocProvider: MdTableOfContentsProvider,
+		private readonly logger: ILogger,
 		delay = 300,
 	) {
 		super();
@@ -345,7 +347,7 @@ export class DiagnosticManager extends Disposable {
 			}
 		}));
 
-		this.tableOfContentsWatcher = this._register(new MdTableOfContentsWatcher(workspaceContents, tocProvider));
+		this.tableOfContentsWatcher = this._register(new MdTableOfContentsWatcher(workspaceContents, tocProvider, delay));
 		this._register(this.tableOfContentsWatcher.onTocChanged(async e => {
 			// When the toc of a document changes, revalidate every file that linked to it too
 			const triggered = new ResourceMap<void>();
@@ -367,6 +369,8 @@ export class DiagnosticManager extends Disposable {
 	}
 
 	private async recomputeDiagnosticState(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<{ diagnostics: readonly vscode.Diagnostic[]; links: readonly MdLink[]; config: DiagnosticOptions }> {
+		this.logger.verbose('DiagnosticManager', `recomputeDiagnosticState - ${doc.uri}`);
+
 		const config = this.configuration.getOptions(doc.uri);
 		if (!config.enabled) {
 			return { diagnostics: [], links: [], config };
@@ -487,7 +491,7 @@ export class DiagnosticComputer {
 			return [];
 		}
 
-		const toc = await this.tocProvider.get(doc.uri);
+		const toc = await this.tocProvider.getForDocument(doc);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -642,6 +646,7 @@ export function registerDiagnosticSupport(
 	commandManager: CommandManager,
 	referenceProvider: MdReferencesProvider,
 	tocProvider: MdTableOfContentsProvider,
+	logger: ILogger,
 ): vscode.Disposable {
 	const configuration = new VSCodeDiagnosticConfiguration();
 	const manager = new DiagnosticManager(
@@ -650,7 +655,8 @@ export function registerDiagnosticSupport(
 		configuration,
 		new DiagnosticCollectionReporter(),
 		referenceProvider,
-		tocProvider);
+		tocProvider,
+		logger);
 	return vscode.Disposable.from(
 		configuration,
 		manager,

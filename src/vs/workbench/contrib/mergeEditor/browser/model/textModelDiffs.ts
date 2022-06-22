@@ -7,7 +7,7 @@ import { compareBy, numberComparator } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
-import { IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { IObservable, IReader, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { LineRangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/editing';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
@@ -160,9 +160,10 @@ export class TextModelDiffs extends Disposable {
 		return this.diffs.get().filter(d => d.inputRange.touches(baseRange));
 	}
 
-	private getResultLine(lineNumber: number): number | DetailedLineRangeMapping {
+	private getResultLine(lineNumber: number, reader?: IReader): number | DetailedLineRangeMapping {
 		let offset = 0;
-		for (const diff of this.diffs.get()) {
+		const diffs = reader ? this.diffs.read(reader) : this.diffs.get();
+		for (const diff of diffs) {
 			if (diff.inputRange.contains(lineNumber) || diff.inputRange.endLineNumberExclusive === lineNumber) {
 				return diff;
 			} else if (diff.inputRange.endLineNumberExclusive < lineNumber) {
@@ -174,12 +175,12 @@ export class TextModelDiffs extends Disposable {
 		return lineNumber + offset;
 	}
 
-	public getResultRange(baseRange: LineRange): LineRange {
-		let start = this.getResultLine(baseRange.startLineNumber);
+	public getResultRange(baseRange: LineRange, reader?: IReader): LineRange {
+		let start = this.getResultLine(baseRange.startLineNumber, reader);
 		if (typeof start !== 'number') {
 			start = start.outputRange.startLineNumber;
 		}
-		let endExclusive = this.getResultLine(baseRange.endLineNumberExclusive);
+		let endExclusive = this.getResultLine(baseRange.endLineNumberExclusive, reader);
 		if (typeof endExclusive !== 'number') {
 			endExclusive = endExclusive.outputRange.endLineNumberExclusive;
 		}

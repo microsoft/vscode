@@ -581,6 +581,17 @@ export class CustomMenubarControl extends MenubarControl {
 		return getMenuBarVisibility(this.configurationService);
 	}
 
+	private get currentCommandCenterEnabled(): boolean {
+		const settingValue = this.configurationService.getValue<boolean>('window.commandCenter');
+
+		let enableCommandCenter = false;
+		if (typeof settingValue === 'boolean') {
+			enableCommandCenter = !!settingValue;
+		}
+
+		return enableCommandCenter;
+	}
+
 	private get currentDisableMenuBarAltFocus(): boolean {
 		const settingValue = this.configurationService.getValue<boolean>('window.customMenuBarAltFocus');
 
@@ -626,9 +637,15 @@ export class CustomMenubarControl extends MenubarControl {
 
 	private get currentCompactMenuMode(): Direction | undefined {
 		if (this.currentMenubarVisibility !== 'compact') {
+			// With the command center enabled, use compact menu in title bar and flow to the right
+			if (this.currentCommandCenterEnabled) {
+				return Direction.Down;
+			}
+
 			return undefined;
 		}
 
+		// Menu bar lives in activity bar and should flow based on its location
 		const currentSidebarLocation = this.configurationService.getValue<string>('workbench.sideBar.location');
 		return currentSidebarLocation === 'right' ? Direction.Left : Direction.Right;
 	}

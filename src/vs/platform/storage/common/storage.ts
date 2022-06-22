@@ -168,7 +168,7 @@ export const enum StorageScope {
 	/**
 	 * The stored data will be scoped to all workspaces across all profiles.
 	 */
-	GLOBAL = -1,
+	APPLICATION = -1,
 
 	/**
 	 * The stored data will be scoped to all workspaces of the same profile.
@@ -311,8 +311,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 			// Clear our cached version which is now out of date
 			switch (scope) {
-				case StorageScope.GLOBAL:
-					this._globalKeyTargets = undefined;
+				case StorageScope.APPLICATION:
+					this._applicationKeyTargets = undefined;
 					break;
 				case StorageScope.PROFILE:
 					this._profileKeyTargets = undefined;
@@ -454,19 +454,19 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this._profileKeyTargets;
 	}
 
-	private _globalKeyTargets: IKeyTargets | undefined = undefined;
-	private get globalKeyTargets(): IKeyTargets {
-		if (!this._globalKeyTargets) {
-			this._globalKeyTargets = this.loadKeyTargets(StorageScope.GLOBAL);
+	private _applicationKeyTargets: IKeyTargets | undefined = undefined;
+	private get applicationKeyTargets(): IKeyTargets {
+		if (!this._applicationKeyTargets) {
+			this._applicationKeyTargets = this.loadKeyTargets(StorageScope.APPLICATION);
 		}
 
-		return this._globalKeyTargets;
+		return this._applicationKeyTargets;
 	}
 
 	private getKeyTargets(scope: StorageScope): IKeyTargets {
 		switch (scope) {
-			case StorageScope.GLOBAL:
-				return this.globalKeyTargets;
+			case StorageScope.APPLICATION:
+				return this.applicationKeyTargets;
 			case StorageScope.PROFILE:
 				return this.profileKeyTargets;
 			default:
@@ -496,7 +496,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		// Signal event to collect changes
 		this._onWillSaveState.fire({ reason });
 
-		const globalStorage = this.getStorage(StorageScope.GLOBAL);
+		const applicationStorage = this.getStorage(StorageScope.APPLICATION);
 		const profileStorage = this.getStorage(StorageScope.PROFILE);
 		const workspaceStorage = this.getStorage(StorageScope.WORKSPACE);
 
@@ -505,7 +505,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 			// Unspecific reason: just wait when data is flushed
 			case WillSaveStateReason.NONE:
 				await Promises.settled([
-					globalStorage?.whenFlushed() ?? Promise.resolve(),
+					applicationStorage?.whenFlushed() ?? Promise.resolve(),
 					profileStorage?.whenFlushed() ?? Promise.resolve(),
 					workspaceStorage?.whenFlushed() ?? Promise.resolve()
 				]);
@@ -515,7 +515,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 			// and not hit any delays that might be there
 			case WillSaveStateReason.SHUTDOWN:
 				await Promises.settled([
-					globalStorage?.flush(0) ?? Promise.resolve(),
+					applicationStorage?.flush(0) ?? Promise.resolve(),
 					profileStorage?.flush(0) ?? Promise.resolve(),
 					workspaceStorage?.flush(0) ?? Promise.resolve()
 				]);
@@ -524,15 +524,15 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	async log(): Promise<void> {
-		const globalItems = this.getStorage(StorageScope.GLOBAL)?.items ?? new Map<string, string>();
+		const applicationItems = this.getStorage(StorageScope.APPLICATION)?.items ?? new Map<string, string>();
 		const profileItems = this.getStorage(StorageScope.PROFILE)?.items ?? new Map<string, string>();
 		const workspaceItems = this.getStorage(StorageScope.WORKSPACE)?.items ?? new Map<string, string>();
 
 		return logStorage(
-			globalItems,
+			applicationItems,
 			profileItems,
 			workspaceItems,
-			this.getLogDetails(StorageScope.GLOBAL) ?? '',
+			this.getLogDetails(StorageScope.APPLICATION) ?? '',
 			this.getLogDetails(StorageScope.PROFILE) ?? '',
 			this.getLogDetails(StorageScope.WORKSPACE) ?? ''
 		);
@@ -548,6 +548,18 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		}
 
 		return this.switchToWorkspace(to, preserveData);
+	}
+
+	protected canSwitchProfile(from: IUserDataProfile, to: IUserDataProfile): boolean {
+		if (from.id === to.id) {
+			return false; // both profiles are same
+		}
+
+		if (isProfileUsingDefaultStorage(to) === isProfileUsingDefaultStorage(from)) {
+			return false; // both profiles are using default
+		}
+
+		return true;
 	}
 
 	protected switchData(oldStorage: Map<string, string>, newStorage: IStorage, scope: StorageScope, preserveData: boolean): void {
@@ -593,9 +605,13 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	protected abstract switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
 }
 
+export function isProfileUsingDefaultStorage(profile: IUserDataProfile): boolean {
+	return profile.isDefault || !!profile.useDefaultFlags?.uiState;
+}
+
 export class InMemoryStorageService extends AbstractStorageService {
 
-	private readonly globalStorage = this._register(new Storage(new InMemoryStorageDatabase()));
+	private readonly applicationStorage = this._register(new Storage(new InMemoryStorageDatabase()));
 	private readonly profileStorage = this._register(new Storage(new InMemoryStorageDatabase()));
 	private readonly workspaceStorage = this._register(new Storage(new InMemoryStorageDatabase()));
 
@@ -604,13 +620,13 @@ export class InMemoryStorageService extends AbstractStorageService {
 
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
 		this._register(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
-		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		this._register(this.applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
 	}
 
 	protected getStorage(scope: StorageScope): IStorage {
 		switch (scope) {
-			case StorageScope.GLOBAL:
-				return this.globalStorage;
+			case StorageScope.APPLICATION:
+				return this.applicationStorage;
 			case StorageScope.PROFILE:
 				return this.profileStorage;
 			default:
@@ -620,8 +636,8 @@ export class InMemoryStorageService extends AbstractStorageService {
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		switch (scope) {
-			case StorageScope.GLOBAL:
-				return 'inMemory (global)';
+			case StorageScope.APPLICATION:
+				return 'inMemory (application)';
 			case StorageScope.PROFILE:
 				return 'inMemory (profile)';
 			default:
@@ -640,7 +656,7 @@ export class InMemoryStorageService extends AbstractStorageService {
 	}
 }
 
-export async function logStorage(global: Map<string, string>, profile: Map<string, string>, workspace: Map<string, string>, globalPath: string, profilePath: string, workspacePath: string): Promise<void> {
+export async function logStorage(application: Map<string, string>, profile: Map<string, string>, workspace: Map<string, string>, applicationPath: string, profilePath: string, workspacePath: string): Promise<void> {
 	const safeParse = (value: string) => {
 		try {
 			return JSON.parse(value);
@@ -649,11 +665,11 @@ export async function logStorage(global: Map<string, string>, profile: Map<strin
 		}
 	};
 
-	const globalItems = new Map<string, string>();
-	const globalItemsParsed = new Map<string, string>();
-	global.forEach((value, key) => {
-		globalItems.set(key, value);
-		globalItemsParsed.set(key, safeParse(value));
+	const applicationItems = new Map<string, string>();
+	const applicationItemsParsed = new Map<string, string>();
+	application.forEach((value, key) => {
+		applicationItems.set(key, value);
+		applicationItemsParsed.set(key, safeParse(value));
 	});
 
 	const profileItems = new Map<string, string>();
@@ -670,21 +686,21 @@ export async function logStorage(global: Map<string, string>, profile: Map<strin
 		workspaceItemsParsed.set(key, safeParse(value));
 	});
 
-	if (globalPath !== profilePath) {
-		console.group(`Storage: Global (path: ${globalPath})`);
+	if (applicationPath !== profilePath) {
+		console.group(`Storage: Application (path: ${applicationPath})`);
 	} else {
-		console.group(`Storage: Global & Profile (path: ${globalPath}, default profile)`);
+		console.group(`Storage: Application & Profile (path: ${applicationPath}, default profile)`);
 	}
-	const globalValues: { key: string; value: string }[] = [];
-	globalItems.forEach((value, key) => {
-		globalValues.push({ key, value });
+	const applicationValues: { key: string; value: string }[] = [];
+	applicationItems.forEach((value, key) => {
+		applicationValues.push({ key, value });
 	});
-	console.table(globalValues);
+	console.table(applicationValues);
 	console.groupEnd();
 
-	console.log(globalItemsParsed);
+	console.log(applicationItemsParsed);
 
-	if (globalPath !== profilePath) {
+	if (applicationPath !== profilePath) {
 		console.group(`Storage: Profile (path: ${profilePath}, profile specific)`);
 		const profileValues: { key: string; value: string }[] = [];
 		profileItems.forEach((value, key) => {

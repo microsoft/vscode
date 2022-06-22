@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { MdDocumentInfoCache } from './languageFeatures/workspaceCache';
+import { ILogger } from './logging';
 import { IMdParser } from './markdownEngine';
 import { githubSlugifier, Slug, Slugifier } from './slugify';
 import { Disposable } from './util/dispose';
 import { isMarkdownFile } from './util/file';
+import { MdDocumentInfoCache } from './util/workspaceCache';
 import { MdWorkspaceContents, SkinnyTextDocument } from './workspaceContents';
 
 export interface TocEntry {
@@ -183,9 +184,11 @@ export class MdTableOfContentsProvider extends Disposable {
 	constructor(
 		parser: IMdParser,
 		workspaceContents: MdWorkspaceContents,
+		private readonly logger: ILogger,
 	) {
 		super();
 		this._cache = this._register(new MdDocumentInfoCache<TableOfContents>(workspaceContents, doc => {
+			this.logger.verbose('TableOfContentsProvider', `create - ${doc.uri}`);
 			return TableOfContents.create(parser, doc);
 		}));
 	}

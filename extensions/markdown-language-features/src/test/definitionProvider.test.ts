@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdDefinitionProvider } from '../languageFeatures/definitionProvider';
+import { MdVsCodeDefinitionProvider } from '../languageFeatures/definitions';
 import { MdReferencesProvider } from '../languageFeatures/references';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
@@ -14,13 +14,14 @@ import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
 import { joinLines, workspacePath } from './util';
 
 
 function getDefinition(doc: InMemoryDocument, pos: vscode.Position, workspace: MdWorkspaceContents) {
 	const engine = createNewMarkdownEngine();
-	const referencesProvider = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace));
-	const provider = new MdDefinitionProvider(referencesProvider);
+	const referencesProvider = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
+	const provider = new MdVsCodeDefinitionProvider(referencesProvider);
 	return provider.provideDefinition(doc, pos, noopToken);
 }
 

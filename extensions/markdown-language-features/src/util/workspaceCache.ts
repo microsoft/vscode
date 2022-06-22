@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Disposable } from '../util/dispose';
-import { Lazy, lazy } from '../util/lazy';
-import { ResourceMap } from '../util/resourceMap';
+import { Disposable } from './dispose';
+import { Lazy, lazy } from './lazy';
+import { ResourceMap } from './resourceMap';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 
 class LazyResourceMap<T> {
@@ -43,6 +43,7 @@ class LazyResourceMap<T> {
 export class MdDocumentInfoCache<T> extends Disposable {
 
 	private readonly _cache = new LazyResourceMap<T>();
+	private readonly _loadingDocuments = new ResourceMap<Promise<SkinnyTextDocument | undefined>>();
 
 	public constructor(
 		private readonly workspaceContents: MdWorkspaceContents,
@@ -50,19 +51,28 @@ export class MdDocumentInfoCache<T> extends Disposable {
 	) {
 		super();
 
-		this._register(this.workspaceContents.onDidChangeMarkdownDocument(doc => this.onDidChangeDocument(doc)));
-		this._register(this.workspaceContents.onDidCreateMarkdownDocument(doc => this.onDidChangeDocument(doc)));
+		this._register(this.workspaceContents.onDidChangeMarkdownDocument(doc => this.invalidate(doc)));
 		this._register(this.workspaceContents.onDidDeleteMarkdownDocument(this.onDidDeleteDocument, this));
 	}
 
 	public async get(resource: vscode.Uri): Promise<T | undefined> {
-		const existing = this._cache.get(resource);
+		let existing = this._cache.get(resource);
 		if (existing) {
 			return existing;
 		}
 
-		const doc = await this.workspaceContents.getOrLoadMarkdownDocument(resource);
-		return doc && this.onDidChangeDocument(doc, true)?.value;
+		const doc = await this.loadDocument(resource);
+		if (!doc) {
+			return undefined;
+		}
+
+		// Check if we have invalidated
+		existing = this._cache.get(resource);
+		if (existing) {
+			return existing;
+		}
+
+		return this.resetEntry(doc)?.value;
 	}
 
 	public async getForDocument(document: SkinnyTextDocument): Promise<T> {
@@ -70,21 +80,33 @@ export class MdDocumentInfoCache<T> extends Disposable {
 		if (existing) {
 			return existing;
 		}
-
-		return this.onDidChangeDocument(document, true)!.value;
+		return this.resetEntry(document).value;
 	}
 
-	public async entries(): Promise<Array<[vscode.Uri, T]>> {
-		return this._cache.entries();
-	}
-
-	private onDidChangeDocument(document: SkinnyTextDocument, forceAdd = false): Lazy<Promise<T>> | undefined {
-		if (forceAdd || this._cache.has(document.uri)) {
-			const value = lazy(() => this.getValue(document));
-			this._cache.set(document.uri, value);
-			return value;
+	private loadDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
+		const existing = this._loadingDocuments.get(resource);
+		if (existing) {
+			return existing;
 		}
-		return undefined;
+
+		const p = this.workspaceContents.getOrLoadMarkdownDocument(resource);
+		this._loadingDocuments.set(resource, p);
+		p.finally(() => {
+			this._loadingDocuments.delete(resource);
+		});
+		return p;
+	}
+
+	private resetEntry(document: SkinnyTextDocument): Lazy<Promise<T>> {
+		const value = lazy(() => this.getValue(document));
+		this._cache.set(document.uri, value);
+		return value;
+	}
+
+	private invalidate(document: SkinnyTextDocument): void {
+		if (this._cache.has(document.uri)) {
+			this.resetEntry(document);
+		}
 	}
 
 	private onDidDeleteDocument(resource: vscode.Uri) {

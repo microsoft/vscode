@@ -136,7 +136,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private steps = new Map<string, IWalkthroughStep>();
 
 	private tasExperimentService?: IWorkbenchAssignmentService;
-	private sessionInstalledExtensions = new Set<string>();
+	private sessionInstalledExtensions: Set<string> = new Set<string>();
 
 	private categoryVisibilityContextKeys = new Set<string>();
 	private stepCompletionContextKeyExpressions = new Set<ContextKeyExpression>();
@@ -235,7 +235,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
 			const hadLastFoucs = await this.hostService.hadLastFocus();
 			for (const e of result) {
-				if (hadLastFoucs) {
+				// If the window had last focus and the install didn't specify to skip the walkthrough
+				// Then add it to the sessionInstallExtensions to be opened
+				if (hadLastFoucs && !e?.context?.skipWalkthrough) {
 					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
 				}
 				this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
@@ -425,12 +427,11 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.PROFILE, StorageTarget.USER);
 
-
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			type GettingStartedAutoOpenClassification = {
 				id: {
 					classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight';
-					owner: 'JacksonKearl';
+					owner: 'lramos15';
 					comment: 'Used to understand what walkthroughs are consulted most frequently';
 				};
 			};
@@ -438,7 +439,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				id: string;
 			};
 			this.telemetryService.publicLog2<GettingStartedAutoOpenEvent, GettingStartedAutoOpenClassification>('gettingStarted.didAutoOpenWalkthrough', { id: sectionToOpen });
-			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
+			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen, true);
 		}
 	}
 

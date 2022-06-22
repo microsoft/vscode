@@ -20,13 +20,13 @@ export interface IBaseSerializableStorageRequest {
 	/**
 	 * Profile to correlate storage. Only used when no
 	 * workspace is provided. Can be undefined to denote
-	 * global scope.
+	 * application scope.
 	 */
 	readonly profile: UriDto<IUserDataProfile> | undefined;
 
 	/**
 	 * Workspace to correlate storage. Can be undefined to
-	 * denote global or profile scope depending on profile.
+	 * denote application or profile scope depending on profile.
 	 */
 	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
 }
@@ -102,7 +102,7 @@ abstract class BaseProfileAwareStorageDatabaseClient extends BaseStorageDatabase
 	}
 }
 
-export class GlobalStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient {
+export class ApplicationStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient {
 
 	constructor(channel: IChannel) {
 		super(channel, undefined);
@@ -110,7 +110,7 @@ export class GlobalStorageDatabaseClient extends BaseProfileAwareStorageDatabase
 
 	async close(): Promise<void> {
 
-		// The global storage database is shared across all instances so
+		// The application storage database is shared across all instances so
 		// we do not close it from the window. However we dispose the
 		// listener for external changes because we no longer interested in it.
 

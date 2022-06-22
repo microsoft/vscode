@@ -473,6 +473,7 @@ export const enum TerminalCommandId {
 	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
 	OpenDetectedLink = 'workbench.action.terminal.openDetectedLink',
 	OpenWordLink = 'workbench.action.terminal.openWordLink',
+	ShellIntegrationLearnMore = 'workbench.action.terminal.learnMore',
 	OpenFileLink = 'workbench.action.terminal.openFileLink',
 	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
@@ -564,6 +565,7 @@ export const enum TerminalCommandId {
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
 	ClearCommandHistory = 'workbench.action.terminal.clearCommandHistory',
+	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
