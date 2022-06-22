@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -465,7 +466,10 @@ registerAction2(class extends Action2 {
 CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string; name: string; version: string }, themeSettingsId?: string) {
 	const themeService = accessor.get(IWorkbenchThemeService);
 
-	const themes = await themeService.getMarketplaceColorThemes(extension.publisher, extension.name, extension.version);
+	let themes = findBuiltInThemes(await themeService.getColorThemes(), extension);
+	if (themes.length === 0) {
+		themes = await themeService.getMarketplaceColorThemes(extension.publisher, extension.name, extension.version);
+	}
 	for (const theme of themes) {
 		if (!themeSettingsId || theme.settingsId === themeSettingsId) {
 			await themeService.setColorTheme(theme, 'preview');
@@ -474,6 +478,10 @@ CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async fun
 	}
 	return undefined;
 });
+
+function findBuiltInThemes(themes: IWorkbenchColorTheme[], extension: { publisher: string; name: string }): IWorkbenchColorTheme[] {
+	return themes.filter(({ extensionData }) => extensionData && extensionData.extensionIsBuiltin && equalsIgnoreCase(extensionData.extensionPublisher, extension.publisher) && equalsIgnoreCase(extensionData.extensionName, extension.name));
+}
 
 function configurationEntries(label: string): QuickPickInput<ThemeItem>[] {
 	return [
