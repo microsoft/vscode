@@ -79,7 +79,13 @@ export interface ISerializedCommand {
 	exitCode: number | undefined;
 	commandStartLineContent: string | undefined;
 	timestamp: number;
+	generic?: IGenericCommandProperties;
 }
+
+export interface IGenericCommandProperties {
+	hoverMessage: string;
+}
+
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
 	commands: ISerializedCommand[];

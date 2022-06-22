@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { IGenericCommandProperties, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
@@ -108,9 +108,9 @@ export interface ICommandDetectionCapability {
 	handleRightPromptStart(generic?: boolean): void;
 	handleRightPromptEnd(): void;
 	handleCommandStart(): void;
-	handleGenericCommand(): void;
+	handleGenericCommand(properties: IGenericCommandProperties): void;
 	handleCommandExecuted(): void;
-	handleCommandFinished(exitCode: number | undefined, generic?: boolean): void;
+	handleCommandFinished(exitCode: number | undefined, generic?: IGenericCommandProperties): void;
 	/**
 	 * Set the command line explicitly.
 	 */
@@ -142,7 +142,7 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	getOutput(): string | undefined;
 	hasOutput: boolean;
-	generic?: boolean;
+	generic?: IGenericCommandProperties;
 }
 
 /**

@@ -107,6 +107,6 @@ export function VSCodeSequence(osc: VSCodeOscPt, data?: string | VSCodeOscProper
 	return `\x1b]${ShellIntegrationOscPs.VSCode};${osc};${data}\x07`;
 }
 
-export function ITermSequence(data: ITermOscPt): string {
-	return `\x1b]${ShellIntegrationOscPs.ITerm};${data};\x07`;
+export function ITermSequence(osc: ITermOscPt, data?: string): string {
+	return `\x1b]${ShellIntegrationOscPs.ITerm};${osc};${data}\x07`;
 }

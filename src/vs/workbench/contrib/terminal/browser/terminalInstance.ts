@@ -1589,8 +1589,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	public addGenericMarker(): void {
-		this.xterm?.raw.write(ITermSequence(ITermOscPt.SetMark));
+	public addGenericMarker(hoverMessage?: string | undefined): void {
+		this.xterm?.raw.write(`${ITermSequence(ITermOscPt.SetMark, hoverMessage || '')}`);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

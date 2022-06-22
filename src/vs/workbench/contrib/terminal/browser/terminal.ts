@@ -638,7 +638,7 @@ export interface ITerminalInstance {
 	/**
 	 * Adds a generic marker and decoration to the buffer
 	 */
-	addGenericMarker(): void;
+	addGenericMarker(hoverMessage?: string): void;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.

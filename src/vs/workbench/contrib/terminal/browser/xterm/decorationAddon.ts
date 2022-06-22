@@ -24,11 +24,13 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IGenericCommandProperties } from 'vs/platform/terminal/common/terminalProcess';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
 	ErrorColor = 'error',
-	DefaultColor = 'default',
+	DefaultColor = 'default-color',
+	Default = 'default',
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
 	OverviewRuler = 'xterm-decoration-overview-ruler',
@@ -194,39 +196,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._attachToCommandCapability();
 	}
 
-	registerGenericMarkerDecoration(): IDecoration | undefined {
-		const marker = this._terminal?.registerMarker(0);
-		if (!marker || !this._terminal || !defaultColor) {
-			return;
-		}
-		const decoration = this._terminal.registerDecoration({
-			marker,
-			overviewRulerOptions: { color: defaultColor.toString(), position: 'center' }
-		});
-		if (!decoration) {
-			return undefined;
-		}
-		decoration.onRender(element => {
-			if (element.classList.contains(DecorationSelector.OverviewRuler)) {
-				return;
-			}
-			if (!this._decorations.get(decoration.marker.id)) {
-				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
-				this._decorations.set(decoration.marker.id,
-					{
-						decoration,
-						disposables: []
-					});
-			}
-			if (!element.classList.contains(DecorationSelector.Codicon) || marker?.line === 0) {
-				// first render or buffer was cleared
-				this._updateLayout(element);
-				this._updateClasses(element, undefined, true);
-			}
-		});
-		return decoration;
-	}
-
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
 		if (!this._terminal || (beforeCommandExecution && command.generic)) {
 			return undefined;
@@ -261,7 +230,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._decorations.set(decoration.marker.id,
 					{
 						decoration,
-						disposables: command.exitCode === undefined ? [] : [this._createContextMenu(element, command), ...this._createHover(element, command)],
+						disposables: this._createDisposables(element, command),
 						exitCode: command.exitCode
 					});
 			}
@@ -272,6 +241,15 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 		});
 		return decoration;
+	}
+
+	private _createDisposables(element: HTMLElement, command: ITerminalCommand): IDisposable[] {
+		if (command.exitCode === undefined && !command.generic) {
+			return [];
+		} else if (command.generic) {
+			return [...this._createHover(element, command)];
+		}
+		return [this._createContextMenu(element, command), ...this._createHover(element, command)];
 	}
 
 	private _updateLayout(element?: HTMLElement): void {
@@ -291,7 +269,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _updateClasses(element?: HTMLElement, exitCode?: number, generic?: boolean): void {
+	private _updateClasses(element?: HTMLElement, exitCode?: number, generic?: IGenericCommandProperties): void {
 		if (!element) {
 			return;
 		}
@@ -302,7 +280,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (generic) {
 			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.GenericMarkerIcon);
 		} else if (exitCode === undefined) {
-			element.classList.add(DecorationSelector.DefaultColor);
+			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
 			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
 		} else if (exitCode) {
 			element.classList.add(DecorationSelector.ErrorColor);
@@ -331,7 +309,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._hoverDelayer.trigger(() => {
 					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}...`;
 					hoverContent += '\n\n---\n\n';
-					if (command.exitCode) {
+					if (command.generic?.hoverMessage) {
+						// TODO:@meganrogge localize
+						hoverContent = command.generic.hoverMessage;
+					} else if (command.exitCode) {
 						if (command.exitCode === -1) {
 							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
 						} else {

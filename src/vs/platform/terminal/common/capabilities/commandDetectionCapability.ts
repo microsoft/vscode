@@ -8,7 +8,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { IGenericCommandProperties, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import type { IBuffer, IDisposable, IMarker, Terminal } from 'xterm-headless';
@@ -300,7 +300,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handleRightPromptEnd', this._currentCommand.commandRightPromptEndX);
 	}
 
-	handleCommandStart(generic?: boolean): void {
+	handleCommandStart(generic?: IGenericCommandProperties): void {
 		// Only update the column if the line has already been set
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
 			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
@@ -348,12 +348,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		});
 	}
 
-	handleGenericCommand(): void {
+	handleGenericCommand(properties: IGenericCommandProperties): void {
 		this.setIsCommandStorageDisabled();
 		this.handlePromptStart();
-		this.handleCommandStart(true);
+		this.handleCommandStart(properties);
 		this.handleCommandExecuted();
-		this.handleCommandFinished(undefined, true);
+		this.handleCommandFinished(undefined, properties);
 	}
 
 	handleCommandExecuted(): void {
@@ -401,7 +401,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
 	}
 
-	handleCommandFinished(exitCode: number | undefined, generic?: boolean): void {
+	handleCommandFinished(exitCode: number | undefined, generic?: IGenericCommandProperties): void {
 		if (this._isWindowsPty) {
 			this._preHandleCommandFinishedWindows();
 		}
@@ -563,7 +563,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: e.commandStartLineContent,
 				exitCode: e.exitCode,
 				hasOutput: !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
-				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer)
+				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				generic: e.generic?.hoverMessage ? { hoverMessage: e.generic.hoverMessage } : undefined
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
