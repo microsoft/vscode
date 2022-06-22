@@ -104,7 +104,7 @@ import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/u
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
-import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
+import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
 
 class SharedProcessMain extends Disposable {
 
@@ -282,7 +282,7 @@ class SharedProcessMain extends Disposable {
 			const { installSourcePath } = environmentService;
 			const internalTesting = configurationService.getValue<boolean>('telemetry.internalTesting');
 			if (internalTesting && productService.aiConfig?.ariaKey) {
-				const collectorAppender = new OneDataSystemAppender('monacoworkbench', null, productService.aiConfig.ariaKey);
+				const collectorAppender = new OneDataSystemWebAppender('monacoworkbench', null, productService.aiConfig.ariaKey);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
 				appenders.push(collectorAppender);
 			} else if (productService.aiConfig && productService.aiConfig.asimovKey) {
