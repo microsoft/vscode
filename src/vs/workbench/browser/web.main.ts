@@ -260,7 +260,7 @@ export class BrowserMain extends Disposable {
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, fileService, logService);
+		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 
 		const userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService.defaultProfile);
