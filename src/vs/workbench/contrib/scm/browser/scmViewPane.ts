@@ -2600,6 +2600,7 @@ export class SCMActionButton implements IDisposable {
 			this.button = new Button(this.container, { supportIcons: true, title: button.command.tooltip });
 		}
 
+		this.button.enabled = button.enabled;
 		this.button.label = button.command.title;
 		this.button.onDidClick(async () => {
 			try {

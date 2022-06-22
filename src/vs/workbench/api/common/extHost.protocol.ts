@@ -1144,6 +1144,7 @@ export interface SCMProviderFeatures {
 export interface SCMActionButtonDto {
 	command: ICommandDto;
 	description?: string;
+	enabled: boolean;
 }
 
 export interface SCMGroupFeatures {
