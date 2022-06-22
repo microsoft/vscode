@@ -34,6 +34,7 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		if (!this._terminal?.buffer.active) {
 			return;
 		}
+		this._navigationModeActiveContextKey.set(true);
 		if (this._terminal?.buffer.active.viewportY < this._terminal.rows) {
 			this._terminal.scrollToTop();
 			this._focusRow(0);
@@ -47,19 +48,22 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		if (!this._terminal?.buffer.active) {
 			return;
 		}
-		if (this._terminal.buffer.active.baseY + this._terminal.rows > this._terminal.buffer.active.length) {
-			this._terminal.scrollToBottom();
+		this._navigationModeActiveContextKey.set(true);
+		if (this._terminal.buffer.active.viewportY === this._terminal.buffer.active.baseY) {
+			this._focusRow(this._terminal.rows - 1);
 		} else {
-			this._terminal!.scrollLines(this._terminal!.rows);
+			this._terminal.scrollLines(this._terminal.rows);
+			this._focusLine('current');
 		}
-		this._focusLine('current');
 	}
 
 	focusPreviousLine(): void {
+		this._navigationModeActiveContextKey.set(true);
 		this._focusLine('previous');
 	}
 
 	focusNextLine(): void {
+		this._navigationModeActiveContextKey.set(true);
 		this._focusLine('next');
 	}
 
@@ -67,7 +71,6 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		if (!this._terminal?.element) {
 			return;
 		}
-		this._navigationModeActiveContextKey.set(true);
 		// Focus row if a row is already focused
 		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
 			let element = <HTMLElement | null>document.activeElement;
