@@ -82,6 +82,15 @@ export interface ICwdDetectionCapability {
 	updateCwd(cwd: string): void;
 }
 
+export const enum CommandInvalidationReason {
+	Windows = 'windows',
+	NoProblemsReported = 'NoProblemsReported'
+}
+
+export interface ICommandInvalidationRequest {
+	reason: CommandInvalidationReason;
+}
+
 export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
@@ -93,7 +102,7 @@ export interface ICommandDetectionCapability {
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
-	readonly onCurrentCommandInvalidated: Event<boolean>;
+	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
 	setIsCommandStorageDisabled(): void;
@@ -105,13 +114,13 @@ export interface ICommandDetectionCapability {
 	handlePromptStart(): void;
 	handleContinuationStart(): void;
 	handleContinuationEnd(): void;
-	handleRightPromptStart(generic?: boolean): void;
+	handleRightPromptStart(): void;
 	handleRightPromptEnd(): void;
 	handleCommandStart(): void;
 	handleGenericCommand(properties: IGenericCommandProperties): void;
 	handleCommandExecuted(): void;
-	handleCommandFinished(exitCode: number | undefined, generic?: IGenericCommandProperties): void;
-	invalidateCurrentCommand(): void;
+	handleCommandFinished(exitCode: number | undefined, genericProperties?: IGenericCommandProperties): void;
+	invalidateCurrentCommand(request: ICommandInvalidationRequest): void;
 	/**
 	 * Set the command line explicitly.
 	 */
@@ -143,7 +152,7 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	getOutput(): string | undefined;
 	hasOutput: boolean;
-	generic?: IGenericCommandProperties;
+	genericProperties?: IGenericCommandProperties;
 }
 
 /**

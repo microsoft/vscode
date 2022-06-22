@@ -342,7 +342,7 @@ export interface ITerminalCommand {
 	marker?: IXtermMarker;
 	hasOutput: boolean;
 	getOutput(): string | undefined;
-	generic?: IGenericCommandProperties;
+	genericProperties?: IGenericCommandProperties;
 }
 
 export interface INavigationMode {

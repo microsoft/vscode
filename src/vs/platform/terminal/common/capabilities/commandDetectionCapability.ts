@@ -7,7 +7,7 @@ import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, ICommandInvalidationRequest, CommandInvalidationReason } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IGenericCommandProperties, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
@@ -80,7 +80,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly onCommandFinished = this._onCommandFinished.event;
 	private readonly _onCommandInvalidated = new Emitter<ITerminalCommand[]>();
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
-	private readonly _onCurrentCommandInvalidated = new Emitter<boolean>();
+	private readonly _onCurrentCommandInvalidated = new Emitter<ICommandInvalidationRequest>();
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
 
 	constructor(
@@ -120,7 +120,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY < this._currentCommand.commandStartMarker.line) {
 				this._clearCommandsInViewport();
 				this._currentCommand.isInvalid = true;
-				this._onCurrentCommandInvalidated.fire(false);
+				this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
 			}
 		}
 	}
@@ -137,7 +137,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
 					this._clearCommandsInViewport();
 					this._currentCommand.isInvalid = true;
-					this._onCurrentCommandInvalidated.fire(false);
+					this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
 				}
 			}
 		});
@@ -300,7 +300,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handleRightPromptEnd', this._currentCommand.commandRightPromptEndX);
 	}
 
-	handleCommandStart(generic?: IGenericCommandProperties): void {
+	handleCommandStart(genericProperties?: IGenericCommandProperties): void {
 		// Only update the column if the line has already been set
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
 			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
@@ -313,7 +313,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker, generic } as ITerminalCommand);
+		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker, genericProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
@@ -401,11 +401,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
 	}
 
-	invalidateCurrentCommand(): void {
-		this._onCurrentCommandInvalidated.fire(true);
+	invalidateCurrentCommand(request: ICommandInvalidationRequest): void {
+		this._currentCommand.isInvalid = true;
+		this._onCurrentCommandInvalidated.fire(request);
 	}
 
-	handleCommandFinished(exitCode: number | undefined, generic?: IGenericCommandProperties): void {
+	handleCommandFinished(exitCode: number | undefined, genericProperties?: IGenericCommandProperties): void {
 		if (this._isWindowsPty) {
 			this._preHandleCommandFinishedWindows();
 		}
@@ -447,7 +448,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				generic
+				genericProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -568,7 +569,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: e.exitCode,
 				hasOutput: !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				generic: e.generic?.hoverMessage ? { hoverMessage: e.generic.hoverMessage } : undefined
+				genericProperties: e.genericProperties?.hoverMessage ? { hoverMessage: e.genericProperties.hoverMessage } : undefined
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);

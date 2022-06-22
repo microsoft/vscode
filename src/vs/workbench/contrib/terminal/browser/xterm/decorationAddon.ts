@@ -8,7 +8,7 @@ import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal'
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { CommandInvalidationReason, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -42,7 +42,7 @@ const enum DecorationStyles {
 	MarginLeft = -17,
 }
 
-interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number }
+interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; genericProperties?: IGenericCommandProperties }
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	protected _terminal: Terminal | undefined;
@@ -109,7 +109,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		this._updateClasses(this._placeholderDecoration?.element);
 		for (const decoration of this._decorations.values()) {
-			this._updateClasses(decoration.decoration.element, decoration.exitCode);
+			this._updateClasses(decoration.decoration.element, decoration.exitCode, decoration.genericProperties);
 		}
 	}
 
@@ -188,11 +188,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 		}));
 		// Current command invalidated
-		this._commandDetectionListeners.push(capability.onCurrentCommandInvalidated((mostRecent) => {
-			if (mostRecent) {
+		this._commandDetectionListeners.push(capability.onCurrentCommandInvalidated((request) => {
+			if (request.reason === CommandInvalidationReason.NoProblemsReported) {
 				const lastDecoration = Array.from(this._decorations.entries())[this._decorations.size - 1];
 				lastDecoration?.[1].decoration.dispose();
-			} else {
+			} else if (request.reason === CommandInvalidationReason.Windows) {
 				this._clearPlaceholder();
 			}
 		}));
@@ -204,7 +204,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
-		if (!this._terminal || (beforeCommandExecution && command.generic)) {
+		console.log(command.genericProperties);
+		if (!this._terminal || (beforeCommandExecution && command.genericProperties)) {
 			return undefined;
 		}
 		if (!command.marker) {
@@ -238,22 +239,23 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					{
 						decoration,
 						disposables: this._createDisposables(element, command),
-						exitCode: command.exitCode
+						exitCode: command.exitCode,
+						genericProperties: command.genericProperties
 					});
 			}
 			if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
 				// first render or buffer was cleared
 				this._updateLayout(element);
-				this._updateClasses(element, command.exitCode, command.generic);
+				this._updateClasses(element, command.exitCode, command.genericProperties);
 			}
 		});
 		return decoration;
 	}
 
 	private _createDisposables(element: HTMLElement, command: ITerminalCommand): IDisposable[] {
-		if (command.exitCode === undefined && !command.generic) {
+		if (command.exitCode === undefined && !command.genericProperties) {
 			return [];
-		} else if (command.generic) {
+		} else if (command.genericProperties) {
 			return [...this._createHover(element, command)];
 		}
 		return [this._createContextMenu(element, command), ...this._createHover(element, command)];
@@ -276,7 +278,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _updateClasses(element?: HTMLElement, exitCode?: number, generic?: IGenericCommandProperties): void {
+	private _updateClasses(element?: HTMLElement, exitCode?: number, genericProperties?: IGenericCommandProperties): void {
+		console.log(genericProperties);
 		if (!element) {
 			return;
 		}
@@ -284,7 +287,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			element.classList.remove(classes);
 		}
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
-		if (generic) {
+		if (genericProperties) {
 			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.GenericMarkerIcon);
 		} else if (exitCode === undefined) {
 			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
@@ -316,9 +319,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._hoverDelayer.trigger(() => {
 					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}...`;
 					hoverContent += '\n\n---\n\n';
-					if (command.generic?.hoverMessage) {
+					if (command.genericProperties?.hoverMessage) {
 						// TODO:@meganrogge localize
-						hoverContent = command.generic.hoverMessage;
+						hoverContent = command.genericProperties.hoverMessage;
 					} else if (command.exitCode) {
 						if (command.exitCode === -1) {
 							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
