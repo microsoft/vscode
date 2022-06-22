@@ -31,6 +31,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { configureLoadedScriptMenu, IPickerLoadedScriptItem } from 'vs/workbench/contrib/debug/browser/loadedScriptsPickerUtils';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -442,7 +443,15 @@ CommandsRegistry.registerCommand({
 	id: SHOW_LOADED_SCRIPTS_ID,
 	handler: async (accessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show(LOADED_SCRIPTS_QUICK_PICK_PREFIX);
+		const debugService = accessor.get(IDebugService);
+		const editorService = accessor.get(IEditorService);
+
+		const sessions = debugService.getModel().getSessions(true);
+		const quickPick = quickInputService.createQuickPick<IPickerLoadedScriptItem>();
+
+		await configureLoadedScriptMenu(quickPick, sessions, editorService);
+
+		quickPick.show();
 	}
 });
 
