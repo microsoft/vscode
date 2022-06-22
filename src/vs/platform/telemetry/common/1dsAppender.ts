@@ -66,7 +66,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		private _xhrOverride?: IXHROverride
 	) {
 		if (!this._defaultData) {
-			this._defaultData = Object.create(null);
+			this._defaultData = {};
 		}
 
 		if (typeof iKeyOrClientFactory === 'function') {
@@ -112,7 +112,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		try {
 			this._withAIClient((aiClient) => aiClient.track({
 				name: this._eventPrefix + '/' + eventName,
-				data: { ...data.properties, ...data.measurements },
+				data,
 			}));
 		} catch { }
 	}
