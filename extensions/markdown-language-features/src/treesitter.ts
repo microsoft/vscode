@@ -6,10 +6,7 @@
 import * as vscode from 'vscode';
 import Parser = require('web-tree-sitter');
 
-export async function loadMarkdownTreeSitter(path: vscode.Uri): Promise<Parser> {
+export async function loadMarkdownTreeSitter(path: vscode.Uri): Promise<Parser.Language> {
 	await Parser.init();
-	const language = await Parser.Language.load(path.fsPath);
-	const parser = new Parser();
-	parser.setLanguage(language);
-	return parser;
+	return Parser.Language.load(path.fsPath);
 }

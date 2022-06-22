@@ -32,5 +32,5 @@ export function createTestLinkComputer(_engine: MarkdownItEngine) {
 	return new MdLinkComputer(() => {
 		const path = vscode.Uri.joinPath(vscode.extensions.getExtension('vscode.markdown-language-features')!.extensionUri, 'tree-sitter-markdown.wasm');
 		return loadMarkdownTreeSitter(path);
-	});
+	}, nulLogger);
 }

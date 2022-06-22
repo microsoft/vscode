@@ -75,7 +75,7 @@ function registerMarkdownLanguageFeatures(
 
 	const linkComputer = new MdLinkComputer(() => {
 		return loadMarkdownTreeSitter(vscode.Uri.joinPath(context.extensionUri, 'tree-sitter-markdown.wasm'));
-	});
+	}, logger);
 
 	const linkProvider = new MdLinkProvider(workspaceContents, linkComputer, logger);
 	const referencesProvider = new MdReferencesProvider(parser, workspaceContents, tocProvider, linkComputer, logger);

@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
+import * as Parser from 'web-tree-sitter';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { ILogger } from '../logging';
 import { coalesce } from '../util/arrays';
@@ -14,7 +15,6 @@ import { Disposable } from '../util/dispose';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/schemes';
 import { MdDocumentInfoCache } from '../util/workspaceCache';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import Parser = require('web-tree-sitter');
 
 const localize = nls.loadMessageBundle();
 
@@ -145,10 +145,10 @@ function getLinkSourceFragmentInfo(document: SkinnyTextDocument, link: string, l
 	};
 }
 
-type TreeSitterLoader = () => Promise<Parser>;
+type TreeSitterLoader = () => Promise<Parser.Language>;
 
 interface TreeSitterState {
-	readonly parser: Parser;
+	readonly language: Parser.Language;
 	readonly linkQuery: Parser.Query;
 }
 
@@ -160,37 +160,55 @@ export class MdLinkComputer {
 	private readonly _treeSitter: Promise<TreeSitterState>;
 
 	constructor(
-		loadParser: TreeSitterLoader,
+		loadTreeSitter: TreeSitterLoader,
+		private readonly logger: ILogger,
 	) {
-		this._treeSitter = loadParser().then((parser): TreeSitterState => {
-			const linkQuery = parser.getLanguage().query(`([
-				(link) @link_destination
-				(image) @link_destination
+		this._treeSitter = loadTreeSitter().then((lang): TreeSitterState => {
+			const linkQuery = lang.query(`([
+				(link (link_destination (text) @link_destination))
+				(image (link_destination (text) @link_destination))
+
+				(link (link_label (text) @reference_link))
+				(image (link_label (text) @reference_link))
+				(link . (link_text (text) @reference_link) .)
 
 				(uri_autolink (text) @uri_autolink)
 
 				(link_reference_definition) @link_definition
 			])`);
-			return { parser, linkQuery };
+			return { language: lang, linkQuery };
 		});
 	}
 
 	public async getAllLinks(document: SkinnyTextDocument, token: vscode.CancellationToken): Promise<MdLink[]> {
+		this.logger.verbose('MdLinkComputer', `getAllLinks.start - ${document.uri}}`);
 		const treeSitter = await this._treeSitter;
 		if (token.isCancellationRequested) {
 			return [];
 		}
-		return Array.from(this.getInlineLinks(document, treeSitter));
+		const result = Array.from(this.getInlineLinks(document, treeSitter));
+		this.logger.verbose('MdLinkComputer', `getAllLinks.end - ${document.uri}}`);
+		return result;
 	}
 
 	private *getInlineLinks(document: SkinnyTextDocument, ts: TreeSitterState): Iterable<MdLink> {
-		const tree = ts.parser.parse(document.getText() + '\n'); // Add new line to work around https://github.com/ikatyang/tree-sitter-markdown/issues
+		const parser = new Parser();
+		parser.setLanguage(ts.language);
+		const tree = parser.parse(document.getText() + '\n'); // Add new line to work around https://github.com/ikatyang/tree-sitter-markdown/issues
+		parser.delete();
 
 		const captures = ts.linkQuery.captures(tree.rootNode);
 		for (const capture of captures) {
 			switch (capture.name) {
 				case 'link_destination': {
-					const link = this.extractLink(document, capture.node);
+					const link = this.extractLinkDestination(document, capture.node);
+					if (link) {
+						yield link;
+					}
+					break;
+				}
+				case 'reference_link': {
+					const link = this.extractReferenceLink(document, capture.node);
 					if (link) {
 						yield link;
 					}
@@ -214,89 +232,50 @@ export class MdLinkComputer {
 		}
 	}
 
-	private extractLink(document: SkinnyTextDocument, node: Parser.SyntaxNode): MdLink | undefined {
-		if (node.child(0)?.type === 'link_destination' || node.child(1)?.type === 'link_destination') {
-			const link = node.child(0)?.type === 'link_destination' ? node.child(0)?.child(0) : node.child(1)!.child(0);
-			if (!link) {
-				return;
-			}
-
-			const linkTarget = parseLink(document, link.text);
-			if (!linkTarget) {
-				return;
-			}
-
-			const range = getNodeRange(link);
-			return {
-				kind: 'link',
-				href: linkTarget,
-				source: {
-					text: link.text,
-					resource: document.uri,
-					hrefRange: range,
-					...getLinkSourceFragmentInfo(document, link.text, range),
-				}
-			};
-		} else if (node.child(1)?.type === 'link_label') { // Reference link
-			const referenceNode = node.child(1)!.child(0);
-			if (!referenceNode) {
-				return;
-			}
-			const reference = referenceNode!.text;
-
-			const linkStart = new vscode.Position(referenceNode.startPosition.row, referenceNode.startPosition.column);
-
-			const line = document.lineAt(linkStart.line);
-			// See if link looks like a checkbox
-			const checkboxMatch = line.text.match(/^\s*[\-\*]\s*\[x\]/i);
-			if (checkboxMatch && linkStart.character <= checkboxMatch[0].length) {
-				return;
-			}
-
-			return {
-				kind: 'link',
-				source: {
-					text: reference,
-					pathText: reference,
-					resource: document.uri,
-					hrefRange: getNodeRange(referenceNode),
-					fragmentRange: undefined,
-				},
-				href: {
-					kind: 'reference',
-					ref: reference,
-				}
-			};
-		} else if (node.childCount === 1 && node.child(0)?.type === 'link_text') { // reference link shorthand
-			const referenceNode = node.child(0)!;
-			const reference = referenceNode!.text;
-
-			const linkStart = new vscode.Position(referenceNode.startPosition.row, referenceNode.startPosition.column);
-
-			const line = document.lineAt(linkStart.line);
-			// See if link looks like a checkbox
-			const checkboxMatch = line.text.match(/^\s*[\-\*]\s*\[x\]/i);
-			if (checkboxMatch && linkStart.character <= checkboxMatch[0].length) {
-				return;
-			}
-
-			return {
-				kind: 'link',
-				source: {
-					text: reference,
-					pathText: reference,
-					resource: document.uri,
-					hrefRange: getNodeRange(referenceNode),
-					fragmentRange: undefined,
-				},
-				href: {
-					kind: 'reference',
-					ref: reference,
-				}
-			};
+	private extractLinkDestination(document: SkinnyTextDocument, node: Parser.SyntaxNode): MdLink | undefined {
+		const href = parseLink(document, node.text);
+		if (!href) {
+			return;
 		}
 
-		return undefined;
+		const range = getNodeRange(node);
+		return {
+			kind: 'link',
+			href,
+			source: {
+				text: node.text,
+				resource: document.uri,
+				hrefRange: range,
+				...getLinkSourceFragmentInfo(document, node.text, range),
+			}
+		};
+	}
+
+	private extractReferenceLink(document: SkinnyTextDocument, node: Parser.SyntaxNode): MdLink | undefined {
+		const reference = node.text;
+		const hrefRange = getNodeRange(node);
+
+		const line = document.lineAt(hrefRange.start.line);
+		// See if link looks like a checkbox
+		const checkboxMatch = line.text.match(/^\s*[\-\*]\s*\[x\]/i);
+		if (checkboxMatch && hrefRange.start.character <= checkboxMatch[0].length) {
+			return;
+		}
+
+		return {
+			kind: 'link',
+			source: {
+				text: reference,
+				pathText: reference,
+				resource: document.uri,
+				hrefRange: hrefRange,
+				fragmentRange: undefined,
+			},
+			href: {
+				kind: 'reference',
+				ref: reference,
+			}
+		};
 	}
 
 	private extractAutoLink(document: SkinnyTextDocument, node: Parser.SyntaxNode): MdLink | undefined {
