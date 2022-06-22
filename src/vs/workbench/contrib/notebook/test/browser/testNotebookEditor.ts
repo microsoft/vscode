@@ -366,7 +366,6 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		{
 			supportDynamicHeights: true,
 			multipleSelectionSupport: true,
-			enableKeyboardNavigation: true,
 			focusNextPreviousDelegate: {
 				onFocusNext: (applyFocusNext: () => void) => { applyFocusNext(); },
 				onFocusPrevious: (applyFocusPrevious: () => void) => { applyFocusPrevious(); },
