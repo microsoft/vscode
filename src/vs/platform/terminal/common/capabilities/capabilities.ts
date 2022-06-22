@@ -84,7 +84,7 @@ export interface ICwdDetectionCapability {
 
 export const enum CommandInvalidationReason {
 	Windows = 'windows',
-	NoProblemsReported = 'NoProblemsReported'
+	NoProblemsReported = 'noProblemsReported'
 }
 
 export interface ICommandInvalidationRequest {
