@@ -2604,14 +2604,11 @@ export class SCMActionButton implements IDisposable {
 			};
 
 			const actions: IAction[] = [];
-			let group: string | undefined;
-
-			for (const command of button.secondaryCommands) {
-				if (group !== undefined && group !== command.group) {
-					actions.push(new Separator());
+			for (const commandGroup of button.secondaryCommands) {
+				for (const command of commandGroup) {
+					actions.push(new Action(command.id, command.title, undefined, true, async () => await executeCommitCommand(command.id)));
 				}
-				actions.push(new Action(command.id, command.title, undefined, true, async () => await executeCommitCommand(command.id)));
-				group = command.group;
+				actions.push(new Separator());
 			}
 
 			// ButtonWithDropdown

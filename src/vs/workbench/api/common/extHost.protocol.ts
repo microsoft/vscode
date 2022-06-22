@@ -1143,7 +1143,7 @@ export interface SCMProviderFeatures {
 
 export interface SCMActionButtonDto {
 	command: ICommandDto;
-	secondaryCommands?: (ICommandDto & { group?: string })[];
+	secondaryCommands?: ICommandDto[][];
 	description?: string;
 	enabled: boolean;
 }
