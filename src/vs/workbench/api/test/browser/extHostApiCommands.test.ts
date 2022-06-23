@@ -713,6 +713,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				const a = new types.CompletionItem('item1');
+				a.documentation = new types.MarkdownString('hello_md_string');
 				const b = new types.CompletionItem('item2');
 				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); // overwite after
 				const c = new types.CompletionItem('item3');
@@ -737,6 +738,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.strictEqual(first.label, 'item1');
 				assert.strictEqual(first.textEdit, undefined);// no text edit, default ranges
 				assert.ok(!types.Range.isRange(first.range));
+				assert.strictEqual((<types.MarkdownString>first.documentation).value, 'hello_md_string');
 
 				assert.strictEqual(second.label, 'item2');
 				assert.strictEqual(second.textEdit!.newText, 'foo');
