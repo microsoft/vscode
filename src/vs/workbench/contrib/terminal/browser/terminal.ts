@@ -643,7 +643,7 @@ export interface ITerminalInstance {
 	registerMarker(): IMarker | undefined;
 
 	/**
-	 * Adds a decoration to the buffer at the @param marker
+	 * Adds a decoration to the buffer at the @param marker with
 	 * @param genericMarkProperties
 	 */
 	addGenericMark(marker: IMarker, genericMarkProperties: IGenericMarkProperties): void;
