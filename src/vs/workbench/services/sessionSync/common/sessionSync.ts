@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const EDIT_SESSION_SYNC_TITLE = localize('session sync', 'Edit Sessions');
@@ -53,3 +54,6 @@ export interface EditSession {
 	version: number;
 	folders: Folder[];
 }
+
+export const EDIT_SESSIONS_SIGNED_IN_KEY = 'editSessionsSignedIn';
+export const EDIT_SESSIONS_SIGNED_IN = new RawContextKey<boolean>(EDIT_SESSIONS_SIGNED_IN_KEY, false);

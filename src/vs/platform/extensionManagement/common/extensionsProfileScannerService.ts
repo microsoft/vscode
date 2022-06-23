@@ -18,13 +18,13 @@ import { ILogService } from 'vs/platform/log/common/log';
 interface IStoredProfileExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly location: UriComponents;
-	readonly metadata: Metadata;
+	readonly metadata?: Metadata;
 }
 
 export interface IScannedProfileExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly location: URI;
-	readonly metadata: Metadata;
+	readonly metadata?: Metadata;
 }
 
 export const IExtensionsProfileScannerService = createDecorator<IExtensionsProfileScannerService>('IExtensionsProfileScannerService');
@@ -94,12 +94,12 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 			// Update
 			if (updateFn) {
 				extensions = updateFn(extensions);
-				const storedWebExtensions: IStoredProfileExtension[] = extensions.map(e => ({
+				const storedProfileExtensions: IStoredProfileExtension[] = extensions.map(e => ({
 					identifier: e.identifier,
 					location: e.location.toJSON(),
 					metadata: e.metadata
 				}));
-				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedWebExtensions)));
+				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
 			}
 
 			return extensions;

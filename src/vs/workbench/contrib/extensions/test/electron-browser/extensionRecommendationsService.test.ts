@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import * as uuid from 'vs/base/common/uuid';
 import {
 	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionTipsService, InstallExtensionResult, getTargetPlatform
+	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, UninstallExtensionEvent
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -191,7 +191,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	let testObject: ExtensionRecommendationsService;
 	let installEvent: Emitter<InstallExtensionEvent>,
 		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
-		uninstallEvent: Emitter<IExtensionIdentifier>,
+		uninstallEvent: Emitter<UninstallExtensionEvent>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 	let prompted: boolean;
 	const promptedEmitter = new Emitter<void>();
@@ -202,7 +202,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService = new TestInstantiationService();
 		installEvent = new Emitter<InstallExtensionEvent>();
 		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-		uninstallEvent = new Emitter<IExtensionIdentifier>();
+		uninstallEvent = new Emitter<UninstallExtensionEvent>();
 		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
