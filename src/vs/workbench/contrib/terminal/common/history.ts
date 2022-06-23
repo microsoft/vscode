@@ -290,19 +290,58 @@ async function fetchZshHistory(accessor: ServicesAccessor) {
 async function fetchPwshHistory(accessor: ServicesAccessor) {
 	const fileService = accessor.get(IFileService);
 	const remoteAgentService = accessor.get(IRemoteAgentService);
+	// TODO: Handle linux and Windows paths
 	const content = await fetchFileContents(env['HOME'], '.local/share/powershell/PSReadline/ConsoleHost_history.txt', fileService, remoteAgentService);
 	if (content === undefined) {
 		return undefined;
 	}
 	const fileLines = content.split('\n');
-	// TODO: Detect multi-line commands
 	const result: Set<string> = new Set();
+	let currentLine: string;
+	let currentCommand: string | undefined = undefined;
+	let wrapChar: string | undefined = undefined;
 	for (let i = 0; i < fileLines.length; i++) {
-		const sanitized = fileLines[i].trim();
-		if (sanitized.length > 0) {
-			result.add(sanitized);
+		currentLine = fileLines[i];
+		if (currentCommand === undefined) {
+			currentCommand = currentLine;
+		} else {
+			currentCommand += `\n${currentLine}`;
+		}
+		if (!currentLine.endsWith('`')) {
+			const sanitized = currentCommand.trim();
+			if (sanitized.length > 0) {
+				result.add(sanitized);
+			}
+			currentCommand = undefined;
+			continue;
+		}
+		// If the line ends with `, the line may be wrapped. Need to also test the case where ` is
+		// the last character in the line
+		for (let c = 0; c < currentLine.length; c++) {
+			if (wrapChar) {
+				if (currentLine[c] === wrapChar) {
+					wrapChar = undefined;
+				}
+			} else {
+				if (currentLine[c].match(/`/)) {
+					wrapChar = currentLine[c];
+				}
+			}
+		}
+		// Having an even number of backticks means the line is terminated
+		// TODO: This doesn't cover more complicated cases where ` is within quotes
+		if (!wrapChar) {
+			const sanitized = currentCommand.trim();
+			if (sanitized.length > 0) {
+				result.add(sanitized);
+			}
+			currentCommand = undefined;
+		} else {
+			// Remove trailing backtick
+			currentCommand = currentCommand.replace(/`$/, '');
 		}
 	}
+
 	return result.values();
 }
 
