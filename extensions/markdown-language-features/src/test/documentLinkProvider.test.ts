@@ -36,7 +36,7 @@ function assertLinksEqual(actualLinks: readonly vscode.DocumentLink[], expectedR
 suite('Markdown: DocumentLinkProvider', () => {
 	test('Should not return anything for empty document', async () => {
 		const links = await getLinksForFile('');
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not return anything for simple document without links', async () => {
@@ -44,7 +44,7 @@ suite('Markdown: DocumentLinkProvider', () => {
 			'# a',
 			'fdasfdfsafsa',
 		));
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should detect basic http links', async () => {
@@ -156,7 +156,7 @@ suite('Markdown: DocumentLinkProvider', () => {
 
 	test('Should not consider link references starting with ^ character valid (#107471)', async () => {
 		const links = await getLinksForFile('[^reference]: https://example.com');
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should find definitions links with spaces in angle brackets (#136073)', async () => {
@@ -176,26 +176,36 @@ suite('Markdown: DocumentLinkProvider', () => {
 			'[Works]: https://example.com',
 		));
 
-		assert.strictEqual(links.length, 1);
+		assertLinksEqual(links, [
+			new vscode.Range(0, 9, 0, 28),
+		]);
 	});
 
 	test('Should find reference link shorthand (#141285)', async () => {
-		let links = await getLinksForFile(joinLines(
-			'[ref]',
-			'[ref]: https://example.com',
-		));
-		assert.strictEqual(links.length, 2);
-
-		links = await getLinksForFile(joinLines(
-			'[Does Not Work]',
-			'[def]: https://example.com',
-		));
-		assert.strictEqual(links.length, 1);
+		{
+			const links = await getLinksForFile(joinLines(
+				'[ref]',
+				'[ref]: https://example.com',
+			));
+			assertLinksEqual(links, [
+				new vscode.Range(0, 1, 0, 4),
+				new vscode.Range(1, 7, 1, 26),
+			]);
+		}
+		{
+			const links = await getLinksForFile(joinLines(
+				'[Does Not Work]',
+				'[def]: https://example.com',
+			));
+			assertLinksEqual(links, [
+				new vscode.Range(1, 7, 1, 26),
+			]);
+		}
 	});
 
 	test('Should not include reference link shorthand when source does not exist (#141285)', async () => {
 		const links = await getLinksForFile('[Works]');
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not include reference links with escaped leading brackets', async () => {
@@ -214,7 +224,7 @@ suite('Markdown: DocumentLinkProvider', () => {
 			'```',
 			'[b](https://example.com)',
 			'```'));
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not consider links in code fenced with tilde', async () => {
@@ -222,22 +232,22 @@ suite('Markdown: DocumentLinkProvider', () => {
 			'~~~',
 			'[b](https://example.com)',
 			'~~~'));
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not consider links in indented code', async () => {
 		const links = await getLinksForFile('    [b](https://example.com)');
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not consider links in inline code span', async () => {
 		const links = await getLinksForFile('`[b](https://example.com)`');
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not consider links with code span inside', async () => {
 		const links = await getLinksForFile('[li`nk](https://example.com`)');
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not consider links in multiline inline code span', async () => {
@@ -245,7 +255,7 @@ suite('Markdown: DocumentLinkProvider', () => {
 			'`` ',
 			'[b](https://example.com)',
 			'``'));
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not consider link references in code fenced with backticks (#146714)', async () => {
@@ -253,7 +263,7 @@ suite('Markdown: DocumentLinkProvider', () => {
 			'```',
 			'[a] [bb]',
 			'```'));
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not consider reference sources in code fenced with backticks (#146714)', async () => {
@@ -263,21 +273,25 @@ suite('Markdown: DocumentLinkProvider', () => {
 			'[b]: <http://example.com>;',
 			'[c]: (http://example.com);',
 			'```'));
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not consider links in multiline inline code span between between text', async () => {
 		const links = await getLinksForFile(joinLines(
 			'[b](https://1.com) `[b](https://2.com)',
-			'` [b](https://3.com)'));
-		assert.deepStrictEqual(links.map(l => l.target?.authority), ['1.com', '3.com']);
+			'[b](https://3.com) ` [b](https://4.com)'));
+
+		assertLinksEqual(links, [
+			new vscode.Range(0, 4, 0, 17),
+			new vscode.Range(1, 25, 1, 38),
+		]);
 	});
 
 	test('Should not consider links in multiline inline code span with new line after the first backtick', async () => {
 		const links = await getLinksForFile(joinLines(
 			'`',
 			'[b](https://example.com)`'));
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not miss links in invalid multiline inline code span', async () => {
@@ -287,7 +301,9 @@ suite('Markdown: DocumentLinkProvider', () => {
 			'[b](https://example.com)',
 			'',
 			'``'));
-		assert.strictEqual(links.length, 1);
+		assertLinksEqual(links, [
+			new vscode.Range(2, 4, 2, 23)
+		]);
 	});
 
 	test('Should find autolinks', async () => {
@@ -315,7 +331,7 @@ suite('Markdown: DocumentLinkProvider', () => {
 			`[text]: ./foo.md`,
 			`-->`,
 		));
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test.skip('Should not detect links inside inline html comments', async () => {
@@ -337,7 +353,7 @@ suite('Markdown: DocumentLinkProvider', () => {
 			`[text]: ./foo.md`,
 			`--> text`,
 		));
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should not mark checkboxes as links', async () => {
@@ -415,7 +431,7 @@ suite('Markdown: DocumentLinkProvider', () => {
 			`[link](<> path>)`,
 			`[link](> path)`,
 		));
-		assert.strictEqual(links.length, 0);
+		assertLinksEqual(links, []);
 	});
 
 	test('Should find link within angle brackets even with space inside link.', async () => {
