@@ -5,14 +5,15 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { ITextDocument } from '../types/textDocument';
 import { ResourceMap } from '../util/resourceMap';
-import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
+import { IMdWorkspace } from '../workspace';
 
 
-export class InMemoryWorkspaceMarkdownDocuments implements MdWorkspaceContents {
-	private readonly _documents = new ResourceMap<SkinnyTextDocument>(uri => uri.fsPath);
+export class InMemoryMdWorkspace implements IMdWorkspace {
+	private readonly _documents = new ResourceMap<ITextDocument>(uri => uri.fsPath);
 
-	constructor(documents: SkinnyTextDocument[]) {
+	constructor(documents: ITextDocument[]) {
 		for (const doc of documents) {
 			this._documents.set(doc.uri, doc);
 		}
@@ -22,7 +23,7 @@ export class InMemoryWorkspaceMarkdownDocuments implements MdWorkspaceContents {
 		return Array.from(this._documents.values());
 	}
 
-	public async getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
+	public async getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<ITextDocument | undefined> {
 		return this._documents.get(resource);
 	}
 
@@ -34,21 +35,21 @@ export class InMemoryWorkspaceMarkdownDocuments implements MdWorkspaceContents {
 		return this._documents.has(resource);
 	}
 
-	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<SkinnyTextDocument>();
+	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<ITextDocument>();
 	public onDidChangeMarkdownDocument = this._onDidChangeMarkdownDocumentEmitter.event;
 
-	private readonly _onDidCreateMarkdownDocumentEmitter = new vscode.EventEmitter<SkinnyTextDocument>();
+	private readonly _onDidCreateMarkdownDocumentEmitter = new vscode.EventEmitter<ITextDocument>();
 	public onDidCreateMarkdownDocument = this._onDidCreateMarkdownDocumentEmitter.event;
 
 	private readonly _onDidDeleteMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.Uri>();
 	public onDidDeleteMarkdownDocument = this._onDidDeleteMarkdownDocumentEmitter.event;
 
-	public updateDocument(document: SkinnyTextDocument) {
+	public updateDocument(document: ITextDocument) {
 		this._documents.set(document.uri, document);
 		this._onDidChangeMarkdownDocumentEmitter.fire(document);
 	}
 
-	public createDocument(document: SkinnyTextDocument) {
+	public createDocument(document: ITextDocument) {
 		assert.ok(!this._documents.has(document.uri));
 
 		this._documents.set(document.uri, document);

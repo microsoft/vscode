@@ -5,7 +5,7 @@
 
 import { CompareResult, ArrayQueue } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IObservable, autorun } from 'vs/workbench/contrib/audioCues/browser/observable';
@@ -206,4 +206,17 @@ export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][
 
 export function elementAtOrUndefined<T>(arr: T[], index: number): T | undefined {
 	return arr[index];
+}
+
+export function thenIfNotDisposed<T>(promise: Promise<T>, then: () => void): IDisposable {
+	let disposed = false;
+	promise.then(() => {
+		if (disposed) {
+			return;
+		}
+		then();
+	});
+	return toDisposable(() => {
+		disposed = true;
+	});
 }

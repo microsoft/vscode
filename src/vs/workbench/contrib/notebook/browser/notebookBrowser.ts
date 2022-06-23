@@ -65,9 +65,15 @@ export interface INotebookExtensionRecommendation {
 //#endregion
 
 //#region  Output related types
+
+// !! IMPORTANT !! ----------------------------------------------------------------------------------
+// NOTE that you MUST update vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts#L1986
+// whenever changing the values of this const enum. The webviewPreloads-files manually inlines these values
+// because it cannot have dependencies.
+// !! IMPORTANT !! ----------------------------------------------------------------------------------
 export const enum RenderOutputType {
-	Html,
-	Extension
+	Html = 0,
+	Extension = 1
 }
 
 export interface IRenderPlainHtmlOutput {

@@ -5,7 +5,7 @@
 
 import { Command } from '../commandManager';
 import { MarkdownItEngine } from '../markdownEngine';
-import { SkinnyTextDocument } from '../workspaceContents';
+import { ITextDocument } from '../types/textDocument';
 
 export class RenderDocument implements Command {
 	public readonly id = 'markdown.api.render';
@@ -14,7 +14,7 @@ export class RenderDocument implements Command {
 		private readonly engine: MarkdownItEngine
 	) { }
 
-	public async execute(document: SkinnyTextDocument | string): Promise<string> {
+	public async execute(document: ITextDocument | string): Promise<string> {
 		return (await (this.engine.render(document))).html;
 	}
 }

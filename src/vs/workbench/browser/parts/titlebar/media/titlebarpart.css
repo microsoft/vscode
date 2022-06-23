@@ -165,6 +165,10 @@
 	flex-wrap: nowrap;
 }
 
+.monaco-workbench .part.titlebar>.titlebar-container.counter-zoom > .menubar .menubar-menu-button > .menubar-menu-items-holder.monaco-menu-container {
+	zoom: var(--zoom-factor);
+}
+
 /* Resizer */
 .monaco-workbench.windows .part.titlebar>.titlebar-container>.resizer,
 .monaco-workbench.linux .part.titlebar>.titlebar-container>.resizer {

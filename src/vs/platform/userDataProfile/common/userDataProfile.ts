@@ -116,23 +116,20 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	readonly profilesHome: URI;
 
-	protected _defaultProfile: IUserDataProfile;
-	get defaultProfile(): IUserDataProfile { return this._defaultProfile; }
-
+	private readonly _defaultProfile = this.createDefaultUserDataProfile(false);
+	get defaultProfile(): IUserDataProfile { return this.profiles[0] ?? this._defaultProfile; }
 	get profiles(): IUserDataProfile[] { return []; }
 
 	protected readonly _onDidChangeProfiles = this._register(new Emitter<IUserDataProfile[]>());
 	readonly onDidChangeProfiles = this._onDidChangeProfiles.event;
 
 	constructor(
-		defaultProfile: UriDto<IUserDataProfile> | undefined,
 		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 		@IFileService protected readonly fileService: IFileService,
 		@ILogService protected readonly logService: ILogService
 	) {
 		super();
 		this.profilesHome = joinPath(this.environmentService.userRoamingDataHome, 'profiles');
-		this._defaultProfile = defaultProfile ? reviveProfile(defaultProfile, this.profilesHome.scheme) : this.createDefaultUserDataProfile(false);
 	}
 
 	newProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags): CustomUserDataProfile {
@@ -141,7 +138,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	protected createDefaultUserDataProfile(extensions: boolean): IUserDataProfile {
 		const profile = toUserDataProfile(localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
-		return { ...profile, extensionsResource: extensions ? profile.extensionsResource : undefined };
+		return { ...profile, isDefault: true, extensionsResource: extensions ? profile.extensionsResource : undefined };
 	}
 
 	createProfile(profile: IUserDataProfile, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
