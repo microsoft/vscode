@@ -13,6 +13,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -144,9 +145,13 @@ export class CommentService extends Disposable implements ICommentService {
 	private _isCommentingEnabled: boolean = true;
 
 	constructor(
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		super();
+		this._register(layoutService.onDidChangeZenMode(e => {
+			this.enableCommenting(!e);
+		}));
 	}
 
 	get isCommentingEnabled(): boolean {
