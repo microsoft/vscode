@@ -177,6 +177,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 
 		const data = await this.sessionSyncWorkbenchService.read(ref);
 		if (!data) {
+			this.logService.info(`Edit Sessions: Aborting applying edit session as no edit session content is available to be applied from ref ${ref}.`);
 			return;
 		}
 		const editSession = data.editSession;
@@ -194,7 +195,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			for (const folder of editSession.folders) {
 				const folderRoot = this.contextService.getWorkspace().folders.find((f) => f.name === folder.name);
 				if (!folderRoot) {
-					return;
+					this.logService.info(`Edit Sessions: Skipping applying ${folder.workingChanges.length} changes from edit session with ref ${ref} as no corresponding workspace folder named ${folder.name} is currently open.`);
+					continue;
 				}
 
 				for (const repository of this.scmService.repositories) {
@@ -233,9 +235,10 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				}
 			}
 
+			this.logService.info(`Edit Sessions: Deleting edit session with ref ${ref} after successfully applying it to current workspace.`);
 			await this.sessionSyncWorkbenchService.delete(ref);
 		} catch (ex) {
-			this.logService.error('Edit Sessions:', (ex as Error).toString());
+			this.logService.error('Edit Sessions: Failed to apply edit session, reason: ', (ex as Error).toString());
 			this.notificationService.error(localize('apply failed', "Failed to apply your edit session."));
 		}
 	}
@@ -253,6 +256,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			for (const uri of trackedUris) {
 				const workspaceFolder = this.contextService.getWorkspaceFolder(uri);
 				if (!workspaceFolder) {
+					this.logService.info(`Edit Sessions: Skipping working change ${uri.toString()} as no associated workspace folder was found.`);
+
 					continue;
 				}
 
@@ -280,10 +285,13 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		const data: EditSession = { folders, version: 1 };
 
 		try {
+			this.logService.info(`Edit Sessions: Storing edit session...`);
 			const ref = await this.sessionSyncWorkbenchService.write(data);
 			this.logService.info(`Edit Sessions: Stored edit session with ref ${ref}.`);
 			return ref;
 		} catch (ex) {
+			this.logService.error(`Edit Sessions: Failed to store edit session, reason: `, (ex as Error).toString());
+
 			type UploadFailedEvent = { reason: string };
 			type UploadFailedClassification = {
 				owner: 'joyceerhl'; comment: 'Reporting when Continue On server request fails.';
