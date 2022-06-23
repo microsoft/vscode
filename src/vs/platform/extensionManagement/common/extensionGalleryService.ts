@@ -923,12 +923,14 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 		const commonHeaders = await this.commonHeadersPromise;
 		const data = JSON.stringify(query.raw);
+		const { sessionId } = await this.telemetryService.getTelemetryInfo();
 		const headers = {
 			...commonHeaders,
 			'Content-Type': 'application/json',
 			'Accept': 'application/json;api-version=3.0-preview.1',
 			'Accept-Encoding': 'gzip',
-			'Content-Length': String(data.length)
+			'Content-Length': String(data.length),
+			'VSCode-SessionId': sessionId
 		};
 
 		const startTime = new Date().getTime();
