@@ -810,6 +810,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
+		let placeholder: string;
 		type Item = IQuickPickItem & { command?: ITerminalCommand };
 		let items: (Item | IQuickPickItem | IQuickPickSeparator)[] = [];
 		const commandMap: Set<string> = new Set();
@@ -820,6 +821,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		};
 
 		if (type === 'command') {
+			placeholder = isMacintosh ? nls.localize('selectRecentCommandMac', 'Select a command to run (hold Option-key to edit the command)') : nls.localize('selectRecentCommand', 'Select a command to run (hold Alt-key to edit the command)');
 			const cmdDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 			const commands = cmdDetection?.commands;
 			// Current session history
@@ -898,6 +900,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				);
 			}
 		} else {
+			placeholder = isMacintosh
+				? nls.localize('selectRecentDirectoryMac', 'Select a directory to go to (hold Option-key to edit the command)')
+				: nls.localize('selectRecentDirectory', 'Select a directory to go to (hold Alt-key to edit the command)');
 			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
 			if (cwds && cwds.length > 0) {
 				for (const label of cwds) {
@@ -932,6 +937,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
 		const quickPick = this._quickInputService.createQuickPick();
 		quickPick.items = items;
+		quickPick.placeholder = placeholder;
 		return new Promise<void>(r => {
 			quickPick.onDidTriggerItemButton(async e => {
 				if (e.button === removeFromCommandHistoryButton) {
@@ -960,9 +966,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				quickPick.hide();
 			});
-			quickPick.onDidAccept(e => {
+			quickPick.onDidAccept(() => {
 				const result = quickPick.activeItems[0];
-				this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, true);
+				this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, !quickPick.keyMods.alt);
 				quickPick.hide();
 			});
 			quickPick.show();
