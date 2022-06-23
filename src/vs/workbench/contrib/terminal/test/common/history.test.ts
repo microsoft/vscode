@@ -294,13 +294,37 @@ suite('Terminal history', () => {
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
 		});
 
-		test('local', async () => {
-			if (isWindows) {
-				filePath = join(env['APPDATA']!, 'Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt');
-			} else {
-				filePath = join(env['HOME']!, '.local/share/powershell/PSReadline/ConsoleHost_history.txt');
-			}
-			deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchPwshHistory))!), expectedCommands);
+		suite('local', async () => {
+			let originalEnvValues: { HOME: string | undefined; APPDATA: string | undefined };
+			setup(() => {
+				originalEnvValues = { HOME: env['HOME'], APPDATA: env['APPDATA'] };
+				env['HOME'] = '/home/user';
+				env['APPDATA'] = 'C:\\AppData';
+				remoteConnection = { remoteAuthority: 'some-remote' };
+				fileScheme = Schemas.vscodeRemote;
+				filePath = '/home/user/.zsh_history';
+				originalEnvValues = { HOME: env['HOME'], APPDATA: env['APPDATA'] };
+			});
+			teardown(() => {
+				if (originalEnvValues['HOME'] === undefined) {
+					delete env['HOME'];
+				} else {
+					env['HOME'] = originalEnvValues['HOME'];
+				}
+				if (originalEnvValues['APPDATA'] === undefined) {
+					delete env['APPDATA'];
+				} else {
+					env['APPDATA'] = originalEnvValues['APPDATA'];
+				}
+			});
+			test('current OS', async () => {
+				if (isWindows) {
+					filePath = join(env['APPDATA']!, 'Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt');
+				} else {
+					filePath = join(env['HOME']!, '.local/share/powershell/PSReadline/ConsoleHost_history.txt');
+				}
+				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchPwshHistory))!), expectedCommands);
+			});
 		});
 		suite('remote', () => {
 			let originalEnvValues: { HOME: string | undefined; APPDATA: string | undefined };
