@@ -41,7 +41,7 @@ export class ActionButtonCommand {
 		const root = Uri.file(repository.root);
 		this.disposables.push(workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.postCommitCommand', root) ||
-				e.affectsConfiguration('git.showCommitActionButton', root)
+				e.affectsConfiguration('git.showActionButton', root)
 			) {
 				this._onDidChange.fire();
 			}
@@ -51,19 +51,14 @@ export class ActionButtonCommand {
 	get button(): SourceControlActionButton | undefined {
 		if (!this.state.HEAD || !this.state.HEAD.name || !this.state.HEAD.commit) { return undefined; }
 
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const showActionButtonUnpublished = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
-
 		let actionButton: SourceControlActionButton | undefined;
 		if (this.state.repositoryHasNoChanges) {
-			if (showActionButtonUnpublished === 'always' || showActionButtonUnpublished === 'whenEmpty') {
-				if (this.state.HEAD.upstream) {
-					// Sync Changes
-					actionButton = this.getSyncChangesActionButton();
-				} else {
-					// Publish Branch
-					actionButton = this.getPublishBranchActionButton();
-				}
+			if (this.state.HEAD.upstream) {
+				// Sync Changes
+				actionButton = this.getSyncChangesActionButton();
+			} else {
+				// Publish Branch
+				actionButton = this.getPublishBranchActionButton();
 			}
 		} else {
 			// Commit Changes
@@ -75,11 +70,12 @@ export class ActionButtonCommand {
 
 	private getCommitActionButton(): SourceControlActionButton | undefined {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const showActionButtonCommit = config.get<boolean>('showCommitActionButton', false);
-		const postCommitCommand = config.get<string>('postCommitCommand');
+		const showActionButton = config.get<{ commit: boolean }>('showActionButton', { commit: true });
 
-		if (showActionButtonCommit) {
+		if (showActionButton.commit) {
 			let title: string, tooltip: string;
+			const postCommitCommand = config.get<string>('postCommitCommand');
+
 			switch (postCommitCommand) {
 				case 'push': {
 					title = localize('scm button commit and push title', "$(arrow-up) Commit & Push");
@@ -137,23 +133,32 @@ export class ActionButtonCommand {
 		return undefined;
 	}
 
-	private getPublishBranchActionButton(): SourceControlActionButton {
-		return {
-			command: {
-				command: 'git.publish',
-				title: localize('scm publish branch action button title', "{0} Publish Branch", '$(cloud-upload)'),
-				tooltip: this.state.isActionRunning ?
-					localize('scm button publish branch running', "Publishing Branch...") :
-					localize('scm button publish branch', "Publish Branch"),
-				arguments: [this.repository.sourceControl],
-			},
-			enabled: !this.state.isActionRunning
-		};
+	private getPublishBranchActionButton(): SourceControlActionButton | undefined {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const showActionButton = config.get<{ publish: boolean }>('showActionButton', { publish: true });
+
+		if (showActionButton.publish) {
+			return {
+				command: {
+					command: 'git.publish',
+					title: localize('scm publish branch action button title', "{0} Publish Branch", '$(cloud-upload)'),
+					tooltip: this.state.isActionRunning ?
+						localize('scm button publish branch running', "Publishing Branch...") :
+						localize('scm button publish branch', "Publish Branch"),
+					arguments: [this.repository.sourceControl],
+				},
+				enabled: !this.state.isActionRunning
+			};
+		}
+
+		return undefined;
 	}
 
 	private getSyncChangesActionButton(): SourceControlActionButton | undefined {
-		if (this.state.HEAD?.ahead) {
-			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const showActionButton = config.get<{ sync: boolean }>('showActionButton', { sync: true });
+
+		if (this.state.HEAD?.ahead && showActionButton.sync) {
 			const rebaseWhenSync = config.get<string>('rebaseWhenSync');
 
 			const ahead = `${this.state.HEAD.ahead}$(arrow-up)`;

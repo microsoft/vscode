@@ -2427,26 +2427,29 @@
           "description": "%config.timeline.showUncommitted%",
           "scope": "window"
         },
-        "git.showCommitActionButton": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.showCommitActionButton%",
-          "scope": "resource"
-        },
-        "git.showUnpublishedCommitsButton": {
-          "type": "string",
-          "enum": [
-            "always",
-            "whenEmpty",
-            "never"
-          ],
-          "enumDescriptions": [
-            "%config.showUnpublishedCommitsButton.always%",
-            "%config.showUnpublishedCommitsButton.whenEmpty%",
-            "%config.showUnpublishedCommitsButton.never%"
-          ],
-          "default": "whenEmpty",
-          "description": "%config.showUnpublishedCommitsButton%",
+        "git.showActionButton": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "%config.showActionButton%",
+          "properties": {
+            "commit": {
+              "type": "boolean",
+              "description": "%config.showActionButton.commit%"
+            },
+            "publish": {
+              "type": "boolean",
+              "description": "%config.showActionButton.publish%"
+            },
+            "sync": {
+              "type": "boolean",
+              "description": "%config.showActionButton.sync%"
+            }
+          },
+          "default": {
+            "commit": true,
+            "publish": true,
+            "sync": true
+          },
           "scope": "resource"
         },
         "git.statusLimit": {
