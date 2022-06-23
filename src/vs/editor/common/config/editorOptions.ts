@@ -639,7 +639,7 @@ export interface IEditorOptions {
 	/**
 	 * Controls whether suggestions allow a first characer to be matched on a weak match
 	 */
-	firstMatchCanBeWeak?: boolean;
+	allowMidWordMatch?: boolean;
 	/**
 	 * Control the behavior and rendering of the inline hints.
 	 */
@@ -3850,7 +3850,7 @@ export interface ISuggestOptions {
 	/**
 	 * Controls whether suggestions allow a first characer to be matched on a weak match
 	 */
-	firstMatchCanBeWeak?: boolean;
+	allowMidWordMatch?: boolean;
 	/**
 	 * Show field-suggestions.
 	 */
@@ -3972,7 +3972,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFunctions: true,
 			showConstructors: true,
 			showDeprecated: true,
-			firstMatchCanBeWeak: false,
+			allowMidWordMatch: false,
 			showFields: true,
 			showVariables: true,
 			showClasses: true,
@@ -4079,10 +4079,10 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showDeprecated', "When enabled IntelliSense shows `deprecated`-suggestions.")
 				},
-				'editor.suggest.firstMatchCanBeWeak': {
+				'editor.suggest.allowMidWordMatch': {
 					type: 'boolean',
 					default: false,
-					markdownDescription: nls.localize('editor.suggest.firstMatchCanBeWeak', "When enabled suggestions allow a first characer to be matched on a non-capital letter. This will provide more search results that may not be as accurate.")
+					markdownDescription: nls.localize('editor.suggest.allowMidWordMatch', "When enabled suggestions allow a first characer to be matched on a non-capital letter. This will provide more search results that may not be as accurate.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
@@ -4233,7 +4233,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
 			showDeprecated: boolean(input.showDeprecated, this.defaultValue.showDeprecated),
-			firstMatchCanBeWeak: boolean(input.firstMatchCanBeWeak, this.defaultValue.firstMatchCanBeWeak),
+			allowMidWordMatch: boolean(input.allowMidWordMatch, this.defaultValue.allowMidWordMatch),
 			showFields: boolean(input.showFields, this.defaultValue.showFields),
 			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
 			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),

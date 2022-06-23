@@ -3400,7 +3400,7 @@ declare namespace monaco.editor {
 		/**
 		 * Controls whether suggestions allow a first characer to be matched on a weak match
 		 */
-		firstMatchCanBeWeak?: boolean;
+		allowMidWordMatch?: boolean;
 		/**
 		 * Control the behavior and rendering of the inline hints.
 		 */
@@ -4167,7 +4167,7 @@ declare namespace monaco.editor {
 		/**
 		 * Controls whether suggestions allow a first characer to be matched on a weak match
 		 */
-		firstMatchCanBeWeak?: boolean;
+		allowMidWordMatch?: boolean;
 		/**
 		 * Show field-suggestions.
 		 */
