@@ -35,7 +35,7 @@ import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { autorunWithStore } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { autorunWithStore, IObservable } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { DocumentMapping, getOppositeDirection, MappingDirection } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
@@ -60,9 +60,9 @@ export class MergeEditor extends AbstractTextEditor<any> {
 
 	private _grid!: Grid<IView>;
 
-	private readonly input1View = this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable });
-	private readonly input2View = this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable });
-	private readonly inputResultView = this.instantiation.createInstance(ResultCodeEditorView, { readonly: false });
+	private readonly input1View = this._register(this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable }));
+	private readonly input2View = this._register(this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable }));
+	private readonly inputResultView = this._register(this.instantiation.createInstance(ResultCodeEditorView, { readonly: false }));
 
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
 	private readonly _ctxUsesColumnLayout: IContextKey<boolean>;
@@ -155,6 +155,10 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		toolbarMenuRender();
 	}
 
+	public get viewModel(): IObservable<MergeEditorViewModel | undefined> {
+		return this.input1View.viewModel;
+	}
+
 	override dispose(): void {
 		this._sessionDisposables.dispose();
 		this._ctxIsMergeEditor.reset();
@@ -195,6 +199,7 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		});
 
 		reset(parent, this._grid.element);
+		this._register(this._grid);
 		this._ctxUsesColumnLayout.set(false);
 
 		this.applyOptions(initialOptions);

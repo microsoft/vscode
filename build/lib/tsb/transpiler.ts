@@ -146,6 +146,8 @@ export class Transpiler {
 
 	static P = Math.floor(cpus().length * .5);
 
+	private readonly _getOutputFileName: (name: string) => string;
+
 	public onOutfile?: (file: Vinyl) => void;
 
 	private _workerPool: TranspileWorker[] = [];
@@ -155,9 +157,33 @@ export class Transpiler {
 	constructor(
 		logFn: (topic: string, message: string) => void,
 		private readonly _onError: (err: any) => void,
+		configFilePath: string,
 		private readonly _cmdLine: ts.ParsedCommandLine
 	) {
 		logFn('Transpile', `will use ${Transpiler.P} transpile worker`);
+
+
+		// very complicated logic to re-use TS internal functions to know the output path
+		// given a TS input path and its config
+		type InternalTsApi = typeof ts & {
+			getOutputFileNames(commandLine: ts.ParsedCommandLine, inputFileName: string, ignoreCase: boolean): readonly string[];
+		};
+		this._getOutputFileName = (file) => {
+			if (!_cmdLine.options.configFilePath) {
+				// this is needed for the INTERNAL getOutputFileNames-call below...
+				_cmdLine.options.configFilePath = configFilePath;
+			}
+			const isDts = file.endsWith('.d.ts');
+			if (isDts) {
+				file = file.slice(0, -5) + '.ts';
+				_cmdLine.fileNames.push(file);
+			}
+			const outfile = (<InternalTsApi>ts).getOutputFileNames(_cmdLine, file, true)[0];
+			if (isDts) {
+				_cmdLine.fileNames.pop();
+			}
+			return outfile;
+		};
 	}
 
 	async join() {
@@ -195,7 +221,7 @@ export class Transpiler {
 		// kinda LAZYily create workers
 		if (this._workerPool.length === 0) {
 			for (let i = 0; i < Transpiler.P; i++) {
-				this._workerPool.push(new TranspileWorker(file => this._tsApiInternalOutfileName.getForInfile(file)));
+				this._workerPool.push(new TranspileWorker(file => this._getOutputFileName(file)));
 			}
 		}
 
@@ -237,35 +263,6 @@ export class Transpiler {
 			this._allJobs.push(job);
 		}
 	}
-
-	private _tsApiInternalOutfileName = new class {
-
-		getForInfile: (file: string) => string;
-
-		constructor(parsedCmd: ts.ParsedCommandLine) {
-
-			type InternalTsHost = {
-				getCompilerOptions(): ts.CompilerOptions;
-				getCurrentDirectory(): string;
-				getCommonSourceDirectory(): string;
-				getCanonicalFileName(file: string): string;
-			};
-			type InternalTsApi = { getOwnEmitOutputFilePath(fileName: string, host: InternalTsHost, extension: string): string } & typeof ts;
-
-			const host = ts.createCompilerHost(parsedCmd.options);
-			const program = ts.createProgram({ options: parsedCmd.options, rootNames: parsedCmd.fileNames, host });
-			const emitHost: InternalTsHost = {
-				getCompilerOptions: () => parsedCmd.options,
-				getCurrentDirectory: () => host.getCurrentDirectory(),
-				getCanonicalFileName: file => host.getCanonicalFileName(file),
-				getCommonSourceDirectory: () => (<any>program).getCommonSourceDirectory()
-			};
-
-			this.getForInfile = file => {
-				return (<InternalTsApi>ts).getOwnEmitOutputFilePath(file, emitHost, '.js');
-			};
-		}
-	}(this._cmdLine);
 }
 
 function _isDefaultEmpty(src: string): boolean {

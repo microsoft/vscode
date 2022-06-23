@@ -228,7 +228,6 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 
 		const env = objects.mixin(processEnv, {
 			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
-			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: true,
 			VSCODE_LOG_NATIVE: this._isExtensionDevHost,
 			VSCODE_HANDLES_UNCAUGHT_ERRORS: true,

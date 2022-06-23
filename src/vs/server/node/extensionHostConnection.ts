@@ -44,7 +44,6 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		...{
 			VSCODE_LOG_NATIVE: String(isDebug),
 			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
-			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
 			VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
 			VSCODE_LOG_STACK: 'false',

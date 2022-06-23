@@ -82,25 +82,14 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
 
-	// Gather loader configuration since that contains the locale
-	let loaderConfiguration: any = null;
-	if (typeof globals.require !== 'undefined' && typeof globals.require.getConfig === 'function') {
-		// Get the configuration from the Monaco AMD Loader
-		loaderConfiguration = globals.require.getConfig();
-	} else if (typeof globals.requirejs !== 'undefined') {
-		// Get the configuration from requirejs
-		loaderConfiguration = globals.requirejs.s.contexts._.config;
-	}
+	const configuredLocale = nls.getConfiguredDefaultLocale(
+		// This call _must_ be done in the file that calls `nls.getConfiguredDefaultLocale`
+		// to ensure that the NLS AMD Loader plugin has been loaded and configured.
+		// This is because the loader plugin decides what the default locale is based on
+		// how it's able to resolve the strings.
+		nls.localize({ key: 'ensureLoaderPluginIsLoaded', comment: ['{Locked}'] }, '_')
+	);
 
-	// TODO @TylerLeonhardt pull availableLanguages from vs/nls
-	// DO NOT REMOVE.
-	nls.localize({
-		// Prevents the string from being localized.
-		comment: ['{Locked}'],
-		key: 'ensureLoaderPluginIsLoaded'
-	}, 'this ensures the nls loader plugin is loaded before resolving the true locale');
-
-	const configuredLocale = loaderConfiguration?.['vs/nls']?.['availableLanguages']?.['*'] as string | undefined;
 	_locale = configuredLocale || navigator.language;
 
 	_language = _locale;
