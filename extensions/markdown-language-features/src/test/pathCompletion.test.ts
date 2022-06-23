@@ -16,8 +16,7 @@ import { nulLogger } from './nulLogging';
 import { CURSOR, getCursorPositions, joinLines, workspacePath } from './util';
 
 
-function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string)
-{
+function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string) {
 	const doc = new InMemoryDocument(resource, fileContents);
 	const workspace = new InMemoryMdWorkspace([doc]);
 
@@ -31,23 +30,19 @@ function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string)
 	});
 }
 
-suite('Markdown path completion provider', () =>
-{
+suite('Markdown path completion provider', () => {
 
-	setup(async () =>
-	{
+	setup(async () => {
 		// These tests assume that the markdown completion provider is already registered
 		await vscode.extensions.getExtension('vscode.markdown-language-features')!.activate();
 	});
 
-	test('Should not return anything when triggered in empty doc', async () =>
-	{
+	test('Should not return anything when triggered in empty doc', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), `${CURSOR}`);
 		assert.strictEqual(completions.length, 0);
 	});
 
-	test('Should return anchor completions', async () =>
-	{
+	test('Should return anchor completions', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](#${CURSOR}`,
 			``,
@@ -60,8 +55,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.label === '#x-y-z'), 'Has x-y-z anchor completion');
 	});
 
-	test('Should not return suggestions for http links', async () =>
-	{
+	test('Should not return suggestions for http links', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](http:${CURSOR}`,
 			``,
@@ -73,8 +67,7 @@ suite('Markdown path completion provider', () =>
 		assert.strictEqual(completions.length, 0);
 	});
 
-	test('Should return relative path suggestions', async () =>
-	{
+	test('Should return relative path suggestions', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](${CURSOR}`,
 			``,
@@ -86,8 +79,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
 	});
 
-	test('Should return relative path suggestions using ./', async () =>
-	{
+	test('Should return relative path suggestions using ./', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](./${CURSOR}`,
 			``,
@@ -99,8 +91,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
 	});
 
-	test('Should return absolute path suggestions using /', async () =>
-	{
+	test('Should return absolute path suggestions using /', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('sub', 'new.md'), joinLines(
 			`[](/${CURSOR}`,
 			``,
@@ -113,8 +104,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(!completions.some(x => x.label === 'c.md'), 'Should not have c.md from sub folder');
 	});
 
-	test('Should return anchor suggestions in other file', async () =>
-	{
+	test('Should return anchor suggestions in other file', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('sub', 'new.md'), joinLines(
 			`[](/b.md#${CURSOR}`,
 		));
@@ -123,8 +113,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.label === '#header1'), 'Has #header1 header completion');
 	});
 
-	test('Should reference links for current file', async () =>
-	{
+	test('Should reference links for current file', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('sub', 'new.md'), joinLines(
 			`[][${CURSOR}`,
 			``,
@@ -137,8 +126,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.label === 'ref-2'), 'Has ref-2 reference completion');
 	});
 
-	test('Should complete headers in link definitions', async () =>
-	{
+	test('Should complete headers in link definitions', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('sub', 'new.md'), joinLines(
 			`# a B c`,
 			`# x y    Z`,
@@ -149,8 +137,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.label === '#x-y-z'), 'Has #x-y-z header completion');
 	});
 
-	test('Should complete relative paths in link definitions', async () =>
-	{
+	test('Should complete relative paths in link definitions', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`# a B c`,
 			`[ref-1]: ${CURSOR}`,
@@ -161,8 +148,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
 	});
 
-	test('Should escape spaces in path names', async () =>
-	{
+	test('Should escape spaces in path names', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](./sub/${CURSOR})`
 		));
@@ -170,8 +156,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.insertText === 'file%20with%20space.md'), 'Has encoded path completion');
 	});
 
-	test('Should complete paths for path with encoded spaces', async () =>
-	{
+	test('Should complete paths for path with encoded spaces', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](./sub%20with%20space/${CURSOR})`
 		));
@@ -179,8 +164,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.insertText === 'file.md'), 'Has file from space');
 	});
 
-	test('Should complete definition path for path with encoded spaces', async () =>
-	{
+	test('Should complete definition path for path with encoded spaces', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[def]: ./sub%20with%20space/${CURSOR}`
 		));
@@ -188,8 +172,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.insertText === 'file.md'), 'Has file from space');
 	});
 
-	test('Should complete path for angled brackets', async () =>
-	{
+	test('Should complete path for angled brackets', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](<${CURSOR}>)`
 		));
@@ -199,8 +182,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
 	});
 
-	test('Should complete path for incomplete links', async () =>
-	{
+	test('Should complete path for incomplete links', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](<${CURSOR}`
 		));
@@ -210,8 +192,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
 	});
 
-	test('Should complete links that are on the line', async () =>
-	{
+	test('Should complete links that are on the line', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`text [](<${CURSOR}>) more text`
 		));
@@ -221,8 +202,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
 	});
 
-	test('Should complete links for links with titles', async () =>
-	{
+	test('Should complete links for links with titles', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](<${CURSOR}> "title">`
 		));
@@ -232,8 +212,7 @@ suite('Markdown path completion provider', () =>
 		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
 	});
 
-	test('Path component should not be encoded with <>', async () =>
-	{
+	test('Path component should not be encoded with <>', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](<${CURSOR}>)`
 		));
