@@ -1893,26 +1893,6 @@
           "default": [],
           "scope": "resource"
         },
-        "git.branchProtectionIndicator": {
-          "type": "object",
-          "additionalProperties": false,
-          "description": "%config.branchProtectionIndicator%",
-          "properties": {
-            "quickOpen": {
-              "type": "boolean",
-              "description": "%config.branchProtectionIndicator.quickOpen%"
-            },
-            "statusBar": {
-              "type": "boolean",
-              "description": "%config.branchProtectionIndicator.statusBar%"
-            }
-          },
-          "default": {
-            "quickOpen": true,
-            "statusBar": true
-          },
-          "scope": "resource"
-        },
         "git.branchProtectionPrompt": {
           "type": "string",
           "description": "%config.branchProtectionPrompt%",
