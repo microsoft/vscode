@@ -25,7 +25,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation,
-	IServerExtensionManagementService, Metadata, ServerInstallOptions, ServerInstallVSIXOptions
+	Metadata, ServerInstallOptions, ServerInstallVSIXOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
@@ -35,7 +35,7 @@ import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extens
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
 import { ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
-import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -51,7 +51,7 @@ interface InstallableExtension {
 	metadata?: Metadata;
 }
 
-export class ExtensionManagementService extends AbstractExtensionManagementService implements IServerExtensionManagementService {
+export class ExtensionManagementService extends AbstractExtensionManagementService {
 
 	private readonly extensionsScanner: ExtensionsScanner;
 	private readonly manifestCache: ExtensionsManifestCache;
@@ -165,7 +165,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	protected createDefaultInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions & ServerInstallVSIXOptions): IInstallExtensionTask {
-		return URI.isUri(extension) ? new InstallVSIXTask(manifest, extension, options, this.galleryService, this.extensionsScanner, this.logService) : new InstallGalleryExtensionTask(extension, options, this.extensionsDownloader, this.extensionsScanner, this.logService);
+		return URI.isUri(extension) ? new InstallVSIXTask(manifest, extension, options, this.galleryService, this.extensionsScanner, this.logService) : new InstallGalleryExtensionTask(manifest, extension, options, this.extensionsDownloader, this.extensionsScanner, this.logService);
 	}
 
 	protected createDefaultUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
@@ -406,6 +406,7 @@ class ExtensionsScanner extends Disposable {
 			changelogUrl,
 			publisherDisplayName: extension.metadata?.publisherDisplayName || null,
 			publisherId: extension.metadata?.publisherId || null,
+			isApplicationScoped: !!extension.metadata?.isApplicationScoped,
 			isMachineScoped: !!extension.metadata?.isMachineScoped,
 			isPreReleaseVersion: !!extension.metadata?.isPreReleaseVersion,
 			preRelease: !!extension.metadata?.preRelease,
@@ -537,6 +538,7 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<{ local: ILoca
 class InstallGalleryExtensionTask extends InstallExtensionTask {
 
 	constructor(
+		private readonly manifest: IExtensionManifest,
 		private readonly gallery: IGalleryExtension,
 		options: ServerInstallOptions,
 		private readonly extensionsDownloader: ExtensionsDownloader,
@@ -559,6 +561,7 @@ class InstallGalleryExtensionTask extends InstallExtensionTask {
 			publisherId: this.gallery.publisherId,
 			publisherDisplayName: this.gallery.publisherDisplayName,
 			targetPlatform: this.gallery.properties.targetPlatform,
+			isApplicationScoped: isApplicationScopedExtension(this.manifest),
 			isMachineScoped: this.options.isMachineScoped || existingExtension?.isMachineScoped,
 			isBuiltin: this.options.isBuiltin || existingExtension?.isBuiltin,
 			isSystem: existingExtension?.type === ExtensionType.System ? true : undefined,
@@ -571,7 +574,8 @@ class InstallGalleryExtensionTask extends InstallExtensionTask {
 		};
 
 		if (existingExtension?.manifest.version === this.gallery.version) {
-			return { local: existingExtension, metadata };
+			const local = await this.extensionsScanner.updateMetadata(existingExtension, metadata);
+			return { local, metadata };
 		}
 
 		const zipPath = await this.downloadExtension(this.gallery, this._operation);
@@ -634,6 +638,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User, undefined);
 		const existing = installedExtensions.find(i => areSameExtensions(this.identifier, i.identifier));
 		const metadata = await this.getMetadata(this.identifier.id, this.manifest.version, token);
+		metadata.isApplicationScoped = isApplicationScopedExtension(this.manifest);
 		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
 		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
 

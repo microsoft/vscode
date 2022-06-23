@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, InstallVSIXOptions, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { FileAccess } from 'vs/base/common/network';
 
@@ -42,7 +42,7 @@ export interface IExtensionManagementServerService {
 export const DefaultIconPath = FileAccess.asBrowserUri('./media/defaultIcon.png', require).toString(true);
 
 export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
-export type UninstallExtensionOnServerEvent = IExtensionIdentifier & { server: IExtensionManagementServer };
+export type UninstallExtensionOnServerEvent = UninstallExtensionEvent & { server: IExtensionManagementServer };
 export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { server: IExtensionManagementServer };
 export type DidChangeProfileExtensionsOnServerEvent = DidChangeProfileExtensionsEvent & { server: IExtensionManagementServer };
 
