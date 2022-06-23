@@ -433,8 +433,8 @@ export class CustomMenubarControl extends MenubarControl {
 			const activityBarInactiveFgColor = theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND);
 			if (activityBarInactiveFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar.compact > .menubar-menu-button,
-				.monaco-workbench .menubar.compact .toolbar-toggle-more {
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button,
+				.monaco-workbench .activitybar .menubar.compact .toolbar-toggle-more {
 					color: ${activityBarInactiveFgColor};
 				}
 				`);
@@ -443,12 +443,12 @@ export class CustomMenubarControl extends MenubarControl {
 			const activityBarFgColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 			if (activityBarFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar.compact > .menubar-menu-button.open,
-				.monaco-workbench .menubar.compact > .menubar-menu-button:focus,
-				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
-				.monaco-workbench .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
-				.monaco-workbench .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
-				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button.open,
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus,
+				.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
+				.monaco-workbench .activitybar .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
+				.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
 					color: ${activityBarFgColor};
 				}
 			`);
