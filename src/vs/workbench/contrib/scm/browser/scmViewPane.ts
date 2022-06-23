@@ -2613,6 +2613,7 @@ export class SCMActionButton implements IDisposable {
 			// ButtonWithDropdown
 			this.button = new ButtonWithDropdown(this.container, {
 				actions: actions,
+				addPrimaryActionToDropdown: false,
 				contextMenuProvider: this.contextMenuService,
 				supportIcons: true
 			});
