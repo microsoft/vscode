@@ -38,6 +38,8 @@ export class SettingsTreeIndicatorsLabel {
 	private syncIgnoredElement: HTMLElement;
 	private defaultOverrideIndicatorElement: HTMLElement;
 	private hoverDelegate: IHoverDelegate;
+	private hover: ICustomHover | undefined;
+	private currentHoverMarkdownString: string | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -127,6 +129,8 @@ export class SettingsTreeIndicatorsLabel {
 		if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
 			this.scopeOverridesElement.style.display = 'inline';
 			if (element.overriddenScopeList.length === 1 && !element.overriddenDefaultsLanguageList.length) {
+				this.hover?.dispose();
+
 				// Just show all the text in the label.
 				const prefaceText = element.isConfigured ?
 					localize('alsoConfiguredIn', "Also modified in") :
@@ -190,7 +194,6 @@ export class SettingsTreeIndicatorsLabel {
 					},
 					markdownNotSupportedFallback: contentFallback
 				};
-				let hover: ICustomHover | undefined = undefined;
 				const options: IUpdatableHoverOptions = {
 					linkHandler: (url: string) => {
 						const [scope, language] = decodeURIComponent(url).split(':');
@@ -199,10 +202,14 @@ export class SettingsTreeIndicatorsLabel {
 							scope: scope as ScopeString,
 							language
 						});
-						hover!.hide();
+						this.hover!.hide();
 					}
 				};
-				hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
+				if (this.currentHoverMarkdownString !== contentMarkdownString) {
+					this.hover?.dispose();
+					this.hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
+					this.currentHoverMarkdownString = contentMarkdownString;
+				}
 			}
 		}
 		this.render();
