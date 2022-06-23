@@ -1276,7 +1276,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
 
 		const computedSliderSize = Math.max(0, Math.floor(layoutInfo.height * computedRatio));
-		const computedSliderPosition = Math.floor(scrollTop * computedRatio);
+		const computedSliderPosition = Math.ceil(scrollTop * computedRatio);
 
 		return {
 			height: computedSliderSize,
