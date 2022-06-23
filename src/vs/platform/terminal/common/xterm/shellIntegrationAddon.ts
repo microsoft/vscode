@@ -117,6 +117,16 @@ const enum VSCodeOscPt {
 }
 
 /**
+ * ITerm sequences
+ */
+const enum ITermOscPt {
+	/**
+	 * Based on ITerm's `OSC 1337 ; SetMark`, sets a mark on the scroll bar
+	 */
+	SetMark = 'SetMark'
+}
+
+/**
  * The shell integration addon extends xterm by reading shell integration sequences and creating
  * capabilities and passing along relevant sequences to the capabilities. This is meant to
  * encapsulate all handling/parsing of sequences so the capabilities don't need to.
@@ -149,6 +159,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
 		this._commonProtocolDisposables.push(
 			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data))
 		);
@@ -285,6 +296,22 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
 					}
 				}
+			}
+		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	private _doHandleITermSequence(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		const [command, hoverMessage, disableCommandStorage] = data.split(';');
+		switch (command) {
+			case ITermOscPt.SetMark: {
+				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ genericMarkProperties: { hoverMessage: hoverMessage || '', disableCommandStorage: disableCommandStorage === 'true' ? true : false } });
 			}
 		}
 

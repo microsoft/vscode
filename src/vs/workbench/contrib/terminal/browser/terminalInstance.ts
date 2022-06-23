@@ -82,8 +82,9 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import type { ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
+import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 
 const enum Constants {
 	/**
@@ -1592,6 +1593,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;
 			this._onIconChanged.fire(this);
 		}
+	}
+
+	public registerMarker(): IMarker | undefined {
+		return this.xterm?.raw.registerMarker();
+	}
+
+	public addGenericMark(marker: IMarker, genericMarkProperties: IGenericMarkProperties): void {
+		this.xterm?.addDecoration(marker, genericMarkProperties);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
