@@ -20,7 +20,6 @@ export interface DidChangeUserDataProfileEvent {
 export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
 export interface IUserDataProfileService {
 	readonly _serviceBrand: undefined;
-	readonly defaultProfile: IUserDataProfile;
 	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
 	updateCurrentProfile(currentProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
