@@ -7,7 +7,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ctxIsMergeEditor, ctxUsesColumnLayout, MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -217,4 +219,52 @@ export class ToggleActiveConflictInput2 extends Action2 {
 			vm.toggleActiveConflict(2);
 		}
 	}
+}
+
+export class CompareInput1WithBaseCommand extends Action2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.compareInput1WithBase',
+			title: localize('mergeEditor.compareInput1WithBase', "Merge Editor: Compare Input 1 With Base"),
+			f1: true,
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
+		mergeEditorCompare(editorService, commandService, 1);
+	}
+}
+
+export class CompareInput2WithBaseCommand extends Action2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.compareInput2WithBase',
+			title: localize('mergeEditor.compareInput2WithBase', "Merge Editor: Compare Input 2 With Base"),
+			f1: true,
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
+		mergeEditorCompare(editorService, commandService, 2);
+	}
+}
+
+function mergeEditorCompare(editorService: IEditorService, commandService: ICommandService, inputNumber: 1 | 2) {
+	const { activeEditorPane } = editorService;
+	if (activeEditorPane instanceof MergeEditor) {
+		if (!activeEditorPane.model) {
+			return;
+		}
+
+		const base = activeEditorPane.model.base.uri;
+		const input = inputNumber === 1 ? activeEditorPane.model.input1.uri : activeEditorPane.model.input2.uri;
+
+		openDiffEditor(commandService, base, input);
+	}
+}
+
+function openDiffEditor(commandService: ICommandService, left: URI, right: URI, label?: string) {
+	commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, left, right, label);
 }
