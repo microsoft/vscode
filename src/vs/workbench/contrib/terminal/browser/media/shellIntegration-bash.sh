@@ -28,7 +28,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 		elif [ -f ~/.profile ]; then
 			. ~/.profile
 		fi
-		builtin unset VSCODE_SHELL_LOGIN=""
+		builtin unset VSCODE_SHELL_LOGIN
 	fi
 	builtin unset VSCODE_INJECTION
 fi
