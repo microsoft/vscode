@@ -402,7 +402,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 
 		this._currentCommand.commandFinishedMarker = this._terminal.registerMarker(0);
-		const command = this._currentCommand.command;
+		let command = this._currentCommand.command;
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
 		this._exitCode = exitCode;
 
@@ -420,6 +420,11 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 		if (this._currentCommand.commandStartMarker === undefined || !this._terminal.buffer.active) {
 			return;
+		}
+
+		// When the command finishes and executed never fires the placeholder selector should be used.
+		if (this._exitCode === undefined && command === undefined) {
+			command = '';
 		}
 
 		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
