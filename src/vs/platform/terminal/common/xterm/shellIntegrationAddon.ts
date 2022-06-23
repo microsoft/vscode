@@ -265,10 +265,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			return false;
 		}
 
-		const [command, value] = data.split(';');
+		const [command, hoverMessage, disableCommandStorage] = data.split(';');
 		switch (command) {
 			case ITermOscPt.SetMark: {
-				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ hoverMessage: value || '' });
+				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ hoverMessage: hoverMessage || '', disableCommandStorage: disableCommandStorage === 'true' ? true : false });
 			}
 		}
 

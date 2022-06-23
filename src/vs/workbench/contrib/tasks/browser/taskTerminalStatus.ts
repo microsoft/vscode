@@ -54,7 +54,7 @@ export class TaskTerminalStatus extends Disposable {
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
-		problemMatcher.onDidFindMatch(() => terminal.addGenericMarker('First error'));
+		problemMatcher.onDidFindMatch(() => terminal.addGenericMarker({ hoverMessage: nls.localize('task.watchFirstError', "First error"), disableCommandStorage: true }));
 		problemMatcher.onDidInvalidateMatch(() => terminal.capabilities.get(TerminalCapability.CommandDetection)?.invalidateCurrentCommand({ reason: CommandInvalidationReason.NoProblemsReported }));
 		this.terminalMap.set(task._id, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}

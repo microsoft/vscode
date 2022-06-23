@@ -8,7 +8,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, ICommandInvalidationRequest, CommandInvalidationReason } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IGenericCommandProperties, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { IGenericMarkProperties, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import type { IBuffer, IDisposable, IMarker, Terminal } from 'xterm-headless';
@@ -300,7 +300,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handleRightPromptEnd', this._currentCommand.commandRightPromptEndX);
 	}
 
-	handleCommandStart(genericProperties?: IGenericCommandProperties): void {
+	handleCommandStart(genericMarkProperties?: IGenericMarkProperties): void {
 		// Only update the column if the line has already been set
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
 			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
@@ -313,7 +313,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker, genericProperties } as ITerminalCommand);
+		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker, genericMarkProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
@@ -348,8 +348,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		});
 	}
 
-	handleGenericCommand(properties: IGenericCommandProperties): void {
-		this.setIsCommandStorageDisabled();
+	handleGenericCommand(properties: IGenericMarkProperties): void {
+		if (properties.disableCommandStorage) {
+			this.setIsCommandStorageDisabled();
+		}
 		this.handlePromptStart();
 		this.handleCommandStart(properties);
 		this.handleCommandExecuted();
@@ -406,7 +408,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._onCurrentCommandInvalidated.fire(request);
 	}
 
-	handleCommandFinished(exitCode: number | undefined, genericProperties?: IGenericCommandProperties): void {
+	handleCommandFinished(exitCode: number | undefined, genericMarkProperties?: IGenericMarkProperties): void {
 		if (this._isWindowsPty) {
 			this._preHandleCommandFinishedWindows();
 		}
@@ -448,7 +450,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				genericProperties
+				genericMarkProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -569,7 +571,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: e.exitCode,
 				hasOutput: !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				genericProperties: e.genericProperties?.hoverMessage ? { hoverMessage: e.genericProperties.hoverMessage } : undefined
+				genericMarkProperties: e.genericMarkProperties?.hoverMessage ? { hoverMessage: e.genericMarkProperties.hoverMessage } : undefined
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);

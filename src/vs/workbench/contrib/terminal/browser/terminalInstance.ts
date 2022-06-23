@@ -85,6 +85,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import type { ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
 import { ITermOscPt, ITermSequence } from 'vs/workbench/contrib/terminal/browser/terminalEscapeSequences';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 
 const enum Constants {
 	/**
@@ -1589,8 +1590,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	public addGenericMarker(hoverMessage?: string | undefined): void {
-		this.xterm?.raw.write(`${ITermSequence(ITermOscPt.SetMark, hoverMessage || '')}`);
+	public addGenericMarker(genericMarkProperties: IGenericMarkProperties): void {
+		this.xterm?.raw.write(`${ITermSequence(ITermOscPt.SetMark, `${genericMarkProperties.hoverMessage || ''};${genericMarkProperties.disableCommandStorage ? true : false}`)}`);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

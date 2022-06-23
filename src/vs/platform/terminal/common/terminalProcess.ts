@@ -79,11 +79,12 @@ export interface ISerializedCommand {
 	exitCode: number | undefined;
 	commandStartLineContent: string | undefined;
 	timestamp: number;
-	genericProperties?: IGenericCommandProperties;
+	genericMarkProperties?: IGenericMarkProperties;
 }
 
-export interface IGenericCommandProperties {
-	hoverMessage: string;
+export interface IGenericMarkProperties {
+	hoverMessage?: string;
+	disableCommandStorage?: boolean;
 }
 
 export interface ISerializedCommandDetectionCapability {
