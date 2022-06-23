@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, languages, Uri, LanguageStatusSeverity, Disposable, commands, QuickPickItem, extensions, workspace, Extension, WorkspaceFolder, QuickPickItemKind, ThemeIcon } from 'vscode';
+import { window, languages, Uri, LanguageStatusSeverity, Disposable, commands, QuickPickItem, extensions, workspace, Extension, WorkspaceFolder, QuickPickItemKind, ThemeIcon, LanguageStatusItem } from 'vscode';
 import { JSONLanguageStatus, JSONSchemaSettings } from './jsonClient';
 
 import * as nls from 'vscode-nls';
@@ -215,5 +215,46 @@ export function createLanguageStatusItem(documentSelector: string[], statusReque
 	updateLanguageStatus();
 
 	return Disposable.from(statusItem, activeEditorListener, showSchemasCommand);
+}
+
+export function createLimitStatusItem(documentSelector: string[], newItem: (documentSelector: string[], limit: number) => Disposable) {
+	let statusItem: Disposable | undefined;
+	let lastLimit: number = -1;
+	return {
+		show(limit: number) {
+			if (!statusItem || limit !== lastLimit) {
+				statusItem?.dispose();
+				statusItem = newItem(documentSelector, limit);
+				lastLimit = limit;
+			}
+		},
+		hide() {
+			statusItem?.dispose();
+			statusItem = undefined;
+		},
+		dispose() {
+			statusItem?.dispose();
+			statusItem = undefined;
+		}
+	};
+}
+
+
+export function createFoldingRangeLimitItem(documentSelector: string[], limit: number): Disposable {
+	const statusItem = languages.createLanguageStatusItem('json.foldingStatus', documentSelector);
+	statusItem.name = localize('foldingStatusItem.name', "JSON Folding Status");
+	statusItem.severity = LanguageStatusSeverity.Information;
+	statusItem.text = localize('status.limitedRanges.short', "Folding Ranges Limited");
+	statusItem.detail = localize('status.limitedRanges.details', 'Only {0} folding ranges shown.', limit);
+	return Disposable.from(statusItem);
+}
+
+export function createDocumentSymbolsLimitItem(documentSelector: string[], limit: number): Disposable {
+	const statusItem = languages.createLanguageStatusItem('json.documentSymbolStatus', documentSelector);
+	statusItem.name = localize('documentSymbolStatusItem.name', "JSON Document Symbol Status");
+	statusItem.severity = LanguageStatusSeverity.Information;
+	statusItem.text = localize('status.limitedDocumentSymbol.short', "Document Symbol Limited");
+	statusItem.detail = localize('status.limitedDocumentSymbol.details', 'Only {0} document symbols shown.', limit);
+	return Disposable.from(statusItem);
 }
 

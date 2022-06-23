@@ -10,18 +10,18 @@ export type JSONLanguageStatus = { schemas: string[] };
 
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri,
-	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString,
+	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature
 } from 'vscode-languageclient';
 
 
 import { hash } from './utils/hash';
-import { createLanguageStatusItem } from './languageStatus';
+import { createDocumentSymbolsLimitItem, createFoldingRangeLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -109,6 +109,8 @@ export interface SchemaRequestService {
 
 export const languageServerDescription = localize('jsonserver.name', 'JSON Language Server');
 
+let resultLimit = 5000;
+
 export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
 
 	const toDispose = context.subscriptions;
@@ -126,6 +128,10 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	let schemaDownloadEnabled = true;
 
 	let isClientReady = false;
+
+	const foldingRangeLimitStatusBarItem = createLimitStatusItem(documentSelector, createFoldingRangeLimitItem);
+	const documentSymbolsLimitStatusbarItem = createLimitStatusItem(documentSelector, createDocumentSymbolsLimitItem);
+	toDispose.push(foldingRangeLimitStatusBarItem, documentSymbolsLimitStatusbarItem);
 
 	toDispose.push(commands.registerCommand('json.clearCache', async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
@@ -211,6 +217,38 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 					return r.then(updateHover);
 				}
 				return updateHover(r);
+			},
+			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken, next: ProvideFoldingRangeSignature) {
+				function checkLimit(r: FoldingRange[] | null | undefined): FoldingRange[] | null | undefined {
+					if (Array.isArray(r) && r.length > resultLimit) {
+						r.length = resultLimit;
+						foldingRangeLimitStatusBarItem.show(resultLimit);
+					} else if (foldingRangeLimitStatusBarItem) {
+						foldingRangeLimitStatusBarItem.hide();
+					}
+					return r;
+				}
+				const r = next(document, context, token);
+				if (isThenable<FoldingRange[] | null | undefined>(r)) {
+					return r.then(checkLimit);
+				}
+				return checkLimit(r);
+			},
+			provideDocumentSymbols(document: TextDocument, token: CancellationToken, next: ProvideDocumentSymbolsSignature) {
+				type T = SymbolInformation[] | DocumentSymbol[];
+				function checkLimit(r: T | null | undefined): T | null | undefined {
+					if (Array.isArray(r) && r.length > resultLimit) {
+						documentSymbolsLimitStatusbarItem.show(resultLimit);
+					} else if (foldingRangeLimitStatusBarItem) {
+						documentSymbolsLimitStatusbarItem.hide();
+					}
+					return r;
+				}
+				const r = next(document, token);
+				if (isThenable<T | undefined | null>(r)) {
+					return r.then(checkLimit);
+				}
+				return checkLimit(r);
 			}
 		}
 	};
@@ -343,6 +381,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		}
 	});
 
+
 	toDispose.push(createLanguageStatusItem(documentSelector, (uri: string) => client.sendRequest(LanguageStatusRequest.type, uri)));
 
 	function updateFormatterRegistration() {
@@ -432,7 +471,7 @@ function getSettings(): Settings {
 	const configuration = workspace.getConfiguration();
 	const httpSettings = workspace.getConfiguration('http');
 
-	const resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get(SettingIds.maxItemsComputed)))) || 5000;
+	resultLimit = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get(SettingIds.maxItemsComputed)))) || 5000;
 
 	const settings: Settings = {
 		http: {
@@ -443,7 +482,7 @@ function getSettings(): Settings {
 			validate: { enable: configuration.get(SettingIds.enableValidation) },
 			format: { enable: configuration.get(SettingIds.enableFormatter) },
 			schemas: [],
-			resultLimit
+			resultLimit: resultLimit + 1
 		}
 	};
 	const schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
