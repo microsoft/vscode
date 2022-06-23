@@ -279,7 +279,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _updateClasses(element?: HTMLElement, exitCode?: number, genericProperties?: IGenericCommandProperties): void {
-		console.log(genericProperties);
 		if (!element) {
 			return;
 		}
