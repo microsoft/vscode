@@ -189,7 +189,7 @@ export class ActionButtonCommand {
 			this.repository.operations.isRunning(Operation.Pull) ||
 			this.repository.operations.isRunning(Operation.Commit);
 
-		this.state = { ...this.state, isActionRunning: isActionRunning };
+		this.state = { ...this.state, isActionRunning };
 	}
 
 	private onDidRunGitStatus(): void {

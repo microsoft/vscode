@@ -274,10 +274,6 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 			});
 			this.dropdownButton.element.setAttribute('aria-expanded', 'true');
 		}));
-
-		const separator = document.createElement('span');
-		separator.classList.add('monaco-dropdown-button-separator');
-		this.element.appendChild(separator);
 	}
 
 	set label(value: string) {
