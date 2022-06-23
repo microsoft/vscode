@@ -949,6 +949,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
 		const quickPick = this._quickInputService.createQuickPick();
 		quickPick.items = items;
+		quickPick.sortByLabel = false;
 		return new Promise<void>(r => {
 			quickPick.onDidTriggerItemButton(async e => {
 				if (e.button === removeFromCommandHistoryButton) {
