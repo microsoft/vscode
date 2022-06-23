@@ -181,4 +181,34 @@ suite('Markdown path completion provider', () => {
 		assert.ok(completions.some(x => x.label === 'b.md'), 'Has b.md file completion');
 		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
 	});
+
+	test('Should complete path for incomplete links', async () => {
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
+			`[](<${CURSOR}`
+		));
+
+		assert.ok(completions.some(x => x.label === 'a.md'), 'Has a.md file completion');
+		assert.ok(completions.some(x => x.label === 'b.md'), 'Has b.md file completion');
+		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
+	});
+
+	test('Should complete links that are on the line', async () => {
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
+			`text [](<${CURSOR}>) more text`
+		));
+
+		assert.ok(completions.some(x => x.label === 'a.md'), 'Has a.md file completion');
+		assert.ok(completions.some(x => x.label === 'b.md'), 'Has b.md file completion');
+		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
+	});
+
+	test('Should complete links for links with titles', async () => {
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
+			`[](<${CURSOR}> "title">`
+		));
+
+		assert.ok(completions.some(x => x.label === 'a.md'), 'Has a.md file completion');
+		assert.ok(completions.some(x => x.label === 'b.md'), 'Has b.md file completion');
+		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
+	});
 });
