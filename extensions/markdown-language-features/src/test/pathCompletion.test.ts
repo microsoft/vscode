@@ -171,4 +171,14 @@ suite('Markdown path completion provider', () => {
 
 		assert.ok(completions.some(x => x.insertText === 'file.md'), 'Has file from space');
 	});
+
+	test('Should complete path for angled brackets', async () => {
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
+			`[](<${CURSOR}>)`
+		));
+
+		assert.ok(completions.some(x => x.label === 'a.md'), 'Has a.md file completion');
+		assert.ok(completions.some(x => x.label === 'b.md'), 'Has b.md file completion');
+		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
+	});
 });
