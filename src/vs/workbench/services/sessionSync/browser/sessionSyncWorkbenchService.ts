@@ -176,7 +176,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	 */
 	private async getAccountPreference(): Promise<AuthenticationSession & { providerId: string } | undefined> {
 		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption>();
-		quickpick.title = localize('account preference', 'Edit Sessions');
+		quickpick.title = localize('account preference', 'Sign In to Use Edit Sessions');
 		quickpick.ok = false;
 		quickpick.placeholder = localize('choose account placeholder', "Select an account to sign in");
 		quickpick.ignoreFocusOut = true;
