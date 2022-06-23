@@ -264,17 +264,20 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 	}
 
 	private async *providePathSuggestions(document: SkinnyTextDocument, position: vscode.Position, context: CompletionContext): AsyncIterable<vscode.CompletionItem> {
-		const valueBeforeLastSlash = context.linkPrefix.substring(0, context.linkPrefix.lastIndexOf('/') + 1); // keep the last slash
-
+		const linkPrefix = context.linkPrefix.replace('<', '');
+		const linkSuffix = context.linkSuffix.replace('>', '');
+		const shouldRmSpecialWsEncoding = context.linkPrefix.includes('<') && context.linkSuffix.includes('>');
+		const valueBeforeLastSlash = linkPrefix.substring(0, linkPrefix.lastIndexOf('/') + 1); // keep the last slash
 		const parentDir = this.resolveReference(document, valueBeforeLastSlash || '.');
+
 		if (!parentDir) {
 			return;
 		}
 
-		const pathSegmentStart = position.translate({ characterDelta: valueBeforeLastSlash.length - context.linkPrefix.length });
+		const pathSegmentStart = position.translate({ characterDelta: valueBeforeLastSlash.length - linkPrefix.length });
 		const insertRange = new vscode.Range(pathSegmentStart, position);
 
-		const pathSegmentEnd = position.translate({ characterDelta: context.linkSuffix.length });
+		const pathSegmentEnd = position.translate({ characterDelta: linkSuffix.length });
 		const replacementRange = new vscode.Range(pathSegmentStart, pathSegmentEnd);
 
 		let dirInfo: Array<[string, vscode.FileType]>;
@@ -283,6 +286,22 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 		} catch {
 			return;
 		}
+
+		const removeInsertWSPlaceholder = function (name: string) {
+			let encodedName = encodeURIComponent(name);
+
+			// removes special encoding '%20' for whitespaces
+			// acts as a substitute for string.replaceAll
+			// because I'm not sure the changes required to get that
+			// function is worth the hassle during the pull request
+			const wsInstances = (name.match(/ /g) || []).length;
+			const loopTest = (index: number) => { return index < wsInstances && shouldRmSpecialWsEncoding; };
+			for (let i = 0; loopTest(i); i++) {
+				encodedName = encodedName.replace('%20', ' ');
+			}
+
+			return encodedName;
+		};
 
 		for (const [name, type] of dirInfo) {
 			// Exclude paths that start with `.`
@@ -293,7 +312,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 			const isDir = type === vscode.FileType.Directory;
 			yield {
 				label: isDir ? name + '/' : name,
-				insertText: isDir ? encodeURIComponent(name) + '/' : encodeURIComponent(name),
+				insertText: isDir ? removeInsertWSPlaceholder(name) + '/' : removeInsertWSPlaceholder(name),
 				kind: isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File,
 				range: {
 					inserting: insertRange,

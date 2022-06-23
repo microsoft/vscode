@@ -3,6 +3,16 @@
 	"configurations": [
 		{
 			"type": "node",
+			"name": "Compile",
+			"request": "launch",
+			"cwd": "${workspaceFolder}",
+			"windows": {
+				"runtimeExecutable": "npm",
+				"runtimeArgs": ["run", "compile"]
+			}
+		},
+		{
+			"type": "node",
 			"request": "launch",
 			"name": "Gulp Build",
 			"program": "${workspaceFolder}/node_modules/gulp/bin/gulp.js",
@@ -506,6 +516,21 @@
 				"Attach to Shared Process",
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 1
+			}
+		},
+		{
+			"name": "VS Code - Compile",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Code Internal",
+				"Attach to Main Process",
+				"Attach to Extension Host",
+				"Attach to Shared Process",
+			],
+			"preLaunchTask": "Compile and Ensure Prelaunch Dependencies",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 1

@@ -233,6 +233,15 @@
 			"group": "build",
 			"label": "npm: tsec-compile-check",
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
+		},
+		{
+			"label": "Compile and Ensure Prelaunch Dependencies",
+			"type": "shell",
+			"command": "npm run compile; if($?) { node build/lib/preLaunch.js }",
+			"presentation": {
+				"reveal": "silent",
+				"close": true
+			}
 		}
 	]
 }
