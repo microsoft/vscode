@@ -285,14 +285,17 @@ async function fetchZshHistory(accessor: ServicesAccessor) {
 async function fetchPwshHistory(accessor: ServicesAccessor) {
 	const fileService = accessor.get(IFileService);
 	const remoteAgentService = accessor.get(IRemoteAgentService);
+	let folderPrefix: string | undefined;
 	let filePath: string;
 	const remoteEnvironment = await remoteAgentService.getEnvironment();
 	if (remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows) {
-		filePath = env['APPDATA'] + '\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
+		folderPrefix = env['APPDATA'];
+		filePath = '\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
 	} else {
+		folderPrefix = env['HOME'];
 		filePath = '.local/share/powershell/PSReadline/ConsoleHost_history.txt';
 	}
-	const content = await fetchFileContents(env['HOME'], filePath, fileService, remoteAgentService);
+	const content = await fetchFileContents(folderPrefix, filePath, fileService, remoteAgentService);
 	if (content === undefined) {
 		return undefined;
 	}
