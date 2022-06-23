@@ -2593,20 +2593,19 @@ export class SCMActionButton implements IDisposable {
 			return;
 		}
 
-		if (button.secondaryCommands?.length) {
-			const executeCommitCommand = async (commandId: string) => {
-				try {
-					await this.commandService.executeCommand('git.commit', ...(button.command.arguments || []));
-					await this.commandService.executeCommand(commandId, ...(button.command.arguments || []));
-				} catch (ex) {
-					this.notificationService.error(ex);
-				}
-			};
+		const executeButtonAction = async (commandId: string, ...args: any[]) => {
+			try {
+				await this.commandService.executeCommand(commandId, ...args);
+			} catch (ex) {
+				this.notificationService.error(ex);
+			}
+		};
 
+		if (button.secondaryCommands?.length) {
 			const actions: IAction[] = [];
 			for (const commandGroup of button.secondaryCommands) {
 				for (const command of commandGroup) {
-					actions.push(new Action(command.id, command.title, undefined, true, async () => await executeCommitCommand(command.id)));
+					actions.push(new Action(command.id, command.title, undefined, true, async () => await executeButtonAction(command.id, ...(command.arguments || []))));
 				}
 				actions.push(new Separator());
 			}
@@ -2629,13 +2628,7 @@ export class SCMActionButton implements IDisposable {
 		this.button.enabled = button.enabled;
 		this.button.label = button.command.title;
 		this.button.element.title = button.command.tooltip ?? '';
-		this.button.onDidClick(async () => {
-			try {
-				await this.commandService.executeCommand(button.command.id, ...(button.command.arguments || []));
-			} catch (ex) {
-				this.notificationService.error(ex);
-			}
-		}, null, this.disposables.value);
+		this.button.onDidClick(async () => await executeButtonAction(button.command.id, ...(button.command.arguments || [])), null, this.disposables.value);
 
 		this.disposables.value!.add(this.button);
 		this.disposables.value!.add(attachButtonStyler(this.button, this.themeService));

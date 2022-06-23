@@ -114,19 +114,20 @@ export class ActionButtonCommand {
 				secondaryCommands: [
 					[
 						{
-							command: 'git.pull',
-							title: 'Commit & Pull',
+							command: 'git.commitWithPostCommitCommand',
+							title: 'Commit',
+							arguments: [this.repository.sourceControl, ''],
 						},
 						{
-							command: 'git.sync',
+							command: 'git.commitWithPostCommitCommand',
+							title: 'Commit & Push',
+							arguments: [this.repository.sourceControl, 'push'],
+						},
+						{
+							command: 'git.commitWithPostCommitCommand',
 							title: 'Commit & Sync',
+							arguments: [this.repository.sourceControl, 'sync'],
 						},
-					],
-					[
-						{
-							command: 'pr.create',
-							title: 'Commit & Create Pull Request',
-						}
 					]
 				],
 				enabled: !this.state.isActionRunning
