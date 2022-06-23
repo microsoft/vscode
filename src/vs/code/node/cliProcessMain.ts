@@ -57,7 +57,7 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 
 class CliMain extends Disposable {
@@ -163,6 +163,8 @@ class CliMain extends Disposable {
 			stateService.init(),
 			configurationService.initialize()
 		]);
+
+		userDataProfilesService.setEnablement(configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
