@@ -1403,7 +1403,7 @@ export class Repository {
 
 		if (message) {
 			options.input = message;
-			args.push('--file', '-');
+			args.push('--allow-empty-message', '--file', '-');
 		}
 
 		if (opts.verbose) {

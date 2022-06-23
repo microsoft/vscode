@@ -212,7 +212,7 @@ export class MergeEditorModel extends EditorModel {
 		transaction(tx => {
 			for (const range of this.modifiedBaseRanges.get()) {
 				if (this.getState(range).get().conflicting) {
-					this.setState(range, ModifiedBaseRangeState.default, tx);
+					this.setState(range, ModifiedBaseRangeState.default, false, tx);
 				}
 			}
 		});
@@ -229,6 +229,7 @@ export class MergeEditorModel extends EditorModel {
 					m.input1Diffs.length > 0
 						? ModifiedBaseRangeState.default.withInput1(true)
 						: ModifiedBaseRangeState.default.withInput2(true),
+					true,
 					tx
 				);
 			}
@@ -246,6 +247,7 @@ export class MergeEditorModel extends EditorModel {
 	public setState(
 		baseRange: ModifiedBaseRange,
 		state: ModifiedBaseRangeState,
+		markHandled: boolean,
 		transaction: ITransaction
 	): void {
 		if (!this.isUpToDate.get()) {
@@ -272,10 +274,12 @@ export class MergeEditorModel extends EditorModel {
 			this.resultTextModelDiffs.applyEditRelativeToOriginal(edit, transaction);
 		}
 
-		this.modifiedBaseRangeHandlingStateStores
-			.get()
-			.get(baseRange)!
-			.set(true, transaction);
+		if (markHandled) {
+			this.modifiedBaseRangeHandlingStateStores
+				.get()
+				.get(baseRange)!
+				.set(true, transaction);
+		}
 	}
 
 	private computeState(baseRange: ModifiedBaseRange, conflictingDiffs: DetailedLineRangeMapping[]): ModifiedBaseRangeState {
@@ -321,6 +325,10 @@ export class MergeEditorModel extends EditorModel {
 
 	public isHandled(baseRange: ModifiedBaseRange): IObservable<boolean> {
 		return this.modifiedBaseRangeHandlingStateStores.get().get(baseRange)!;
+	}
+
+	public setHandled(baseRange: ModifiedBaseRange, handled: boolean, tx: ITransaction): void {
+		this.modifiedBaseRangeHandlingStateStores.get().get(baseRange)!.set(handled, tx);
 	}
 }
 
