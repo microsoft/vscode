@@ -17,6 +17,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { isWeb } from 'vs/base/common/platform';
 
 /**
  * Flags to indicate whether to use the default profile or not.
@@ -71,12 +72,14 @@ export const PROFILES_ENABLEMENT_CONFIG_SCHEMA: IConfigurationPropertySchema = {
 	scope: ConfigurationScope.APPLICATION
 };
 
-// Registering here so that the configuration is read properly in main and cli processes.
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	'properties': {
-		[PROFILES_ENABLEMENT_CONFIG]: PROFILES_ENABLEMENT_CONFIG_SCHEMA
-	}
-});
+if (!isWeb) {
+	// Registering here so that the configuration is read properly in main and cli processes.
+	Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+		'properties': {
+			[PROFILES_ENABLEMENT_CONFIG]: PROFILES_ENABLEMENT_CONFIG_SCHEMA
+		}
+	});
+}
 
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
 export interface IUserDataProfilesService {
