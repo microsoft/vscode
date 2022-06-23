@@ -9,14 +9,59 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export abstract class AbstractExtHostConsoleForwarder {
 
-	protected readonly _mainThreadConsole: MainThreadConsoleShape;
+	private readonly _mainThreadConsole: MainThreadConsoleShape;
+	private readonly _includeStack: boolean;
+	private readonly _logNative: boolean;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
 		this._mainThreadConsole = extHostRpc.getProxy(MainContext.MainThreadConsole);
+		this._includeStack = initData.consoleForward.includeStack;
+		this._logNative = initData.consoleForward.logNative;
+
+		// Pass console logging to the outside so that we have it in the main side if told so
+		this._wrapConsoleMethod('info', 'log');
+		this._wrapConsoleMethod('log', 'log');
+		this._wrapConsoleMethod('warn', 'warn');
+		this._wrapConsoleMethod('error', 'error');
 	}
+
+	/**
+	 * Wraps a console message so that it is transmitted to the renderer. If
+	 * native logging is turned on, the original console message will be written
+	 * as well. This is needed since the console methods are "magic" in V8 and
+	 * are the only methods that allow later introspection of logged variables.
+	 *
+	 * The wrapped property is not defined with `writable: false` to avoid
+	 * throwing errors, but rather a no-op setting. See https://github.com/microsoft/vscode-extension-telemetry/issues/88
+	 */
+	private _wrapConsoleMethod(method: 'log' | 'info' | 'warn' | 'error', severity: 'log' | 'warn' | 'error') {
+		const that = this;
+		const original = console[method];
+
+		Object.defineProperty(console, method, {
+			set: () => { },
+			get: () => function () {
+				that._handleConsoleCall(method, severity, original, arguments);
+			},
+		});
+	}
+
+	private _handleConsoleCall(method: 'log' | 'info' | 'warn' | 'error', severity: 'log' | 'warn' | 'error', original: (...args: any[]) => void, args: IArguments): void {
+		this._mainThreadConsole.$logExtensionHostMessage({
+			type: '__$console',
+			severity,
+			arguments: safeStringifyArgumentsToArray(args, this._includeStack)
+		});
+		if (this._logNative) {
+			this._nativeConsoleLogMessage(method, original, args);
+		}
+	}
+
+	protected abstract _nativeConsoleLogMessage(method: 'log' | 'info' | 'warn' | 'error', original: (...args: any[]) => void, args: IArguments): void;
+
 }
 
 const MAX_LENGTH = 100000;
@@ -24,7 +69,7 @@ const MAX_LENGTH = 100000;
 /**
  * Prevent circular stringify and convert arguments to real array
  */
-export function safeStringifyArgumentsToArray(args: IArguments, includeStack: boolean): string {
+function safeStringifyArgumentsToArray(args: IArguments, includeStack: boolean): string {
 	const seen: any[] = [];
 	const argsArray = [];
 

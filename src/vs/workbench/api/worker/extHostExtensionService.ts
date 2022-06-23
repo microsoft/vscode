@@ -11,8 +11,7 @@ import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterc
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { timeout } from 'vs/base/common/async';
-import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { safeStringifyArgumentsToArray } from 'vs/workbench/api/common/extHostConsoleForwarder';
+import { ExtHostConsoleForwarder } from 'vs/workbench/api/worker/extHostConsoleForwarder';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
@@ -40,8 +39,8 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	private _fakeModules?: WorkerRequireInterceptor;
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
-		const mainThreadConsole = this._extHostContext.getProxy(MainContext.MainThreadConsole);
-		wrapConsoleMethods(mainThreadConsole, this._initData.consoleForward.includeStack, this._initData.environment.isExtensionDevelopmentDebug);
+		// make sure console.log calls make it to the render
+		this._instaService.createInstance(ExtHostConsoleForwarder);
 
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
@@ -140,23 +139,4 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 function ensureSuffix(path: string, suffix: string): string {
 	return path.endsWith(suffix) ? path : path + suffix;
-}
-
-// TODO@Alex: remove duplication
-// copied from bootstrap-fork.js
-function wrapConsoleMethods(service: MainThreadConsoleShape, includeStack: boolean, logNative: boolean) {
-	wrapConsoleMethod('info', 'log');
-	wrapConsoleMethod('log', 'log');
-	wrapConsoleMethod('warn', 'warn');
-	wrapConsoleMethod('error', 'error');
-
-	function wrapConsoleMethod(method: 'log' | 'info' | 'warn' | 'error', severity: 'log' | 'warn' | 'error') {
-		const original = console[method];
-		console[method] = function () {
-			service.$logExtensionHostMessage({ type: '__$console', severity, arguments: safeStringifyArgumentsToArray(arguments, includeStack) });
-			if (logNative) {
-				original.apply(console, arguments as any);
-			}
-		};
-	}
 }

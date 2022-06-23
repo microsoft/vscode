@@ -11,8 +11,6 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IRemoteConsoleLog, log } from 'vs/base/common/console';
-import { logRemoteEntry, logRemoteEntryIfError } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -309,13 +307,6 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 			}
 		});
 
-		// Support logging from extension host
-		this._extensionHostProcess.onMessage(msg => {
-			if (msg && (<IRemoteConsoleLog>msg).type === '__$console') {
-				this._logExtensionHostMessage(<IRemoteConsoleLog>msg);
-			}
-		});
-
 		// Lifecycle
 
 		this._extensionHostProcess.onError((e) => this._onExtHostProcessError(e.error));
@@ -489,17 +480,6 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 			autoStart: initData.autoStart,
 			uiKind: UIKind.Desktop
 		};
-	}
-
-	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
-		if (this._isExtensionDevTestFromCli) {
-			// If running tests from cli, log to the log service everything
-			logRemoteEntry(this._logService, entry);
-		} else {
-			// Log to the log service only errors and log everything to local console
-			logRemoteEntryIfError(this._logService, entry, 'Extension Host');
-			log(entry, 'Extension Host');
-		}
 	}
 
 	private _onExtHostProcessError(_err: SerializedError): void {
