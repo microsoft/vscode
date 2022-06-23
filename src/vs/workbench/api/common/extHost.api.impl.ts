@@ -92,6 +92,7 @@ import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
 import { combinedDisposable } from 'vs/base/common/lifecycle';
 import { checkProposedApiEnabled, ExtensionIdentifierSet, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -790,6 +791,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get tabGroups(): vscode.TabGroups {
 				return extHostEditorTabs.tabGroups;
 			},
+			reload(options?: { env?: IProcessEnvironment }) {
+				checkProposedApiEnabled(extension, 'reloadWindow');
+				extHostWindow.reload(options ?? {});
+			}
 		};
 
 		// namespace: workspace

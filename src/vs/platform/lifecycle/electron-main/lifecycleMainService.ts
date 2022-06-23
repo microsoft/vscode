@@ -8,7 +8,7 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Barrier, Promises, timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { assertIsDefined } from 'vs/base/common/types';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
@@ -119,7 +119,7 @@ export interface ILifecycleMainService {
 	/**
 	 * Reload a window. All lifecycle event handlers are triggered.
 	 */
-	reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void>;
+	reload(window: ICodeWindow, cli?: NativeParsedArgs, env?: IProcessEnvironment): Promise<void>;
 
 	/**
 	 * Unload a window for the provided reason. All lifecycle event handlers are triggered.
@@ -434,12 +434,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		});
 	}
 
-	async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> {
+	async reload(window: ICodeWindow, cli?: NativeParsedArgs, env?: IProcessEnvironment): Promise<void> {
 
 		// Only reload when the window has not vetoed this
 		const veto = await this.unload(window, UnloadReason.RELOAD);
 		if (!veto) {
-			window.reload(cli);
+			window.reload(cli, env);
 		}
 	}
 

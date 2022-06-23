@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
 
@@ -81,7 +82,7 @@ export interface IHostService {
 	/**
 	 * Reload the currently active window.
 	 */
-	reload(options?: { disableExtensions?: boolean }): Promise<void>;
+	reload(options?: { disableExtensions?: boolean; env?: IProcessEnvironment }): Promise<void>;
 
 	/**
 	 * Attempt to close the active window.

@@ -11,6 +11,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
@@ -65,6 +66,10 @@ export class ExtHostWindow implements ExtHostWindowShape {
 
 		const result = await this._proxy.$asExternalUri(uri, options);
 		return URI.from(result);
+	}
+
+	reload(options: { env?: IProcessEnvironment }) {
+		this._proxy.$reload(options);
 	}
 }
 

@@ -18,6 +18,7 @@ import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/window/electr
 import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
 import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 suite('WindowsFinder', () => {
 
@@ -55,7 +56,7 @@ suite('WindowsFinder', () => {
 			setReady(): void { throw new Error('Method not implemented.'); }
 			addTabbedWindow(window: ICodeWindow): void { throw new Error('Method not implemented.'); }
 			load(config: INativeWindowConfiguration, options: { isReload?: boolean }): void { throw new Error('Method not implemented.'); }
-			reload(cli?: NativeParsedArgs): void { throw new Error('Method not implemented.'); }
+			reload(cli?: NativeParsedArgs, env?: IProcessEnvironment): void { throw new Error('Method not implemented.'); }
 			focus(options?: { force: boolean }): void { throw new Error('Method not implemented.'); }
 			close(): void { throw new Error('Method not implemented.'); }
 			getBounds(): Electron.Rectangle { throw new Error('Method not implemented.'); }

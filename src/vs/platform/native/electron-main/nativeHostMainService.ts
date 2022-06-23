@@ -13,7 +13,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, join, resolve } from 'vs/base/common/path';
-import { isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { realpath } from 'vs/base/node/extpath';
@@ -671,7 +671,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return this.lifecycleMainService.relaunch(options);
 	}
 
-	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
+	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean; env?: IProcessEnvironment }): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
 
@@ -691,7 +691,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			}
 
 			// Proceed normally to reload the window
-			return this.lifecycleMainService.reload(window, options?.disableExtensions !== undefined ? { _: [], 'disable-extensions': options.disableExtensions } : undefined);
+			return this.lifecycleMainService.reload(
+				window, options?.disableExtensions !== undefined ? { _: [], 'disable-extensions': options.disableExtensions } : undefined, options?.env);
 		}
 	}
 

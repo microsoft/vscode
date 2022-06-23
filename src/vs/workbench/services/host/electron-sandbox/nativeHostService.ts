@@ -14,6 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -127,7 +128,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.relaunch();
 	}
 
-	reload(options?: { disableExtensions?: boolean }): Promise<void> {
+	reload(options?: { disableExtensions?: boolean; env?: IProcessEnvironment }): Promise<void> {
 		return this.nativeHostService.reload(options);
 	}
 

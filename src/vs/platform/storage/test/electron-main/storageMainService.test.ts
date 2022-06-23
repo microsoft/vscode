@@ -7,6 +7,7 @@ import { notStrictEqual, strictEqual } from 'assert';
 import { Promises } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -86,7 +87,7 @@ suite('StorageMainService', function () {
 		phase = LifecycleMainPhase.Ready;
 
 		registerWindow(window: ICodeWindow): void { }
-		async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> { }
+		async reload(window: ICodeWindow, cli?: NativeParsedArgs, env?: IProcessEnvironment): Promise<void> { }
 		async unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean> { return true; }
 		async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined }): Promise<void> { }
 		async quit(willRestart?: boolean): Promise<boolean> { return true; }

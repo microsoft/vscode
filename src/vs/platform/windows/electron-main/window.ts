@@ -13,7 +13,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { getMarks, mark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
@@ -56,6 +56,7 @@ interface ITouchBarSegment extends SegmentedControlSegment {
 interface ILoadOptions {
 	isReload?: boolean;
 	disableExtensions?: boolean;
+	env?: IProcessEnvironment;
 }
 
 const enum ReadyState {
@@ -849,6 +850,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 		}
 
+		// If an environment was explicitly provided in the options, add it.
+		if (options.env) {
+			Object.assign(configuration.userEnv, options.env);
+		}
+
 		// If named pipe was instantiated for the crashpad_handler process, reuse the same
 		// pipe for new app instances connecting to the original app instance.
 		// Ref: https://github.com/microsoft/vscode/issues/115874
@@ -877,7 +883,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.configObjectUrl.update(configuration);
 	}
 
-	async reload(cli?: NativeParsedArgs): Promise<void> {
+	async reload(cli?: NativeParsedArgs, env?: IProcessEnvironment): Promise<void> {
 
 		// Copy our current config for reuse
 		const configuration = Object.assign({}, this._config);
@@ -910,7 +916,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		};
 
 		// Load config
-		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
+		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'], env });
 	}
 
 	private async validateWorkspaceBeforeReload(configuration: INativeWindowConfiguration): Promise<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined> {

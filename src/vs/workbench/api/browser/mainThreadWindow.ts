@@ -10,6 +10,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -62,5 +63,9 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
 		const result = await this.openerService.resolveExternalUri(URI.revive(uriComponents), options);
 		return result.resolved;
+	}
+
+	$reload(options: { env?: IProcessEnvironment }): void {
+		this.hostService.reload(options);
 	}
 }

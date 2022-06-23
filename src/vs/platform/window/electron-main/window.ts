@@ -7,6 +7,7 @@ import { BrowserWindow, Rectangle } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -48,7 +49,7 @@ export interface ICodeWindow extends IDisposable {
 	addTabbedWindow(window: ICodeWindow): void;
 
 	load(config: INativeWindowConfiguration, options?: { isReload?: boolean }): void;
-	reload(cli?: NativeParsedArgs): void;
+	reload(cli?: NativeParsedArgs, env?: IProcessEnvironment): void;
 
 	focus(options?: { force: boolean }): void;
 	close(): void;
