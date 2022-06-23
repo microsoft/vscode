@@ -181,8 +181,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 			};
 		}
 
-		const angleBrackets = /^\s*\[(.*?)\]\(\s*<(.*?)>\s*$/;
-		const angleBracketsMatch = linePrefixText.match(angleBrackets);
+		const angleBracketsMatch = linePrefixText.match(this.referenceLinkStartPattern);
 		if (angleBracketsMatch) {
 			const prefix = angleBracketsMatch[2];
 			if (this.refLooksLikeUrl(prefix)) {
