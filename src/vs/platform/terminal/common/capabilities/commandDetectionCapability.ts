@@ -576,7 +576,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: e.exitCode,
 				hasOutput: !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				genericMarkProperties: e.genericMarkProperties?.hoverMessage ? { hoverMessage: e.genericMarkProperties.hoverMessage } : undefined
+				genericMarkProperties: e.genericMarkProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);

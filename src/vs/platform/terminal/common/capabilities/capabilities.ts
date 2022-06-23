@@ -11,7 +11,7 @@ interface IEvent<T, U = void> {
 	(listener: (arg1: T, arg2: U) => any): IDisposable;
 }
 
-interface IMarker extends IDisposable {
+export interface IMarker extends IDisposable {
 	/**
 	 * A unique identifier for this marker.
 	 */

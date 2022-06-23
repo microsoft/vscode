@@ -638,21 +638,15 @@ export interface ITerminalInstance {
 	showEnvironmentInfoHover(): void;
 
 	/**
-	 * Adds a generic marker to the buffer
+	 * Registers and returns a marker
 	 */
-	addGenericMarker(): void;
+	registerMarker(): IMarker | undefined;
 
 	/**
-	 * Adds a decoration to the buffer
+	 * Adds a decoration to the buffer at the @param marker
 	 * @param genericMarkProperties
 	 */
-	addDecoration(genericMarkProperties: IGenericMarkProperties): void;
-
-
-	/**
-	 * The stored marker is unneeded, so dispose of it
-	 */
-	invalidateLastMarker(): void;
+	addGenericMark(marker: IMarker, genericMarkProperties: IGenericMarkProperties): void;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.

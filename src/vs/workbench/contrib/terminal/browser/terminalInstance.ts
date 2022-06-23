@@ -213,7 +213,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _target?: TerminalLocation | undefined;
 	private _disableShellIntegrationReporting: boolean | undefined;
 	private _usedShellIntegrationInjection: boolean = false;
-	private _genericMarker: IMarker | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -1596,20 +1595,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	public addGenericMarker(): void {
-		this._genericMarker = this.xterm?.raw.registerMarker();
+	public registerMarker(): IMarker | undefined {
+		return this.xterm?.raw.registerMarker();
 	}
 
-	public addDecoration(genericMarkProperties: IGenericMarkProperties): void {
-		if (this._genericMarker) {
-			this.xterm?.addDecoration(this._genericMarker, genericMarkProperties);
-		} else {
-		}
-	}
-
-	public invalidateLastMarker(): void {
-		this._genericMarker?.dispose();
-		this._genericMarker = undefined;
+	public addGenericMark(marker: IMarker, genericMarkProperties: IGenericMarkProperties): void {
+		this.xterm?.addDecoration(marker, genericMarkProperties);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
