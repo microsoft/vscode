@@ -160,7 +160,7 @@ class CliMain extends Disposable {
 
 		// Initialize
 		await Promise.all([
-			stateService.init().then(() => userDataProfilesService.init()),
+			stateService.init(),
 			configurationService.initialize()
 		]);
 

@@ -44,10 +44,7 @@ export class UserDataProfilesService extends BaseUserDataProfilesService impleme
 		@ILogService logService: ILogService,
 	) {
 		super(environmentService, fileService, logService);
-	}
-
-	init(): void {
-		this._profilesObject = undefined;
+		stateService.whenInitialized.then(() => this._profilesObject = undefined);
 	}
 
 	protected _profilesObject: UserDataProfilesObject | undefined;
