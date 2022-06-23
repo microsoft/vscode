@@ -114,15 +114,15 @@ export interface ICommandDetectionCapability {
 	 * case the terminal's initial cwd should be used.
 	 */
 	getCwdForLine(line: number): string | undefined;
-	handlePromptStart(): void;
+	handlePromptStart(options?: IHandleCommandOptions): void;
 	handleContinuationStart(): void;
 	handleContinuationEnd(): void;
 	handleRightPromptStart(): void;
 	handleRightPromptEnd(): void;
-	handleCommandStart(options?: IHandleCommandStartOptions): void;
-	handleGenericCommand(options?: IHandleCommandStartOptions): void;
-	handleCommandExecuted(): void;
-	handleCommandFinished(exitCode?: number, options?: IHandleCommandStartOptions): void;
+	handleCommandStart(options?: IHandleCommandOptions): void;
+	handleGenericCommand(options?: IHandleCommandOptions): void;
+	handleCommandExecuted(options?: IHandleCommandOptions): void;
+	handleCommandFinished(exitCode?: number, options?: IHandleCommandOptions): void;
 	invalidateCurrentCommand(request: ICommandInvalidationRequest): void;
 	/**
 	 * Set the command line explicitly.
@@ -132,7 +132,7 @@ export interface ICommandDetectionCapability {
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
 
-export interface IHandleCommandStartOptions {
+export interface IHandleCommandOptions {
 	/**
 	 * Whether to allow an empty command to be registered. This should be used to support certain
 	 * shell integration scripts/features where tracking the command line may not be possible.

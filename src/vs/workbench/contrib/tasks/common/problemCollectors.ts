@@ -64,6 +64,9 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	protected readonly _onDidFindErrors = new Emitter<void>();
 	readonly onDidFindErrors = this._onDidFindErrors.event;
 
+	protected readonly _onDidRequestInvalidateLastMarker = new Emitter<void>();
+	readonly onDidRequestInvalidateLastMarker = this._onDidRequestInvalidateLastMarker.event;
+
 	constructor(public readonly problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
 		this.matchers = Object.create(null);
 		this.bufferLength = 1;
@@ -524,6 +527,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			if (matches) {
 				if (this._numberOfMatches > 0) {
 					this._onDidFindErrors.fire();
+				} else {
+					this._onDidRequestInvalidateLastMarker.fire();
 				}
 				if (this._activeBackgroundMatchers.has(background.key)) {
 					this._activeBackgroundMatchers.delete(background.key);

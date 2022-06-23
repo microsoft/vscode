@@ -648,6 +648,12 @@ export interface ITerminalInstance {
 	 */
 	addDecoration(genericMarkProperties: IGenericMarkProperties): void;
 
+
+	/**
+	 * The stored marker is unneeded, so dispose of it
+	 */
+	invalidateLastMarker(): void;
+
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *

@@ -1597,15 +1597,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public addGenericMarker(): void {
-		this._genericMarker = this.xterm?.raw.registerMarker(0);
+		this._genericMarker = this.xterm?.raw.registerMarker();
 	}
 
 	public addDecoration(genericMarkProperties: IGenericMarkProperties): void {
 		if (this._genericMarker) {
 			this.xterm?.addDecoration(this._genericMarker, genericMarkProperties);
 		} else {
-			throw new Error(`No marker for decoration, ${genericMarkProperties}`);
 		}
+	}
+
+	public invalidateLastMarker(): void {
+		this._genericMarker?.dispose();
+		this._genericMarker = undefined;
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

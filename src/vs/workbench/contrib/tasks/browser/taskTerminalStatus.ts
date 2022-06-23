@@ -55,6 +55,7 @@ export class TaskTerminalStatus extends Disposable {
 		terminal.statusList.add(status);
 		problemMatcher.onDidFindFirstMatch(() => terminal.addGenericMarker());
 		problemMatcher.onDidFindErrors(() => terminal.addDecoration({ hoverMessage: nls.localize('task.watchFirstError', "First error"), disableCommandStorage: true }));
+		problemMatcher.onDidRequestInvalidateLastMarker(() => terminal.invalidateLastMarker());
 		this.terminalMap.set(task._id, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
 
