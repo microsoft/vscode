@@ -190,17 +190,10 @@ function pipeLoggingToParent(includeStack: boolean) {
 	}
 
 	// Pass console logging to the outside so that we have it in the main side if told so
-	if (process.env['VSCODE_VERBOSE_LOGGING'] === 'true') {
-		wrapConsoleMethod('info', 'log');
-		wrapConsoleMethod('log', 'log');
-		wrapConsoleMethod('warn', 'warn');
-		wrapConsoleMethod('error', 'error');
-	} else if (process.env['VSCODE_LOG_NATIVE'] !== 'true') {
-		console.log = function () { /* ignore */ };
-		console.warn = function () { /* ignore */ };
-		console.info = function () { /* ignore */ };
-		wrapConsoleMethod('error', 'error');
-	}
+	wrapConsoleMethod('info', 'log');
+	wrapConsoleMethod('log', 'log');
+	wrapConsoleMethod('warn', 'warn');
+	wrapConsoleMethod('error', 'error');
 
 	wrapStream('stderr', 'error');
 	wrapStream('stdout', 'log');
