@@ -127,14 +127,18 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		});
 		await Promises.settled(joiners);
 
-		if (this.profiles.length === 2) {
-			await this.fileService.del(this.profilesHome, { recursive: true });
-		} else {
-			await this.fileService.del(profile.location, { recursive: true });
-		}
-
 		this.setStoredWorskpaceInfos(this.getStoredWorskpaceInfos().filter(p => !this.uriIdentityService.extUri.isEqual(p.profile, profile.location)));
 		this.setStoredProfiles(this.getStoredProfiles().filter(p => !this.uriIdentityService.extUri.isEqual(p.location, profile.location)));
+
+		try {
+			if (this.profiles.length === 2) {
+				await this.fileService.del(this.profilesHome, { recursive: true });
+			} else {
+				await this.fileService.del(profile.location, { recursive: true });
+			}
+		} catch (error) {
+			this.logService.error(error);
+		}
 	}
 
 	private setStoredProfiles(storedProfiles: StoredUserDataProfile[]) {
