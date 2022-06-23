@@ -11,14 +11,14 @@ import { MdVsCodePathCompletionProvider } from '../languageFeatures/pathCompleti
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { InMemoryMdWorkspace } from './inMemoryWorkspace';
 import { nulLogger } from './nulLogging';
 import { CURSOR, getCursorPositions, joinLines, workspacePath } from './util';
 
 
 function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string) {
 	const doc = new InMemoryDocument(resource, fileContents);
-	const workspace = new InMemoryWorkspaceMarkdownDocuments([doc]);
+	const workspace = new InMemoryMdWorkspace([doc]);
 
 	const engine = createNewMarkdownEngine();
 	const linkProvider = new MdLinkProvider(engine, workspace, nulLogger);

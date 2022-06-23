@@ -10,7 +10,7 @@ import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/window/common/window';
@@ -836,14 +836,23 @@ export class NativeWindow extends Disposable {
 		}
 
 		if (inputs.length) {
-			this.openResources(inputs, diffMode);
-		}
+			const openedEditorPanes = await this.openResources(inputs, diffMode);
 
-		if (request.filesToWait && inputs.length) {
-			// In wait mode, listen to changes to the editors and wait until the files
-			// are closed that the user wants to wait for. When this happens we delete
-			// the wait marker file to signal to the outside that editing is done.
-			this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(path => URI.revive(path.fileUri))));
+			if (request.filesToWait) {
+
+				// In wait mode, listen to changes to the editors and wait until the files
+				// are closed that the user wants to wait for. When this happens we delete
+				// the wait marker file to signal to the outside that editing is done.
+				// However, it is possible that opening of the editors failed, as such we
+				// check for whether editor panes got opened and otherwise delete the marker
+				// right away.
+
+				if (openedEditorPanes.length) {
+					return this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(path => URI.revive(path.fileUri))));
+				} else {
+					return this.fileService.del(URI.revive(request.filesToWait.waitMarkerFileUri));
+				}
+			}
 		}
 	}
 
@@ -856,7 +865,7 @@ export class NativeWindow extends Disposable {
 		await this.fileService.del(waitMarkerFile);
 	}
 
-	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
+	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<readonly IEditorPane[]> {
 		const editors: IUntypedEditorInput[] = [];
 
 		// In diffMode we open 2 resources as diff

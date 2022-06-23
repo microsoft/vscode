@@ -989,6 +989,7 @@ export class MenuBar extends Disposable {
 		customMenu.buttonElement.classList.add('open');
 
 		const buttonBoundingRect = customMenu.buttonElement.getBoundingClientRect();
+		const buttonBoundingRectZoom = DOM.getDomNodeZoomLevel(customMenu.buttonElement);
 
 		if (this.options.compactMode === Direction.Right) {
 			menuHolder.style.top = `${buttonBoundingRect.top}px`;
@@ -998,8 +999,8 @@ export class MenuBar extends Disposable {
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.top = `${buttonBoundingRect.bottom}px`;
-			menuHolder.style.left = `${buttonBoundingRect.left}px`;
+			menuHolder.style.top = `${buttonBoundingRect.bottom * buttonBoundingRectZoom}px`;
+			menuHolder.style.left = `${buttonBoundingRect.left * buttonBoundingRectZoom}px`;
 		}
 
 		customMenu.buttonElement.appendChild(menuHolder);

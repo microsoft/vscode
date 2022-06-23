@@ -107,7 +107,7 @@ export interface ICommandDetectionCapability {
 	handleContinuationEnd(): void;
 	handleRightPromptStart(): void;
 	handleRightPromptEnd(): void;
-	handleCommandStart(): void;
+	handleCommandStart(options?: IHandleCommandStartOptions): void;
 	handleCommandExecuted(): void;
 	handleCommandFinished(exitCode: number | undefined): void;
 	/**
@@ -116,6 +116,14 @@ export interface ICommandDetectionCapability {
 	setCommandLine(commandLine: string): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export interface IHandleCommandStartOptions {
+	/**
+	 * Whether to allow an empty command to be registered. This should be used to support certain
+	 * shell integration scripts/features where tracking the command line may not be possible.
+	 */
+	ignoreCommandLine?: boolean;
 }
 
 export interface INaiveCwdDetectionCapability {

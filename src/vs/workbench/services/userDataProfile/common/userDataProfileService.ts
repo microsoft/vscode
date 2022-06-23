@@ -13,28 +13,27 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 
 	readonly _serviceBrand: undefined;
 
-	readonly defaultProfile: IUserDataProfile;
-
 	private readonly _onDidChangeCurrentProfile = this._register(new Emitter<DidChangeUserDataProfileEvent>());
 	readonly onDidChangeCurrentProfile = this._onDidChangeCurrentProfile.event;
 
 	private _currentProfile: IUserDataProfile;
 	get currentProfile(): IUserDataProfile { return this._currentProfile; }
 
-	constructor(
-		defaultProfile: IUserDataProfile,
-		currentProfile: IUserDataProfile,
-	) {
+	constructor(currentProfile: IUserDataProfile) {
 		super();
-		this.defaultProfile = defaultProfile;
 		this._currentProfile = currentProfile;
 	}
 
 	async updateCurrentProfile(userDataProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+		if (this._currentProfile.id === userDataProfile.id) {
+			return;
+		}
+		const previous = this._currentProfile;
 		this._currentProfile = userDataProfile;
 		const joiners: Promise<void>[] = [];
 		this._onDidChangeCurrentProfile.fire({
 			preserveData,
+			previous,
 			profile: userDataProfile,
 			join(promise) {
 				joiners.push(promise);

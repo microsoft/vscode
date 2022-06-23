@@ -348,6 +348,8 @@ export interface INavigationMode {
 	exitNavigationMode(): void;
 	focusPreviousLine(): void;
 	focusNextLine(): void;
+	focusPreviousPage(): void;
+	focusNextPage(): void;
 }
 
 export interface IBeforeProcessDataEvent {
@@ -555,7 +557,9 @@ export const enum TerminalCommandId {
 	ToggleFindCaseSensitive = 'workbench.action.terminal.toggleFindCaseSensitive',
 	NavigationModeExit = 'workbench.action.terminal.navigationModeExit',
 	NavigationModeFocusNext = 'workbench.action.terminal.navigationModeFocusNext',
+	NavigationModeFocusNextPage = 'workbench.action.terminal.navigationModeFocusNextPage',
 	NavigationModeFocusPrevious = 'workbench.action.terminal.navigationModeFocusPrevious',
+	NavigationModeFocusPreviousPage = 'workbench.action.terminal.navigationModeFocusPreviousPage',
 	ShowEnvironmentInformation = 'workbench.action.terminal.showEnvironmentInformation',
 	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
 	AttachToSession = 'workbench.action.terminal.attachToSession',

@@ -49,7 +49,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (this.userDataProfileService.currentProfile.extensionsResource) {
 			return this.userDataProfileService.currentProfile.extensionsResource;
 		}
-		if (!this.userDataProfileService.defaultProfile.extensionsResource) {
+		if (!this.userDataProfilesService.defaultProfile.extensionsResource) {
 			// Extensions profile is not yet created for default profile, create it now
 			return this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, EXTENSIONS_RESOURCE_NAME));
 		}
@@ -99,6 +99,9 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		}
 		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
 			throw new Error(`Profile ${profile.name} does not exist`);
+		}
+		if (this.userDataProfileService.currentProfile.id === profile.id) {
+			return;
 		}
 		await this.userDataProfilesService.setProfileForWorkspace(profile, workspaceIdentifier);
 		await this.enterProfile(profile, false);

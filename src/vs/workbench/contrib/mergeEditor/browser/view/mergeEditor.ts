@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/mergeEditor';
-import './colors';
 import { $, Dimension, reset } from 'vs/base/browser/dom';
 import { Direction, Grid, IView, SerializableGrid } from 'vs/base/browser/ui/grid/grid';
 import { Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -14,6 +12,7 @@ import { Color } from 'vs/base/common/color';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import 'vs/css!./media/mergeEditor';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -36,17 +35,18 @@ import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { autorunWithStore } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { autorunWithStore, IObservable } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { DocumentMapping, getOppositeDirection, MappingDirection } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
+import { ReentrancyBarrier, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import './colors';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
 import { ResultCodeEditorView } from './editors/resultCodeEditorView';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false);
 export const ctxUsesColumnLayout = new RawContextKey<boolean>('mergeEditorUsesColumnLayout', false);
@@ -60,9 +60,9 @@ export class MergeEditor extends AbstractTextEditor<any> {
 
 	private _grid!: Grid<IView>;
 
-	private readonly input1View = this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable });
-	private readonly input2View = this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable });
-	private readonly inputResultView = this.instantiation.createInstance(ResultCodeEditorView, { readonly: false });
+	private readonly input1View = this._register(this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable }));
+	private readonly input2View = this._register(this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable }));
+	private readonly inputResultView = this._register(this.instantiation.createInstance(ResultCodeEditorView, { readonly: false }));
 
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
 	private readonly _ctxUsesColumnLayout: IContextKey<boolean>;
@@ -155,6 +155,10 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		toolbarMenuRender();
 	}
 
+	public get viewModel(): IObservable<MergeEditorViewModel | undefined> {
+		return this.input1View.viewModel;
+	}
+
 	override dispose(): void {
 		this._sessionDisposables.dispose();
 		this._ctxIsMergeEditor.reset();
@@ -195,6 +199,7 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		});
 
 		reset(parent, this._grid.element);
+		this._register(this._grid);
 		this._ctxUsesColumnLayout.set(false);
 
 		this.applyOptions(initialOptions);
@@ -234,6 +239,16 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		this.input2View.setModel(viewModel, model.input2, model.input2Title || localize('input2', 'Input 2',), model.input2Detail, model.input2Description);
 		this.inputResultView.setModel(viewModel, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
 		this._ctxBaseResourceScheme.set(model.base.uri.scheme);
+
+		this._sessionDisposables.add(thenIfNotDisposed(model.onInitialized, () => {
+			const firstConflict = model.modifiedBaseRanges.get().find(r => r.isConflicting);
+			if (!firstConflict) {
+				return;
+			}
+
+			this.input1View.editor.revealLineInCenter(firstConflict.input1Range.startLineNumber);
+		}));
+
 
 		this._sessionDisposables.add(autorunWithStore((reader, store) => {
 			const input1ViewZoneIds: string[] = [];

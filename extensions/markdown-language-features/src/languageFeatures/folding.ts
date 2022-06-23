@@ -7,7 +7,7 @@ import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { IMdParser } from '../markdownEngine';
 import { MdTableOfContentsProvider } from '../tableOfContents';
-import { SkinnyTextDocument } from '../workspaceContents';
+import { ITextDocument } from '../types/textDocument';
 
 const rangeLimit = 5000;
 
@@ -23,7 +23,7 @@ export class MdFoldingProvider implements vscode.FoldingRangeProvider {
 	) { }
 
 	public async provideFoldingRanges(
-		document: SkinnyTextDocument,
+		document: ITextDocument,
 		_: vscode.FoldingContext,
 		_token: vscode.CancellationToken
 	): Promise<vscode.FoldingRange[]> {
@@ -35,7 +35,7 @@ export class MdFoldingProvider implements vscode.FoldingRangeProvider {
 		return foldables.flat().slice(0, rangeLimit);
 	}
 
-	private async getRegions(document: SkinnyTextDocument): Promise<vscode.FoldingRange[]> {
+	private async getRegions(document: ITextDocument): Promise<vscode.FoldingRange[]> {
 		const tokens = await this.parser.tokenize(document);
 		const regionMarkers = tokens.filter(isRegionMarker)
 			.map(token => ({ line: token.map[0], isStart: isStartRegion(token.content) }));
@@ -55,7 +55,7 @@ export class MdFoldingProvider implements vscode.FoldingRangeProvider {
 			.filter((region: vscode.FoldingRange | null): region is vscode.FoldingRange => !!region);
 	}
 
-	private async getHeaderFoldingRanges(document: SkinnyTextDocument): Promise<vscode.FoldingRange[]> {
+	private async getHeaderFoldingRanges(document: ITextDocument): Promise<vscode.FoldingRange[]> {
 		const toc = await this.tocProvide.getForDocument(document);
 		return toc.entries.map(entry => {
 			let endLine = entry.sectionLocation.range.end.line;
@@ -66,7 +66,7 @@ export class MdFoldingProvider implements vscode.FoldingRangeProvider {
 		});
 	}
 
-	private async getBlockFoldingRanges(document: SkinnyTextDocument): Promise<vscode.FoldingRange[]> {
+	private async getBlockFoldingRanges(document: ITextDocument): Promise<vscode.FoldingRange[]> {
 		const tokens = await this.parser.tokenize(document);
 		const multiLineListItems = tokens.filter(isFoldableToken);
 		return multiLineListItems.map(listItem => {

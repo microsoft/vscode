@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
+import { addExternalEditorsDropData, toVSDataTransfer, UriList } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -137,9 +137,9 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 		return undefined;
 	}
 
-	private getUriListInsertText(urlList: string): string | undefined {
+	private getUriListInsertText(strUriList: string): string | undefined {
 		const uris: URI[] = [];
-		for (const resource of urlList.split('\n')) {
+		for (const resource of UriList.parse(strUriList)) {
 			try {
 				uris.push(URI.parse(resource));
 			} catch {

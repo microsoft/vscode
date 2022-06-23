@@ -12,6 +12,7 @@ import { IUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataPr
 
 export interface DidChangeUserDataProfileEvent {
 	readonly preserveData: boolean;
+	readonly previous: IUserDataProfile;
 	readonly profile: IUserDataProfile;
 	join(promise: Promise<void>): void;
 }
@@ -19,7 +20,6 @@ export interface DidChangeUserDataProfileEvent {
 export const IUserDataProfileService = createDecorator<IUserDataProfileService>('IUserDataProfileService');
 export interface IUserDataProfileService {
 	readonly _serviceBrand: undefined;
-	readonly defaultProfile: IUserDataProfile;
 	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
 	updateCurrentProfile(currentProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
