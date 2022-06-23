@@ -40,7 +40,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
 		const mainThreadConsole = this._extHostContext.getProxy(MainContext.MainThreadConsole);
-		wrapConsoleMethods(mainThreadConsole, this._initData.environment.isExtensionDevelopmentDebug);
+		wrapConsoleMethods(mainThreadConsole, this._initData.consoleForward.includeStack, this._initData.environment.isExtensionDevelopmentDebug);
 
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
@@ -143,51 +143,54 @@ function ensureSuffix(path: string, suffix: string): string {
 
 // TODO@Alex: remove duplication
 // copied from bootstrap-fork.js
-function wrapConsoleMethods(service: MainThreadConsoleShape, callToNative: boolean) {
-	wrap('info', 'log');
-	wrap('log', 'log');
-	wrap('warn', 'warn');
-	wrap('error', 'error');
-
-	function wrap(method: 'error' | 'warn' | 'info' | 'log', severity: 'error' | 'warn' | 'log') {
-		const original = console[method];
-		console[method] = function () {
-			service.$logExtensionHostMessage({ type: '__$console', severity, arguments: safeToArray(arguments) });
-			if (callToNative) {
-				original.apply(console, arguments as any);
-			}
-		};
-	}
+function wrapConsoleMethods(service: MainThreadConsoleShape, includeStack: boolean, logNative: boolean) {
+	wrapConsoleMethod('info', 'log');
+	wrapConsoleMethod('log', 'log');
+	wrapConsoleMethod('warn', 'warn');
+	wrapConsoleMethod('error', 'error');
 
 	const MAX_LENGTH = 100000;
 
-	function safeToArray(args: IArguments) {
+	/**
+	 * Prevent circular stringify and convert arguments to real array
+	 */
+	function safeToArray(args: ArrayLike<unknown>) {
 		const seen: any[] = [];
 		const argsArray = [];
 
 		// Massage some arguments with special treatment
 		if (args.length) {
 			for (let i = 0; i < args.length; i++) {
+				let arg = args[i];
 
 				// Any argument of type 'undefined' needs to be specially treated because
 				// JSON.stringify will simply ignore those. We replace them with the string
 				// 'undefined' which is not 100% right, but good enough to be logged to console
-				if (typeof args[i] === 'undefined') {
-					args[i] = 'undefined';
+				if (typeof arg === 'undefined') {
+					arg = 'undefined';
 				}
 
 				// Any argument that is an Error will be changed to be just the error stack/message
 				// itself because currently cannot serialize the error over entirely.
-				else if (args[i] instanceof Error) {
-					const errorObj = args[i];
+				else if (arg instanceof Error) {
+					const errorObj = arg;
 					if (errorObj.stack) {
-						args[i] = errorObj.stack;
+						arg = errorObj.stack;
 					} else {
-						args[i] = errorObj.toString();
+						arg = errorObj.toString();
 					}
 				}
 
-				argsArray.push(args[i]);
+				argsArray.push(arg);
+			}
+		}
+
+		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
+		// to start the stacktrace where the console message was being written
+		if (includeStack) {
+			const stack = new Error().stack;
+			if (stack) {
+				argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
 			}
 		}
 
@@ -195,7 +198,7 @@ function wrapConsoleMethods(service: MainThreadConsoleShape, callToNative: boole
 			const res = JSON.stringify(argsArray, function (key, value) {
 
 				// Objects get special treatment to prevent circles
-				if (value && typeof value === 'object') {
+				if (isObject(value) || Array.isArray(value)) {
 					if (seen.indexOf(value) !== -1) {
 						return '[Circular]';
 					}
@@ -214,5 +217,23 @@ function wrapConsoleMethods(service: MainThreadConsoleShape, callToNative: boole
 		} catch (error) {
 			return `Output omitted for an object that cannot be inspected ('${error.toString()}')`;
 		}
+	}
+
+	function isObject(obj: unknown) {
+		return typeof obj === 'object'
+			&& obj !== null
+			&& !Array.isArray(obj)
+			&& !(obj instanceof RegExp)
+			&& !(obj instanceof Date);
+	}
+
+	function wrapConsoleMethod(method: 'log' | 'info' | 'warn' | 'error', severity: 'log' | 'warn' | 'error') {
+		const original = console[method];
+		console[method] = function () {
+			service.$logExtensionHostMessage({ type: '__$console', severity, arguments: safeToArray(arguments) });
+			if (logNative) {
+				original.apply(console, arguments as any);
+			}
+		};
 	}
 }
