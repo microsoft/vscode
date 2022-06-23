@@ -17,6 +17,7 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 let translations: Translations = Object.create(null);
 const ROOT = URI.file('/ROOT');
@@ -24,6 +25,7 @@ const ROOT = URI.file('/ROOT');
 class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
 
 	constructor(
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
@@ -35,7 +37,7 @@ class ExtensionsScannerService extends AbstractExtensionsScannerService implemen
 			URI.file(nativeEnvironmentService.extensionsPath),
 			joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
 			joinPath(ROOT, MANIFEST_CACHE_FOLDER),
-			extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService);
+			userDataProfilesService, extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService);
 	}
 
 	protected async getTranslations(language: string): Promise<Translations> {

@@ -43,6 +43,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface InstallableExtension {
 	zipPath: string;
@@ -68,8 +69,9 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@IFileService private readonly fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 	) {
-		super(galleryService, extensionsProfileScannerService, telemetryService, logService, productService);
+		super(userDataProfilesService, uriIdentityService, galleryService, extensionsProfileScannerService, telemetryService, logService, productService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
 		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));

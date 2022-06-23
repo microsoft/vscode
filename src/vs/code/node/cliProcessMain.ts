@@ -133,7 +133,7 @@ class CliMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
-		// User Data Profiles
+		// User Data Profiles. TODO: @sandy081: Initialize the profiles from state service
 		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
