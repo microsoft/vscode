@@ -174,7 +174,7 @@ suite('Markdown path completion provider', () => {
 
 	test('Should complete paths for path with angle brackets', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
-			`[text](<|>)`
+			`<>(./sub/<${CURSOR}`
 		));
 
 		assert.ok(completions.some(x => x.insertText === 'file.md'), 'Has file from space');
