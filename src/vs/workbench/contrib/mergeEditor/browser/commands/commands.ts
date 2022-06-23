@@ -137,7 +137,8 @@ export class GoToNextConflict extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.goToNextConflict',
-			title: localize('merge.goToNextConflict', "Merge Editor: Go to Next Conflict"),
+			category: localize('mergeEditor', "Merge Editor"),
+			title: localize('merge.goToNextConflict', "Go to Next Conflict"),
 			icon: Codicon.arrowDown,
 			menu: [{
 				id: MenuId.EditorTitle,
@@ -160,7 +161,8 @@ export class GoToPreviousConflict extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.goToPreviousConflict',
-			title: localize('merge.goToPreviousConflict', "Merge Editor: Go to Previous Conflict"),
+			category: localize('mergeEditor', "Merge Editor"),
+			title: localize('merge.goToPreviousConflict', "Go to Previous Conflict"),
 			icon: Codicon.arrowUp,
 			menu: [{
 				id: MenuId.EditorTitle,
@@ -183,7 +185,8 @@ export class ToggleActiveConflictInput1 extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.toggleActiveConflictInput1',
-			title: localize('merge.toggleActiveConflictInput1', "Merge Editor: Toggle Active Conflict In Input 1"),
+			category: localize('mergeEditor', "Merge Editor"),
+			title: localize('merge.toggleActiveConflictInput1', "Toggle Active Conflict In Input 1"),
 			f1: true,
 		});
 	}
@@ -204,7 +207,8 @@ export class ToggleActiveConflictInput2 extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.toggleActiveConflictInput2',
-			title: localize('merge.toggleActiveConflictInput2', "Merge Editor: Toggle Active Conflict In Input 2"),
+			category: localize('mergeEditor', "Merge Editor"),
+			title: localize('merge.toggleActiveConflictInput2', "Toggle Active Conflict In Input 2"),
 			f1: true,
 		});
 	}
@@ -225,7 +229,8 @@ export class CompareInput1WithBaseCommand extends Action2 {
 	constructor() {
 		super({
 			id: 'mergeEditor.compareInput1WithBase',
-			title: localize('mergeEditor.compareInput1WithBase', "Merge Editor: Compare Input 1 With Base"),
+			category: localize('mergeEditor', "Merge Editor"),
+			title: localize('mergeEditor.compareInput1WithBase', "Compare Input 1 With Base"),
 			f1: true,
 		});
 	}
@@ -240,7 +245,8 @@ export class CompareInput2WithBaseCommand extends Action2 {
 	constructor() {
 		super({
 			id: 'mergeEditor.compareInput2WithBase',
-			title: localize('mergeEditor.compareInput2WithBase', "Merge Editor: Compare Input 2 With Base"),
+			category: localize('mergeEditor', "Merge Editor"),
+			title: localize('mergeEditor.compareInput2WithBase', "Compare Input 2 With Base"),
 			f1: true,
 		});
 	}
