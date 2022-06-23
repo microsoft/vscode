@@ -244,6 +244,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			},
 			consoleForward: {
 				includeStack: false,
+				logNative: Boolean(this._environmentService.debugExtensionHost.debugId)
 			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,

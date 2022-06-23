@@ -24,7 +24,7 @@ import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusS
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IPCExtHostConnection, writeExtHostConnection, SocketExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
-export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, isDebug: boolean, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {
+export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {
 	const nlsConfig = await getNLSConfiguration(language, environmentService.userDataPath);
 
 	let userShellEnv: typeof process.env = {};
@@ -42,7 +42,6 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		...processEnv,
 		...userShellEnv,
 		...{
-			VSCODE_LOG_NATIVE: String(isDebug),
 			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
 			VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
 			VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig, undefined, 0)
@@ -236,7 +235,7 @@ export class ExtensionHostConnection {
 				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`];
 			}
 
-			const env = await buildUserEnvironment(startParams.env, true, startParams.language, !!startParams.debugId, this._environmentService, this._logService);
+			const env = await buildUserEnvironment(startParams.env, true, startParams.language, this._environmentService, this._logService);
 			removeDangerousEnvVariables(env);
 
 			let extHostNamedPipeServer: net.Server | null;

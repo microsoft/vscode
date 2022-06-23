@@ -293,6 +293,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			},
 			consoleForward: {
 				includeStack: false,
+				logNative: this._environmentService.debugRenderer
 			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,

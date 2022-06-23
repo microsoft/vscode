@@ -14,7 +14,7 @@ export class ExtHostConsoleForwarder {
 	) {
 		const mainThreadConsole = extHostRpc.getProxy(MainContext.MainThreadConsole);
 
-		pipeLoggingToParent(initData.consoleForward.includeStack);
+		pipeLoggingToParent(initData.consoleForward.includeStack, initData.consoleForward.logNative);
 
 		// Use IPC messages to forward console-calls, note that the console is
 		// already patched to use`process.send()`
@@ -31,7 +31,7 @@ export class ExtHostConsoleForwarder {
 }
 
 // TODO@Alex: remove duplication
-function pipeLoggingToParent(includeStack: boolean) {
+function pipeLoggingToParent(includeStack: boolean, logNative: boolean) {
 	const MAX_STREAM_BUFFER_LENGTH = 1024 * 1024;
 	const MAX_LENGTH = 100000;
 
@@ -137,7 +137,7 @@ function pipeLoggingToParent(includeStack: boolean) {
 	 * throwing errors, but rather a no-op setting. See https://github.com/microsoft/vscode-extension-telemetry/issues/88
 	 */
 	function wrapConsoleMethod(method: 'log' | 'info' | 'warn' | 'error', severity: 'log' | 'warn' | 'error') {
-		if (process.env['VSCODE_LOG_NATIVE'] === 'true') {
+		if (logNative) {
 			const original = console[method];
 			const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
 			Object.defineProperty(console, method, {

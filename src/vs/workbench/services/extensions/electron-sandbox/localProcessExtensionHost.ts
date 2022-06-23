@@ -228,7 +228,6 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 
 		const env = objects.mixin(processEnv, {
 			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
-			VSCODE_LOG_NATIVE: this._isExtensionDevHost,
 			VSCODE_HANDLES_UNCAUGHT_ERRORS: true
 		});
 
@@ -484,6 +483,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 			},
 			consoleForward: {
 				includeStack: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
+				logNative: this._isExtensionDevHost
 			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,
