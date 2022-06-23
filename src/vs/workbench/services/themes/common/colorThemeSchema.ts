@@ -212,7 +212,7 @@ const textmateColorSchema: IJSONSchema = {
 			}
 		},
 		required: [
-			'settings', 'scope'
+			'settings'
 		],
 		additionalProperties: false
 	}

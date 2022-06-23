@@ -118,6 +118,23 @@ export class ModifiedBaseRangeState {
 		);
 	}
 
+	public swap(): ModifiedBaseRangeState {
+		return new ModifiedBaseRangeState(
+			this.input2,
+			this.input1,
+			!this.input2First,
+			this.conflicting
+		);
+	}
+
+	public toggle(inputNumber: 1 | 2): ModifiedBaseRangeState {
+		if (inputNumber === 1) {
+			return this.withInput1(!this.input1);
+		} else {
+			return this.withInput2(!this.input2);
+		}
+	}
+
 	public get isEmpty(): boolean {
 		return !this.input1 && !this.input2;
 	}

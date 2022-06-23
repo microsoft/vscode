@@ -141,6 +141,7 @@ function ensureSuffix(path: string, suffix: string): string {
 	return path.endsWith(suffix) ? path : path + suffix;
 }
 
+// TODO@Alex: remove duplication
 // copied from bootstrap-fork.js
 function wrapConsoleMethods(service: MainThreadConsoleShape, callToNative: boolean) {
 	wrap('info', 'log');

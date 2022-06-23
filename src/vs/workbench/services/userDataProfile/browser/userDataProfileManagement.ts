@@ -49,7 +49,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (this.userDataProfileService.currentProfile.extensionsResource) {
 			return this.userDataProfileService.currentProfile.extensionsResource;
 		}
-		if (!this.userDataProfileService.defaultProfile.extensionsResource) {
+		if (!this.userDataProfilesService.defaultProfile.extensionsResource) {
 			// Extensions profile is not yet created for default profile, create it now
 			return this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, EXTENSIONS_RESOURCE_NAME));
 		}
