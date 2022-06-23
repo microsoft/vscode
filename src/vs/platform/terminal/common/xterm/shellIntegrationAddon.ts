@@ -137,8 +137,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	readonly capabilities = new TerminalCapabilityStore();
 	private _hasUpdatedTelemetry: boolean = false;
 	private _activationTimeout: any;
-	private readonly _onRequestCreateGenericMarker = new Emitter<void>();
-	readonly onRequestCreateGenericMarker = this._onRequestCreateGenericMarker.event;
 
 	constructor(
 		private readonly _disableTelemetry: boolean | undefined,
