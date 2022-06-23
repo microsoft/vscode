@@ -100,6 +100,9 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 	shellFileHistory.set(shellType, array);
 	return array;
 }
+export function clearShellFileHistory() {
+	shellFileHistory.clear();
+}
 
 export class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
 	private readonly _entries: LRUCache<string, T>;
