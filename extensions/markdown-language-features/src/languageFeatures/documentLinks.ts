@@ -38,7 +38,7 @@ export interface ReferenceHref {
 export type LinkHref = ExternalHref | InternalHref | ReferenceHref;
 
 
-function parseLink(
+function resolveLink(
 	document: ITextDocument,
 	link: string,
 ): ExternalHref | InternalHref | undefined {
@@ -83,6 +83,16 @@ function parseLink(
 
 	if (!resourceUri) {
 		return undefined;
+	}
+
+	// If we are in a notebook cell, resolve relative to notebook instead
+	if (resourceUri.scheme === Schemes.notebookCell) {
+		const notebook = vscode.workspace.notebookDocuments
+			.find(notebook => notebook.getCells().some(cell => cell.document === document));
+
+		if (notebook) {
+			resourceUri = resourceUri.with({ scheme: notebook.uri.scheme });
+		}
 	}
 
 	return {
@@ -144,7 +154,7 @@ function extractDocumentLink(
 	const linkStart = document.positionAt(offset);
 	const linkEnd = document.positionAt(offset + link.length);
 	try {
-		const linkTarget = parseLink(document, link);
+		const linkTarget = resolveLink(document, link);
 		if (!linkTarget) {
 			return undefined;
 		}
@@ -323,7 +333,7 @@ export class MdLinkComputer {
 
 		for (const match of text.matchAll(autoLinkPattern)) {
 			const link = match[1];
-			const linkTarget = parseLink(document, link);
+			const linkTarget = resolveLink(document, link);
 			if (linkTarget) {
 				const offset = (match.index ?? 0) + 1;
 				const linkStart = document.positionAt(offset);
@@ -421,7 +431,7 @@ export class MdLinkComputer {
 			if (noLinkRanges.contains(hrefRange.start)) {
 				continue;
 			}
-			const target = parseLink(document, text);
+			const target = resolveLink(document, text);
 			if (target) {
 				yield {
 					kind: 'definition',
