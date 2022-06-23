@@ -249,7 +249,7 @@ class CodeMain {
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
 			// State service
-			stateMainService.init().then(() => userDataProfilesMainService.init()),
+			stateMainService.init(),
 
 			// Configuration service
 			configurationService.initialize()
