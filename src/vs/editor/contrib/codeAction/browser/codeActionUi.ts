@@ -47,7 +47,7 @@ export class CodeActionUi extends Disposable {
 
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
-			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false })));
+			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
 			return widget;
 		});
 	}
@@ -114,7 +114,7 @@ export class CodeActionUi extends Disposable {
 			}
 
 			this._activeCodeActions.value = actions;
-			this._codeActionWidget.getValue().show(newState.trigger, actions, newState.position, { includeDisabledActions });
+			this._codeActionWidget.getValue().show(newState.trigger, actions, newState.position, { includeDisabledActions, fromLightbulb: false });
 		} else {
 			// auto magically triggered
 			if (this._codeActionWidget.getValue().isVisible) {
