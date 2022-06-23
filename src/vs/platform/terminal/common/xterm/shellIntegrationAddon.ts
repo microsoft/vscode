@@ -150,16 +150,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
 		this._commonProtocolDisposables.push(
-			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data)),
-			xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._handleITermSequence(data)),
-			xterm.parser.registerOscHandler(7, data => {
-				console.log('OSC 7', data);
-				return false;
-			}),
-			xterm.parser.registerOscHandler(9, data => {
-				console.log('OSC 9', data);
-				return false;
-			})
+			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data))
 		);
 		this._ensureCapabilitiesOrAddFailureTelemetry();
 	}
@@ -169,16 +160,19 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			return false;
 		}
 
-		// TODO: Disable final term sequences if VS Code sequences are encountered
-		// TODO: How to handle extraction of command with right prompt and continuations?
 		// Pass the sequence along to the capability
+		// It was considered to disable the common protocol in order to not confuse the VS Code
+		// shell integration if both happen for some reason. This doesn't work for powerlevel10k
+		// when instant prompt is enabled though. If this does end up being a problem we could pass
+		// a type flag through the capability calls
 		const [command, ...args] = data.split(';');
 		switch (command) {
 			case 'A':
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
 				return true;
 			case 'B':
-				this._createOrGetCommandDetection(this._terminal).handleCommandStart();
+				// Ignore the command line for these sequences as it's unreliable for example in powerlevel10k
+				this._createOrGetCommandDetection(this._terminal).handleCommandStart({ ignoreCommandLine: true });
 				return true;
 			case 'C':
 				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
@@ -189,11 +183,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 		}
-		return false;
-	}
-
-	private _handleITermSequence(data: string): boolean {
-		this._logService.debug('Shell integration: OSC 1337', data);
 		return false;
 	}
 

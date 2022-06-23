@@ -7,7 +7,7 @@ import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandStartOptions } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
@@ -61,6 +61,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
+	private _handleCommandStartOptions?: IHandleCommandStartOptions;
+
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
 	// TODO: as is unsafe here and it duplicates behavor of executingCommand
@@ -300,7 +302,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handleRightPromptEnd', this._currentCommand.commandRightPromptEndX);
 	}
 
-	handleCommandStart(): void {
+	handleCommandStart(options?: IHandleCommandStartOptions): void {
+		this._handleCommandStartOptions = options;
 		// Only update the column if the line has already been set
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
 			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
@@ -419,13 +422,13 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			return;
 		}
 
-		if (command !== undefined && !command.startsWith('\\')) {
+		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
 			const buffer = this._terminal.buffer.active;
 			const timestamp = Date.now();
 			const executedMarker = this._currentCommand.commandExecutedMarker;
 			const endMarker = this._currentCommand.commandFinishedMarker;
 			const newCommand: ITerminalCommand = {
-				command,
+				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
 				marker: this._currentCommand.commandStartMarker,
 				endMarker,
 				executedMarker,
@@ -446,6 +449,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
 		this._currentCommand = {};
+		this._handleCommandStartOptions = undefined;
 	}
 
 	private _preHandleCommandFinishedWindows(): void {
