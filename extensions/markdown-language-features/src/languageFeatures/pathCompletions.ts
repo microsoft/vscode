@@ -181,6 +181,24 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 			};
 		}
 
+		const angleBrackets = /^\s*\[(.*?)\]\(\s*<(.*?)>\s*$/;
+		const angleBracketsMatch = linePrefixText.match(angleBrackets);
+		if (angleBracketsMatch) {
+			const prefix = angleBracketsMatch[2];
+			if (this.refLooksLikeUrl(prefix)) {
+				return undefined;
+			}
+
+			const suffix = lineSuffixText.match(/^[^\)\s]*/);
+			return {
+				kind: CompletionContextKind.Link,
+				linkPrefix: tryDecodeUriComponent(prefix),
+				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
+				linkSuffix: suffix ? suffix[0] : '',
+				anchorInfo: this.getAnchorContext(prefix),
+			};
+		}
+
 		const definitionLinkPrefixMatch = linePrefixText.match(this.definitionPattern);
 		if (definitionLinkPrefixMatch) {
 			const prefix = definitionLinkPrefixMatch[1];
