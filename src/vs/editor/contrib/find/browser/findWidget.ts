@@ -525,10 +525,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}, 0));
 
 			// validate query again as it's being dismissed when we hide the find widget.
-			// timeout set to 250ms for proper alignment of error message
+			// timeout set to 300ms for proper alignment of error message
 			this._revealTimeouts.push(setTimeout(() => {
 				this._findInput.validate();
-			}, 250));
+			}, 300));
 
 			this._codeEditor.layoutOverlayWidget(this);
 
