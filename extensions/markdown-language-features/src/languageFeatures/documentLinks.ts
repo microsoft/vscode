@@ -220,7 +220,7 @@ const linkPattern = new RegExp(
 /**
 * Matches `[text][ref]` or `[shorthand]`
 */
-const referenceLinkPattern = /(^|[^\]\\])(?:(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]|\[\s*?([^\s\]]*?)\])(?![\:\(]))/gm;
+const referenceLinkPattern = /(^|[^\]\\])(?:(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]|\[\s*?([^\s\\\]]*?)\])(?![\:\(]))/gm;
 
 /**
  * Matches `<http://example.com>`
@@ -352,12 +352,17 @@ export class MdLinkComputer {
 			let linkStart: vscode.Position;
 			let linkEnd: vscode.Position;
 			let reference = match[4];
-			if (reference) { // [text][ref]
+			if (reference === '') { // [ref][],
+				reference = match[3];
+				const offset = ((match.index ?? 0) + match[1].length) + 1;
+				linkStart = document.positionAt(offset);
+				linkEnd = document.positionAt(offset + reference.length);
+			} else if (reference) { // [text][ref]
 				const pre = match[2];
 				const offset = ((match.index ?? 0) + match[1].length) + pre.length;
 				linkStart = document.positionAt(offset);
 				linkEnd = document.positionAt(offset + reference.length);
-			} else if (match[5]) { // [ref][], [ref]
+			} else if (match[5]) { // [ref]
 				reference = match[5];
 				const offset = ((match.index ?? 0) + match[1].length) + 1;
 				linkStart = document.positionAt(offset);
@@ -526,6 +531,8 @@ export class MdVsCodeLinkProvider implements vscode.DocumentLinkProvider {
 				return documentLink;
 			}
 			case 'reference': {
+				// We only render reference links in the editor if they are actually defined.
+				// This matches how reference links are rendered by markdown-it.
 				const def = definitionSet.lookup(link.href.ref);
 				if (def) {
 					const documentLink = new vscode.DocumentLink(
