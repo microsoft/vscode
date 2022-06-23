@@ -15,6 +15,7 @@ import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
+import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 
 /**
  * Tracks a list of generic entries.
@@ -67,6 +68,7 @@ export function getDirectoryHistory(accessor: ServicesAccessor): ITerminalPersis
 	return directoryHistory;
 }
 
+// Shell file history loads once per shell per window
 const shellFileHistory: Map<TerminalShellType, string[] | null> = new Map();
 export async function getShellFileHistory(accessor: ServicesAccessor, shellType: TerminalShellType): Promise<string[]> {
 	const cached = shellFileHistory.get(shellType);
@@ -119,13 +121,6 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 
 		// Init cache
 		this._entries = new LRUCache<string, T>(this._getHistoryLimit());
-
-		// this._fetchBashHistory().then(e => {
-		// 	console.log('bash history result', Array.from(e!));
-		// });
-		// this._fetchZshHistory().then(e => {
-		// 	console.log('zsh history result', Array.from(e!));
-		// });
 
 		// Listen for config changes to set history limit
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -290,8 +285,14 @@ async function fetchZshHistory(accessor: ServicesAccessor) {
 async function fetchPwshHistory(accessor: ServicesAccessor) {
 	const fileService = accessor.get(IFileService);
 	const remoteAgentService = accessor.get(IRemoteAgentService);
-	// TODO: Handle linux and Windows paths
-	const content = await fetchFileContents(env['HOME'], '.local/share/powershell/PSReadline/ConsoleHost_history.txt', fileService, remoteAgentService);
+	let filePath: string;
+	const remoteEnvironment = await remoteAgentService.getEnvironment();
+	if (remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows) {
+		filePath = env['APPDATA'] + '\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
+	} else {
+		filePath = '.local/share/powershell/PSReadline/ConsoleHost_history.txt';
+	}
+	const content = await fetchFileContents(env['HOME'], filePath, fileService, remoteAgentService);
 	if (content === undefined) {
 		return undefined;
 	}
