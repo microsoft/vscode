@@ -17,7 +17,7 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 let translations: Translations = Object.create(null);
 const ROOT = URI.file('/ROOT');
@@ -62,13 +62,15 @@ suite('NativeExtensionsScanerService Test', () => {
 		instantiationService.stub(IFileService, fileService);
 		const systemExtensionsLocation = joinPath(ROOT, 'system');
 		const userExtensionsLocation = joinPath(ROOT, 'extensions');
-		instantiationService.stub(INativeEnvironmentService, {
+		const environmentService = instantiationService.stub(INativeEnvironmentService, {
 			userHome: ROOT,
+			userRoamingDataHome: ROOT,
 			builtinExtensionsPath: systemExtensionsLocation.fsPath,
 			extensionsPath: userExtensionsLocation.fsPath,
 		});
 		instantiationService.stub(IProductService, { version: '1.66.0' });
 		instantiationService.stub(IExtensionsProfileScannerService, new ExtensionsProfileScannerService(fileService, logService));
+		instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, logService));
 		await fileService.createFolder(systemExtensionsLocation);
 		await fileService.createFolder(userExtensionsLocation);
 	});
