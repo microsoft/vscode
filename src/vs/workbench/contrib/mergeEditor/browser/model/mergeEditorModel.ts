@@ -29,9 +29,9 @@ export const enum MergeEditorModelState {
 
 export class MergeEditorModel extends EditorModel {
 	private readonly diffComputer = new EditorWorkerServiceDiffComputer(this.editorWorkerService);
-	private readonly input1TextModelDiffs = new TextModelDiffs(this.base, this.input1, this.diffComputer);
-	private readonly input2TextModelDiffs = new TextModelDiffs(this.base, this.input2, this.diffComputer);
-	private readonly resultTextModelDiffs = new TextModelDiffs(this.base, this.result, this.diffComputer);
+	private readonly input1TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input1, this.diffComputer));
+	private readonly input2TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input2, this.diffComputer));
+	private readonly resultTextModelDiffs = this._register(new TextModelDiffs(this.base, this.result, this.diffComputer));
 
 	public readonly state = derivedObservable('state', reader => {
 		const states = [
@@ -204,7 +204,6 @@ export class MergeEditorModel extends EditorModel {
 
 		for (const row of baseRangeWithStoreAndTouchingDiffs) {
 			row.left[1].set(this.computeState(row.left[0], row.rights), tx);
-
 		}
 	}
 
