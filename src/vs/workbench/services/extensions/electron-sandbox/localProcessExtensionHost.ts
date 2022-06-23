@@ -469,7 +469,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 			},
 			consoleForward: {
 				includeStack: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
-				logNative: this._isExtensionDevHost
+				logNative: !this._isExtensionDevTestFromCli && this._isExtensionDevHost
 			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,
