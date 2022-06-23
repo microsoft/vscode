@@ -152,9 +152,26 @@ suite('Terminal history', () => {
 		});
 
 		if (!isWindows) {
-			test('local', async () => {
-				filePath = join(env['HOME']!, '.bash_history');
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchBashHistory))!), expectedCommands);
+			suite('local', async () => {
+				let originalEnvValues: { HOME: string | undefined };
+				setup(() => {
+					originalEnvValues = { HOME: env['HOME'] };
+					env['HOME'] = '/home/user';
+					remoteConnection = { remoteAuthority: 'some-remote' };
+					fileScheme = Schemas.vscodeRemote;
+					filePath = '/home/user/.bash_history';
+				});
+				teardown(() => {
+					if (originalEnvValues['HOME'] === undefined) {
+						delete env['HOME'];
+					} else {
+						env['HOME'] = originalEnvValues['HOME'];
+					}
+				});
+				test('current OS', async () => {
+					filePath = '/home/user/.bash_history';
+					deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchBashHistory))!), expectedCommands);
+				});
 			});
 		}
 		suite('remote', () => {
@@ -223,9 +240,26 @@ suite('Terminal history', () => {
 		});
 
 		if (!isWindows) {
-			test('local', async () => {
-				filePath = join(env['HOME']!, '.zsh_history');
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchZshHistory))!), expectedCommands);
+			suite('local', () => {
+				let originalEnvValues: { HOME: string | undefined };
+				setup(() => {
+					originalEnvValues = { HOME: env['HOME'] };
+					env['HOME'] = '/home/user';
+					remoteConnection = { remoteAuthority: 'some-remote' };
+					fileScheme = Schemas.vscodeRemote;
+					filePath = '/home/user/.bash_history';
+				});
+				teardown(() => {
+					if (originalEnvValues['HOME'] === undefined) {
+						delete env['HOME'];
+					} else {
+						env['HOME'] = originalEnvValues['HOME'];
+					}
+				});
+				test('current OS', async () => {
+					filePath = '/home/user/.zsh_history';
+					deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchZshHistory))!), expectedCommands);
+				});
 			});
 		}
 		suite('remote', () => {
