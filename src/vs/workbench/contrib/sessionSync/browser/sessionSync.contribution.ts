@@ -29,6 +29,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
@@ -318,3 +320,15 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(SessionSyncContribution, LifecyclePhase.Restored);
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	'properties': {
+		'workbench.experimental.editSessions.enabled': {
+			'type': 'boolean',
+			'tags': ['experimental', 'usesOnlineServices'],
+			'default': false,
+			'markdownDescription': localize('editSessionsEnabled', "Controls whether to display cloud-enabled actions to store and resume uncommitted changes when switching between web, desktop, or devices."),
+		},
+	}
+});
