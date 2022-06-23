@@ -1,0 +1,5 @@
+node_modules
+dist
+build
+public/*
+!public/index.html

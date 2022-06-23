@@ -9,12 +9,17 @@
   },
   "scripts": {
     "postinstall": "node ./postinstall.mjs",
-    "compile": "../node_modules/.bin/tsc -b",
-    "watch": "../node_modules/.bin/tsc -b -w"
+    "compile": "yarn build:ts && yarn build:gitpod-web",
+    "watch": "npm-run-all -lp watch:ts watch:gitpod-web",
+    "build:ts": "../node_modules/.bin/tsc -b",
+    "watch:ts": "../node_modules/.bin/tsc -b -w",
+    "build:gitpod-web": "yarn --cwd gitpod-web build:webview",
+    "watch:gitpod-web": "yarn --cwd gitpod-web watch:webview"
   },
   "devDependencies": {
     "@parcel/watcher": "2.0.5",
     "esbuild": "^0.11.12",
+    "npm-run-all": "^4.1.5",
     "vscode-grammar-updater": "^1.1.0"
   },
   "workspaces": {

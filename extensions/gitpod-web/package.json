@@ -139,22 +139,22 @@
       {
         "command": "gitpod.ports.makePrivate",
         "title": "%makePrivate%",
-        "icon": "$(lock)"
+        "icon": "$(unlock)"
       },
       {
         "command": "gitpod.ports.makePublic",
         "title": "%makePublic%",
-        "icon": "$(unlock)"
+        "icon": "$(lock)"
       },
       {
         "command": "gitpod.ports.tunnelNetwork",
         "title": "%tunnelNetwork%",
-        "icon": "$(eye-closed)"
+        "icon": "$(eye)"
       },
       {
         "command": "gitpod.ports.tunnelHost",
         "title": "%tunnelHost%",
-        "icon": "$(eye)"
+        "icon": "$(eye-closed)"
       },
       {
         "command": "gitpod.extensions.addToConfig",
@@ -417,6 +417,17 @@
           "id": "gitpod.workspace",
           "name": "Gitpod Workspace"
         }
+      ],
+      "portsView": [
+        {
+          "id": "gitpod.portsView",
+          "name": "",
+          "type": "webview",
+          "contextualTitle": "",
+          "icon": "$(plug)",
+          "visibility": "visible",
+          "when": "gitpod.portsView.visible"
+        }
       ]
     },
     "authentication": [
@@ -484,19 +495,38 @@
           "type": "boolean",
           "description": "Control whether to prompt to open in VS Code Desktop on page load.",
           "default": false
+        },
+        "gitpod.experimental.portsView.enabled": {
+          "type": "boolean",
+          "description": "Enable Gitpod portsView experiment features",
+          "default": false
         }
       }
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "portsView",
+          "title": "Ports",
+          "icon": ""
+        }
+      ]
     }
   },
   "scripts": {
-    "vscode:prepublish": "yarn run compile --cwd .."
+    "postinstall": "yarn install:webview",
+    "vscode:prepublish": "yarn build; yarn run compile --cwd ..",
+    "install:webview": "yarn --cwd ./portsview --modules-folder node_modules",
+    "watch:webview": "yarn --cwd ./portsview run dev",
+    "build:webview": "yarn --cwd ./portsview run build"
   },
   "devDependencies": {
     "@types/node": "16.x",
     "@types/node-fetch": "^2.5.12",
     "@types/uuid": "8.0.0",
     "@types/yauzl": "^2.9.1",
-    "@types/yazl": "^2.4.2"
+    "@types/yazl": "^2.4.2",
+    "npm-run-all": "^4.1.5"
   },
   "dependencies": {
     "@gitpod/gitpod-protocol": "main",

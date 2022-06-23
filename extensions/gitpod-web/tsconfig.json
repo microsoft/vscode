@@ -8,5 +8,6 @@
 	},
 	"references": [
 		{ "path": "../gitpod-shared" }
-	]
+	],
+	"exclude": ["./portsview"]
 }

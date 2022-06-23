@@ -3,6 +3,8 @@ src/**
 !src/common/config.json
 out/**
 build/**
+portsview/**
+!portsview/public/**
 extension.webpack.config.js
 extension-browser.webpack.config.js
 tsconfig.json
