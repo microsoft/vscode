@@ -681,20 +681,4 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			}
 		}
 	});
-
-	// Notifications
-	registry.registerConfiguration({
-		'id': 'notifications',
-		'order': 10,
-		'title': localize('notificationsConfigurationTitle', "Notifications"),
-		'type': 'object',
-		'properties': {
-			'notifications.experimental.doNotDisturbMode': {
-				'type': 'boolean',
-				'default': false,
-				'tags': ['experimental'],
-				'description': localize('notifications.experimental.doNotDisturbMode', "Hides information and warning toast notifications when enabled. Error toast notifications will still be shown.")
-			},
-		}
-	});
 })();
