@@ -11,8 +11,6 @@ export interface IStateService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly whenInitialized: Promise<void>;
-
 	getItem<T>(key: string, defaultValue: T): T;
 	getItem<T>(key: string, defaultValue?: T): T | undefined;
 

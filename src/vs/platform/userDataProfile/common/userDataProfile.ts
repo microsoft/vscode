@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hash } from 'vs/base/common/hash';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
@@ -15,6 +16,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 /**
  * Flags to indicate whether to use the default profile or not.
@@ -60,6 +62,21 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 		&& (isUndefined(candidate.extensionsResource) || URI.isUri(candidate.extensionsResource))
 	);
 }
+
+export const PROFILES_ENABLEMENT_CONFIG = 'workbench.experimental.settingsProfiles.enabled';
+export const PROFILES_ENABLEMENT_CONFIG_SCHEMA: IConfigurationPropertySchema = {
+	'type': 'boolean',
+	'default': false,
+	'description': localize('workbench.experimental.settingsProfiles.enabled', "Controls whether to enable the Settings Profiles preview feature."),
+	scope: ConfigurationScope.APPLICATION
+};
+
+// Registering here so that the configuration is read properly in main and cli processes.
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	'properties': {
+		[PROFILES_ENABLEMENT_CONFIG]: PROFILES_ENABLEMENT_CONFIG_SCHEMA
+	}
+});
 
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
 export interface IUserDataProfilesService {
