@@ -60,9 +60,9 @@ export class MergeEditor extends AbstractTextEditor<any> {
 
 	private _grid!: Grid<IView>;
 
-	private readonly input1View = this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable });
-	private readonly input2View = this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable });
-	private readonly inputResultView = this.instantiation.createInstance(ResultCodeEditorView, { readonly: false });
+	private readonly input1View = this._register(this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable }));
+	private readonly input2View = this._register(this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable }));
+	private readonly inputResultView = this._register(this.instantiation.createInstance(ResultCodeEditorView, { readonly: false }));
 
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
 	private readonly _ctxUsesColumnLayout: IContextKey<boolean>;
@@ -199,6 +199,7 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		});
 
 		reset(parent, this._grid.element);
+		this._register(this._grid);
 		this._ctxUsesColumnLayout.set(false);
 
 		this.applyOptions(initialOptions);
