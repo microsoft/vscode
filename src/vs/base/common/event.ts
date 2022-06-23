@@ -160,9 +160,7 @@ export namespace Event {
 
 		const emitter = new Emitter<T>(options);
 
-		if (disposable) {
-			disposable.add(emitter);
-		}
+		disposable?.add(emitter);
 
 		return emitter.event;
 	}
@@ -223,9 +221,7 @@ export namespace Event {
 
 		const emitter = new Emitter<O>(options);
 
-		if (disposable) {
-			disposable.add(emitter);
-		}
+		disposable?.add(emitter);
 
 		return emitter.event;
 	}
@@ -276,9 +272,7 @@ export namespace Event {
 		});
 
 		const flush = () => {
-			if (buffer) {
-				buffer.forEach(e => emitter.fire(e));
-			}
+			buffer?.forEach(e => emitter.fire(e));
 			buffer = null;
 		};
 

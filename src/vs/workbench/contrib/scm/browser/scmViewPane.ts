@@ -2380,9 +2380,7 @@ export class SCMViewPane extends ViewPane {
 			if (e.editorOptions.pinned) {
 				const activeEditorPane = this.editorService.activeEditorPane;
 
-				if (activeEditorPane) {
-					activeEditorPane.group.pinEditor(activeEditorPane.input);
-				}
+				activeEditorPane?.group.pinEditor(activeEditorPane.input);
 			}
 		}
 
@@ -2599,9 +2597,10 @@ export class SCMActionButton implements IDisposable {
 			(this.button as ButtonWithDescription).description = button.description;
 		} else {
 			// Button
-			this.button = new Button(this.container, { supportIcons: true });
+			this.button = new Button(this.container, { supportIcons: true, title: button.command.tooltip });
 		}
 
+		this.button.enabled = button.enabled;
 		this.button.label = button.command.title;
 		this.button.onDidClick(async () => {
 			try {

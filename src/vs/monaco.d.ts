@@ -1483,6 +1483,7 @@ declare namespace monaco.editor {
 		 * CSS class name describing the decoration.
 		 */
 		className?: string | null;
+		blockClassName?: string | null;
 		/**
 		 * Message to be rendered when hovering over the glyph margin decoration.
 		 */
@@ -3505,7 +3506,7 @@ declare namespace monaco.editor {
 		/**
 		 * Might modify `value`.
 		*/
-		applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
+		applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V>;
 	}
 
 	export class ApplyUpdateResult<T> {
@@ -4545,7 +4546,7 @@ declare namespace monaco.editor {
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
-		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, Required<Readonly<IUnicodeHighlightOptions>>>;
+		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, any>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;

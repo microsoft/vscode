@@ -30,6 +30,7 @@ import { isStringArray } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 namespace snippetExt {
 
@@ -138,7 +139,7 @@ class SnippetEnablement {
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 
-		const raw = _storageService.get(SnippetEnablement._key, StorageScope.GLOBAL, '');
+		const raw = _storageService.get(SnippetEnablement._key, StorageScope.PROFILE, '');
 		let data: string[] | undefined;
 		try {
 			data = JSON.parse(raw);
@@ -161,7 +162,7 @@ class SnippetEnablement {
 			changed = true;
 		}
 		if (changed) {
-			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 }
@@ -177,6 +178,7 @@ class SnippetsService implements ISnippetsService {
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILogService private readonly _logService: ILogService,
@@ -348,7 +350,7 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private async _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = this._environmentService.snippetsHome;
+		const userSnippetsFolder = this._userDataProfileService.currentProfile.snippetsHome;
 		await this._fileService.createFolder(userSnippetsFolder);
 		return await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables);
 	}

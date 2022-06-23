@@ -83,7 +83,8 @@ import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRe
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
-import 'vs/workbench/services/profiles/common/profileService';
+import 'vs/workbench/services/userDataProfile/common/userDataProfileWorkbenchService';
+import 'vs/workbench/services/userDataProfile/browser/userDataProfileManagement';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
 import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -126,6 +127,7 @@ import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
+import { IExtensionsProfileScannerService, ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
@@ -142,6 +144,7 @@ registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationSe
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
+registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService);
 
 //#endregion
 
@@ -322,8 +325,8 @@ import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
-// Profiles
-import 'vs/workbench/contrib/profiles/common/profiles.contribution';
+// User Data Profiles
+import 'vs/workbench/contrib/userDataProfile/browser/userDataProfile.contribution';
 
 // Continue Edit Session
 import 'vs/workbench/contrib/sessionSync/browser/sessionSync.contribution';

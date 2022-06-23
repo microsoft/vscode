@@ -79,7 +79,7 @@ import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views
 import { isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG, configureTaskIcon } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { ILogService } from 'vs/platform/log/common/log';
 import { once } from 'vs/base/common/functional';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { Schemas } from 'vs/base/common/network';
@@ -94,7 +94,7 @@ export namespace ConfigureTaskAction {
 	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
 }
 
-type TaskQuickPickEntryType = (IQuickPickItem & { task: Task }) | (IQuickPickItem & { folder: IWorkspaceFolder }) | (IQuickPickItem & { settingType: string });
+export type TaskQuickPickEntryType = (IQuickPickItem & { task: Task }) | (IQuickPickItem & { folder: IWorkspaceFolder }) | (IQuickPickItem & { settingType: string });
 
 class ProblemReporter implements TaskConfig.IProblemReporter {
 
@@ -256,7 +256,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 
@@ -2519,7 +2520,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _showTwoLevelQuickPick(placeHolder: string, defaultEntry?: ITaskQuickPickEntry) {
-		return TaskQuickPick.show(this, this._configurationService, this._quickInputService, this._notificationService, this._dialogService, placeHolder, defaultEntry);
+		return TaskQuickPick.show(this, this._configurationService, this._quickInputService, this._notificationService, this._dialogService, this._themeService, placeHolder, defaultEntry);
 	}
 
 	private async _showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[]): Promise<ITaskQuickPickEntry | undefined | null> {
@@ -3143,7 +3144,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._isTaskEntry(selection)) {
 			this._configureTask(selection.task);
 		} else if (this._isSettingEntry(selection)) {
-			const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._dialogService);
+			const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
 			taskQuickPick.handleSettingOption(selection.settingType);
 		} else if (selection.folder && (this._contextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
 			this._openTaskFile(selection.folder.toResource('.vscode/tasks.json'), TaskSourceKind.Workspace);
@@ -3201,7 +3202,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (tasks.length > 0) {
 					tasks = tasks.sort((a, b) => a._label.localeCompare(b._label));
 					for (const task of tasks) {
-						entries.push({ label: task._label, task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined });
+						const entry = { label: TaskQuickPick.getTaskLabelWithIcon(task), task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined };
+						TaskQuickPick.applyColorStyles(task, entry, this._themeService);
+						entries.push(entry);
 						if (!ContributedTask.is(task)) {
 							configuredCount++;
 						}

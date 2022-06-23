@@ -10,6 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -112,6 +113,10 @@ export const enum TerminalSettingId {
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
 }
 
+export const enum TerminalLogConstants {
+	FileName = 'ptyhost'
+}
+
 export const enum PosixShellType {
 	PowerShell = 'pwsh',
 	Bash = 'bash',
@@ -159,6 +164,7 @@ export interface IPtyHostAttachTarget {
 	isOrphan: boolean;
 	icon: TerminalIcon | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
+	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 }
 
 export enum TitleEventSource {
@@ -210,7 +216,8 @@ export const enum ProcessPropertyType {
 	HasChildProcesses = 'hasChildProcesses',
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
 	OverrideDimensions = 'overrideDimensions',
-	FailedShellIntegrationActivation = 'failedShellIntegrationActivation'
+	FailedShellIntegrationActivation = 'failedShellIntegrationActivation',
+	UsedShellIntegrationInjection = 'usedShellIntegrationInjection'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -228,6 +235,7 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig;
 	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
 	[ProcessPropertyType.FailedShellIntegrationActivation]: boolean | undefined;
+	[ProcessPropertyType.UsedShellIntegrationInjection]: boolean | undefined;
 }
 
 export interface IFixedTerminalDimensions {
@@ -433,7 +441,7 @@ export interface IShellLaunchConfig {
 	ignoreConfigurationCwd?: boolean;
 
 	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean | string;
+	waitOnExit?: boolean | string | ((exitCode: number) => string);
 
 	/**
 	 * A string including ANSI escape sequences that will be written to the terminal emulator
@@ -456,7 +464,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions };
+	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -522,6 +530,11 @@ export interface IShellLaunchConfig {
 	 * Opt-out of the default terminal persistence on restart and reload
 	 */
 	isTransient?: boolean;
+
+	/**
+	 * Create a terminal without shell integration even when it's enabled
+	 */
+	ignoreShellIntegration?: boolean;
 }
 
 export interface ICreateContributedTerminalProfileOptions {
@@ -561,6 +574,7 @@ export interface ITerminalProcessOptions {
 		enabled: boolean;
 	};
 	windowsEnableConpty: boolean;
+	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 }
 
 export interface ITerminalEnvironment {

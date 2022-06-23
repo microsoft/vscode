@@ -6,31 +6,35 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbolProvider';
-import { MdWorkspaceSymbolProvider } from '../languageFeatures/workspaceSymbolProvider';
-import { SkinnyTextDocument } from '../workspaceContents';
-import { createNewMarkdownEngine } from './engine';
+import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbols';
+import { MdWorkspaceSymbolProvider } from '../languageFeatures/workspaceSymbols';
+import { MdTableOfContentsProvider } from '../tableOfContents';
+import { ITextDocument } from '../types/textDocument';
 import { InMemoryDocument } from '../util/inMemoryDocument';
-import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { IMdWorkspace } from '../workspace';
+import { createNewMarkdownEngine } from './engine';
+import { InMemoryMdWorkspace } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
+import { workspacePath } from './util';
 
-
-const symbolProvider = new MdDocumentSymbolProvider(createNewMarkdownEngine());
+function getWorkspaceSymbols(workspace: IMdWorkspace, query = ''): Promise<vscode.SymbolInformation[]> {
+	const engine = createNewMarkdownEngine();
+	const symbolProvider = new MdDocumentSymbolProvider(new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
+	return new MdWorkspaceSymbolProvider(symbolProvider, workspace).provideWorkspaceSymbols(query);
+}
 
 suite('markdown.WorkspaceSymbolProvider', () => {
 	test('Should not return anything for empty workspace', async () => {
-		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocuments([]));
-
-		assert.deepStrictEqual(await provider.provideWorkspaceSymbols(''), []);
+		const workspace = new InMemoryMdWorkspace([]);
+		assert.deepStrictEqual(await getWorkspaceSymbols(workspace, ''), []);
 	});
 
 	test('Should return symbols from workspace with one markdown file', async () => {
-		const testFileName = vscode.Uri.file('test.md');
+		const workspace = new InMemoryMdWorkspace([
+			new InMemoryDocument(workspacePath('test.md'), `# header1\nabc\n## header2`)
+		]);
 
-		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocuments([
-			new InMemoryDocument(testFileName, `# header1\nabc\n## header2`)
-		]));
-
-		const symbols = await provider.provideWorkspaceSymbols('');
+		const symbols = await getWorkspaceSymbols(workspace, '');
 		assert.strictEqual(symbols.length, 2);
 		assert.strictEqual(symbols[0].name, '# header1');
 		assert.strictEqual(symbols[1].name, '## header2');
@@ -38,66 +42,61 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 
 	test('Should return all content  basic workspace', async () => {
 		const fileNameCount = 10;
-		const files: SkinnyTextDocument[] = [];
+		const files: ITextDocument[] = [];
 		for (let i = 0; i < fileNameCount; ++i) {
-			const testFileName = vscode.Uri.file(`test${i}.md`);
+			const testFileName = workspacePath(`test${i}.md`);
 			files.push(new InMemoryDocument(testFileName, `# common\nabc\n## header${i}`));
 		}
 
-		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocuments(files));
+		const workspace = new InMemoryMdWorkspace(files);
 
-		const symbols = await provider.provideWorkspaceSymbols('');
+		const symbols = await getWorkspaceSymbols(workspace, '');
 		assert.strictEqual(symbols.length, fileNameCount * 2);
 	});
 
 	test('Should update results when markdown file changes symbols', async () => {
-		const testFileName = vscode.Uri.file('test.md');
-
-		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocuments([
+		const testFileName = workspacePath('test.md');
+		const workspace = new InMemoryMdWorkspace([
 			new InMemoryDocument(testFileName, `# header1`, 1 /* version */)
 		]);
 
-		const provider = new MdWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
-
-		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
+		assert.strictEqual((await getWorkspaceSymbols(workspace, '')).length, 1);
 
 		// Update file
-		workspaceFileProvider.updateDocument(new InMemoryDocument(testFileName, `# new header\nabc\n## header2`, 2 /* version */));
-		const newSymbols = await provider.provideWorkspaceSymbols('');
+		workspace.updateDocument(new InMemoryDocument(testFileName, `# new header\nabc\n## header2`, 2 /* version */));
+		const newSymbols = await getWorkspaceSymbols(workspace, '');
 		assert.strictEqual(newSymbols.length, 2);
 		assert.strictEqual(newSymbols[0].name, '# new header');
 		assert.strictEqual(newSymbols[1].name, '## header2');
 	});
 
 	test('Should remove results when file is deleted', async () => {
-		const testFileName = vscode.Uri.file('test.md');
+		const testFileName = workspacePath('test.md');
 
-		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocuments([
+		const workspace = new InMemoryMdWorkspace([
 			new InMemoryDocument(testFileName, `# header1`)
 		]);
 
-		const provider = new MdWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
-		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
+		assert.strictEqual((await getWorkspaceSymbols(workspace, '')).length, 1);
 
 		// delete file
-		workspaceFileProvider.deleteDocument(testFileName);
-		const newSymbols = await provider.provideWorkspaceSymbols('');
+		workspace.deleteDocument(testFileName);
+		const newSymbols = await getWorkspaceSymbols(workspace, '');
 		assert.strictEqual(newSymbols.length, 0);
 	});
 
 	test('Should update results when markdown file is created', async () => {
-		const testFileName = vscode.Uri.file('test.md');
+		const testFileName = workspacePath('test.md');
 
-		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocuments([
+		const workspace = new InMemoryMdWorkspace([
 			new InMemoryDocument(testFileName, `# header1`)
 		]);
 
-		const provider = new MdWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
-		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
+		assert.strictEqual((await getWorkspaceSymbols(workspace, '')).length, 1);
 
-		// Creat file
-		workspaceFileProvider.createDocument(new InMemoryDocument(vscode.Uri.file('test2.md'), `# new header\nabc\n## header2`));
-		const newSymbols = await provider.provideWorkspaceSymbols('');
+		// Create file
+		workspace.createDocument(new InMemoryDocument(workspacePath('test2.md'), `# new header\nabc\n## header2`));
+		const newSymbols = await getWorkspaceSymbols(workspace, '');
 		assert.strictEqual(newSymbols.length, 3);
 	});
 });

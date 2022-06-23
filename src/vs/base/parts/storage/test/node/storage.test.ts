@@ -773,4 +773,18 @@ flakySuite('SQLite Storage Library', function () {
 
 		await storage.close();
 	});
+
+	test('invalid path does not hang', async () => {
+		const storage = new SQLiteStorageDatabase(join(testdir, 'nonexist', 'storage.db'));
+
+		let error;
+		try {
+			await storage.getItems();
+			await storage.close();
+		} catch (e) {
+			error = e;
+		}
+
+		ok(error);
+	});
 });

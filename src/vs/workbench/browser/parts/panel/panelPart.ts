@@ -45,7 +45,7 @@ import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/bro
 import { IPartOptions } from 'vs/workbench/browser/part';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 
 interface ICachedPanel {
 	id: string;
@@ -717,9 +717,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 	private emptyPanelMessageElement: HTMLElement | undefined;
 	private layoutEmptyMessage(): void {
-		if (this.emptyPanelMessageElement) {
-			this.emptyPanelMessageElement.classList.toggle('visible', this.compositeBar.getVisibleComposites().length === 0);
-		}
+		this.emptyPanelMessageElement?.classList.toggle('visible', this.compositeBar.getVisibleComposites().length === 0);
 	}
 
 	private getViewContainer(id: string): ViewContainer | undefined {
@@ -731,9 +729,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		const primaryActions = this.globalActions.getPrimaryActions();
 		const secondaryActions = this.globalActions.getSecondaryActions();
 
-		if (this.globalToolBar) {
-			this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
-		}
+		this.globalToolBar?.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction } {
@@ -787,7 +783,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === this.pinnedPanelsKey && e.scope === StorageScope.GLOBAL
+		if (e.key === this.pinnedPanelsKey && e.scope === StorageScope.PROFILE
 			&& this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
 			this._cachedPanelsValue = undefined;
 			const newCompositeItems: ICompositeBarItem[] = [];
@@ -872,11 +868,11 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private getStoredCachedPanelsValue(): string {
-		return this.storageService.get(this.pinnedPanelsKey, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(this.pinnedPanelsKey, StorageScope.PROFILE, '[]');
 	}
 
 	private setStoredCachedViewletsValue(value: string): void {
-		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {

@@ -5,7 +5,7 @@
 
 import { CompareResult, ArrayQueue } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IObservable, autorun } from 'vs/workbench/contrib/audioCues/browser/observable';
@@ -53,21 +53,21 @@ export class ReentrancyBarrier {
 	}
 }
 
-export function n<TTag extends string>(tag: TTag): never;
-export function n<TTag extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
+export function h<TTag extends string>(tag: TTag): never;
+export function h<TTag extends string, TId extends string>(
+	tag: TTag,
+	attributes: { $: TId }
+): Record<TId | 'root', TagToElement<TTag>>;
+export function h<TTag extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
 	children: T
 ): (ArrayToObj<T> & Record<'root', TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-export function n<TTag extends string, TId extends string>(
-	tag: TTag,
-	attributes: { $: TId }
-): Record<TId, TagToElement<TTag>>;
-export function n<TTag extends string, TId extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
+export function h<TTag extends string, TId extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
 	attributes: { $: TId },
 	children: T
 ): (ArrayToObj<T> & Record<TId, TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-export function n(tag: string, ...args: [] | [attributes: { $: string } | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
+export function h(tag: string, ...args: [] | [attributes: { $: string } | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
 	let attributes: Record<string, any>;
 	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;
 
@@ -182,4 +182,45 @@ export function* leftJoin<TLeft, TRight>(
 		const equals = rightQueue.takeWhile(rightElement => CompareResult.isNeitherLessOrGreaterThan(compare(leftElement, rightElement)));
 		yield { left: leftElement, rights: equals || [] };
 	}
+}
+
+export function* join<TLeft, TRight>(
+	left: Iterable<TLeft>,
+	right: readonly TRight[],
+	compare: (left: TLeft, right: TRight) => CompareResult,
+): IterableIterator<{ left?: TLeft; rights: TRight[] }> {
+	const rightQueue = new ArrayQueue(right);
+	for (const leftElement of left) {
+		const skipped = rightQueue.takeWhile(rightElement => CompareResult.isGreaterThan(compare(leftElement, rightElement)));
+		if (skipped) {
+			yield { rights: skipped };
+		}
+		const equals = rightQueue.takeWhile(rightElement => CompareResult.isNeitherLessOrGreaterThan(compare(leftElement, rightElement)));
+		yield { left: leftElement, rights: equals || [] };
+	}
+}
+
+export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][number][] {
+	return ([] as any[]).concat(...arrays);
+}
+
+export function elementAtOrUndefined<T>(arr: T[], index: number): T | undefined {
+	return arr[index];
+}
+
+export function thenIfNotDisposed<T>(promise: Promise<T>, then: () => void): IDisposable {
+	let disposed = false;
+	promise.then(() => {
+		if (disposed) {
+			return;
+		}
+		then();
+	});
+	return toDisposable(() => {
+		disposed = true;
+	});
+}
+
+export function setFields<T extends {}>(obj: T, fields: Partial<T>): T {
+	return Object.assign(obj, fields);
 }

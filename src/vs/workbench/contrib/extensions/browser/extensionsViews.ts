@@ -138,7 +138,7 @@ export class ExtensionsListView extends ViewPane {
 		super({
 			...(viewletViewOptions as IViewPaneOptions),
 			showActionsAlways: true,
-			maximumBodySize: options.flexibleHeight ? (storageService.getNumber(`${viewletViewOptions.id}.size`, StorageScope.GLOBAL, 0) ? undefined : 0) : undefined
+			maximumBodySize: options.flexibleHeight ? (storageService.getNumber(`${viewletViewOptions.id}.size`, StorageScope.PROFILE, 0) ? undefined : 0) : undefined
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		if (this.options.onDidChangeTitle) {
 			this._register(this.options.onDidChangeTitle(title => this.updateTitle(title)));
@@ -209,9 +209,7 @@ export class ExtensionsListView extends ViewPane {
 		if (this.bodyTemplate) {
 			this.bodyTemplate.extensionsList.style.height = height + 'px';
 		}
-		if (this.list) {
-			this.list.layout(height, width);
-		}
+		this.list?.layout(height, width);
 	}
 
 	async show(query: string, refresh?: boolean): Promise<IPagedModel<IExtension>> {
@@ -957,7 +955,7 @@ export class ExtensionsListView extends ViewPane {
 	private updateSize() {
 		if (this.options.flexibleHeight) {
 			this.maximumBodySize = this.list?.model.length ? Number.POSITIVE_INFINITY : 0;
-			this.storageService.store(`${this.id}.size`, this.list?.model.length || 0, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(`${this.id}.size`, this.list?.model.length || 0, StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 	}
 

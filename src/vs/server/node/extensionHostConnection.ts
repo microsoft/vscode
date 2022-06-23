@@ -22,6 +22,7 @@ import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteCo
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { IPCExtHostConnection, writeExtHostConnection, SocketExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
 export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, isDebug: boolean, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {
 	const nlsConfig = await getNLSConfiguration(language, environmentService.userDataPath);
@@ -43,7 +44,6 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		...{
 			VSCODE_LOG_NATIVE: String(isDebug),
 			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
-			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
 			VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
 			VSCODE_LOG_STACK: 'false',
@@ -244,11 +244,11 @@ export class ExtensionHostConnection {
 			let extHostNamedPipeServer: net.Server | null;
 
 			if (this._canSendSocket) {
-				env['VSCODE_EXTHOST_WILL_SEND_SOCKET'] = 'true';
+				writeExtHostConnection(new SocketExtHostConnection(), env);
 				extHostNamedPipeServer = null;
 			} else {
 				const { namedPipeServer, pipeName } = await this._listenOnPipe();
-				env['VSCODE_IPC_HOOK_EXTHOST'] = pipeName;
+				writeExtHostConnection(new IPCExtHostConnection(pipeName), env);
 				extHostNamedPipeServer = namedPipeServer;
 			}
 
@@ -326,9 +326,7 @@ export class ExtensionHostConnection {
 			const namedPipeServer = net.createServer();
 			namedPipeServer.on('error', reject);
 			namedPipeServer.listen(pipeName, () => {
-				if (namedPipeServer) {
-					namedPipeServer.removeListener('error', reject);
-				}
+				namedPipeServer?.removeListener('error', reject);
 				resolve({ pipeName, namedPipeServer });
 			});
 		});

@@ -5,14 +5,14 @@
 
 import { extname } from 'vs/base/common/path';
 
-export namespace Mimes {
-	export const text = 'text/plain';
-	export const binary = 'application/octet-stream';
-	export const unknown = 'application/unknown';
-	export const markdown = 'text/markdown';
-	export const latex = 'text/latex';
-	export const uriList = 'text/uri-list';
-}
+export const Mimes = Object.freeze({
+	text: 'text/plain',
+	binary: 'application/octet-stream',
+	unknown: 'application/unknown',
+	markdown: 'text/markdown',
+	latex: 'text/latex',
+	uriList: 'text/uri-list',
+});
 
 interface MapExtToMediaMimes {
 	[index: string]: string;

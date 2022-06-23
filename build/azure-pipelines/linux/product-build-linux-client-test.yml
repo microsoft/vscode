@@ -50,6 +50,7 @@ steps:
     - script: |
         set -e
         yarn gulp \
+          compile-extension:configuration-editing \
           compile-extension:css-language-features-server \
           compile-extension:emmet \
           compile-extension:git \
@@ -63,7 +64,6 @@ steps:
           compile-extension:typescript-language-features \
           compile-extension:vscode-api-tests \
           compile-extension:vscode-colorize-tests \
-          compile-extension:vscode-custom-editor-tests \
           compile-extension:vscode-notebook-tests \
           compile-extension:vscode-test-resolver
       displayName: Build integration tests

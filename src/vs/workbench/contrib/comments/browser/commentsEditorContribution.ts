@@ -9,7 +9,7 @@ import { coalesce, findFirstInSorted } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/review';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -294,6 +294,11 @@ const ActiveCursorHasCommentingRange = new RawContextKey<boolean>('activeCursorH
 	type: 'boolean'
 });
 
+const WorkspaceHasCommenting = new RawContextKey<boolean>('workspaceHasCommenting', false, {
+	description: nls.localize('hasCommentingProvider', "Whether the open workspace has either comments or commenting ranges."),
+	type: 'boolean'
+});
+
 export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
@@ -310,8 +315,9 @@ export class CommentController implements IEditorContribution {
 	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
-	private _editorDisposables: IDisposable[] | undefined;
+	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
+	private _workspaceHasCommenting: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -329,6 +335,7 @@ export class CommentController implements IEditorContribution {
 		this._pendingCommentCache = {};
 		this._computePromise = null;
 		this._activeCursorHasCommentingRange = ActiveCursorHasCommentingRange.bindTo(contextKeyService);
+		this._workspaceHasCommenting = WorkspaceHasCommenting.bindTo(contextKeyService);
 
 		if (editor instanceof EmbeddedCodeEditorWidget) {
 			return;
@@ -340,7 +347,7 @@ export class CommentController implements IEditorContribution {
 		this.globalToDispose.add(this._commentingRangeDecorator.onDidChangeDecorationsCount(count => {
 			if (count === 0) {
 				this.clearEditorListeners();
-			} else if (!this._editorDisposables) {
+			} else if (this._editorDisposables.length === 0) {
 				this.registerEditorListeners();
 			}
 		}));
@@ -360,6 +367,23 @@ export class CommentController implements IEditorContribution {
 				this.setComments(e.commentInfos.filter(commentInfo => commentInfo !== null));
 			}
 		}));
+		this.globalToDispose.add(this.commentService.onDidSetAllCommentThreads(e => {
+			if (e.commentThreads.length > 0) {
+				this._workspaceHasCommenting.set(true);
+			}
+		}));
+
+		this.globalToDispose.add(this.commentService.onDidChangeCommentingEnabled(e => {
+			if (e) {
+				this.registerEditorListeners();
+				this.beginCompute();
+			} else {
+				this.clearEditorListeners();
+				this._commentingRangeDecorator.update(this.editor, []);
+				this._commentThreadRangeDecorator.update(this.editor, []);
+				dispose(this._commentWidgets);
+			}
+		}));
 
 		this.globalToDispose.add(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
@@ -376,8 +400,8 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private clearEditorListeners() {
-		this._editorDisposables?.forEach(disposable => disposable.dispose());
-		this._editorDisposables = undefined;
+		dispose(this._editorDisposables);
+		this._editorDisposables = [];
 	}
 
 	private onEditorMouseMove(e: IEditorMouseEvent): void {
@@ -441,8 +465,10 @@ export class CommentController implements IEditorContribution {
 
 				return Promise.resolve([]);
 			}).then(commentInfos => {
-				const meaningfulCommentInfos = coalesce(commentInfos);
-				this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos);
+				if (this.commentService.isCommentingEnabled) {
+					const meaningfulCommentInfos = coalesce(commentInfos);
+					this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos);
+				}
 			}, (err) => {
 				onUnexpectedError(err);
 				return null;
@@ -542,9 +568,8 @@ export class CommentController implements IEditorContribution {
 	public dispose(): void {
 		this.globalToDispose.dispose();
 		this.localToDispose.dispose();
-		this._editorDisposables?.forEach(disposable => disposable.dispose());
-
-		this._commentWidgets.forEach(widget => widget.dispose());
+		dispose(this._editorDisposables);
+		dispose(this._commentWidgets);
 
 		this.editor = null!; // Strict null override - nulling out in dispose
 	}
@@ -556,7 +581,7 @@ export class CommentController implements IEditorContribution {
 
 		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		if (this._editorDisposables) {
+		if (this._editorDisposables.length) {
 			this.clearEditorListeners();
 			this.registerEditorListeners();
 		}
@@ -575,7 +600,7 @@ export class CommentController implements IEditorContribution {
 		}));
 		this.localToDispose.add(this.commentService.onDidUpdateCommentThreads(async e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
-			if (!editorURI) {
+			if (!editorURI || !this.commentService.isCommentingEnabled) {
 				return;
 			}
 
@@ -796,7 +821,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private setComments(commentInfos: ICommentInfo[]): void {
-		if (!this.editor) {
+		if (!this.editor || !this.commentService.isCommentingEnabled) {
 			return;
 		}
 
@@ -804,6 +829,7 @@ export class CommentController implements IEditorContribution {
 		let lineDecorationsWidth: number = this.editor.getLayoutInfo().decorationsWidth;
 
 		if (this._commentInfos.some(info => Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length))) {
+			this._workspaceHasCommenting.set(true);
 			if (!this._commentingRangeSpaceReserved) {
 				this._commentingRangeSpaceReserved = true;
 				let extraEditorClassName: string[] = [];
@@ -837,6 +863,9 @@ export class CommentController implements IEditorContribution {
 		this.removeCommentWidgetsAndStoreCache();
 
 		this._commentInfos.forEach(info => {
+			if (info.threads.length > 0) {
+				this._workspaceHasCommenting.set(true);
+			}
 			const providerCacheStore = this._pendingCommentCache[info.owner];
 			info.threads = info.threads.filter(thread => !thread.isDisposed);
 			info.threads.forEach(thread => {
@@ -858,9 +887,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	public closeWidget(): void {
-		if (this._commentWidgets) {
-			this._commentWidgets.forEach(widget => widget.hide());
-		}
+		this._commentWidgets?.forEach(widget => widget.hide());
 
 		this.editor.focus();
 		this.editor.revealRangeInCenter(this.editor.getSelection()!);
@@ -898,10 +925,6 @@ export class CommentController implements IEditorContribution {
 		}
 
 		this._commentWidgets = [];
-	}
-
-	public hasComments(): boolean {
-		return !!this._commentWidgets.length;
 	}
 }
 
@@ -955,6 +978,25 @@ export class PreviousCommentThreadAction extends EditorAction {
 registerEditorContribution(ID, CommentController);
 registerEditorAction(NextCommentThreadAction);
 registerEditorAction(PreviousCommentThreadAction);
+
+const TOGGLE_COMMENTING_COMMAND = 'workbench.action.toggleCommenting';
+CommandsRegistry.registerCommand({
+	id: TOGGLE_COMMENTING_COMMAND,
+	handler: (accessor) => {
+		const commentService = accessor.get(ICommentService);
+		const enable = commentService.isCommentingEnabled;
+		commentService.enableCommenting(!enable);
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: TOGGLE_COMMENTING_COMMAND,
+		title: nls.localize('comments.toggleCommenting', "Toggle Editor Commenting"),
+		category: 'Comments',
+	},
+	when: WorkspaceHasCommenting
+});
 
 const ADD_COMMENT_COMMAND = 'workbench.action.addComment';
 CommandsRegistry.registerCommand({

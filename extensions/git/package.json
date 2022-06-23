@@ -14,7 +14,6 @@
     "contribMergeEditorToolbar",
     "contribViewsWelcome",
     "scmActionButton",
-    "scmInput",
     "scmSelectedProvider",
     "scmValidation",
     "timeline"
@@ -1517,7 +1516,7 @@
       "merge/toolbar": [
         {
           "command": "git.acceptMerge",
-          "when": "isMergeEditor"
+          "when": "isMergeEditor && baseResourceScheme =~ /^git$|^file$/"
         }
       ],
       "scm/change/title": [
@@ -1894,6 +1893,26 @@
           "default": [],
           "scope": "resource"
         },
+        "git.branchProtectionIndicator": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "%config.branchProtectionIndicator%",
+          "properties": {
+            "quickOpen": {
+              "type": "boolean",
+              "description": "%config.branchProtectionIndicator.quickOpen%"
+            },
+            "statusBar": {
+              "type": "boolean",
+              "description": "%config.branchProtectionIndicator.statusBar%"
+            }
+          },
+          "default": {
+            "quickOpen": true,
+            "statusBar": true
+          },
+          "scope": "resource"
+        },
         "git.branchProtectionPrompt": {
           "type": "string",
           "description": "%config.branchProtectionPrompt%",
@@ -2032,9 +2051,8 @@
         },
         "git.useEditorAsCommitInput": {
           "type": "boolean",
-          "scope": "resource",
           "description": "%config.useEditorAsCommitInput%",
-          "default": false
+          "default": true
         },
         "git.verboseCommit": {
           "type": "boolean",
@@ -2350,7 +2368,8 @@
         "git.requireGitUserConfig": {
           "type": "boolean",
           "description": "%config.requireGitUserConfig%",
-          "default": true
+          "default": true,
+          "scope": "resource"
         },
         "git.showCommitInput": {
           "type": "boolean",
@@ -2360,9 +2379,13 @@
         },
         "git.terminalAuthentication": {
           "type": "boolean",
-          "scope": "resource",
           "default": true,
           "description": "%config.terminalAuthentication%"
+        },
+        "git.terminalGitEditor": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.terminalGitEditor%"
         },
         "git.useCommitInputAsStashMessage": {
           "type": "boolean",
@@ -2462,7 +2485,6 @@
             "type": "string"
           },
           "default": [],
-          "scope": "resource",
           "markdownDescription": "%config.commandsToLog%"
         },
         "git.logLevel": {

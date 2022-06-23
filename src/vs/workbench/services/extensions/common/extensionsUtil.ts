@@ -24,8 +24,8 @@ export function dedupExtensions(system: IExtensionDescription[], user: IExtensio
 		const extension = result.get(extensionKey);
 		if (extension) {
 			if (extension.isBuiltin) {
-				if (semver.gt(extension.version, userExtension.version)) {
-					logService.warn(`Skipping extension ${userExtension.extensionLocation.path} with lower version ${userExtension.version}.`);
+				if (semver.gte(extension.version, userExtension.version)) {
+					logService.warn(`Skipping extension ${userExtension.extensionLocation.path} in favour of the builtin extension ${extension.extensionLocation.path}.`);
 					return;
 				}
 				// Overwriting a builtin extension inherits the `isBuiltin` property and it doesn't show a warning
@@ -33,6 +33,9 @@ export function dedupExtensions(system: IExtensionDescription[], user: IExtensio
 			} else {
 				logService.warn(localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
 			}
+		} else if (userExtension.isBuiltin) {
+			logService.warn(`Skipping obsolete builtin extension ${userExtension.extensionLocation.path}`);
+			return;
 		}
 		result.set(extensionKey, userExtension);
 	});

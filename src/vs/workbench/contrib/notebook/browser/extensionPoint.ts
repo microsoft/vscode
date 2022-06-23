@@ -8,12 +8,12 @@ import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { NotebookEditorPriority, NotebookRendererEntrypoint, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-namespace NotebookEditorContribution {
-	export const type = 'type';
-	export const displayName = 'displayName';
-	export const selector = 'selector';
-	export const priority = 'priority';
-}
+const NotebookEditorContribution = Object.freeze({
+	type: 'type',
+	displayName: 'displayName',
+	selector: 'selector',
+	priority: 'priority',
+});
 
 export interface INotebookEditorContribution {
 	readonly [NotebookEditorContribution.type]: string;
@@ -22,16 +22,15 @@ export interface INotebookEditorContribution {
 	readonly [NotebookEditorContribution.priority]?: string;
 }
 
-namespace NotebookRendererContribution {
-
-	export const id = 'id';
-	export const displayName = 'displayName';
-	export const mimeTypes = 'mimeTypes';
-	export const entrypoint = 'entrypoint';
-	export const hardDependencies = 'dependencies';
-	export const optionalDependencies = 'optionalDependencies';
-	export const requiresMessaging = 'requiresMessaging';
-}
+const NotebookRendererContribution = Object.freeze({
+	id: 'id',
+	displayName: 'displayName',
+	mimeTypes: 'mimeTypes',
+	entrypoint: 'entrypoint',
+	hardDependencies: 'dependencies',
+	optionalDependencies: 'optionalDependencies',
+	requiresMessaging: 'requiresMessaging',
+});
 
 export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.id]?: string;
@@ -97,84 +96,105 @@ const notebookProviderContribution: IJSONSchema = {
 	}
 };
 
+const defaultRendererSnippet = Object.freeze({ id: '', displayName: '', mimeTypes: [''], entrypoint: '' });
+
 const notebookRendererContribution: IJSONSchema = {
 	description: nls.localize('contributes.notebook.renderer', 'Contributes notebook output renderer provider.'),
 	type: 'array',
-	defaultSnippets: [{ body: [{ id: '', displayName: '', mimeTypes: [''], entrypoint: '' }] }],
+	defaultSnippets: [{ body: [defaultRendererSnippet] }],
 	items: {
-		type: 'object',
-		required: [
-			NotebookRendererContribution.id,
-			NotebookRendererContribution.displayName,
-			NotebookRendererContribution.mimeTypes,
-			NotebookRendererContribution.entrypoint,
-		],
-		properties: {
-			[NotebookRendererContribution.id]: {
-				type: 'string',
-				description: nls.localize('contributes.notebook.renderer.viewType', 'Unique identifier of the notebook output renderer.'),
-			},
-			[NotebookRendererContribution.displayName]: {
-				type: 'string',
-				description: nls.localize('contributes.notebook.renderer.displayName', 'Human readable name of the notebook output renderer.'),
-			},
-			[NotebookRendererContribution.mimeTypes]: {
-				type: 'array',
-				description: nls.localize('contributes.notebook.selector', 'Set of globs that the notebook is for.'),
-				items: {
-					type: 'string'
+		defaultSnippets: [{ body: defaultRendererSnippet }],
+		allOf: [
+			{
+				type: 'object',
+				required: [
+					NotebookRendererContribution.id,
+					NotebookRendererContribution.displayName,
+				],
+				properties: {
+					[NotebookRendererContribution.id]: {
+						type: 'string',
+						description: nls.localize('contributes.notebook.renderer.viewType', 'Unique identifier of the notebook output renderer.'),
+					},
+					[NotebookRendererContribution.displayName]: {
+						type: 'string',
+						description: nls.localize('contributes.notebook.renderer.displayName', 'Human readable name of the notebook output renderer.'),
+					},
+					[NotebookRendererContribution.hardDependencies]: {
+						type: 'array',
+						uniqueItems: true,
+						items: { type: 'string' },
+						markdownDescription: nls.localize('contributes.notebook.renderer.hardDependencies', 'List of kernel dependencies the renderer requires. If any of the dependencies are present in the `NotebookKernel.preloads`, the renderer can be used.'),
+					},
+					[NotebookRendererContribution.optionalDependencies]: {
+						type: 'array',
+						uniqueItems: true,
+						items: { type: 'string' },
+						markdownDescription: nls.localize('contributes.notebook.renderer.optionalDependencies', 'List of soft kernel dependencies the renderer can make use of. If any of the dependencies are present in the `NotebookKernel.preloads`, the renderer will be preferred over renderers that don\'t interact with the kernel.'),
+					},
+					[NotebookRendererContribution.requiresMessaging]: {
+						default: 'never',
+						enum: [
+							'always',
+							'optional',
+							'never',
+						],
+
+						enumDescriptions: [
+							nls.localize('contributes.notebook.renderer.requiresMessaging.always', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
+							nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not requried.'),
+							nls.localize('contributes.notebook.renderer.requiresMessaging.never', 'The renderer does not require messaging.'),
+						],
+						description: nls.localize('contributes.notebook.renderer.requiresMessaging', 'Defines how and if the renderer needs to communicate with an extension host, via `createRendererMessaging`. Renderers with stronger messaging requirements may not work in all environments.'),
+					},
 				}
 			},
-			[NotebookRendererContribution.entrypoint]: {
-				description: nls.localize('contributes.notebook.renderer.entrypoint', 'File to load in the webview to render the extension.'),
+			{
 				oneOf: [
 					{
-						type: 'string',
+						required: [
+							NotebookRendererContribution.entrypoint,
+							NotebookRendererContribution.mimeTypes,
+						],
+						properties: {
+							[NotebookRendererContribution.mimeTypes]: {
+								type: 'array',
+								description: nls.localize('contributes.notebook.selector', 'Set of globs that the notebook is for.'),
+								items: {
+									type: 'string'
+								}
+							},
+							[NotebookRendererContribution.entrypoint]: {
+								description: nls.localize('contributes.notebook.renderer.entrypoint', 'File to load in the webview to render the extension.'),
+								type: 'string',
+							},
+						}
 					},
 					{
-						type: 'object',
-						required: ['extends', 'path'],
+						required: [
+							NotebookRendererContribution.entrypoint,
+						],
 						properties: {
-							extends: {
-								type: 'string',
-								description: nls.localize('contributes.notebook.renderer.entrypoint.extends', 'Existing renderer that this one extends.'),
-							},
-							path: {
-								type: 'string',
+							[NotebookRendererContribution.entrypoint]: {
 								description: nls.localize('contributes.notebook.renderer.entrypoint', 'File to load in the webview to render the extension.'),
+								type: 'object',
+								required: ['extends', 'path'],
+								properties: {
+									extends: {
+										type: 'string',
+										description: nls.localize('contributes.notebook.renderer.entrypoint.extends', 'Existing renderer that this one extends.'),
+									},
+									path: {
+										type: 'string',
+										description: nls.localize('contributes.notebook.renderer.entrypoint', 'File to load in the webview to render the extension.'),
+									},
+								}
 							},
 						}
 					}
 				]
-			},
-			[NotebookRendererContribution.hardDependencies]: {
-				type: 'array',
-				uniqueItems: true,
-				items: { type: 'string' },
-				markdownDescription: nls.localize('contributes.notebook.renderer.hardDependencies', 'List of kernel dependencies the renderer requires. If any of the dependencies are present in the `NotebookKernel.preloads`, the renderer can be used.'),
-			},
-			[NotebookRendererContribution.optionalDependencies]: {
-				type: 'array',
-				uniqueItems: true,
-				items: { type: 'string' },
-				markdownDescription: nls.localize('contributes.notebook.renderer.optionalDependencies', 'List of soft kernel dependencies the renderer can make use of. If any of the dependencies are present in the `NotebookKernel.preloads`, the renderer will be preferred over renderers that don\'t interact with the kernel.'),
-			},
-			[NotebookRendererContribution.requiresMessaging]: {
-				default: 'never',
-				enum: [
-					'always',
-					'optional',
-					'never',
-				],
-
-				enumDescriptions: [
-					nls.localize('contributes.notebook.renderer.requiresMessaging.always', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
-					nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not requried.'),
-					nls.localize('contributes.notebook.renderer.requiresMessaging.never', 'The renderer does not require messaging.'),
-				],
-				description: nls.localize('contributes.notebook.renderer.requiresMessaging', 'Defines how and if the renderer needs to communicate with an extension host, via `createRendererMessaging`. Renderers with stronger messaging requirements may not work in all environments.'),
-			},
-		}
+			}
+		]
 	}
 };
 

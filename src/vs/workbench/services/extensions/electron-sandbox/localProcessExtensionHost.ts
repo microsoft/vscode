@@ -41,8 +41,11 @@ import { SerializedError } from 'vs/base/common/errors';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { generateUuid } from 'vs/base/common/uuid';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { MessagePortExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -140,6 +143,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService protected readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -148,6 +152,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 		@IProductService private readonly _productService: IProductService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IExtensionHostStarter protected readonly _extensionHostStarter: IExtensionHostStarter,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -223,7 +228,6 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 
 		const env = objects.mixin(processEnv, {
 			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
-			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: true,
 			VSCODE_LOG_NATIVE: this._isExtensionDevHost,
 			VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
@@ -465,7 +469,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-				globalStorageHome: this._environmentService.globalStorageHome,
+				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
@@ -616,7 +620,7 @@ export class ExtHostMessagePortCommunication extends Disposable implements IExtH
 
 	establishProtocol(prepared: void, extensionHostProcess: ExtensionHostProcess, opts: IExtensionHostProcessOptions): Promise<IMessagePassingProtocol> {
 
-		opts.env['VSCODE_WILL_SEND_MESSAGE_PORT'] = 'true';
+		writeExtHostConnection(new MessagePortExtHostConnection(), opts.env);
 
 		// Get ready to acquire the message port from the shared process worker
 		const portPromise = acquirePort(undefined /* we trigger the request via service call! */, opts.responseChannel, opts.responseNonce);
