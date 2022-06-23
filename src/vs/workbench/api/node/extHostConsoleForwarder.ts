@@ -3,62 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
-'use strict';
+import { MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
-const performance = require('./vs/base/common/performance');
-performance.mark('code/fork/start');
+export class ExtHostConsoleForwarder {
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+	) {
+		const mainThreadConsole = extHostRpc.getProxy(MainContext.MainThreadConsole);
 
-const bootstrap = require('./bootstrap');
-const bootstrapNode = require('./bootstrap-node');
+		pipeLoggingToParent();
 
-// Remove global paths from the node module lookup
-bootstrapNode.removeGlobalNodeModuleLookupPaths();
-
-// Enable ASAR in our forked processes
-bootstrap.enableASARSupport();
-
-if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
-	bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+		// Use IPC messages to forward console-calls, note that the console is
+		// already patched to use`process.send()`
+		const nativeProcessSend = process.send!;
+		// const mainThreadConsole = this._extHostContext.getProxy(MainContext.MainThreadConsole);
+		process.send = (...args) => {
+			if ((args as unknown[]).length === 0 || !args[0] || args[0].type !== '__$console') {
+				return nativeProcessSend.apply(process, args);
+			}
+			mainThreadConsole.$logExtensionHostMessage(args[0]);
+			return false;
+		};
+	}
 }
 
-// Configure: pipe logging to parent process
-if (!!process.send && process.env['VSCODE_PIPE_LOGGING'] === 'true') {
-	pipeLoggingToParent();
-}
-
-// Handle Exceptions
-if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
-	handleExceptions();
-}
-
-// Terminate when parent terminates
-if (process.env['VSCODE_PARENT_PID']) {
-	terminateWhenParentTerminates();
-}
-
-// Listen for message ports
-if (process.env['VSCODE_WILL_SEND_MESSAGE_PORT']) {
-	listenForMessagePort();
-}
-
-// Load AMD entry point
-require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
-
-
-//#region Helpers
-
+// TODO@Alex: remove duplication
 function pipeLoggingToParent() {
 	const MAX_STREAM_BUFFER_LENGTH = 1024 * 1024;
 	const MAX_LENGTH = 100000;
 
 	/**
 	 * Prevent circular stringify and convert arguments to real array
-	 *
-	 * @param {ArrayLike<unknown>} args
 	 */
-	function safeToArray(args) {
-		const seen = [];
+	function safeToArray(args: ArrayLike<unknown>) {
+		const seen: any[] = [];
 		const argsArray = [];
 
 		// Massage some arguments with special treatment
@@ -88,6 +67,15 @@ function pipeLoggingToParent() {
 			}
 		}
 
+		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
+		// to start the stacktrace where the console message was being written
+		if (process.env['VSCODE_LOG_STACK'] === 'true') {
+			const stack = new Error().stack;
+			if (stack) {
+				argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
+			}
+		}
+
 		try {
 			const res = JSON.stringify(argsArray, function (key, value) {
 
@@ -113,10 +101,7 @@ function pipeLoggingToParent() {
 		}
 	}
 
-	/**
-	 * @param {{ type: string; severity: string; arguments: string; }} arg
-	 */
-	function safeSend(arg) {
+	function safeSend(arg: { type: string; severity: string; arguments: string }) {
 		try {
 			if (process.send) {
 				process.send(arg);
@@ -126,10 +111,7 @@ function pipeLoggingToParent() {
 		}
 	}
 
-	/**
-	 * @param {unknown} obj
-	 */
-	function isObject(obj) {
+	function isObject(obj: unknown) {
 		return typeof obj === 'object'
 			&& obj !== null
 			&& !Array.isArray(obj)
@@ -137,29 +119,42 @@ function pipeLoggingToParent() {
 			&& !(obj instanceof Date);
 	}
 
-	/**
-	 *
-	 * @param {'log' | 'warn' | 'error'} severity
-	 * @param {string} args
-	 */
-	function safeSendConsoleMessage(severity, args) {
+	function safeSendConsoleMessage(severity: 'log' | 'warn' | 'error', args: string) {
 		safeSend({ type: '__$console', severity, arguments: args });
 	}
 
+	let isMakingConsoleCall = false;
+
 	/**
-	 * Wraps a console message so that it is transmitted to the renderer.
+	 * Wraps a console message so that it is transmitted to the renderer. If
+	 * native logging is turned on, the original console message will be written
+	 * as well. This is needed since the console methods are "magic" in V8 and
+	 * are the only methods that allow later introspection of logged variables.
 	 *
 	 * The wrapped property is not defined with `writable: false` to avoid
 	 * throwing errors, but rather a no-op setting. See https://github.com/microsoft/vscode-extension-telemetry/issues/88
-	 *
-	 * @param {'log' | 'info' | 'warn' | 'error'} method
-	 * @param {'log' | 'warn' | 'error'} severity
 	 */
-	function wrapConsoleMethod(method, severity) {
-		Object.defineProperty(console, method, {
-			set: () => { },
-			get: () => function () { safeSendConsoleMessage(severity, safeToArray(arguments)); },
-		});
+	function wrapConsoleMethod(method: 'log' | 'info' | 'warn' | 'error', severity: 'log' | 'warn' | 'error') {
+		if (process.env['VSCODE_LOG_NATIVE'] === 'true') {
+			const original = console[method];
+			const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
+			Object.defineProperty(console, method, {
+				set: () => { },
+				get: () => function () {
+					safeSendConsoleMessage(severity, safeToArray(arguments));
+					isMakingConsoleCall = true;
+					stream.write('\nSTART_NATIVE_LOG\n');
+					original.apply(console, arguments as any);
+					stream.write('\nEND_NATIVE_LOG\n');
+					isMakingConsoleCall = false;
+				},
+			});
+		} else {
+			Object.defineProperty(console, method, {
+				set: () => { },
+				get: () => function () { safeSendConsoleMessage(severity, safeToArray(arguments)); },
+			});
+		}
 	}
 
 	/**
@@ -167,11 +162,8 @@ function pipeLoggingToParent() {
 	 * renderer or CLI. It both calls through to the original method as well
 	 * as to console.log with complete lines so that they're made available
 	 * to the debugger/CLI.
-	 *
-	 * @param {'stdout' | 'stderr'} streamName
-	 * @param {'log' | 'warn' | 'error'} severity
 	 */
-	function wrapStream(streamName, severity) {
+	function wrapStream(streamName: 'stdout' | 'stderr', severity: 'log' | 'warn' | 'error') {
 		const stream = process[streamName];
 		const original = stream.write;
 
@@ -180,12 +172,14 @@ function pipeLoggingToParent() {
 
 		Object.defineProperty(stream, 'write', {
 			set: () => { },
-			get: () => (chunk, encoding, callback) => {
-				buf += chunk.toString(encoding);
-				const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
-				if (eol !== -1) {
-					console[severity](buf.slice(0, eol));
-					buf = buf.slice(eol + 1);
+			get: () => (chunk: Uint8Array | string, encoding?: BufferEncoding, callback?: (err?: Error) => void) => {
+				if (!isMakingConsoleCall) {
+					buf += (chunk as any).toString(encoding);
+					const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
+					if (eol !== -1) {
+						console[severity](buf.slice(0, eol));
+						buf = buf.slice(eol + 1);
+					}
 				}
 
 				original.call(stream, chunk, encoding, callback);
@@ -199,7 +193,7 @@ function pipeLoggingToParent() {
 		wrapConsoleMethod('log', 'log');
 		wrapConsoleMethod('warn', 'warn');
 		wrapConsoleMethod('error', 'error');
-	} else {
+	} else if (process.env['VSCODE_LOG_NATIVE'] !== 'true') {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 		console.info = function () { /* ignore */ };
@@ -209,45 +203,3 @@ function pipeLoggingToParent() {
 	wrapStream('stderr', 'error');
 	wrapStream('stdout', 'log');
 }
-
-function handleExceptions() {
-
-	// Handle uncaught exceptions
-	process.on('uncaughtException', function (err) {
-		console.error('Uncaught Exception: ', err);
-	});
-
-	// Handle unhandled promise rejections
-	process.on('unhandledRejection', function (reason) {
-		console.error('Unhandled Promise Rejection: ', reason);
-	});
-}
-
-function terminateWhenParentTerminates() {
-	const parentPid = Number(process.env['VSCODE_PARENT_PID']);
-
-	if (typeof parentPid === 'number' && !isNaN(parentPid)) {
-		setInterval(function () {
-			try {
-				process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.
-			} catch (e) {
-				process.exit();
-			}
-		}, 5000);
-	}
-}
-
-function listenForMessagePort() {
-	// We need to listen for the 'port' event as soon as possible,
-	// otherwise we might miss the event. But we should also be
-	// prepared in case the event arrives late.
-	process.on('port', (e) => {
-		if (global.vscodePortsCallback) {
-			global.vscodePortsCallback(e.ports);
-		} else {
-			global.vscodePorts = e.ports;
-		}
-	});
-}
-
-//#endregion
