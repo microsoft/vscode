@@ -711,7 +711,9 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
 
 		// Profiles
-		mainProcessElectronServer.registerChannel('userDataProfiles', ProxyChannel.fromService(accessor.get(IUserDataProfilesMainService)));
+		const userDataProfilesService = ProxyChannel.fromService(accessor.get(IUserDataProfilesMainService));
+		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
+		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
