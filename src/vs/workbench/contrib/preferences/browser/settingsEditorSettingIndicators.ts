@@ -10,6 +10,7 @@ import { ICustomHover, ITooltipMarkdownString, IUpdatableHoverOptions, setupCust
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
@@ -19,9 +20,12 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 const $ = DOM.$;
 
+type ScopeString = 'workspace' | 'user' | 'remote';
+
 export interface ISettingOverrideClickEvent {
-	scope: string;
-	targetKey: string;
+	scope: ScopeString;
+	language: string;
+	settingKey: string;
 }
 
 /**
@@ -39,7 +43,8 @@ export class SettingsTreeIndicatorsLabel {
 		container: HTMLElement,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
-		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService) {
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@ILanguageService private readonly languageService: ILanguageService) {
 		this.indicatorsContainerElement = DOM.append(container, $('.misc-label'));
 		this.indicatorsContainerElement.style.display = 'inline';
 
@@ -105,6 +110,19 @@ export class SettingsTreeIndicatorsLabel {
 		this.render();
 	}
 
+	private getInlineScopeDisplayText(completeScope: string): string {
+		const [scope, language] = completeScope.split(':');
+		const localizedScope = scope === 'user' ?
+			localize('user', "User") : scope === 'workspace' ?
+				localize('workspace', "Workspace") :
+				localize('remote', "Remote");
+		if (language.length) {
+			const languageName = this.languageService.getLanguageName(language) ?? language;
+			return `${localizedScope} [${languageName}]`;
+		}
+		return localizedScope;
+	}
+
 	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
 		this.scopeOverridesElement.innerText = '';
 		this.scopeOverridesElement.style.display = 'none';
@@ -118,12 +136,14 @@ export class SettingsTreeIndicatorsLabel {
 				this.scopeOverridesLabel.text = `${prefaceText}: `;
 
 				const firstScope = element.overriddenScopeList[0];
-				const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, firstScope));
+				const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(firstScope)));
 				elementDisposables.add(
 					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
+						const [scope, language] = firstScope.split(':');
 						onDidClickOverrideElement.fire({
-							targetKey: element.setting.key,
-							scope: firstScope
+							settingKey: element.setting.key,
+							scope: scope as ScopeString,
+							language
 						});
 						e.preventDefault();
 						e.stopPropagation();
@@ -142,8 +162,9 @@ export class SettingsTreeIndicatorsLabel {
 				let contentMarkdownString = prefaceText;
 				let contentFallback = prefaceText;
 				for (const scope of element.overriddenScopeList) {
-					contentMarkdownString += `\n- [${scope}](${scope})`;
-					contentFallback += `\n• ${scope}`;
+					const scopeDisplayText = this.getInlineScopeDisplayText(scope);
+					contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(scope)})`;
+					contentFallback += `\n• ${scopeDisplayText}`;
 				}
 				const content: ITooltipMarkdownString = {
 					markdown: {
@@ -155,10 +176,12 @@ export class SettingsTreeIndicatorsLabel {
 				};
 				let hover: ICustomHover | undefined = undefined;
 				const options: IUpdatableHoverOptions = {
-					linkHandler: (scope: string) => {
+					linkHandler: (url: string) => {
+						const [scope, language] = decodeURIComponent(url).split(':');
 						onDidClickOverrideElement.fire({
-							targetKey: element.setting.key,
-							scope
+							settingKey: element.setting.key,
+							scope: scope as ScopeString,
+							language
 						});
 						hover!.dispose();
 					}

@@ -7,7 +7,6 @@ import * as arrays from 'vs/base/common/arrays';
 import { escapeRegExpCharacters, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isArray, withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -211,22 +210,29 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		let displayValue = isConfigured ? inspected[targetSelector] : inspected.defaultValue;
 		const overriddenScopeList: string[] = [];
-		if (targetSelector !== 'workspaceValue' && typeof inspected.workspaceValue !== 'undefined') {
-			overriddenScopeList.push(localize('workspace', "Workspace"));
+		if ((languageSelector || targetSelector !== 'workspaceValue') && typeof inspected.workspaceValue !== 'undefined') {
+			overriddenScopeList.push('workspace:');
 		}
-
-		if (targetSelector !== 'userRemoteValue' && typeof inspected.userRemoteValue !== 'undefined') {
-			overriddenScopeList.push(localize('remote', "Remote"));
+		if ((languageSelector || targetSelector !== 'userRemoteValue') && typeof inspected.userRemoteValue !== 'undefined') {
+			overriddenScopeList.push('remote:');
 		}
-
-		if (targetSelector !== 'userLocalValue' && typeof inspected.userLocalValue !== 'undefined') {
-			overriddenScopeList.push(localize('user', "User"));
+		if ((languageSelector || targetSelector !== 'userLocalValue') && typeof inspected.userLocalValue !== 'undefined') {
+			overriddenScopeList.push('user:');
 		}
 
 		if (inspected.overrideIdentifiers) {
 			for (const overrideIdentifier of inspected.overrideIdentifiers) {
 				const inspectedOverride = inspectedLanguageOverrides.get(overrideIdentifier);
 				if (inspectedOverride) {
+					if ((languageSelector !== overrideIdentifier || targetSelector !== 'workspaceValue') && typeof inspectedOverride.workspace?.override !== 'undefined') {
+						overriddenScopeList.push(`workspace:${overrideIdentifier}`);
+					}
+					if ((languageSelector !== overrideIdentifier || targetSelector !== 'userRemoteValue') && typeof inspectedOverride.userRemote?.override !== 'undefined') {
+						overriddenScopeList.push(`remote:${overrideIdentifier}`);
+					}
+					if ((languageSelector !== overrideIdentifier || targetSelector !== 'userLocalValue') && typeof inspectedOverride.userLocal?.override !== 'undefined') {
+						overriddenScopeList.push(`user:${overrideIdentifier}`);
+					}
 					this.languageOverrideValues.set(overrideIdentifier, inspectedOverride);
 				}
 			}
