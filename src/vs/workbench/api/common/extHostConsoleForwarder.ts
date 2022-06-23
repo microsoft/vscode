@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStackArgument } from 'vs/base/common/console';
+import { safeStringify } from 'vs/base/common/objects';
 import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -70,7 +72,6 @@ const MAX_LENGTH = 100000;
  * Prevent circular stringify and convert arguments to real array
  */
 function safeStringifyArgumentsToArray(args: IArguments, includeStack: boolean): string {
-	const seen: any[] = [];
 	const argsArray = [];
 
 	// Massage some arguments with special treatment
@@ -105,24 +106,12 @@ function safeStringifyArgumentsToArray(args: IArguments, includeStack: boolean):
 	if (includeStack) {
 		const stack = new Error().stack;
 		if (stack) {
-			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
+			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') } as IStackArgument);
 		}
 	}
 
 	try {
-		const res = JSON.stringify(argsArray, function (key, value) {
-
-			// Objects get special treatment to prevent circles
-			if (isObject(value) || Array.isArray(value)) {
-				if (seen.indexOf(value) !== -1) {
-					return '[Circular]';
-				}
-
-				seen.push(value);
-			}
-
-			return value;
-		});
+		const res = safeStringify(argsArray);
 
 		if (res.length > MAX_LENGTH) {
 			return 'Output omitted for a large object that exceeds the limits';
@@ -132,12 +121,4 @@ function safeStringifyArgumentsToArray(args: IArguments, includeStack: boolean):
 	} catch (error) {
 		return `Output omitted for an object that cannot be inspected ('${error.toString()}')`;
 	}
-}
-
-function isObject(obj: unknown) {
-	return typeof obj === 'object'
-		&& obj !== null
-		&& !Array.isArray(obj)
-		&& !(obj instanceof RegExp)
-		&& !(obj instanceof Date);
 }
