@@ -4,10 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IGenericMarkProperties, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
-// Importing types is safe in any layer
-// eslint-disable-next-line code-import-patterns
-import type { IMarker } from 'xterm-headless';
+
+interface IEvent<T, U = void> {
+	(listener: (arg1: T, arg2: U) => any): IDisposable;
+}
+
+interface IMarker extends IDisposable {
+	/**
+	 * A unique identifier for this marker.
+	 */
+	readonly id: number;
+
+	/**
+	 * Whether this marker is disposed.
+	 */
+	readonly isDisposed: boolean;
+
+	/**
+	 * The actual line index in the buffer at this point in time. This is set to
+	 * -1 if the marker has been disposed.
+	 */
+	readonly line: number;
+
+	/**
+	 * Event listener to get notified when the marker gets disposed. Automatic disposal
+	 * might happen for a marker, that got invalidated by scrolling out or removal of
+	 * a line from the buffer.
+	 */
+	onDispose: IEvent<void>;
+}
+
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
