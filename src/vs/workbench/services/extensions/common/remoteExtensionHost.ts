@@ -242,6 +242,9 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				authority: this._initDataProvider.remoteAuthority,
 				connectionData: remoteInitData.connectionData
 			},
+			consoleForward: {
+				includeStack: false,
+			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,

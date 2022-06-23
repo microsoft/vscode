@@ -31,6 +31,7 @@ export interface IExtensionHostInitData {
 	logFile: URI;
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null };
+	consoleForward: { includeStack: boolean };
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
 }

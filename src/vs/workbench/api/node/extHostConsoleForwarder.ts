@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class ExtHostConsoleForwarder {
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
 		const mainThreadConsole = extHostRpc.getProxy(MainContext.MainThreadConsole);
 
-		pipeLoggingToParent();
+		pipeLoggingToParent(initData.consoleForward.includeStack);
 
 		// Use IPC messages to forward console-calls, note that the console is
 		// already patched to use`process.send()`
@@ -29,7 +31,7 @@ export class ExtHostConsoleForwarder {
 }
 
 // TODO@Alex: remove duplication
-function pipeLoggingToParent() {
+function pipeLoggingToParent(includeStack: boolean) {
 	const MAX_STREAM_BUFFER_LENGTH = 1024 * 1024;
 	const MAX_LENGTH = 100000;
 
@@ -69,7 +71,7 @@ function pipeLoggingToParent() {
 
 		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
 		// to start the stacktrace where the console message was being written
-		if (process.env['VSCODE_LOG_STACK'] === 'true') {
+		if (includeStack) {
 			const stack = new Error().stack;
 			if (stack) {
 				argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });

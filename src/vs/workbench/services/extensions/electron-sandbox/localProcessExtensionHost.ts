@@ -230,8 +230,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
 			VSCODE_VERBOSE_LOGGING: true,
 			VSCODE_LOG_NATIVE: this._isExtensionDevHost,
-			VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-			VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose)
+			VSCODE_HANDLES_UNCAUGHT_ERRORS: true
 		});
 
 		if (this._environmentService.debugExtensionHost.env) {
@@ -483,6 +482,9 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,
 				isRemote: false
+			},
+			consoleForward: {
+				includeStack: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
 			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,
