@@ -11,11 +11,11 @@ import { FileOperationError, FileOperationResult, IFileContent, IFileService } f
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { PosixShellType, TerminalSettingId, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { posix, win32 } from 'vs/base/common/path';
 
 /**
  * Tracks a list of generic entries.
@@ -221,10 +221,14 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	}
 }
 
-async function fetchBashHistory(accessor: ServicesAccessor): Promise<IterableIterator<string> | undefined> {
+export async function fetchBashHistory(accessor: ServicesAccessor): Promise<IterableIterator<string> | undefined> {
 	const fileService = accessor.get(IFileService);
 	const remoteAgentService = accessor.get(IRemoteAgentService);
-	const content = await fetchFileContents(env['HOME'], '.bash_history', fileService, remoteAgentService);
+	const remoteEnvironment = await remoteAgentService.getEnvironment();
+	if (remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows) {
+		return undefined;
+	}
+	const content = await fetchFileContents(env['HOME'], '.bash_history', false, fileService, remoteAgentService);
 	if (content === undefined) {
 		return undefined;
 	}
@@ -264,10 +268,14 @@ async function fetchBashHistory(accessor: ServicesAccessor): Promise<IterableIte
 	return result.values();
 }
 
-async function fetchZshHistory(accessor: ServicesAccessor) {
+export async function fetchZshHistory(accessor: ServicesAccessor) {
 	const fileService = accessor.get(IFileService);
 	const remoteAgentService = accessor.get(IRemoteAgentService);
-	const content = await fetchFileContents(env['HOME'], '.zsh_history', fileService, remoteAgentService);
+	const remoteEnvironment = await remoteAgentService.getEnvironment();
+	if (remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows) {
+		return undefined;
+	}
+	const content = await fetchFileContents(env['HOME'], '.zsh_history', false, fileService, remoteAgentService);
 	if (content === undefined) {
 		return undefined;
 	}
@@ -282,20 +290,21 @@ async function fetchZshHistory(accessor: ServicesAccessor) {
 	return result.values();
 }
 
-async function fetchPwshHistory(accessor: ServicesAccessor) {
-	const fileService = accessor.get(IFileService);
-	const remoteAgentService = accessor.get(IRemoteAgentService);
+export async function fetchPwshHistory(accessor: ServicesAccessor) {
+	const fileService: Pick<IFileService, 'readFile'> = accessor.get(IFileService);
+	const remoteAgentService: Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'> = accessor.get(IRemoteAgentService);
 	let folderPrefix: string | undefined;
 	let filePath: string;
 	const remoteEnvironment = await remoteAgentService.getEnvironment();
-	if (remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows) {
+	const isFileWindows = remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows;
+	if (isFileWindows) {
 		folderPrefix = env['APPDATA'];
 		filePath = '\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
 	} else {
 		folderPrefix = env['HOME'];
 		filePath = '.local/share/powershell/PSReadline/ConsoleHost_history.txt';
 	}
-	const content = await fetchFileContents(folderPrefix, filePath, fileService, remoteAgentService);
+	const content = await fetchFileContents(folderPrefix, filePath, isFileWindows, fileService, remoteAgentService);
 	if (content === undefined) {
 		return undefined;
 	}
@@ -343,6 +352,7 @@ async function fetchPwshHistory(accessor: ServicesAccessor) {
 		} else {
 			// Remove trailing backtick
 			currentCommand = currentCommand.replace(/`$/, '');
+			wrapChar = undefined;
 		}
 	}
 
@@ -352,8 +362,9 @@ async function fetchPwshHistory(accessor: ServicesAccessor) {
 async function fetchFileContents(
 	folderPrefix: string | undefined,
 	filePath: string,
-	fileService: IFileService,
-	remoteAgentService: IRemoteAgentService,
+	isFileWindows: boolean,
+	fileService: Pick<IFileService, 'readFile'>,
+	remoteAgentService: Pick<IRemoteAgentService, 'getConnection'>,
 ): Promise<string | undefined> {
 	if (!folderPrefix) {
 		return undefined;
@@ -361,7 +372,7 @@ async function fetchFileContents(
 	const isRemote = !!remoteAgentService.getConnection()?.remoteAuthority;
 	const historyFileUri = URI.from({
 		scheme: isRemote ? Schemas.vscodeRemote : Schemas.file,
-		path: join(folderPrefix, filePath)
+		path: (isFileWindows ? win32.join : posix.join)(folderPrefix, filePath)
 	});
 	let content: IFileContent;
 	try {
