@@ -24,7 +24,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { isUntitledWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { MessageType, isMessageOfType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { MessageType, isMessageOfType, IExtensionHostInitData, UIKind, NativeLogMarkers } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
@@ -55,11 +55,6 @@ export interface ILocalProcessExtensionHostInitData {
 
 export interface ILocalProcessExtensionHostDataProvider {
 	getInitData(): Promise<ILocalProcessExtensionHostInitData>;
-}
-
-const enum NativeLogMarkers {
-	Start = 'START_NATIVE_LOG',
-	End = 'END_NATIVE_LOG',
 }
 
 export class ExtensionHostProcess {

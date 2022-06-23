@@ -123,3 +123,8 @@ export function isMessageOfType(message: VSBuffer, type: MessageType): boolean {
 		default: return false;
 	}
 }
+
+export const enum NativeLogMarkers {
+	Start = 'START_NATIVE_LOG',
+	End = 'END_NATIVE_LOG',
+}

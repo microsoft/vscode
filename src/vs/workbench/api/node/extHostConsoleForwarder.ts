@@ -6,6 +6,7 @@
 import { AbstractExtHostConsoleForwarder, safeStringifyArgumentsToArray } from 'vs/workbench/api/common/extHostConsoleForwarder';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { NativeLogMarkers } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 export class ExtHostConsoleForwarder extends AbstractExtHostConsoleForwarder {
 	constructor(
@@ -68,9 +69,9 @@ function pipeLoggingToParent(includeStack: boolean, logNative: boolean) {
 				get: () => function () {
 					safeSendConsoleMessage(severity, safeStringifyArgumentsToArray(arguments, includeStack));
 					isMakingConsoleCall = true;
-					stream.write('\nSTART_NATIVE_LOG\n');
+					stream.write(`\n${NativeLogMarkers.Start}\n`);
 					original.apply(console, arguments as any);
-					stream.write('\nEND_NATIVE_LOG\n');
+					stream.write(`\n${NativeLogMarkers.End}\n`);
 					isMakingConsoleCall = false;
 				},
 			});
@@ -92,7 +93,6 @@ function pipeLoggingToParent(includeStack: boolean, logNative: boolean) {
 		const stream = process[streamName];
 		const original = stream.write;
 
-		/** @type string */
 		let buf = '';
 
 		Object.defineProperty(stream, 'write', {
