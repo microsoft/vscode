@@ -12,11 +12,13 @@ import { MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
 
 export class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
 
 	constructor(
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
@@ -28,7 +30,7 @@ export class ExtensionsScannerService extends AbstractExtensionsScannerService i
 			URI.file(nativeEnvironmentService.extensionsPath),
 			joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
 			joinPath(URI.file(nativeEnvironmentService.userDataPath), MANIFEST_CACHE_FOLDER),
-			extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService);
+			userDataProfilesService, extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService);
 	}
 
 	protected async getTranslations(language: string): Promise<Translations> {
