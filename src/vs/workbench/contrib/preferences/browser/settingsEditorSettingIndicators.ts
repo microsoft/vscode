@@ -114,11 +114,9 @@ export class SettingsTreeIndicatorsLabel {
 		const [scope, language] = completeScope.split(':');
 		const localizedScope = scope === 'user' ?
 			localize('user', "User") : scope === 'workspace' ?
-				localize('workspace', "Workspace") :
-				localize('remote', "Remote");
-		if (language.length) {
-			const languageName = this.languageService.getLanguageName(language) ?? language;
-			return `${localizedScope} [${languageName}]`;
+				localize('workspace', "Workspace") : localize('remote', "Remote");
+		if (language) {
+			return `${this.languageService.getLanguageName(language)} > ${localizedScope}`;
 		}
 		return localizedScope;
 	}
@@ -126,14 +124,14 @@ export class SettingsTreeIndicatorsLabel {
 	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
 		this.scopeOverridesElement.innerText = '';
 		this.scopeOverridesElement.style.display = 'none';
-		if (element.overriddenScopeList.length) {
+		if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
 			this.scopeOverridesElement.style.display = 'inline';
-			if (element.overriddenScopeList.length === 1) {
+			if (element.overriddenScopeList.length === 1 && !element.overriddenDefaultsLanguageList.length) {
 				// Just show all the text in the label.
 				const prefaceText = element.isConfigured ?
 					localize('alsoConfiguredIn', "Also modified in") :
 					localize('configuredIn', "Modified in");
-				this.scopeOverridesLabel.text = `${prefaceText}: `;
+				this.scopeOverridesLabel.text = `${prefaceText} `;
 
 				const firstScope = element.overriddenScopeList[0];
 				const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(firstScope)));
@@ -156,15 +154,33 @@ export class SettingsTreeIndicatorsLabel {
 					localize('configuredElsewhere', "Modified elsewhere");
 				this.scopeOverridesLabel.text = scopeOverridesLabelText;
 
-				const prefaceText = element.isConfigured ?
-					localize('alsoModifiedInScopes', "The setting has also been modified in the following scopes:") :
-					localize('modifiedInScopes', "The setting has been modified in the following scopes:");
-				let contentMarkdownString = prefaceText;
-				let contentFallback = prefaceText;
-				for (const scope of element.overriddenScopeList) {
-					const scopeDisplayText = this.getInlineScopeDisplayText(scope);
-					contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(scope)})`;
-					contentFallback += `\n• ${scopeDisplayText}`;
+				let contentMarkdownString = '';
+				let contentFallback = '';
+				if (element.overriddenScopeList.length) {
+					const prefaceText = element.isConfigured ?
+						localize('alsoModifiedInScopes', "The setting has also been modified in the following scopes:") :
+						localize('modifiedInScopes', "The setting has been modified in the following scopes:");
+					contentMarkdownString = prefaceText;
+					contentFallback = prefaceText;
+					for (const scope of element.overriddenScopeList) {
+						const scopeDisplayText = this.getInlineScopeDisplayText(scope);
+						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(scope)})`;
+						contentFallback += `\n• ${scopeDisplayText}`;
+					}
+				}
+				if (element.overriddenDefaultsLanguageList.length) {
+					if (contentMarkdownString) {
+						contentMarkdownString += `\n\n`;
+						contentFallback += `\n\n`;
+					}
+					const prefaceText = localize('hasDefaultOverridesForLanguages', "The following languages have default overrides:");
+					contentMarkdownString += prefaceText;
+					contentFallback += prefaceText;
+					for (const language of element.overriddenDefaultsLanguageList) {
+						const scopeDisplayText = this.languageService.getLanguageName(language);
+						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(`default:${language}`)})`;
+						contentFallback += `\n• ${scopeDisplayText}`;
+					}
 				}
 				const content: ITooltipMarkdownString = {
 					markdown: {
@@ -183,7 +199,7 @@ export class SettingsTreeIndicatorsLabel {
 							scope: scope as ScopeString,
 							language
 						});
-						hover!.dispose();
+						hover!.hide();
 					}
 				};
 				hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);

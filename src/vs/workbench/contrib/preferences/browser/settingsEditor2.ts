@@ -872,10 +872,9 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 		this._register(this.settingRenderers.onApplyFilter((filter) => this.applyFilter(filter)));
 		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
+			this.removeLanguageFilters();
 			if (element.language) {
 				this.applyFilter(`@${LANGUAGE_SETTING_TAG}${element.language}`);
-			} else {
-				this.removeLanguageFilters();
 			}
 
 			if (element.scope === 'workspace') {

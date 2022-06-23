@@ -152,6 +152,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
+	overriddenDefaultsLanguageList: string[] = [];
 
 	/**
 	 * For each language that contributes setting values or default overrides, we can see those values here.
@@ -210,6 +211,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		let displayValue = isConfigured ? inspected[targetSelector] : inspected.defaultValue;
 		const overriddenScopeList: string[] = [];
+		const overriddenDefaultsLanguageList: string[] = [];
 		if ((languageSelector || targetSelector !== 'workspaceValue') && typeof inspected.workspaceValue !== 'undefined') {
 			overriddenScopeList.push('workspace:');
 		}
@@ -224,19 +226,26 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			for (const overrideIdentifier of inspected.overrideIdentifiers) {
 				const inspectedOverride = inspectedLanguageOverrides.get(overrideIdentifier);
 				if (inspectedOverride) {
-					if ((languageSelector !== overrideIdentifier || targetSelector !== 'workspaceValue') && typeof inspectedOverride.workspace?.override !== 'undefined') {
-						overriddenScopeList.push(`workspace:${overrideIdentifier}`);
-					}
-					if ((languageSelector !== overrideIdentifier || targetSelector !== 'userRemoteValue') && typeof inspectedOverride.userRemote?.override !== 'undefined') {
-						overriddenScopeList.push(`remote:${overrideIdentifier}`);
-					}
-					if ((languageSelector !== overrideIdentifier || targetSelector !== 'userLocalValue') && typeof inspectedOverride.userLocal?.override !== 'undefined') {
-						overriddenScopeList.push(`user:${overrideIdentifier}`);
+					if (this.languageService.isRegisteredLanguageId(overrideIdentifier)) {
+						if (languageSelector !== overrideIdentifier && typeof inspectedOverride.default?.override !== 'undefined') {
+							overriddenDefaultsLanguageList.push(overrideIdentifier);
+						}
+						if ((languageSelector !== overrideIdentifier || targetSelector !== 'workspaceValue') && typeof inspectedOverride.workspace?.override !== 'undefined') {
+							overriddenScopeList.push(`workspace:${overrideIdentifier}`);
+						}
+						if ((languageSelector !== overrideIdentifier || targetSelector !== 'userRemoteValue') && typeof inspectedOverride.userRemote?.override !== 'undefined') {
+							overriddenScopeList.push(`remote:${overrideIdentifier}`);
+						}
+						if ((languageSelector !== overrideIdentifier || targetSelector !== 'userLocalValue') && typeof inspectedOverride.userLocal?.override !== 'undefined') {
+							overriddenScopeList.push(`user:${overrideIdentifier}`);
+						}
 					}
 					this.languageOverrideValues.set(overrideIdentifier, inspectedOverride);
 				}
 			}
 		}
+		this.overriddenScopeList = overriddenScopeList;
+		this.overriddenDefaultsLanguageList = overriddenDefaultsLanguageList;
 
 		// The user might have added, removed, or modified a language filter,
 		// so we reset the default value source to the non-language-specific default value source for now.
@@ -286,7 +295,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		}
 
-		this.overriddenScopeList = overriddenScopeList;
 		if (this.setting.description.length > SettingsTreeSettingElement.MAX_DESC_LINES) {
 			const truncatedDescLines = this.setting.description.slice(0, SettingsTreeSettingElement.MAX_DESC_LINES);
 			truncatedDescLines.push('[...]');
