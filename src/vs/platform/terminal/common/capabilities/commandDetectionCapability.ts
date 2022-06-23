@@ -264,8 +264,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		return reversed.find(c => c.marker!.line <= line - 1)?.cwd;
 	}
 
-	handlePromptStart(): void {
-		this._currentCommand.promptStartMarker = this._terminal.registerMarker(0);
+	handlePromptStart(marker?: IMarker): void {
+		this._currentCommand.promptStartMarker = marker || this._terminal.registerMarker(0);
 		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);
 	}
 
@@ -300,8 +300,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handleRightPromptEnd', this._currentCommand.commandRightPromptEndX);
 	}
 
-	handleCommandStart(genericMarkProperties?: IGenericMarkProperties): void {
+	handleCommandStart(marker?: IMarker, genericMarkProperties?: IGenericMarkProperties): void {
 		// Only update the column if the line has already been set
+		this._currentCommand.commandStartMarker = marker || this._currentCommand.commandStartMarker;
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
 			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 			this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
@@ -312,8 +313,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			return;
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
-		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker, genericMarkProperties } as ITerminalCommand);
+		this._currentCommand.commandStartMarker = marker || this._terminal.registerMarker(0);
+		this._onCommandStarted.fire({ marker: marker || this._currentCommand.commandStartMarker, genericMarkProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
@@ -348,23 +349,23 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		});
 	}
 
-	handleGenericCommand(properties: IGenericMarkProperties): void {
+	handleGenericCommand(marker: IMarker, properties: IGenericMarkProperties): void {
 		if (properties.disableCommandStorage) {
 			this.setIsCommandStorageDisabled();
 		}
-		this.handlePromptStart();
-		this.handleCommandStart(properties);
-		this.handleCommandExecuted();
-		this.handleCommandFinished(undefined, properties);
+		this.handlePromptStart(marker);
+		this.handleCommandStart(marker, properties);
+		this.handleCommandExecuted(marker);
+		this.handleCommandFinished(undefined, marker, properties);
 	}
 
-	handleCommandExecuted(): void {
+	handleCommandExecuted(marker?: IMarker): void {
 		if (this._isWindowsPty) {
 			this._handleCommandExecutedWindows();
 			return;
 		}
 
-		this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(0);
+		this._currentCommand.commandExecutedMarker = marker || this._terminal.registerMarker(0);
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
 
@@ -408,12 +409,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._onCurrentCommandInvalidated.fire(request);
 	}
 
-	handleCommandFinished(exitCode: number | undefined, genericMarkProperties?: IGenericMarkProperties): void {
+	handleCommandFinished(exitCode: number | undefined, marker?: IMarker, genericMarkProperties?: IGenericMarkProperties): void {
 		if (this._isWindowsPty) {
 			this._preHandleCommandFinishedWindows();
 		}
 
-		this._currentCommand.commandFinishedMarker = this._terminal.registerMarker(0);
+		this._currentCommand.commandFinishedMarker = marker || this._terminal.registerMarker(0);
 		const command = this._currentCommand.command;
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
 		this._exitCode = exitCode;

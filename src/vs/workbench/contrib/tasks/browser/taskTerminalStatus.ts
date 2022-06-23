@@ -14,7 +14,6 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { CommandInvalidationReason, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -54,8 +53,8 @@ export class TaskTerminalStatus extends Disposable {
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
-		problemMatcher.onDidFindMatch(() => terminal.addGenericMarker({ hoverMessage: nls.localize('task.watchFirstError', "First error"), disableCommandStorage: true }));
-		problemMatcher.onDidInvalidateMatch(() => terminal.capabilities.get(TerminalCapability.CommandDetection)?.invalidateCurrentCommand({ reason: CommandInvalidationReason.NoProblemsReported }));
+		problemMatcher.onDidFindFirstMatch(() => terminal.addGenericMarker());
+		problemMatcher.onDidFindErrors(() => terminal.addDecoration({ hoverMessage: nls.localize('task.watchFirstError', "First error"), disableCommandStorage: true }));
 		this.terminalMap.set(task._id, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
 

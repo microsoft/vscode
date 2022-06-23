@@ -58,11 +58,11 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	protected _onDidStateChange: Emitter<IProblemCollectorEvent>;
 
-	protected readonly _onDidFindMatch = new Emitter<void>();
-	readonly onDidFindMatch = this._onDidFindMatch.event;
+	protected readonly _onDidFindFirstMatch = new Emitter<void>();
+	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
 
-	protected readonly _onDidInvalidateMatch = new Emitter<void>();
-	readonly onDidInvalidateMatch = this._onDidInvalidateMatch.event;
+	protected readonly _onDidFindErrors = new Emitter<void>();
+	readonly onDidFindErrors = this._onDidFindErrors.event;
 
 	constructor(public readonly problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
 		this.matchers = Object.create(null);
@@ -498,7 +498,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				}
 				this._activeBackgroundMatchers.add(background.key);
 				result = true;
-				this._onDidFindMatch.fire();
+				this._onDidFindFirstMatch.fire();
 				this.lines = [];
 				this.lines.push(line);
 				this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
@@ -522,8 +522,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		for (const background of this.backgroundPatterns) {
 			const matches = background.end.regexp.exec(line);
 			if (matches) {
-				if (this._numberOfMatches === 0) {
-					this._onDidInvalidateMatch.fire();
+				if (this._numberOfMatches > 0) {
+					this._onDidFindErrors.fire();
 				}
 				if (this._activeBackgroundMatchers.has(background.key)) {
 					this._activeBackgroundMatchers.delete(background.key);

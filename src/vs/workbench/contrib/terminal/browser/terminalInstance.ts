@@ -82,8 +82,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import type { ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
-import { ITermOscPt, ITermSequence } from 'vs/workbench/contrib/terminal/browser/terminalEscapeSequences';
+import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 
@@ -214,6 +213,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _target?: TerminalLocation | undefined;
 	private _disableShellIntegrationReporting: boolean | undefined;
 	private _usedShellIntegrationInjection: boolean = false;
+	private _genericMarker: IMarker | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -1590,8 +1590,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	public addGenericMarker(genericMarkProperties: IGenericMarkProperties): void {
-		this.xterm?.raw.write(`${ITermSequence(ITermOscPt.SetMark, `${genericMarkProperties.hoverMessage || ''};${genericMarkProperties.disableCommandStorage ? true : false}`)}`);
+	public addGenericMarker(): void {
+		this._genericMarker = this.xterm?.raw.registerMarker(0);
+	}
+
+	public addDecoration(genericMarkProperties: IGenericMarkProperties): void {
+		if (this._genericMarker) {
+			this.xterm?.addDecoration(this._genericMarker, genericMarkProperties);
+		} else {
+			throw new Error(`No marker for decoration, ${genericMarkProperties}`);
+		}
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

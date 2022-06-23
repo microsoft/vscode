@@ -5,6 +5,9 @@
 
 import { Event } from 'vs/base/common/event';
 import { IGenericMarkProperties, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+// Importing types is safe in any layer
+// eslint-disable-next-line code-import-patterns
+import type { IMarker } from 'xterm-headless';
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
@@ -117,9 +120,9 @@ export interface ICommandDetectionCapability {
 	handleRightPromptStart(): void;
 	handleRightPromptEnd(): void;
 	handleCommandStart(): void;
-	handleGenericCommand(properties: IGenericMarkProperties): void;
+	handleGenericCommand(marker: IMarker | undefined, properties: IGenericMarkProperties): void;
 	handleCommandExecuted(): void;
-	handleCommandFinished(exitCode: number | undefined, genericMarkProperties?: IGenericMarkProperties): void;
+	handleCommandFinished(exitCode: number | undefined, marker?: IMarker, genericMarkProperties?: IGenericMarkProperties): void;
 	invalidateCurrentCommand(request: ICommandInvalidationRequest): void;
 	/**
 	 * Set the command line explicitly.

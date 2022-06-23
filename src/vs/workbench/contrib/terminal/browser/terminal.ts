@@ -19,6 +19,7 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { IMarker } from 'xterm';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -637,9 +638,15 @@ export interface ITerminalInstance {
 	showEnvironmentInfoHover(): void;
 
 	/**
-	 * Adds a generic marker and decoration to the buffer
+	 * Adds a generic marker to the buffer
 	 */
-	addGenericMarker(genericMarkProperties: IGenericMarkProperties): void;
+	addGenericMarker(): void;
+
+	/**
+	 * Adds a decoration to the buffer
+	 * @param genericMarkProperties
+	 */
+	addDecoration(genericMarkProperties: IGenericMarkProperties): void;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -932,6 +939,11 @@ export interface IXtermTerminal {
 	 */
 	clearActiveSearchDecoration(): void;
 
+	/**
+	 * Adds a decoration at the @param marker with the given properties
+	 * @param properties
+	 */
+	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void;
 }
 
 export interface IInternalXtermTerminal {
