@@ -35,7 +35,7 @@ import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { autorunWithStore } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { autorunWithStore, IObservable } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { DocumentMapping, getOppositeDirection, MappingDirection } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
@@ -153,6 +153,10 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		this._store.add(toolbarMenuDisposables);
 		this._store.add(toolbarMenu.onDidChange(toolbarMenuRender));
 		toolbarMenuRender();
+	}
+
+	public get viewModel(): IObservable<MergeEditorViewModel | undefined> {
+		return this.input1View.viewModel;
 	}
 
 	override dispose(): void {

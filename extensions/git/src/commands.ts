@@ -439,7 +439,7 @@ export class CommandCenter {
 		}
 
 		const options = {
-			ancestor: mergeUris.base,
+			base: mergeUris.base,
 			input1: theirs,
 			input2: ours,
 			output: uri
