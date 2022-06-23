@@ -7,12 +7,14 @@ import { env } from 'vs/base/common/process';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * Tracks a list of generic entries.
@@ -80,6 +82,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 		private readonly _storageDataKey: string,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
@@ -89,6 +92,9 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 
 		this._fetchBashHistory().then(e => {
 			console.log('bash history result', Array.from(e!));
+		});
+		this._fetchZshHistory().then(e => {
+			console.log('zsh history result', Array.from(e!));
 		});
 
 		// Listen for config changes to set history limit
@@ -190,18 +196,13 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	}
 
 	private async _fetchBashHistory(): Promise<IterableIterator<string> | undefined> {
-		const homeDir = env['HOME'];
-		if (!homeDir) {
-			return undefined;
-		}
-		// TODO: Remote URI
-		const content = await this._fileService.readFile(URI.file(join(homeDir, '.bash_history')));
+		const content = await this._fetchFileContents(env['HOME'], '.bash_history');
 		if (content === undefined) {
 			return undefined;
 		}
 		// .bash_history does not differentiate wrapped commands from multiple commands. Parse
 		// the output to get the
-		const fileLines = content.value.toString().split('\n');
+		const fileLines = content.split('\n');
 		const result: Set<string> = new Set();
 		let currentLine: string;
 		let currentCommand: string | undefined = undefined;
@@ -232,5 +233,43 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 		}
 
 		return result.values();
+	}
+
+	private async _fetchZshHistory() {
+		const content = await this._fetchFileContents(env['HOME'], '.zsh_history');
+		if (content === undefined) {
+			return undefined;
+		}
+		const fileLines = content.split(/\:\s\d+\:\d+;/);
+		const result: Set<string> = new Set();
+		for (let i = 0; i < fileLines.length; i++) {
+			result.add(fileLines[i].replace(/\\\n/g, '\n').trim());
+		}
+		return result;
+	}
+
+	private async _fetchFileContents(folder: string | undefined, fileName: string): Promise<string | undefined> {
+		if (!folder) {
+			return undefined;
+		}
+		const isRemote = !!this._remoteAgentService.getConnection()?.remoteAuthority;
+		const historyFileUri = URI.from({
+			scheme: isRemote ? Schemas.vscodeRemote : Schemas.file,
+			path: join(folder, fileName)
+		});
+		let content: IFileContent;
+		try {
+			content = await this._fileService.readFile(historyFileUri);
+		} catch (e: unknown) {
+			// Handle file not found only
+			if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				return undefined;
+			}
+			throw e;
+		}
+		if (content === undefined) {
+			return undefined;
+		}
+		return content.value.toString();
 	}
 }
