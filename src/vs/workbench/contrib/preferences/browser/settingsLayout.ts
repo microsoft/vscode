@@ -53,6 +53,11 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['diffEditor.*']
 				},
 				{
+					id: 'editor/mergeEditor',
+					label: localize('mergeEditor', "Merge Editor"),
+					settings: ['mergeEditor.*']
+				},
+				{
 					id: 'editor/minimap',
 					label: localize('minimap', "Minimap"),
 					settings: ['editor.minimap.*']

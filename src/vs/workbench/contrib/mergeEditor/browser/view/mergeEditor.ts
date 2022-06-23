@@ -153,6 +153,13 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		this._store.add(toolbarMenuDisposables);
 		this._store.add(toolbarMenu.onDidChange(toolbarMenuRender));
 		toolbarMenuRender();
+
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('mergeEditor.columnLayout')) {
+				this.updateLayoutState(true);
+			}
+		}));
+		this.updateLayoutState(false);
 	}
 
 	override dispose(): void {
@@ -175,7 +182,18 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		this._grid = SerializableGrid.from<any /*TODO@jrieken*/>({
 			orientation: Orientation.VERTICAL,
 			size: 100,
-			groups: [
+			groups: this._usesColumnLayout ? [
+				{
+					size: 100,
+					groups: [{
+						data: this.input1View.view
+					}, {
+						data: this.inputResultView.view
+					}, {
+						data: this.input2View.view
+					}]
+				}
+			] : [
 				{
 					size: 38,
 					groups: [{
@@ -195,7 +213,6 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		});
 
 		reset(parent, this._grid.element);
-		this._ctxUsesColumnLayout.set(false);
 
 		this.applyOptions(initialOptions);
 	}
@@ -350,17 +367,23 @@ export class MergeEditor extends AbstractTextEditor<any> {
 
 	// --- layout
 
-	private _usesColumnLayout = false;
+	private _usesColumnLayout: boolean | undefined = undefined;
 
-	toggleLayout(): void {
-		if (!this._usesColumnLayout) {
-			this._grid.moveView(this.inputResultView.view, Sizing.Distribute, this.input1View.view, Direction.Right);
-		} else {
-			this._grid.moveView(this.inputResultView.view, this._grid.height * .62, this.input1View.view, Direction.Down);
-			this._grid.moveView(this.input2View.view, Sizing.Distribute, this.input1View.view, Direction.Right);
+	private updateLayoutState(fromEvent: boolean): void {
+		const usesColumnLayout = Boolean(this._configurationService.getValue('mergeEditor.columnLayout'));
+		if (usesColumnLayout !== this._usesColumnLayout) {
+			this._usesColumnLayout = usesColumnLayout;
+			this._ctxUsesColumnLayout.set(this._usesColumnLayout);
+
+			if (fromEvent) {
+				if (this._usesColumnLayout) {
+					this._grid.moveView(this.inputResultView.view, Sizing.Distribute, this.input1View.view, Direction.Right);
+				} else {
+					this._grid.moveView(this.inputResultView.view, this._grid.height * .62, this.input1View.view, Direction.Down);
+					this._grid.moveView(this.input2View.view, Sizing.Distribute, this.input1View.view, Direction.Right);
+				}
+			}
 		}
-		this._usesColumnLayout = !this._usesColumnLayout;
-		this._ctxUsesColumnLayout.set(this._usesColumnLayout);
 	}
 
 	// --- view state (TODO@bpasero revisit with https://github.com/microsoft/vscode/issues/150804)

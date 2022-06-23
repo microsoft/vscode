@@ -7,9 +7,10 @@ import { Codicon } from 'vs/base/common/codicons';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { ctxIsMergeEditor, ctxUsesColumnLayout, MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
+import { ctxIsMergeEditor, ctxUsesColumnLayout } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OpenMergeEditor extends Action2 {
@@ -104,15 +105,21 @@ interface IOpenEditorArgs {
 }
 
 export class ToggleLayout extends Action2 {
+
+	private static readonly TITLE_COLUMN_VIEW = localize('toggle.columnView', "Switch to Column View");
+	private static readonly TITLE_MIXED_VIEW = localize('toggle.mixedView', "Switch to Mixed View");
+
 	constructor() {
 		super({
 			id: 'merge.toggleLayout',
-			title: localize('toggle.title', "Switch to column view"),
+			title: ToggleLayout.TITLE_COLUMN_VIEW,
+			tooltip: ToggleLayout.TITLE_COLUMN_VIEW,
 			icon: Codicon.layoutCentered,
 			toggled: {
 				condition: ctxUsesColumnLayout,
 				icon: Codicon.layoutPanel,
-				title: localize('toggle.title2', "Switch to 2 by 1 view"),
+				title: ToggleLayout.TITLE_MIXED_VIEW,
+				tooltip: ToggleLayout.TITLE_MIXED_VIEW
 			},
 			menu: [{
 				id: MenuId.EditorTitle,
@@ -123,9 +130,8 @@ export class ToggleLayout extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		const { activeEditorPane } = accessor.get(IEditorService);
-		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.toggleLayout();
-		}
+		const configurationService = accessor.get(IConfigurationService);
+
+		configurationService.updateValue('mergeEditor.columnLayout', !Boolean(configurationService.getValue('mergeEditor.columnLayout')));
 	}
 }
