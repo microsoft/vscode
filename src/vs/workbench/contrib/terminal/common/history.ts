@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { PosixShellType, TerminalSettingId, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -67,6 +67,38 @@ export function getDirectoryHistory(accessor: ServicesAccessor): ITerminalPersis
 	return directoryHistory;
 }
 
+const shellFileHistory: Map<TerminalShellType, string[] | null> = new Map();
+export async function getShellFileHistory(accessor: ServicesAccessor, shellType: TerminalShellType): Promise<string[]> {
+	const cached = shellFileHistory.get(shellType);
+	if (cached === null) {
+		return [];
+	}
+	if (cached !== undefined) {
+		return cached;
+	}
+	let result: IterableIterator<string> | undefined;
+	switch (shellType) {
+		case PosixShellType.Bash:
+			result = await fetchBashHistory(accessor);
+			break;
+		case PosixShellType.PowerShell:
+		case WindowsShellType.PowerShell:
+			result = await fetchPwshHistory(accessor);
+			break;
+		case PosixShellType.Zsh:
+			result = await fetchZshHistory(accessor);
+			break;
+		default: return [];
+	}
+	if (result === undefined) {
+		shellFileHistory.set(shellType, null);
+		return [];
+	}
+	const array = Array.from(result);
+	shellFileHistory.set(shellType, array);
+	return array;
+}
+
 export class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
 	private readonly _entries: LRUCache<string, T>;
 	private _timestamp: number = 0;
@@ -81,8 +113,6 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	constructor(
 		private readonly _storageDataKey: string,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IFileService private readonly _fileService: IFileService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
@@ -90,12 +120,12 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 		// Init cache
 		this._entries = new LRUCache<string, T>(this._getHistoryLimit());
 
-		this._fetchBashHistory().then(e => {
-			console.log('bash history result', Array.from(e!));
-		});
-		this._fetchZshHistory().then(e => {
-			console.log('zsh history result', Array.from(e!));
-		});
+		// this._fetchBashHistory().then(e => {
+		// 	console.log('bash history result', Array.from(e!));
+		// });
+		// this._fetchZshHistory().then(e => {
+		// 	console.log('zsh history result', Array.from(e!));
+		// });
 
 		// Listen for config changes to set history limit
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -194,82 +224,114 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	private _getEntriesStorageKey() {
 		return `${StorageKeys.Entries}.${this._storageDataKey}`;
 	}
+}
 
-	private async _fetchBashHistory(): Promise<IterableIterator<string> | undefined> {
-		const content = await this._fetchFileContents(env['HOME'], '.bash_history');
-		if (content === undefined) {
-			return undefined;
+async function fetchBashHistory(accessor: ServicesAccessor): Promise<IterableIterator<string> | undefined> {
+	const fileService = accessor.get(IFileService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const content = await fetchFileContents(env['HOME'], '.bash_history', fileService, remoteAgentService);
+	if (content === undefined) {
+		return undefined;
+	}
+	// .bash_history does not differentiate wrapped commands from multiple commands. Parse
+	// the output to get the
+	const fileLines = content.split('\n');
+	const result: Set<string> = new Set();
+	let currentLine: string;
+	let currentCommand: string | undefined = undefined;
+	let wrapChar: string | undefined = undefined;
+	for (let i = 0; i < fileLines.length; i++) {
+		currentLine = fileLines[i];
+		if (currentCommand === undefined) {
+			currentCommand = currentLine;
+		} else {
+			currentCommand += `\n${currentLine}`;
 		}
-		// .bash_history does not differentiate wrapped commands from multiple commands. Parse
-		// the output to get the
-		const fileLines = content.split('\n');
-		const result: Set<string> = new Set();
-		let currentLine: string;
-		let currentCommand: string | undefined = undefined;
-		let wrapChar: string | undefined = undefined;
-		for (let i = 0; i < fileLines.length; i++) {
-			currentLine = fileLines[i];
-			if (currentCommand === undefined) {
-				currentCommand = currentLine;
+		for (let c = 0; c < currentLine.length; c++) {
+			if (wrapChar) {
+				if (currentLine[c] === wrapChar) {
+					wrapChar = undefined;
+				}
 			} else {
-				currentCommand += `\n${currentLine}`;
-			}
-			for (let c = 0; c < currentLine.length; c++) {
-				if (wrapChar) {
-					if (currentLine[c] === wrapChar) {
-						wrapChar = undefined;
-					}
-				} else {
-					if (currentLine[c].match(/['"]/)) {
-						wrapChar = currentLine[c];
-					}
+				if (currentLine[c].match(/['"]/)) {
+					wrapChar = currentLine[c];
 				}
 			}
-			if (wrapChar === undefined) {
-				// TODO: Should the commands be trimmed here and elsewhere?
-				result.add(currentCommand);
-				currentCommand = undefined;
+		}
+		if (wrapChar === undefined) {
+			if (currentCommand.length > 0) {
+				result.add(currentCommand.trim());
 			}
+			currentCommand = undefined;
 		}
-
-		return result.values();
 	}
 
-	private async _fetchZshHistory() {
-		const content = await this._fetchFileContents(env['HOME'], '.zsh_history');
-		if (content === undefined) {
-			return undefined;
-		}
-		const fileLines = content.split(/\:\s\d+\:\d+;/);
-		const result: Set<string> = new Set();
-		for (let i = 0; i < fileLines.length; i++) {
-			result.add(fileLines[i].replace(/\\\n/g, '\n').trim());
-		}
-		return result;
-	}
+	return result.values();
+}
 
-	private async _fetchFileContents(folder: string | undefined, fileName: string): Promise<string | undefined> {
-		if (!folder) {
-			return undefined;
-		}
-		const isRemote = !!this._remoteAgentService.getConnection()?.remoteAuthority;
-		const historyFileUri = URI.from({
-			scheme: isRemote ? Schemas.vscodeRemote : Schemas.file,
-			path: join(folder, fileName)
-		});
-		let content: IFileContent;
-		try {
-			content = await this._fileService.readFile(historyFileUri);
-		} catch (e: unknown) {
-			// Handle file not found only
-			if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				return undefined;
-			}
-			throw e;
-		}
-		if (content === undefined) {
-			return undefined;
-		}
-		return content.value.toString();
+async function fetchZshHistory(accessor: ServicesAccessor) {
+	const fileService = accessor.get(IFileService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const content = await fetchFileContents(env['HOME'], '.zsh_history', fileService, remoteAgentService);
+	if (content === undefined) {
+		return undefined;
 	}
+	const fileLines = content.split(/\:\s\d+\:\d+;/);
+	const result: Set<string> = new Set();
+	for (let i = 0; i < fileLines.length; i++) {
+		const sanitized = fileLines[i].replace(/\\\n/g, '\n').trim();
+		if (sanitized.length > 0) {
+			result.add(sanitized);
+		}
+	}
+	return result.values();
+}
+
+async function fetchPwshHistory(accessor: ServicesAccessor) {
+	const fileService = accessor.get(IFileService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const content = await fetchFileContents(env['HOME'], '.local/share/powershell/PSReadline/ConsoleHost_history.txt', fileService, remoteAgentService);
+	if (content === undefined) {
+		return undefined;
+	}
+	const fileLines = content.split('\n');
+	// TODO: Detect multi-line commands
+	const result: Set<string> = new Set();
+	for (let i = 0; i < fileLines.length; i++) {
+		const sanitized = fileLines[i].trim();
+		if (sanitized.length > 0) {
+			result.add(sanitized);
+		}
+	}
+	return result.values();
+}
+
+async function fetchFileContents(
+	folderPrefix: string | undefined,
+	filePath: string,
+	fileService: IFileService,
+	remoteAgentService: IRemoteAgentService,
+): Promise<string | undefined> {
+	if (!folderPrefix) {
+		return undefined;
+	}
+	const isRemote = !!remoteAgentService.getConnection()?.remoteAuthority;
+	const historyFileUri = URI.from({
+		scheme: isRemote ? Schemas.vscodeRemote : Schemas.file,
+		path: join(folderPrefix, filePath)
+	});
+	let content: IFileContent;
+	try {
+		content = await fileService.readFile(historyFileUri);
+	} catch (e: unknown) {
+		// Handle file not found only
+		if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+			return undefined;
+		}
+		throw e;
+	}
+	if (content === undefined) {
+		return undefined;
+	}
+	return content.value.toString();
 }

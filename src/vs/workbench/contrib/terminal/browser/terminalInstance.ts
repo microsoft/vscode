@@ -71,7 +71,7 @@ import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IEnvironmentVariableCollection, IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollections } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { getCommandHistory, getDirectoryHistory } from 'vs/workbench/contrib/terminal/common/history';
+import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
@@ -889,12 +889,29 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						label,
 						buttons: [removeFromCommandHistoryButton]
 					});
+					commandMap.add(label);
 				}
 			}
+
 			if (previousSessionItems.length > 0) {
 				items.push(
 					{ type: 'separator', label: terminalStrings.previousSessionCategory },
 					...previousSessionItems
+				);
+			}
+
+			// Gather shell file history
+			const shellFileHistory = await this._instantiationService.invokeFunction(getShellFileHistory, this._shellType);
+			const dedupedShellFileItems: IQuickPickItem[] = [];
+			for (const label of shellFileHistory) {
+				if (!commandMap.has(label)) {
+					dedupedShellFileItems.unshift({ label });
+				}
+			}
+			if (dedupedShellFileItems.length > 0) {
+				items.push(
+					{ type: 'separator', label: nls.localize('shellFileHistoryCategory', '{0} history', this._shellType) },
+					...dedupedShellFileItems
 				);
 			}
 		} else {
