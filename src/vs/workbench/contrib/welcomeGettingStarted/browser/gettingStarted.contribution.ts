@@ -58,7 +58,12 @@ registerAction2(class extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
 
+		if (typeof walkthroughID !== 'string' && walkthroughID) {
+			walkthroughID.category = 'ms-toolsai.jupyter#jupyterWelcome';
+			walkthroughID.step = 'ms-toolsai.jupyter#jupyterWelcome#ipynb.newUntitledIpynb';
+		}
 		if (walkthroughID) {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
 			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.step;
@@ -85,7 +90,14 @@ registerAction2(class extends Action2 {
 				}
 			}
 
+
 			const activeEditor = editorService.activeEditor;
+
+			// If the walkthrough is already open just reveal the step
+			if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
+				commandService.executeCommand('walkthroughs.selectStep', selectedStep);
+			}
+
 			const gettingStartedInput = instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep });
 			// If it's the extension install page then lets replace it with the getting started page
 			if (activeEditor instanceof ExtensionsInput) {
