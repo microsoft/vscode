@@ -29,6 +29,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -154,6 +155,7 @@ export class ConfigurationEditingService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IFileService private readonly fileService: IFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -619,7 +621,7 @@ export class ConfigurationEditingService {
 				return this.userDataProfileService.currentProfile.tasksResource;
 			} else {
 				if (scope === ConfigurationScope.APPLICATION && !this.userDataProfileService.currentProfile.isDefault) {
-					return this.userDataProfileService.defaultProfile.settingsResource;
+					return this.userDataProfilesService.defaultProfile.settingsResource;
 				}
 				return this.userDataProfileService.currentProfile.settingsResource;
 			}

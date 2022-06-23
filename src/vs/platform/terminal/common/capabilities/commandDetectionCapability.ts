@@ -7,8 +7,8 @@ import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, ICommandInvalidationRequest, CommandInvalidationReason } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IGenericMarkProperties, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandStartOptions, ICommandInvalidationRequest, CommandInvalidationReason } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ISerializedCommand, IGenericMarkProperties, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import type { IBuffer, IDisposable, IMarker, Terminal } from 'xterm-headless';
@@ -61,6 +61,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
+	private _handleCommandStartOptions?: IHandleCommandStartOptions;
+
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
 	// TODO: as is unsafe here and it duplicates behavor of executingCommand
@@ -300,7 +302,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handleRightPromptEnd', this._currentCommand.commandRightPromptEndX);
 	}
 
-	handleCommandStart(marker?: IMarker, genericMarkProperties?: IGenericMarkProperties): void {
+	handleCommandStart(options?: IHandleCommandStartOptions, marker?: IMarker, genericMarkProperties?: IGenericMarkProperties): void {
+		this._handleCommandStartOptions = options;
 		// Only update the column if the line has already been set
 		this._currentCommand.commandStartMarker = marker || this._currentCommand.commandStartMarker;
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
@@ -349,14 +352,14 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		});
 	}
 
-	handleGenericCommand(marker: IMarker, properties: IGenericMarkProperties): void {
-		if (properties.disableCommandStorage) {
+	handleGenericCommand(options?: IHandleCommandStartOptions): void {
+		if (options?.genericMarkProperties?.disableCommandStorage) {
 			this.setIsCommandStorageDisabled();
 		}
-		this.handlePromptStart(marker);
-		this.handleCommandStart(marker, properties);
-		this.handleCommandExecuted(marker);
-		this.handleCommandFinished(undefined, marker, properties);
+		this.handlePromptStart(options?.marker);
+		this.handleCommandStart(undefined, options?.marker, options?.genericMarkProperties);
+		this.handleCommandExecuted(options?.marker);
+		this.handleCommandFinished(undefined, options);
 	}
 
 	handleCommandExecuted(marker?: IMarker): void {
@@ -409,12 +412,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._onCurrentCommandInvalidated.fire(request);
 	}
 
-	handleCommandFinished(exitCode: number | undefined, marker?: IMarker, genericMarkProperties?: IGenericMarkProperties): void {
+	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandStartOptions): void {
 		if (this._isWindowsPty) {
 			this._preHandleCommandFinishedWindows();
 		}
 
-		this._currentCommand.commandFinishedMarker = marker || this._terminal.registerMarker(0);
+		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
 		const command = this._currentCommand.command;
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
 		this._exitCode = exitCode;
@@ -435,13 +438,13 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			return;
 		}
 
-		if (command !== undefined && !command.startsWith('\\')) {
+		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
 			const buffer = this._terminal.buffer.active;
 			const timestamp = Date.now();
 			const executedMarker = this._currentCommand.commandExecutedMarker;
 			const endMarker = this._currentCommand.commandFinishedMarker;
 			const newCommand: ITerminalCommand = {
-				command,
+				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
 				marker: this._currentCommand.commandStartMarker,
 				endMarker,
 				executedMarker,
@@ -451,7 +454,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				genericMarkProperties
+				genericMarkProperties: options?.genericMarkProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -463,6 +466,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
 		this._currentCommand = {};
+		this._handleCommandStartOptions = undefined;
 	}
 
 	private _preHandleCommandFinishedWindows(): void {

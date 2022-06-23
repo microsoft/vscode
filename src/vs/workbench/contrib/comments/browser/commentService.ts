@@ -13,6 +13,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -72,6 +73,8 @@ export interface ICommentService {
 	readonly onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges }>;
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string>;
+	readonly onDidChangeCommentingEnabled: Event<boolean>;
+	readonly isCommentingEnabled: boolean;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
 	setWorkspaceComments(owner: string, commentsByResource: CommentThread<IRange | ICellRange>[]): void;
 	removeWorkspaceComments(owner: string): void;
@@ -92,6 +95,7 @@ export interface ICommentService {
 	toggleReaction(owner: string, resource: URI, thread: CommentThread<IRange | ICellRange>, comment: Comment, reaction: CommentReaction): Promise<void>;
 	setActiveCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
 	setCurrentCommentThread(commentThread: CommentThread<IRange | ICellRange> | undefined): void;
+	enableCommenting(enable: boolean): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -124,6 +128,9 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidChangeCurrentCommentThread = this._register(new Emitter<CommentThread | undefined>());
 	readonly onDidChangeCurrentCommentThread = this._onDidChangeCurrentCommentThread.event;
 
+	private readonly _onDidChangeCommentingEnabled = this._register(new Emitter<boolean>());
+	readonly onDidChangeCommentingEnabled = this._onDidChangeCommentingEnabled.event;
+
 	private readonly _onDidChangeActiveCommentingRange: Emitter<{
 		range: Range; commentingRangesInfo:
 		CommentingRanges;
@@ -135,11 +142,27 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private _commentControls = new Map<string, ICommentController>();
 	private _commentMenus = new Map<string, CommentMenus>();
+	private _isCommentingEnabled: boolean = true;
 
 	constructor(
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		super();
+		this._register(layoutService.onDidChangeZenMode(e => {
+			this.enableCommenting(!e);
+		}));
+	}
+
+	get isCommentingEnabled(): boolean {
+		return this._isCommentingEnabled;
+	}
+
+	enableCommenting(enable: boolean): void {
+		if (enable !== this._isCommentingEnabled) {
+			this._isCommentingEnabled = enable;
+			this._onDidChangeCommentingEnabled.fire(enable);
+		}
 	}
 
 	/**

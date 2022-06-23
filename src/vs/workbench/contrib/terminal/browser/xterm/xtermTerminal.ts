@@ -181,7 +181,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void {
-		this._capabilities.get(TerminalCapability.CommandDetection)?.handleGenericCommand(marker, properties);
+		this._capabilities.get(TerminalCapability.CommandDetection)?.handleGenericCommand({ genericMarkProperties: properties });
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {

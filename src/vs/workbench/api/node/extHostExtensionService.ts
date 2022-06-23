@@ -6,7 +6,6 @@
 import * as performance from 'vs/base/common/performance';
 import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
-import { MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { connectProxyResolver } from 'vs/workbench/api/node/proxyResolver';
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
@@ -17,6 +16,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { realpathSync } from 'vs/base/node/extpath';
+import { ExtHostConsoleForwarder } from 'vs/workbench/api/node/extHostConsoleForwarder';
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
@@ -59,6 +59,9 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	readonly extensionRuntime = ExtensionRuntime.Node;
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
+		// make sure console.log calls make it to the render
+		this._instaService.createInstance(ExtHostConsoleForwarder);
+
 		// initialize API and register actors
 		const extensionApiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
 
@@ -80,18 +83,6 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData);
 		performance.mark('code/extHost/didInitProxyResolver');
-
-		// Use IPC messages to forward console-calls, note that the console is
-		// already patched to use`process.send()`
-		const nativeProcessSend = process.send!;
-		const mainThreadConsole = this._extHostContext.getProxy(MainContext.MainThreadConsole);
-		process.send = (...args) => {
-			if ((args as unknown[]).length === 0 || !args[0] || args[0].type !== '__$console') {
-				return nativeProcessSend.apply(process, args);
-			}
-			mainThreadConsole.$logExtensionHostMessage(args[0]);
-			return false;
-		};
 	}
 
 	protected _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined {

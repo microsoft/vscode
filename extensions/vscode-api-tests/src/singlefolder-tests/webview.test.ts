@@ -29,7 +29,7 @@ suite('vscode API - webview', () => {
 		disposeAll(disposables);
 	});
 
-	test('webviews should be able to send and receive messages', async () => {
+	test.skip('webviews should be able to send and receive messages', async () => { // TODO@mjbvz https://github.com/microsoft/vscode/issues/150682
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const firstResponse = getMessage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
