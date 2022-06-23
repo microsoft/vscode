@@ -7,13 +7,13 @@ import * as assert from 'assert';
 import 'mocha';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdDocumentInfoCache } from '../util/workspaceCache';
-import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { InMemoryMdWorkspace } from './inMemoryWorkspace';
 import { workspacePath } from './util';
 
 suite('DocumentInfoCache', () => {
 	test('Repeated calls should only compute value once', async () => {
 		const doc = workspacePath('doc.md');
-		const workspace = new InMemoryWorkspaceMarkdownDocuments([
+		const workspace = new InMemoryMdWorkspace([
 			new InMemoryDocument(doc, '')
 		]);
 

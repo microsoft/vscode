@@ -522,7 +522,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 	private readonly _configuration: Configuration;
 
 	constructor() {
-		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 	}
 
 	getValue<T>(): T;
@@ -584,6 +584,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		return {
 			defaults: emptyModel,
 			policy: emptyModel,
+			application: emptyModel,
 			user: emptyModel,
 			workspace: emptyModel,
 			folders: []

@@ -3,29 +3,39 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-VSCODE_SHELL_INTEGRATION=1
-
-if [ -z "$VSCODE_SHELL_LOGIN" ]; then
-	. ~/.bashrc
-else
-	# Imitate -l because --init-file doesn't support it:
-	# run the first of these files that exists
-	if [ -f /etc/profile ]; then
-		. /etc/profile
-	fi
-	# exceute the first that exists
-	if [ -f ~/.bash_profile ]; then
-		. ~/.bash_profile
-	elif [ -f ~/.bash_login ]; then
-		. ~/.bash_login
-	elif [ -f ~/.profile ]; then
-		. ~/.profile
-	fi
-	VSCODE_SHELL_LOGIN=""
+# Prevent the script recursing when setting up
+if [[ -n "$VSCODE_SHELL_INTEGRATION" ]]; then
+	builtin return
 fi
 
+VSCODE_SHELL_INTEGRATION=1
+
+# Run relevant rc/profile only if shell integration has been injected, not when run manually
+if [ "$VSCODE_INJECTION" == "1" ]; then
+	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
+		. ~/.bashrc
+	else
+		# Imitate -l because --init-file doesn't support it:
+		# run the first of these files that exists
+		if [ -f /etc/profile ]; then
+			. /etc/profile
+		fi
+		# exceute the first that exists
+		if [ -f ~/.bash_profile ]; then
+			. ~/.bash_profile
+		elif [ -f ~/.bash_login ]; then
+			. ~/.bash_login
+		elif [ -f ~/.profile ]; then
+			. ~/.profile
+		fi
+		builtin unset VSCODE_SHELL_LOGIN=""
+	fi
+	builtin unset VSCODE_INJECTION
+fi
+
+# Disable shell integration if PROMPT_COMMAND is 2+ function calls since that is not handled.
 if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
-	VSCODE_SHELL_INTEGRATION=""
+	builtin unset VSCODE_SHELL_INTEGRATION
 	builtin return
 fi
 

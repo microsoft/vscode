@@ -3,32 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AppInsightsCore, IExtendedConfiguration } from '@microsoft/1ds-core-js';
-import type { IChannelConfiguration, IPayloadData, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
+import type { AppInsightsCore } from '@microsoft/1ds-core-js';
+import type { IPayloadData, IXHROverride } from '@microsoft/1ds-post-js';
 import * as https from 'https';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { mixin } from 'vs/base/common/objects';
-import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
+import { AbstractOneDataSystemAppender } from 'vs/platform/telemetry/common/1dsAppender';
 
-async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
-	const oneDs = await import('@microsoft/1ds-core-js');
-	const postPlugin = await import('@microsoft/1ds-post-js');
-	const appInsightsCore = new oneDs.AppInsightsCore();
-	const collectorChannelPlugin: PostChannel = new postPlugin.PostChannel();
-	// Configure the app insights core to send to collector++ and disable logging of debug info
-	const coreConfig: IExtendedConfiguration = {
-		instrumentationKey,
-		endpointUrl: 'https://mobile.events.data.microsoft.com/OneCollector/1.0',
-		loggingLevelTelemetry: 0,
-		loggingLevelConsole: 0,
-		extensionConfig: {},
-		channels: [[
-			collectorChannelPlugin
-		]]
-	};
 
-	// Setup the collector posting channel to utilize nodes HTTP request rather than webs
-	if (coreConfig.extensionConfig) {
+export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
+
+	constructor(
+		eventPrefix: string,
+		defaultData: { [key: string]: any } | null,
+		iKeyOrClientFactory: string | (() => AppInsightsCore), // allow factory function for testing
+	) {
+		// Override the way events get sent since node doesn't have XHTMLRequest
 		const customHttpXHROverride: IXHROverride = {
 			sendPOST: (payload: IPayloadData, oncomplete) => {
 				const options = {
@@ -57,102 +45,7 @@ async function getClient(instrumentationKey: string): Promise<AppInsightsCore> {
 				}
 			}
 		};
-		// Configure the channel to use a XHR Request override since it's not available in node
-		const channelConfig: IChannelConfiguration = {
-			alwaysUseXhrOverride: true,
-			httpXHROverride: customHttpXHROverride
-		};
-		coreConfig.extensionConfig[collectorChannelPlugin.identifier] = channelConfig;
-	}
 
-	appInsightsCore.initialize(coreConfig, []);
-
-	appInsightsCore.addTelemetryInitializer((envelope) => {
-		envelope['ext'] = envelope['ext'] ?? {};
-		envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
-		// Sets it to be internal only based on Windows UTC flagging
-		envelope['ext']['utc']['flags'] = 0x0000811ECD;
-	});
-
-	return appInsightsCore;
-}
-
-
-export class OneDataSystemAppender implements ITelemetryAppender {
-
-	private _aiCoreOrKey: AppInsightsCore | string | undefined;
-	private _asyncAiCore: Promise<AppInsightsCore> | null;
-
-	constructor(
-		private _eventPrefix: string,
-		private _defaultData: { [key: string]: any } | null,
-		iKeyOrClientFactory: string | (() => AppInsightsCore), // allow factory function for testing
-	) {
-		if (!this._defaultData) {
-			this._defaultData = Object.create(null);
-		}
-
-		if (typeof iKeyOrClientFactory === 'function') {
-			this._aiCoreOrKey = iKeyOrClientFactory();
-		} else {
-			this._aiCoreOrKey = iKeyOrClientFactory;
-		}
-		this._asyncAiCore = null;
-	}
-
-	private _withAIClient(callback: (aiCore: AppInsightsCore) => void): void {
-		if (!this._aiCoreOrKey) {
-			return;
-		}
-
-		if (typeof this._aiCoreOrKey !== 'string') {
-			callback(this._aiCoreOrKey);
-			return;
-		}
-
-		if (!this._asyncAiCore) {
-			this._asyncAiCore = getClient(this._aiCoreOrKey);
-		}
-
-		this._asyncAiCore.then(
-			(aiClient) => {
-				callback(aiClient);
-			},
-			(err) => {
-				onUnexpectedError(err);
-				console.error(err);
-			}
-		);
-	}
-
-	log(eventName: string, data?: any): void {
-		if (!this._aiCoreOrKey) {
-			return;
-		}
-		data = mixin(data, this._defaultData);
-		data = validateTelemetryData(data);
-
-		// Attempts to suppress https://github.com/microsoft/vscode/issues/140624
-		try {
-			this._withAIClient((aiClient) => aiClient.track({
-				name: this._eventPrefix + '/' + eventName,
-				data: { ...data.properties, ...data.measurements },
-
-			}));
-		} catch { }
-	}
-
-	flush(): Promise<any> {
-		if (this._aiCoreOrKey) {
-			return new Promise(resolve => {
-				this._withAIClient((aiClient) => {
-					aiClient.unload(true, () => {
-						this._aiCoreOrKey = undefined;
-						resolve(undefined);
-					});
-				});
-			});
-		}
-		return Promise.resolve(undefined);
+		super(eventPrefix, defaultData, iKeyOrClientFactory, customHttpXHROverride);
 	}
 }

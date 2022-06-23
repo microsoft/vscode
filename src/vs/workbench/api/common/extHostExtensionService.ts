@@ -712,10 +712,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
-	public async $extensionTestsExit(code: number): Promise<void> {
-		this.terminate(`test runner requested exit with code ${code}`, code);
-	}
-
 	private _startExtensionHost(): Promise<void> {
 		if (this._started) {
 			throw new Error(`Extension host is already started!`);

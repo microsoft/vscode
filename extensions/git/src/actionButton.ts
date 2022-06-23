@@ -65,7 +65,7 @@ export class ActionButtonCommand {
 		return {
 			command: {
 				command: 'git.publish',
-				title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
+				title: localize('scm publish branch action button title', "{0} Publish Branch", '$(cloud-upload)'),
 				tooltip: this.state.isActionRunning ?
 					localize('scm button publish branch running', "Publishing Branch...") :
 					localize('scm button publish branch', "Publish Branch"),
@@ -87,7 +87,7 @@ export class ActionButtonCommand {
 			return {
 				command: {
 					command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-					title: localize('scm button sync title', "{0} {1}{2}", icon, behind, ahead),
+					title: `${icon} ${behind} ${ahead}`,
 					tooltip: this.state.isActionRunning ?
 						localize('syncing changes', "Synchronizing Changes...")
 						: this.repository.syncTooltip,

@@ -141,7 +141,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	protected createDefaultUserDataProfile(extensions: boolean): IUserDataProfile {
 		const profile = toUserDataProfile(localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
-		return { ...profile, extensionsResource: extensions ? profile.extensionsResource : undefined };
+		return { ...profile, isDefault: true, extensionsResource: extensions ? profile.extensionsResource : undefined };
 	}
 
 	createProfile(profile: IUserDataProfile, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }

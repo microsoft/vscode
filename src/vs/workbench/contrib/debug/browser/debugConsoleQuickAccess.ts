@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -49,8 +48,7 @@ export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQu
 	}
 
 	private _createPick(session: IDebugSession, sessionIndex: number, filter: string): IPickerQuickAccessItem | undefined {
-		const iconId = Codicon.debugConsole.id;
-		const label = `$(${iconId}) ${session.name}`;
+		const label = session.name;
 
 		const highlights = matchesFuzzy(filter, label, true);
 		if (highlights) {

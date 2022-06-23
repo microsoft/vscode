@@ -12,6 +12,7 @@ import { IUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataPr
 
 export interface DidChangeUserDataProfileEvent {
 	readonly preserveData: boolean;
+	readonly previous: IUserDataProfile;
 	readonly profile: IUserDataProfile;
 	join(promise: Promise<void>): void;
 }
