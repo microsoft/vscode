@@ -1768,7 +1768,7 @@ declare module DebugProtocol {
 		Additional attributes can be added to the module. They will show up in the module View if they have a corresponding ColumnDescriptor.
 
 		To avoid an unnecessary proliferation of additional attributes with similar semantics but different names
-		we recommend to re-use attributes from the 'recommended' list below first, and only introduce new attributes if nothing appropriate could be found.
+		we recommend re-using attributes from the 'recommended' list below first, and only introduce new attributes if nothing appropriate could be found.
 	*/
 	interface Module {
 		/** Unique identifier for the module. */
