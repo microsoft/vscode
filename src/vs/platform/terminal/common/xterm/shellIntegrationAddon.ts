@@ -16,7 +16,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Emitter } from 'vs/base/common/event';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening

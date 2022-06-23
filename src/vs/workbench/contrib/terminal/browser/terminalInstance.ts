@@ -83,7 +83,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
-import { ITermOscPt, ITermSequence } from 'vs/workbench/contrib/terminal/browser/terminalEscapSequences';
+import { ITermOscPt, ITermSequence } from 'vs/workbench/contrib/terminal/browser/terminalEscapeSequences';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const enum Constants {
