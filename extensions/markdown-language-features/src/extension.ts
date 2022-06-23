@@ -88,7 +88,7 @@ function registerMarkdownLanguageFeatures(
 		registerFindFileReferenceSupport(commandManager, referencesProvider),
 		registerFoldingSupport(selector, parser, tocProvider),
 		registerPasteSupport(selector),
-		registerPathCompletionSupport(selector, parser, linkProvider),
+		registerPathCompletionSupport(selector, workspace, parser, linkProvider),
 		registerReferencesSupport(selector, referencesProvider),
 		registerRenameSupport(selector, workspace, referencesProvider, parser.slugifier),
 		registerSmartSelectSupport(selector, parser, tocProvider),
