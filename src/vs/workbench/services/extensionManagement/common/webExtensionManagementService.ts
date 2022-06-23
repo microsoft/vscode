@@ -122,6 +122,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		...extension,
 		identifier: { id: extension.identifier.id, uuid: metadata.id ?? extension.identifier.uuid },
 		isMachineScoped: !!metadata.isMachineScoped,
+		isApplicationScoped: !!metadata.isApplicationScoped,
 		publisherId: metadata.publisherId || null,
 		publisherDisplayName: metadata.publisherDisplayName || null,
 		installedTimestamp: metadata.installedTimestamp,
