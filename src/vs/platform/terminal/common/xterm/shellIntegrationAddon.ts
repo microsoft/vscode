@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IShellIntegration } from 'vs/platform/terminal/common/terminal';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
@@ -126,6 +126,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	readonly capabilities = new TerminalCapabilityStore();
 	private _hasUpdatedTelemetry: boolean = false;
 	private _activationTimeout: any;
+	private _commonProtocolDisposables: IDisposable[] = [];
 
 	constructor(
 		private readonly _disableTelemetry: boolean | undefined,
@@ -133,14 +134,56 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-		this._register(toDisposable(() => this._clearActivationTimeout()));
+		this._register(toDisposable(() => {
+			this._clearActivationTimeout();
+			this._disposeCommonProtocol();
+		}));
+	}
+
+	private _disposeCommonProtocol(): void {
+		dispose(this._commonProtocolDisposables);
+		this._commonProtocolDisposables.length = 0;
 	}
 
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
+		this._commonProtocolDisposables.push(
+			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data))
+		);
 		this._ensureCapabilitiesOrAddFailureTelemetry();
+	}
+
+	private _handleFinalTermSequence(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		// Pass the sequence along to the capability
+		// It was considered to disable the common protocol in order to not confuse the VS Code
+		// shell integration if both happen for some reason. This doesn't work for powerlevel10k
+		// when instant prompt is enabled though. If this does end up being a problem we could pass
+		// a type flag through the capability calls
+		const [command, ...args] = data.split(';');
+		switch (command) {
+			case 'A':
+				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
+				return true;
+			case 'B':
+				// Ignore the command line for these sequences as it's unreliable for example in powerlevel10k
+				this._createOrGetCommandDetection(this._terminal).handleCommandStart({ ignoreCommandLine: true });
+				return true;
+			case 'C':
+				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
+				return true;
+			case 'D': {
+				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
+				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private _handleVSCodeSequence(data: string): boolean {

@@ -239,13 +239,24 @@ class NoLinkRanges {
 		const tokens = await tokenizer.tokenize(document);
 		const multiline = tokens.filter(t => (t.type === 'code_block' || t.type === 'fence' || t.type === 'html_block') && !!t.map).map(t => t.map) as [number, number][];
 
+		const inlineRanges = new Map</* line number */ number, vscode.Range[]>();
 		const text = document.getText();
-		const inline = [...text.matchAll(inlineCodePattern)].map(match => {
-			const start = match.index || 0;
-			return new vscode.Range(document.positionAt(start), document.positionAt(start + match[0].length));
-		});
+		for (const match of text.matchAll(inlineCodePattern)) {
+			const startOffset = match.index ?? 0;
+			const startPosition = document.positionAt(startOffset);
 
-		return new NoLinkRanges(multiline, inline);
+			const range = new vscode.Range(startPosition, document.positionAt(startOffset + match[0].length));
+			for (let line = range.start.line; line <= range.end.line; ++line) {
+				let entry = inlineRanges.get(line);
+				if (!entry) {
+					entry = [];
+					inlineRanges.set(line, entry);
+				}
+				entry.push(range);
+			}
+		}
+
+		return new NoLinkRanges(multiline, inlineRanges);
 	}
 
 	private constructor(
@@ -257,12 +268,12 @@ class NoLinkRanges {
 		/**
 		 * Inline code spans where links should not be detected
 		 */
-		public readonly inline: readonly vscode.Range[]
+		public readonly inline: Map</* line number */ number, readonly vscode.Range[]>
 	) { }
 
-	contains(range: vscode.Range): boolean {
-		return this.multiline.some(interval => range.start.line >= interval[0] && range.start.line < interval[1]) ||
-			this.inline.some(inlineRange => inlineRange.contains(range.start));
+	contains(position: vscode.Position): boolean {
+		return this.multiline.some(interval => position.line >= interval[0] && position.line < interval[1]) ||
+			!!this.inline.get(position.line)?.some(inlineRange => inlineRange.contains(position));
 	}
 }
 
@@ -293,7 +304,7 @@ export class MdLinkComputer {
 		const text = document.getText();
 		for (const match of text.matchAll(linkPattern)) {
 			const matchLinkData = extractDocumentLink(document, match[1], match[2], match.index);
-			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
+			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange.start)) {
 				yield matchLinkData;
 
 				// Also check link destination for links
@@ -318,7 +329,7 @@ export class MdLinkComputer {
 				const linkStart = document.positionAt(offset);
 				const linkEnd = document.positionAt(offset + link.length);
 				const hrefRange = new vscode.Range(linkStart, linkEnd);
-				if (noLinkRanges.contains(hrefRange)) {
+				if (noLinkRanges.contains(hrefRange.start)) {
 					continue;
 				}
 				yield {
@@ -362,7 +373,7 @@ export class MdLinkComputer {
 			}
 
 			const hrefRange = new vscode.Range(linkStart, linkEnd);
-			if (noLinkRanges.contains(hrefRange)) {
+			if (noLinkRanges.contains(hrefRange.start)) {
 				continue;
 			}
 
@@ -407,7 +418,7 @@ export class MdLinkComputer {
 				text = link;
 			}
 			const hrefRange = new vscode.Range(linkStart, linkEnd);
-			if (noLinkRanges.contains(hrefRange)) {
+			if (noLinkRanges.contains(hrefRange.start)) {
 				continue;
 			}
 			const target = parseLink(document, text);
