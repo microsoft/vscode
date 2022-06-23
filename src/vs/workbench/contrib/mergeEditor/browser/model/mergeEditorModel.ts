@@ -322,6 +322,10 @@ export class MergeEditorModel extends EditorModel {
 	public isHandled(baseRange: ModifiedBaseRange): IObservable<boolean> {
 		return this.modifiedBaseRangeHandlingStateStores.get().get(baseRange)!;
 	}
+
+	public setHandled(baseRange: ModifiedBaseRange, handled: boolean, tx: ITransaction): void {
+		this.modifiedBaseRangeHandlingStateStores.get().get(baseRange)!.set(handled, tx);
+	}
 }
 
 function getEditForBase(baseRange: ModifiedBaseRange, state: ModifiedBaseRangeState): { edit: LineRangeEdit | undefined; effectiveState: ModifiedBaseRangeState } {

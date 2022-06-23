@@ -220,3 +220,7 @@ export function thenIfNotDisposed<T>(promise: Promise<T>, then: () => void): IDi
 		disposed = true;
 	});
 }
+
+export function setFields<T extends {}>(obj: T, fields: Partial<T>): T {
+	return Object.assign(obj, fields);
+}

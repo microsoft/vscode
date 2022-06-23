@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { autorun, derivedObservable, IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { InputState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { applyObservableDecorations, h } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { InputState, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
+import { applyObservableDecorations, h, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
 import { CodeEditorView, ICodeEditorViewOptions } from './codeEditorView';
+import * as dom from 'vs/base/browser/dom';
+import { isDefined } from 'vs/base/common/types';
 
 export class InputCodeEditorView extends CodeEditorView {
 	private readonly decorations = derivedObservable('decorations', reader => {
@@ -83,7 +87,8 @@ export class InputCodeEditorView extends CodeEditorView {
 	constructor(
 		public readonly inputNumber: 1 | 2,
 		options: ICodeEditorViewOptions,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
 		super(options, instantiationService);
 
@@ -95,12 +100,11 @@ export class InputCodeEditorView extends CodeEditorView {
 					const viewModel = this.viewModel.read(reader);
 					if (!viewModel) { return []; }
 					const model = viewModel.model;
+
 					return model.modifiedBaseRanges.read(reader)
 						.filter((r) => r.getInputDiffs(this.inputNumber).length > 0)
 						.map<ModifiedBaseRangeGutterItemInfo>((baseRange, idx) => ({
 							id: idx.toString(),
-							additionalHeightInPx: 0,
-							offsetInPx: 0,
 							range: baseRange.getInputRange(this.inputNumber),
 							enabled: model.isUpToDate,
 							toggleState: derivedObservable('toggle', (reader) => model
@@ -116,9 +120,82 @@ export class InputCodeEditorView extends CodeEditorView {
 									.withInputValue(this.inputNumber, value),
 								tx
 							),
+							getContextMenuActions: () => {
+								const state = model.getState(baseRange).get();
+								const handled = model.isHandled(baseRange).get();
+
+								const update = (newState: ModifiedBaseRangeState) => {
+									transaction(tx => viewModel.setState(baseRange, newState, tx));
+								};
+
+								function action(id: string, label: string, targetState: ModifiedBaseRangeState, checked: boolean) {
+									const action = new Action(id, label, undefined, true, () => {
+										update(targetState);
+									});
+									action.checked = checked;
+									return action;
+								}
+								const both = state.input1 && state.input2;
+
+								return [
+									baseRange.input1Diffs.length > 0
+										? action(
+											'mergeEditor.takeInput1',
+											localize('mergeEditor.takeInput1', 'Take Input 1'),
+											state.toggle(1),
+											state.input1
+										)
+										: undefined,
+									baseRange.input2Diffs.length > 0
+										? action(
+											'mergeEditor.takeInput2',
+											localize('mergeEditor.takeInput2', 'Take Input 2'),
+											state.toggle(2),
+											state.input2
+										)
+										: undefined,
+									baseRange.isConflicting
+										? action(
+											'mergeEditor.takeBothSides',
+											localize(
+												'mergeEditor.takeBothSides',
+												'Take Both Sides'
+											),
+											state.withInput1(!both).withInput2(!both),
+											both
+										)
+										: undefined,
+									baseRange.isConflicting
+										? setFields(
+											action(
+												'mergeEditor.swap',
+												localize('mergeEditor.swap', 'Swap'),
+												state.swap(),
+												false
+											),
+											{ enabled: !state.isEmpty }
+										)
+										: undefined,
+
+									setFields(
+										new Action(
+											'mergeEditor.markAsHandled',
+											localize('mergeEditor.markAsHandled', 'Mark as Handled'),
+											undefined,
+											true,
+											() => {
+												transaction((tx) => {
+													model.setHandled(baseRange, !handled, tx);
+												});
+											}
+										),
+										{ checked: handled }
+									),
+								].filter(isDefined);
+							}
 						}));
 				},
-				createView: (item, target) => new MergeConflictGutterItemView(item, target),
+				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService),
 			})
 		);
 	}
@@ -128,12 +205,17 @@ export interface ModifiedBaseRangeGutterItemInfo extends IGutterItemInfo {
 	enabled: IObservable<boolean>;
 	toggleState: IObservable<InputState>;
 	setState(value: boolean, tx: ITransaction): void;
+	getContextMenuActions(): readonly IAction[];
 }
 
 export class MergeConflictGutterItemView extends Disposable implements IGutterItemView<ModifiedBaseRangeGutterItemInfo> {
 	private readonly item = new ObservableValue<ModifiedBaseRangeGutterItemInfo | undefined>(undefined, 'item');
 
-	constructor(item: ModifiedBaseRangeGutterItemInfo, private readonly target: HTMLElement) {
+	constructor(
+		item: ModifiedBaseRangeGutterItemInfo,
+		private readonly target: HTMLElement,
+		contextMenuService: IContextMenuService,
+	) {
 		super();
 
 		this.item.set(item, undefined);
@@ -141,6 +223,24 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 		target.classList.add('merge-accept-gutter-marker');
 
 		const checkBox = new Toggle({ isChecked: false, title: localize('acceptMerge', "Accept Merge"), icon: Codicon.check });
+		this._register(
+			dom.addDisposableListener(checkBox.domNode, dom.EventType.MOUSE_DOWN, (e) => {
+				if (e.button === 2) {
+					const item = this.item.get();
+					if (!item) {
+						return;
+					}
+
+					contextMenuService.showContextMenu({
+						getAnchor: () => checkBox.domNode,
+						getActions: item.getContextMenuActions,
+					});
+
+					e.stopPropagation();
+					e.preventDefault();
+				}
+			})
+		);
 		checkBox.domNode.classList.add('accept-conflict-group');
 
 		this._register(
