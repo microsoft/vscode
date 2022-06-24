@@ -246,6 +246,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	private readonly button: Button;
 	private readonly action: Action;
 	private readonly dropdownButton: Button;
+	private readonly separatorContainer: HTMLDivElement;
+	private readonly separator: HTMLDivElement;
 
 	readonly element: HTMLElement;
 	private readonly _onDidClick = this._register(new Emitter<Event | undefined>());
@@ -261,6 +263,13 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.button = this._register(new Button(this.element, options));
 		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
 		this.action = this._register(new Action('primaryAction', this.button.label, undefined, true, async () => this._onDidClick.fire(undefined)));
+
+		this.separatorContainer = document.createElement('div');
+		this.separatorContainer.classList.add('monaco-button-dropdown-separator');
+
+		this.separator = document.createElement('div');
+		this.separatorContainer.appendChild(this.separator);
+		this.element.appendChild(this.separatorContainer);
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
@@ -297,6 +306,10 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	style(styles: IButtonStyles): void {
 		this.button.style(styles);
 		this.dropdownButton.style(styles);
+
+		// Separator
+		this.separatorContainer.style.backgroundColor = styles.buttonBackground?.toString() ?? '';
+		this.separator.style.backgroundColor = styles.buttonForeground?.toString() ?? '';
 	}
 
 	focus(): void {
