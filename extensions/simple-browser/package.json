@@ -67,7 +67,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.4.10",
+    "@vscode/extension-telemetry": "0.6.1",
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
