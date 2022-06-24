@@ -393,6 +393,10 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 
 export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
 
+export function isApplicationScopedExtension(manifest: IExtensionManifest): boolean {
+	return isLanguagePackExtension(manifest);
+}
+
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
 }

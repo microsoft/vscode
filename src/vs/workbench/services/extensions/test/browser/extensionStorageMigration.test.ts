@@ -38,8 +38,8 @@ suite('ExtensionStorageMigration', () => {
 		fileService.registerProvider(ROOT.scheme, disposables.add(new InMemoryFileSystemProvider()));
 		instantiationService.stub(IFileService, fileService);
 		const environmentService = instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{ userRoamingDataHome: ROOT, workspaceStorageHome });
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, environmentService, fileService, new NullLogService()));
-		instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService.defaultProfile));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, new NullLogService()));
+		instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile));
 
 		instantiationService.stub(IExtensionStorageService, instantiationService.createInstance(ExtensionStorageService));
 	});

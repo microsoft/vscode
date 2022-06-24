@@ -1179,10 +1179,10 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 
 		const expanded: string[] = [];
 		const root = this.tree.getCompressedTreeNode();
-		const queue = [root];
+		const stack = [root];
 
-		while (queue.length > 0) {
-			const node = queue.shift()!;
+		while (stack.length > 0) {
+			const node = stack.pop()!;
 
 			if (node !== root && node.collapsible && !node.collapsed) {
 				for (const asyncNode of node.element!.elements) {
@@ -1190,7 +1190,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 				}
 			}
 
-			queue.push(...node.children);
+			stack.push(...node.children);
 		}
 
 		return { focus, selection, expanded, scrollTop: this.scrollTop };

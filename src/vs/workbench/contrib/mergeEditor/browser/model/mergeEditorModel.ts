@@ -20,6 +20,8 @@ import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRa
 import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'vs/workbench/contrib/mergeEditor/browser/model/textModelDiffs';
 import { concatArrays, leftJoin, elementAtOrUndefined } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { ModifiedBaseRange, ModifiedBaseRangeState } from './modifiedBaseRange';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export const enum MergeEditorModelState {
 	initializing = 1,
@@ -29,9 +31,9 @@ export const enum MergeEditorModelState {
 
 export class MergeEditorModel extends EditorModel {
 	private readonly diffComputer = new EditorWorkerServiceDiffComputer(this.editorWorkerService);
-	private readonly input1TextModelDiffs = new TextModelDiffs(this.base, this.input1, this.diffComputer);
-	private readonly input2TextModelDiffs = new TextModelDiffs(this.base, this.input2, this.diffComputer);
-	private readonly resultTextModelDiffs = new TextModelDiffs(this.base, this.result, this.diffComputer);
+	private readonly input1TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input1, this.diffComputer));
+	private readonly input2TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input2, this.diffComputer));
+	private readonly resultTextModelDiffs = this._register(new TextModelDiffs(this.base, this.result, this.diffComputer));
 
 	public readonly state = derivedObservable('state', reader => {
 		const states = [
@@ -134,7 +136,9 @@ export class MergeEditorModel extends EditorModel {
 		readonly input2Detail: string | undefined,
 		readonly input2Description: string | undefined,
 		readonly result: ITextModel,
-		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 
@@ -204,7 +208,6 @@ export class MergeEditorModel extends EditorModel {
 
 		for (const row of baseRangeWithStoreAndTouchingDiffs) {
 			row.left[1].set(this.computeState(row.left[0], row.rights), tx);
-
 		}
 	}
 
@@ -212,7 +215,7 @@ export class MergeEditorModel extends EditorModel {
 		transaction(tx => {
 			for (const range of this.modifiedBaseRanges.get()) {
 				if (this.getState(range).get().conflicting) {
-					this.setState(range, ModifiedBaseRangeState.default, tx);
+					this.setState(range, ModifiedBaseRangeState.default, false, tx);
 				}
 			}
 		});
@@ -229,6 +232,7 @@ export class MergeEditorModel extends EditorModel {
 					m.input1Diffs.length > 0
 						? ModifiedBaseRangeState.default.withInput1(true)
 						: ModifiedBaseRangeState.default.withInput2(true),
+					true,
 					tx
 				);
 			}
@@ -246,6 +250,7 @@ export class MergeEditorModel extends EditorModel {
 	public setState(
 		baseRange: ModifiedBaseRange,
 		state: ModifiedBaseRangeState,
+		markHandled: boolean,
 		transaction: ITransaction
 	): void {
 		if (!this.isUpToDate.get()) {
@@ -272,10 +277,12 @@ export class MergeEditorModel extends EditorModel {
 			this.resultTextModelDiffs.applyEditRelativeToOriginal(edit, transaction);
 		}
 
-		this.modifiedBaseRangeHandlingStateStores
-			.get()
-			.get(baseRange)!
-			.set(true, transaction);
+		if (markHandled) {
+			this.modifiedBaseRangeHandlingStateStores
+				.get()
+				.get(baseRange)!
+				.set(true, transaction);
+		}
 	}
 
 	private computeState(baseRange: ModifiedBaseRange, conflictingDiffs: DetailedLineRangeMapping[]): ModifiedBaseRangeState {
@@ -321,6 +328,14 @@ export class MergeEditorModel extends EditorModel {
 
 	public isHandled(baseRange: ModifiedBaseRange): IObservable<boolean> {
 		return this.modifiedBaseRangeHandlingStateStores.get().get(baseRange)!;
+	}
+
+	public setHandled(baseRange: ModifiedBaseRange, handled: boolean, tx: ITransaction): void {
+		this.modifiedBaseRangeHandlingStateStores.get().get(baseRange)!.set(handled, tx);
+	}
+
+	public setLanguageId(languageId: string): void {
+		this.modelService.setMode(this.result, this.languageService.createById(languageId));
 	}
 }
 
@@ -396,7 +411,13 @@ function editsToLineRangeEdit(range: LineRange, sortedEdits: RangeEdit[], textMo
 		if (!currentPosition.isBeforeOrEqual(diffStart)) {
 			return undefined;
 		}
-		const originalText = textModel.getValueInRange(Range.fromPositions(currentPosition, diffStart));
+		let originalText = textModel.getValueInRange(Range.fromPositions(currentPosition, diffStart));
+		if (diffStart.lineNumber > textModel.getLineCount()) {
+			// assert diffStart.lineNumber === textModel.getLineCount() + 1
+			// getValueInRange doesn't include this virtual line break, as the document ends the line before.
+			// endsLineAfter will be false.
+			originalText += '\n';
+		}
 		text += originalText;
 		text += edit.newText;
 		currentPosition = edit.range.getEndPosition();

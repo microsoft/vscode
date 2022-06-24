@@ -8,22 +8,15 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IUntypedEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-
-export interface MergeEditorInputJSON {
-	anchestor: URI;
-	inputOne: { uri: URI; title?: string; detail?: string; description?: string };
-	inputTwo: { uri: URI; title?: string; detail?: string; description?: string };
-	result: URI;
-}
+import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class MergeEditorInputData {
 	constructor(
@@ -34,7 +27,7 @@ export class MergeEditorInputData {
 	) { }
 }
 
-export class MergeEditorInput extends AbstractTextResourceEditorInput {
+export class MergeEditorInput extends AbstractTextResourceEditorInput implements ILanguageSupport {
 
 	static readonly ID = 'mergeEditor.Input';
 
@@ -42,10 +35,10 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 	private _outTextModel?: ITextFileEditorModel;
 
 	constructor(
-		private readonly _base: URI,
-		private readonly _input1: MergeEditorInputData,
-		private readonly _input2: MergeEditorInputData,
-		private readonly _result: URI,
+		public readonly base: URI,
+		public readonly input1: MergeEditorInputData,
+		public readonly input2: MergeEditorInputData,
+		public readonly result: URI,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IEditorService editorService: IEditorService,
@@ -53,12 +46,12 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService
 	) {
-		super(_result, undefined, editorService, textFileService, labelService, fileService);
+		super(result, undefined, editorService, textFileService, labelService, fileService);
 
 		const modelListener = new DisposableStore();
 		const handleDidCreate = (model: ITextFileEditorModel) => {
 			// TODO@jrieken copied from fileEditorInput.ts
-			if (isEqual(_result, model.resource)) {
+			if (isEqual(result, model.resource)) {
 				modelListener.clear();
 				this._outTextModel = model;
 				modelListener.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
@@ -89,34 +82,26 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		return localize('name', "Merging: {0}", super.getName());
 	}
 
-	override get capabilities(): EditorInputCapabilities {
-		let result = EditorInputCapabilities.Singleton;
-		if (!this.fileService.hasProvider(this._result) || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
-			result |= EditorInputCapabilities.Readonly;
-		}
-		return result;
-	}
-
 	override async resolve(): Promise<MergeEditorModel> {
 
 		if (!this._model) {
 
-			const base = await this._textModelService.createModelReference(this._base);
-			const input1 = await this._textModelService.createModelReference(this._input1.uri);
-			const input2 = await this._textModelService.createModelReference(this._input2.uri);
-			const result = await this._textModelService.createModelReference(this._result);
+			const base = await this._textModelService.createModelReference(this.base);
+			const input1 = await this._textModelService.createModelReference(this.input1.uri);
+			const input2 = await this._textModelService.createModelReference(this.input2.uri);
+			const result = await this._textModelService.createModelReference(this.result);
 
 			this._model = this._instaService.createInstance(
 				MergeEditorModel,
 				base.object.textEditorModel,
 				input1.object.textEditorModel,
-				this._input1.title,
-				this._input1.detail,
-				this._input1.description,
+				this.input1.title,
+				this.input1.detail,
+				this.input1.description,
 				input2.object.textEditorModel,
-				this._input2.title,
-				this._input2.detail,
-				this._input2.description,
+				this.input2.title,
+				this.input2.detail,
+				this.input2.description,
 				result.object.textEditorModel
 			);
 
@@ -135,19 +120,10 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		if (!(otherInput instanceof MergeEditorInput)) {
 			return false;
 		}
-		return isEqual(this._base, otherInput._base)
-			&& isEqual(this._input1.uri, otherInput._input1.uri)
-			&& isEqual(this._input2.uri, otherInput._input2.uri)
-			&& isEqual(this._result, otherInput._result);
-	}
-
-	toJSON(): MergeEditorInputJSON {
-		return {
-			anchestor: this._base,
-			inputOne: this._input1,
-			inputTwo: this._input2,
-			result: this._result,
-		};
+		return isEqual(this.base, otherInput.base)
+			&& isEqual(this.input1.uri, otherInput.input1.uri)
+			&& isEqual(this.input2.uri, otherInput.input2.uri)
+			&& isEqual(this.result, otherInput.result);
 	}
 
 	// ---- FileEditorInput
@@ -156,6 +132,9 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		return Boolean(this._outTextModel?.isDirty());
 	}
 
+	setLanguageId(languageId: string, _setExplicitly?: boolean): void {
+		this._model?.setLanguageId(languageId);
+	}
 
 	// implement get/set languageId
 	// implement get/set encoding

@@ -11,7 +11,6 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Edit } from 'vs/base/common/jsonFormatter';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import { isArray } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -46,8 +45,6 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	public _serviceBrand: undefined;
 	private queue: Queue<void>;
-
-	private resource: URI = this.userDataProfileService.currentProfile.keybindingsResource;
 
 	constructor(
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -122,7 +119,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private save(): Promise<any> {
-		return this.textFileService.save(this.resource);
+		return this.textFileService.save(this.userDataProfileService.currentProfile.keybindingsResource);
 	}
 
 	private updateKeybinding(keybindingItem: ResolvedKeybindingItem, newKey: string, when: string | undefined, model: ITextModel, userKeybindingEntryIndex: number): void {
@@ -244,18 +241,18 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private resolveModelReference(): Promise<IReference<IResolvedTextEditorModel>> {
-		return this.fileService.exists(this.resource)
+		return this.fileService.exists(this.userDataProfileService.currentProfile.keybindingsResource)
 			.then(exists => {
 				const EOL = this.configurationService.getValue<{ eol: string }>('files', { overrideIdentifier: 'json' })['eol'];
-				const result: Promise<any> = exists ? Promise.resolve(null) : this.textFileService.write(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
-				return result.then(() => this.textModelResolverService.createModelReference(this.resource));
+				const result: Promise<any> = exists ? Promise.resolve(null) : this.textFileService.write(this.userDataProfileService.currentProfile.keybindingsResource, this.getEmptyContent(EOL), { encoding: 'utf8' });
+				return result.then(() => this.textModelResolverService.createModelReference(this.userDataProfileService.currentProfile.keybindingsResource));
 			});
 	}
 
 	private resolveAndValidate(): Promise<IReference<IResolvedTextEditorModel>> {
 
 		// Target cannot be dirty if not writing into buffer
-		if (this.textFileService.isDirty(this.resource)) {
+		if (this.textFileService.isDirty(this.userDataProfileService.currentProfile.keybindingsResource)) {
 			return Promise.reject(new Error(localize('errorKeybindingsFileDirty', "Unable to write because the keybindings configuration file has unsaved changes. Please save it first and then try again.")));
 		}
 

@@ -267,11 +267,12 @@ export class WebClientServer {
 			return res.end();
 		}
 
-		let originalHost = req.headers['x-original-host'];
-		if (Array.isArray(originalHost)) {
-			originalHost = originalHost[0];
-		}
-		const remoteAuthority = originalHost || req.headers.host;
+		const getFirstHeader = (headerName: string) => {
+			const val = req.headers[headerName];
+			return Array.isArray(val) ? val[0] : val;
+		};
+
+		const remoteAuthority = getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host;
 		if (!remoteAuthority) {
 			return serveError(req, res, 400, `Bad request.`);
 		}

@@ -53,87 +53,6 @@ export class ReentrancyBarrier {
 	}
 }
 
-export function h<TTag extends string>(tag: TTag): never;
-export function h<TTag extends string, TId extends string>(
-	tag: TTag,
-	attributes: { $: TId }
-): Record<TId | 'root', TagToElement<TTag>>;
-export function h<TTag extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
-	tag: TTag,
-	children: T
-): (ArrayToObj<T> & Record<'root', TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-export function h<TTag extends string, TId extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
-	tag: TTag,
-	attributes: { $: TId },
-	children: T
-): (ArrayToObj<T> & Record<TId, TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-export function h(tag: string, ...args: [] | [attributes: { $: string } | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
-	let attributes: Record<string, any>;
-	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;
-
-	if (Array.isArray(args[0])) {
-		attributes = {};
-		children = args[0];
-	} else {
-		attributes = args[0] as any || {};
-		children = args[1];
-	}
-
-	const [tagName, className] = tag.split('.');
-	const el = document.createElement(tagName);
-	if (className) {
-		el.className = className;
-	}
-
-	const result: Record<string, HTMLElement> = {};
-
-	if (children) {
-		for (const c of children) {
-			if (c instanceof HTMLElement) {
-				el.appendChild(c);
-			} else if (typeof c === 'string') {
-				el.append(c);
-			} else {
-				Object.assign(result, c);
-				el.appendChild(c.root);
-			}
-		}
-	}
-
-	for (const [key, value] of Object.entries(attributes)) {
-		if (key === '$') {
-			result[value] = el;
-			continue;
-		}
-		el.setAttribute(key, value);
-	}
-
-	result['root'] = el;
-
-	return result;
-}
-
-type RemoveHTMLElement<T> = T extends HTMLElement ? never : T;
-
-type ArrayToObj<T extends any[]> = UnionToIntersection<RemoveHTMLElement<T[number]>>;
-
-
-type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never;
-
-type HTMLElementsByTagName = {
-	div: HTMLDivElement;
-	span: HTMLSpanElement;
-	a: HTMLAnchorElement;
-};
-
-type TagToElement<T> = T extends `${infer TStart}.${string}`
-	? TStart extends keyof HTMLElementsByTagName
-	? HTMLElementsByTagName[TStart]
-	: HTMLElement
-	: T extends keyof HTMLElementsByTagName
-	? HTMLElementsByTagName[T]
-	: HTMLElement;
-
 export function setStyle(
 	element: HTMLElement,
 	style: {
@@ -219,4 +138,8 @@ export function thenIfNotDisposed<T>(promise: Promise<T>, then: () => void): IDi
 	return toDisposable(() => {
 		disposed = true;
 	});
+}
+
+export function setFields<T extends {}>(obj: T, fields: Partial<T>): T {
+	return Object.assign(obj, fields);
 }

@@ -643,8 +643,13 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	async selectStepLoose(id: string) {
-		const toSelect = this.editorInput.selectedCategory + '#' + id;
-		this.selectStep(toSelect);
+		// Allow passing in id with a category appended or with just the id of the step
+		if (id.startsWith(`${this.editorInput.selectedCategory}#`)) {
+			this.selectStep(id);
+		} else {
+			const toSelect = this.editorInput.selectedCategory + '#' + id;
+			this.selectStep(toSelect);
+		}
 	}
 
 	private async selectStep(id: string | undefined, delayFocus = true, forceRebuild = false) {
@@ -795,9 +800,9 @@ export class GettingStartedPage extends EditorPane {
 				await this.gettingStartedService.installedExtensionsRegistered;
 				this.container.classList.remove('loading');
 				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+				this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 			}
 
-			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 			if (!this.currentWalkthrough) {
 				console.error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
 				this.editorInput.selectedCategory = undefined;

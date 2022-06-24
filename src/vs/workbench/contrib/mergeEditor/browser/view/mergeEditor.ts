@@ -10,10 +10,11 @@ import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/mergeEditor';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -27,15 +28,15 @@ import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/ed
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInputWithOptions, EditorResourceAccessor, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { autorunWithStore } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { autorunWithStore, IObservable } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { DocumentMapping, getOppositeDirection, MappingDirection } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
@@ -43,14 +44,44 @@ import { ReentrancyBarrier, thenIfNotDisposed } from 'vs/workbench/contrib/merge
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import './colors';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
 import { ResultCodeEditorView } from './editors/resultCodeEditorView';
 
 export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false);
-export const ctxUsesColumnLayout = new RawContextKey<boolean>('mergeEditorUsesColumnLayout', false);
+export const ctxMergeEditorLayout = new RawContextKey<MergeEditorLayoutTypes>('mergeEditorLayout', 'mixed');
 export const ctxBaseResourceScheme = new RawContextKey<string>('baseResourceScheme', '');
+
+export type MergeEditorLayoutTypes = 'mixed' | 'columns';
+
+class MergeEditorLayout {
+
+	private static readonly _key = 'mergeEditor/layout';
+	private _value: MergeEditorLayoutTypes = 'mixed';
+
+
+	constructor(@IStorageService private _storageService: IStorageService) {
+		const value = _storageService.get(MergeEditorLayout._key, StorageScope.PROFILE, 'mixed');
+		if (value === 'mixed' || value === 'columns') {
+			this._value = value;
+		} else {
+			this._value = 'mixed';
+		}
+	}
+
+	get value() {
+		return this._value;
+	}
+
+	set value(value) {
+		if (this._value !== value) {
+			this._value = value;
+			this._storageService.store(MergeEditorLayout._key, this._value, StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+}
 
 export class MergeEditor extends AbstractTextEditor<any> {
 
@@ -60,12 +91,14 @@ export class MergeEditor extends AbstractTextEditor<any> {
 
 	private _grid!: Grid<IView>;
 
-	private readonly input1View = this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable });
-	private readonly input2View = this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable });
-	private readonly inputResultView = this.instantiation.createInstance(ResultCodeEditorView, { readonly: false });
 
+	private readonly input1View = this._register(this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable }));
+	private readonly input2View = this._register(this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable }));
+	private readonly inputResultView = this._register(this.instantiation.createInstance(ResultCodeEditorView, { readonly: false }));
+
+	private readonly _layoutMode: MergeEditorLayout;
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
-	private readonly _ctxUsesColumnLayout: IContextKey<boolean>;
+	private readonly _ctxUsesColumnLayout: IContextKey<string>;
 	private readonly _ctxBaseResourceScheme: IContextKey<string>;
 
 	private _model: MergeEditorModel | undefined;
@@ -87,13 +120,17 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
 	) {
 		super(MergeEditor.ID, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
 		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(_contextKeyService);
-		this._ctxUsesColumnLayout = ctxUsesColumnLayout.bindTo(_contextKeyService);
+		this._ctxUsesColumnLayout = ctxMergeEditorLayout.bindTo(_contextKeyService);
 		this._ctxBaseResourceScheme = ctxBaseResourceScheme.bindTo(_contextKeyService);
+
+		this._layoutMode = instantiation.createInstance(MergeEditorLayout);
+		this._ctxUsesColumnLayout.set(this._layoutMode.value);
 
 		const reentrancyBarrier = new ReentrancyBarrier();
 
@@ -155,6 +192,10 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		toolbarMenuRender();
 	}
 
+	public get viewModel(): IObservable<MergeEditorViewModel | undefined> {
+		return this.input1View.viewModel;
+	}
+
 	override dispose(): void {
 		this._sessionDisposables.dispose();
 		this._ctxIsMergeEditor.reset();
@@ -195,7 +236,11 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		});
 
 		reset(parent, this._grid.element);
-		this._ctxUsesColumnLayout.set(false);
+		this._register(this._grid);
+
+		if (this._layoutMode.value === 'columns') {
+			this._grid.moveView(this.inputResultView.view, Sizing.Distribute, this.input1View.view, Direction.Right);
+		}
 
 		this.applyOptions(initialOptions);
 	}
@@ -225,6 +270,8 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		await super.setInput(input, options, context, token);
 
 		this._sessionDisposables.clear();
+		this._toggleEditorOverwrite(true);
+
 		const model = await input.resolve();
 		this._model = model;
 
@@ -297,6 +344,7 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		super.clearInput();
 
 		this._sessionDisposables.clear();
+		this._toggleEditorOverwrite(false);
 
 		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
 			editor.setModel(null);
@@ -328,39 +376,67 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		}
 
 		this._ctxIsMergeEditor.set(visible);
+		this._toggleEditorOverwrite(visible);
 	}
 
-	// ---- interact with "outside world" via `getControl`, `scopedContextKeyService`
+	private readonly _editorOverrideHandle = this._store.add(new MutableDisposable());
+
+	private _toggleEditorOverwrite(haveIt: boolean) {
+		if (!haveIt) {
+			this._editorOverrideHandle.clear();
+			return;
+		}
+		// this is RATHER UGLY. I dynamically register an editor for THIS (editor,input) so that
+		// navigating within the merge editor works, e.g navigating from the outline or breakcrumps
+		// or revealing a definition, reference etc
+		// TODO@jrieken @bpasero @lramos15
+		const input = this.input;
+		if (input instanceof MergeEditorInput) {
+			this._editorOverrideHandle.value = this._editorResolverService.registerEditor(
+				`${input.result.scheme}:${input.result.fsPath}`,
+				{
+					id: `${this.getId()}/fake`,
+					label: this.input?.getName()!,
+					priority: RegisteredEditorPriority.exclusive
+				},
+				{},
+				(candidate): EditorInputWithOptions => {
+					const resource = EditorResourceAccessor.getCanonicalUri(candidate);
+					if (!isEqual(resource, this.model?.result.uri)) {
+						throw new Error(`Expected to be called WITH ${input.result.toString()}`);
+					}
+					return { editor: input };
+				}
+			);
+		}
+	}
+
+	// ---- interact with "outside world" via`getControl`, `scopedContextKeyService`: we only expose the result-editor keep the others internal
 
 	override getControl(): ICodeEditor | undefined {
-		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
-			if (editor.hasWidgetFocus()) {
-				return editor;
-			}
-		}
-		return undefined;
+		return this.inputResultView.editor;
 	}
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		const control = this.getControl();
-		return isCodeEditor(control)
-			? control.invokeWithinContext(accessor => accessor.get(IContextKeyService))
-			: undefined;
+		return control?.invokeWithinContext(accessor => accessor.get(IContextKeyService));
 	}
 
 	// --- layout
 
-	private _usesColumnLayout = false;
-
-	toggleLayout(): void {
-		if (!this._usesColumnLayout) {
-			this._grid.moveView(this.inputResultView.view, Sizing.Distribute, this.input1View.view, Direction.Right);
-		} else {
+	setLayout(newValue: MergeEditorLayoutTypes): void {
+		const value = this._layoutMode.value;
+		if (value === newValue) {
+			return;
+		}
+		if (newValue === 'mixed') {
 			this._grid.moveView(this.inputResultView.view, this._grid.height * .62, this.input1View.view, Direction.Down);
 			this._grid.moveView(this.input2View.view, Sizing.Distribute, this.input1View.view, Direction.Right);
+		} else {
+			this._grid.moveView(this.inputResultView.view, Sizing.Distribute, this.input1View.view, Direction.Right);
 		}
-		this._usesColumnLayout = !this._usesColumnLayout;
-		this._ctxUsesColumnLayout.set(this._usesColumnLayout);
+		this._layoutMode.value = newValue;
+		this._ctxUsesColumnLayout.set(newValue);
 	}
 
 	// --- view state (TODO@bpasero revisit with https://github.com/microsoft/vscode/issues/150804)

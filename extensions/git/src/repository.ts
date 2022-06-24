@@ -942,13 +942,12 @@ export class Repository implements Disposable {
 
 		filterEvent(workspace.onDidChangeConfiguration, e =>
 			e.affectsConfiguration('git.branchProtection', root)
-			|| e.affectsConfiguration('git.branchProtectionIndicator', root)
 			|| e.affectsConfiguration('git.branchSortOrder', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.rebaseWhenSync', root)
-			|| e.affectsConfiguration('git.showUnpublishedCommitsButton', root)
+			|| e.affectsConfiguration('git.showActionButton', root)
 		)(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
@@ -2230,17 +2229,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	public isBranchProtected(name: string = this.HEAD?.name ?? '', indicator?: 'quickOpen' | 'statusBar'): boolean {
-		if (indicator) {
-			const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-			const branchProtectionIndicator = scopedConfig.get<{ quickOpen: boolean; statusBar: boolean }>('branchProtectionIndicator', { quickOpen: true, statusBar: true });
-
-			if ((indicator === 'quickOpen' && !branchProtectionIndicator.quickOpen) ||
-				(indicator === 'statusBar' && !branchProtectionIndicator.statusBar)) {
-				return false;
-			}
-		}
-
+	public isBranchProtected(name: string = this.HEAD?.name ?? ''): boolean {
 		return this.isBranchProtectedMatcher ? this.isBranchProtectedMatcher(name) : false;
 	}
 
