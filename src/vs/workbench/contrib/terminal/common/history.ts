@@ -3,12 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { env } from 'vs/base/common/process';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { PosixShellType, TerminalSettingId, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { URI } from 'vs/base/common/uri';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { Schemas } from 'vs/base/common/network';
+import { isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { posix, win32 } from 'vs/base/common/path';
 
 /**
  * Tracks a list of generic entries.
@@ -59,6 +66,42 @@ export function getDirectoryHistory(accessor: ServicesAccessor): ITerminalPersis
 		directoryHistory = accessor.get(IInstantiationService).createInstance(TerminalPersistedHistory, 'dirs') as TerminalPersistedHistory<{ remoteAuthority?: string }>;
 	}
 	return directoryHistory;
+}
+
+// Shell file history loads once per shell per window
+const shellFileHistory: Map<TerminalShellType, string[] | null> = new Map();
+export async function getShellFileHistory(accessor: ServicesAccessor, shellType: TerminalShellType): Promise<string[]> {
+	const cached = shellFileHistory.get(shellType);
+	if (cached === null) {
+		return [];
+	}
+	if (cached !== undefined) {
+		return cached;
+	}
+	let result: IterableIterator<string> | undefined;
+	switch (shellType) {
+		case PosixShellType.Bash:
+			result = await fetchBashHistory(accessor);
+			break;
+		case PosixShellType.PowerShell:
+		case WindowsShellType.PowerShell:
+			result = await fetchPwshHistory(accessor);
+			break;
+		case PosixShellType.Zsh:
+			result = await fetchZshHistory(accessor);
+			break;
+		default: return [];
+	}
+	if (result === undefined) {
+		shellFileHistory.set(shellType, null);
+		return [];
+	}
+	const array = Array.from(result);
+	shellFileHistory.set(shellType, array);
+	return array;
+}
+export function clearShellFileHistory() {
+	shellFileHistory.clear();
 }
 
 export class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
@@ -179,4 +222,173 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	private _getEntriesStorageKey() {
 		return `${StorageKeys.Entries}.${this._storageDataKey}`;
 	}
+}
+
+export async function fetchBashHistory(accessor: ServicesAccessor): Promise<IterableIterator<string> | undefined> {
+	const fileService = accessor.get(IFileService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const remoteEnvironment = await remoteAgentService.getEnvironment();
+	if (remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows) {
+		return undefined;
+	}
+	const content = await fetchFileContents(env['HOME'], '.bash_history', false, fileService, remoteAgentService);
+	if (content === undefined) {
+		return undefined;
+	}
+	// .bash_history does not differentiate wrapped commands from multiple commands. Parse
+	// the output to get the
+	const fileLines = content.split('\n');
+	const result: Set<string> = new Set();
+	let currentLine: string;
+	let currentCommand: string | undefined = undefined;
+	let wrapChar: string | undefined = undefined;
+	for (let i = 0; i < fileLines.length; i++) {
+		currentLine = fileLines[i];
+		if (currentCommand === undefined) {
+			currentCommand = currentLine;
+		} else {
+			currentCommand += `\n${currentLine}`;
+		}
+		for (let c = 0; c < currentLine.length; c++) {
+			if (wrapChar) {
+				if (currentLine[c] === wrapChar) {
+					wrapChar = undefined;
+				}
+			} else {
+				if (currentLine[c].match(/['"]/)) {
+					wrapChar = currentLine[c];
+				}
+			}
+		}
+		if (wrapChar === undefined) {
+			if (currentCommand.length > 0) {
+				result.add(currentCommand.trim());
+			}
+			currentCommand = undefined;
+		}
+	}
+
+	return result.values();
+}
+
+export async function fetchZshHistory(accessor: ServicesAccessor) {
+	const fileService = accessor.get(IFileService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const remoteEnvironment = await remoteAgentService.getEnvironment();
+	if (remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows) {
+		return undefined;
+	}
+	const content = await fetchFileContents(env['HOME'], '.zsh_history', false, fileService, remoteAgentService);
+	if (content === undefined) {
+		return undefined;
+	}
+	const fileLines = content.split(/\:\s\d+\:\d+;/);
+	const result: Set<string> = new Set();
+	for (let i = 0; i < fileLines.length; i++) {
+		const sanitized = fileLines[i].replace(/\\\n/g, '\n').trim();
+		if (sanitized.length > 0) {
+			result.add(sanitized);
+		}
+	}
+	return result.values();
+}
+
+export async function fetchPwshHistory(accessor: ServicesAccessor) {
+	const fileService: Pick<IFileService, 'readFile'> = accessor.get(IFileService);
+	const remoteAgentService: Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'> = accessor.get(IRemoteAgentService);
+	let folderPrefix: string | undefined;
+	let filePath: string;
+	const remoteEnvironment = await remoteAgentService.getEnvironment();
+	const isFileWindows = remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows;
+	if (isFileWindows) {
+		folderPrefix = env['APPDATA'];
+		filePath = '\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
+	} else {
+		folderPrefix = env['HOME'];
+		filePath = '.local/share/powershell/PSReadline/ConsoleHost_history.txt';
+	}
+	const content = await fetchFileContents(folderPrefix, filePath, isFileWindows, fileService, remoteAgentService);
+	if (content === undefined) {
+		return undefined;
+	}
+	const fileLines = content.split('\n');
+	const result: Set<string> = new Set();
+	let currentLine: string;
+	let currentCommand: string | undefined = undefined;
+	let wrapChar: string | undefined = undefined;
+	for (let i = 0; i < fileLines.length; i++) {
+		currentLine = fileLines[i];
+		if (currentCommand === undefined) {
+			currentCommand = currentLine;
+		} else {
+			currentCommand += `\n${currentLine}`;
+		}
+		if (!currentLine.endsWith('`')) {
+			const sanitized = currentCommand.trim();
+			if (sanitized.length > 0) {
+				result.add(sanitized);
+			}
+			currentCommand = undefined;
+			continue;
+		}
+		// If the line ends with `, the line may be wrapped. Need to also test the case where ` is
+		// the last character in the line
+		for (let c = 0; c < currentLine.length; c++) {
+			if (wrapChar) {
+				if (currentLine[c] === wrapChar) {
+					wrapChar = undefined;
+				}
+			} else {
+				if (currentLine[c].match(/`/)) {
+					wrapChar = currentLine[c];
+				}
+			}
+		}
+		// Having an even number of backticks means the line is terminated
+		// TODO: This doesn't cover more complicated cases where ` is within quotes
+		if (!wrapChar) {
+			const sanitized = currentCommand.trim();
+			if (sanitized.length > 0) {
+				result.add(sanitized);
+			}
+			currentCommand = undefined;
+		} else {
+			// Remove trailing backtick
+			currentCommand = currentCommand.replace(/`$/, '');
+			wrapChar = undefined;
+		}
+	}
+
+	return result.values();
+}
+
+async function fetchFileContents(
+	folderPrefix: string | undefined,
+	filePath: string,
+	isFileWindows: boolean,
+	fileService: Pick<IFileService, 'readFile'>,
+	remoteAgentService: Pick<IRemoteAgentService, 'getConnection'>,
+): Promise<string | undefined> {
+	if (!folderPrefix) {
+		return undefined;
+	}
+	const isRemote = !!remoteAgentService.getConnection()?.remoteAuthority;
+	const historyFileUri = URI.from({
+		scheme: isRemote ? Schemas.vscodeRemote : Schemas.file,
+		path: (isFileWindows ? win32.join : posix.join)(folderPrefix, filePath)
+	});
+	let content: IFileContent;
+	try {
+		content = await fileService.readFile(historyFileUri);
+	} catch (e: unknown) {
+		// Handle file not found only
+		if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+			return undefined;
+		}
+		throw e;
+	}
+	if (content === undefined) {
+		return undefined;
+	}
+	return content.value.toString();
 }

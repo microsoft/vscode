@@ -5,11 +5,12 @@
 
 import * as vscode from 'vscode';
 import { MdTableOfContentsProvider, TableOfContents } from '../tableOfContents';
+import { ITextDocument } from '../types/textDocument';
+import { IMdWorkspace } from '../workspace';
 import { equals } from './arrays';
+import { Delayer } from './async';
 import { Disposable } from './dispose';
 import { ResourceMap } from './resourceMap';
-import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { Delayer } from './async';
 
 /**
  * Check if the items in a table of contents have changed.
@@ -36,7 +37,7 @@ export class MdTableOfContentsWatcher extends Disposable {
 	private readonly delayer: Delayer<void>;
 
 	public constructor(
-		private readonly workspaceContents: MdWorkspaceContents,
+		private readonly workspace: IMdWorkspace,
 		private readonly tocProvider: MdTableOfContentsProvider,
 		private readonly delay: number,
 	) {
@@ -44,17 +45,17 @@ export class MdTableOfContentsWatcher extends Disposable {
 
 		this.delayer = this._register(new Delayer<void>(delay));
 
-		this._register(this.workspaceContents.onDidChangeMarkdownDocument(this.onDidChangeDocument, this));
-		this._register(this.workspaceContents.onDidCreateMarkdownDocument(this.onDidCreateDocument, this));
-		this._register(this.workspaceContents.onDidDeleteMarkdownDocument(this.onDidDeleteDocument, this));
+		this._register(this.workspace.onDidChangeMarkdownDocument(this.onDidChangeDocument, this));
+		this._register(this.workspace.onDidCreateMarkdownDocument(this.onDidCreateDocument, this));
+		this._register(this.workspace.onDidDeleteMarkdownDocument(this.onDidDeleteDocument, this));
 	}
 
-	private async onDidCreateDocument(document: SkinnyTextDocument) {
+	private async onDidCreateDocument(document: ITextDocument) {
 		const toc = await this.tocProvider.getForDocument(document);
 		this._files.set(document.uri, { toc });
 	}
 
-	private async onDidChangeDocument(document: SkinnyTextDocument) {
+	private async onDidChangeDocument(document: ITextDocument) {
 		if (this.delay > 0) {
 			this._pending.set(document.uri);
 			this.delayer.trigger(() => this.flushPending());

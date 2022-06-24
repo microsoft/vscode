@@ -100,11 +100,12 @@ import { InspectProfilingService as V8InspectProfilingService } from 'vs/platfor
 import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profiling';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
-import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
+import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfile';
+import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
 
 class SharedProcessMain extends Disposable {
 
@@ -231,7 +232,7 @@ class SharedProcessMain extends Disposable {
 		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
 
 		// User Data Profiles
-		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.defaultProfile, environmentService, fileService, logService));
+		const userDataProfilesService = this._register(new UserDataProfilesNativeService(this.configuration.profiles, mainProcessService, environmentService, fileService, logService));
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration
@@ -282,7 +283,7 @@ class SharedProcessMain extends Disposable {
 			const { installSourcePath } = environmentService;
 			const internalTesting = configurationService.getValue<boolean>('telemetry.internalTesting');
 			if (internalTesting && productService.aiConfig?.ariaKey) {
-				const collectorAppender = new OneDataSystemAppender('monacoworkbench', null, productService.aiConfig.ariaKey);
+				const collectorAppender = new OneDataSystemWebAppender('monacoworkbench', null, productService.aiConfig.ariaKey);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
 				appenders.push(collectorAppender);
 			} else if (productService.aiConfig && productService.aiConfig.asimovKey) {

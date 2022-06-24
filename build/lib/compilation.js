@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = exports.watchTask = exports.compileTask = void 0;
+exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = exports.watchTask = exports.compileTask = exports.transpileTask = void 0;
 const es = require("event-stream");
 const fs = require("fs");
 const gulp = require("gulp");
@@ -18,7 +18,6 @@ const ansiColors = require("ansi-colors");
 const os = require("os");
 const File = require("vinyl");
 const task = require("./task");
-const tsb = require("./tsb");
 const watch = require('./watch');
 const reporter = (0, reporter_1.createReporter)();
 function getTypeScriptCompilerOptions(src) {
@@ -36,7 +35,7 @@ function getTypeScriptCompilerOptions(src) {
     return options;
 }
 function createCompile(src, build, emitError, transpileOnly) {
-    // const tsb = require('./tsb') as typeof import('./tsb');
+    const tsb = require('./tsb');
     const sourcemaps = require('gulp-sourcemaps');
     const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
     const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
@@ -60,7 +59,7 @@ function createCompile(src, build, emitError, transpileOnly) {
             .pipe(noDeclarationsFilter)
             .pipe(build ? nls.nls() : es.through())
             .pipe(noDeclarationsFilter.restore)
-            .pipe(sourcemaps.write('.', {
+            .pipe(transpileOnly ? es.through() : sourcemaps.write('.', {
             addComment: false,
             includeContent: !!build,
             sourceRoot: overrideOptions.sourceRoot
@@ -74,12 +73,22 @@ function createCompile(src, build, emitError, transpileOnly) {
     };
     return pipeline;
 }
-function compileTask(src, out, build, transpileOnly) {
+function transpileTask(src, out) {
+    return function () {
+        const transpile = createCompile(src, false, true, true);
+        const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
+        return srcPipe
+            .pipe(transpile())
+            .pipe(gulp.dest(out));
+    };
+}
+exports.transpileTask = transpileTask;
+function compileTask(src, out, build) {
     return function () {
         if (os.totalmem() < 4000000000) {
             throw new Error('compilation requires 4GB of RAM');
         }
-        const compile = createCompile(src, build, true, transpileOnly);
+        const compile = createCompile(src, build, true, false);
         const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
         const generator = new MonacoGenerator(false);
         if (src === 'src') {

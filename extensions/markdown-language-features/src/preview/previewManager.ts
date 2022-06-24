@@ -9,9 +9,9 @@ import { MarkdownContributionProvider } from '../markdownExtensions';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { Disposable, disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
+import { MdDocumentRenderer } from './documentRenderer';
 import { DynamicMarkdownPreview, IManagedMarkdownPreview, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { MdDocumentRenderer } from './documentRenderer';
 import { scrollEditorToLine, StartingScrollFragment } from './scrolling';
 import { TopmostLineMonitor } from './topmostLineMonitor';
 

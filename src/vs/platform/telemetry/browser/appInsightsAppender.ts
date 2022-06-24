@@ -12,7 +12,7 @@ export class WebAppInsightsAppender implements ITelemetryAppender {
 	private _telemetryCache: { eventName: string; data: any }[] = [];
 
 	constructor(private _eventPrefix: string, aiKey: string) {
-		const endpointUrl = 'https://mobile.events.data.microsoft.com/collect/v1';
+		const endpointUrl = 'https://vscode.vortex.data.microsoft.com/collect/v1';
 		import('@microsoft/applicationinsights-web').then(aiLibrary => {
 			this._aiClient = new aiLibrary.ApplicationInsights({
 				config: {

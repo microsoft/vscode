@@ -17,7 +17,6 @@ import * as os from 'os';
 import ts = require('typescript');
 import * as File from 'vinyl';
 import * as task from './task';
-import * as tsb from './tsb';
 
 const watch = require('./watch');
 
@@ -39,7 +38,7 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 }
 
 function createCompile(src: string, build: boolean, emitError: boolean, transpileOnly: boolean) {
-	// const tsb = require('./tsb') as typeof import('./tsb');
+	const tsb = require('./tsb') as typeof import('./tsb');
 	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
 
@@ -69,7 +68,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 			.pipe(noDeclarationsFilter)
 			.pipe(build ? nls.nls() : es.through())
 			.pipe(noDeclarationsFilter.restore)
-			.pipe(sourcemaps.write('.', {
+			.pipe(transpileOnly ? es.through() : sourcemaps.write('.', {
 				addComment: false,
 				includeContent: !!build,
 				sourceRoot: overrideOptions.sourceRoot
@@ -85,7 +84,20 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 	return pipeline;
 }
 
-export function compileTask(src: string, out: string, build: boolean, transpileOnly: boolean): () => NodeJS.ReadWriteStream {
+export function transpileTask(src: string, out: string): () => NodeJS.ReadWriteStream {
+
+	return function () {
+
+		const transpile = createCompile(src, false, true, true);
+		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
+
+		return srcPipe
+			.pipe(transpile())
+			.pipe(gulp.dest(out));
+	};
+}
+
+export function compileTask(src: string, out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
 
@@ -93,7 +105,7 @@ export function compileTask(src: string, out: string, build: boolean, transpileO
 			throw new Error('compilation requires 4GB of RAM');
 		}
 
-		const compile = createCompile(src, build, true, transpileOnly);
+		const compile = createCompile(src, build, true, false);
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {

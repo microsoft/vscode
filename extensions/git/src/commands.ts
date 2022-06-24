@@ -26,7 +26,7 @@ const localize = nls.loadMessageBundle();
 class CheckoutItem implements QuickPickItem {
 
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
-	get label(): string { return this.ref.name ? `${this.ref.name}${this.repository.isBranchProtected(this.ref.name, 'quickOpen') ? ' $(lock-small)' : ''}` : this.shortCommit; }
+	get label(): string { return this.ref.name ? `${this.ref.name}${this.repository.isBranchProtected(this.ref.name) ? ' $(lock-small)' : ''}` : this.shortCommit; }
 	get description(): string { return this.shortCommit; }
 
 	constructor(protected repository: Repository, protected ref: Ref) { }
@@ -439,7 +439,7 @@ export class CommandCenter {
 		}
 
 		const options = {
-			ancestor: mergeUris.base,
+			base: mergeUris.base,
 			input1: theirs,
 			input2: ours,
 			output: uri
