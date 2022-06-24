@@ -168,7 +168,7 @@ export class SettingsTreeIndicatorsLabel {
 					contentFallback = prefaceText;
 					for (const scope of element.overriddenScopeList) {
 						const scopeDisplayText = this.getInlineScopeDisplayText(scope);
-						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(scope)})`;
+						contentMarkdownString += `\n- <a href="${encodeURIComponent(scope)}" aria-label="${getAccessibleScopeDisplayText(scope, this.languageService)}">${scopeDisplayText}</a>`;
 						contentFallback += `\n• ${scopeDisplayText}`;
 					}
 				}
@@ -190,7 +190,7 @@ export class SettingsTreeIndicatorsLabel {
 					markdown: {
 						value: contentMarkdownString,
 						isTrusted: false,
-						supportHtml: false
+						supportHtml: true
 					},
 					markdownNotSupportedFallback: contentFallback
 				};
@@ -240,14 +240,26 @@ function getDefaultValueSourceToDisplay(element: SettingsTreeSettingElement): st
 	return sourceToDisplay;
 }
 
-export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService): string {
+function getAccessibleScopeDisplayText(completeScope: string, languageService: ILanguageService): string {
+	const [scope, language] = completeScope.split(':');
+	const localizedScope = scope === 'user' ?
+		localize('user', "User") : scope === 'workspace' ?
+			localize('workspace', "Workspace") : localize('remote', "Remote");
+	if (language) {
+		return localize('modifiedInScopeForLanguage', "the {0} scope for {1}", localizedScope, languageService.getLanguageName(language));
+	}
+	return localizedScope;
+}
+
+export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
 	// Add other overrides text
 	const otherOverridesStart = element.isConfigured ?
 		localize('alsoConfiguredIn', "Also modified in") :
 		localize('configuredIn', "Modified in");
-	const otherOverridesList = element.overriddenScopeList.join(', ');
+	const otherOverridesList = element.overriddenScopeList
+		.map(scope => getAccessibleScopeDisplayText(scope, languageService)).join(', ');
 	if (element.overriddenScopeList.length) {
 		ariaLabelSections.push(`${otherOverridesStart} ${otherOverridesList}`);
 	}
@@ -262,6 +274,14 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	const sourceToDisplay = getDefaultValueSourceToDisplay(element);
 	if (sourceToDisplay !== undefined) {
 		ariaLabelSections.push(localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay));
+	}
+
+	// Add text about default values being overridden in other languages
+	const otherLanguageOverridesStart = localize('defaultOverriddenListPreface', "The default value of the setting has also been overridden for the following languages:");
+	const otherLanguageOverridesList = element.overriddenDefaultsLanguageList
+		.map(language => languageService.getLanguageName(language)).join(', ');
+	if (element.overriddenDefaultsLanguageList.length) {
+		ariaLabelSections.push(`${otherLanguageOverridesStart} ${otherLanguageOverridesList}`);
 	}
 
 	const ariaLabel = ariaLabelSections.join('. ');
