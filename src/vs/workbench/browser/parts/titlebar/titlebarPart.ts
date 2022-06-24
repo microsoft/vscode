@@ -180,7 +180,9 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	protected onMenubarVisibilityChanged(visible: boolean): void {
 		if (isWeb || isWindows || isLinux) {
-			this.adjustTitleMarginToCenter();
+			if (this.lastLayoutDimensions) {
+				this.layout(this.lastLayoutDimensions.width, this.lastLayoutDimensions.height);
+			}
 
 			this._onMenubarVisibilityChange.fire(visible);
 		}
@@ -197,6 +199,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.menubar.remove();
 			this.menubar = undefined;
 		}
+
+		this.onMenubarVisibilityChanged(false);
 	}
 
 	protected installMenubar(): void {
@@ -210,9 +214,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.menubar = this.rootContainer.insertBefore($('div.menubar'), this.title);
 		this.menubar.setAttribute('role', 'menubar');
 
-		this.customMenubar.create(this.menubar);
-
 		this._register(this.customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+
+		this.customMenubar.create(this.menubar);
 	}
 
 	private updateTitle(): void {

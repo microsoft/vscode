@@ -746,7 +746,7 @@ export class MenuBar extends Disposable {
 		this._onFocusStateChange.fire(this.focusState >= MenubarState.FOCUSED);
 	}
 
-	private get isVisible(): boolean {
+	get isVisible(): boolean {
 		return this.focusState >= MenubarState.VISIBLE;
 	}
 
