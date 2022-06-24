@@ -220,7 +220,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		const decoration = this._terminal.registerDecoration({
 			marker: command.marker,
-			overviewRulerOptions: beforeCommandExecution ? undefined : { color, position: command.exitCode ? 'right' : 'left' }
+			overviewRulerOptions: beforeCommandExecution
+				? { color, position: 'left' }
+				: { color, position: command.exitCode ? 'right' : 'left' }
 		});
 		if (!decoration) {
 			return undefined;
