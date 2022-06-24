@@ -1923,6 +1923,9 @@ class SCMInputWidget {
 		const fontFamily = this.getInputEditorFontFamily();
 		const fontSize = this.getInputEditorFontSize();
 		const lineHeight = this.computeLineHeight(fontSize);
+		// We respect the configured `editor.accessibilitySupport` setting to be able to have wrapping
+		// even when a screen reader is attached.
+		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 
 		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
 
@@ -1945,6 +1948,7 @@ class SCMInputWidget {
 			overflowWidgetsDomNode,
 			renderWhitespace: 'none',
 			enableDropIntoEditor: true,
+			accessibilitySupport
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -1997,16 +2001,36 @@ class SCMInputWidget {
 			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
 		}));
 
-		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily') || e.affectsConfiguration('scm.inputFontSize'), this.disposables);
+		const relevantSettings = [
+			'scm.inputFontFamily',
+			'editor.fontFamily', // When `scm.inputFontFamily` is 'editor', we use it as an effective value
+			'scm.inputFontSize',
+			'editor.accessibilitySupport'
+		];
+
+		const onInputFontFamilyChanged = Event.filter(
+			this.configurationService.onDidChangeConfiguration,
+			(e) => {
+				for (const setting of relevantSettings) {
+					if (e.affectsConfiguration(setting)) {
+						return true;
+					}
+				}
+				return false;
+			},
+			this.disposables
+		);
 		this.disposables.add(onInputFontFamilyChanged(() => {
 			const fontFamily = this.getInputEditorFontFamily();
 			const fontSize = this.getInputEditorFontSize();
 			const lineHeight = this.computeLineHeight(fontSize);
+			const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 
 			this.inputEditor.updateOptions({
 				fontFamily: fontFamily,
 				fontSize: fontSize,
 				lineHeight: lineHeight,
+				accessibilitySupport
 			});
 
 			this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
