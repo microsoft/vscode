@@ -62,6 +62,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorContextCopyAs', "'Copy as' submenu in the editor context menu")
 	},
 	{
+		key: 'editor/context/share',
+		id: MenuId.EditorContextShare,
+		description: localize('menus.editorContextShare', "'Share' submenu in the editor context menu")
+	},
+	{
 		key: 'explorer/context',
 		id: MenuId.ExplorerContext,
 		description: localize('menus.explorerContext', "The file explorer context menu")

@@ -26,7 +26,7 @@
     }
   },
   "enabledApiProposals": [
-	"contribShareMenu"
+    "contribShareMenu"
   ],
   "contributes": {
     "commands": [
@@ -34,10 +34,10 @@
         "command": "github.publish",
         "title": "Publish to GitHub"
       },
-	  {
-		"command": "github.copyVscodeDevLink",
-		"title": "Copy vscode.dev Link"
-	  }
+      {
+        "command": "github.copyVscodeDevLink",
+        "title": "Copy vscode.dev Link"
+      }
     ],
     "menus": {
       "commandPalette": [
@@ -50,12 +50,18 @@
           "when": "false"
         }
       ],
-	  "file/share": [
-		{
-			"command": "github.copyVscodeDevLink",
-			"when": "github.hasGitHubRepo"
-		}
-	  ]
+      "file/share": [
+        {
+            "command": "github.copyVscodeDevLink",
+            "when": "github.hasGitHubRepo"
+        }
+      ],
+      "editor/context/share": [
+        {
+            "command": "github.copyVscodeDevLink",
+            "when": "github.hasGitHubRepo"
+        }
+      ]
     },
     "configuration": [
       {
