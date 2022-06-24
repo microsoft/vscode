@@ -6,21 +6,22 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdDefinitionProvider } from '../languageFeatures/definitionProvider';
+import { MdVsCodeDefinitionProvider } from '../languageFeatures/definitions';
 import { MdReferencesProvider } from '../languageFeatures/references';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
-import { MdWorkspaceContents } from '../workspaceContents';
+import { IMdWorkspace } from '../workspace';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { InMemoryMdWorkspace } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
 import { joinLines, workspacePath } from './util';
 
 
-function getDefinition(doc: InMemoryDocument, pos: vscode.Position, workspace: MdWorkspaceContents) {
+function getDefinition(doc: InMemoryDocument, pos: vscode.Position, workspace: IMdWorkspace) {
 	const engine = createNewMarkdownEngine();
-	const referencesProvider = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace));
-	const provider = new MdDefinitionProvider(referencesProvider);
+	const referencesProvider = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
+	const provider = new MdVsCodeDefinitionProvider(referencesProvider);
 	return provider.provideDefinition(doc, pos, noopToken);
 }
 
@@ -51,7 +52,7 @@ suite('markdown: Go to definition', () => {
 			`[ref]: http://example.com`,
 		));
 
-		const defs = await getDefinition(doc, new vscode.Position(0, 1), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const defs = await getDefinition(doc, new vscode.Position(0, 1), new InMemoryMdWorkspace([doc]));
 		assert.deepStrictEqual(defs, undefined);
 	});
 
@@ -63,7 +64,7 @@ suite('markdown: Go to definition', () => {
 			`[abc]: https://example.com`,
 		));
 
-		const defs = await getDefinition(doc, new vscode.Position(0, 12), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const defs = await getDefinition(doc, new vscode.Position(0, 12), new InMemoryMdWorkspace([doc]));
 		assertDefinitionsEqual(defs!,
 			{ uri: docUri, line: 2 },
 		);
@@ -80,19 +81,19 @@ suite('markdown: Go to definition', () => {
 		));
 
 		{
-			const defs = await getDefinition(doc, new vscode.Position(0, 2), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const defs = await getDefinition(doc, new vscode.Position(0, 2), new InMemoryMdWorkspace([doc]));
 			assertDefinitionsEqual(defs!,
 				{ uri: docUri, line: 4 },
 			);
 		}
 		{
-			const defs = await getDefinition(doc, new vscode.Position(2, 7), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const defs = await getDefinition(doc, new vscode.Position(2, 7), new InMemoryMdWorkspace([doc]));
 			assertDefinitionsEqual(defs!,
 				{ uri: docUri, line: 4 },
 			);
 		}
 		{
-			const defs = await getDefinition(doc, new vscode.Position(4, 2), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const defs = await getDefinition(doc, new vscode.Position(4, 2), new InMemoryMdWorkspace([doc]));
 			assertDefinitionsEqual(defs!,
 				{ uri: docUri, line: 4 },
 			);
@@ -107,7 +108,7 @@ suite('markdown: Go to definition', () => {
 			`[abc]: https://example.com`, // trigger here
 		));
 
-		const defs = await getDefinition(doc, new vscode.Position(2, 3), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const defs = await getDefinition(doc, new vscode.Position(2, 3), new InMemoryMdWorkspace([doc]));
 		assertDefinitionsEqual(defs!,
 			{ uri: docUri, line: 2 },
 		);
@@ -121,7 +122,7 @@ suite('markdown: Go to definition', () => {
 			`[abc]: https://example.com`,
 		));
 
-		const defs = await getDefinition(doc, new vscode.Position(0, 12), new InMemoryWorkspaceMarkdownDocuments([
+		const defs = await getDefinition(doc, new vscode.Position(0, 12), new InMemoryMdWorkspace([
 			doc,
 			new InMemoryDocument(workspacePath('other.md'), joinLines(
 				`[link 1][abc]`,

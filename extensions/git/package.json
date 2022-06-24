@@ -2031,7 +2031,6 @@
         },
         "git.useEditorAsCommitInput": {
           "type": "boolean",
-          "scope": "resource",
           "description": "%config.useEditorAsCommitInput%",
           "default": true
         },
@@ -2349,7 +2348,8 @@
         "git.requireGitUserConfig": {
           "type": "boolean",
           "description": "%config.requireGitUserConfig%",
-          "default": true
+          "default": true,
+          "scope": "resource"
         },
         "git.showCommitInput": {
           "type": "boolean",
@@ -2359,13 +2359,11 @@
         },
         "git.terminalAuthentication": {
           "type": "boolean",
-          "scope": "resource",
           "default": true,
           "description": "%config.terminalAuthentication%"
         },
         "git.terminalGitEditor": {
           "type": "boolean",
-          "scope": "resource",
           "default": true,
           "description": "%config.terminalGitEditor%"
         },
@@ -2467,7 +2465,6 @@
             "type": "string"
           },
           "default": [],
-          "scope": "resource",
           "markdownDescription": "%config.commandsToLog%"
         },
         "git.logLevel": {
@@ -2695,7 +2692,7 @@
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "5.0.0",
-    "@vscode/extension-telemetry": "0.4.10",
+    "@vscode/extension-telemetry": "0.6.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "^7.2.0",

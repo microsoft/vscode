@@ -14,10 +14,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -25,7 +24,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 
 registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 	constructor() {
-		const when = ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty'));
+		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		super({
 			id: 'workbench.profiles.actions.createFromCurrentProfile',
 			title: {
@@ -61,7 +60,7 @@ registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 
 registerAction2(class CreateEmptyProfileAction extends Action2 {
 	constructor() {
-		const when = ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty'));
+		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		super({
 			id: 'workbench.profiles.actions.createProfile',
 			title: {
@@ -97,7 +96,7 @@ registerAction2(class CreateEmptyProfileAction extends Action2 {
 
 registerAction2(class RemoveProfileAction extends Action2 {
 	constructor() {
-		const when = ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty'));
+		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		super({
 			id: 'workbench.profiles.actions.removeProfile',
 			title: {
@@ -123,7 +122,7 @@ registerAction2(class RemoveProfileAction extends Action2 {
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 
-		const profiles = userDataProfilesService.profiles.filter(p => p.name !== userDataProfileService.currentProfile.name && p.name !== userDataProfilesService.defaultProfile.name);
+		const profiles = userDataProfilesService.profiles.filter(p => p.id !== userDataProfileService.currentProfile.id && !p.isDefault);
 		if (profiles.length) {
 			const pick = await quickInputService.pick(profiles.map(profile => ({ label: profile.name, profile })), { placeHolder: localize('pick profile', "Select Settings Profile") });
 			if (pick) {
@@ -143,7 +142,7 @@ registerAction2(class SwitchProfileAction extends Action2 {
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
+			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty')),
 		});
 	}
 
@@ -153,8 +152,9 @@ registerAction2(class SwitchProfileAction extends Action2 {
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 
-		if (userDataProfilesService.profiles) {
-			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = userDataProfilesService.profiles.map(profile => ({
+		const profiles = userDataProfilesService.profiles.filter(p => p.id !== userDataProfileService.currentProfile.id);
+		if (profiles.length) {
+			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = profiles.map(profile => ({
 				label: profile.name!,
 				description: profile.name === userDataProfileService.currentProfile.name ? localize('current', "Current") : undefined,
 				profile
@@ -177,7 +177,7 @@ registerAction2(class CleanupProfilesAction extends Action2 {
 			},
 			category: CATEGORIES.Developer,
 			f1: true,
-			precondition: IsDevelopmentContext,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
 
@@ -202,7 +202,7 @@ registerAction2(class ExportProfileAction extends Action2 {
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
+			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty')),
 		});
 	}
 
@@ -239,7 +239,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty')),
+			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty')),
 		});
 	}
 

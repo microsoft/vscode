@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const CONTEXT_CURRENT_PROFILE = new RawContextKey<string>('currentUserDataProfile', '');
 
@@ -34,9 +34,10 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 		this.currentProfileContext = CONTEXT_CURRENT_PROFILE.bindTo(contextKeyService);
 		this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => this.currentProfileContext.set(this.userDataProfileService.currentProfile.id)));
 
 		this.updateStatus();
-		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.updateStatus()));
+		this._register(Event.any(this.workspaceContextService.onDidChangeWorkbenchState, this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfilesService.onDidChangeProfiles)(() => this.updateStatus()));
 
 		this.registerActions();
 	}
@@ -50,7 +51,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerManageProfilesSubMenu(): void {
 		const that = this;
-		const when = ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty'));
+		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
 			submenu: ManageProfilesSubMenu,
@@ -85,7 +86,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const that = this;
 		return registerAction2(class ProfileEntryAction extends Action2 {
 			constructor() {
-				const when = ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty'));
+				const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 				super({
 					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
 					title: profile.name,
@@ -106,14 +107,25 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		});
 	}
 
-	private async updateStatus(): Promise<void> {
+	private profileStatusAccessor: IStatusbarEntryAccessor | undefined;
+	private updateStatus(): void {
 		if (this.userDataProfilesService.profiles.length > 1 && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			this.statusBarService.addEntry({
+			const statusBarEntry = {
 				name: this.userDataProfileService.currentProfile.name!,
 				command: 'workbench.profiles.actions.switchProfile',
 				ariaLabel: localize('currentProfile', "Current Settings Profile is {0}", this.userDataProfileService.currentProfile.name),
 				text: `${PROFILES_CATEGORY}: ${this.userDataProfileService.currentProfile.name!}`,
-			}, 'status.userDataProfile', StatusbarAlignment.LEFT, 1);
+			};
+			if (this.profileStatusAccessor) {
+				this.profileStatusAccessor.update(statusBarEntry);
+			} else {
+				this.profileStatusAccessor = this.statusBarService.addEntry(statusBarEntry, 'status.userDataProfile', StatusbarAlignment.LEFT, 1);
+			}
+		} else {
+			if (this.profileStatusAccessor) {
+				this.profileStatusAccessor.dispose();
+				this.profileStatusAccessor = undefined;
+			}
 		}
 	}
 }

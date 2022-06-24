@@ -330,7 +330,14 @@ export class MenuBar extends Disposable {
 				triggerKeys.push(KeyCode.DownArrow);
 			} else {
 				triggerKeys.push(KeyCode.Space);
-				triggerKeys.push(this.options.compactMode === Direction.Right ? KeyCode.RightArrow : KeyCode.LeftArrow);
+
+				if (this.options.compactMode === Direction.Right) {
+					triggerKeys.push(KeyCode.RightArrow);
+				} else if (this.options.compactMode === Direction.Left) {
+					triggerKeys.push(KeyCode.LeftArrow);
+				} else if (this.options.compactMode === Direction.Down) {
+					triggerKeys.push(KeyCode.DownArrow);
+				}
 			}
 
 			if ((triggerKeys.some(k => event.equals(k)) && !this.isOpen)) {
@@ -982,6 +989,7 @@ export class MenuBar extends Disposable {
 		customMenu.buttonElement.classList.add('open');
 
 		const buttonBoundingRect = customMenu.buttonElement.getBoundingClientRect();
+		const buttonBoundingRectZoom = DOM.getDomNodeZoomLevel(customMenu.buttonElement);
 
 		if (this.options.compactMode === Direction.Right) {
 			menuHolder.style.top = `${buttonBoundingRect.top}px`;
@@ -991,8 +999,8 @@ export class MenuBar extends Disposable {
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.top = `${buttonBoundingRect.bottom}px`;
-			menuHolder.style.left = `${buttonBoundingRect.left}px`;
+			menuHolder.style.top = `${buttonBoundingRect.bottom * buttonBoundingRectZoom}px`;
+			menuHolder.style.left = `${buttonBoundingRect.left * buttonBoundingRectZoom}px`;
 		}
 
 		customMenu.buttonElement.appendChild(menuHolder);

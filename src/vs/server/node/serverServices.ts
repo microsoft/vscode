@@ -71,7 +71,7 @@ import { ExtensionHostStatusService, IExtensionHostStatusService } from 'vs/serv
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 
 const eventPrefix = 'monacoworkbench';
@@ -110,8 +110,11 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IFileService, fileService);
 	fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService)));
 
+	// User Data Profiles
+	const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, logService);
+	services.set(IUserDataProfilesService, userDataProfilesService);
+
 	// Configuration
-	const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, fileService, logService);
 	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService(), logService);
 	services.set(IConfigurationService, configurationService);
 	await configurationService.initialize();

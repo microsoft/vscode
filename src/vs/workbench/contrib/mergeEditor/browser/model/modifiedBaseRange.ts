@@ -16,10 +16,6 @@ import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRa
  * Immutable.
 */
 export class ModifiedBaseRange {
-	/**
-	 * diffs1 and diffs2 together with the conflict relation form a bipartite graph.
-	 * This method computes strongly connected components of that graph while maintaining the side of each diff.
-	*/
 	public static fromDiffs(
 		diffs1: readonly DetailedLineRangeMapping[],
 		diffs2: readonly DetailedLineRangeMapping[],
@@ -63,6 +59,10 @@ export class ModifiedBaseRange {
 
 	public getInputRange(inputNumber: 1 | 2): LineRange {
 		return inputNumber === 1 ? this.input1Range : this.input2Range;
+	}
+
+	public getInputCombinedDiff(inputNumber: 1 | 2): DetailedLineRangeMapping | undefined {
+		return inputNumber === 1 ? this.input1CombinedDiff : this.input2CombinedDiff;
 	}
 
 	public getInputDiffs(inputNumber: 1 | 2): readonly DetailedLineRangeMapping[] {
@@ -116,6 +116,23 @@ export class ModifiedBaseRangeState {
 			value !== this.input1 ? value : this.input2First,
 			false
 		);
+	}
+
+	public swap(): ModifiedBaseRangeState {
+		return new ModifiedBaseRangeState(
+			this.input2,
+			this.input1,
+			!this.input2First,
+			this.conflicting
+		);
+	}
+
+	public toggle(inputNumber: 1 | 2): ModifiedBaseRangeState {
+		if (inputNumber === 1) {
+			return this.withInput1(!this.input1);
+		} else {
+			return this.withInput2(!this.input2);
+		}
 	}
 
 	public get isEmpty(): boolean {

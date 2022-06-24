@@ -419,7 +419,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 */
 	public readonly historyVisible = MutableObservableValue.stored(new StoredValue<boolean>({
 		key: 'testHistoryVisibleInPeek',
-		scope: StorageScope.GLOBAL,
+		scope: StorageScope.PROFILE,
 		target: StorageTarget.USER,
 	}, this.storageService), true);
 

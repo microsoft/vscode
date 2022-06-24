@@ -47,6 +47,8 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
+import { IStateService } from 'vs/platform/state/node/state';
+import { StateService } from 'vs/platform/state/node/stateService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
@@ -55,7 +57,8 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 
 class CliMain extends Disposable {
 
@@ -133,8 +136,16 @@ class CliMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// State
+		const stateService = new StateService(environmentService, logService, fileService);
+		services.set(IStateService, stateService);
+
+		// Uri Identity
+		const uriIdentityService = new UriIdentityService(fileService);
+		services.set(IUriIdentityService, uriIdentityService);
+
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, fileService, logService);
+		const userDataProfilesService = new UserDataProfilesService(stateService, uriIdentityService, environmentService, fileService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Policy
@@ -147,8 +158,13 @@ class CliMain extends Disposable {
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, policyService, logService));
 		services.set(IConfigurationService, configurationService);
 
-		// Init config
-		await configurationService.initialize();
+		// Initialize
+		await Promise.all([
+			stateService.init(),
+			configurationService.initialize()
+		]);
+
+		userDataProfilesService.setEnablement(configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
