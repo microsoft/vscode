@@ -333,13 +333,6 @@ class ShowDebugHoverAction extends EditorAction {
 
 const NO_TARGETS_MESSAGE = nls.localize('editor.debug.action.stepIntoTargets.notAvailable', "Step targets are not available here");
 
-interface StepInTargetWithPosition extends DebugProtocol.StepInTarget {
-	line?: number;
-	column?: number;
-	endLine?: number;
-	endColumn?: number;
-}
-
 class StepIntoTargetsAction extends EditorAction {
 
 	public static readonly ID = 'editor.debug.action.stepIntoTargets';
@@ -376,7 +369,7 @@ class StepIntoTargetsAction extends EditorAction {
 		}
 
 
-		const targets = await session.stepInTargets(frame.frameId) as StepInTargetWithPosition[];
+		const targets = await session.stepInTargets(frame.frameId);
 		if (!targets?.length) {
 			MessageController.get(editor)?.showMessage(NO_TARGETS_MESSAGE, targetPosition!);
 			return;
@@ -384,7 +377,7 @@ class StepIntoTargetsAction extends EditorAction {
 
 		// If there is a selection, try to find the best target with a position to step into.
 		if (selection) {
-			const positionalTargets: { start: Position; end?: Position; target: StepInTargetWithPosition }[] = [];
+			const positionalTargets: { start: Position; end?: Position; target: DebugProtocol.StepInTarget }[] = [];
 			for (const target of targets) {
 				if (target.line) {
 					positionalTargets.push({

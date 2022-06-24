@@ -349,12 +349,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		interface ITargetItem extends IQuickPickItem {
-			target: DebugProtocol.StepInTarget & {
-				line?: number;
-				column?: number;
-				endLine?: number;
-				endColumn?: number;
-			};
+			target: DebugProtocol.StepInTarget;
 		}
 
 		const qp = quickInputService.createQuickPick<ITargetItem>();
