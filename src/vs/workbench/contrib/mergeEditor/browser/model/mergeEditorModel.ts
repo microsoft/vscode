@@ -20,6 +20,8 @@ import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRa
 import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'vs/workbench/contrib/mergeEditor/browser/model/textModelDiffs';
 import { concatArrays, leftJoin, elementAtOrUndefined } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { ModifiedBaseRange, ModifiedBaseRangeState } from './modifiedBaseRange';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export const enum MergeEditorModelState {
 	initializing = 1,
@@ -134,7 +136,9 @@ export class MergeEditorModel extends EditorModel {
 		readonly input2Detail: string | undefined,
 		readonly input2Description: string | undefined,
 		readonly result: ITextModel,
-		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 
@@ -328,6 +332,10 @@ export class MergeEditorModel extends EditorModel {
 
 	public setHandled(baseRange: ModifiedBaseRange, handled: boolean, tx: ITransaction): void {
 		this.modifiedBaseRangeHandlingStateStores.get().get(baseRange)!.set(handled, tx);
+	}
+
+	public setLanguageId(languageId: string): void {
+		this.modelService.setMode(this.result, this.languageService.createById(languageId));
 	}
 }
 
