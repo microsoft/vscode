@@ -86,6 +86,7 @@ import { Button, ButtonWithDescription } from 'vs/base/browser/ui/button/button'
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -1954,15 +1955,16 @@ class SCMInputWidget {
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-				SuggestController.ID,
-				SnippetController2.ID,
-				MenuPreventer.ID,
-				SelectionClipboardContributionID,
-				ContextMenuController.ID,
 				ColorDetector.ID,
-				ModesHoverController.ID,
+				ContextMenuController.ID,
+				DropIntoEditorController.ID,
 				LinkDetector.ID,
-				DropIntoEditorController.ID
+				MenuPreventer.ID,
+				MessageController.ID,
+				ModesHoverController.ID,
+				SelectionClipboardContributionID,
+				SnippetController2.ID,
+				SuggestController.ID,
 			])
 		};
 
