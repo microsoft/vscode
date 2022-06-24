@@ -399,11 +399,13 @@ export interface INotificationService {
 	 */
 	setFilter(filter: NotificationsFilter): void;
 
+	/**
+	 * Gets current do not disturb mode.
+	 */
 	getDoNotDisturbMode(): boolean;
 
 	/**
-	 * Toggles do not disturb mode to filter toast notifications.
-	 *
+	 * Toggles do not disturb mode so that toast notifications do not show.
 	 */
 	setDoNotDisturbMode(mode: boolean): void;
 }

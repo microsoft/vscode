@@ -72,6 +72,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		switch (location) {
 			case ProgressLocation.Notification:
+				// Show progress in status bar if do not disturb mode is enabled
 				if (isDoNotDisturbEnabled) {
 					return this.withWindowProgress({ ...options, location: ProgressLocation.Window }, task);
 				}
