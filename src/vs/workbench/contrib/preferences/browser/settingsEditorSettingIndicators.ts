@@ -40,7 +40,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private defaultOverrideIndicatorElement: HTMLElement;
 	private hoverDelegate: IHoverDelegate;
 	private hover: ICustomHover | undefined;
-	private currentHoverMarkdownString: string | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -184,7 +183,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					contentFallback = prefaceText;
 					for (const scope of element.overriddenScopeList) {
 						const scopeDisplayText = this.getInlineScopeDisplayText(scope);
-						contentMarkdownString += `\n- <a href="${encodeURIComponent(scope)}" aria-label="${getAccessibleScopeDisplayText(scope, this.languageService)}">${scopeDisplayText}</a>`;
+						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(scope)} "${getAccessibleScopeDisplayText(scope, this.languageService)}")`;
 						contentFallback += `\n• ${scopeDisplayText}`;
 					}
 				}
@@ -198,7 +197,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					contentFallback += prefaceText;
 					for (const language of element.overriddenDefaultsLanguageList) {
 						const scopeDisplayText = this.languageService.getLanguageName(language);
-						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(`default:${language}`)})`;
+						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(`default:${language}`)} "${scopeDisplayText}")`;
 						contentFallback += `\n• ${scopeDisplayText}`;
 					}
 				}
@@ -206,7 +205,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					markdown: {
 						value: contentMarkdownString,
 						isTrusted: false,
-						supportHtml: true
+						supportHtml: false
 					},
 					markdownNotSupportedFallback: contentFallback
 				};
@@ -221,11 +220,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 						this.hover!.hide();
 					}
 				};
-				if (this.currentHoverMarkdownString !== contentMarkdownString) {
-					this.hover?.dispose();
-					this.hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
-					this.currentHoverMarkdownString = contentMarkdownString;
-				}
+				this.hover?.dispose();
+				this.hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
 			}
 		}
 		this.render();
@@ -262,7 +258,18 @@ function getAccessibleScopeDisplayText(completeScope: string, languageService: I
 		localize('user', "User") : scope === 'workspace' ?
 			localize('workspace', "Workspace") : localize('remote', "Remote");
 	if (language) {
-		return localize('modifiedInScopeForLanguage', "the {0} scope for {1}", localizedScope, languageService.getLanguageName(language));
+		return localize('modifiedInScopeForLanguage', "The {0} scope for {1}", localizedScope, languageService.getLanguageName(language));
+	}
+	return localizedScope;
+}
+
+function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languageService: ILanguageService): string {
+	const [scope, language] = completeScope.split(':');
+	const localizedScope = scope === 'user' ?
+		localize('user', "User") : scope === 'workspace' ?
+			localize('workspace', "Workspace") : localize('remote', "Remote");
+	if (language) {
+		return localize('modifiedInScopeForLanguageMidSentence', "the {0} scope for {1}", localizedScope.toLowerCase(), languageService.getLanguageName(language));
 	}
 	return localizedScope;
 }
@@ -275,7 +282,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 		localize('alsoConfiguredIn', "Also modified in") :
 		localize('configuredIn', "Modified in");
 	const otherOverridesList = element.overriddenScopeList
-		.map(scope => getAccessibleScopeDisplayText(scope, languageService)).join(', ');
+		.map(scope => getAccessibleScopeDisplayMidSentenceText(scope, languageService)).join(', ');
 	if (element.overriddenScopeList.length) {
 		ariaLabelSections.push(`${otherOverridesStart} ${otherOverridesList}`);
 	}
