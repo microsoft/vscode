@@ -33,7 +33,7 @@ export class OpenMergeEditor extends Action2 {
 			validatedArgs.input2,
 			validatedArgs.output,
 		);
-		accessor.get(IEditorService).openEditor(input);
+		accessor.get(IEditorService).openEditor(input, { preserveFocus: true });
 	}
 }
 
