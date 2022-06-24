@@ -181,7 +181,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 			};
 		}
 
-		const referenceLinkPrefixMatch : any = linePrefixText.match(this.referenceLinkStartPattern);
+		const referenceLinkPrefixMatch: any = linePrefixText.match(this.referenceLinkStartPattern);
 		if (referenceLinkPrefixMatch) {
 			const prefix = referenceLinkPrefixMatch[2];
 			if (this.refLooksLikeUrl(prefix)) {
