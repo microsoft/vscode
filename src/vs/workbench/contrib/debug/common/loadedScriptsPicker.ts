@@ -91,12 +91,13 @@ function _createPick(source: Source, filter: string, editorService: IEditorServi
 	const desc = labelService.getUriLabel(dirname(source.uri));
 
 	// manually filter so that headers don't get filtered out
-	const highlights = matchesFuzzy(filter, label, true);
-	if (highlights) {
+	const labelHighlights = matchesFuzzy(filter, label, true);
+	const descHighlights = matchesFuzzy(filter, desc, true);
+	if (labelHighlights || descHighlights) {
 		return {
 			label,
 			description: desc === '.' ? undefined : desc,
-			highlights: { label: highlights },
+			highlights: { label: labelHighlights ?? undefined, description: descHighlights ?? undefined },
 			iconClasses: getIconClasses(modelService, languageService, source.uri),
 			accept: () => {
 				if (source.available) {
