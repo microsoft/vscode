@@ -49,7 +49,7 @@ export class OneSnippet {
 		this._placeholderGroupsIdx = -1;
 	}
 
-	public initialize(textChange: TextChange): void {
+	initialize(textChange: TextChange): void {
 		this._offset = textChange.newPosition;
 	}
 

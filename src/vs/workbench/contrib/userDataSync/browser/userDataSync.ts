@@ -190,7 +190,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (requiresInitialization && !this.userDataSyncEnablementService.isEnabled()) {
 			this.updateSyncAfterInitializationContext(true);
 		} else {
-			this.updateSyncAfterInitializationContext(this.storageService.getBoolean(CONTEXT_SYNC_AFTER_INITIALIZATION.key, StorageScope.GLOBAL, false));
+			this.updateSyncAfterInitializationContext(this.storageService.getBoolean(CONTEXT_SYNC_AFTER_INITIALIZATION.key, StorageScope.APPLICATION, false));
 		}
 		const disposable = this._register(this.userDataSyncEnablementService.onDidChangeEnablement(() => {
 			if (this.userDataSyncEnablementService.isEnabled()) {
@@ -201,7 +201,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async updateSyncAfterInitializationContext(value: boolean): Promise<void> {
-		this.storageService.store(CONTEXT_SYNC_AFTER_INITIALIZATION.key, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(CONTEXT_SYNC_AFTER_INITIALIZATION.key, value, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this.syncAfterInitializationContext.set(value);
 		this.updateGlobalActivityBadge();
 	}
@@ -738,8 +738,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				const input = this.instantiationService.createInstance(
 					MergeEditorInput,
 					conflict.baseResource,
-					{ description: localResourceName, detail: undefined, uri: conflict.localResource },
-					{ description: remoteResourceName, detail: undefined, uri: conflict.remoteResource },
+					{ title: localize('Yours', 'Yours'), description: localResourceName, detail: undefined, uri: conflict.localResource },
+					{ title: localize('Theirs', 'Theirs'), description: remoteResourceName, detail: undefined, uri: conflict.remoteResource },
 					conflict.previewResource,
 				);
 				await this.editorService.openEditor(input);

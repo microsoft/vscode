@@ -109,7 +109,7 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 	async readFile(resource: URI): Promise<Uint8Array> {
 		let trustedDomainsContent = this.storageService.get(
 			TRUSTED_DOMAINS_CONTENT_STORAGE_KEY,
-			StorageScope.GLOBAL
+			StorageScope.PROFILE
 		);
 
 		const configuring: string | undefined = resource.fragment;
@@ -134,11 +134,11 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 			const trustedDomainsContent = VSBuffer.wrap(content).toString();
 			const trustedDomains = parse(trustedDomainsContent);
 
-			this.storageService.store(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, trustedDomainsContent, StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, trustedDomainsContent, StorageScope.PROFILE, StorageTarget.USER);
 			this.storageService.store(
 				TRUSTED_DOMAINS_STORAGE_KEY,
 				JSON.stringify(trustedDomains) || '',
-				StorageScope.GLOBAL,
+				StorageScope.PROFILE,
 				StorageTarget.USER
 			);
 		} catch (err) { }

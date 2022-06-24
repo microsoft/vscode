@@ -23,7 +23,7 @@ const imageFileExtensions = new Set<string>([
 	'.webp',
 ]);
 
-export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
+export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentOnDropEditProvider(selector, new class implements vscode.DocumentOnDropEditProvider {
 		async provideDocumentOnDropEdits(document: vscode.TextDocument, _position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
 			const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.drop.enabled', true);
@@ -44,7 +44,7 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 	}
 
 	const uris: vscode.Uri[] = [];
-	for (const resource of urlList.split('\n')) {
+	for (const resource of urlList.split('\r\n')) {
 		try {
 			uris.push(vscode.Uri.parse(resource));
 		} catch {

@@ -113,6 +113,10 @@ export const enum TerminalSettingId {
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
 }
 
+export const enum TerminalLogConstants {
+	FileName = 'ptyhost'
+}
+
 export const enum PosixShellType {
 	PowerShell = 'pwsh',
 	Bash = 'bash',
@@ -212,7 +216,8 @@ export const enum ProcessPropertyType {
 	HasChildProcesses = 'hasChildProcesses',
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
 	OverrideDimensions = 'overrideDimensions',
-	FailedShellIntegrationActivation = 'failedShellIntegrationActivation'
+	FailedShellIntegrationActivation = 'failedShellIntegrationActivation',
+	UsedShellIntegrationInjection = 'usedShellIntegrationInjection'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -230,6 +235,7 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig;
 	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
 	[ProcessPropertyType.FailedShellIntegrationActivation]: boolean | undefined;
+	[ProcessPropertyType.UsedShellIntegrationInjection]: boolean | undefined;
 }
 
 export interface IFixedTerminalDimensions {
@@ -435,7 +441,7 @@ export interface IShellLaunchConfig {
 	ignoreConfigurationCwd?: boolean;
 
 	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean | string;
+	waitOnExit?: boolean | string | ((exitCode: number) => string);
 
 	/**
 	 * A string including ANSI escape sequences that will be written to the terminal emulator
@@ -524,6 +530,11 @@ export interface IShellLaunchConfig {
 	 * Opt-out of the default terminal persistence on restart and reload
 	 */
 	isTransient?: boolean;
+
+	/**
+	 * Create a terminal without shell integration even when it's enabled
+	 */
+	ignoreShellIntegration?: boolean;
 }
 
 export interface ICreateContributedTerminalProfileOptions {

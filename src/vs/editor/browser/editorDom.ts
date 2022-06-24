@@ -173,7 +173,7 @@ export class EditorMouseEventFactory {
 	}
 
 	public onMouseLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableNonBubblingMouseOutListener(target, (e: MouseEvent) => {
+		return dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
@@ -208,7 +208,7 @@ export class EditorPointerEventFactory {
 	}
 
 	public onPointerLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableNonBubblingPointerOutListener(target, (e: MouseEvent) => {
+		return dom.addDisposableListener(target, dom.EventType.POINTER_LEAVE, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}

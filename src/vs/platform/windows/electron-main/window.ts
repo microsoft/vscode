@@ -29,7 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
-import { IGlobalStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
@@ -40,7 +40,7 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { revive } from 'vs/base/common/marshalling';
 
 export interface IWindowCreationOptions {
@@ -156,8 +156,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IFileService private readonly fileService: IFileService,
-		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService,
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
@@ -275,6 +276,26 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			mark('code/didCreateCodeBrowserWindow');
 
 			this._id = this._win.id;
+
+			// re-position traffic light if command center is visible
+			if (useCustomTitleStyle && isMacintosh) {
+				const ccConfigKey = 'window.commandCenter';
+				const trafficLightUpdater = () => {
+					// temporarily disabled because of https://github.com/microsoft/vscode/pull/150272#issuecomment-1152218493
+					// const on = this.configurationService.getValue<boolean>(ccConfigKey);
+					// if (on) {
+					// 	this._win.setTrafficLightPosition({ x: 7, y: 9 });
+					// } else {
+					// 	this._win.setTrafficLightPosition({ x: 7, y: 6 });
+					// }
+				};
+				trafficLightUpdater();
+				this.configurationService.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration(ccConfigKey)) {
+						trafficLightUpdater();
+					}
+				}, undefined, this._store);
+			}
 
 			// Open devtools if instructed from command line args
 			if (this.environmentMainService.args['open-devtools'] === true) {
@@ -521,7 +542,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private marketplaceHeadersPromise: Promise<object> | undefined;
 	private getMarketplaceHeaders(): Promise<object> {
 		if (!this.marketplaceHeadersPromise) {
-			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, this.globalStorageMainService);
+			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, this.applicationStorageMainService);
 		}
 
 		return this.marketplaceHeadersPromise;
@@ -882,6 +903,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
+		configuration.editSessionId = this.environmentMainService.editSessionId; // set latest edit session id
+		configuration.profiles = {
+			all: this.userDataProfilesService.profiles,
+			current: configuration.workspace ? this.userDataProfilesService.getProfile(configuration.workspace) : this.userDataProfilesService.defaultProfile,
+		};
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });

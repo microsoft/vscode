@@ -39,7 +39,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	private matchers: INumberDictionary<ILineMatcher[]>;
 	private activeMatcher: ILineMatcher | null;
-	private _numberOfMatches: number;
+	protected _numberOfMatches: number;
 	private _maxMarkerSeverity?: MarkerSeverity;
 	private buffer: string[];
 	private bufferLength: number;
@@ -57,6 +57,15 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	private deliveredMarkers: Map<string, Map<string, number>>;
 
 	protected _onDidStateChange: Emitter<IProblemCollectorEvent>;
+
+	protected readonly _onDidFindFirstMatch = new Emitter<void>();
+	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
+
+	protected readonly _onDidFindErrors = new Emitter<void>();
+	readonly onDidFindErrors = this._onDidFindErrors.event;
+
+	protected readonly _onDidRequestInvalidateLastMarker = new Emitter<void>();
+	readonly onDidRequestInvalidateLastMarker = this._onDidRequestInvalidateLastMarker.event;
 
 	constructor(public readonly problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
 		this.matchers = Object.create(null);
@@ -224,9 +233,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	protected removeResourceToClean(owner: string, resource: string): void {
 		const resourceSet = this.resourcesToClean.get(owner);
-		if (resourceSet) {
-			resourceSet.delete(resource);
-		}
+		resourceSet?.delete(resource);
 	}
 
 	private getResourceSetToClean(owner: string): Map<string, URI> {
@@ -494,6 +501,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				}
 				this._activeBackgroundMatchers.add(background.key);
 				result = true;
+				this._onDidFindFirstMatch.fire();
 				this.lines = [];
 				this.lines.push(line);
 				this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
@@ -517,6 +525,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		for (const background of this.backgroundPatterns) {
 			const matches = background.end.regexp.exec(line);
 			if (matches) {
+				if (this._numberOfMatches > 0) {
+					this._onDidFindErrors.fire();
+				} else {
+					this._onDidRequestInvalidateLastMarker.fire();
+				}
 				if (this._activeBackgroundMatchers.has(background.key)) {
 					this._activeBackgroundMatchers.delete(background.key);
 					this.resetCurrentResource();

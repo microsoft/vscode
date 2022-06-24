@@ -29,13 +29,20 @@ const editorEntryPoints = [
 		name: 'vs/editor/editor.main',
 		include: [],
 		exclude: ['vs/css', 'vs/nls'],
-		prepend: ['out-editor-build/vs/css.js', 'out-editor-build/vs/nls.js'],
+		prepend: [
+			{ path: 'out-editor-build/vs/css.js', amdModuleId: 'vs/css' },
+			{ path: 'out-editor-build/vs/nls.js', amdModuleId: 'vs/nls' }
+		],
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
 		include: ['vs/editor/common/services/editorSimpleWorker'],
-		prepend: ['vs/loader.js'],
-		append: ['vs/base/worker/workerMain'],
+		exclude: ['vs/nls'],
+		prepend: [
+			{ path: 'vs/loader.js' },
+			{ path: 'vs/nls.js', amdModuleId: 'vs/nls' },
+			{ path: 'vs/base/worker/workerMain.js' }
+		],
 		dest: 'vs/base/worker/workerMain.js'
 	}
 ];
@@ -109,12 +116,6 @@ const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () =>
 			'inlineEntryPoint:0.ts',
 			'inlineEntryPoint:1.ts',
 			'vs/loader.js',
-			'vs/nls.ts',
-			'vs/nls.build.js',
-			'vs/nls.d.ts',
-			'vs/css.js',
-			'vs/css.build.js',
-			'vs/css.d.ts',
 			'vs/base/worker/workerMain.ts',
 		],
 		renames: {

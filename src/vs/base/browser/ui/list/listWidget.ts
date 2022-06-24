@@ -801,6 +801,10 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground}; }`);
 		}
 
+		if (styles.listFocusAndSelectionOutline) {
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { outline-color: ${styles.listFocusAndSelectionOutline} !important; }`);
+		}
+
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
 				.monaco-drag-image,
@@ -950,6 +954,7 @@ export interface IListStyles {
 	listActiveSelectionBackground?: Color;
 	listActiveSelectionForeground?: Color;
 	listActiveSelectionIconForeground?: Color;
+	listFocusAndSelectionOutline?: Color;
 	listFocusAndSelectionBackground?: Color;
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
@@ -978,6 +983,7 @@ const defaultStyles: IListStyles = {
 	listActiveSelectionBackground: Color.fromHex('#0E639C'),
 	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
 	listActiveSelectionIconForeground: Color.fromHex('#FFFFFF'),
+	listFocusAndSelectionOutline: Color.fromHex('#90C2F9'),
 	listFocusAndSelectionBackground: Color.fromHex('#094771'),
 	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
@@ -1390,9 +1396,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	updateOptions(optionsUpdate: IListOptionsUpdate = {}): void {
 		this._options = { ...this._options, ...optionsUpdate };
 
-		if (this.typeLabelController) {
-			this.typeLabelController.updateOptions(this._options);
-		}
+		this.typeLabelController?.updateOptions(this._options);
 
 		if (this._options.multipleSelectionController !== undefined) {
 			if (this._options.multipleSelectionSupport) {

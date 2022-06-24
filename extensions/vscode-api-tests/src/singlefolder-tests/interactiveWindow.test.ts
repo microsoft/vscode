@@ -77,7 +77,7 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 		assert.ok(notebookEditor);
 
 		// Run and add a bunch of cells
-		for (let i = 0; i < 20; i++) {
+		for (let i = 0; i < 10; i++) {
 			await addCellAndRun(`print ${i}`, notebookEditor.notebook);
 		}
 

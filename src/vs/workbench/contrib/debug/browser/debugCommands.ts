@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_STEP_INTO_TARGETS_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -53,12 +53,15 @@ export const FOCUS_REPL_ID = 'workbench.debug.action.focusRepl';
 export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
 export const FOCUS_SESSION_ID = 'workbench.action.debug.focusProcess';
 export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
+export const SELECT_DEBUG_CONSOLE_ID = 'workbench.action.debug.selectDebugConsole';
 export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
 export const EDIT_EXPRESSION_COMMAND_ID = 'debug.renameWatchExpression';
 export const SET_EXPRESSION_COMMAND_ID = 'debug.setWatchExpression';
 export const REMOVE_EXPRESSION_COMMAND_ID = 'debug.removeWatchExpression';
+export const NEXT_DEBUG_CONSOLE_ID = 'workbench.action.debug.nextConsole';
+export const PREV_DEBUG_CONSOLE_ID = 'workbench.action.debug.prevConsole';
 
 export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
 export const STEP_OVER_LABEL = nls.localize('stepOverDebug', "Step Over");
@@ -75,6 +78,12 @@ export const SELECT_AND_START_LABEL = nls.localize('selectAndStartDebugging', "S
 export const DEBUG_CONFIGURE_LABEL = nls.localize('openLaunchJson', "Open '{0}'", 'launch.json');
 export const DEBUG_START_LABEL = nls.localize('startDebug', "Start Debugging");
 export const DEBUG_RUN_LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
+export const NEXT_DEBUG_CONSOLE_LABEL = nls.localize('nextDebugConsole', "Focus Next Debug Console");
+export const PREV_DEBUG_CONSOLE_LABEL = nls.localize('prevDebugConsole', "Focus Previous Debug Console");
+export const SELECT_DEBUG_CONSOLE_LABEL = nls.localize('selectDebugConsole', "Select Debug Console");
+
+export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
+export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
 
 interface CallStackContext {
 	sessionId: string;
@@ -138,6 +147,33 @@ function isSessionContext(obj: any): obj is CallStackContext {
 	return obj && typeof obj.sessionId === 'string';
 }
 
+async function changeDebugConsoleFocus(accessor: ServicesAccessor, next: boolean) {
+	const debugService = accessor.get(IDebugService);
+	const viewsService = accessor.get(IViewsService);
+	const sessions = debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl());
+	let currSession = debugService.getViewModel().focusedSession;
+
+	let nextIndex = 0;
+	if (sessions.length > 0 && currSession) {
+		while (currSession && !currSession.hasSeparateRepl()) {
+			currSession = currSession.parentSession;
+		}
+
+		if (currSession) {
+			const currIndex = sessions.indexOf(currSession);
+			if (next) {
+				nextIndex = (currIndex === (sessions.length - 1) ? 0 : (currIndex + 1));
+			} else {
+				nextIndex = (currIndex === 0 ? (sessions.length - 1) : (currIndex - 1));
+			}
+		}
+	}
+	await debugService.focusStackFrame(undefined, undefined, sessions[nextIndex], { explicit: true });
+
+	if (!viewsService.isViewVisible(REPL_VIEW_ID)) {
+		await viewsService.openView(REPL_VIEW_ID, true);
+	}
+}
 
 // These commands are used in call stack context menu, call stack inline actions, command palette, debug toolbar, mac native touch bar
 // When the command is exectued in the context of a thread(context menu on a thread, inline call stack action) we pass the thread id
@@ -229,6 +265,28 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED, EditorContextKeys.editorTextFocus),
 	group: 'debug',
 	order: 3
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: NEXT_DEBUG_CONSOLE_ID,
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: CONTEXT_IN_DEBUG_REPL,
+	primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.BracketRight },
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		changeDebugConsoleFocus(accessor, true);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: PREV_DEBUG_CONSOLE_ID,
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: CONTEXT_IN_DEBUG_REPL,
+	primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.BracketLeft },
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		changeDebugConsoleFocus(accessor, false);
+	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -490,7 +548,15 @@ CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show('debug ');
+		quickInputService.quickAccess.show(DEBUG_QUICK_ACCESS_PREFIX);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: SELECT_DEBUG_CONSOLE_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.quickAccess.show(DEBUG_CONSOLE_QUICK_ACCESS_PREFIX);
 	}
 });
 

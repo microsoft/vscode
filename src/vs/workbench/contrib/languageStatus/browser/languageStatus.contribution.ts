@@ -48,12 +48,12 @@ class StoredCounter {
 	constructor(@IStorageService private readonly _storageService: IStorageService, private readonly _key: string) { }
 
 	get value() {
-		return this._storageService.getNumber(this._key, StorageScope.GLOBAL, 0);
+		return this._storageService.getNumber(this._key, StorageScope.PROFILE, 0);
 	}
 
 	increment(): number {
 		const n = this.value + 1;
-		this._storageService.store(this._key, n, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._storageService.store(this._key, n, StorageScope.PROFILE, StorageTarget.MACHINE);
 		return n;
 	}
 }
@@ -117,7 +117,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	}
 
 	private _restoreState(): void {
-		const raw = this._storageService.get(EditorStatusContribution._keyDedicatedItems, StorageScope.GLOBAL, '[]');
+		const raw = this._storageService.get(EditorStatusContribution._keyDedicatedItems, StorageScope.PROFILE, '[]');
 		try {
 			const ids = <string[]>JSON.parse(raw);
 			this._dedicated = new Set(ids);
@@ -128,10 +128,10 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 	private _storeState(): void {
 		if (this._dedicated.size === 0) {
-			this._storageService.remove(EditorStatusContribution._keyDedicatedItems, StorageScope.GLOBAL);
+			this._storageService.remove(EditorStatusContribution._keyDedicatedItems, StorageScope.PROFILE);
 		} else {
 			const raw = JSON.stringify(Array.from(this._dedicated.keys()));
-			this._storageService.store(EditorStatusContribution._keyDedicatedItems, raw, StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(EditorStatusContribution._keyDedicatedItems, raw, StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 
@@ -405,6 +405,6 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IStorageService).remove('languageStatus.interactCount', StorageScope.GLOBAL);
+		accessor.get(IStorageService).remove('languageStatus.interactCount', StorageScope.PROFILE);
 	}
 });

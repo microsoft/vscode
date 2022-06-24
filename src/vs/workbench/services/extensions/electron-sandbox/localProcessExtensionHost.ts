@@ -7,12 +7,10 @@ import * as nls from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IRemoteConsoleLog, log } from 'vs/base/common/console';
-import { logRemoteEntry, logRemoteEntryIfError } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -24,7 +22,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { isUntitledWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { MessageType, isMessageOfType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { MessageType, isMessageOfType, IExtensionHostInitData, UIKind, NativeLogMarkers } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
@@ -44,6 +42,8 @@ import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { generateUuid } from 'vs/base/common/uuid';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { MessagePortExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -53,11 +53,6 @@ export interface ILocalProcessExtensionHostInitData {
 
 export interface ILocalProcessExtensionHostDataProvider {
 	getInitData(): Promise<ILocalProcessExtensionHostInitData>;
-}
-
-const enum NativeLogMarkers {
-	Start = 'START_NATIVE_LOG',
-	End = 'END_NATIVE_LOG',
 }
 
 export class ExtensionHostProcess {
@@ -150,6 +145,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 		@IProductService private readonly _productService: IProductService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IExtensionHostStarter protected readonly _extensionHostStarter: IExtensionHostStarter,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -225,11 +221,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 
 		const env = objects.mixin(processEnv, {
 			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
-			VSCODE_PIPE_LOGGING: 'true',
-			VSCODE_VERBOSE_LOGGING: true,
-			VSCODE_LOG_NATIVE: this._isExtensionDevHost,
-			VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-			VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose)
+			VSCODE_HANDLES_UNCAUGHT_ERRORS: true
 		});
 
 		if (this._environmentService.debugExtensionHost.env) {
@@ -312,13 +304,6 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 					console.log(output.data, ...output.format);
 					console.groupEnd();
 				}
-			}
-		});
-
-		// Support logging from extension host
-		this._extensionHostProcess.onMessage(msg => {
-			if (msg && (<IRemoteConsoleLog>msg).type === '__$console') {
-				this._logExtensionHostMessage(<IRemoteConsoleLog>msg);
 			}
 		});
 
@@ -482,6 +467,10 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 				connectionData: null,
 				isRemote: false
 			},
+			consoleForward: {
+				includeStack: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
+				logNative: !this._isExtensionDevTestFromCli && this._isExtensionDevHost
+			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
@@ -491,17 +480,6 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 			autoStart: initData.autoStart,
 			uiKind: UIKind.Desktop
 		};
-	}
-
-	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
-		if (this._isExtensionDevTestFromCli) {
-			// If running tests from cli, log to the log service everything
-			logRemoteEntry(this._logService, entry);
-		} else {
-			// Log to the log service only errors and log everything to local console
-			logRemoteEntryIfError(this._logService, entry, 'Extension Host');
-			log(entry, 'Extension Host');
-		}
 	}
 
 	private _onExtHostProcessError(_err: SerializedError): void {
@@ -618,7 +596,7 @@ export class ExtHostMessagePortCommunication extends Disposable implements IExtH
 
 	establishProtocol(prepared: void, extensionHostProcess: ExtensionHostProcess, opts: IExtensionHostProcessOptions): Promise<IMessagePassingProtocol> {
 
-		opts.env['VSCODE_WILL_SEND_MESSAGE_PORT'] = 'true';
+		writeExtHostConnection(new MessagePortExtHostConnection(), opts.env);
 
 		// Get ready to acquire the message port from the shared process worker
 		const portPromise = acquirePort(undefined /* we trigger the request via service call! */, opts.responseChannel, opts.responseNonce);
@@ -630,6 +608,10 @@ export class ExtHostMessagePortCommunication extends Disposable implements IExtH
 			}, 60 * 1000);
 
 			portPromise.then((port) => {
+				this._register(toDisposable(() => {
+					// Close the message port when the extension host is disposed
+					port.close();
+				}));
 				clearTimeout(handle);
 
 				const onMessage = new BufferedEmitter<VSBuffer>();

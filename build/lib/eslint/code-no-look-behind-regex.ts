@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/experimental-utils';
 import * as ESTree from 'estree';
