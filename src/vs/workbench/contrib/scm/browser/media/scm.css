@@ -173,8 +173,8 @@
 	background: transparent !important;
 }
 
-.scm-view .monaco-list .monaco-list-row.force-cursor-default {
-	cursor: default !important;
+.scm-view .monaco-list .monaco-list-row.cursor-default {
+	cursor: default;
 }
 
 .scm-view.show-actions .scm-provider > .actions,

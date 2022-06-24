@@ -119,7 +119,7 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		// Use default cursor & disable hover for list item
-		container.parentElement!.parentElement!.classList.add('force-cursor-default', 'force-no-hover');
+		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
 
 		const buttonContainer = append(container, $('.button-container'));
 		const actionButton = new SCMActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
