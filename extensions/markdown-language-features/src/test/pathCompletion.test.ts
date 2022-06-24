@@ -156,6 +156,31 @@ suite('Markdown path completion provider', () => {
 		assert.ok(completions.some(x => x.insertText === 'file%20with%20space.md'), 'Has encoded path completion');
 	});
 
+	test('Should support completions on angle bracket path with spaces', async () => {
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
+			`[](</sub with space/${CURSOR}`
+		));
+
+		assert.ok(completions.some(x => x.insertText === 'file.md'), 'Has path completion');
+	});
+
+	test('Should not escape spaces in path names that use angle brackets', async () => {
+		{
+			const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
+				`[](<./sub/${CURSOR}`
+			));
+
+			assert.ok(completions.some(x => x.insertText === 'file with space.md'), 'Has encoded path completion');
+		}
+		{
+			const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
+				`[](<./sub/${CURSOR}>`
+			));
+
+			assert.ok(completions.some(x => x.insertText === 'file with space.md'), 'Has encoded path completion');
+		}
+	});
+
 	test('Should complete paths for path with encoded spaces', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](./sub%20with%20space/${CURSOR})`

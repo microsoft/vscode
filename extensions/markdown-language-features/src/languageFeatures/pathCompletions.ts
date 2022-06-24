@@ -66,6 +66,11 @@ interface CompletionContext {
 	 * Info if the link looks like it is for an anchor: `[](#header)`
 	 */
 	readonly anchorInfo?: AnchorContext;
+
+	/**
+	 * Indicates that the completion does not require encoding.
+	 */
+	readonly skipEncoding?: boolean;
 }
 
 function tryDecodeUriComponent(str: string): string {
@@ -150,7 +155,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 	}
 
 	/// [...](...|
-	private readonly linkStartPattern = /\[([^\]]*?)\]\(\s*([^\s\(\)]*)$/;
+	private readonly linkStartPattern = /\[([^\]]*?)\]\(\s*(<[^\>\)]*|[^\s\(\)]*)$/;
 
 	/// [...][...|
 	private readonly referenceLinkStartPattern = /\[([^\]]*?)\]\[\s*([^\s\(\)]*)$/;
@@ -166,18 +171,20 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 
 		const linkPrefixMatch = linePrefixText.match(this.linkStartPattern);
 		if (linkPrefixMatch) {
-			const prefix = linkPrefixMatch[2];
+			const isAngleBracketLink = linkPrefixMatch[2].startsWith('<');
+			const prefix = linkPrefixMatch[2].slice(isAngleBracketLink ? 1 : 0);
 			if (this.refLooksLikeUrl(prefix)) {
 				return undefined;
 			}
 
-			const suffix = lineSuffixText.match(/^[^\)\s]*/);
+			const suffix = lineSuffixText.match(/^[^\)\s][^\)\s\>]*/);
 			return {
 				kind: CompletionContextKind.Link,
 				linkPrefix: tryDecodeUriComponent(prefix),
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
 				linkSuffix: suffix ? suffix[0] : '',
 				anchorInfo: this.getAnchorContext(prefix),
+				skipEncoding: isAngleBracketLink,
 			};
 		}
 
@@ -293,7 +300,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 			const isDir = type === vscode.FileType.Directory;
 			yield {
 				label: isDir ? name + '/' : name,
-				insertText: isDir ? encodeURIComponent(name) + '/' : encodeURIComponent(name),
+				insertText: (context.skipEncoding ? name : encodeURIComponent(name)) + (isDir ? '/' : ''),
 				kind: isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File,
 				range: {
 					inserting: insertRange,
