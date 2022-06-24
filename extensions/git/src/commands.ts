@@ -26,7 +26,7 @@ const localize = nls.loadMessageBundle();
 class CheckoutItem implements QuickPickItem {
 
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
-	get label(): string { return this.ref.name ? `${this.ref.name}${this.repository.isBranchProtected(this.ref.name) ? ' $(lock-small)' : ''}` : this.shortCommit; }
+	get label(): string { return `${this.repository.isBranchProtected(this.ref.name ?? '') ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`; }
 	get description(): string { return this.shortCommit; }
 
 	constructor(protected repository: Repository, protected ref: Ref) { }
@@ -44,7 +44,7 @@ class CheckoutItem implements QuickPickItem {
 
 class CheckoutTagItem extends CheckoutItem {
 
-	override get label(): string { return this.ref.name || this.shortCommit; }
+	override get label(): string { return `$(tag) ${this.ref.name || this.shortCommit}`; }
 	override get description(): string {
 		return localize('tag at', "Tag at {0}", this.shortCommit);
 	}
@@ -52,7 +52,7 @@ class CheckoutTagItem extends CheckoutItem {
 
 class CheckoutRemoteHeadItem extends CheckoutItem {
 
-	override get label(): string { return this.ref.name || this.shortCommit; }
+	override get label(): string { return `$(git-branch) ${this.ref.name || this.shortCommit}`; }
 	override get description(): string {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
