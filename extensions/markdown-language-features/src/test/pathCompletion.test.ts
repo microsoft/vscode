@@ -34,12 +34,12 @@ async function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string
 }
 
 function assertCompletionsEqual(actual: readonly vscode.CompletionItem[], expected: readonly { label: string; insertText?: string }[]) {
-	assert.strictEqual(actual.length, expected.length);
+	assert.strictEqual(actual.length, expected.length, 'Completion counts should be equal');
 
 	for (let i = 0; i < actual.length; ++i) {
-		assert.strictEqual(actual[i].label, expected[i].label, `Completion label ${i} to be equal`);
+		assert.strictEqual(actual[i].label, expected[i].label, `Completion labels ${i} should be equal`);
 		if (typeof expected[i].insertText !== 'undefined') {
-			assert.strictEqual(actual[i].insertText, expected[i].insertText, `Completion insert text ${i} to be equal`);
+			assert.strictEqual(actual[i].insertText, expected[i].insertText, `Completion insert texts ${i} should be equal`);
 		}
 	}
 }
@@ -222,27 +222,42 @@ suite('Markdown: Path completions', () => {
 	});
 
 	test('Should support completions on angle bracket path with spaces', async () => {
+		const workspace = new InMemoryMdWorkspace([
+			new InMemoryDocument(workspacePath('sub with space/a.md'), ''),
+			new InMemoryDocument(workspacePath('b.md'), ''),
+		]);
+
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](</sub with space/${CURSOR}`
-		));
+		), workspace);
 
-		assert.ok(completions.some(x => x.insertText === 'file.md'), 'Has path completion');
+		assertCompletionsEqual(completions, [
+			{ label: 'a.md', insertText: 'a.md' },
+		]);
 	});
 
 	test('Should not escape spaces in path names that use angle brackets', async () => {
+		const workspace = new InMemoryMdWorkspace([
+			new InMemoryDocument(workspacePath('sub/file with space.md'), ''),
+		]);
+
 		{
 			const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 				`[](<./sub/${CURSOR}`
-			));
+			), workspace);
 
-			assert.ok(completions.some(x => x.insertText === 'file with space.md'), 'Has encoded path completion');
+			assertCompletionsEqual(completions, [
+				{ label: 'file with space.md', insertText: 'file with space.md' },
+			]);
 		}
 		{
 			const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 				`[](<./sub/${CURSOR}>`
-			));
+			), workspace);
 
-			assert.ok(completions.some(x => x.insertText === 'file with space.md'), 'Has encoded path completion');
+			assertCompletionsEqual(completions, [
+				{ label: 'file with space.md', insertText: 'file with space.md' },
+			]);
 		}
 	});
 
