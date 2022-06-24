@@ -78,7 +78,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkbenchEnvironmentService private readonly _envService: IWorkbenchEnvironmentService
 	) {
-		const raw = _storageService.get(ExtensionBisectService._storageKey, StorageScope.PROFILE);
+		const raw = _storageService.get(ExtensionBisectService._storageKey, StorageScope.APPLICATION);
 		this._state = BisectState.fromJSON(raw);
 
 		if (this._state) {
@@ -126,7 +126,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 		}
 		const extensionIds = extensions.map(ext => ext.identifier.id);
 		const newState = new BisectState(extensionIds, 0, extensionIds.length, 0);
-		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(newState), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(newState), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		await this._storageService.flush();
 	}
 
@@ -150,13 +150,13 @@ class ExtensionBisectService implements IExtensionBisectService {
 			seeingBad ? this._state.low : this._state.mid,
 			seeingBad ? this._state.mid : this._state.high,
 		);
-		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(nextState), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(nextState), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		await this._storageService.flush();
 		return undefined;
 	}
 
 	async reset(): Promise<void> {
-		this._storageService.remove(ExtensionBisectService._storageKey, StorageScope.PROFILE);
+		this._storageService.remove(ExtensionBisectService._storageKey, StorageScope.APPLICATION);
 		await this._storageService.flush();
 	}
 }
