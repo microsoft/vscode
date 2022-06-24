@@ -143,6 +143,7 @@ suite('AbstractKeybindingService', () => {
 				_serviceBrand: undefined,
 				onDidAddNotification: undefined!,
 				onDidRemoveNotification: undefined!,
+				onDidSetDoNotDisturbMode: undefined!,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
 					return new NoOpNotification();
@@ -170,7 +171,10 @@ suite('AbstractKeybindingService', () => {
 						}
 					};
 				},
-				setFilter() { }
+				setFilter() { },
+				getDoNotDisturbMode() { return false; },
+				setDoNotDisturbMode() { },
+
 			};
 
 			const resolver = new KeybindingResolver(items, [], () => { });

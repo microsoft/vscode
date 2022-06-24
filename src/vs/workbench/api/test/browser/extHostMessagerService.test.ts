@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, NotificationsFilter, NotificationsDoNotDisturbMode } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/base/test/common/mock';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -26,6 +26,7 @@ const emptyNotificationService = new class implements INotificationService {
 	declare readonly _serviceBrand: undefined;
 	onDidAddNotification: Event<INotification> = Event.None;
 	onDidRemoveNotification: Event<INotification> = Event.None;
+	onDidSetDoNotDisturbMode: Event<NotificationsDoNotDisturbMode> = Event.None;
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
@@ -47,6 +48,8 @@ const emptyNotificationService = new class implements INotificationService {
 	setFilter(filter: NotificationsFilter): void {
 		throw new Error('not implemented.');
 	}
+	getDoNotDisturbMode() { return false; }
+	setDoNotDisturbMode() { }
 };
 
 class EmptyNotificationService implements INotificationService {
@@ -57,6 +60,7 @@ class EmptyNotificationService implements INotificationService {
 
 	onDidAddNotification: Event<INotification> = Event.None;
 	onDidRemoveNotification: Event<INotification> = Event.None;
+	onDidSetDoNotDisturbMode: Event<NotificationsDoNotDisturbMode> = Event.None;
 	notify(notification: INotification): INotificationHandle {
 		this.withNotify(notification);
 
@@ -80,6 +84,8 @@ class EmptyNotificationService implements INotificationService {
 	setFilter(filter: NotificationsFilter): void {
 		throw new Error('Method not implemented.');
 	}
+	getDoNotDisturbMode() { return false; }
+	setDoNotDisturbMode() { }
 }
 
 suite('ExtHostMessageService', function () {

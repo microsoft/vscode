@@ -5,13 +5,15 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NotificationsFilter, Severity } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NotificationsDoNotDisturbMode, NotificationsFilter, Severity } from 'vs/platform/notification/common/notification';
 
 export class TestNotificationService implements INotificationService {
 
 	readonly onDidAddNotification: Event<INotification> = Event.None;
 
 	readonly onDidRemoveNotification: Event<INotification> = Event.None;
+
+	readonly onDidSetDoNotDisturbMode: Event<NotificationsDoNotDisturbMode> = Event.None;
 
 	declare readonly _serviceBrand: undefined;
 
@@ -42,4 +44,8 @@ export class TestNotificationService implements INotificationService {
 	}
 
 	setFilter(filter: NotificationsFilter): void { }
+
+	getDoNotDisturbMode(): boolean { return false; }
+
+	setDoNotDisturbMode(): void { }
 }
