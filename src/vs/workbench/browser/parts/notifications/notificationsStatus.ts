@@ -83,7 +83,7 @@ export class NotificationsStatus extends Disposable {
 			showBeak: this.isNotificationsCenterVisible
 		};
 
-		if (this.storageService.getBoolean('notificationsCenter/isDoNotDisturbMode', StorageScope.GLOBAL, false) === true) {
+		if (this.storageService.getBoolean('notifications.isDoNotDisturbMode', StorageScope.GLOBAL, false) === true) {
 			statusProperties = {
 				...statusProperties,
 				name: localize('status.doNotDisturb', "Do Not Disturb"),

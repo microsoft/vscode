@@ -26,6 +26,7 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { stripIcons } from 'vs/base/common/iconLabels';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -38,6 +39,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		@IViewsService private readonly viewsService: IViewsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
@@ -70,6 +72,9 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		switch (location) {
 			case ProgressLocation.Notification:
+				if (this.storageService.getBoolean('notifications.isDoNotDisturbMode', StorageScope.GLOBAL, false) === true) {
+					return this.withWindowProgress({ ...options, location: ProgressLocation.Window }, task);
+				}
 				return this.withNotificationProgress({ ...options, location }, task, onDidCancel);
 			case ProgressLocation.Window:
 				if ((options as IProgressWindowOptions).command) {
