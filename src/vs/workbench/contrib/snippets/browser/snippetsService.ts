@@ -359,7 +359,7 @@ class SnippetsService implements ISnippetsService {
 		};
 		this._disposables.add(disposables);
 		this._disposables.add(this._userDataProfileService.onDidChangeCurrentProfile(() => this._pendingWork.push(updateUserSnippets())));
-		updateUserSnippets();
+		await updateUserSnippets();
 	}
 
 	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: DisposableStore): Promise<any> {
