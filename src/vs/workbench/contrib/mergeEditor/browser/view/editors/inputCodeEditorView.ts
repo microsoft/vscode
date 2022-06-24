@@ -14,7 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { autorun, derivedObservable, IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { InputState, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { applyObservableDecorations, h, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
 import { CodeEditorView, ICodeEditorViewOptions } from './codeEditorView';
@@ -270,9 +270,9 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			});
 		}));
 
-		target.appendChild(h('div.background', [noBreakWhitespace]).root);
+		target.appendChild(dom.h('div.background', [noBreakWhitespace]).root);
 		target.appendChild(
-			h('div.checkbox', [h('div.checkbox-background', [checkBox.domNode])]).root
+			dom.h('div.checkbox', [dom.h('div.checkbox-background', [checkBox.domNode])]).root
 		);
 	}
 
