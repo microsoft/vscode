@@ -698,6 +698,11 @@ export class CustomMenubarControl extends MenubarControl {
 			}));
 
 			this.reinstallDisposables.add(attachMenuStyler(this.menubar, this.themeService));
+
+			// Fire visibility change for the first install if menu is shown
+			if (this.menubar.isVisible) {
+				this.onDidVisibilityChange(true);
+			}
 		} else {
 			this.menubar?.update(this.getMenuBarOptions());
 		}
