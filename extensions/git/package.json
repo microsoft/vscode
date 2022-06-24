@@ -2364,7 +2364,7 @@
         },
         "git.terminalGitEditor": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%config.terminalGitEditor%"
         },
         "git.useCommitInputAsStashMessage": {
