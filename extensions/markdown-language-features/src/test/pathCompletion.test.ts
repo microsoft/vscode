@@ -212,11 +212,12 @@ suite('Markdown path completion provider', () => {
 		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
 	});
 
-	test('Check paths encoded with a space', async () => {
+	test('Do not encode paths with spaces', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
-			`[](./sub%20with%20space/${CURSOR})`
+			`[](<./sub with space/${CURSOR}>)`
 		));
 
-		assert.ok(completions.some(x => x.label === 'file.md'), 'Has file from space');
+		assert.ok(completions.some(x => x.label === 'sub with space/'), 'Has sub folder completion');
+		assert.ok(completions.some(x => x.label === 'sub with space/file.md'), 'Has file from space');
 	});
 });
