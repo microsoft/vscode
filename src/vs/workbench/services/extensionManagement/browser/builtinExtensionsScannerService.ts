@@ -14,6 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITranslations, localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IBundledExtension {
 	extensionPath: string;
@@ -35,7 +36,8 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@ILogService private readonly logService: ILogService
 	) {
 		if (isWeb) {
 			const nlsBaseUrl = productService.extensionsGallery?.nlsBaseUrl;
@@ -84,18 +86,19 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 		return [...await Promise.all(this.builtinExtensionsPromises)];
 	}
 
-	private async localizeManifest(extensionId: string, manifest: IExtensionManifest, translations: ITranslations): Promise<IExtensionManifest> {
+	private async localizeManifest(extensionId: string, manifest: IExtensionManifest, fallbackTranslations: ITranslations): Promise<IExtensionManifest> {
 		if (!this.nlsUrl) {
-			return localizeManifest(manifest, translations);
+			return localizeManifest(manifest, fallbackTranslations);
 		}
 		// the `package` endpoint returns the translations in a key-value format similar to the package.nls.json file.
 		const uri = URI.joinPath(this.nlsUrl, extensionId, 'package');
 		try {
 			const res = await this.extensionResourceLoaderService.readExtensionResource(uri);
 			const json = JSON.parse(res.toString());
-			return localizeManifest(manifest, json);
+			return localizeManifest(manifest, json, fallbackTranslations);
 		} catch (e) {
-			return localizeManifest(manifest, translations);
+			this.logService.error(e);
+			return localizeManifest(manifest, fallbackTranslations);
 		}
 	}
 }
