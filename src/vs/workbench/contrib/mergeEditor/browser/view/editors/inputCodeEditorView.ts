@@ -36,24 +36,23 @@ export class InputCodeEditorView extends CodeEditorView {
 
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
 			if (range && !range.isEmpty) {
-
-
 				const blockClassNames = ['merge-editor-block'];
 				const isHandled = model.isHandled(modifiedBaseRange).read(reader);
 				if (isHandled) {
 					blockClassNames.push('handled');
 				}
 				if (modifiedBaseRange === activeModifiedBaseRange) {
-					blockClassNames.push('active');
+					blockClassNames.push('focused');
 				}
-				blockClassNames.push('input' + this.inputNumber);
+				const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
+				blockClassNames.push(inputClassName);
 
 				result.push({
 					range: range.toInclusiveRange()!,
 					options: {
 						isWholeLine: true,
 						blockClassName: blockClassNames.join(' '),
-						description: 'Base Range Projection',
+						description: 'Merge Editor',
 						minimap: {
 							position: MinimapPosition.Gutter,
 							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
@@ -67,13 +66,25 @@ export class InputCodeEditorView extends CodeEditorView {
 
 				const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
 				for (const diff of inputDiffs) {
+					const range = diff.outputRange.toInclusiveRange();
+					if (range) {
+						result.push({
+							range,
+							options: {
+								className: `merge-editor-diff ${inputClassName}`,
+								description: 'Merge Editor',
+								isWholeLine: true,
+							}
+						});
+					}
+
 					if (diff.rangeMappings) {
 						for (const d of diff.rangeMappings) {
 							result.push({
 								range: d.outputRange,
 								options: {
-									className: `merge-editor-diff-input1`,
-									description: 'Base Range Projection'
+									className: `merge-editor-diff-word ${inputClassName}`,
+									description: 'Merge Editor'
 								}
 							});
 						}

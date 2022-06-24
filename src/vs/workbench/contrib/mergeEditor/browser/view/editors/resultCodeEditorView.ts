@@ -46,7 +46,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 						blockClassNames.push('handled');
 					}
 					if (modifiedBaseRange === activeModifiedBaseRange) {
-						blockClassNames.push('active');
+						blockClassNames.push('focused');
 					}
 					blockClassNames.push('result');
 
@@ -66,6 +66,32 @@ export class ResultCodeEditorView extends CodeEditorView {
 							}
 						}
 					});
+				}
+			}
+
+			for (const diff of m.rights) {
+				const range = diff.outputRange.toInclusiveRange();
+				if (range) {
+					result.push({
+						range,
+						options: {
+							className: `merge-editor-diff result`,
+							description: 'Merge Editor',
+							isWholeLine: true,
+						}
+					});
+				}
+
+				if (diff.rangeMappings) {
+					for (const d of diff.rangeMappings) {
+						result.push({
+							range: d.outputRange,
+							options: {
+								className: `merge-editor-diff-word result`,
+								description: 'Merge Editor'
+							}
+						});
+					}
 				}
 			}
 		}
