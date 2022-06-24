@@ -31,10 +31,6 @@ namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string | string[]> = new NotificationType('json/schemaContent');
 }
 
-namespace ResultLimitReachedNotification {
-	export const type: NotificationType<string> = new NotificationType('json/resultLimitReached');
-}
-
 namespace ForceValidateRequest {
 	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
 }
