@@ -8,15 +8,15 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IUntypedEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class MergeEditorInputData {
 	constructor(
@@ -27,7 +27,7 @@ export class MergeEditorInputData {
 	) { }
 }
 
-export class MergeEditorInput extends AbstractTextResourceEditorInput {
+export class MergeEditorInput extends AbstractTextResourceEditorInput implements ILanguageSupport {
 
 	static readonly ID = 'mergeEditor.Input';
 
@@ -82,14 +82,6 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		return localize('name', "Merging: {0}", super.getName());
 	}
 
-	override get capabilities(): EditorInputCapabilities {
-		let result = EditorInputCapabilities.Singleton;
-		if (!this.fileService.hasProvider(this.result) || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
-			result |= EditorInputCapabilities.Readonly;
-		}
-		return result;
-	}
-
 	override async resolve(): Promise<MergeEditorModel> {
 
 		if (!this._model) {
@@ -140,6 +132,9 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		return Boolean(this._outTextModel?.isDirty());
 	}
 
+	setLanguageId(languageId: string, _setExplicitly?: boolean): void {
+		this._model?.setLanguageId(languageId);
+	}
 
 	// implement get/set languageId
 	// implement get/set encoding

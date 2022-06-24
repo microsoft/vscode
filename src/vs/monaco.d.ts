@@ -3820,6 +3820,10 @@ declare namespace monaco.editor {
 		 */
 		enabled?: boolean;
 		/**
+		 * Control the rendering of minimap.
+		 */
+		autohide?: boolean;
+		/**
 		 * Control the side of the minimap in editor.
 		 * Defaults to 'right'.
 		 */

@@ -400,6 +400,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 	}
 
 	layout(height: number, width: number): void {
+		this.container.style.height = `${height}px`;
 		this.table.layout(height, width);
 	}
 

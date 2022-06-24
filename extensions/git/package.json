@@ -1478,7 +1478,7 @@
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file && scmActiveResourceHasChanges"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges"
         },
         {
           "command": "git.stageSelectedRanges",
@@ -2364,7 +2364,7 @@
         },
         "git.terminalGitEditor": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%config.terminalGitEditor%"
         },
         "git.useCommitInputAsStashMessage": {
@@ -2407,20 +2407,29 @@
           "description": "%config.timeline.showUncommitted%",
           "scope": "window"
         },
-        "git.showUnpublishedCommitsButton": {
-          "type": "string",
-          "enum": [
-            "always",
-            "whenEmpty",
-            "never"
-          ],
-          "enumDescriptions": [
-            "%config.showUnpublishedCommitsButton.always%",
-            "%config.showUnpublishedCommitsButton.whenEmpty%",
-            "%config.showUnpublishedCommitsButton.never%"
-          ],
-          "default": "whenEmpty",
-          "description": "%config.showUnpublishedCommitsButton%",
+        "git.showActionButton": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "%config.showActionButton%",
+          "properties": {
+            "commit": {
+              "type": "boolean",
+              "description": "%config.showActionButton.commit%"
+            },
+            "publish": {
+              "type": "boolean",
+              "description": "%config.showActionButton.publish%"
+            },
+            "sync": {
+              "type": "boolean",
+              "description": "%config.showActionButton.sync%"
+            }
+          },
+          "default": {
+            "commit": true,
+            "publish": true,
+            "sync": true
+          },
           "scope": "resource"
         },
         "git.statusLimit": {

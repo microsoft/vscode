@@ -8,10 +8,11 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { ctxIsMergeEditor, ctxUsesColumnLayout, MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeEditorLayout, MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OpenMergeEditor extends Action2 {
@@ -32,7 +33,7 @@ export class OpenMergeEditor extends Action2 {
 			validatedArgs.input2,
 			validatedArgs.output,
 		);
-		accessor.get(IEditorService).openEditor(input);
+		accessor.get(IEditorService).openEditor(input, { preserveFocus: true });
 	}
 }
 
@@ -106,21 +107,17 @@ type IRelaxedOpenArgs = {
 	output: UriComponents | string;
 };
 
-export class ToggleLayout extends Action2 {
+export class SetMixedLayout extends Action2 {
 	constructor() {
 		super({
-			id: 'merge.toggleLayout',
-			title: localize('toggle.title', "Switch to column view"),
-			icon: Codicon.layoutCentered,
-			toggled: {
-				condition: ctxUsesColumnLayout,
-				icon: Codicon.layoutPanel,
-				title: localize('toggle.title2', "Switch to 2 by 1 view"),
-			},
+			id: 'merge.mixedLayout',
+			title: localize('layout.mixed', "Mixed Layout"),
+			toggled: ContextKeyExpr.equals(ctxMergeEditorLayout.key, 'mixed'),
 			menu: [{
 				id: MenuId.EditorTitle,
 				when: ctxIsMergeEditor,
-				group: 'navigation'
+				group: '1_merge',
+				order: 9,
 			}]
 		});
 	}
@@ -128,7 +125,30 @@ export class ToggleLayout extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.toggleLayout();
+			activeEditorPane.setLayout('mixed');
+		}
+	}
+}
+
+export class SetColumnLayout extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.columnLayout',
+			title: localize('layout.column', "Column Layout"),
+			toggled: ContextKeyExpr.equals(ctxMergeEditorLayout.key, 'columns'),
+			menu: [{
+				id: MenuId.EditorTitle,
+				when: ctxIsMergeEditor,
+				group: '1_merge',
+				order: 10,
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.setLayout('columns');
 		}
 	}
 }
