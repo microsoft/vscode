@@ -14,6 +14,7 @@ import { IListService, WorkbenchList } from 'vs/platform/list/browser/listServic
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NotificationMetrics, NotificationMetricsClassification, notificationToMetrics } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -42,7 +43,6 @@ export interface INotificationsCenterController {
 	show(): void;
 	hide(): void;
 
-	toggleDoNotDisturbMode(): void;
 	clearAll(): void;
 }
 
@@ -246,7 +246,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	CommandsRegistry.registerCommand(CLEAR_ALL_NOTIFICATIONS, () => center.clearAll());
 
 	// Toggle Do Not Disturb Mode
-	CommandsRegistry.registerCommand(TOGGLE_DO_NOT_DISTURB_MODE, () => center.toggleDoNotDisturbMode());
+	CommandsRegistry.registerCommand(TOGGLE_DO_NOT_DISTURB_MODE, accessor => {
+		const notificationService = accessor.get(INotificationService);
+		const currentMode = notificationService.getDoNotDisturbMode();
+		notificationService.setDoNotDisturbMode(!currentMode);
+	});
 
 	// Commands for Command Palette
 	const category = { value: localize('notifications', "Notifications"), original: 'Notifications' };

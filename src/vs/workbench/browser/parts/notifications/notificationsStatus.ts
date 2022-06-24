@@ -8,7 +8,7 @@ import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatus
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class NotificationsStatus extends Disposable {
 
@@ -22,8 +22,8 @@ export class NotificationsStatus extends Disposable {
 
 	constructor(
 		private readonly model: INotificationsModel,
-		@IStorageService private readonly storageService: IStorageService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 
@@ -39,7 +39,7 @@ export class NotificationsStatus extends Disposable {
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.model.onDidChangeStatusMessage(e => this.onDidChangeStatusMessage(e)));
-		this._register(this.storageService.onDidChangeValue(() => this.updateNotificationsCenterStatusItem()));
+		this._register(this.notificationService.onDidSetDoNotDisturbMode(() => this.updateNotificationsCenterStatusItem()));
 	}
 
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
@@ -83,7 +83,10 @@ export class NotificationsStatus extends Disposable {
 			showBeak: this.isNotificationsCenterVisible
 		};
 
-		if (this.storageService.getBoolean('notifications.isDoNotDisturbMode', StorageScope.PROFILE, false) === true) {
+		const dndMode = this.notificationService.getDoNotDisturbMode();
+		// console.log(dndMode);
+
+		if (dndMode === true) {
 			statusProperties = {
 				...statusProperties,
 				name: localize('status.doNotDisturb', "Do Not Disturb"),

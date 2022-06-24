@@ -24,8 +24,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationsDoNotDisturbMode } from 'vs/platform/notification/common/notification';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -54,20 +53,18 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super(themeService);
 
 		this.notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(contextKeyService);
 
 		this.registerListeners();
-		this.updateDoNotDisturbMode();
 	}
 
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
-		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageEventChange(e)));
+		this._register(this.notificationService.onDidSetDoNotDisturbMode((mode) => this.onDidSetDoNotDisturbMode(mode)));
 	}
 
 	get isVisible(): boolean {
@@ -325,30 +322,13 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		}
 	}
 
-	private onDidStorageEventChange(event: IStorageValueChangeEvent) {
-		if (event.key === 'notifications.isDoNotDisturbMode') {
-			this.updateDoNotDisturbMode();
-		}
-	}
-
-	private isDoNotDisturbEnabled(): boolean {
-		return this.storageService.getBoolean('notifications.isDoNotDisturbMode', StorageScope.PROFILE, false);
-	}
-
-	private updateDoNotDisturbMode(): void {
-		const currentState = this.isDoNotDisturbEnabled();
-		if (currentState === true) {
-			this.notificationService.setFilter(NotificationsFilter.ERROR);
+	onDidSetDoNotDisturbMode(mode: NotificationsDoNotDisturbMode): void {
+		if (mode === NotificationsDoNotDisturbMode.ENABLED) {
 			this.hide();
-		} else {
-			this.notificationService.setFilter(NotificationsFilter.OFF);
 		}
-	}
-
-	toggleDoNotDisturbMode(): void {
-		this.storageService.store('notifications.isDoNotDisturbMode', !this.isDoNotDisturbEnabled(), StorageScope.PROFILE, StorageTarget.USER);
 	}
 }
+
 
 registerThemingParticipant((theme, collector) => {
 	const notificationBorderColor = theme.getColor(NOTIFICATIONS_BORDER);
