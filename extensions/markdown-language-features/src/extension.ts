@@ -51,7 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(workspace, parser, tocProvider);
 
 	const contentProvider = new MdDocumentRenderer(engine, context, cspArbiter, contributions, logger);
-	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, tocProvider);
+	const previewManager = new MarkdownPreviewManager(contentProvider, workspace, logger, contributions, tocProvider);
 	context.subscriptions.push(previewManager);
 
 	context.subscriptions.push(registerMarkdownLanguageFeatures(parser, workspace, commandManager, tocProvider, logger));
