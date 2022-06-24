@@ -779,6 +779,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		_container.classList.add('setting-item');
 		_container.classList.add('setting-item-' + typeClass);
 
+		const toDispose = new DisposableStore();
+
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
 		container.classList.add('settings-row-inner-container');
 		const titleElement = DOM.append(container, $('.setting-item-title'));
@@ -787,6 +789,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const labelElement = new SimpleIconLabel(labelElementContainer);
 		const indicatorsLabel = this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement);
+		toDispose.add(indicatorsLabel);
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
@@ -797,7 +800,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
-		const toDispose = new DisposableStore();
 		const policyWarningElement = this.renderPolicyLabel(container, toDispose);
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));

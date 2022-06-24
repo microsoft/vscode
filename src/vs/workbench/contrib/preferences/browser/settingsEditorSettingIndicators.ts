@@ -9,13 +9,14 @@ import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLa
 import { ICustomHover, ITooltipMarkdownString, IUpdatableHoverOptions, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+import { MODIFIED_INDICATOR_USE_INLINE_ONLY } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 const $ = DOM.$;
@@ -31,7 +32,7 @@ export interface ISettingOverrideClickEvent {
 /**
  * Renders the indicators next to a setting, such as "Also Modified In".
  */
-export class SettingsTreeIndicatorsLabel {
+export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private indicatorsContainerElement: HTMLElement;
 	private scopeOverridesElement: HTMLElement;
 	private scopeOverridesLabel: SimpleIconLabel;
@@ -123,12 +124,19 @@ export class SettingsTreeIndicatorsLabel {
 		return localizedScope;
 	}
 
+	dispose() {
+		this.hover?.dispose();
+	}
+
 	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
 		this.scopeOverridesElement.innerText = '';
 		this.scopeOverridesElement.style.display = 'none';
 		if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
-			this.scopeOverridesElement.style.display = 'inline';
-			if (element.overriddenScopeList.length === 1 && !element.overriddenDefaultsLanguageList.length) {
+			if ((MODIFIED_INDICATOR_USE_INLINE_ONLY && element.overriddenScopeList.length) ||
+				(element.overriddenScopeList.length === 1 && !element.overriddenDefaultsLanguageList.length)) {
+				// Render inline if we have the flag and there are scope overrides to render,
+				// or if there is only one scope override to render and no language overrides.
+				this.scopeOverridesElement.style.display = 'inline';
 				this.hover?.dispose();
 
 				// Just show all the text in the label.
@@ -137,21 +145,29 @@ export class SettingsTreeIndicatorsLabel {
 					localize('configuredIn', "Modified in");
 				this.scopeOverridesLabel.text = `${prefaceText} `;
 
-				const firstScope = element.overriddenScopeList[0];
-				const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(firstScope)));
-				elementDisposables.add(
-					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
-						const [scope, language] = firstScope.split(':');
-						onDidClickOverrideElement.fire({
-							settingKey: element.setting.key,
-							scope: scope as ScopeString,
-							language
-						});
-						e.preventDefault();
-						e.stopPropagation();
-					}));
-			} else {
-				// Show most of the text in a custom hover.
+				for (let i = 0; i < element.overriddenScopeList.length; i++) {
+					const overriddenScope = element.overriddenScopeList[i];
+					const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(overriddenScope)));
+					if (i !== element.overriddenScopeList.length - 1) {
+						DOM.append(this.scopeOverridesElement, $('span.comma', undefined, ', '));
+					}
+					elementDisposables.add(
+						DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
+							const [scope, language] = overriddenScope.split(':');
+							onDidClickOverrideElement.fire({
+								settingKey: element.setting.key,
+								scope: scope as ScopeString,
+								language
+							});
+							e.preventDefault();
+							e.stopPropagation();
+						}));
+				}
+			} else if (!MODIFIED_INDICATOR_USE_INLINE_ONLY) {
+				// Even if the check above fails, we want to
+				// show the text in a custom hover only if
+				// the feature flag isn't on.
+				this.scopeOverridesElement.style.display = 'inline';
 				let scopeOverridesLabelText = '$(info) ';
 				scopeOverridesLabelText += element.isConfigured ?
 					localize('alsoConfiguredElsewhere', "Also modified elsewhere") :
