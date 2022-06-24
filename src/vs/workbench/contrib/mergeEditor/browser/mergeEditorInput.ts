@@ -8,10 +8,10 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IUntypedEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
@@ -80,14 +80,6 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 
 	override getName(): string {
 		return localize('name', "Merging: {0}", super.getName());
-	}
-
-	override get capabilities(): EditorInputCapabilities {
-		let result = EditorInputCapabilities.Singleton;
-		if (!this.fileService.hasProvider(this.result) || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
-			result |= EditorInputCapabilities.Readonly;
-		}
-		return result;
 	}
 
 	override async resolve(): Promise<MergeEditorModel> {
