@@ -219,7 +219,7 @@ const linkPattern = new RegExp(
 	r`\(\s*)` + // <-- close prefix match
 	/**/r`(` +
 	/*****/r`[^\s\(\)\<](?:[^\s\(\)]|\([^\s\(\)]*?\))*|` + // Link without whitespace, or...
-	/*****/r`<[^<>]*>` + // In angle brackets
+	/*****/r`<[^<>]+>` + // In angle brackets
 	/**/r`)` +
 
 	// Title
