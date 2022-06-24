@@ -3398,7 +3398,7 @@ declare namespace monaco.editor {
 		 */
 		showDeprecated?: boolean;
 		/**
-		 * Controls whether suggestions allow a first characer to be matched on a weak match
+		 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
 		 */
 		allowMidWordMatch?: boolean;
 		/**
@@ -4165,7 +4165,7 @@ declare namespace monaco.editor {
 		 */
 		showDeprecated?: boolean;
 		/**
-		 * Controls whether suggestions allow a first characer to be matched on a weak match
+		 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
 		 */
 		allowMidWordMatch?: boolean;
 		/**
