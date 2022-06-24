@@ -61,7 +61,7 @@ export class VsCodeMdWorkspace extends Disposable implements IMdWorkspace {
 	async getAllMarkdownDocuments(): Promise<ITextDocument[]> {
 		const maxConcurrent = 20;
 
-		const foundFiles = new Set<string>();
+		const foundFiles = new ResourceMap<void>();
 		const limiter = new Limiter<ITextDocument | undefined>(maxConcurrent);
 
 		// Add files on disk
@@ -70,7 +70,7 @@ export class VsCodeMdWorkspace extends Disposable implements IMdWorkspace {
 			return limiter.queue(async () => {
 				const doc = await this.getOrLoadMarkdownDocument(resource);
 				if (doc) {
-					foundFiles.add(doc.uri.toString());
+					foundFiles.set(resource);
 				}
 				return doc;
 			});
@@ -78,7 +78,7 @@ export class VsCodeMdWorkspace extends Disposable implements IMdWorkspace {
 
 		// Add opened files (such as untitled files)
 		const openTextDocumentResults = await Promise.all(vscode.workspace.textDocuments
-			.filter(doc => !foundFiles.has(doc.uri.toString()) && this.isRelevantMarkdownDocument(doc)));
+			.filter(doc => !foundFiles.has(doc.uri) && this.isRelevantMarkdownDocument(doc)));
 
 		return coalesce([...onDiskResults, ...openTextDocumentResults]);
 	}
