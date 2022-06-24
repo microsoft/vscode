@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -25,7 +25,7 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
@@ -41,6 +41,7 @@ export const RESTART_SESSION_ID = 'workbench.action.debug.restart';
 export const TERMINATE_THREAD_ID = 'workbench.action.debug.terminateThread';
 export const STEP_OVER_ID = 'workbench.action.debug.stepOver';
 export const STEP_INTO_ID = 'workbench.action.debug.stepInto';
+export const STEP_INTO_TARGET_ID = 'workbench.action.debug.stepIntoTarget';
 export const STEP_OUT_ID = 'workbench.action.debug.stepOut';
 export const PAUSE_ID = 'workbench.action.debug.pause';
 export const DISCONNECT_ID = 'workbench.action.debug.disconnect';
@@ -65,6 +66,7 @@ export const PREV_DEBUG_CONSOLE_ID = 'workbench.action.debug.prevConsole';
 export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
 export const STEP_OVER_LABEL = nls.localize('stepOverDebug', "Step Over");
 export const STEP_INTO_LABEL = nls.localize('stepIntoDebug', "Step Into");
+export const STEP_INTO_TARGET_LABEL = nls.localize('stepIntoTargetDebug', "Step Into Target");
 export const STEP_OUT_LABEL = nls.localize('stepOutDebug', "Step Out");
 export const PAUSE_LABEL = nls.localize('pauseDebug', "Pause");
 export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
@@ -332,10 +334,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+// Windows browsers use F11 for full screen, thus use alt+F11 as the default shortcut
+const STEP_INTO_KEYBINDING = (isWeb && isWindows) ? (KeyMod.Alt | KeyCode.F11) : KeyCode.F11;
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: STEP_INTO_ID,
 	weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
-	primary: (isWeb && isWindows) ? (KeyMod.Alt | KeyCode.F11) : KeyCode.F11, // Windows browsers use F11 for full screen, thus use alt+F11 as the default shortcut
+	primary: STEP_INTO_KEYBINDING,
 	// Use a more flexible when clause to not allow full screen command to take over when F11 pressed a lot of times
 	when: CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
@@ -370,6 +375,73 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		getThreadAndRun(accessor, context, thread => thread.pause());
+	}
+});
+
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: STEP_INTO_TARGET_ID,
+	primary: STEP_INTO_KEYBINDING | KeyMod.CtrlCmd,
+	when: ContextKeyExpr.and(CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		const quickInputService = accessor.get(IQuickInputService);
+		const debugService = accessor.get(IDebugService);
+		const session = debugService.getViewModel().focusedSession;
+		const frame = debugService.getViewModel().focusedStackFrame;
+		if (!frame || !session) {
+			return;
+		}
+
+		const editor = await accessor.get(IEditorService).openEditor({
+			resource: frame.source.uri,
+			options: { revealIfOpened: true }
+		});
+
+		let codeEditor: ICodeEditor | undefined;
+		if (editor) {
+			const ctrl = editor?.getControl();
+			if (isCodeEditor(ctrl)) {
+				codeEditor = ctrl;
+			}
+		}
+
+		interface ITargetItem extends IQuickPickItem {
+			target: DebugProtocol.StepInTarget;
+		}
+
+		const qp = quickInputService.createQuickPick<ITargetItem>();
+		qp.busy = true;
+		qp.show();
+
+		qp.onDidChangeActive(([item]) => {
+			if (codeEditor && item && item.target.line !== undefined) {
+				codeEditor.revealLineInCenterIfOutsideViewport(item.target.line);
+				codeEditor.setSelection({
+					startLineNumber: item.target.line,
+					startColumn: item.target.column || 1,
+					endLineNumber: item.target.endLine || item.target.line,
+					endColumn: item.target.endColumn || item.target.column || 1,
+				});
+			}
+		});
+
+		qp.onDidAccept(() => {
+			if (qp.activeItems.length) {
+				session.stepIn(frame.thread.threadId, qp.activeItems[0].target.id);
+			}
+		});
+
+		qp.onDidHide(() => qp.dispose());
+
+		session.stepInTargets(frame.frameId).then(targets => {
+			qp.busy = false;
+			if (targets?.length) {
+				qp.items = targets?.map(target => ({ target, label: target.label }));
+			} else {
+				qp.placeholder = nls.localize('editor.debug.action.stepIntoTargets.none', "No step targets available");
+			}
+		});
 	}
 });
 
