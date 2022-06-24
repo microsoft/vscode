@@ -425,6 +425,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			quickPick.show();
 		});
 
+		quickPick.dispose();
+
 		if (command === undefined) {
 			return undefined;
 		}
