@@ -15,7 +15,7 @@ function workspaceFile(...segments: string[]) {
 	return vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, ...segments);
 }
 
-suite('vscode API - webview', () => {
+suite.skip('vscode API - webview', () => { // TODO@mjbvz https://github.com/microsoft/vscode/issues/153066
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {
