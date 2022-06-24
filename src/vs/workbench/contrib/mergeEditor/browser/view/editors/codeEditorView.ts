@@ -67,7 +67,7 @@ export abstract class CodeEditorView extends Disposable {
 			glyphMargin: false,
 			lineNumbersMinChars: 2,
 		},
-		{ contributions: [] }
+		{}
 	);
 
 	public readonly isFocused = observableFromEvent(
