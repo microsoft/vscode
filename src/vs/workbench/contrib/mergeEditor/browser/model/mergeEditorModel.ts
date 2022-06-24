@@ -411,7 +411,13 @@ function editsToLineRangeEdit(range: LineRange, sortedEdits: RangeEdit[], textMo
 		if (!currentPosition.isBeforeOrEqual(diffStart)) {
 			return undefined;
 		}
-		const originalText = textModel.getValueInRange(Range.fromPositions(currentPosition, diffStart));
+		let originalText = textModel.getValueInRange(Range.fromPositions(currentPosition, diffStart));
+		if (diffStart.lineNumber > textModel.getLineCount()) {
+			// assert diffStart.lineNumber === textModel.getLineCount() + 1
+			// getValueInRange doesn't include this virtual line break, as the document ends the line before.
+			// endsLineAfter will be false.
+			originalText += '\n';
+		}
 		text += originalText;
 		text += edit.newText;
 		currentPosition = edit.range.getEndPosition();
