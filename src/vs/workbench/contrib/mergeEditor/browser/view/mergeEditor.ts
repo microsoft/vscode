@@ -10,10 +10,11 @@ import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/mergeEditor';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -32,7 +33,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInputWithOptions, EditorResourceAccessor, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { autorunWithStore, IObservable } from 'vs/workbench/contrib/audioCues/browser/observable';
@@ -43,6 +44,7 @@ import { ReentrancyBarrier, thenIfNotDisposed } from 'vs/workbench/contrib/merge
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import './colors';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
@@ -87,7 +89,8 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
 	) {
 		super(MergeEditor.ID, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
@@ -230,6 +233,8 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		await super.setInput(input, options, context, token);
 
 		this._sessionDisposables.clear();
+		this._toggleEditorOverwrite(true);
+
 		const model = await input.resolve();
 		this._model = model;
 
@@ -302,6 +307,7 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		super.clearInput();
 
 		this._sessionDisposables.clear();
+		this._toggleEditorOverwrite(false);
 
 		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
 			editor.setModel(null);
@@ -333,24 +339,50 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		}
 
 		this._ctxIsMergeEditor.set(visible);
+		this._toggleEditorOverwrite(visible);
 	}
 
-	// ---- interact with "outside world" via `getControl`, `scopedContextKeyService`
+	private readonly _editorOverrideHandle = this._store.add(new MutableDisposable());
+
+	private _toggleEditorOverwrite(haveIt: boolean) {
+		if (!haveIt) {
+			this._editorOverrideHandle.clear();
+			return;
+		}
+		// this is RATHER UGLY. I dynamically register an editor for THIS (editor,input) so that
+		// navigating within the merge editor works, e.g navigating from the outline or breakcrumps
+		// or revealing a definition, reference etc
+		// TODO@jrieken @bpasero @lramos15
+		const input = this.input;
+		if (input instanceof MergeEditorInput) {
+			this._editorOverrideHandle.value = this._editorResolverService.registerEditor(
+				`${input.result.scheme}:${input.result.fsPath}`,
+				{
+					id: `${this.getId()}/fake`,
+					label: this.input?.getName()!,
+					priority: RegisteredEditorPriority.exclusive
+				},
+				{},
+				(candidate): EditorInputWithOptions => {
+					const resource = EditorResourceAccessor.getCanonicalUri(candidate);
+					if (!isEqual(resource, this.model?.result.uri)) {
+						throw new Error(`Expected to be called WITH ${input.result.toString()}`);
+					}
+					return { editor: input };
+				}
+			);
+		}
+	}
+
+	// ---- interact with "outside world" via`getControl`, `scopedContextKeyService`: we only expose the result-editor keep the others internal
 
 	override getControl(): ICodeEditor | undefined {
-		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
-			if (editor.hasWidgetFocus()) {
-				return editor;
-			}
-		}
-		return undefined;
+		return this.inputResultView.editor;
 	}
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		const control = this.getControl();
-		return isCodeEditor(control)
-			? control.invokeWithinContext(accessor => accessor.get(IContextKeyService))
-			: undefined;
+		return control?.invokeWithinContext(accessor => accessor.get(IContextKeyService));
 	}
 
 	// --- layout
