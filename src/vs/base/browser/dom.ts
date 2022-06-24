@@ -122,35 +122,6 @@ export function addDisposableGenericMouseMoveListener(node: EventTarget, handler
 export function addDisposableGenericMouseUpListener(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
-export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
-	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
-		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget);
-		while (toElement && toElement !== node) {
-			toElement = toElement.parentNode;
-		}
-		if (toElement === node) {
-			return;
-		}
-
-		handler(e);
-	});
-}
-
-export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
-	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
-		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget);
-		while (toElement && toElement !== node) {
-			toElement = toElement.parentNode;
-		}
-		if (toElement === node) {
-			return;
-		}
-
-		handler(e);
-	});
-}
 
 export function createEventEmitter<K extends keyof HTMLElementEventMap>(target: HTMLElement, type: K, options?: boolean | AddEventListenerOptions): event.Emitter<HTMLElementEventMap[K]> {
 	let domListener: DomListener | null = null;
@@ -870,6 +841,7 @@ export const EventType = {
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
 	POINTER_MOVE: 'pointermove',
+	POINTER_LEAVE: 'pointerleave',
 	CONTEXT_MENU: 'contextmenu',
 	WHEEL: 'wheel',
 	// Keyboard
