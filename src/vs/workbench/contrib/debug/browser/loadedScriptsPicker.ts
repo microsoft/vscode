@@ -11,10 +11,12 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 import { dirname } from 'vs/base/common/resources';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+
 
 interface IPickerLoadedScriptItem extends IQuickPickItem {
 	accept(): void;
@@ -32,42 +34,34 @@ export async function showLoadedScriptMenu(accessor: ServicesAccessor) {
 	const sessions = debugService.getModel().getSessions(false);
 	const modelService = accessor.get(IModelService);
 	const languageService = accessor.get(ILanguageService);
+	const labelService = accessor.get(ILabelService);
 
 	const localDisposableStore = new DisposableStore();
 	const quickPick = quickInputService.createQuickPick<IPickerLoadedScriptItem>();
+	localDisposableStore.add(quickPick);
 	quickPick.matchOnLabel = quickPick.matchOnDescription = quickPick.matchOnDetail = quickPick.sortByLabel = false;
 	quickPick.placeholder = nls.localize('moveFocusedView.selectView', "Search loaded scripts by name");
-	quickPick.items = await _getPicks(quickPick.value, sessions, editorService, modelService, languageService);
+	quickPick.items = await _getPicks(quickPick.value, sessions, editorService, modelService, languageService, labelService);
 
 	localDisposableStore.add(quickPick.onDidChangeValue(async () => {
-		quickPick.items = await _getPicks(quickPick.value, sessions, editorService, modelService, languageService);
+		quickPick.items = await _getPicks(quickPick.value, sessions, editorService, modelService, languageService, labelService);
 	}));
 	localDisposableStore.add(quickPick.onDidAccept(() => {
 		const selectedItem = quickPick.selectedItems[0];
 		selectedItem.accept();
-		localDisposableStore.clear();
 		quickPick.hide();
-		quickPick.dispose();
+		localDisposableStore.dispose();
 	}));
 	quickPick.show();
 }
 
-function _getLabelName(source: Source) {
-	const posOfForwardSlash = source.name.lastIndexOf('/');
-	const posOfBackSlash = source.name.lastIndexOf('\\');
-
-	const delimeterPos = posOfForwardSlash > posOfBackSlash ? posOfForwardSlash : posOfBackSlash;
-	const label = source.name.substring(delimeterPos + 1);
-	return label;
-}
-
-async function _getPicksFromSession(session: IDebugSession, filter: string, editorService: IEditorService, modelService: IModelService, languageService: ILanguageService): Promise<Array<IPickerLoadedScriptItem | IQuickPickSeparator>> {
+async function _getPicksFromSession(session: IDebugSession, filter: string, editorService: IEditorService, modelService: IModelService, languageService: ILanguageService, labelService: ILabelService): Promise<Array<IPickerLoadedScriptItem | IQuickPickSeparator>> {
 	const items: Array<IPickerLoadedScriptItem | IQuickPickSeparator> = [];
 	items.push({ type: 'separator', label: session.name });
 	const sources = await session.getLoadedSources();
 
 	sources.forEach((element: Source) => {
-		const pick = _createPick(element, filter, editorService, modelService, languageService);
+		const pick = _createPick(element, filter, editorService, modelService, languageService, labelService);
 		if (pick) {
 			items.push(pick);
 		}
@@ -75,12 +69,12 @@ async function _getPicksFromSession(session: IDebugSession, filter: string, edit
 	});
 	return items;
 }
-async function _getPicks(filter: string, sessions: IDebugSession[], editorService: IEditorService, modelService: IModelService, languageService: ILanguageService): Promise<Array<IPickerLoadedScriptItem | IQuickPickSeparator>> {
+async function _getPicks(filter: string, sessions: IDebugSession[], editorService: IEditorService, modelService: IModelService, languageService: ILanguageService, labelService: ILabelService): Promise<Array<IPickerLoadedScriptItem | IQuickPickSeparator>> {
 	const loadedScriptPicks: Array<IPickerLoadedScriptItem | IQuickPickSeparator> = [];
 
 
 	const picks = await Promise.all(
-		sessions.map((session) => _getPicksFromSession(session, filter, editorService, modelService, languageService))
+		sessions.map((session) => _getPicksFromSession(session, filter, editorService, modelService, languageService, labelService))
 	);
 
 	for (const row of picks) {
@@ -91,10 +85,11 @@ async function _getPicks(filter: string, sessions: IDebugSession[], editorServic
 	return loadedScriptPicks;
 }
 
-function _createPick(source: Source, filter: string, editorService: IEditorService, modelService: IModelService, languageService: ILanguageService): IPickerLoadedScriptItem | undefined {
+function _createPick(source: Source, filter: string, editorService: IEditorService, modelService: IModelService, languageService: ILanguageService, labelService: ILabelService): IPickerLoadedScriptItem | undefined {
 
-	const label = _getLabelName(source);
-	const desc = dirname(source.uri).path;
+	const label = labelService.getUriBasenameLabel(source.uri);
+	const desc = labelService.getUriLabel(dirname(source.uri));
+
 	// manually filter so that headers don't get filtered out
 	const highlights = matchesFuzzy(filter, label, true);
 	if (highlights) {
