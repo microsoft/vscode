@@ -20,7 +20,7 @@ import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
-import { IAction, ActionRunner } from 'vs/base/common/actions';
+import { IAction, ActionRunner, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton } from './util';
@@ -82,7 +82,7 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { Button, ButtonWithDescription } from 'vs/base/browser/ui/button/button';
+import { Button, ButtonWithDescription, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
@@ -110,6 +110,7 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 
 	constructor(
 		@ICommandService private commandService: ICommandService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService private themeService: IThemeService,
 		@INotificationService private notificationService: INotificationService,
 	) { }
@@ -122,7 +123,7 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 		container.parentElement!.parentElement!.classList.add('force-no-hover');
 
 		const buttonContainer = append(container, $('.button-container'));
-		const actionButton = new SCMActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
+		const actionButton = new SCMActionButton(buttonContainer, this.contextMenuService, this.commandService, this.themeService, this.notificationService);
 
 		return { actionButton, disposable: Disposable.None, templateDisposable: actionButton };
 	}
@@ -2595,11 +2596,12 @@ registerThemingParticipant((theme, collector) => {
 });
 
 export class SCMActionButton implements IDisposable {
-	private button: Button | ButtonWithDescription | undefined;
+	private button: Button | ButtonWithDescription | ButtonWithDropdown | undefined;
 	private readonly disposables = new MutableDisposable<DisposableStore>();
 
 	constructor(
 		private readonly container: HTMLElement,
+		private readonly contextMenuService: IContextMenuService,
 		private readonly commandService: ICommandService,
 		private readonly themeService: IThemeService,
 		private readonly notificationService: INotificationService
@@ -2617,7 +2619,31 @@ export class SCMActionButton implements IDisposable {
 			return;
 		}
 
-		if (button.description) {
+		const executeButtonAction = async (commandId: string, ...args: any[]) => {
+			try {
+				await this.commandService.executeCommand(commandId, ...args);
+			} catch (ex) {
+				this.notificationService.error(ex);
+			}
+		};
+
+		if (button.secondaryCommands?.length) {
+			const actions: IAction[] = [];
+			for (const commandGroup of button.secondaryCommands) {
+				for (const command of commandGroup) {
+					actions.push(new Action(command.id, command.title, undefined, true, async () => await executeButtonAction(command.id, ...(command.arguments || []))));
+				}
+				actions.push(new Separator());
+			}
+
+			// ButtonWithDropdown
+			this.button = new ButtonWithDropdown(this.container, {
+				actions: actions,
+				addPrimaryActionToDropdown: false,
+				contextMenuProvider: this.contextMenuService,
+				supportIcons: true
+			});
+		} else if (button.description) {
 			// ButtonWithDescription
 			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip });
 			(this.button as ButtonWithDescription).description = button.description;
@@ -2628,13 +2654,8 @@ export class SCMActionButton implements IDisposable {
 
 		this.button.enabled = button.enabled;
 		this.button.label = button.command.title;
-		this.button.onDidClick(async () => {
-			try {
-				await this.commandService.executeCommand(button.command.id, ...(button.command.arguments || []));
-			} catch (ex) {
-				this.notificationService.error(ex);
-			}
-		}, null, this.disposables.value);
+		this.button.element.title = button.command.tooltip ?? '';
+		this.button.onDidClick(async () => await executeButtonAction(button.command.id, ...(button.command.arguments || [])), null, this.disposables.value);
 
 		this.disposables.value!.add(this.button);
 		this.disposables.value!.add(attachButtonStyler(this.button, this.themeService));
