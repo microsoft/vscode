@@ -243,7 +243,7 @@ function getDefaultValueSourceToDisplay(element: SettingsTreeSettingElement): st
 	let sourceToDisplay: string | undefined;
 	const defaultValueSource = element.defaultValueSource;
 	if (defaultValueSource) {
-		if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
+		if (typeof defaultValueSource !== 'string') {
 			sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
 		} else if (typeof defaultValueSource === 'string') {
 			sourceToDisplay = defaultValueSource;
