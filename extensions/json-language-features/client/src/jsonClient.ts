@@ -481,7 +481,7 @@ function getSettings(): Settings {
 			validate: { enable: configuration.get(SettingIds.enableValidation) },
 			format: { enable: configuration.get(SettingIds.enableFormatter) },
 			schemas: [],
-			resultLimit: resultLimit + 1
+			resultLimit: resultLimit + 1 // ask for one more so we can detect if the limit has been exceeded
 		}
 	};
 	const schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
