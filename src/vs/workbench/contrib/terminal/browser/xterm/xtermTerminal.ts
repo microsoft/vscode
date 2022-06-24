@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
+import type { IBuffer, IMarker, ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
@@ -35,6 +35,7 @@ import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/dec
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -177,6 +178,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+	}
+
+	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void {
+		this._capabilities.get(TerminalCapability.CommandDetection)?.handleGenericCommand({ genericMarkProperties: properties, marker });
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {

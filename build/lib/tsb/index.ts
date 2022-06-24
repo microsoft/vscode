@@ -126,7 +126,7 @@ export function create(
 
 	let result: IncrementalCompiler;
 	if (config.transpileOnly) {
-		const transpiler = new Transpiler(logFn, printDiagnostic, cmdLine);
+		const transpiler = new Transpiler(logFn, printDiagnostic, projectPath, cmdLine);
 		result = <any>(() => createTranspileStream(transpiler));
 	} else {
 		const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);

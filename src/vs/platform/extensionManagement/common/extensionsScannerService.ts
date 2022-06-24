@@ -32,7 +32,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { revive } from 'vs/base/common/marshalling';
-import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IExtensionsProfileScannerService, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
@@ -147,6 +148,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		readonly userExtensionsLocation: URI,
 		private readonly extensionsControlLocation: URI,
 		private readonly cacheLocation: URI,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IExtensionsProfileScannerService protected readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IFileService protected readonly fileService: IFileService,
 		@ILogService protected readonly logService: ILogService,
@@ -378,18 +380,14 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 
 	private async createExtensionScannerInput(location: URI, profile: boolean, type: ExtensionType, excludeObsolete: boolean, language: string | undefined, validate: boolean = true): Promise<ExtensionScannerInput> {
 		const translations = await this.getTranslations(language ?? platform.language);
-		let mtime: number | undefined;
-		try {
-			const folderStat = await this.fileService.stat(location);
-			if (typeof folderStat.mtime === 'number') {
-				mtime = folderStat.mtime;
-			}
-		} catch (err) {
-			// That's ok...
-		}
+		const mtime = await this.getMtime(location);
+		const applicationExtensionsLocation = this.userDataProfilesService.defaultProfile.extensionsResource;
+		const applicationExtensionsLocationMtime = applicationExtensionsLocation ? await this.getMtime(applicationExtensionsLocation) : undefined;
 		return new ExtensionScannerInput(
 			location,
 			mtime,
+			applicationExtensionsLocation,
+			applicationExtensionsLocationMtime,
 			profile,
 			type,
 			excludeObsolete,
@@ -403,6 +401,18 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		);
 	}
 
+	private async getMtime(location: URI): Promise<number | undefined> {
+		try {
+			const stat = await this.fileService.stat(location);
+			if (typeof stat.mtime === 'number') {
+				return stat.mtime;
+			}
+		} catch (err) {
+			// That's ok...
+		}
+		return undefined;
+	}
+
 }
 
 class ExtensionScannerInput {
@@ -410,6 +420,8 @@ class ExtensionScannerInput {
 	constructor(
 		public readonly location: URI,
 		public readonly mtime: number | undefined,
+		public readonly applicationExtensionslocation: URI | undefined,
+		public readonly applicationExtensionslocationMtime: number | undefined,
 		public readonly profile: boolean,
 		public readonly type: ExtensionType,
 		public readonly excludeObsolete: boolean,
@@ -437,6 +449,8 @@ class ExtensionScannerInput {
 		return (
 			isEqual(a.location, b.location)
 			&& a.mtime === b.mtime
+			&& isEqual(a.applicationExtensionslocation, b.applicationExtensionslocation)
+			&& a.applicationExtensionslocationMtime === b.applicationExtensionslocationMtime
 			&& a.profile === b.profile
 			&& a.type === b.type
 			&& a.excludeObsolete === b.excludeObsolete
@@ -495,21 +509,36 @@ class ExtensionsScanner extends Disposable {
 				if (input.type === ExtensionType.User && basename(c.resource).indexOf('.') === 0) {
 					return null;
 				}
-				const extensionScannerInput = new ExtensionScannerInput(c.resource, input.mtime, input.profile, input.type, input.excludeObsolete, input.validate, input.productVersion, input.productDate, input.productCommit, input.devMode, input.language, input.translations);
+				const extensionScannerInput = new ExtensionScannerInput(c.resource, input.mtime, input.applicationExtensionslocation, input.applicationExtensionslocationMtime, input.profile, input.type, input.excludeObsolete, input.validate, input.productVersion, input.productDate, input.productCommit, input.devMode, input.language, input.translations);
 				return this.scanExtension(extensionScannerInput);
 			}));
 		return coalesce(extensions);
 	}
 
 	private async scanExtensionsFromProfile(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
-		const scannedProfileExtensions = await this.extensionsProfileScannerService.scanProfileExtensions(input.location);
+		const profileExtensions = await this.scanExtensionsFromProfileResource(input.location, () => true, input);
+		const applicationExtensions = await this.scanApplicationExtensions(input);
+		return [...profileExtensions, ...applicationExtensions];
+	}
+
+	private async scanApplicationExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
+		return input.applicationExtensionslocation
+			? this.scanExtensionsFromProfileResource(input.applicationExtensionslocation, (e) => !!e.metadata?.isApplicationScoped, input)
+			: [];
+	}
+
+	private async scanExtensionsFromProfileResource(profileResource: URI, filter: (extensionInfo: IScannedProfileExtension) => boolean, input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
+		const scannedProfileExtensions = await this.extensionsProfileScannerService.scanProfileExtensions(profileResource);
 		if (!scannedProfileExtensions.length) {
 			return [];
 		}
 		const extensions = await Promise.all<IRelaxedScannedExtension | null>(
 			scannedProfileExtensions.map(async extensionInfo => {
-				const extensionScannerInput = new ExtensionScannerInput(extensionInfo.location, input.mtime, input.profile, input.type, input.excludeObsolete, input.validate, input.productVersion, input.productDate, input.productCommit, input.devMode, input.language, input.translations);
-				return this.scanExtension(extensionScannerInput);
+				if (filter(extensionInfo)) {
+					const extensionScannerInput = new ExtensionScannerInput(extensionInfo.location, input.mtime, input.applicationExtensionslocation, input.applicationExtensionslocationMtime, input.profile, input.type, input.excludeObsolete, input.validate, input.productVersion, input.productDate, input.productCommit, input.devMode, input.language, input.translations);
+					return this.scanExtension(extensionScannerInput, extensionInfo.metadata);
+				}
+				return null;
 			}));
 		return coalesce(extensions);
 	}
@@ -910,6 +939,7 @@ export class NativeExtensionsScannerService extends AbstractExtensionsScannerSer
 		userExtensionsLocation: URI,
 		userHome: URI,
 		userDataPath: URI,
+		userDataProfilesService: IUserDataProfilesService,
 		extensionsProfileScannerService: IExtensionsProfileScannerService,
 		fileService: IFileService,
 		logService: ILogService,
@@ -921,7 +951,7 @@ export class NativeExtensionsScannerService extends AbstractExtensionsScannerSer
 			userExtensionsLocation,
 			joinPath(userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
 			joinPath(userDataPath, MANIFEST_CACHE_FOLDER),
-			extensionsProfileScannerService, fileService, logService, environmentService, productService);
+			userDataProfilesService, extensionsProfileScannerService, fileService, logService, environmentService, productService);
 		this.translationsPromise = (async () => {
 			if (platform.translationsConfigFile) {
 				try {

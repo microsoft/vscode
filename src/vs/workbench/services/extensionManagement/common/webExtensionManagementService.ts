@@ -17,6 +17,8 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class WebExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService, IProfileAwareExtensionManagementService {
 
@@ -31,9 +33,11 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		@IWebExtensionsScannerService private readonly webExtensionsScannerService: IWebExtensionsScannerService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(extensionGalleryService, extensionsProfileScannerService, telemetryService, logService, productService);
+		super(userDataProfilesService, uriIdentityService, extensionGalleryService, extensionsProfileScannerService, telemetryService, logService, productService);
 	}
 
 	async getTargetPlatform(): Promise<TargetPlatform> {
@@ -118,6 +122,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		...extension,
 		identifier: { id: extension.identifier.id, uuid: metadata.id ?? extension.identifier.uuid },
 		isMachineScoped: !!metadata.isMachineScoped,
+		isApplicationScoped: !!metadata.isApplicationScoped,
 		publisherId: metadata.publisherId || null,
 		publisherDisplayName: metadata.publisherDisplayName || null,
 		installedTimestamp: metadata.installedTimestamp,

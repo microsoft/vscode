@@ -14,6 +14,7 @@ export const Schemes = {
 	data: 'data:',
 	vscode: 'vscode:',
 	'vscode-insiders': 'vscode-insiders:',
+	notebookCell: 'vscode-notebook-cell',
 };
 
 const knownSchemes = [

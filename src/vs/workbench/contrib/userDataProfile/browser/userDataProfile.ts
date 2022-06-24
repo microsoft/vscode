@@ -9,13 +9,12 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const CONTEXT_CURRENT_PROFILE = new RawContextKey<string>('currentUserDataProfile', '');
 
@@ -52,7 +51,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerManageProfilesSubMenu(): void {
 		const that = this;
-		const when = ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty'));
+		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
 			submenu: ManageProfilesSubMenu,
@@ -87,7 +86,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const that = this;
 		return registerAction2(class ProfileEntryAction extends Action2 {
 			constructor() {
-				const when = ContextKeyExpr.and(IsDevelopmentContext, WorkbenchStateContext.notEqualsTo('empty'));
+				const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 				super({
 					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
 					title: profile.name,

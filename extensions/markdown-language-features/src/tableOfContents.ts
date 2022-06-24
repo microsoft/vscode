@@ -10,6 +10,7 @@ import { githubSlugifier, Slug, Slugifier } from './slugify';
 import { ITextDocument } from './types/textDocument';
 import { Disposable } from './util/dispose';
 import { isMarkdownFile } from './util/file';
+import { Schemes } from './util/schemes';
 import { MdDocumentInfoCache } from './util/workspaceCache';
 import { IMdWorkspace } from './workspace';
 
@@ -71,7 +72,7 @@ export class TableOfContents {
 	}
 
 	public static async createForDocumentOrNotebook(parser: IMdParser, document: ITextDocument): Promise<TableOfContents> {
-		if (document.uri.scheme === 'vscode-notebook-cell') {
+		if (document.uri.scheme === Schemes.notebookCell) {
 			const notebook = vscode.workspace.notebookDocuments
 				.find(notebook => notebook.getCells().some(cell => cell.document === document));
 

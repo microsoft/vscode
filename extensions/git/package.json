@@ -1893,26 +1893,6 @@
           "default": [],
           "scope": "resource"
         },
-        "git.branchProtectionIndicator": {
-          "type": "object",
-          "additionalProperties": false,
-          "description": "%config.branchProtectionIndicator%",
-          "properties": {
-            "quickOpen": {
-              "type": "boolean",
-              "description": "%config.branchProtectionIndicator.quickOpen%"
-            },
-            "statusBar": {
-              "type": "boolean",
-              "description": "%config.branchProtectionIndicator.statusBar%"
-            }
-          },
-          "default": {
-            "quickOpen": true,
-            "statusBar": true
-          },
-          "scope": "resource"
-        },
         "git.branchProtectionPrompt": {
           "type": "string",
           "description": "%config.branchProtectionPrompt%",
@@ -2712,7 +2692,7 @@
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "5.0.0",
-    "@vscode/extension-telemetry": "0.4.10",
+    "@vscode/extension-telemetry": "0.6.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
