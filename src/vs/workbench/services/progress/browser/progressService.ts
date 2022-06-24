@@ -72,7 +72,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		switch (location) {
 			case ProgressLocation.Notification:
-				if (this.storageService.getBoolean('notifications.isDoNotDisturbMode', StorageScope.GLOBAL, false) === true) {
+				if (this.storageService.getBoolean('notifications.isDoNotDisturbMode', StorageScope.PROFILE, false) === true) {
 					return this.withWindowProgress({ ...options, location: ProgressLocation.Window }, task);
 				}
 				return this.withNotificationProgress({ ...options, location }, task, onDidCancel);

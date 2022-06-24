@@ -332,7 +332,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	private isDoNotDisturbEnabled(): boolean {
-		return this.storageService.getBoolean('notifications.isDoNotDisturbMode', StorageScope.GLOBAL, false);
+		return this.storageService.getBoolean('notifications.isDoNotDisturbMode', StorageScope.PROFILE, false);
 	}
 
 	private updateDoNotDisturbMode(): void {
@@ -346,7 +346,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	toggleDoNotDisturbMode(): void {
-		this.storageService.store('notifications.isDoNotDisturbMode', !this.isDoNotDisturbEnabled(), StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store('notifications.isDoNotDisturbMode', !this.isDoNotDisturbEnabled(), StorageScope.PROFILE, StorageTarget.USER);
 	}
 }
 
