@@ -21,6 +21,8 @@ import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -38,9 +40,11 @@ export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingServ
 		@IDialogService dialogService: IDialogService,
 		@IHostService hostService: IHostService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
-		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService);
+		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService);
 	}
 
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
