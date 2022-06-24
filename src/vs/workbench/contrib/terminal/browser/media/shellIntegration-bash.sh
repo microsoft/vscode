@@ -39,6 +39,13 @@ if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
 	builtin return
 fi
 
+# Disable shell integration if HISTCONTROL is set to erase duplicate entries as the exit code
+# reporting relies on the duplicates existing
+if [[ "$HISTCONTROL" =~ .*erasedups.* ]]; then
+	builtin unset VSCODE_SHELL_INTEGRATION
+	builtin return
+fi
+
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
