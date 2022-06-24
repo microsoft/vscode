@@ -6,13 +6,17 @@ import * as nls from 'vs/nls';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
-export interface IPickerLoadedScriptItem extends IQuickPickItem {
+import { dirname } from 'vs/base/common/resources';
+
+interface IPickerLoadedScriptItem extends IQuickPickItem {
 	accept(): void;
 }
 
@@ -21,23 +25,30 @@ export interface IPickerLoadedScriptItem extends IQuickPickItem {
  * This function takes a regular quickpick and makes one for loaded scripts that has persistent headers
  * e.g. when some picks are filtered out, the ones that are visible still have its header.
  */
-export async function showLoadedScriptMenu(sessions: IDebugSession[], quickInputService: IQuickInputService, editorService: IEditorService, modelService: IModelService, languageService: ILanguageService) {
+export async function showLoadedScriptMenu(accessor: ServicesAccessor) {
+	const quickInputService = accessor.get(IQuickInputService);
+	const debugService = accessor.get(IDebugService);
+	const editorService = accessor.get(IEditorService);
+	const sessions = debugService.getModel().getSessions(false);
+	const modelService = accessor.get(IModelService);
+	const languageService = accessor.get(ILanguageService);
 
+	const localDisposableStore = new DisposableStore();
 	const quickPick = quickInputService.createQuickPick<IPickerLoadedScriptItem>();
 	quickPick.matchOnLabel = quickPick.matchOnDescription = quickPick.matchOnDetail = quickPick.sortByLabel = false;
 	quickPick.placeholder = nls.localize('moveFocusedView.selectView', "Search loaded scripts by name");
 	quickPick.items = await _getPicks(quickPick.value, sessions, editorService, modelService, languageService);
-	const changeListener = quickPick.onDidChangeValue(async () => {
+
+	localDisposableStore.add(quickPick.onDidChangeValue(async () => {
 		quickPick.items = await _getPicks(quickPick.value, sessions, editorService, modelService, languageService);
-	});
-	const acceptListener = quickPick.onDidAccept(() => {
+	}));
+	localDisposableStore.add(quickPick.onDidAccept(() => {
 		const selectedItem = quickPick.selectedItems[0];
 		selectedItem.accept();
-		acceptListener.dispose();
-		changeListener.dispose();
+		localDisposableStore.clear();
 		quickPick.hide();
 		quickPick.dispose();
-	});
+	}));
 	quickPick.show();
 }
 
@@ -69,9 +80,7 @@ async function _getPicks(filter: string, sessions: IDebugSession[], editorServic
 
 
 	const picks = await Promise.all(
-		sessions.map((session) => {
-			return _getPicksFromSession(session, filter, editorService, modelService, languageService);
-		})
+		sessions.map((session) => _getPicksFromSession(session, filter, editorService, modelService, languageService))
 	);
 
 	for (const row of picks) {
@@ -85,13 +94,13 @@ async function _getPicks(filter: string, sessions: IDebugSession[], editorServic
 function _createPick(source: Source, filter: string, editorService: IEditorService, modelService: IModelService, languageService: ILanguageService): IPickerLoadedScriptItem | undefined {
 
 	const label = _getLabelName(source);
-
+	const desc = dirname(source.uri).path;
 	// manually filter so that headers don't get filtered out
 	const highlights = matchesFuzzy(filter, label, true);
 	if (highlights) {
 		return {
 			label,
-			description: source.name,
+			description: desc === '.' ? undefined : desc,
 			highlights: { label: highlights },
 			iconClasses: getIconClasses(modelService, languageService, source.uri),
 			accept: () => {

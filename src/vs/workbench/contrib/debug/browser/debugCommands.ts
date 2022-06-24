@@ -31,9 +31,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/browser/loadedScriptsPicker';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -448,14 +446,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 CommandsRegistry.registerCommand({
 	id: SHOW_LOADED_SCRIPTS_ID,
 	handler: async (accessor) => {
-		const quickInputService = accessor.get(IQuickInputService);
-		const debugService = accessor.get(IDebugService);
-		const editorService = accessor.get(IEditorService);
-		const sessions = debugService.getModel().getSessions(false);
-		const modelService = accessor.get(IModelService);
-		const languageService = accessor.get(ILanguageService);
 
-		await showLoadedScriptMenu(sessions, quickInputService, editorService, modelService, languageService);
+		await showLoadedScriptMenu(accessor);
 
 	}
 });
