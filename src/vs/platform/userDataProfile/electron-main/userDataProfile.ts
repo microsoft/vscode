@@ -11,7 +11,7 @@ import { refineServiceDecorator } from 'vs/platform/instantiation/common/instant
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UseDefaultProfileFlags, IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UseDefaultProfileFlags, IUserDataProfile, IUserDataProfilesService, reviveProfile, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { Promises } from 'vs/base/common/async';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
@@ -62,6 +62,9 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	}
 
 	override async createProfile(profile: IUserDataProfile, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
+		if (!this.enabled) {
+			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+		}
 		profile = reviveProfile(profile, this.profilesHome.scheme);
 		if (this.getStoredProfiles().some(p => p.name === profile.name)) {
 			throw new Error(`Profile with name ${profile.name} already exists`);
@@ -90,6 +93,9 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	}
 
 	override async setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
+		if (!this.enabled) {
+			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+		}
 		profile = reviveProfile(profile, this.profilesHome.scheme);
 		const workspace = this.getWorkspace(workspaceIdentifier);
 		const storedWorkspaceInfos = this.getStoredWorskpaceInfos().filter(info => !this.uriIdentityService.extUri.isEqual(info.workspace, workspace));
@@ -101,6 +107,9 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	}
 
 	override async removeProfile(profile: IUserDataProfile): Promise<void> {
+		if (!this.enabled) {
+			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+		}
 		if (profile.isDefault) {
 			throw new Error('Cannot remove default profile');
 		}
@@ -118,14 +127,18 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		});
 		await Promises.settled(joiners);
 
-		if (this.profiles.length === 2) {
-			await this.fileService.del(this.profilesHome, { recursive: true });
-		} else {
-			await this.fileService.del(profile.location, { recursive: true });
-		}
-
 		this.setStoredWorskpaceInfos(this.getStoredWorskpaceInfos().filter(p => !this.uriIdentityService.extUri.isEqual(p.profile, profile.location)));
 		this.setStoredProfiles(this.getStoredProfiles().filter(p => !this.uriIdentityService.extUri.isEqual(p.location, profile.location)));
+
+		try {
+			if (this.profiles.length === 2) {
+				await this.fileService.del(this.profilesHome, { recursive: true });
+			} else {
+				await this.fileService.del(profile.location, { recursive: true });
+			}
+		} catch (error) {
+			this.logService.error(error);
+		}
 	}
 
 	private setStoredProfiles(storedProfiles: StoredUserDataProfile[]) {

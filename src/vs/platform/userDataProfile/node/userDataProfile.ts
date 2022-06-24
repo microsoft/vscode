@@ -36,6 +36,8 @@ export class UserDataProfilesService extends BaseUserDataProfilesService impleme
 	protected static readonly PROFILES_KEY = 'userDataProfiles';
 	protected static readonly WORKSPACE_PROFILE_INFO_KEY = 'workspaceAndProfileInfo';
 
+	protected enabled: boolean = false;
+
 	constructor(
 		@IStateService private readonly stateService: IStateService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
@@ -44,11 +46,18 @@ export class UserDataProfilesService extends BaseUserDataProfilesService impleme
 		@ILogService logService: ILogService,
 	) {
 		super(environmentService, fileService, logService);
-		stateService.whenInitialized.then(() => this._profilesObject = undefined);
+	}
+
+	setEnablement(enabled: boolean): void {
+		this._profilesObject = undefined;
+		this.enabled = enabled;
 	}
 
 	protected _profilesObject: UserDataProfilesObject | undefined;
 	protected get profilesObject(): UserDataProfilesObject {
+		if (!this.enabled) {
+			return { profiles: [], workspaces: new ResourceMap() };
+		}
 		if (!this._profilesObject) {
 			const profiles = this.getStoredProfiles().map<IUserDataProfile>(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.useDefaultFlags));
 			const workspaces = new ResourceMap<IUserDataProfile>();

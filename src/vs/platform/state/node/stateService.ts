@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier, ThrottledDelayer } from 'vs/base/common/async';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -150,22 +150,16 @@ export class StateService implements IStateService {
 
 	protected readonly fileStorage: FileStorage;
 
-	private readonly initBarrier: Barrier;
-	readonly whenInitialized: Promise<void>;
-
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
 		@IFileService fileService: IFileService
 	) {
 		this.fileStorage = new FileStorage(environmentService.stateResource, logService, fileService);
-		this.initBarrier = new Barrier();
-		this.whenInitialized = this.initBarrier.wait().then(() => undefined);
 	}
 
 	async init(): Promise<void> {
 		await this.fileStorage.init();
-		this.initBarrier.open();
 	}
 
 	getItem<T>(key: string, defaultValue: T): T;
