@@ -95,7 +95,7 @@ suite('Debug - Base Debug View', () => {
 		let name = $('.');
 		let value = $('.');
 		const label = new HighlightedLabel(name);
-		let lazyButton = $('.');
+		const lazyButton = $('.');
 		renderVariable(variable, { expression, name, value, label, lazyButton }, false, []);
 
 		assert.strictEqual(label.element.textContent, 'foo');

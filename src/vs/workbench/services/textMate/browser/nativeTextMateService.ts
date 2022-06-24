@@ -238,7 +238,7 @@ export class TextMateService extends AbstractTextMateService {
 	}
 
 	private _killWorker(): void {
-		for (let key of Object.keys(this._tokenizers)) {
+		for (const key of Object.keys(this._tokenizers)) {
 			this._tokenizers[key].dispose();
 		}
 		this._tokenizers = Object.create(null);

@@ -19,7 +19,7 @@ import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extens
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -191,7 +191,7 @@ class RemoteSearchProvider implements ISearchProvider {
 			}
 
 			if (token && token.isCancellationRequested) {
-				throw canceled();
+				throw new CancellationError();
 			}
 
 			const resultKeys = Object.keys(remoteResult.scoredResults);

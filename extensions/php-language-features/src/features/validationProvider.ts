@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { ThrottledDelayer } from './utils/async';
 import * as nls from 'vscode-nls';
-let localize = nls.loadMessageBundle();
+const localize = nls.loadMessageBundle();
 
 const enum Setting {
 	Run = 'php.validate.run',
@@ -28,8 +28,8 @@ export class LineDecoder {
 	}
 
 	public write(buffer: Buffer): string[] {
-		let result: string[] = [];
-		let value = this.remaining
+		const result: string[] = [];
+		const value = this.remaining
 			? this.remaining + this.stringDecoder.write(buffer)
 			: this.stringDecoder.write(buffer);
 
@@ -70,11 +70,11 @@ enum RunTrigger {
 }
 
 namespace RunTrigger {
-	export let strings = {
+	export const strings = {
 		onSave: 'onSave',
 		onType: 'onType'
 	};
-	export let from = function (value: string): RunTrigger {
+	export const from = function (value: string): RunTrigger {
 		if (value === 'onType') {
 			return RunTrigger.onType;
 		} else {
@@ -165,7 +165,7 @@ export default class PHPValidationProvider {
 		}
 
 		if (vscode.workspace.isTrusted) {
-			let key = textDocument.uri.toString();
+			const key = textDocument.uri.toString();
 			let delayer = this.delayers![key];
 			if (!delayer) {
 				delayer = new ThrottledDelayer<void>(this.config?.trigger === RunTrigger.onType ? 250 : 0);
@@ -191,14 +191,14 @@ export default class PHPValidationProvider {
 				return;
 			}
 
-			let decoder = new LineDecoder();
-			let diagnostics: vscode.Diagnostic[] = [];
-			let processLine = (line: string) => {
-				let matches = line.match(PHPValidationProvider.MatchExpression);
+			const decoder = new LineDecoder();
+			const diagnostics: vscode.Diagnostic[] = [];
+			const processLine = (line: string) => {
+				const matches = line.match(PHPValidationProvider.MatchExpression);
 				if (matches) {
-					let message = matches[1];
-					let line = parseInt(matches[3]) - 1;
-					let diagnostic: vscode.Diagnostic = new vscode.Diagnostic(
+					const message = matches[1];
+					const line = parseInt(matches[3]) - 1;
+					const diagnostic: vscode.Diagnostic = new vscode.Diagnostic(
 						new vscode.Range(line, 0, line, Number.MAX_VALUE),
 						message
 					);
@@ -206,7 +206,7 @@ export default class PHPValidationProvider {
 				}
 			};
 
-			let options = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0]) ? { cwd: vscode.workspace.workspaceFolders[0].uri.fsPath } : undefined;
+			const options = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0]) ? { cwd: vscode.workspace.workspaceFolders[0].uri.fsPath } : undefined;
 			let args: string[];
 			if (this.config!.trigger === RunTrigger.onSave) {
 				args = PHPValidationProvider.FileArgs.slice(0);
@@ -215,7 +215,7 @@ export default class PHPValidationProvider {
 				args = PHPValidationProvider.BufferArgs;
 			}
 			try {
-				let childProcess = cp.spawn(executable, args, options);
+				const childProcess = cp.spawn(executable, args, options);
 				childProcess.on('error', (error: Error) => {
 					if (this.pauseValidation) {
 						resolve();
@@ -234,7 +234,7 @@ export default class PHPValidationProvider {
 						decoder.write(data).forEach(processLine);
 					});
 					childProcess.stdout.on('end', () => {
-						let line = decoder.end();
+						const line = decoder.end();
 						if (line) {
 							processLine(line);
 						}

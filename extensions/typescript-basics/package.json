@@ -51,6 +51,12 @@
           "tsconfig-*.json",
           "jsconfig-*.json"
         ]
+      },
+      {
+        "id": "json",
+        "filenames": [
+          "tsconfig.tsbuildinfo"
+        ]
       }
     ],
     "grammars": [

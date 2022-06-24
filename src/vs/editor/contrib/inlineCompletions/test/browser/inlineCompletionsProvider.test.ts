@@ -526,21 +526,19 @@ suite('Inline Completions', () => {
 				context.keyboardType('hello');
 				await timeout(100);
 
-				context.cursorLeft(); // Cause the ghost text to update
-				context.cursorRight();
+				// Update ghost text
+				context.keyboardType('w');
+				context.leftDelete();
 
 				await timeout(2000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{
-						position: '(2,6)',
-						text: 'hello\nhello',
-						triggerKind: 0,
-					}
+					{ position: '(2,6)', triggerKind: 0, text: 'hello\nhello' },
 				]);
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
 					'',
+					'hello\n',
 					'hello[world]\n',
 					'hello\n',
 					'hello\nhello[world]',

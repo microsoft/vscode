@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { CharCode } from 'vs/base/common/charCode';
+import { Event } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -492,6 +493,56 @@ suite('ModelSemanticColoring', () => {
 
 			// assert that it got called twice
 			assert.strictEqual(callCount, 2);
+		});
+	});
+
+	test('issue #149412: VS Code hangs when bad semantic token data is received', async () => {
+		await runWithFakedTimers({}, async () => {
+
+			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
+
+			let lastResult: SemanticTokens | SemanticTokensEdits | null = null;
+
+			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode', new class implements DocumentSemanticTokensProvider {
+				getLegend(): SemanticTokensLegend {
+					return { tokenTypes: ['class'], tokenModifiers: [] };
+				}
+				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+					if (!lastResultId) {
+						// this is the first call
+						lastResult = {
+							resultId: '1',
+							data: new Uint32Array([4294967293, 0, 7, 16, 0, 1, 4, 3, 11, 1])
+						};
+					} else {
+						// this is the second call
+						lastResult = {
+							resultId: '2',
+							edits: [{
+								start: 4294967276,
+								deleteCount: 0,
+								data: new Uint32Array([2, 0, 3, 11, 0])
+							}]
+						};
+					}
+					return lastResult;
+				}
+				releaseDocumentSemanticTokens(resultId: string | undefined): void {
+				}
+			}));
+
+			const textModel = disposables.add(modelService.createModel('', languageService.createById('testMode')));
+
+			// wait for the semantic tokens to be fetched
+			await Event.toPromise(textModel.onDidChangeTokens);
+			assert.strictEqual(lastResult!.resultId, '1');
+
+			// edit the text
+			textModel.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'foo' }]);
+
+			// wait for the semantic tokens to be fetched again
+			await Event.toPromise(textModel.onDidChangeTokens);
+			assert.strictEqual(lastResult!.resultId, '2');
 		});
 	});
 

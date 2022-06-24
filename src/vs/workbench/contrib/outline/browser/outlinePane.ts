@@ -136,7 +136,7 @@ export class OutlinePane extends ViewPane {
 		this._domNode = container;
 		container.classList.add('outline-pane');
 
-		let progressContainer = dom.$('.outline-progress');
+		const progressContainer = dom.$('.outline-progress');
 		this._message = dom.$('.outline-message');
 
 		this._progressBar = new ProgressBar(progressContainer);

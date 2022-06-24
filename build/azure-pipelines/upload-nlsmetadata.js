@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const es = require("event-stream");
 const vfs = require("vinyl-fs");
@@ -19,7 +19,6 @@ function main() {
             fileName: 'combined.nls.metadata.json',
             jsonSpace: '',
             edit: (parsedJson, file) => {
-                let key;
                 if (file.base === 'out-vscode-web-min') {
                     return { vscode: parsedJson };
                 }
@@ -63,7 +62,7 @@ function main() {
                         break;
                     }
                 }
-                key = 'vscode.' + file.relative.split('/')[0];
+                const key = 'vscode.' + file.relative.split('/')[0];
                 return { [key]: parsedJson };
             },
         }))

@@ -6,21 +6,21 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { MdReference, MdReferencesProvider } from '../languageFeatures/references';
-import { githubSlugifier } from '../slugify';
+import { MdTableOfContentsProvider } from '../tableOfContents';
+import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
-import { MdWorkspaceContents } from '../workspaceContents';
+import { IMdWorkspace } from '../workspace';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { joinLines, noopToken, workspacePath } from './util';
+import { InMemoryMdWorkspace } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
+import { joinLines, workspacePath } from './util';
 
 
-function getFileReferences(resource: vscode.Uri, workspaceContents: MdWorkspaceContents) {
+function getFileReferences(resource: vscode.Uri, workspace: IMdWorkspace) {
 	const engine = createNewMarkdownEngine();
-	const linkProvider = new MdLinkProvider(engine);
-	const provider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
-	return provider.getAllReferencesToFile(resource, noopToken);
+	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
+	return computer.getAllReferencesToFile(resource, noopToken);
 }
 
 function assertReferencesEqual(actualRefs: readonly MdReference[], ...expectedRefs: { uri: vscode.Uri; line: number }[]) {
@@ -41,7 +41,7 @@ suite('markdown: find file references', () => {
 		const docUri = workspacePath('doc.md');
 		const otherUri = workspacePath('other.md');
 
-		const refs = await getFileReferences(otherUri, new InMemoryWorkspaceMarkdownDocuments([
+		const refs = await getFileReferences(otherUri, new InMemoryMdWorkspace([
 			new InMemoryDocument(docUri, joinLines(
 				`# header`,
 				`[link 1](./other.md)`,
@@ -66,7 +66,7 @@ suite('markdown: find file references', () => {
 		const docUri = workspacePath('doc.md');
 		const otherUri = workspacePath('other.md');
 
-		const refs = await getFileReferences(otherUri, new InMemoryWorkspaceMarkdownDocuments([
+		const refs = await getFileReferences(otherUri, new InMemoryMdWorkspace([
 			new InMemoryDocument(docUri, joinLines(
 				`# header`,
 				`[link 1](./other.md)`,
@@ -93,7 +93,7 @@ suite('markdown: find file references', () => {
 		const docUri = workspacePath('doc.md');
 		const otherUri = workspacePath('other.md');
 
-		const refs = await getFileReferences(otherUri, new InMemoryWorkspaceMarkdownDocuments([
+		const refs = await getFileReferences(otherUri, new InMemoryMdWorkspace([
 			new InMemoryDocument(docUri, joinLines(
 				`# header`,
 				`[link 1](./other.md#sub-bla)`,

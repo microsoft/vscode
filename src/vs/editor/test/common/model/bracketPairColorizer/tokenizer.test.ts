@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/brackets';
 import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
 import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { EncodedTokenizationResult, IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { LanguageId, StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
@@ -27,8 +28,8 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 
 		const denseKeyProvider = new DenseKeyProvider<string>();
 
-		const tStandard = (text: string) => new TokenInfo(text, encodedMode1, StandardTokenType.Other);
-		const tComment = (text: string) => new TokenInfo(text, encodedMode1, StandardTokenType.Comment);
+		const tStandard = (text: string) => new TokenInfo(text, encodedMode1, StandardTokenType.Other, true);
+		const tComment = (text: string) => new TokenInfo(text, encodedMode1, StandardTokenType.Comment, true);
 		const document = new TokenizedDocument([
 			tStandard(' { } '), tStandard('be'), tStandard('gin end'), tStandard('\n'),
 			tStandard('hello'), tComment('{'), tStandard('}'),
@@ -189,16 +190,23 @@ class TokenizedDocument {
 }
 
 class TokenInfo {
-	constructor(public readonly text: string, public readonly languageId: LanguageId, public readonly tokenType: StandardTokenType) { }
+	constructor(
+		public readonly text: string,
+		public readonly languageId: LanguageId,
+		public readonly tokenType: StandardTokenType,
+		public readonly hasBalancedBrackets: boolean,
+	) { }
 
 	getMetadata(): number {
 		return (
-			(this.languageId << MetadataConsts.LANGUAGEID_OFFSET)
-			| (this.tokenType << MetadataConsts.TOKEN_TYPE_OFFSET)
-		) >>> 0;
+			(((this.languageId << MetadataConsts.LANGUAGEID_OFFSET) |
+				(this.tokenType << MetadataConsts.TOKEN_TYPE_OFFSET)) >>>
+				0) |
+			(this.hasBalancedBrackets ? MetadataConsts.BALANCED_BRACKETS_MASK : 0)
+		);
 	}
 
 	withText(text: string): TokenInfo {
-		return new TokenInfo(text, this.languageId, this.tokenType);
+		return new TokenInfo(text, this.languageId, this.tokenType, this.hasBalancedBrackets);
 	}
 }

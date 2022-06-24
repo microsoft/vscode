@@ -98,7 +98,7 @@ suite('Diff editor input', () => {
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
 
-		let diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
+		const diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
 		diffInput.onWillDispose(() => {
 			counter++;
 			assert(true);
@@ -109,7 +109,7 @@ suite('Diff editor input', () => {
 		input = new MyEditorInput();
 		otherInput = new MyEditorInput();
 
-		let diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
+		const diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
 		diffInput2.onWillDispose(() => {
 			counter++;
 			assert(true);

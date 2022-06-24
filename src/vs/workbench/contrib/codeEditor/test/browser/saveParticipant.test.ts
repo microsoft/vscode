@@ -112,11 +112,11 @@ suite('Save Participants', function () {
 		const textContent = 'Trim New Line';
 
 		// single line
-		let lineContent = `${textContent}`;
+		const lineContent = `${textContent}`;
 		model.textEditorModel.setValue(lineContent);
 
 		// apply edits and push to undo stack.
-		let textEdits = [{ range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
+		const textEdits = [{ range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
 		model.textEditorModel.pushEditOperations([new Selection(1, 14, 1, 14)], textEdits, () => { return [new Selection(1, 15, 1, 15)]; });
 
 		// undo
@@ -138,7 +138,7 @@ suite('Save Participants', function () {
 		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
 		const textContent = 'Test';
 		const eol = `${model.textEditorModel.getEOL()}`;
-		let content = `${textContent}${eol}${eol}`;
+		const content = `${textContent}${eol}${eol}`;
 		model.textEditorModel.setValue(content);
 
 		// save many times
@@ -164,7 +164,7 @@ suite('Save Participants', function () {
 		configService.setUserConfiguration('files', { 'trimTrailingWhitespace': true });
 		const participant = new TrimWhitespaceParticipant(configService, undefined!);
 		const textContent = 'Test';
-		let content = `${textContent} 	`;
+		const content = `${textContent} 	`;
 		model.textEditorModel.setValue(content);
 
 		// save many times

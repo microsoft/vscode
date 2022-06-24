@@ -6,7 +6,7 @@
 import 'vs/css!./media/review';
 import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as languages from 'vs/editor/common/languages';
 import { IMarkdownRendererOptions } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
@@ -18,7 +18,6 @@ import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentSe
 import { CommentThreadBody } from 'vs/workbench/contrib/comments/browser/commentThreadBody';
 import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/commentThreadHeader';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { CommentNode } from 'vs/workbench/contrib/comments/common/commentModel';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -109,11 +108,46 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		if (controller) {
 			commentControllerKey.set(controller.contextValue);
 		}
+
+		this.currentThreadListeners();
+	}
+
+	private updateCurrentThread(hasMouse: boolean, hasFocus: boolean) {
+		if (hasMouse || hasFocus) {
+			this.commentService.setCurrentCommentThread(this.commentThread);
+		} else {
+			this.commentService.setCurrentCommentThread(undefined);
+		}
+	}
+
+	private currentThreadListeners() {
+		let hasMouse = false;
+		let hasFocus = false;
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_ENTER, (e) => {
+			if ((<any>e).toElement === this.container) {
+				hasMouse = true;
+				this.updateCurrentThread(hasMouse, hasFocus);
+			}
+		}, true));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_LEAVE, (e) => {
+			if ((<any>e).fromElement === this.container) {
+				hasMouse = false;
+				this.updateCurrentThread(hasMouse, hasFocus);
+			}
+		}, true));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.FOCUS_IN, () => {
+			hasFocus = true;
+			this.updateCurrentThread(hasMouse, hasFocus);
+		}, true));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.FOCUS_OUT, () => {
+			hasFocus = false;
+			this.updateCurrentThread(hasMouse, hasFocus);
+		}, true));
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
 		if (this._commentThread !== commentThread) {
-			this._commentThreadDisposables.forEach(disposable => disposable.dispose());
+			dispose(this._commentThreadDisposables);
 		}
 
 		this._commentThread = commentThread;
@@ -133,7 +167,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	display(lineHeight: number) {
-		let headHeight = Math.ceil(lineHeight * 1.2);
+		const headHeight = Math.ceil(lineHeight * 1.2);
 		this._header.updateHeight(headHeight);
 
 		this._body.display();
@@ -150,7 +184,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		// if this._commentThread.comments is undefined, it doesn't finish initialization yet, so we don't focus the editor immediately.
 		if (this._commentThread.canReply && this._commentReply) {
-			this._commentReply?.focusIfNeeded();
+			this._commentReply.focusIfNeeded();
 		}
 
 		this._bindCommentThreadListeners();
@@ -161,7 +195,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._onDidResize.fire(dimension);
 	}
 
-
+	override dispose() {
+		super.dispose();
+		this.updateCurrentThread(false, false);
+	}
 
 	private _bindCommentThreadListeners() {
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCanReply(() => {
@@ -235,7 +272,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 	async submitComment() {
 		const activeComment = this._body.activeComment;
-		if (activeComment && !(activeComment instanceof CommentNode)) {
+		if (activeComment) {
+			activeComment.submitComment();
+		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
 			this._commentReply?.submitComment();
 		}
 	}

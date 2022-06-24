@@ -5,7 +5,6 @@
 export interface IPropertyData {
 	classification: 'SystemMetaData' | 'CallstackOrException' | 'CustomerContent' | 'PublicNonPersonalData' | 'EndUserPseudonymizedInformation';
 	purpose: 'PerformanceAndHealth' | 'FeatureInsight' | 'BusinessInsight';
-	owner?: string;
 	comment?: string;
 	expiration?: string;
 	endpoint?: string;

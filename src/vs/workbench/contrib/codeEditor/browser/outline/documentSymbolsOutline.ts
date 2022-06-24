@@ -63,10 +63,10 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 		if (!item) {
 			return [];
 		}
-		let chain: Array<OutlineGroup | OutlineElement> = [];
+		const chain: Array<OutlineGroup | OutlineElement> = [];
 		while (item) {
 			chain.push(item);
-			let parent: any = item.parent;
+			const parent: any = item.parent;
 			if (parent instanceof OutlineModel) {
 				break;
 			}
@@ -75,9 +75,9 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 			}
 			item = parent;
 		}
-		let result: Array<OutlineGroup | OutlineElement> = [];
+		const result: Array<OutlineGroup | OutlineElement> = [];
 		for (let i = chain.length - 1; i >= 0; i--) {
-			let element = chain[i];
+			const element = chain[i];
 			if (this._isFiltered(element)) {
 				break;
 			}
@@ -239,7 +239,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 		const { symbol } = entry;
 		this._editor.revealRangeInCenterIfOutsideViewport(symbol.range, ScrollType.Smooth);
-		const ids = this._editor.deltaDecorations([], [{
+		const decorationsCollection = this._editor.createDecorationsCollection([{
 			range: symbol.range,
 			options: {
 				description: 'document-symbols-outline-range-highlight',
@@ -247,7 +247,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				isWholeLine: true
 			}
 		}]);
-		return toDisposable(() => this._editor.deltaDecorations(ids, []));
+		return toDisposable(() => decorationsCollection.clear());
 	}
 
 	captureViewState(): IDisposable {
@@ -282,7 +282,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		this._outlineDisposables.add(toDisposable(() => cts.dispose(true)));
 
 		try {
-			let model = await this._outlineModelService.getOrCreate(buffer, cts.token);
+			const model = await this._outlineModelService.getOrCreate(buffer, cts.token);
 			if (cts.token.isCancellationRequested) {
 				// cancelled -> do nothing
 				return;

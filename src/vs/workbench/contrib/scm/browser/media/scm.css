@@ -241,6 +241,16 @@
 	margin: 0 0.2em 0 0;
 }
 
+.scm-view .button-container > .monaco-button-dropdown {
+	flex-grow: 1;
+}
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button {
+	display:flex;
+	align-items: center;
+	padding: 0 4px;
+}
+
 .scm-view .scm-editor.hidden {
 	display: none;
 }

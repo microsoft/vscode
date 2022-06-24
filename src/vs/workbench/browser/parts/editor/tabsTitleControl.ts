@@ -62,7 +62,7 @@ interface EditorInputLabel {
 	ariaLabel?: string;
 }
 
-interface ITabsTitleControlLayoutOtions {
+interface ITabsTitleControlLayoutOptions {
 
 	/**
 	 * Whether to force revealing the active tab, even when
@@ -77,7 +77,7 @@ interface IScheduledTabsTitleControlLayout extends IDisposable {
 	/**
 	 * Associated options with the layout call.
 	 */
-	options?: ITabsTitleControlLayoutOtions;
+	options?: ITabsTitleControlLayoutOptions;
 }
 
 type EditorInputLabelAndEditor = EditorInputLabel & { editor: EditorInput };
@@ -96,6 +96,8 @@ export class TabsTitleControl extends TitleControl {
 	};
 
 	private static readonly TAB_HEIGHT = 35;
+
+	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
 
 	private static readonly MOUSE_WHEEL_EVENT_THRESHOLD = 150;
 	private static readonly MOUSE_WHEEL_DISTANCE_THRESHOLD = 1.5;
@@ -898,6 +900,15 @@ export class TabsTitleControl extends TitleControl {
 				this.updateDropFeedback(tab, true, index);
 			},
 
+			onDragOver: (_, dragDuration) => {
+				if (dragDuration >= TabsTitleControl.DRAG_OVER_OPEN_TAB_THRESHOLD) {
+					const draggedOverTab = this.group.getEditorByIndex(index);
+					if (draggedOverTab && this.group.activeEditor !== draggedOverTab) {
+						this.group.openEditor(draggedOverTab, { preserveFocus: true });
+					}
+				}
+			},
+
 			onDragLeave: () => {
 				tab.classList.remove('dragged-over');
 				this.updateDropFeedback(tab, false, index);
@@ -1078,11 +1089,15 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private redraw(options?: ITabsTitleControlLayoutOtions): void {
+	private redraw(options?: ITabsTitleControlLayoutOptions): void {
 
-		// Border below tabs if any
-		const tabsContainerBorderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
+		// Border below tabs if any with explicit high contrast support
 		if (this.tabsAndActionsContainer) {
+			let tabsContainerBorderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
+			if (!tabsContainerBorderColor && isHighContrast(this.theme.type)) {
+				tabsContainerBorderColor = this.getColor(TAB_BORDER) || this.getColor(contrastBorder);
+			}
+
 			if (tabsContainerBorderColor) {
 				this.tabsAndActionsContainer.classList.add('tabs-border-bottom');
 				this.tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', tabsContainerBorderColor.toString());
@@ -1386,7 +1401,7 @@ export class TabsTitleControl extends TitleControl {
 		return { total, offset };
 	}
 
-	layout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOtions): Dimension {
+	layout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): Dimension {
 
 		// Remember dimensions that we get
 		Object.assign(this.dimensions, dimensions);
@@ -1420,7 +1435,7 @@ export class TabsTitleControl extends TitleControl {
 		return this.dimensions.used;
 	}
 
-	private doLayout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOtions): void {
+	private doLayout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): void {
 
 		// Only layout if we have valid tab index and dimensions
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
@@ -1459,7 +1474,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOtions): void {
+	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): void {
 
 		// Always first layout tabs with wrapping support even if wrapping
 		// is disabled. The result indicates if tabs wrap and if not, we
@@ -1601,7 +1616,7 @@ export class TabsTitleControl extends TitleControl {
 		return tabsWrapMultiLine;
 	}
 
-	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number, options?: ITabsTitleControlLayoutOtions): void {
+	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number, options?: ITabsTitleControlLayoutOptions): void {
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
 
 		//
@@ -1880,18 +1895,6 @@ export class TabsTitleControl extends TitleControl {
 }
 
 registerThemingParticipant((theme, collector) => {
-
-	// Add border between tabs and breadcrumbs in high contrast mode.
-	if (isHighContrast(theme.type)) {
-		const borderColor = (theme.getColor(TAB_BORDER) || theme.getColor(contrastBorder));
-		if (borderColor) {
-			collector.addRule(`
-				.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
-					border-bottom: 1px solid ${borderColor};
-				}
-			`);
-		}
-	}
 
 	// Add bottom border to tabs when wrapping
 	const borderColor = theme.getColor(TAB_BORDER);

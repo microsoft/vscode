@@ -14,8 +14,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WebExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/webExtensionManagementService';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { ILogService } from 'vs/platform/log/common/log';
+import { NativeProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/profileAwareExtensionManagementService';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -29,11 +28,10 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ILogService logService: ILogService,
 	) {
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const extensionManagementService = new ExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'));
+			const extensionManagementService = instantiationService.createInstance(NativeProfileAwareExtensionManagementService, remoteAgentConnection.getChannel<IChannel>('extensions'), undefined);
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,

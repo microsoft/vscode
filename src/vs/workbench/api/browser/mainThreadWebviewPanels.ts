@@ -165,7 +165,13 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 		const extension = reviveWebviewExtension(extensionData);
 
-		const webview = this._webviewWorkbenchService.createWebview(handle, this.webviewPanelViewType.fromExternal(viewType), initData.title, mainThreadShowOptions, reviveWebviewOptions(initData.panelOptions), reviveWebviewContentOptions(initData.webviewOptions), extension);
+		const webview = this._webviewWorkbenchService.createWebview({
+			id: handle,
+			options: reviveWebviewOptions(initData.panelOptions),
+			contentOptions: reviveWebviewContentOptions(initData.webviewOptions),
+			extension
+		}, this.webviewPanelViewType.fromExternal(viewType), initData.title, mainThreadShowOptions);
+
 		this.addWebviewInput(handle, webview, { serializeBuffersForPostMessage: initData.serializeBuffersForPostMessage });
 
 		const payload = {
@@ -174,8 +180,10 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		} as const;
 
 		type Classification = {
-			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'Id of the extension that created the webview panel' };
-			viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'Id of the webview' };
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the extension that created the webview panel' };
+			viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the webview' };
+			owner: 'mjbvz';
+			comment: 'Triggered when a webview is created. Records the type of webview and the extension which created it';
 		};
 
 		this._telemetryService.publicLog2<typeof payload, Classification>('webviews:createWebviewPanel', payload);

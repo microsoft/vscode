@@ -605,7 +605,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test('File not modified error is handled gracefully', async function () {
-		let model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		await model.resolve();
 
@@ -620,7 +620,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test('Resolve error is handled gracefully if model already exists', async function () {
-		let model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		await model.resolve();
 		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('error', FileOperationResult.FILE_NOT_FOUND));
@@ -771,7 +771,7 @@ suite('Files - TextFileEditorModel', () => {
 	test('Save Participant, participant cancelled when saved again', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		let participations: boolean[] = [];
+		const participations: boolean[] = [];
 
 		const participant = accessor.textFileService.files.addSaveParticipant({
 			participate: async (model, context, progress, token) => {
@@ -821,7 +821,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	async function testSaveFromSaveParticipant(model: TextFileEditorModel, async: boolean): Promise<void> {
-		let savePromise: Promise<boolean>;
+
 		let breakLoop = false;
 
 		const participant = accessor.textFileService.files.addSaveParticipant({
@@ -845,7 +845,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.resolve();
 		model.updateTextEditorModel(createTextBufferFactory('foo'));
 
-		savePromise = model.save();
+		const savePromise = model.save();
 		await savePromise;
 
 		participant.dispose();

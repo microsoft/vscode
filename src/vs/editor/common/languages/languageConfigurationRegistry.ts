@@ -21,6 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { LanguageBracketsConfiguration } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
 
 /**
  * Interface used to support insertion of mode specific comments.
@@ -363,6 +364,7 @@ export class ResolvedLanguageConfiguration {
 	public readonly indentRulesSupport: IndentRulesSupport | null;
 	public readonly indentationRules: IndentationRule | undefined;
 	public readonly foldingRules: FoldingRules;
+	public readonly bracketsNew: LanguageBracketsConfiguration;
 
 	constructor(
 		public readonly languageId: string,
@@ -389,6 +391,11 @@ export class ResolvedLanguageConfiguration {
 			this.indentRulesSupport = null;
 		}
 		this.foldingRules = this.underlyingConfig.folding || {};
+
+		this.bracketsNew = new LanguageBracketsConfiguration(
+			languageId,
+			this.underlyingConfig
+		);
 	}
 
 	public getWordDefinition(): RegExp {

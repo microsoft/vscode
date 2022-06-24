@@ -255,7 +255,7 @@ export class SimpleFileDialog {
 		this.isWindows = await this.checkIsWindowsOS();
 		let homedir: URI = this.options.defaultUri ? this.options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
 		let stat: IFileStatWithPartialMetadata | undefined;
-		let ext: string = resources.extname(homedir);
+		const ext: string = resources.extname(homedir);
 		if (this.options.defaultUri) {
 			try {
 				stat = await this.fileService.stat(this.options.defaultUri);
@@ -556,7 +556,7 @@ export class SimpleFileDialog {
 
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
 		if ((value.length > 0) && (value[0] === '~')) {
-			let newDir = this.tildaReplace(value);
+			const newDir = this.tildaReplace(value);
 			return await this.updateItems(newDir, true) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 		} else if (value === '\\') {
 			valueUri = this.root(this.currentFolder);
@@ -951,7 +951,7 @@ export class SimpleFileDialog {
 				folder = await this.fileService.resolve(currentFolder);
 			}
 			const items = folder.children ? await Promise.all(folder.children.map(child => this.createItem(child, currentFolder, token))) : [];
-			for (let item of items) {
+			for (const item of items) {
 				if (item) {
 					result.push(item);
 				}

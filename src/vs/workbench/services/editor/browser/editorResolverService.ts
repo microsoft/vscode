@@ -69,8 +69,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	) {
 		super();
 		// Read in the cache on statup
-		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorResolverService.cacheStorageID, StorageScope.GLOBAL, JSON.stringify([]))));
-		this.storageService.remove(EditorResolverService.cacheStorageID, StorageScope.GLOBAL);
+		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorResolverService.cacheStorageID, StorageScope.PROFILE, JSON.stringify([]))));
+		this.storageService.remove(EditorResolverService.cacheStorageID, StorageScope.PROFILE);
 		this.convertOldAssociationFormat();
 
 		this._register(this.storageService.onWillSaveState(() => {
@@ -140,7 +140,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		let resource = EditorResourceAccessor.getCanonicalUri(untypedEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		let options = untypedEditor.options;
+		const options = untypedEditor.options;
 
 		// If it was resolved before we await for the extensions to activate and then proceed with resolution or else the backing extensions won't be registered
 		if (this.cache && resource && this.resourceMatchesCache(resource)) {
@@ -281,7 +281,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (!Array.isArray(rawAssociations)) {
 			return;
 		}
-		let newSettingObject = Object.create(null);
+		const newSettingObject = Object.create(null);
 		// Make the correctly formatted object from the array and then set that object
 		for (const association of rawAssociations) {
 			if (association.filenamePattern) {
@@ -303,7 +303,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				rawAssociations[key] = value;
 			}
 		}
-		let associations = [];
+		const associations = [];
 		for (const [key, value] of Object.entries(rawAssociations)) {
 			const association: EditorAssociation = {
 				filenamePattern: key,
@@ -337,7 +337,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	private findMatchingEditors(resource: URI): RegisteredEditor[] {
 		// The user setting should be respected even if the editor doesn't specify that resource in package.json
 		const userSettings = this.getAssociationsForResource(resource);
-		let matchingEditors: RegisteredEditor[] = [];
+		const matchingEditors: RegisteredEditor[] = [];
 		// Then all glob patterns
 		for (const [key, editors] of this._editors) {
 			for (const editor of editors) {
@@ -396,7 +396,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			};
 		}
 
-		let editors = this.findMatchingEditors(resource);
+		const editors = this.findMatchingEditors(resource);
 
 		const associationsFromSetting = this.getAssociationsForResource(resource);
 		// We only want minPriority+ if no user defined setting is found, else we won't resolve an editor
@@ -546,13 +546,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			[key: string]: string[];
 		};
 		const editors = this.findMatchingEditors(resource);
-		const storedChoices: StoredChoice = JSON.parse(this.storageService.get(EditorResolverService.conflictingDefaultsStorageID, StorageScope.GLOBAL, '{}'));
+		const storedChoices: StoredChoice = JSON.parse(this.storageService.get(EditorResolverService.conflictingDefaultsStorageID, StorageScope.PROFILE, '{}'));
 		const globForResource = `*${extname(resource)}`;
 		// Writes to the storage service that a choice has been made for the currently installed editors
 		const writeCurrentEditorsToStorage = () => {
 			storedChoices[globForResource] = [];
 			editors.forEach(editor => storedChoices[globForResource].push(editor.editorInfo.id));
-			this.storageService.store(EditorResolverService.conflictingDefaultsStorageID, JSON.stringify(storedChoices), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(EditorResolverService.conflictingDefaultsStorageID, JSON.stringify(storedChoices), StorageScope.PROFILE, StorageTarget.MACHINE);
 		};
 
 		// If the user has already made a choice for this editor we don't want to ask them again
@@ -746,7 +746,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	private sendEditorResolutionTelemetry(chosenInput: EditorInput): void {
 		type editorResolutionClassification = {
-			viewType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'lramos15'; comment: 'The id of the editor opened. Used to gain an undertsanding of what editors are most popular' };
+			viewType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the editor opened. Used to gain an undertsanding of what editors are most popular' };
+			owner: 'lramos15';
+			comment: 'An event that fires when an editor type is picked';
 		};
 		type editorResolutionEvent = {
 			viewType: string;
@@ -781,7 +783,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				cacheStorage.add(association.filenamePattern);
 			}
 		}
-		this.storageService.store(EditorResolverService.cacheStorageID, JSON.stringify(Array.from(cacheStorage)), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(EditorResolverService.cacheStorageID, JSON.stringify(Array.from(cacheStorage)), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private resourceMatchesCache(resource: URI): boolean {

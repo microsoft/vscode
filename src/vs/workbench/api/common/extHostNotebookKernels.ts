@@ -108,7 +108,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor; message: any }>();
 
 		const data: INotebookKernelDto2 = {
-			id: createKernelId(extension, id),
+			id: createKernelId(extension.identifier, id),
 			notebookType: viewType,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
@@ -218,7 +218,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					that._logService.trace(`NotebookController[${handle}] NOT associated to notebook, associated to THESE notebooks:`, Array.from(associatedNotebooks.keys()).map(u => u.toString()));
 					throw new Error(`notebook controller is NOT associated to notebook: ${cell.notebook.uri.toString()}`);
 				}
-				return that._createNotebookCellExecution(cell, createKernelId(extension, this.id));
+				return that._createNotebookCellExecution(cell, createKernelId(extension.identifier, this.id));
 			},
 			dispose: () => {
 				if (!isDisposed) {
@@ -255,6 +255,15 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			associatedNotebooks
 		});
 		return controller;
+	}
+
+	getIdByController(controller: vscode.NotebookController) {
+		for (const [_, candidate] of this._kernelData) {
+			if (candidate.controller === controller) {
+				return createKernelId(candidate.extensionId, controller.id);
+			}
+		}
+		return null;
 	}
 
 	$acceptNotebookAssociation(handle: number, uri: UriComponents, value: boolean): void {
@@ -432,6 +441,17 @@ class NotebookCellExecutionTask extends Disposable {
 		}
 	}
 
+	private cellIndexToHandle(cellOrCellIndex: vscode.NotebookCell | undefined): number {
+		let cell: ExtHostCell | undefined = this._cell;
+		if (cellOrCellIndex) {
+			cell = this._cell.notebook.getCellFromApiCell(cellOrCellIndex);
+		}
+		if (!cell) {
+			throw new Error('INVALID cell');
+		}
+		return cell.handle;
+	}
+
 	private validateAndConvertOutputs(items: vscode.NotebookCellOutput[]): NotebookOutputDto[] {
 		return items.map(output => {
 			const newOutput = NotebookCellOutput.ensureUniqueMimeTypes(output.items, true);
@@ -447,10 +467,12 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 
 	private async updateOutputs(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell: vscode.NotebookCell | undefined, append: boolean): Promise<void> {
+		const handle = this.cellIndexToHandle(cell);
 		const outputDtos = this.validateAndConvertOutputs(asArray(outputs));
 		return this.updateSoon(
 			{
 				editType: CellExecutionUpdateType.Output,
+				cellHandle: handle,
 				append,
 				outputs: outputDtos
 			});
@@ -583,6 +605,6 @@ class TimeoutBasedCollector<T> {
 	}
 }
 
-function createKernelId(extension: IExtensionDescription, id: string): string {
-	return `${extension.identifier.value}/${id}`;
+export function createKernelId(extensionIdentifier: ExtensionIdentifier, id: string): string {
+	return `${extensionIdentifier.value}/${id}`;
 }

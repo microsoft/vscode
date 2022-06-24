@@ -23,6 +23,7 @@ import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneT
 import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * Register information about a new language.
@@ -374,7 +375,7 @@ export function registerTokensProviderFactory(languageId: string, factory: Token
 			if (isATokensProvider(result)) {
 				return createTokenizationSupportAdapter(languageId, result);
 			}
-			return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, result));
+			return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, result), StandaloneServices.get(IConfigurationService));
 		}
 	};
 	return languages.TokenizationRegistry.registerFactory(languageId, adaptedFactory);
@@ -405,7 +406,7 @@ export function setTokensProvider(languageId: string, provider: TokensProvider |
  */
 export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable {
 	const create = (languageDef: IMonarchLanguage) => {
-		return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, languageDef));
+		return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, languageDef), StandaloneServices.get(IConfigurationService));
 	};
 	if (isThenable<IMonarchLanguage>(languageDef)) {
 		return registerTokensProviderFactory(languageId, { create: () => languageDef });
