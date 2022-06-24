@@ -1667,8 +1667,8 @@ export class CommandCenter {
 	}
 
 	@command('git.commit', { repository: true })
-	async commit(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository);
+	async commit(repository: Repository, postCommitCommand?: PostCommitCommand): Promise<void> {
+		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 
 	@command('git.commitStaged', { repository: true })
@@ -1699,11 +1699,6 @@ export class CommandCenter {
 	@command('git.commitAllAmend', { repository: true })
 	async commitAllAmend(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: true, amend: true });
-	}
-
-	@command('git.commitWithPostCommitCommand', { repository: true })
-	async commitWithPostCommitCommand(repository: Repository, postCommitCommand?: PostCommitCommand) {
-		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 
 	private async _commitEmpty(repository: Repository, noVerify?: boolean): Promise<void> {

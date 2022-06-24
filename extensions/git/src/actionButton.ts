@@ -110,17 +110,17 @@ export class ActionButtonCommand {
 				secondaryCommands: [
 					[
 						{
-							command: 'git.commitWithPostCommitCommand',
+							command: 'git.commit',
 							title: 'Commit',
 							arguments: [this.repository.sourceControl, ''],
 						},
 						{
-							command: 'git.commitWithPostCommitCommand',
+							command: 'git.commit',
 							title: 'Commit & Push',
 							arguments: [this.repository.sourceControl, 'push'],
 						},
 						{
-							command: 'git.commitWithPostCommitCommand',
+							command: 'git.commit',
 							title: 'Commit & Sync',
 							arguments: [this.repository.sourceControl, 'sync'],
 						},
