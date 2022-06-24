@@ -212,13 +212,11 @@ suite('Markdown path completion provider', () => {
 		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
 	});
 
-	test('Path component should not be encoded with <>', async () => {
+	test('Check paths encoded with a space', async () => {
 		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
-			`[](<${CURSOR}>)`
+			`[](./sub%20with%20space/${CURSOR})`
 		));
 
-		assert.ok(completions.some(x => x.label === 'a.md'), 'Has a.md file completion');
-		assert.ok(completions.some(x => x.label === 'b.md'), 'Has b.md file completion');
-		assert.ok(completions.some(x => x.label === 'sub/'), 'Has sub folder completion');
+		assert.ok(completions.some(x => x.label === 'file.md'), 'Has file from space');
 	});
 });

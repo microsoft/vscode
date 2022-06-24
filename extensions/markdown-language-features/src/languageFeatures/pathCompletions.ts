@@ -181,9 +181,9 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 			};
 		}
 
-		const angleBracketsMatch = linePrefixText.match(this.referenceLinkStartPattern);
-		if (angleBracketsMatch) {
-			const prefix = angleBracketsMatch[2];
+		const referenceLinkPrefixMatch : any = linePrefixText.match(this.referenceLinkStartPattern);
+		if (referenceLinkPrefixMatch) {
+			const prefix = referenceLinkPrefixMatch[2];
 			if (this.refLooksLikeUrl(prefix)) {
 				return undefined;
 			}
@@ -195,6 +195,17 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
 				linkSuffix: suffix ? suffix[0] : '',
 				anchorInfo: this.getAnchorContext(prefix),
+			};
+		}
+
+		if (referenceLinkPrefixMatch) {
+			const prefix = referenceLinkPrefixMatch[2];
+			const suffix = lineSuffixText.match(/^[^\]\s]*/);
+			return {
+				kind: CompletionContextKind.ReferenceLink,
+				linkPrefix: prefix,
+				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
+				linkSuffix: suffix ? suffix[0] : '',
 			};
 		}
 
@@ -212,18 +223,6 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
 				linkSuffix: suffix ? suffix[0] : '',
 				anchorInfo: this.getAnchorContext(prefix),
-			};
-		}
-
-		const referenceLinkPrefixMatch = linePrefixText.match(this.referenceLinkStartPattern);
-		if (referenceLinkPrefixMatch) {
-			const prefix = referenceLinkPrefixMatch[2];
-			const suffix = lineSuffixText.match(/^[^\]\s]*/);
-			return {
-				kind: CompletionContextKind.ReferenceLink,
-				linkPrefix: prefix,
-				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
-				linkSuffix: suffix ? suffix[0] : '',
 			};
 		}
 
