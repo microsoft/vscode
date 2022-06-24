@@ -9,37 +9,44 @@ import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLa
 import { ICustomHover, ITooltipMarkdownString, IUpdatableHoverOptions, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+import { MODIFIED_INDICATOR_USE_INLINE_ONLY } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 const $ = DOM.$;
 
+type ScopeString = 'workspace' | 'user' | 'remote';
+
 export interface ISettingOverrideClickEvent {
-	scope: string;
-	targetKey: string;
+	scope: ScopeString;
+	language: string;
+	settingKey: string;
 }
 
 /**
  * Renders the indicators next to a setting, such as "Also Modified In".
  */
-export class SettingsTreeIndicatorsLabel {
+export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private indicatorsContainerElement: HTMLElement;
 	private scopeOverridesElement: HTMLElement;
 	private scopeOverridesLabel: SimpleIconLabel;
 	private syncIgnoredElement: HTMLElement;
 	private defaultOverrideIndicatorElement: HTMLElement;
 	private hoverDelegate: IHoverDelegate;
+	private hover: ICustomHover | undefined;
 
 	constructor(
 		container: HTMLElement,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
-		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService) {
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@ILanguageService private readonly languageService: ILanguageService) {
 		this.indicatorsContainerElement = DOM.append(container, $('.misc-label'));
 		this.indicatorsContainerElement.style.display = 'inline';
 
@@ -105,45 +112,94 @@ export class SettingsTreeIndicatorsLabel {
 		this.render();
 	}
 
+	private getInlineScopeDisplayText(completeScope: string): string {
+		const [scope, language] = completeScope.split(':');
+		const localizedScope = scope === 'user' ?
+			localize('user', "User") : scope === 'workspace' ?
+				localize('workspace', "Workspace") : localize('remote', "Remote");
+		if (language) {
+			return `${this.languageService.getLanguageName(language)} > ${localizedScope}`;
+		}
+		return localizedScope;
+	}
+
+	dispose() {
+		this.hover?.dispose();
+	}
+
 	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
 		this.scopeOverridesElement.innerText = '';
 		this.scopeOverridesElement.style.display = 'none';
-		if (element.overriddenScopeList.length) {
-			this.scopeOverridesElement.style.display = 'inline';
-			if (element.overriddenScopeList.length === 1) {
+		if (element.overriddenScopeList.length || element.overriddenDefaultsLanguageList.length) {
+			if ((MODIFIED_INDICATOR_USE_INLINE_ONLY && element.overriddenScopeList.length) ||
+				(element.overriddenScopeList.length === 1 && !element.overriddenDefaultsLanguageList.length)) {
+				// Render inline if we have the flag and there are scope overrides to render,
+				// or if there is only one scope override to render and no language overrides.
+				this.scopeOverridesElement.style.display = 'inline';
+				this.hover?.dispose();
+
 				// Just show all the text in the label.
 				const prefaceText = element.isConfigured ?
 					localize('alsoConfiguredIn', "Also modified in") :
 					localize('configuredIn', "Modified in");
-				this.scopeOverridesLabel.text = `${prefaceText}: `;
+				this.scopeOverridesLabel.text = `${prefaceText} `;
 
-				const firstScope = element.overriddenScopeList[0];
-				const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, firstScope));
-				elementDisposables.add(
-					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
-						onDidClickOverrideElement.fire({
-							targetKey: element.setting.key,
-							scope: firstScope
-						});
-						e.preventDefault();
-						e.stopPropagation();
-					}));
-			} else {
-				// Show most of the text in a custom hover.
+				for (let i = 0; i < element.overriddenScopeList.length; i++) {
+					const overriddenScope = element.overriddenScopeList[i];
+					const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(overriddenScope)));
+					if (i !== element.overriddenScopeList.length - 1) {
+						DOM.append(this.scopeOverridesElement, $('span.comma', undefined, ', '));
+					}
+					elementDisposables.add(
+						DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
+							const [scope, language] = overriddenScope.split(':');
+							onDidClickOverrideElement.fire({
+								settingKey: element.setting.key,
+								scope: scope as ScopeString,
+								language
+							});
+							e.preventDefault();
+							e.stopPropagation();
+						}));
+				}
+			} else if (!MODIFIED_INDICATOR_USE_INLINE_ONLY) {
+				// Even if the check above fails, we want to
+				// show the text in a custom hover only if
+				// the feature flag isn't on.
+				this.scopeOverridesElement.style.display = 'inline';
 				let scopeOverridesLabelText = '$(info) ';
 				scopeOverridesLabelText += element.isConfigured ?
 					localize('alsoConfiguredElsewhere', "Also modified elsewhere") :
 					localize('configuredElsewhere', "Modified elsewhere");
 				this.scopeOverridesLabel.text = scopeOverridesLabelText;
 
-				const prefaceText = element.isConfigured ?
-					localize('alsoModifiedInScopes', "The setting has also been modified in the following scopes:") :
-					localize('modifiedInScopes', "The setting has been modified in the following scopes:");
-				let contentMarkdownString = prefaceText;
-				let contentFallback = prefaceText;
-				for (const scope of element.overriddenScopeList) {
-					contentMarkdownString += `\n- [${scope}](${scope})`;
-					contentFallback += `\n• ${scope}`;
+				let contentMarkdownString = '';
+				let contentFallback = '';
+				if (element.overriddenScopeList.length) {
+					const prefaceText = element.isConfigured ?
+						localize('alsoModifiedInScopes', "The setting has also been modified in the following scopes:") :
+						localize('modifiedInScopes', "The setting has been modified in the following scopes:");
+					contentMarkdownString = prefaceText;
+					contentFallback = prefaceText;
+					for (const scope of element.overriddenScopeList) {
+						const scopeDisplayText = this.getInlineScopeDisplayText(scope);
+						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(scope)} "${getAccessibleScopeDisplayText(scope, this.languageService)}")`;
+						contentFallback += `\n• ${scopeDisplayText}`;
+					}
+				}
+				if (element.overriddenDefaultsLanguageList.length) {
+					if (contentMarkdownString) {
+						contentMarkdownString += `\n\n`;
+						contentFallback += `\n\n`;
+					}
+					const prefaceText = localize('hasDefaultOverridesForLanguages', "The following languages have default overrides:");
+					contentMarkdownString += prefaceText;
+					contentFallback += prefaceText;
+					for (const language of element.overriddenDefaultsLanguageList) {
+						const scopeDisplayText = this.languageService.getLanguageName(language);
+						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(`default:${language}`)} "${scopeDisplayText}")`;
+						contentFallback += `\n• ${scopeDisplayText}`;
+					}
 				}
 				const content: ITooltipMarkdownString = {
 					markdown: {
@@ -153,17 +209,19 @@ export class SettingsTreeIndicatorsLabel {
 					},
 					markdownNotSupportedFallback: contentFallback
 				};
-				let hover: ICustomHover | undefined = undefined;
 				const options: IUpdatableHoverOptions = {
-					linkHandler: (scope: string) => {
+					linkHandler: (url: string) => {
+						const [scope, language] = decodeURIComponent(url).split(':');
 						onDidClickOverrideElement.fire({
-							targetKey: element.setting.key,
-							scope
+							settingKey: element.setting.key,
+							scope: scope as ScopeString,
+							language
 						});
-						hover!.dispose();
+						this.hover!.hide();
 					}
 				};
-				hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
+				this.hover?.dispose();
+				this.hover = setupCustomHover(this.hoverDelegate, this.scopeOverridesElement, content, options);
 			}
 		}
 		this.render();
@@ -185,7 +243,7 @@ function getDefaultValueSourceToDisplay(element: SettingsTreeSettingElement): st
 	let sourceToDisplay: string | undefined;
 	const defaultValueSource = element.defaultValueSource;
 	if (defaultValueSource) {
-		if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
+		if (typeof defaultValueSource !== 'string') {
 			sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
 		} else if (typeof defaultValueSource === 'string') {
 			sourceToDisplay = defaultValueSource;
@@ -194,14 +252,37 @@ function getDefaultValueSourceToDisplay(element: SettingsTreeSettingElement): st
 	return sourceToDisplay;
 }
 
-export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService): string {
+function getAccessibleScopeDisplayText(completeScope: string, languageService: ILanguageService): string {
+	const [scope, language] = completeScope.split(':');
+	const localizedScope = scope === 'user' ?
+		localize('user', "User") : scope === 'workspace' ?
+			localize('workspace', "Workspace") : localize('remote', "Remote");
+	if (language) {
+		return localize('modifiedInScopeForLanguage', "The {0} scope for {1}", localizedScope, languageService.getLanguageName(language));
+	}
+	return localizedScope;
+}
+
+function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languageService: ILanguageService): string {
+	const [scope, language] = completeScope.split(':');
+	const localizedScope = scope === 'user' ?
+		localize('user', "User") : scope === 'workspace' ?
+			localize('workspace', "Workspace") : localize('remote', "Remote");
+	if (language) {
+		return localize('modifiedInScopeForLanguageMidSentence', "the {0} scope for {1}", localizedScope.toLowerCase(), languageService.getLanguageName(language));
+	}
+	return localizedScope;
+}
+
+export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
 	// Add other overrides text
 	const otherOverridesStart = element.isConfigured ?
 		localize('alsoConfiguredIn', "Also modified in") :
 		localize('configuredIn', "Modified in");
-	const otherOverridesList = element.overriddenScopeList.join(', ');
+	const otherOverridesList = element.overriddenScopeList
+		.map(scope => getAccessibleScopeDisplayMidSentenceText(scope, languageService)).join(', ');
 	if (element.overriddenScopeList.length) {
 		ariaLabelSections.push(`${otherOverridesStart} ${otherOverridesList}`);
 	}
@@ -216,6 +297,14 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	const sourceToDisplay = getDefaultValueSourceToDisplay(element);
 	if (sourceToDisplay !== undefined) {
 		ariaLabelSections.push(localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay));
+	}
+
+	// Add text about default values being overridden in other languages
+	const otherLanguageOverridesStart = localize('defaultOverriddenListPreface', "The default value of the setting has also been overridden for the following languages:");
+	const otherLanguageOverridesList = element.overriddenDefaultsLanguageList
+		.map(language => languageService.getLanguageName(language)).join(', ');
+	if (element.overriddenDefaultsLanguageList.length) {
+		ariaLabelSections.push(`${otherLanguageOverridesStart} ${otherLanguageOverridesList}`);
 	}
 
 	const ariaLabel = ariaLabelSections.join('. ');
