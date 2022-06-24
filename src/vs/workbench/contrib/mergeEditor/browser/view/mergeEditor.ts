@@ -27,7 +27,7 @@ import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/ed
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
@@ -49,8 +49,37 @@ import { InputCodeEditorView } from './editors/inputCodeEditorView';
 import { ResultCodeEditorView } from './editors/resultCodeEditorView';
 
 export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false);
-export const ctxUsesColumnLayout = new RawContextKey<boolean>('mergeEditorUsesColumnLayout', false);
+export const ctxMergeEditorLayout = new RawContextKey<MergeEditorLayoutTypes>('mergeEditorLayout', 'mixed');
 export const ctxBaseResourceScheme = new RawContextKey<string>('baseResourceScheme', '');
+
+export type MergeEditorLayoutTypes = 'mixed' | 'columns';
+
+class MergeEditorLayout {
+
+	private static readonly _key = 'mergeEditor/layout';
+	private _value: MergeEditorLayoutTypes = 'mixed';
+
+
+	constructor(@IStorageService private _storageService: IStorageService) {
+		const value = _storageService.get(MergeEditorLayout._key, StorageScope.PROFILE, 'mixed');
+		if (value === 'mixed' || value === 'columns') {
+			this._value = value;
+		} else {
+			this._value = 'mixed';
+		}
+	}
+
+	get value() {
+		return this._value;
+	}
+
+	set value(value) {
+		if (this._value !== value) {
+			this._value = value;
+			this._storageService.store(MergeEditorLayout._key, this._value, StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+}
 
 export class MergeEditor extends AbstractTextEditor<any> {
 
@@ -60,12 +89,14 @@ export class MergeEditor extends AbstractTextEditor<any> {
 
 	private _grid!: Grid<IView>;
 
+
 	private readonly input1View = this._register(this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable }));
 	private readonly input2View = this._register(this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable }));
 	private readonly inputResultView = this._register(this.instantiation.createInstance(ResultCodeEditorView, { readonly: false }));
 
+	private readonly _layoutMode: MergeEditorLayout;
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
-	private readonly _ctxUsesColumnLayout: IContextKey<boolean>;
+	private readonly _ctxUsesColumnLayout: IContextKey<string>;
 	private readonly _ctxBaseResourceScheme: IContextKey<string>;
 
 	private _model: MergeEditorModel | undefined;
@@ -92,8 +123,11 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		super(MergeEditor.ID, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
 		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(_contextKeyService);
-		this._ctxUsesColumnLayout = ctxUsesColumnLayout.bindTo(_contextKeyService);
+		this._ctxUsesColumnLayout = ctxMergeEditorLayout.bindTo(_contextKeyService);
 		this._ctxBaseResourceScheme = ctxBaseResourceScheme.bindTo(_contextKeyService);
+
+		this._layoutMode = instantiation.createInstance(MergeEditorLayout);
+		this._ctxUsesColumnLayout.set(this._layoutMode.value);
 
 		const reentrancyBarrier = new ReentrancyBarrier();
 
@@ -200,7 +234,10 @@ export class MergeEditor extends AbstractTextEditor<any> {
 
 		reset(parent, this._grid.element);
 		this._register(this._grid);
-		this._ctxUsesColumnLayout.set(false);
+
+		if (this._layoutMode.value === 'columns') {
+			this._grid.moveView(this.inputResultView.view, Sizing.Distribute, this.input1View.view, Direction.Right);
+		}
 
 		this.applyOptions(initialOptions);
 	}
@@ -355,17 +392,19 @@ export class MergeEditor extends AbstractTextEditor<any> {
 
 	// --- layout
 
-	private _usesColumnLayout = false;
-
-	toggleLayout(): void {
-		if (!this._usesColumnLayout) {
-			this._grid.moveView(this.inputResultView.view, Sizing.Distribute, this.input1View.view, Direction.Right);
-		} else {
+	setLayout(newValue: MergeEditorLayoutTypes): void {
+		const value = this._layoutMode.value;
+		if (value === newValue) {
+			return;
+		}
+		if (newValue === 'mixed') {
 			this._grid.moveView(this.inputResultView.view, this._grid.height * .62, this.input1View.view, Direction.Down);
 			this._grid.moveView(this.input2View.view, Sizing.Distribute, this.input1View.view, Direction.Right);
+		} else {
+			this._grid.moveView(this.inputResultView.view, Sizing.Distribute, this.input1View.view, Direction.Right);
 		}
-		this._usesColumnLayout = !this._usesColumnLayout;
-		this._ctxUsesColumnLayout.set(this._usesColumnLayout);
+		this._layoutMode.value = newValue;
+		this._ctxUsesColumnLayout.set(newValue);
 	}
 
 	// --- view state (TODO@bpasero revisit with https://github.com/microsoft/vscode/issues/150804)
