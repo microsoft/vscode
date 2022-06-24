@@ -32,7 +32,7 @@ declare namespace UtilityProcessProposedApi {
 		constructor(modulePath: string, args?: string[] | undefined, options?: UtilityProcessOptions);
 		postMessage(channel: string, message: any, transfer?: Electron.MessagePortMain[]): void;
 		kill(signal?: number | string): boolean;
-		on(event: 'exit', listener: (code: number) => void): this;
+		on(event: 'exit', listener: (code: number | undefined) => void): this;
 		on(event: 'spawn', listener: () => void): this;
 	}
 }
@@ -335,14 +335,15 @@ class UtilityExtensionHostProcess extends Disposable {
 
 		this._process = new UtilityProcess(modulePath, args, { serviceName, env, execArgv });
 
-		this._process.on('spawn', () => {
-			this._logService.info(`UtilityProcess<${this.id}>: spawn event received.`);
-		});
-		this._process.on('exit', (code: number) => {
-			this._logService.info(`UtilityProcess<${this.id}>: exit event with code ${code} received.`);
+		this._register(Event.fromNodeEventEmitter<void>(this._process, 'spawn')(() => {
+			this._logService.info(`UtilityProcess<${this.id}>: received spawn event.`);
+		}));
+		this._register(Event.fromNodeEventEmitter<number | undefined>(this._process, 'exit')((code: number | undefined) => {
+			code = code || 0;
+			this._logService.info(`UtilityProcess<${this.id}>: received exit event with code ${code}.`);
 			this._hasExited = true;
 			this._onExit.fire({ pid: this._process!.pid!, code, signal: '' });
-		});
+		}));
 		const listener = (event: electron.Event, details: electron.Details) => {
 			if (details.type !== 'Utility') {
 				return;
