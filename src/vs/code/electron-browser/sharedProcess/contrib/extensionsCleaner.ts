@@ -44,7 +44,7 @@ export class ExtensionsCleaner extends Disposable {
 class ProfileExtensionsCleaner extends Disposable {
 
 	private profileExtensionsLocations = new Map<string, URI[]>;
-	private readonly initPromise: Promise<boolean>;
+	private initPromise: Promise<boolean>;
 
 	constructor(
 		@INativeServerExtensionManagementService private readonly extensionManagementService: INativeServerExtensionManagementService,
@@ -62,6 +62,7 @@ class ProfileExtensionsCleaner extends Disposable {
 	}
 
 	private async initialize(): Promise<boolean> {
+		this.profileExtensionsLocations.clear();
 		if (this.userDataProfilesService.profiles.length === 1) {
 			return true;
 		}
@@ -80,12 +81,15 @@ class ProfileExtensionsCleaner extends Disposable {
 		}
 	}
 
-	private async onDidChangeProfiles({ added, removed }: DidChangeProfilesEvent): Promise<void> {
+	private async onDidChangeProfiles({ added, removed, all }: DidChangeProfilesEvent): Promise<void> {
 		if (!(await this.initPromise)) {
 			return;
 		}
 		await Promise.all(added.map(profile => profile.extensionsResource ? this.populateExtensionsFromProfile(profile.extensionsResource) : Promise.resolve()));
 		await Promise.all(removed.map(profile => profile.extensionsResource ? this.removeExtensionsFromProfile(profile.extensionsResource) : Promise.resolve()));
+		if (all.length === 1) {
+			this.initPromise = this.initialize();
+		}
 	}
 
 	private async onDidInstallExtensions(installedExtensions: readonly ServerInstallExtensionResult[]): Promise<void> {
