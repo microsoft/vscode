@@ -13,7 +13,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalInstanceService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalExitReason, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ConfirmOnKill } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -167,7 +167,9 @@ export class TerminalEditorInput extends EditorInput {
 
 		this._register(toDisposable(() => {
 			if (!this._isDetached && !this._isShuttingDown) {
-				instance.dispose();
+				// Will be ignored if triggered by onExit or onDisposed terminal events
+				// as disposed was already called
+				instance.dispose(TerminalExitReason.User);
 			}
 		}));
 

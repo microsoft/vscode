@@ -1307,7 +1307,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return confirmation.confirmed;
 	}
 
-	override dispose(isShutdown?: boolean): void {
+	override dispose(reason?: TerminalExitReason): void {
 		if (this._isDisposed) {
 			return;
 		}
@@ -1346,7 +1346,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._pressAnyKeyToCloseListener = undefined;
 		}
 
-		this._exitReason = isShutdown ? TerminalExitReason.Shutdown : TerminalExitReason.Unknown;
+		this._exitReason = reason || TerminalExitReason.Unknown;
 		this._processManager.dispose();
 		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
 		// hasn't happened yet
@@ -1357,11 +1357,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		super.dispose();
 	}
 
-	async detachFromProcess(): Promise<void> {
+	async detachProcessAndDispose(reason: TerminalExitReason): Promise<void> {
 		// Detach the process and dispose the instance, without the instance dispose the terminal
 		// won't go away
 		await this._processManager.detachFromProcess();
-		this.dispose();
+		this.dispose(reason);
 	}
 
 	focus(force?: boolean): void {
@@ -1697,7 +1697,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		} else {
-			this.dispose();
+			this.dispose(TerminalExitReason.Process);
 			if (exitMessage) {
 				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
 				if (failedDuringLaunch || this._configHelper.config.showExitAlert) {
@@ -1767,7 +1767,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (this._pressAnyKeyToCloseListener) {
 					this._pressAnyKeyToCloseListener.dispose();
 					this._pressAnyKeyToCloseListener = undefined;
-					this.dispose();
+					this.dispose(TerminalExitReason.Process);
 					event.preventDefault();
 				}
 			});

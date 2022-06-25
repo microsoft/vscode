@@ -12,17 +12,29 @@ declare module 'vscode' {
 	 */
 	export enum TerminalExitReason {
 		/**
-		 * Unknow reason, possible reasons could be:
-		 * - Triggered by user action
-		 * - Triggered by running process
-		 * - Triggered by an extension
+		 * Unknow reason.
 		 */
 		Unknown = 0,
 
 		/**
 		 * The window closed/reloaded.
 		 */
-		Shutdown = 1
+		Shutdown = 1,
+
+		/**
+		 * The shell process exited.
+		 */
+		Process = 2,
+
+		/**
+		 * The user closed the terminal.
+		 */
+		User = 3,
+
+		/**
+		 * An extension disposed the terminal.
+		 */
+		Extension = 4,
 	}
 
 	export interface TerminalExitStatus {

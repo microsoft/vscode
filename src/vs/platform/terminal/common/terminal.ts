@@ -793,5 +793,8 @@ export interface IShellIntegration {
 
 export enum TerminalExitReason {
 	Unknown = 0,
-	Shutdown = 1
+	Shutdown = 1,
+	Process = 2,
+	User = 3,
+	Extension = 4,
 }

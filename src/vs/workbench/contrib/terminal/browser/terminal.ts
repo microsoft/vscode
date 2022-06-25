@@ -653,14 +653,17 @@ export interface ITerminalInstance {
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
-	 * @param isShutdown Whether the kill was triggered by lifecycle shutdown
+	 * @param reason The reason why the terminal is being disposed
 	 */
-	dispose(isShutdown?: boolean): void;
+	dispose(reason?: TerminalExitReason): void;
 
 	/**
-	 * Inform the process that the terminal is now detached.
+	 * Informs the process that the terminal is now detached and
+	 * then disposes the terminal.
+	 *
+	 * @param reason The reason why the terminal is being disposed
 	 */
-	detachFromProcess(): Promise<void>;
+	detachProcessAndDispose(reason: TerminalExitReason): Promise<void>;
 
 	/**
 	 * Check if anything is selected in terminal.
