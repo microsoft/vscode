@@ -6,6 +6,7 @@
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
@@ -14,10 +15,11 @@ export class NativeWorkbenchStorageService extends NativeStorageService {
 	constructor(
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
 		private readonly userDataProfileService: IUserDataProfileService,
+		userDataProfilesService: IUserDataProfilesService,
 		mainProcessService: IMainProcessService,
 		environmentService: IEnvironmentService
 	) {
-		super(workspace, userDataProfileService, mainProcessService, environmentService);
+		super(workspace, { currentProfile: userDataProfileService.currentProfile, defaultProfile: userDataProfilesService.defaultProfile }, mainProcessService, environmentService);
 
 		this.registerListeners();
 	}

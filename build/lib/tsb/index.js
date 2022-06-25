@@ -92,7 +92,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     }
     let result;
     if (config.transpileOnly) {
-        const transpiler = new transpiler_1.Transpiler(logFn, printDiagnostic, cmdLine);
+        const transpiler = new transpiler_1.Transpiler(logFn, printDiagnostic, projectPath, cmdLine);
         result = (() => createTranspileStream(transpiler));
     }
     else {

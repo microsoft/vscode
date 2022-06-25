@@ -49,7 +49,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (this.userDataProfileService.currentProfile.extensionsResource) {
 			return this.userDataProfileService.currentProfile.extensionsResource;
 		}
-		if (!this.userDataProfileService.defaultProfile.extensionsResource) {
+		if (!this.userDataProfilesService.defaultProfile.extensionsResource) {
 			// Extensions profile is not yet created for default profile, create it now
 			return this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, EXTENSIONS_RESOURCE_NAME));
 		}
@@ -89,7 +89,11 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (profile.id === this.userDataProfileService.currentProfile.id) {
 			throw new Error(localize('cannotDeleteCurrentProfile', "Cannot delete the current profile"));
 		}
+		const defaultExtensionsResourceToDelete = this.userDataProfilesService.profiles.length === 2 ? this.userDataProfilesService.defaultProfile.extensionsResource : undefined;
 		await this.userDataProfilesService.removeProfile(profile);
+		if (defaultExtensionsResourceToDelete) {
+			try { await this.fileService.del(defaultExtensionsResourceToDelete); } catch (error) { /* ignore */ }
+		}
 	}
 
 	async switchProfile(profile: IUserDataProfile): Promise<void> {
@@ -164,6 +168,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	}
 
 	private async createDefaultExtensionsProfile(extensionsProfileResource: URI): Promise<URI> {
+		try { await this.fileService.del(extensionsProfileResource); } catch (error) { /* ignore */ }
 		const extensionManagementService = this.extensionManagementServerService.localExtensionManagementServer?.extensionManagementService ?? this.extensionManagementService;
 		const userExtensions = await extensionManagementService.getInstalled(ExtensionType.User);
 		const extensions: [ILocalExtension, Metadata | undefined][] = await Promise.all(userExtensions.map(async e => ([e, await this.extensionManagementService.getMetadata(e)])));

@@ -1513,11 +1513,11 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 		const additionalDataTransfer = await this.treeViewsDragAndDropService.removeDragOperationTransfer(willDropUuid);
 		if (additionalDataTransfer) {
-			for (const item of additionalDataTransfer.entries()) {
-				outDataTransfer.append(item[0], item[1]);
+			for (const [type, item] of additionalDataTransfer.entries()) {
+				outDataTransfer.append(type, item);
 			}
 		}
-		return dndController.handleDrop(outDataTransfer, targetNode, new CancellationTokenSource().token, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
+		return dndController.handleDrop(outDataTransfer, targetNode, CancellationToken.None, willDropUuid, treeSourceInfo?.id, treeSourceInfo?.itemHandles);
 	}
 
 	onDragEnd(originalEvent: DragEvent): void {

@@ -119,7 +119,7 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 	) { }
 
 	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
-		const urlListEntry = dataTransfer.get('text/uri-list');
+		const urlListEntry = dataTransfer.get(Mimes.uriList);
 		if (urlListEntry) {
 			const urlList = await urlListEntry.asString();
 			const snippet = this.getUriListInsertText(urlList);

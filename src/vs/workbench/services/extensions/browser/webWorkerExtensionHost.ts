@@ -291,6 +291,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				name: this._labelService.getWorkspaceLabel(workspace),
 				transient: workspace.transient
 			},
+			consoleForward: {
+				includeStack: false,
+				logNative: this._environmentService.debugRenderer
+			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,

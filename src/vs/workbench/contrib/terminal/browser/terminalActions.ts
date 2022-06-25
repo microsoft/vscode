@@ -51,7 +51,7 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
+import { clearShellFileHistory, getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
@@ -2149,6 +2149,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			getCommandHistory(accessor).clear();
+			clearShellFileHistory();
 		}
 	});
 	registerAction2(class extends Action2 {

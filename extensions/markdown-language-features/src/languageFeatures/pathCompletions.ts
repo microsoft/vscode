@@ -9,6 +9,8 @@ import { IMdParser } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { ITextDocument } from '../types/textDocument';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
+import { Schemes } from '../util/schemes';
+import { IMdWorkspace } from '../workspace';
 import { MdLinkProvider } from './documentLinks';
 
 enum CompletionContextKind {
@@ -66,6 +68,11 @@ interface CompletionContext {
 	 * Info if the link looks like it is for an anchor: `[](#header)`
 	 */
 	readonly anchorInfo?: AnchorContext;
+
+	/**
+	 * Indicates that the completion does not require encoding.
+	 */
+	readonly skipEncoding?: boolean;
 }
 
 function tryDecodeUriComponent(str: string): string {
@@ -82,6 +89,7 @@ function tryDecodeUriComponent(str: string): string {
 export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProvider {
 
 	constructor(
+		private readonly workspace: IMdWorkspace,
 		private readonly parser: IMdParser,
 		private readonly linkProvider: MdLinkProvider,
 	) { }
@@ -123,7 +131,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 					if (context.anchorInfo) { // Anchor to a different document
 						const rawUri = this.resolveReference(document, context.anchorInfo.beforeAnchor);
 						if (rawUri) {
-							const otherDoc = await resolveUriToMarkdownFile(rawUri);
+							const otherDoc = await resolveUriToMarkdownFile(this.workspace, rawUri);
 							if (otherDoc) {
 								const anchorStartPosition = position.translate({ characterDelta: -(context.anchorInfo.anchorPrefix.length + 1) });
 								const range = new vscode.Range(anchorStartPosition, position);
@@ -150,7 +158,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 	}
 
 	/// [...](...|
-	private readonly linkStartPattern = /\[([^\]]*?)\]\(\s*([^\s\(\)]*)$/;
+	private readonly linkStartPattern = /\[([^\]]*?)\]\(\s*(<[^\>\)]*|[^\s\(\)]*)$/;
 
 	/// [...][...|
 	private readonly referenceLinkStartPattern = /\[([^\]]*?)\]\[\s*([^\s\(\)]*)$/;
@@ -166,18 +174,20 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 
 		const linkPrefixMatch = linePrefixText.match(this.linkStartPattern);
 		if (linkPrefixMatch) {
-			const prefix = linkPrefixMatch[2];
+			const isAngleBracketLink = linkPrefixMatch[2].startsWith('<');
+			const prefix = linkPrefixMatch[2].slice(isAngleBracketLink ? 1 : 0);
 			if (this.refLooksLikeUrl(prefix)) {
 				return undefined;
 			}
 
-			const suffix = lineSuffixText.match(/^[^\)\s]*/);
+			const suffix = lineSuffixText.match(/^[^\)\s][^\)\s\>]*/);
 			return {
 				kind: CompletionContextKind.Link,
 				linkPrefix: tryDecodeUriComponent(prefix),
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
 				linkSuffix: suffix ? suffix[0] : '',
 				anchorInfo: this.getAnchorContext(prefix),
+				skipEncoding: isAngleBracketLink,
 			};
 		}
 
@@ -277,13 +287,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 		const pathSegmentEnd = position.translate({ characterDelta: context.linkSuffix.length });
 		const replacementRange = new vscode.Range(pathSegmentStart, pathSegmentEnd);
 
-		let dirInfo: Array<[string, vscode.FileType]>;
-		try {
-			dirInfo = await vscode.workspace.fs.readDirectory(parentDir);
-		} catch {
-			return;
-		}
-
+		const dirInfo = await this.workspace.readDirectory(parentDir);
 		for (const [name, type] of dirInfo) {
 			// Exclude paths that start with `.`
 			if (name.startsWith('.')) {
@@ -293,7 +297,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 			const isDir = type === vscode.FileType.Directory;
 			yield {
 				label: isDir ? name + '/' : name,
-				insertText: isDir ? encodeURIComponent(name) + '/' : encodeURIComponent(name),
+				insertText: (context.skipEncoding ? name : encodeURIComponent(name)) + (isDir ? '/' : ''),
 				kind: isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File,
 				range: {
 					inserting: insertRange,
@@ -321,7 +325,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 
 	private resolvePath(root: vscode.Uri, ref: string): vscode.Uri | undefined {
 		try {
-			if (root.scheme === 'file') {
+			if (root.scheme === Schemes.file) {
 				return vscode.Uri.file(resolve(dirname(root.fsPath), ref));
 			} else {
 				return root.with({
@@ -349,8 +353,9 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 
 export function registerPathCompletionSupport(
 	selector: vscode.DocumentSelector,
+	workspace: IMdWorkspace,
 	parser: IMdParser,
 	linkProvider: MdLinkProvider,
 ): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider(selector, new MdVsCodePathCompletionProvider(parser, linkProvider), '.', '/', '#');
+	return vscode.languages.registerCompletionItemProvider(selector, new MdVsCodePathCompletionProvider(workspace, parser, linkProvider), '.', '/', '#');
 }
