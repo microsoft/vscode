@@ -75,7 +75,8 @@ import { Event } from 'vs/base/common/event';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { UnsupportedExtensionsMigrationContrib } from 'vs/workbench/contrib/extensions/browser/unsupportedExtensionsMigrationContribution';
 import { isWeb } from 'vs/base/common/platform';
-import { ExtensionsCleaner } from 'vs/workbench/contrib/extensions/browser/extensionsCleaner';
+import { ExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -1559,6 +1560,16 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 }
 
+class ExtensionStorageCleaner implements IWorkbenchContribution {
+
+	constructor(
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IStorageService storageService: IStorageService,
+	) {
+		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
+	}
+}
+
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
@@ -1571,7 +1582,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrus
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
 if (isWeb) {
-	workbenchRegistry.registerWorkbenchContribution(ExtensionsCleaner, LifecyclePhase.Eventually);
+	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }
 
 

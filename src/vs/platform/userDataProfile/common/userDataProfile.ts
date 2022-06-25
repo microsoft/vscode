@@ -81,6 +81,8 @@ if (!isWeb) {
 	});
 }
 
+export type DidChangeProfilesEvent = { readonly added: IUserDataProfile[]; readonly removed: IUserDataProfile[]; readonly all: IUserDataProfile[] };
+
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
 export interface IUserDataProfilesService {
 	readonly _serviceBrand: undefined;
@@ -88,7 +90,7 @@ export interface IUserDataProfilesService {
 	readonly profilesHome: URI;
 	readonly defaultProfile: IUserDataProfile;
 
-	readonly onDidChangeProfiles: Event<IUserDataProfile[]>;
+	readonly onDidChangeProfiles: Event<DidChangeProfilesEvent>;
 	readonly profiles: IUserDataProfile[];
 
 	newProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags): CustomUserDataProfile;
@@ -140,7 +142,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	get defaultProfile(): IUserDataProfile { return this.profiles[0] ?? this._defaultProfile; }
 	get profiles(): IUserDataProfile[] { return []; }
 
-	protected readonly _onDidChangeProfiles = this._register(new Emitter<IUserDataProfile[]>());
+	protected readonly _onDidChangeProfiles = this._register(new Emitter<DidChangeProfilesEvent>());
 	readonly onDidChangeProfiles = this._onDidChangeProfiles.event;
 
 	constructor(
