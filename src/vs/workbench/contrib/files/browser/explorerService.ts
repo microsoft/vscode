@@ -263,9 +263,19 @@ export class ExplorerService implements IExplorerService {
 			return;
 		}
 
+		// If file or parent matches exclude patterns, do not reveal nless reveal argument is 'force'
+		// However selectResource expects only a boolean to be passed even if accepts bool | string
+		let ignoreRevealExcludes = false;
+		if (reveal === 'force') {
+			ignoreRevealExcludes = true;
+			reveal = true;
+		}
+
 		const fileStat = this.findClosest(resource);
-		// If file or parent matches exclude patterns, do not reveal
-		if (fileStat && !this.shouldAutoRevealItem(fileStat)) {
+		if (fileStat) {
+			if (!this.shouldAutoRevealItem(fileStat, ignoreRevealExcludes)) {
+				return;
+			}
 			await this.view.selectResource(fileStat.resource, reveal);
 			return Promise.resolve(undefined);
 		}
@@ -287,8 +297,8 @@ export class ExplorerService implements IExplorerService {
 			const item = root.find(resource);
 			await this.view.refresh(true, root);
 
-			//
-			if (item && !this.shouldAutoRevealItem(item)) {
+			// Once item is resolved, check again if folder should be expanded
+			if (item && !this.shouldAutoRevealItem(item, ignoreRevealExcludes)) {
 				return;
 			}
 			await this.view.selectResource(item ? item.resource : undefined, reveal);
@@ -408,26 +418,26 @@ export class ExplorerService implements IExplorerService {
 		}
 	}
 
-	// Reveal excludes
-	private shouldAutoRevealItem(item: ExplorerItem | undefined): boolean {
-		if (item === undefined) {
-			return false;
+	// Check if an item matches a explorer.autoRevealExclude pattern
+	private shouldAutoRevealItem(item: ExplorerItem | undefined, ignore: boolean): boolean {
+		if (item === undefined || ignore) {
+			return true;
 		}
 		if (this.revealExcludeMatcher.matches(item.resource, name => !!(item.parent && item.parent.getChild(name)))) {
-			return true;
+			return false;
 		}
 		const root = item.root;
 		let currentItem = item.parent;
 		while (currentItem !== root) {
 			if (currentItem === undefined) {
-				return false;
+				return true;
 			}
 			if (this.revealExcludeMatcher.matches(currentItem.resource)) {
-				return true;
+				return false;
 			}
 			currentItem = currentItem.parent;
 		}
-		return false;
+		return true;
 	}
 
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
