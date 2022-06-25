@@ -53,9 +53,22 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { clearShellFileHistory, getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { dirname } from 'vs/base/common/resources';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { FileKind } from 'vs/platform/files/common/files';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
+
+export interface WorkspaceFolderCwdPair {
+	folder: IWorkspaceFolder;
+	cwd: URI;
+	isAbsolute: boolean;
+	isOverridden: boolean;
+}
 
 export async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -2489,4 +2502,21 @@ function doWithInstance(accessor: ServicesAccessor, resource: unknown): ITermina
 	const castedResource = URI.isUri(resource) ? resource : undefined;
 	const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;
 	return instance;
+}
+
+/**
+ * Drops repeated CWDs, if any, by keeping the one which best matches the workspace folder. It also preserves the original order.
+ */
+export function shrinkWorkspaceFolderCwdPairs(pairs: WorkspaceFolderCwdPair[]): WorkspaceFolderCwdPair[] {
+	const map = new Map<string, WorkspaceFolderCwdPair>();
+	for (const pair of pairs) {
+		const key = pair.cwd.toString();
+		const value = map.get(key);
+		if (!value || key === pair.folder.uri.toString()) {
+			map.set(key, pair);
+		}
+	}
+	const selectedPairs = new Set(map.values());
+	const selectedPairsInOrder = pairs.filter(x => selectedPairs.has(x));
+	return selectedPairsInOrder;
 }
