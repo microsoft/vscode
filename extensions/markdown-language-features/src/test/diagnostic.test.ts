@@ -198,6 +198,22 @@ suite('markdown: Diagnostic Computer', () => {
 		assertDiagnosticsEqual(diagnostics, []);
 	}));
 
+	test('Should support links both with and without .md file extension (with dot in file name, #153094)', withStore(async (store) => {
+		const doc = new InMemoryDocument(workspacePath('doc.test.md'), joinLines(
+			`# My header`,
+			`[good](#my-header)`,
+			`[good](/doc.test.md#my-header)`,
+			`[good](doc.test.md#my-header)`,
+			`[good](/doc.test#my-header)`,
+			`[good](doc.test#my-header)`,
+		));
+
+		const workspace = store.add(new InMemoryMdWorkspace([doc]));
+
+		const diagnostics = await getComputedDiagnostics(store, doc, workspace);
+		assertDiagnosticsEqual(diagnostics, []);
+	}));
+
 	test('Should generate diagnostics for non-existent link reference', withStore(async (store) => {
 		const doc = new InMemoryDocument(workspacePath('doc.md'), joinLines(
 			`[good link][good]`,
