@@ -1836,8 +1836,6 @@ export function registerTerminalActions() {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
-			const configurationService = accessor.get(IConfigurationService);
-			const configurationResolverService = accessor.get(IConfigurationResolverService);
 			const folders = workspaceContextService.getWorkspace().folders;
 			if (eventOrOptions && eventOrOptions instanceof MouseEvent && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
 				await terminalService.createTerminal({ location: { splitActiveTerminal: true } });
@@ -1853,27 +1851,12 @@ export function registerTerminalActions() {
 					// single root
 					instance = await terminalService.createTerminal(eventOrOptions);
 				} else {
-					const options: IPickOptions<IQuickPickItem> = {
-						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
-					};
-					const workspace = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
-					if (!workspace) {
+					const cwd = (await pickTerminalCwd(accessor))?.cwd;
+					if (!cwd) {
 						// Don't create the instance if the workspace picker was canceled
 						return;
 					}
-					eventOrOptions.cwd = workspace.uri;
-					const cwdConfig = configurationService.getValue(TerminalSettingId.Cwd, { resource: workspace.uri });
-					if (typeof cwdConfig === 'string' && cwdConfig.length > 0) {
-						const resolvedCwdConfig = await configurationResolverService.resolveAsync(workspace, cwdConfig);
-						if (isAbsolute(resolvedCwdConfig) || resolvedCwdConfig.startsWith(AbstractVariableResolverService.VARIABLE_LHS)) {
-							eventOrOptions.cwd = URI.from({
-								scheme: workspace.uri.scheme,
-								path: resolvedCwdConfig
-							});
-						} else {
-							eventOrOptions.cwd = URI.joinPath(workspace.uri, resolvedCwdConfig);
-						}
-					}
+					eventOrOptions.cwd = cwd;
 					instance = await terminalService.createTerminal(eventOrOptions);
 				}
 				terminalService.setActiveInstance(instance);
