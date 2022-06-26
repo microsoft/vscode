@@ -349,7 +349,7 @@ export abstract class MenubarControl extends Disposable {
 			return;
 		}
 
-		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.PROFILE, false);
+		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.APPLICATION, false);
 		const usingCustomMenubar = getTitleBarStyle(this.configurationService) === 'custom';
 
 		if (hasBeenNotified || usingCustomMenubar || !this.accessibilityService.isScreenReaderOptimized()) {
@@ -366,7 +366,7 @@ export abstract class MenubarControl extends Disposable {
 			}
 		]);
 
-		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.APPLICATION, StorageTarget.USER);
 	}
 }
 
@@ -433,8 +433,8 @@ export class CustomMenubarControl extends MenubarControl {
 			const activityBarInactiveFgColor = theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND);
 			if (activityBarInactiveFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar.compact > .menubar-menu-button,
-				.monaco-workbench .menubar.compact .toolbar-toggle-more {
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button,
+				.monaco-workbench .activitybar .menubar.compact .toolbar-toggle-more {
 					color: ${activityBarInactiveFgColor};
 				}
 				`);
@@ -443,12 +443,12 @@ export class CustomMenubarControl extends MenubarControl {
 			const activityBarFgColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 			if (activityBarFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar.compact > .menubar-menu-button.open,
-				.monaco-workbench .menubar.compact > .menubar-menu-button:focus,
-				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
-				.monaco-workbench .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
-				.monaco-workbench .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
-				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button.open,
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus,
+				.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
+				.monaco-workbench .activitybar .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
+				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
+				.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
 					color: ${activityBarFgColor};
 				}
 			`);
@@ -698,6 +698,11 @@ export class CustomMenubarControl extends MenubarControl {
 			}));
 
 			this.reinstallDisposables.add(attachMenuStyler(this.menubar, this.themeService));
+
+			// Fire visibility change for the first install if menu is shown
+			if (this.menubar.isVisible) {
+				this.onDidVisibilityChange(true);
+			}
 		} else {
 			this.menubar?.update(this.getMenuBarOptions());
 		}

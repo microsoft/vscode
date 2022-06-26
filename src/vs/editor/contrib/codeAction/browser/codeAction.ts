@@ -16,7 +16,7 @@ import * as languages from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
+import { CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from './types';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
@@ -224,7 +224,6 @@ function getDocumentation(
 			}
 		}
 	}
-
 	return undefined;
 }
 
@@ -254,7 +253,7 @@ CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (a
 		codeActionProvider,
 		model,
 		validatedRangeOrSelection,
-		{ type: languages.CodeActionTriggerType.Invoke, filter: { includeSourceActions: true, include } },
+		{ type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default, filter: { includeSourceActions: true, include } },
 		Progress.None,
 		CancellationToken.None);
 

@@ -14,6 +14,7 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
+import { IMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -37,7 +38,7 @@ const INFO_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID
 
 export class TaskTerminalStatus extends Disposable {
 	private terminalMap: Map<string, ITerminalData> = new Map();
-
+	private _marker: IMarker | undefined;
 	constructor(taskService: ITaskService) {
 		super();
 		this._register(taskService.onDidStateChange((event) => {
@@ -53,6 +54,18 @@ export class TaskTerminalStatus extends Disposable {
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
+		problemMatcher.onDidFindFirstMatch(() => {
+			this._marker = terminal.registerMarker();
+		});
+		problemMatcher.onDidFindErrors(() => {
+			if (this._marker) {
+				terminal.addGenericMark(this._marker, { hoverMessage: nls.localize('task.watchFirstError', "First error"), disableCommandStorage: true });
+			}
+		});
+		problemMatcher.onDidRequestInvalidateLastMarker(() => {
+			this._marker?.dispose();
+			this._marker = undefined;
+		});
 		this.terminalMap.set(task._id, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
 

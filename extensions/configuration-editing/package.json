@@ -52,7 +52,8 @@
           ".devcontainer.json"
         ],
         "filenamePatterns": [
-          "**/User/snippets/*.json"
+          "**/User/snippets/*.json",
+          "**/User/profiles/*/snippets/*.json"
         ]
       }, {
         "id": "json",

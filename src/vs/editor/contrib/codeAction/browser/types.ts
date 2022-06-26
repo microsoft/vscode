@@ -44,6 +44,21 @@ export const enum CodeActionAutoApply {
 	Never = 'never',
 }
 
+export enum CodeActionTriggerSource {
+	Refactor = 'refactor',
+	RefactorPreview = 'refactor preview',
+	Lightbulb = 'lightbulb',
+	Default = 'other (default)',
+	SourceAction = 'source action',
+	QuickFix = 'quick fix action',
+	FixAll = 'fix all',
+	OrganizeImports = 'organize imports',
+	AutoFix = 'auto fix',
+	QuickFixHover = 'quick fix hover window',
+	OnSave = 'save participants',
+	ProblemsView = 'problems view'
+}
+
 export interface CodeActionFilter {
 	readonly include?: CodeActionKind;
 	readonly excludes?: readonly CodeActionKind[];
@@ -116,6 +131,7 @@ function excludesAction(providedKind: CodeActionKind, exclude: CodeActionKind, i
 
 export interface CodeActionTrigger {
 	readonly type: CodeActionTriggerType;
+	readonly triggerAction: CodeActionTriggerSource;
 	readonly filter?: CodeActionFilter;
 	readonly autoApply?: CodeActionAutoApply;
 	readonly context?: {

@@ -7,7 +7,6 @@ import * as arrays from 'vs/base/common/arrays';
 import { escapeRegExpCharacters, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isArray, withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -153,6 +152,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
+	overriddenDefaultsLanguageList: string[] = [];
 
 	/**
 	 * For each language that contributes setting values or default overrides, we can see those values here.
@@ -211,26 +211,41 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		let displayValue = isConfigured ? inspected[targetSelector] : inspected.defaultValue;
 		const overriddenScopeList: string[] = [];
-		if (targetSelector !== 'workspaceValue' && typeof inspected.workspaceValue !== 'undefined') {
-			overriddenScopeList.push(localize('workspace', "Workspace"));
+		const overriddenDefaultsLanguageList: string[] = [];
+		if ((languageSelector || targetSelector !== 'workspaceValue') && typeof inspected.workspaceValue !== 'undefined') {
+			overriddenScopeList.push('workspace:');
 		}
-
-		if (targetSelector !== 'userRemoteValue' && typeof inspected.userRemoteValue !== 'undefined') {
-			overriddenScopeList.push(localize('remote', "Remote"));
+		if ((languageSelector || targetSelector !== 'userRemoteValue') && typeof inspected.userRemoteValue !== 'undefined') {
+			overriddenScopeList.push('remote:');
 		}
-
-		if (targetSelector !== 'userLocalValue' && typeof inspected.userLocalValue !== 'undefined') {
-			overriddenScopeList.push(localize('user', "User"));
+		if ((languageSelector || targetSelector !== 'userLocalValue') && typeof inspected.userLocalValue !== 'undefined') {
+			overriddenScopeList.push('user:');
 		}
 
 		if (inspected.overrideIdentifiers) {
 			for (const overrideIdentifier of inspected.overrideIdentifiers) {
 				const inspectedOverride = inspectedLanguageOverrides.get(overrideIdentifier);
 				if (inspectedOverride) {
+					if (this.languageService.isRegisteredLanguageId(overrideIdentifier)) {
+						if (languageSelector !== overrideIdentifier && typeof inspectedOverride.default?.override !== 'undefined') {
+							overriddenDefaultsLanguageList.push(overrideIdentifier);
+						}
+						if ((languageSelector !== overrideIdentifier || targetSelector !== 'workspaceValue') && typeof inspectedOverride.workspace?.override !== 'undefined') {
+							overriddenScopeList.push(`workspace:${overrideIdentifier}`);
+						}
+						if ((languageSelector !== overrideIdentifier || targetSelector !== 'userRemoteValue') && typeof inspectedOverride.userRemote?.override !== 'undefined') {
+							overriddenScopeList.push(`remote:${overrideIdentifier}`);
+						}
+						if ((languageSelector !== overrideIdentifier || targetSelector !== 'userLocalValue') && typeof inspectedOverride.userLocal?.override !== 'undefined') {
+							overriddenScopeList.push(`user:${overrideIdentifier}`);
+						}
+					}
 					this.languageOverrideValues.set(overrideIdentifier, inspectedOverride);
 				}
 			}
 		}
+		this.overriddenScopeList = overriddenScopeList;
+		this.overriddenDefaultsLanguageList = overriddenDefaultsLanguageList;
 
 		// The user might have added, removed, or modified a language filter,
 		// so we reset the default value source to the non-language-specific default value source for now.
@@ -280,7 +295,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		}
 
-		this.overriddenScopeList = overriddenScopeList;
 		if (this.setting.description.length > SettingsTreeSettingElement.MAX_DESC_LINES) {
 			const truncatedDescLines = this.setting.description.slice(0, SettingsTreeSettingElement.MAX_DESC_LINES);
 			truncatedDescLines.push('[...]');

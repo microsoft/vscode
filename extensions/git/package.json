@@ -1478,7 +1478,7 @@
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file && scmActiveResourceHasChanges"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges"
         },
         {
           "command": "git.stageSelectedRanges",
@@ -1891,26 +1891,6 @@
             "type": "string"
           },
           "default": [],
-          "scope": "resource"
-        },
-        "git.branchProtectionIndicator": {
-          "type": "object",
-          "additionalProperties": false,
-          "description": "%config.branchProtectionIndicator%",
-          "properties": {
-            "quickOpen": {
-              "type": "boolean",
-              "description": "%config.branchProtectionIndicator.quickOpen%"
-            },
-            "statusBar": {
-              "type": "boolean",
-              "description": "%config.branchProtectionIndicator.statusBar%"
-            }
-          },
-          "default": {
-            "quickOpen": true,
-            "statusBar": true
-          },
           "scope": "resource"
         },
         "git.branchProtectionPrompt": {
@@ -2384,7 +2364,7 @@
         },
         "git.terminalGitEditor": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%config.terminalGitEditor%"
         },
         "git.useCommitInputAsStashMessage": {
@@ -2427,20 +2407,29 @@
           "description": "%config.timeline.showUncommitted%",
           "scope": "window"
         },
-        "git.showUnpublishedCommitsButton": {
-          "type": "string",
-          "enum": [
-            "always",
-            "whenEmpty",
-            "never"
-          ],
-          "enumDescriptions": [
-            "%config.showUnpublishedCommitsButton.always%",
-            "%config.showUnpublishedCommitsButton.whenEmpty%",
-            "%config.showUnpublishedCommitsButton.never%"
-          ],
-          "default": "whenEmpty",
-          "description": "%config.showUnpublishedCommitsButton%",
+        "git.showActionButton": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "%config.showActionButton%",
+          "properties": {
+            "commit": {
+              "type": "boolean",
+              "description": "%config.showActionButton.commit%"
+            },
+            "publish": {
+              "type": "boolean",
+              "description": "%config.showActionButton.publish%"
+            },
+            "sync": {
+              "type": "boolean",
+              "description": "%config.showActionButton.sync%"
+            }
+          },
+          "default": {
+            "commit": true,
+            "publish": true,
+            "sync": true
+          },
           "scope": "resource"
         },
         "git.statusLimit": {
@@ -2712,7 +2701,7 @@
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "5.0.0",
-    "@vscode/extension-telemetry": "0.4.10",
+    "@vscode/extension-telemetry": "0.6.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
