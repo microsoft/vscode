@@ -21,21 +21,25 @@ Visual Studio Code is a new choice of tool that combines the simplicity of a cod
 %define _build_id_links none
 
 %install
+# Destination directories
 mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/usr/share/@@NAME@@
 mkdir -p %{buildroot}/usr/share/applications
+mkdir -p %{buildroot}/usr/share/mime/packages
 mkdir -p %{buildroot}/usr/share/pixmaps
 mkdir -p %{buildroot}/usr/share/bash-completion/completions
 mkdir -p %{buildroot}/usr/share/zsh/site-functions
-mkdir -p %{buildroot}/usr/share/mime/packages
+# Application
 cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
+ln -s ../share/@@NAME@@/bin/@@NAME@@ %{buildroot}/usr/bin/@@NAME@@
+# Support files
 cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
 cp -r usr/share/applications/@@NAME@@-url-handler.desktop %{buildroot}/usr/share/applications
 cp -r usr/share/mime/packages/@@NAME@@-workspace.xml %{buildroot}/usr/share/mime/packages/@@NAME@@-workspace.xml
 cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}/usr/share/pixmaps
+# Shell completions
 cp usr/share/bash-completion/completions/@@NAME@@ %{buildroot}/usr/share/bash-completion/completions/@@NAME@@
 cp usr/share/zsh/site-functions/_@@NAME@@ %{buildroot}/usr/share/zsh/site-functions/_@@NAME@@
-ln -s ../share/@@NAME@@/bin/@@NAME@@ %{buildroot}/usr/bin/@@NAME@@
 
 %post
 # Remove the legacy bin command if this is the stable build
