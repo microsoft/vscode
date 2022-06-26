@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionGalleryService, IExtensionIdentifier, IGlobalExtensionEnablementService, ServerDidUninstallExtensionEvent, ServerInstallExtensionResult, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { migrateUnsupportedExtensions } from 'vs/platform/extensionManagement/common/unsupportedExtensionsMigration';
@@ -44,7 +45,8 @@ export class ExtensionsCleaner extends Disposable {
 class ProfileExtensionsCleaner extends Disposable {
 
 	private profileExtensionsLocations = new Map<string, URI[]>;
-	private initPromise: Promise<boolean>;
+
+	private readonly profileModeDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		@INativeServerExtensionManagementService private readonly extensionManagementService: INativeServerExtensionManagementService,
@@ -54,47 +56,54 @@ class ProfileExtensionsCleaner extends Disposable {
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-
-		this.initPromise = this.initialize();
-		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e)));
-		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
-		this._register(this.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
-	}
-
-	private async initialize(): Promise<boolean> {
-		if (this.userDataProfilesService.profiles.length === 1) {
-			return true;
-		}
-		try {
-			const installed = await this.extensionManagementService.getAllUserInstalled();
-			await Promise.all(this.userDataProfilesService.profiles.map(profile => profile.extensionsResource ? this.populateExtensionsFromProfile(profile.extensionsResource) : Promise.resolve()));
-			const toUninstall = installed.filter(installedExtension => !this.profileExtensionsLocations.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
-			if (toUninstall.length) {
-				await Promise.all(toUninstall.map(extension => this.extensionManagementService.uninstall(extension, uninstalOptions)));
-			}
-			return true;
-		} catch (error) {
-			this.logService.error('ExtensionsCleaner: Failed to initialize');
-			this.logService.error(error);
-			return false;
-		}
+		this.onDidChangeProfiles({ added: this.userDataProfilesService.profiles, removed: [], all: this.userDataProfilesService.profiles });
 	}
 
 	private async onDidChangeProfiles({ added, removed, all }: DidChangeProfilesEvent): Promise<void> {
-		if (!(await this.initPromise)) {
+		try {
+			await Promise.all(removed.map(profile => profile.extensionsResource ? this.removeExtensionsFromProfile(profile.extensionsResource) : Promise.resolve()));
+		} catch (error) {
+			this.logService.error(error);
+		}
+
+		if (all.length === 0) {
+			// Exit profile mode
+			this.profileModeDisposables.clear();
+			// Listen for entering into profile mode
+			const disposable = this._register(this.userDataProfilesService.onDidChangeProfiles(() => {
+				disposable.dispose();
+				this.onDidChangeProfiles({ added: this.userDataProfilesService.profiles, removed: [], all: this.userDataProfilesService.profiles });
+			}));
 			return;
 		}
-		await Promise.all(added.map(profile => profile.extensionsResource ? this.populateExtensionsFromProfile(profile.extensionsResource) : Promise.resolve()));
-		await Promise.all(removed.map(profile => profile.extensionsResource ? this.removeExtensionsFromProfile(profile.extensionsResource) : Promise.resolve()));
-		if (all.length === 1) {
-			this.profileExtensionsLocations.clear();
+
+		try {
+			if (added.length) {
+				await Promise.all(added.map(profile => profile.extensionsResource ? this.populateExtensionsFromProfile(profile.extensionsResource) : Promise.resolve()));
+				// Enter profile mode
+				if (!this.profileModeDisposables.value) {
+					this.profileModeDisposables.value = new DisposableStore();
+					this.profileModeDisposables.value.add(toDisposable(() => this.profileExtensionsLocations.clear()));
+					this.profileModeDisposables.value.add(this.userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e)));
+					this.profileModeDisposables.value.add(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
+					this.profileModeDisposables.value.add(this.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
+					await this.uninstallExtensionsNotInProfiles();
+				}
+			}
+		} catch (error) {
+			this.logService.error(error);
+		}
+	}
+
+	private async uninstallExtensionsNotInProfiles(): Promise<void> {
+		const installed = await this.extensionManagementService.getAllUserInstalled();
+		const toUninstall = installed.filter(installedExtension => !this.profileExtensionsLocations.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
+		if (toUninstall.length) {
+			await Promise.all(toUninstall.map(extension => this.extensionManagementService.uninstall(extension, uninstalOptions)));
 		}
 	}
 
 	private async onDidInstallExtensions(installedExtensions: readonly ServerInstallExtensionResult[]): Promise<void> {
-		if (!(await this.initPromise)) {
-			return;
-		}
 		for (const { local, profileLocation } of installedExtensions) {
 			if (!local || !profileLocation) {
 				continue;
@@ -105,9 +114,6 @@ class ProfileExtensionsCleaner extends Disposable {
 
 	private async onDidUninstallExtension(e: ServerDidUninstallExtensionEvent): Promise<void> {
 		if (!e.profileLocation || !e.version) {
-			return;
-		}
-		if (!(await this.initPromise)) {
 			return;
 		}
 		if (this.removeExtensionWithKey(this.getKey(e.identifier, e.version), e.profileLocation)) {
@@ -123,8 +129,16 @@ class ProfileExtensionsCleaner extends Disposable {
 	}
 
 	private async removeExtensionsFromProfile(removedProfile: URI): Promise<void> {
-		const profileExtensions = await this.extensionsProfileScannerService.scanProfileExtensions(removedProfile);
-		const extensionsToRemove = profileExtensions.filter(profileExtension => this.removeExtensionWithKey(this.getKey(profileExtension.identifier, profileExtension.version), removedProfile));
+		const extensionsToRemove: { identifier: IExtensionIdentifier; version: string }[] = [];
+		for (const key of [...this.profileExtensionsLocations.keys()]) {
+			if (!this.removeExtensionWithKey(key, removedProfile)) {
+				continue;
+			}
+			const extensionToRemove = this.fromKey(key);
+			if (extensionToRemove) {
+				extensionsToRemove.push(extensionToRemove);
+			}
+		}
 		if (extensionsToRemove.length) {
 			await this.uninstallExtensions(extensionsToRemove);
 		}
@@ -149,8 +163,9 @@ class ProfileExtensionsCleaner extends Disposable {
 		}
 		if (!profiles?.length) {
 			this.profileExtensionsLocations.delete(key);
+			return true;
 		}
-		return !profiles?.length;
+		return false;
 	}
 
 	private async uninstallExtensions(extensionsToRemove: { identifier: IExtensionIdentifier; version: string }[]): Promise<void> {
@@ -163,6 +178,11 @@ class ProfileExtensionsCleaner extends Disposable {
 
 	private getKey(identifier: IExtensionIdentifier, version: string): string {
 		return `${ExtensionIdentifier.toKey(identifier.id)}@${version}`;
+	}
+
+	private fromKey(key: string): { identifier: IExtensionIdentifier; version: string } | undefined {
+		const [id, version] = getIdAndVersion(key);
+		return version ? { identifier: { id }, version } : undefined;
 	}
 
 }

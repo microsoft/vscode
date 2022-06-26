@@ -436,9 +436,9 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			const uninstallExtensionTask = this.createUninstallExtensionTask(extension, uninstallOptions, options.profileLocation);
 			this.uninstallingExtensions.set(getUninstallExtensionTaskKey(uninstallExtensionTask.extension.identifier), uninstallExtensionTask);
 			if (options.profileLocation) {
-				this.logService.info('Uninstalling extension from the profile:', extension.identifier.id, options.profileLocation.toString());
+				this.logService.info('Uninstalling extension from the profile:', `${extension.identifier.id}@${extension.manifest.version}`, options.profileLocation.toString());
 			} else {
-				this.logService.info('Uninstalling extension:', extension.identifier.id);
+				this.logService.info('Uninstalling extension:', `${extension.identifier.id}@${extension.manifest.version}`);
 			}
 			this._onUninstallExtension.fire({ identifier: extension.identifier, profileLocation: options.profileLocation, applicationScoped: extension.isApplicationScoped });
 			return uninstallExtensionTask;
@@ -447,15 +447,15 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		const postUninstallExtension = (extension: ILocalExtension, error?: ExtensionManagementError): void => {
 			if (error) {
 				if (options.profileLocation) {
-					this.logService.error('Failed to uninstall extension from the profile:', extension.identifier.id, options.profileLocation.toString(), error.message);
+					this.logService.error('Failed to uninstall extension from the profile:', `${extension.identifier.id}@${extension.manifest.version}`, options.profileLocation.toString(), error.message);
 				} else {
-					this.logService.error('Failed to uninstall extension:', extension.identifier.id, error.message);
+					this.logService.error('Failed to uninstall extension:', `${extension.identifier.id}@${extension.manifest.version}`, error.message);
 				}
 			} else {
 				if (options.profileLocation) {
-					this.logService.info('Successfully uninstalled extension from the profile', extension.identifier.id, options.profileLocation.toString());
+					this.logService.info('Successfully uninstalled extension from the profile', `${extension.identifier.id}@${extension.manifest.version}`, options.profileLocation.toString());
 				} else {
-					this.logService.info('Successfully uninstalled extension:', extension.identifier.id);
+					this.logService.info('Successfully uninstalled extension:', `${extension.identifier.id}@${extension.manifest.version}`);
 				}
 			}
 			reportTelemetry(this.telemetryService, 'extensionGallery:uninstall', { extensionData: getLocalExtensionTelemetryData(extension), error });
@@ -469,7 +469,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			allTasks.push(createUninstallExtensionTask(extension, options));
 			const installed = await this.getInstalled(ExtensionType.User, options.profileLocation);
 			if (options.donotIncludePack) {
-				this.logService.info('Uninstalling the extension without including packed extension', extension.identifier.id);
+				this.logService.info('Uninstalling the extension without including packed extension', `${extension.identifier.id}@${extension.manifest.version}`);
 			} else {
 				const packedExtensions = this.getAllPackExtensionsToUninstall(extension, installed);
 				for (const packedExtension of packedExtensions) {
@@ -482,7 +482,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			}
 
 			if (options.donotCheckDependents) {
-				this.logService.info('Uninstalling the extension without checking dependents', extension.identifier.id);
+				this.logService.info('Uninstalling the extension without checking dependents', `${extension.identifier.id}@${extension.manifest.version}`);
 			} else {
 				this.checkForDependents(allTasks.map(task => task.extension), installed, extension);
 			}

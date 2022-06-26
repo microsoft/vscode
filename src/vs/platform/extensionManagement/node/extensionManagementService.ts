@@ -595,7 +595,7 @@ class InstallGalleryExtensionTask extends InstallExtensionTask {
 		const zipPath = await this.downloadExtension(this.gallery, this._operation);
 		try {
 			const local = await this.installExtension({ zipPath, key: ExtensionKey.create(this.gallery), metadata }, token);
-			if (existingExtension && (existingExtension.targetPlatform !== local.targetPlatform || semver.neq(existingExtension.manifest.version, local.manifest.version))) {
+			if (existingExtension && !this.options.profileLocation && (existingExtension.targetPlatform !== local.targetPlatform || semver.neq(existingExtension.manifest.version, local.manifest.version))) {
 				await this.extensionsScanner.setUninstalled(existingExtension);
 			}
 			return { local, metadata };
@@ -664,7 +664,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 				} catch (e) {
 					throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
 				}
-			} else if (semver.gt(existing.manifest.version, this.manifest.version)) {
+			} else if (!this.options.profileLocation && semver.gt(existing.manifest.version, this.manifest.version)) {
 				await this.extensionsScanner.setUninstalled(existing);
 			}
 		} else {
