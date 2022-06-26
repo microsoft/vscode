@@ -2626,6 +2626,10 @@ export interface IEditorMinimapOptions {
 	 */
 	enabled?: boolean;
 	/**
+	 * Control the rendering of minimap.
+	 */
+	autohide?: boolean;
+	/**
 	 * Control the side of the minimap in editor.
 	 * Defaults to 'right'.
 	 */
@@ -2669,6 +2673,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			size: 'proportional',
 			side: 'right',
 			showSlider: 'mouseover',
+			autohide: false,
 			renderCharacters: true,
 			maxColumn: 120,
 			scale: 1,
@@ -2680,6 +2685,11 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
+				},
+				'editor.minimap.autohide': {
+					type: 'boolean',
+					default: defaults.autohide,
+					description: nls.localize('minimap.autohide', "Controls whether the minimap is hidden automatically.")
 				},
 				'editor.minimap.size': {
 					type: 'string',
@@ -2733,6 +2743,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 		const input = _input as IEditorMinimapOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			autohide: boolean(input.autohide, this.defaultValue.autohide),
 			size: stringSet<'proportional' | 'fill' | 'fit'>(input.size, this.defaultValue.size, ['proportional', 'fill', 'fit']),
 			side: stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),

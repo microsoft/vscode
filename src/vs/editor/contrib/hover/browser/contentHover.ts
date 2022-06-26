@@ -31,12 +31,12 @@ export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
-	private readonly _decorations = this._editor.createDecorationsCollection();
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
 	private _messages: IHoverPart[];
 	private _messagesAreComplete: boolean;
+	private _isChangingDecorations: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -61,7 +61,12 @@ export class ContentHoverController extends Disposable {
 		this._register(this._hoverOperation.onResult((result) => {
 			this._withResult(result.value, result.isComplete, result.hasLoadingMessage);
 		}));
-		this._register(this._decorations.onDidChange(() => this._onModelDecorationsChanged()));
+		this._register(this._editor.onDidChangeModelDecorations(() => {
+			if (this._isChangingDecorations) {
+				return;
+			}
+			this._onModelDecorationsChanged();
+		}));
 		this._register(dom.addStandardDisposableListener(this._widget.getDomNode(), 'keydown', (e) => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
@@ -225,12 +230,23 @@ export class ContentHoverController extends Disposable {
 
 		if (fragment.hasChildNodes()) {
 			if (highlightRange) {
-				this._decorations.set([{
-					range: highlightRange,
-					options: ContentHoverController._DECORATION_OPTIONS
-				}]);
+				const highlightDecoration = this._editor.createDecorationsCollection();
+				try {
+					this._isChangingDecorations = true;
+					highlightDecoration.set([{
+						range: highlightRange,
+						options: ContentHoverController._DECORATION_OPTIONS
+					}]);
+				} finally {
+					this._isChangingDecorations = false;
+				}
 				disposables.add(toDisposable(() => {
-					this._decorations.clear();
+					try {
+						this._isChangingDecorations = true;
+						highlightDecoration.clear();
+					} finally {
+						this._isChangingDecorations = false;
+					}
 				}));
 			}
 

@@ -26,7 +26,11 @@ namespace Trace {
 	}
 }
 
-export class Logger extends Disposable {
+export interface ILogger {
+	verbose(title: string, message: string, data?: any): void;
+}
+
+export class VsCodeOutputLogger extends Disposable implements ILogger {
 	private trace?: Trace;
 
 	private readonly outputChannel = lazy(() => this._register(vscode.window.createOutputChannel('Markdown')));
@@ -41,11 +45,11 @@ export class Logger extends Disposable {
 		this.updateConfiguration();
 	}
 
-	public log(message: string, data?: any): void {
+	public verbose(title: string, message: string, data?: any): void {
 		if (this.trace === Trace.Verbose) {
-			this.appendLine(`[Log - ${this.now()}] ${message}`);
+			this.appendLine(`[Verbose ${this.now()}] ${title}: ${message}`);
 			if (data) {
-				this.appendLine(Logger.data2String(data));
+				this.appendLine(VsCodeOutputLogger.data2String(data));
 			}
 		}
 	}

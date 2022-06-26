@@ -56,8 +56,7 @@ export function addExternalEditorsDropData(dataTransfer: VSDataTransfer, dragEve
 		}
 
 		if (editorData.length) {
-			const str = distinct(editorData).join('\n');
-			dataTransfer.replace(Mimes.uriList, createStringDataTransferItem(str));
+			dataTransfer.replace(Mimes.uriList, createStringDataTransferItem(UriList.create(editorData)));
 		}
 	}
 
@@ -65,3 +64,13 @@ export function addExternalEditorsDropData(dataTransfer: VSDataTransfer, dragEve
 		dataTransfer.delete(internal);
 	}
 }
+
+export const UriList = Object.freeze({
+	// http://amundsen.com/hypermedia/urilist/
+	create: (entries: ReadonlyArray<string | URI>): string => {
+		return distinct(entries.map(x => x.toString())).join('\r\n');
+	},
+	parse: (str: string): string[] => {
+		return str.split('\r\n').filter(value => !value.startsWith('#'));
+	}
+});

@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../logger';
+import { ILogger } from '../logging';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { Disposable, disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
+import { IMdWorkspace } from '../workspace';
+import { MdDocumentRenderer } from './documentRenderer';
 import { DynamicMarkdownPreview, IManagedMarkdownPreview, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { MdDocumentRenderer } from './documentRenderer';
 import { scrollEditorToLine, StartingScrollFragment } from './scrolling';
 import { TopmostLineMonitor } from './topmostLineMonitor';
 
@@ -69,7 +70,8 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 	public constructor(
 		private readonly _contentProvider: MdDocumentRenderer,
-		private readonly _logger: Logger,
+		private readonly _workspace: IMdWorkspace,
+		private readonly _logger: ILogger,
 		private readonly _contributions: MarkdownContributionProvider,
 		private readonly _tocProvider: MdTableOfContentsProvider,
 	) {
@@ -163,6 +165,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			webview,
 			this._contentProvider,
 			this._previewConfigurations,
+			this._workspace,
 			this._logger,
 			this._topmostLineMonitor,
 			this._contributions,
@@ -182,6 +185,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._contentProvider,
 			this._previewConfigurations,
 			this._topmostLineMonitor,
+			this._workspace,
 			this._logger,
 			this._contributions,
 			this._tocProvider,
@@ -206,6 +210,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			previewSettings.previewColumn,
 			this._contentProvider,
 			this._previewConfigurations,
+			this._workspace,
 			this._logger,
 			this._topmostLineMonitor,
 			this._contributions,

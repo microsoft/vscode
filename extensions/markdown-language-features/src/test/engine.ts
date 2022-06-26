@@ -8,6 +8,7 @@ import { MarkdownItEngine } from '../markdownEngine';
 import { MarkdownContributionProvider, MarkdownContributions } from '../markdownExtensions';
 import { githubSlugifier } from '../slugify';
 import { Disposable } from '../util/dispose';
+import { nulLogger } from './nulLogging';
 
 const emptyContributions = new class extends Disposable implements MarkdownContributionProvider {
 	readonly extensionUri = vscode.Uri.file('/');
@@ -16,5 +17,5 @@ const emptyContributions = new class extends Disposable implements MarkdownContr
 };
 
 export function createNewMarkdownEngine(): MarkdownItEngine {
-	return new MarkdownItEngine(emptyContributions, githubSlugifier);
+	return new MarkdownItEngine(emptyContributions, githubSlugifier, nulLogger);
 }

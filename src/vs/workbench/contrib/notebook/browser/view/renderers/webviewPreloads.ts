@@ -5,9 +5,14 @@
 
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
-import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 import type * as rendererApi from 'vscode-notebook-renderer';
+
+// !! IMPORTANT !! ----------------------------------------------------------------------------------
+// import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+// We can ONLY IMPORT as type in this module. This also applies to const enums that would evaporate
+// in normal compiles but remain a dependency in transpile-only compiles
+// !! IMPORTANT !! ----------------------------------------------------------------------------------
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringified and injected into
@@ -1983,7 +1988,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public render(content: webviewMessages.ICreationContent, preloadsAndErrors: unknown[]) {
 			this._content = { content, preloadsAndErrors };
-			if (content.type === RenderOutputType.Html) {
+			if (content.type === 0 /* RenderOutputType.Html */) {
 				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 				this.element.innerHTML = trustedHtml as string;
 				domEval(this.element);

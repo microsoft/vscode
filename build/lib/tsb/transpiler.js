@@ -113,28 +113,29 @@ class TranspileWorker {
 }
 TranspileWorker.pool = 1;
 class Transpiler {
-    constructor(logFn, _onError, _cmdLine) {
+    constructor(logFn, _onError, configFilePath, _cmdLine) {
         this._onError = _onError;
         this._cmdLine = _cmdLine;
         this._workerPool = [];
         this._queue = [];
         this._allJobs = [];
-        this._tsApiInternalOutfileName = new class {
-            constructor(parsedCmd) {
-                const host = ts.createCompilerHost(parsedCmd.options);
-                const program = ts.createProgram({ options: parsedCmd.options, rootNames: parsedCmd.fileNames, host });
-                const emitHost = {
-                    getCompilerOptions: () => parsedCmd.options,
-                    getCurrentDirectory: () => host.getCurrentDirectory(),
-                    getCanonicalFileName: file => host.getCanonicalFileName(file),
-                    getCommonSourceDirectory: () => program.getCommonSourceDirectory()
-                };
-                this.getForInfile = file => {
-                    return ts.getOwnEmitOutputFilePath(file, emitHost, '.js');
-                };
-            }
-        }(this._cmdLine);
         logFn('Transpile', `will use ${Transpiler.P} transpile worker`);
+        this._getOutputFileName = (file) => {
+            if (!_cmdLine.options.configFilePath) {
+                // this is needed for the INTERNAL getOutputFileNames-call below...
+                _cmdLine.options.configFilePath = configFilePath;
+            }
+            const isDts = file.endsWith('.d.ts');
+            if (isDts) {
+                file = file.slice(0, -5) + '.ts';
+                _cmdLine.fileNames.push(file);
+            }
+            const outfile = ts.getOutputFileNames(_cmdLine, file, true)[0];
+            if (isDts) {
+                _cmdLine.fileNames.pop();
+            }
+            return outfile;
+        };
     }
     async join() {
         // wait for all penindg jobs
@@ -163,7 +164,7 @@ class Transpiler {
         // kinda LAZYily create workers
         if (this._workerPool.length === 0) {
             for (let i = 0; i < Transpiler.P; i++) {
-                this._workerPool.push(new TranspileWorker(file => this._tsApiInternalOutfileName.getForInfile(file)));
+                this._workerPool.push(new TranspileWorker(file => this._getOutputFileName(file)));
             }
         }
         const freeWorker = this._workerPool.filter(w => !w.isBusy);

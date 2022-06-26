@@ -1143,7 +1143,9 @@ export interface SCMProviderFeatures {
 
 export interface SCMActionButtonDto {
 	command: ICommandDto;
+	secondaryCommands?: ICommandDto[][];
 	description?: string;
+	enabled: boolean;
 }
 
 export interface SCMGroupFeatures {
@@ -1447,7 +1449,6 @@ export interface ExtHostExtensionServiceShape {
 	$getCanonicalURI(remoteAuthority: string, uri: UriComponents): Promise<UriComponents | null>;
 	$startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
 	$extensionTestsExecute(): Promise<number>;
-	$extensionTestsExit(code: number): Promise<void>;
 	$activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	$activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	$setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
