@@ -34,7 +34,7 @@ import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementChannel, ExtensionTipsChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -315,7 +315,7 @@ class SharedProcessMain extends Disposable {
 		// Extension Management
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 		// Extension Gallery
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));

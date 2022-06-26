@@ -9,7 +9,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfile, IUserDataProfilesService, reviveProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService, reviveProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class UserDataProfilesNativeService extends UserDataProfilesService implements IUserDataProfilesService {
@@ -29,9 +29,11 @@ export class UserDataProfilesNativeService extends UserDataProfilesService imple
 		super(environmentService, fileService, logService);
 		this.channel = mainProcessService.getChannel('userDataProfiles');
 		this._profiles = profiles.map(profile => reviveProfile(profile, this.profilesHome.scheme));
-		this._register(this.channel.listen<IUserDataProfile[]>('onDidChangeProfiles')((profiles) => {
-			this._profiles = profiles.map(profile => reviveProfile(profile, this.profilesHome.scheme));
-			this._onDidChangeProfiles.fire(this._profiles);
+		this._register(this.channel.listen<DidChangeProfilesEvent>('onDidChangeProfiles')(e => {
+			const added = e.added.map(profile => reviveProfile(profile, this.profilesHome.scheme));
+			const removed = e.removed.map(profile => reviveProfile(profile, this.profilesHome.scheme));
+			this._profiles = e.all.map(profile => reviveProfile(profile, this.profilesHome.scheme));
+			this._onDidChangeProfiles.fire({ added, removed, all: this.profiles });
 		}));
 	}
 

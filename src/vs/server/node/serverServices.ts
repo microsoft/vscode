@@ -24,10 +24,10 @@ import { IEncryptionMainService } from 'vs/platform/encryption/common/encryption
 import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -165,7 +165,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 	services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
-	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+	services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 	services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
@@ -188,7 +188,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(ICredentialsMainService, new SyncDescriptor(CredentialsWebMainService));
 
 	instantiationService.invokeFunction(accessor => {
-		const extensionManagementService = accessor.get(IExtensionManagementService);
+		const extensionManagementService = accessor.get(INativeServerExtensionManagementService);
 		const extensionsScannerService = accessor.get(IExtensionsScannerService);
 		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionManagementCLIService, logService, extensionHostStatusService, extensionsScannerService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
@@ -213,7 +213,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		socketServer.registerChannel('credentials', credentialsChannel);
 
 		// clean up deprecated extensions
-		(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+		extensionManagementService.removeUninstalledExtensions(true);
 
 		disposables.add(new ErrorTelemetry(accessor.get(ITelemetryService)));
 

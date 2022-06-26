@@ -10,19 +10,23 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILocalExtension, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface IStoredProfileExtension {
-	readonly identifier: IExtensionIdentifier;
-	readonly location: UriComponents;
-	readonly metadata?: Metadata;
+	identifier: IExtensionIdentifier;
+	location: UriComponents;
+	version: string;
+	metadata?: Metadata;
 }
 
 export interface IScannedProfileExtension {
 	readonly identifier: IExtensionIdentifier;
+	readonly version: string;
 	readonly location: URI;
 	readonly metadata?: Metadata;
 }
@@ -39,13 +43,45 @@ export interface IExtensionsProfileScannerService {
 export class ExtensionsProfileScannerService extends Disposable implements IExtensionsProfileScannerService {
 	readonly _serviceBrand: undefined;
 
+	private readonly migratePromise: Promise<void>;
 	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IScannedProfileExtension[]>>();
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this.migratePromise = this.migrate();
+	}
+
+	// TODO: @sandy081 remove it in a month
+	private async migrate(): Promise<void> {
+		await Promise.all(this.userDataProfilesService.profiles.map(async e => {
+			if (!e.extensionsResource) {
+				return;
+			}
+			try {
+				let needsMigrating: boolean = false;
+				const storedWebExtensions: IStoredProfileExtension[] = JSON.parse((await this.fileService.readFile(e.extensionsResource)).value.toString());
+				for (const e of storedWebExtensions) {
+					if (!e.location) {
+						continue;
+					}
+					if (!e.version) {
+						try {
+							const content = (await this.fileService.readFile(this.uriIdentityService.extUri.joinPath(URI.revive(e.location), 'package.json'))).value.toString();
+							e.version = (<IExtensionManifest>JSON.parse(content)).version;
+							needsMigrating = true;
+						} catch (error) { /* ignore */ }
+					}
+				}
+				if (needsMigrating) {
+					await this.fileService.writeFile(e.extensionsResource, VSBuffer.fromString(JSON.stringify(storedWebExtensions)));
+				}
+			} catch (error) { /* Ignore */ }
+		}));
 	}
 
 	scanProfileExtensions(profileLocation: URI): Promise<IScannedProfileExtension[]> {
@@ -56,7 +92,7 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		return this.withProfileExtensions(profileLocation, profileExtensions => {
 			// Remove the existing extension to avoid duplicates
 			profileExtensions = profileExtensions.filter(e => extensions.some(([extension]) => !areSameExtensions(e.identifier, extension.identifier)));
-			profileExtensions.push(...extensions.map(([extension, metadata]) => ({ identifier: extension.identifier, location: extension.location, metadata })));
+			profileExtensions.push(...extensions.map(([extension, metadata]) => ({ identifier: extension.identifier, version: extension.manifest.version, location: extension.location, metadata })));
 			return profileExtensions;
 		});
 	}
@@ -66,6 +102,7 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 	}
 
 	private async withProfileExtensions(file: URI, updateFn?: (extensions: IScannedProfileExtension[]) => IScannedProfileExtension[]): Promise<IScannedProfileExtension[]> {
+		await this.migratePromise;
 		return this.getResourceAccessQueue(file).queue(async () => {
 			let extensions: IScannedProfileExtension[] = [];
 
@@ -74,13 +111,22 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 				const content = await this.fileService.readFile(file);
 				const storedWebExtensions: IStoredProfileExtension[] = JSON.parse(content.value.toString());
 				for (const e of storedWebExtensions) {
-					if (!e.location || !e.identifier) {
-						this.logService.info('Ignoring invalid extension while scanning', storedWebExtensions);
+					if (!e.identifier) {
+						this.logService.info('Ignoring invalid extension while scanning. Identifier does not exist.', e);
+						continue;
+					}
+					if (!e.location) {
+						this.logService.info('Ignoring invalid extension while scanning. Location does not exist.', e);
+						continue;
+					}
+					if (!e.version) {
+						this.logService.info('Ignoring invalid extension while scanning. Version does not exist.', e);
 						continue;
 					}
 					extensions.push({
 						identifier: e.identifier,
 						location: URI.revive(e.location),
+						version: e.version,
 						metadata: e.metadata,
 					});
 				}
@@ -96,6 +142,7 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 				extensions = updateFn(extensions);
 				const storedProfileExtensions: IStoredProfileExtension[] = extensions.map(e => ({
 					identifier: e.identifier,
+					version: e.version,
 					location: e.location.toJSON(),
 					metadata: e.metadata
 				}));
