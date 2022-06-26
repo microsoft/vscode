@@ -21,7 +21,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { Barrier, timeout } from 'vs/base/common/async';
+import { Barrier } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -53,7 +53,6 @@ export interface IExtensionHostManager {
 	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null>;
 	start(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void>;
 	extensionTestsExecute(): Promise<number>;
-	extensionTestsSendExit(exitCode: number): Promise<void>;
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
 
@@ -429,20 +428,6 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return proxy.extensionTestsExecute();
 	}
 
-	public async extensionTestsSendExit(exitCode: number): Promise<void> {
-		const proxy = await this._proxy;
-		if (!proxy) {
-			return;
-		}
-		// This method does not wait for the actual RPC to be confirmed
-		// It waits for the socket to drain (i.e. the message has been sent)
-		// It also times out after 5s in case drain takes too long
-		proxy.extensionTestsExit(exitCode);
-		if (this._rpcProtocol) {
-			await Promise.race([this._rpcProtocol.drain(), timeout(5000)]);
-		}
-	}
-
 	public representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
 		return this._extensionHost.runningLocation.equals(runningLocation);
 	}
@@ -619,11 +604,6 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		await this._startCalled.wait();
 		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
 		return actual.extensionTestsExecute();
-	}
-	public async extensionTestsSendExit(exitCode: number): Promise<void> {
-		await this._startCalled.wait();
-		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
-		return actual.extensionTestsSendExit(exitCode);
 	}
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
 		await this._startCalled.wait();

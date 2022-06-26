@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari } from 'vs/base/browser/browser';
 import { $, append, hide, show } from 'vs/base/browser/dom';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
@@ -13,7 +12,7 @@ import { createMatches } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from 'vs/editor/common/languages';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -130,7 +129,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 		const configureFont = () => {
 			const options = this._editor.getOptions();
 			const fontInfo = options.get(EditorOption.fontInfo);
-			const fontFamily = fontInfo.getMassagedFontFamily(isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
+			const fontFamily = fontInfo.getMassagedFontFamily();
 			const fontFeatureSettings = fontInfo.fontFeatureSettings;
 			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
 			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;

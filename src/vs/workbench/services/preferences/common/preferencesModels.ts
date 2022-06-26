@@ -670,7 +670,7 @@ export class DefaultSettings extends Disposable {
 			const prop = settingsObject[key];
 			if (this.matchesScope(prop)) {
 				const value = prop.default;
-				let description = (prop.description || prop.markdownDescription || '');
+				let description = (prop.markdownDescription || prop.description || '');
 				if (typeof description !== 'string') {
 					description = '';
 				}
@@ -690,12 +690,12 @@ export class DefaultSettings extends Disposable {
 				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
 
 				let enumToUse = prop.enum;
-				let enumDescriptions = prop.enumDescriptions ?? prop.markdownEnumDescriptions;
-				let enumDescriptionsAreMarkdown = !prop.enumDescriptions;
+				let enumDescriptions = prop.markdownEnumDescriptions ?? prop.enumDescriptions;
+				let enumDescriptionsAreMarkdown = !!prop.markdownEnumDescriptions;
 				if (listItemType === 'enum' && !isArray(prop.items)) {
 					enumToUse = prop.items!.enum;
-					enumDescriptions = prop.items!.enumDescriptions ?? prop.items!.markdownEnumDescriptions;
-					enumDescriptionsAreMarkdown = enumDescriptionsAreMarkdown && !prop.items!.enumDescriptions;
+					enumDescriptions = prop.items!.markdownEnumDescriptions ?? prop.items!.enumDescriptions;
+					enumDescriptionsAreMarkdown = !!prop.items!.markdownEnumDescriptions;
 				}
 
 				let allKeysAreBoolean = false;
@@ -722,7 +722,7 @@ export class DefaultSettings extends Disposable {
 					key,
 					value,
 					description: descriptionLines,
-					descriptionIsMarkdown: !prop.description,
+					descriptionIsMarkdown: !!prop.markdownDescription,
 					range: nullRange,
 					keyRange: nullRange,
 					valueRange: nullRange,

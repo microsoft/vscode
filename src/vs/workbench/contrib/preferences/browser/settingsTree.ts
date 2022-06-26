@@ -63,6 +63,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/mar
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { focusedRowBackground, focusedRowBorder, rowHoverBackground, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { getIndicatorsLabelAriaLabel, ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 const $ = DOM.$;
 
@@ -778,6 +779,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		_container.classList.add('setting-item');
 		_container.classList.add('setting-item-' + typeClass);
 
+		const toDispose = new DisposableStore();
+
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
 		container.classList.add('settings-row-inner-container');
 		const titleElement = DOM.append(container, $('.setting-item-title'));
@@ -786,6 +789,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const labelElement = new SimpleIconLabel(labelElementContainer);
 		const indicatorsLabel = this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement);
+		toDispose.add(indicatorsLabel);
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
@@ -796,7 +800,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
-		const toDispose = new DisposableStore();
 		const policyWarningElement = this.renderPolicyLabel(container, toDispose);
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
@@ -2287,7 +2290,7 @@ export class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
 }
 
 class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<SettingsTreeElement> {
-	constructor(private readonly configurationService: IConfigurationService) {
+	constructor(private readonly configurationService: IConfigurationService, private readonly languageService: ILanguageService) {
 	}
 
 	getAriaLabel(element: SettingsTreeElement) {
@@ -2300,7 +2303,7 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 				ariaLabelSections.push(modifiedText);
 			}
 
-			const indicatorsLabelAriaLabel = getIndicatorsLabelAriaLabel(element, this.configurationService);
+			const indicatorsLabelAriaLabel = getIndicatorsLabelAriaLabel(element, this.configurationService, this.languageService);
 			if (indicatorsLabelAriaLabel.length) {
 				ariaLabelSections.push(`${indicatorsLabelAriaLabel}.`);
 			}
@@ -2334,6 +2337,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILanguageService languageService: ILanguageService
 	) {
 		super('SettingsTree', container,
 			new SettingsTreeDelegate(),
@@ -2346,7 +2350,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 						return e.id;
 					}
 				},
-				accessibilityProvider: new SettingsTreeAccessibilityProvider(configurationService),
+				accessibilityProvider: new SettingsTreeAccessibilityProvider(configurationService, languageService),
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),

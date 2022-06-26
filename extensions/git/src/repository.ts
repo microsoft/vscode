@@ -941,12 +941,13 @@ export class Repository implements Disposable {
 		}, undefined, this.disposables);
 
 		filterEvent(workspace.onDidChangeConfiguration, e =>
-			e.affectsConfiguration('git.branchSortOrder', root)
+			e.affectsConfiguration('git.branchProtection', root)
+			|| e.affectsConfiguration('git.branchSortOrder', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.rebaseWhenSync', root)
-			|| e.affectsConfiguration('git.showUnpublishedCommitsButton', root)
+			|| e.affectsConfiguration('git.showActionButton', root)
 		)(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {

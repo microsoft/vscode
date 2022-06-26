@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IShellIntegration } from 'vs/platform/terminal/common/terminal';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
@@ -117,6 +117,16 @@ const enum VSCodeOscPt {
 }
 
 /**
+ * ITerm sequences
+ */
+const enum ITermOscPt {
+	/**
+	 * Based on ITerm's `OSC 1337 ; SetMark`, sets a mark on the scroll bar
+	 */
+	SetMark = 'SetMark'
+}
+
+/**
  * The shell integration addon extends xterm by reading shell integration sequences and creating
  * capabilities and passing along relevant sequences to the capabilities. This is meant to
  * encapsulate all handling/parsing of sequences so the capabilities don't need to.
@@ -126,6 +136,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	readonly capabilities = new TerminalCapabilityStore();
 	private _hasUpdatedTelemetry: boolean = false;
 	private _activationTimeout: any;
+	private _commonProtocolDisposables: IDisposable[] = [];
 
 	constructor(
 		private readonly _disableTelemetry: boolean | undefined,
@@ -133,14 +144,57 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-		this._register(toDisposable(() => this._clearActivationTimeout()));
+		this._register(toDisposable(() => {
+			this._clearActivationTimeout();
+			this._disposeCommonProtocol();
+		}));
+	}
+
+	private _disposeCommonProtocol(): void {
+		dispose(this._commonProtocolDisposables);
+		this._commonProtocolDisposables.length = 0;
 	}
 
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
+		this._commonProtocolDisposables.push(
+			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data))
+		);
 		this._ensureCapabilitiesOrAddFailureTelemetry();
+	}
+
+	private _handleFinalTermSequence(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		// Pass the sequence along to the capability
+		// It was considered to disable the common protocol in order to not confuse the VS Code
+		// shell integration if both happen for some reason. This doesn't work for powerlevel10k
+		// when instant prompt is enabled though. If this does end up being a problem we could pass
+		// a type flag through the capability calls
+		const [command, ...args] = data.split(';');
+		switch (command) {
+			case 'A':
+				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
+				return true;
+			case 'B':
+				// Ignore the command line for these sequences as it's unreliable for example in powerlevel10k
+				this._createOrGetCommandDetection(this._terminal).handleCommandStart({ ignoreCommandLine: true });
+				return true;
+			case 'C':
+				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
+				return true;
+			case 'D': {
+				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
+				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private _handleVSCodeSequence(data: string): boolean {
@@ -242,6 +296,22 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
 					}
 				}
+			}
+		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	private _doHandleITermSequence(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		const [command, hoverMessage, disableCommandStorage] = data.split(';');
+		switch (command) {
+			case ITermOscPt.SetMark: {
+				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ genericMarkProperties: { hoverMessage: hoverMessage || '', disableCommandStorage: disableCommandStorage === 'true' ? true : false } });
 			}
 		}
 

@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
-import { Logger } from '../logger';
+import { ILogger } from '../logging';
 import { MarkdownItEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { escapeAttribute, getNonce } from '../util/dom';
@@ -48,7 +48,7 @@ export class MdDocumentRenderer {
 		private readonly context: vscode.ExtensionContext,
 		private readonly cspArbiter: ContentSecurityPolicyArbiter,
 		private readonly contributionProvider: MarkdownContributionProvider,
-		private readonly logger: Logger
+		private readonly logger: ILogger
 	) {
 		this.iconPath = {
 			dark: vscode.Uri.joinPath(this.context.extensionUri, 'media', 'preview-dark.svg'),
@@ -80,7 +80,7 @@ export class MdDocumentRenderer {
 			webviewResourceRoot: resourceProvider.asWebviewUri(markdownDocument.uri).toString(),
 		};
 
-		this.logger.log('provideTextDocumentContent', initialData);
+		this.logger.verbose('DocumentRenderer', `provideTextDocumentContent - ${markdownDocument.uri}`, initialData);
 
 		// Content Security Policy
 		const nonce = getNonce();

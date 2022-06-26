@@ -10,15 +10,16 @@ import { MdReferencesProvider, MdVsCodeReferencesProvider } from '../languageFea
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
-import { MdWorkspaceContents } from '../workspaceContents';
+import { IMdWorkspace } from '../workspace';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { InMemoryMdWorkspace } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
 import { joinLines, workspacePath } from './util';
 
 
-function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspace: MdWorkspaceContents) {
+function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspace: IMdWorkspace) {
 	const engine = createNewMarkdownEngine();
-	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace));
+	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
 	const provider = new MdVsCodeReferencesProvider(computer);
 	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
 }
@@ -51,11 +52,11 @@ suite('markdown: find all references', () => {
 		));
 
 		{
-			const refs = await getReferences(doc, new vscode.Position(1, 0), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const refs = await getReferences(doc, new vscode.Position(1, 0), new InMemoryMdWorkspace([doc]));
 			assert.deepStrictEqual(refs, []);
 		}
 		{
-			const refs = await getReferences(doc, new vscode.Position(3, 2), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const refs = await getReferences(doc, new vscode.Position(3, 2), new InMemoryMdWorkspace([doc]));
 			assert.deepStrictEqual(refs, []);
 		}
 	});
@@ -69,7 +70,7 @@ suite('markdown: find all references', () => {
 			`[not link](#noabc)`,
 			`[link 2](#abc)`,
 		));
-		const refs = await getReferences(doc, new vscode.Position(0, 3), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const refs = await getReferences(doc, new vscode.Position(0, 3), new InMemoryMdWorkspace([doc]));
 		assertReferencesEqual(refs!,
 			{ uri, line: 0 },
 			{ uri, line: 2 },
@@ -83,7 +84,7 @@ suite('markdown: find all references', () => {
 			`[ref]: http://example.com`,
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(0, 1), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const refs = await getReferences(doc, new vscode.Position(0, 1), new InMemoryMdWorkspace([doc]));
 		assert.deepStrictEqual(refs, []);
 	});
 
@@ -97,22 +98,22 @@ suite('markdown: find all references', () => {
 
 		{
 			// Trigger header
-			const refs = await getReferences(doc, new vscode.Position(0, 0), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const refs = await getReferences(doc, new vscode.Position(0, 0), new InMemoryMdWorkspace([doc]));
 			assert.deepStrictEqual(refs!.length, 4);
 		}
 		{
 			// Trigger on line 1
-			const refs = await getReferences(doc, new vscode.Position(1, 12), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const refs = await getReferences(doc, new vscode.Position(1, 12), new InMemoryMdWorkspace([doc]));
 			assert.deepStrictEqual(refs!.length, 4);
 		}
 		{
 			// Trigger on line 2
-			const refs = await getReferences(doc, new vscode.Position(2, 24), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const refs = await getReferences(doc, new vscode.Position(2, 24), new InMemoryMdWorkspace([doc]));
 			assert.deepStrictEqual(refs!.length, 4);
 		}
 		{
 			// Trigger on line 3
-			const refs = await getReferences(doc, new vscode.Position(3, 20), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const refs = await getReferences(doc, new vscode.Position(3, 20), new InMemoryMdWorkspace([doc]));
 			assert.deepStrictEqual(refs!.length, 4);
 		}
 	});
@@ -127,7 +128,7 @@ suite('markdown: find all references', () => {
 			``,
 			`[link 1](#abc)`,
 		));
-		const refs = await getReferences(doc, new vscode.Position(0, 3), new InMemoryWorkspaceMarkdownDocuments([
+		const refs = await getReferences(doc, new vscode.Position(0, 3), new InMemoryMdWorkspace([
 			doc,
 			new InMemoryDocument(other1Uri, joinLines(
 				`[not link](#abc)`,
@@ -157,7 +158,7 @@ suite('markdown: find all references', () => {
 			`[bla]: #abc`
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(0, 3), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const refs = await getReferences(doc, new vscode.Position(0, 3), new InMemoryMdWorkspace([doc]));
 		assertReferencesEqual(refs!,
 			{ uri, line: 0 }, // Header definition
 			{ uri, line: 2 },
@@ -172,7 +173,7 @@ suite('markdown: find all references', () => {
 			`[bla]: #a-b-c`, // trigger here
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(2, 9), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const refs = await getReferences(doc, new vscode.Position(2, 9), new InMemoryMdWorkspace([doc]));
 		assertReferencesEqual(refs!,
 			{ uri, line: 0 }, // Header definition
 			{ uri, line: 2 },
@@ -189,7 +190,7 @@ suite('markdown: find all references', () => {
 			`[link 2](#abc)`,
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(2, 10), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const refs = await getReferences(doc, new vscode.Position(2, 10), new InMemoryMdWorkspace([doc]));
 		assertReferencesEqual(refs!,
 			{ uri, line: 0 }, // Header definition
 			{ uri, line: 2 },
@@ -207,7 +208,7 @@ suite('markdown: find all references', () => {
 			``,
 			`[link 1](#abc)`,
 		));
-		const refs = await getReferences(doc, new vscode.Position(2, 10), new InMemoryWorkspaceMarkdownDocuments([
+		const refs = await getReferences(doc, new vscode.Position(2, 10), new InMemoryMdWorkspace([
 			doc,
 			new InMemoryDocument(other1Uri, joinLines(
 				`[not link](#abc)`,
@@ -240,7 +241,7 @@ suite('markdown: find all references', () => {
 			``,
 			`[link 1](#a-b-c)`,
 		));
-		const refs = await getReferences(doc, new vscode.Position(2, 10), new InMemoryWorkspaceMarkdownDocuments([
+		const refs = await getReferences(doc, new vscode.Position(2, 10), new InMemoryMdWorkspace([
 			doc,
 			new InMemoryDocument(other1Uri, joinLines(
 				`[not link](#a-b-c)`,
@@ -271,7 +272,7 @@ suite('markdown: find all references', () => {
 			`[without ext](./sub/other.md#header)`,
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(0, 23), new InMemoryWorkspaceMarkdownDocuments([
+		const refs = await getReferences(doc, new vscode.Position(0, 23), new InMemoryMdWorkspace([
 			doc,
 			new InMemoryDocument(other1Uri, joinLines(
 				`pre`,
@@ -297,7 +298,7 @@ suite('markdown: find all references', () => {
 			`[without ext](./sub/other.md#no-such-header)`,
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(0, 15), new InMemoryWorkspaceMarkdownDocuments([
+		const refs = await getReferences(doc, new vscode.Position(0, 15), new InMemoryMdWorkspace([
 			doc,
 			new InMemoryDocument(otherUri, joinLines(
 				`pre`,
@@ -321,7 +322,7 @@ suite('markdown: find all references', () => {
 			`[other](./sub/other)`, // trigger here
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(0, 15), new InMemoryWorkspaceMarkdownDocuments([
+		const refs = await getReferences(doc, new vscode.Position(0, 15), new InMemoryMdWorkspace([
 			doc,
 			new InMemoryDocument(otherUri, joinLines(
 				`# header`, // Definition should not be included since we triggered on a file link
@@ -342,7 +343,7 @@ suite('markdown: find all references', () => {
 			`[abs](/doc.md)`,
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryMdWorkspace([doc]));
 		assertReferencesEqual(refs!,
 			{ uri, line: 0 },
 			{ uri, line: 1 },
@@ -359,7 +360,7 @@ suite('markdown: find all references', () => {
 			`[3]: http://example.com`,
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryMdWorkspace([doc]));
 		assertReferencesEqual(refs!,
 			{ uri, line: 0 },
 			{ uri, line: 2 },
@@ -379,7 +380,7 @@ suite('markdown: find all references', () => {
 			`[7](https://example.com/cat)`,
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryMdWorkspace([doc]));
 		assertReferencesEqual(refs!,
 			{ uri, line: 0 },
 			{ uri, line: 4 },
@@ -394,7 +395,7 @@ suite('markdown: find all references', () => {
 			`[3]: http://example.com`,
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryWorkspaceMarkdownDocuments([
+		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryMdWorkspace([
 			doc,
 			new InMemoryDocument(uri2, joinLines(
 				`[other](http://example.com)`,
@@ -414,7 +415,7 @@ suite('markdown: find all references', () => {
 			`<http://example.com>`,
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryMdWorkspace([doc]));
 		assertReferencesEqual(refs!,
 			{ uri, line: 0 },
 			{ uri, line: 1 },
@@ -434,13 +435,13 @@ suite('markdown: find all references', () => {
 			`[link](/doc.md#abc)`,
 			`[link no text](/doc#abc)`,
 		));
-		const workspaceContents = new InMemoryWorkspaceMarkdownDocuments([
+		const workspace = new InMemoryMdWorkspace([
 			doc,
 			otherDoc,
 		]);
 		{
 			// Check refs to header fragment
-			const headerRefs = await getReferences(otherDoc, new vscode.Position(0, 16), workspaceContents);
+			const headerRefs = await getReferences(otherDoc, new vscode.Position(0, 16), workspace);
 			assertReferencesEqual(headerRefs!,
 				{ uri: docUri, line: 0 }, // Header definition
 				{ uri: docUri, line: 2 },
@@ -450,7 +451,7 @@ suite('markdown: find all references', () => {
 		}
 		{
 			// Check refs to file itself from link with ext
-			const fileRefs = await getReferences(otherDoc, new vscode.Position(0, 9), workspaceContents);
+			const fileRefs = await getReferences(otherDoc, new vscode.Position(0, 9), workspace);
 			assertReferencesEqual(fileRefs!,
 				{ uri: other1Uri, line: 0, endCharacter: 14 },
 				{ uri: other1Uri, line: 1, endCharacter: 19 },
@@ -458,7 +459,7 @@ suite('markdown: find all references', () => {
 		}
 		{
 			// Check refs to file itself from link without ext
-			const fileRefs = await getReferences(otherDoc, new vscode.Position(1, 17), workspaceContents);
+			const fileRefs = await getReferences(otherDoc, new vscode.Position(1, 17), workspace);
 			assertReferencesEqual(fileRefs!,
 				{ uri: other1Uri, line: 0 },
 				{ uri: other1Uri, line: 1 },
@@ -480,7 +481,7 @@ suite('markdown: find all references', () => {
 		));
 
 
-		const refs = await getReferences(doc1, new vscode.Position(0, 10), new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]));
+		const refs = await getReferences(doc1, new vscode.Position(0, 10), new InMemoryMdWorkspace([doc1, doc2]));
 		assertReferencesEqual(refs!,
 			{ uri: uri1, line: 0 },
 			{ uri: uri1, line: 2 },
@@ -497,7 +498,7 @@ suite('markdown: find all references', () => {
 				`[abc]: https://example.com`,
 			));
 
-			const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryMdWorkspace([doc]));
 			assertReferencesEqual(refs!,
 				{ uri: docUri, line: 0 },
 				{ uri: docUri, line: 2 },
@@ -515,7 +516,7 @@ suite('markdown: find all references', () => {
 			));
 
 			{
-				const refs = await getReferences(doc, new vscode.Position(0, 2), new InMemoryWorkspaceMarkdownDocuments([doc]));
+				const refs = await getReferences(doc, new vscode.Position(0, 2), new InMemoryMdWorkspace([doc]));
 				assertReferencesEqual(refs!,
 					{ uri: docUri, line: 0 },
 					{ uri: docUri, line: 2 },
@@ -523,7 +524,7 @@ suite('markdown: find all references', () => {
 				);
 			}
 			{
-				const refs = await getReferences(doc, new vscode.Position(2, 7), new InMemoryWorkspaceMarkdownDocuments([doc]));
+				const refs = await getReferences(doc, new vscode.Position(2, 7), new InMemoryMdWorkspace([doc]));
 				assertReferencesEqual(refs!,
 					{ uri: docUri, line: 0 },
 					{ uri: docUri, line: 2 },
@@ -531,7 +532,7 @@ suite('markdown: find all references', () => {
 				);
 			}
 			{
-				const refs = await getReferences(doc, new vscode.Position(4, 2), new InMemoryWorkspaceMarkdownDocuments([doc]));
+				const refs = await getReferences(doc, new vscode.Position(4, 2), new InMemoryMdWorkspace([doc]));
 				assertReferencesEqual(refs!,
 					{ uri: docUri, line: 0 },
 					{ uri: docUri, line: 2 },
@@ -548,7 +549,7 @@ suite('markdown: find all references', () => {
 				`[abc]: https://example.com`, // trigger here
 			));
 
-			const refs = await getReferences(doc, new vscode.Position(2, 3), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const refs = await getReferences(doc, new vscode.Position(2, 3), new InMemoryMdWorkspace([doc]));
 			assertReferencesEqual(refs!,
 				{ uri: docUri, line: 0 },
 				{ uri: docUri, line: 2 },
@@ -563,7 +564,7 @@ suite('markdown: find all references', () => {
 				`[abc]: https://example.com`,
 			));
 
-			const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryWorkspaceMarkdownDocuments([
+			const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryMdWorkspace([
 				doc,
 				new InMemoryDocument(workspacePath('other.md'), joinLines(
 					`[link 1][abc]`,
@@ -587,7 +588,7 @@ suite('markdown: find all references', () => {
 				`[x]: https://example.com`
 			));
 
-			const refs = await getReferences(doc, new vscode.Position(0, 4), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			const refs = await getReferences(doc, new vscode.Position(0, 4), new InMemoryMdWorkspace([doc]));
 			assert.strictEqual(refs?.length!, 0);
 		});
 	});

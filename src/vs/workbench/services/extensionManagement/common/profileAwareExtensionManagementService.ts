@@ -9,12 +9,24 @@ import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagemen
 import { URI } from 'vs/base/common/uri';
 import { IGalleryExtension, ILocalExtension, InstallOptions, InstallVSIXOptions, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { delta } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class NativeProfileAwareExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
+
+	private readonly disposables = this._register(new DisposableStore());
+
+	override get onInstallExtension() { return Event.filter(super.onInstallExtension, e => this.filterEvent(e), this.disposables); }
+	override get onDidInstallExtensions() {
+		return Event.filter(
+			Event.map(super.onDidInstallExtensions, results => results.filter(e => this.filterEvent(e)), this.disposables),
+			results => results.length > 0, this.disposables);
+	}
+	override get onUninstallExtension() { return Event.filter(super.onUninstallExtension, e => this.filterEvent(e), this.disposables); }
+	override get onDidUninstallExtension() { return Event.filter(super.onDidUninstallExtension, e => this.filterEvent(e), this.disposables); }
 
 	private readonly _onDidChangeProfileExtensions = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
 	readonly onDidChangeProfileExtensions = this._onDidChangeProfileExtensions.event;
@@ -23,6 +35,10 @@ export class NativeProfileAwareExtensionManagementService extends ExtensionManag
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(channel);
+	}
+
+	private filterEvent({ profileLocation, applicationScoped }: { profileLocation?: URI; applicationScoped?: boolean }): boolean {
+		return applicationScoped || this.uriIdentityService.extUri.isEqual(this.extensionsProfileResource, profileLocation);
 	}
 
 	override install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {

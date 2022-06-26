@@ -154,30 +154,24 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 				return;
 			}
 		});
-		let matchLink = text;
+		let cwdResolvedText = text;
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			matchLink = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, pathSeparator) || text;
+			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, pathSeparator) || text;
 		}
-		const sanitizedLink = matchLink.replace(/:\d+(:\d+)?$/, '');
-		try {
-			const result = await this._getExactMatch(sanitizedLink);
-			if (result) {
-				const { uri, isDirectory } = result;
-				const linkToOpen = {
-					// Use the absolute URI's path here so the optional line/col get detected
-					text: result.uri.fsPath + (matchLink.match(/:\d+(:\d+)?$/)?.[0] || ''),
-					uri,
-					bufferRange: link.bufferRange,
-					type: link.type
-				};
-				if (uri) {
-					return isDirectory ? this._localFolderInWorkspaceOpener.open(linkToOpen) : this._localFileOpener.open(linkToOpen);
-				}
+
+		// Try open the cwd resolved link first
+		if (await this._tryOpenExactLink(cwdResolvedText, link)) {
+			return;
+		}
+
+		// If the cwd resolved text didn't match, try find the link without the cwd resolved, for
+		// example when a command prints paths in a sub-directory of the current cwd
+		if (text !== cwdResolvedText) {
+			if (await this._tryOpenExactLink(text, link)) {
+				return;
 			}
-		} catch {
-			// Fallback to searching quick access
-			return this._quickInputService.quickAccess.show(text);
 		}
+
 		// Fallback to searching quick access
 		return this._quickInputService.quickAccess.show(text);
 	}
@@ -220,6 +214,30 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 			}
 		}
 		return resourceMatch;
+	}
+
+	private async _tryOpenExactLink(text: string, link: ITerminalSimpleLink): Promise<boolean> {
+		const sanitizedLink = text.replace(/:\d+(:\d+)?$/, '');
+		try {
+			const result = await this._getExactMatch(sanitizedLink);
+			if (result) {
+				const { uri, isDirectory } = result;
+				const linkToOpen = {
+					// Use the absolute URI's path here so the optional line/col get detected
+					text: result.uri.fsPath + (text.match(/:\d+(:\d+)?$/)?.[0] || ''),
+					uri,
+					bufferRange: link.bufferRange,
+					type: link.type
+				};
+				if (uri) {
+					await (isDirectory ? this._localFolderInWorkspaceOpener.open(linkToOpen) : this._localFileOpener.open(linkToOpen));
+					return true;
+				}
+			}
+		} catch {
+			return false;
+		}
+		return false;
 	}
 }
 

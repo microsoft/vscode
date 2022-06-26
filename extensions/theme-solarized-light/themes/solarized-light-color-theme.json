@@ -488,6 +488,9 @@
 		"terminal.ansiBrightMagenta": "#6c71c4",
 		"terminal.ansiBrightCyan": "#93a1a1",
 		"terminal.ansiBrightWhite": "#fdf6e3",
+		// Set terminal background explicitly, otherwise selection becomes invisible when the
+		// terminal is in the side bar
+		"terminal.background": "#FDF6E3",
 		// Interactive Playground
 		"walkThrough.embeddedEditorBackground": "#00000014"
 	},

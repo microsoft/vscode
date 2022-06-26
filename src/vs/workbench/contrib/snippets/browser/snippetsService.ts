@@ -350,9 +350,16 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private async _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = this._userDataProfileService.currentProfile.snippetsHome;
-		await this._fileService.createFolder(userSnippetsFolder);
-		return await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables);
+		const disposables = new DisposableStore();
+		const updateUserSnippets = async () => {
+			disposables.clear();
+			const userSnippetsFolder = this._userDataProfileService.currentProfile.snippetsHome;
+			await this._fileService.createFolder(userSnippetsFolder);
+			await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, disposables);
+		};
+		this._disposables.add(disposables);
+		this._disposables.add(this._userDataProfileService.onDidChangeCurrentProfile(() => this._pendingWork.push(updateUserSnippets())));
+		await updateUserSnippets();
 	}
 
 	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: DisposableStore): Promise<any> {

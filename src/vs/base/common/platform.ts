@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as nls from 'vs/nls';
 
 const LANGUAGE_DEFAULT = 'en';
 
@@ -81,16 +82,14 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
 
-	// Gather loader configuration since that contains the locale
-	let loaderConfiguration: any = null;
-	if (typeof globals.require !== 'undefined' && typeof globals.require.getConfig === 'function') {
-		// Get the configuration from the Monaco AMD Loader
-		loaderConfiguration = globals.require.getConfig();
-	} else if (typeof globals.requirejs !== 'undefined') {
-		// Get the configuration from requirejs
-		loaderConfiguration = globals.requirejs.s.contexts._.config;
-	}
-	const configuredLocale = loaderConfiguration?.['vs/nls']?.['availableLanguages']?.['*'] as string | undefined;
+	const configuredLocale = nls.getConfiguredDefaultLocale(
+		// This call _must_ be done in the file that calls `nls.getConfiguredDefaultLocale`
+		// to ensure that the NLS AMD Loader plugin has been loaded and configured.
+		// This is because the loader plugin decides what the default locale is based on
+		// how it's able to resolve the strings.
+		nls.localize({ key: 'ensureLoaderPluginIsLoaded', comment: ['{Locked}'] }, '_')
+	);
+
 	_locale = configuredLocale || navigator.language;
 
 	_language = _locale;
