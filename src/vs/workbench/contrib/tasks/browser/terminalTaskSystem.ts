@@ -54,9 +54,10 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { GroupKind } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
 import { Codicon } from 'vs/base/common/codicons';
+import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from 'vs/workbench/contrib/terminal/browser/terminalEscapeSequences';
 
-const taskShellIntegrationStartSequence = '\x1b]633;A\x07' + '\x1b]633;P;Task=\x07' + '\x1b]633;B\x07';
-const taskShellIntegrationOutputSequence = '\x1b]633;C\x07';
+const taskShellIntegrationStartSequence = VSCodeSequence(VSCodeOscPt.PromptStart) + VSCodeSequence(VSCodeOscPt.Property, VSCodeOscProperty.Task) + VSCodeSequence(VSCodeOscPt.CommandStart);
+const taskShellIntegrationOutputSequence = VSCodeSequence(VSCodeOscPt.CommandExecuted);
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -1136,6 +1137,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						comment: ['The task command line or label']
 					}, 'Executing task: {0}', commandLine), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				}
+			} else {
+				shellLaunchConfig.initialText = taskShellIntegrationStartSequence + taskShellIntegrationOutputSequence;
 			}
 		} else {
 			const commandExecutable = (task.command.runtime !== RuntimeType.CustomExecution) ? CommandString.value(command) : undefined;
@@ -1174,6 +1177,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						comment: ['The task command line or label']
 					}, 'Executing task: {0}', `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
 				}
+			} else {
+				shellLaunchConfig.initialText = taskShellIntegrationStartSequence + taskShellIntegrationOutputSequence;
 			}
 		}
 
@@ -1709,6 +1714,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 function taskShellIntegrationWaitOnExitSequence(message: string): (exitCode: number) => string {
 	return (exitCode) => {
-		return `\x1b]633;D;${exitCode}\x07${message}`;
+		return `${VSCodeSequence(VSCodeOscPt.CommandFinished, exitCode.toString())}${message}`;
 	};
 }

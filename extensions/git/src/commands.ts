@@ -9,7 +9,7 @@ import { Command, commands, Disposable, LineChange, MessageOptions, Position, Pr
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
+import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, PostCommitCommand } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
@@ -26,7 +26,7 @@ const localize = nls.loadMessageBundle();
 class CheckoutItem implements QuickPickItem {
 
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
-	get label(): string { return this.ref.name ? `${this.ref.name}${this.repository.isBranchProtected(this.ref.name) ? ' $(lock-small)' : ''}` : this.shortCommit; }
+	get label(): string { return `${this.repository.isBranchProtected(this.ref.name ?? '') ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`; }
 	get description(): string { return this.shortCommit; }
 
 	constructor(protected repository: Repository, protected ref: Ref) { }
@@ -44,7 +44,7 @@ class CheckoutItem implements QuickPickItem {
 
 class CheckoutTagItem extends CheckoutItem {
 
-	override get label(): string { return this.ref.name || this.shortCommit; }
+	override get label(): string { return `$(tag) ${this.ref.name || this.shortCommit}`; }
 	override get description(): string {
 		return localize('tag at', "Tag at {0}", this.shortCommit);
 	}
@@ -52,7 +52,7 @@ class CheckoutTagItem extends CheckoutItem {
 
 class CheckoutRemoteHeadItem extends CheckoutItem {
 
-	override get label(): string { return this.ref.name || this.shortCommit; }
+	override get label(): string { return `$(git-branch) ${this.ref.name || this.shortCommit}`; }
 	override get description(): string {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
@@ -417,20 +417,20 @@ export class CommandCenter {
 		}
 
 
-		type InputData = { uri: Uri; detail?: string; description?: string };
+		type InputData = { uri: Uri; title?: string; detail?: string; description?: string };
 		const mergeUris = toMergeUris(uri);
-		const input1: InputData = { uri: mergeUris.ours };
-		const input2: InputData = { uri: mergeUris.theirs };
+		const ours: InputData = { uri: mergeUris.ours, title: localize('Yours', 'Yours') };
+		const theirs: InputData = { uri: mergeUris.theirs, title: localize('Theirs', 'Theirs') };
 
 		try {
 			const [head, mergeHead] = await Promise.all([repo.getCommit('HEAD'), repo.getCommit('MERGE_HEAD')]);
 			// ours (current branch and commit)
-			input1.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
-			input1.description = head.hash.substring(0, 7);
+			ours.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
+			ours.description = head.hash.substring(0, 7);
 
 			// theirs
-			input2.detail = mergeHead.refNames.join(', ');
-			input2.description = mergeHead.hash.substring(0, 7);
+			theirs.detail = mergeHead.refNames.join(', ');
+			theirs.description = mergeHead.hash.substring(0, 7);
 
 		} catch (error) {
 			// not so bad, can continue with just uris
@@ -439,9 +439,9 @@ export class CommandCenter {
 		}
 
 		const options = {
-			ancestor: mergeUris.base,
-			input1,
-			input2,
+			base: mergeUris.base,
+			input1: theirs,
+			input2: ours,
 			output: uri
 		};
 
@@ -1614,14 +1614,11 @@ export class CommandCenter {
 		await repository.commit(message, opts);
 
 		const postCommitCommand = config.get<'none' | 'push' | 'sync'>('postCommitCommand');
-
-		switch (postCommitCommand) {
-			case 'push':
-				await this._push(repository, { pushType: PushType.Push, silent: true });
-				break;
-			case 'sync':
-				await this.sync(repository);
-				break;
+		if ((opts.postCommitCommand === undefined && postCommitCommand === 'push') || opts.postCommitCommand === 'push') {
+			await this._push(repository, { pushType: PushType.Push, silent: true });
+		}
+		if ((opts.postCommitCommand === undefined && postCommitCommand === 'sync') || opts.postCommitCommand === 'sync') {
+			await this.sync(repository);
 		}
 
 		return true;
@@ -1670,8 +1667,8 @@ export class CommandCenter {
 	}
 
 	@command('git.commit', { repository: true })
-	async commit(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository);
+	async commit(repository: Repository, postCommitCommand?: PostCommitCommand): Promise<void> {
+		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 
 	@command('git.commitStaged', { repository: true })

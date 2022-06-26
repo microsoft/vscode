@@ -277,6 +277,26 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			this._id = this._win.id;
 
+			// re-position traffic light if command center is visible
+			if (useCustomTitleStyle && isMacintosh) {
+				const ccConfigKey = 'window.commandCenter';
+				const trafficLightUpdater = () => {
+					// temporarily disabled because of https://github.com/microsoft/vscode/pull/150272#issuecomment-1152218493
+					// const on = this.configurationService.getValue<boolean>(ccConfigKey);
+					// if (on) {
+					// 	this._win.setTrafficLightPosition({ x: 7, y: 9 });
+					// } else {
+					// 	this._win.setTrafficLightPosition({ x: 7, y: 6 });
+					// }
+				};
+				trafficLightUpdater();
+				this.configurationService.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration(ccConfigKey)) {
+						trafficLightUpdater();
+					}
+				}, undefined, this._store);
+			}
+
 			// Open devtools if instructed from command line args
 			if (this.environmentMainService.args['open-devtools'] === true) {
 				this._win.webContents.openDevTools();
@@ -883,8 +903,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
+		configuration.editSessionId = this.environmentMainService.editSessionId; // set latest edit session id
 		configuration.profiles = {
-			default: this.userDataProfilesService.defaultProfile,
+			all: this.userDataProfilesService.profiles,
 			current: configuration.workspace ? this.userDataProfilesService.getProfile(configuration.workspace) : this.userDataProfilesService.defaultProfile,
 		};
 

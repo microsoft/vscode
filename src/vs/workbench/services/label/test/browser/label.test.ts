@@ -166,7 +166,7 @@ suite('URI Label', () => {
 
 
 	test('label caching', () => {
-		const m = new Memento('cachedResourceLabelFormatters', storageService).getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		const m = new Memento('cachedResourceLabelFormatters', storageService).getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		const makeFormatter = (scheme: string): ResourceLabelFormatter => ({ formatting: { label: `\${path} (${scheme})`, separator: '/' }, scheme });
 		assert.deepStrictEqual(m, {});
 

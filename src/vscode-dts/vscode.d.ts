@@ -10127,7 +10127,7 @@ declare module 'vscode' {
 		 * @param mimeType The mime type to get the data transfer item for, such as `text/plain` or `image/png`.
 		 *
 		 * Special mime types:
-		 * - `text/uri-list` — A string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
+		 * - `text/uri-list` — A string with `toString()`ed Uris separated by `\r\n`. To specify a cursor position in the file,
 		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 */
 		get(mimeType: string): DataTransferItem | undefined;

@@ -217,7 +217,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private async getRecentlyOpenedFromStorage(): Promise<IRecentlyOpened> {
 
-		// Wait for application storage to be ready
+		// Wait for global storage to be ready
 		await this.applicationStorageMainService.whenReady;
 
 		let storedRecentlyOpened: object | undefined = undefined;
@@ -237,10 +237,10 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private async saveRecentlyOpened(recent: IRecentlyOpened): Promise<void> {
 
-		// Wait for application storage to be ready
+		// Wait for global storage to be ready
 		await this.applicationStorageMainService.whenReady;
 
-		// Store in application storage (but do not sync since this is mainly local paths)
+		// Store in global storage (but do not sync since this is mainly local paths)
 		this.applicationStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 

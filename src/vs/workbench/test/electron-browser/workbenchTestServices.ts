@@ -85,7 +85,7 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	homeDir: homeDir,
 	tmpDir: tmpdir(),
 	userDataDir: getUserDataPath(args),
-	profiles: { current: NULL_PROFILE, default: NULL_PROFILE },
+	profiles: { current: NULL_PROFILE, all: [NULL_PROFILE] },
 	...args
 };
 
@@ -223,7 +223,7 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
-	async updateTitleBarOverlay(backgroundColor: string, foregroundColor: string): Promise<void> { }
+	async updateTitleBarOverlay(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
 	async focusWindow(options?: { windowId?: number | undefined } | undefined): Promise<void> { }
@@ -289,8 +289,8 @@ export function workbenchInstantiationService(disposables = new DisposableStore(
 	instantiationService.stub(INativeEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
-	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, TestEnvironmentService, new FileService(new NullLogService()), new NullLogService()));
-	instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService.defaultProfile));
+	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(TestEnvironmentService, new FileService(new NullLogService()), new NullLogService()));
+	instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile));
 
 	return instantiationService;
 }

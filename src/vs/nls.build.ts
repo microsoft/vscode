@@ -16,9 +16,16 @@ export function localize(data: ILocalizeInfo | string, message: string, ...args:
 	throw new Error(`Not supported at build time!`);
 }
 
+export function getConfiguredDefaultLocale(): string | undefined {
+	throw new Error(`Not supported at build time!`);
+}
+
+/**
+ * Invoked by the loader at build-time
+ */
 export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoader.IPluginLoadCallback, config: AMDLoader.IConfigurationOptions): void {
 	if (!name || name.length === 0) {
-		load({ localize });
+		load({ localize, getConfiguredDefaultLocale });
 	} else {
 		req([name + '.nls', name + '.nls.keys'], function (messages: string[], keys: string[]) {
 			buildMap[name] = messages;
@@ -28,6 +35,9 @@ export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoa
 	}
 }
 
+/**
+ * Invoked by the loader at build-time
+ */
 export function write(pluginName: string, moduleName: string, write: AMDLoader.IPluginWriteCallback): void {
 	const entryPoint = write.getEntryPoint();
 
@@ -39,6 +49,9 @@ export function write(pluginName: string, moduleName: string, write: AMDLoader.I
 	}
 }
 
+/**
+ * Invoked by the loader at build-time
+ */
 export function writeFile(pluginName: string, moduleName: string, req: AMDLoader.IRelativeRequire, write: AMDLoader.IPluginWriteFileCallback, config: AMDLoader.IConfigurationOptions): void {
 	if (entryPoints.hasOwnProperty(moduleName)) {
 		const fileName = req.toUrl(moduleName + '.nls.js');
@@ -59,6 +72,9 @@ export function writeFile(pluginName: string, moduleName: string, req: AMDLoader
 	}
 }
 
+/**
+ * Invoked by the loader at build-time
+ */
 export function finishBuild(write: AMDLoader.IPluginWriteFileCallback): void {
 	write('nls.metadata.json', JSON.stringify({
 		keys: buildMapKeys,

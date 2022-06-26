@@ -29,7 +29,7 @@ export interface ISharedProcessConfiguration extends ISandboxConfiguration {
 
 	readonly backupWorkspacesPath: string;
 
-	readonly defaultProfile: UriDto<IUserDataProfile>;
+	readonly profiles: UriDto<IUserDataProfile>[];
 
 	readonly policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
 }

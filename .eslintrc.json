@@ -227,8 +227,6 @@
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
 							"applicationinsights",
-							"@microsoft/1ds-core-js",
-							"@microsoft/1ds-post-js",
 							"assert",
 							"child_process",
 							"console",
@@ -277,6 +275,7 @@
 						// imports that are allowed in all /test/ files
 						"when": "test",
 						"allow": [
+							"vs/css.build",
 							"assert",
 							"sinon",
 							"sinon-test"
@@ -331,7 +330,9 @@
 							"vs/base/~",
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
-							"tas-client-umd" // node module allowed even in /common/
+							"tas-client-umd", // node module allowed even in /common/
+							"@microsoft/1ds-core-js",// node module allowed even in /common/
+							"@microsoft/1ds-post-js" // node module allowed even in /common/
 						]
 					},
 					{

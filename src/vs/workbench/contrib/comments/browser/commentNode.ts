@@ -273,6 +273,12 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 	}
 
+	async submitComment(): Promise<void> {
+		if (this._commentEditor && this._commentFormActions) {
+			this._commentFormActions.triggerDefaultAction();
+		}
+	}
+
 	private createReactionPicker(reactionGroup: languages.CommentReaction[]): ToggleReactionsAction {
 		const toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionViewItem) {

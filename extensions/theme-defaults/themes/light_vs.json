@@ -25,7 +25,8 @@
 		"notebook.cellBorderColor": "#E8E8E8",
 		"notebook.selectedCellBackground": "#c8ddf150",
 		"statusBarItem.errorBackground": "#c72e0f",
-		"list.activeSelectionIconForeground": "#FFF"
+		"list.activeSelectionIconForeground": "#FFF",
+		"list.focusAndSelectionOutline": "#90C2F9"
 	},
 	"tokenColors": [
 		{

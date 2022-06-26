@@ -27,6 +27,7 @@
 	zoom: 1;
 	white-space: nowrap;
 	outline: 0 !important;
+	align-self: center;
 }
 
 .monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title {

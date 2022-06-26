@@ -5,6 +5,7 @@
 
 import { Comparator, compareBy, numberComparator } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { Constants } from 'vs/base/common/uint';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 
@@ -102,5 +103,12 @@ export class LineRange {
 
 	public toRange(): Range {
 		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive, 1);
+	}
+
+	public toInclusiveRange(): Range | undefined {
+		if (this.isEmpty) {
+			return undefined;
+		}
+		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive - 1, Constants.MAX_SAFE_SMALL_INTEGER);
 	}
 }
