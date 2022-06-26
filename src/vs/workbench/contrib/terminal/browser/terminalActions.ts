@@ -330,6 +330,23 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.CopyLastOutput,
+				title: { value: localize('workbench.action.terminal.CopyLastOutput', 'Copy output of the last command'), original: 'Copy the output of the last command' },
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const instance = accessor.get(ITerminalService).activeInstance;
+			if (instance) {
+				instance.copyLastOutput();
+			}
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.GoToRecentDirectory,
 				title: { value: localize('workbench.action.terminal.goToRecentDirectory', "Go to Recent Directory"), original: 'Go to Recent Directory' },
 				f1: true,

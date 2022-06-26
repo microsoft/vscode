@@ -673,6 +673,12 @@ export interface ITerminalInstance {
 	 */
 	copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void>;
 
+
+	/**
+	 * Copies the ouput of the last command
+	 */
+	copyLastOutput(): Promise<void>;
+
 	/**
 	 * Current selection in the terminal.
 	 */

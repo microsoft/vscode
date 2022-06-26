@@ -1230,6 +1230,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	async copyLastOutput(): Promise<void> {
+		const cmdDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		const commands = cmdDetection?.commands;
+		if (commands && commands.length > 0) {
+			const output = commands[commands.length - 1]?.getOutput();
+			if (output) {
+				await this._clipboardService.writeText(output);
+			}
+		}
+	}
+
 	get selection(): string | undefined {
 		return this.xterm && this.hasSelection() ? this.xterm.raw.getSelection() : undefined;
 	}
