@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { ITextDocument } from '../types/textDocument';
 import { ResourceMap } from '../util/resourceMap';
@@ -33,6 +34,19 @@ export class InMemoryMdWorkspace implements IMdWorkspace {
 
 	public async pathExists(resource: vscode.Uri): Promise<boolean> {
 		return this._documents.has(resource);
+	}
+
+	public async readDirectory(resource: vscode.Uri): Promise<[string, vscode.FileType][]> {
+		const files = new Map<string, vscode.FileType>();
+		const pathPrefix = resource.fsPath + (resource.fsPath.endsWith('/') || resource.fsPath.endsWith('\\') ? '' : path.sep);
+		for (const doc of this._documents.values()) {
+			const path = doc.uri.fsPath;
+			if (path.startsWith(pathPrefix)) {
+				const parts = path.slice(pathPrefix.length).split(/\/|\\/g);
+				files.set(parts[0], parts.length > 1 ? vscode.FileType.Directory : vscode.FileType.File);
+			}
+		}
+		return Array.from(files.entries());
 	}
 
 	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<ITextDocument>();

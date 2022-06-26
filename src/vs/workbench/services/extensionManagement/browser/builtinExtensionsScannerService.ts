@@ -41,7 +41,8 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 	) {
 		if (isWeb) {
 			const nlsBaseUrl = productService.extensionsGallery?.nlsBaseUrl;
-			if (nlsBaseUrl && productService.commit) {
+			// Only use the nlsBaseUrl if we are using a language other than the default, English.
+			if (nlsBaseUrl && productService.commit && !Language.isDefaultVariant()) {
 				this.nlsUrl = URI.joinPath(URI.parse(nlsBaseUrl), productService.commit, productService.version, Language.value());
 			}
 

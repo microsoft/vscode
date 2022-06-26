@@ -313,8 +313,7 @@ export class MenuBar extends Disposable {
 
 	createOverflowMenu(): void {
 		const label = this.isCompact ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', 'More');
-		const title = this.isCompact ? label : undefined;
-		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': this.isCompact ? 0 : -1, 'aria-label': label, 'title': title, 'aria-haspopup': true });
+		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': this.isCompact ? 0 : -1, 'aria-label': label, 'aria-haspopup': true });
 		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more' + Codicon.menuBarMore.cssSelector, { 'role': 'none', 'aria-hidden': true });
 
 		buttonElement.appendChild(titleElement);
@@ -747,7 +746,7 @@ export class MenuBar extends Disposable {
 		this._onFocusStateChange.fire(this.focusState >= MenubarState.FOCUSED);
 	}
 
-	private get isVisible(): boolean {
+	get isVisible(): boolean {
 		return this.focusState >= MenubarState.VISIBLE;
 	}
 

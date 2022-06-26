@@ -34,9 +34,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
@@ -224,7 +223,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		this._cachedResolver = null;
 
-		this.userKeybindings = this._register(new UserKeybindings(userDataProfileService.currentProfile.keybindingsResource, fileService, logService));
+		this.userKeybindings = this._register(new UserKeybindings(userDataProfileService, fileService, logService));
 		this.userKeybindings.initialize().then(() => {
 			if (this.userKeybindings.keybindings.length) {
 				this.updateResolver();
@@ -707,34 +706,49 @@ class UserKeybindings extends Disposable {
 
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
+	private readonly watchDisposables = this._register(new DisposableStore());
+
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
-		private readonly keybindingsResource: URI,
+		private readonly userDataProfileService: IUserDataProfileService,
 		private readonly fileService: IFileService,
 		logService: ILogService,
 	) {
 		super();
 
-		this._register(fileService.watch(dirname(keybindingsResource)));
-		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
-		this._register(this.fileService.watch(this.keybindingsResource));
+		this.watch();
+
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
 			if (changed) {
 				this._onDidChange.fire();
 			}
 		}), 50));
-		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.keybindingsResource))(() => {
+
+		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.userDataProfileService.currentProfile.keybindingsResource))(() => {
 			logService.debug('Keybindings file changed');
 			this.reloadConfigurationScheduler.schedule();
 		}));
+
 		this._register(this.fileService.onDidRunOperation((e) => {
-			if (e.operation === FileOperation.WRITE && e.resource.toString() === this.keybindingsResource.toString()) {
+			if (e.operation === FileOperation.WRITE && e.resource.toString() === this.userDataProfileService.currentProfile.keybindingsResource.toString()) {
 				logService.debug('Keybindings file written');
 				this.reloadConfigurationScheduler.schedule();
 			}
 		}));
+
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			this.watch();
+			e.join(this.reload().then(() => this.reloadConfigurationScheduler.schedule()));
+		}));
+	}
+
+	private watch(): void {
+		this.watchDisposables.clear();
+		this.watchDisposables.add(this.fileService.watch(dirname(this.userDataProfileService.currentProfile.keybindingsResource)));
+		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
+		this.watchDisposables.add(this.fileService.watch(this.userDataProfileService.currentProfile.keybindingsResource));
 	}
 
 	async initialize(): Promise<void> {
@@ -744,7 +758,7 @@ class UserKeybindings extends Disposable {
 	private async reload(): Promise<boolean> {
 		const existing = this._keybindings;
 		try {
-			const content = await this.fileService.readFile(this.keybindingsResource);
+			const content = await this.fileService.readFile(this.userDataProfileService.currentProfile.keybindingsResource);
 			const value = parse(content.value.toString());
 			this._keybindings = isArray(value) ? value : [];
 		} catch (e) {

@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { groupBy } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { compareIgnoreCase, uppercaseFirstLetter } from 'vs/base/common/strings';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -14,31 +17,27 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookExtensionRecommendation, KERNEL_RECOMMENDATIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookKernel, INotebookKernelService, ISourceAction } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Codicon } from 'vs/base/common/codicons';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -173,18 +172,13 @@ registerAction2(class extends Action2 {
 		type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 		type SourcePick = IQuickPickItem & { action: ISourceAction };
 
-		const configButton: IQuickInputButton = {
-			iconClass: ThemeIcon.asClassName(configureKernelIcon),
-			tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.textModel.viewType)
-		};
 		function toQuickPick(kernel: INotebookKernel) {
 			const res = <KernelPick>{
 				kernel,
 				picked: kernel.id === selected?.id,
 				label: kernel.label,
 				description: kernel.description,
-				detail: kernel.detail,
-				buttons: [configButton]
+				detail: kernel.detail
 			};
 			if (kernel.id === selected?.id) {
 				if (!res.description) {
@@ -262,12 +256,7 @@ registerAction2(class extends Action2 {
 		const pick = await quickInputService.pick(quickPickItems, {
 			placeHolder: selected
 				? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
-				: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),
-			onDidTriggerItemButton: (context) => {
-				if ('kernel' in context.item) {
-					notebookKernelService.selectKernelForNotebookType(context.item.kernel, notebook.viewType);
-				}
-			}
+				: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
 		});
 
 		if (pick) {

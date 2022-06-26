@@ -122,35 +122,6 @@ export function addDisposableGenericMouseMoveListener(node: EventTarget, handler
 export function addDisposableGenericMouseUpListener(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
-export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
-	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
-		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget);
-		while (toElement && toElement !== node) {
-			toElement = toElement.parentNode;
-		}
-		if (toElement === node) {
-			return;
-		}
-
-		handler(e);
-	});
-}
-
-export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
-	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
-		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget);
-		while (toElement && toElement !== node) {
-			toElement = toElement.parentNode;
-		}
-		if (toElement === node) {
-			return;
-		}
-
-		handler(e);
-	});
-}
 
 export function createEventEmitter<K extends keyof HTMLElementEventMap>(target: HTMLElement, type: K, options?: boolean | AddEventListenerOptions): event.Emitter<HTMLElementEventMap[K]> {
 	let domListener: DomListener | null = null;
@@ -870,6 +841,7 @@ export const EventType = {
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
 	POINTER_MOVE: 'pointermove',
+	POINTER_LEAVE: 'pointerleave',
 	CONTEXT_MENU: 'contextmenu',
 	WHEEL: 'wheel',
 	// Keyboard
@@ -1761,3 +1733,99 @@ export function computeClippingRect(elementOrRect: HTMLElement | DOMRectReadOnly
 
 	return { top, right, bottom, left };
 }
+
+/**
+ * A helper function to create nested dom nodes.
+ *
+ *
+ * ```ts
+ * private readonly htmlElements = h('div.code-view', [
+ * 	h('div.title', { $: 'title' }),
+ * 	h('div.container', [
+ * 		h('div.gutter', { $: 'gutterDiv' }),
+ * 		h('div', { $: 'editor' }),
+ * 	]),
+ * ]);
+ * private readonly editor = createEditor(this.htmlElements.editor);
+ * ```
+*/
+export function h<TTag extends string>(tag: TTag): never;
+export function h<TTag extends string, TId extends string>(
+	tag: TTag,
+	attributes: { $: TId }
+): Record<TId | 'root', TagToElement<TTag>>;
+export function h<TTag extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
+	tag: TTag,
+	children: T
+): (ArrayToObj<T> & Record<'root', TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+export function h<TTag extends string, TId extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
+	tag: TTag,
+	attributes: { $: TId },
+	children: T
+): (ArrayToObj<T> & Record<TId, TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+export function h(tag: string, ...args: [] | [attributes: { $: string } | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
+	let attributes: Record<string, any>;
+	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;
+
+	if (Array.isArray(args[0])) {
+		attributes = {};
+		children = args[0];
+	} else {
+		attributes = args[0] as any || {};
+		children = args[1];
+	}
+
+	const [tagName, className] = tag.split('.');
+	const el = document.createElement(tagName);
+	if (className) {
+		el.className = className;
+	}
+
+	const result: Record<string, HTMLElement> = {};
+
+	if (children) {
+		for (const c of children) {
+			if (c instanceof HTMLElement) {
+				el.appendChild(c);
+			} else if (typeof c === 'string') {
+				el.append(c);
+			} else {
+				Object.assign(result, c);
+				el.appendChild(c.root);
+			}
+		}
+	}
+
+	for (const [key, value] of Object.entries(attributes)) {
+		if (key === '$') {
+			result[value] = el;
+			continue;
+		}
+		el.setAttribute(key, value);
+	}
+
+	result['root'] = el;
+
+	return result;
+}
+
+type RemoveHTMLElement<T> = T extends HTMLElement ? never : T;
+
+type ArrayToObj<T extends any[]> = UnionToIntersection<RemoveHTMLElement<T[number]>>;
+
+
+type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never;
+
+type HTMLElementsByTagName = {
+	div: HTMLDivElement;
+	span: HTMLSpanElement;
+	a: HTMLAnchorElement;
+};
+
+type TagToElement<T> = T extends `${infer TStart}.${string}`
+	? TStart extends keyof HTMLElementsByTagName
+	? HTMLElementsByTagName[TStart]
+	: HTMLElement
+	: T extends keyof HTMLElementsByTagName
+	? HTMLElementsByTagName[T]
+	: HTMLElement;

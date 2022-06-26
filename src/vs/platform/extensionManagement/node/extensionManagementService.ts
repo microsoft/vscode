@@ -22,10 +22,11 @@ import { extract, ExtractError, IFile, zip } from 'vs/base/node/zip';
 import * as nls from 'vs/nls';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, joinErrors } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation,
-	Metadata, ServerInstallOptions, ServerInstallVSIXOptions
+	IServerExtensionManagementService,
+	Metadata, ServerInstallOptions, ServerInstallVSIXOptions, ServerUninstallOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
@@ -38,7 +39,7 @@ import { ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensio
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -51,7 +52,14 @@ interface InstallableExtension {
 	metadata?: Metadata;
 }
 
-export class ExtensionManagementService extends AbstractExtensionManagementService {
+export const INativeServerExtensionManagementService = refineServiceDecorator<IServerExtensionManagementService, INativeServerExtensionManagementService>(IServerExtensionManagementService);
+export interface INativeServerExtensionManagementService extends IServerExtensionManagementService {
+	readonly _serviceBrand: undefined;
+	removeUninstalledExtensions(removeOutdated: boolean): Promise<void>;
+	getAllUserInstalled(): Promise<ILocalExtension[]>;
+}
+
+export class ExtensionManagementService extends AbstractExtensionManagementService implements INativeServerExtensionManagementService {
 
 	private readonly extensionsScanner: ExtensionsScanner;
 	private readonly manifestCache: ExtensionsManifestCache;
@@ -117,6 +125,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return this.extensionsScanner.scanExtensions(type ?? null, profileLocation);
 	}
 
+	getAllUserInstalled(): Promise<ILocalExtension[]> {
+		return this.extensionsScanner.scanUserExtensions(false);
+	}
+
 	async install(vsix: URI, options: ServerInstallVSIXOptions = {}): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#install', vsix.toString());
 
@@ -151,8 +163,8 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return local;
 	}
 
-	removeDeprecatedExtensions(): Promise<void> {
-		return this.extensionsScanner.cleanUp();
+	removeUninstalledExtensions(removeOutdated: boolean): Promise<void> {
+		return this.extensionsScanner.cleanUp(removeOutdated);
 	}
 
 	private async downloadVsix(vsix: URI): Promise<URI> {
@@ -168,7 +180,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return URI.isUri(extension) ? new InstallVSIXTask(manifest, extension, options, this.galleryService, this.extensionsScanner, this.logService) : new InstallGalleryExtensionTask(manifest, extension, options, this.extensionsDownloader, this.extensionsScanner, this.logService);
 	}
 
-	protected createDefaultUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
+	protected createDefaultUninstallExtensionTask(extension: ILocalExtension, options: ServerUninstallOptions): IUninstallExtensionTask {
 		return new UninstallExtensionTask(extension, options, this.extensionsScanner);
 	}
 
@@ -215,9 +227,11 @@ class ExtensionsScanner extends Disposable {
 		this.uninstalledFileLimiter = new Queue();
 	}
 
-	async cleanUp(): Promise<void> {
+	async cleanUp(removeOutdated: boolean): Promise<void> {
 		await this.removeUninstalledExtensions();
-		await this.removeOutdatedExtensions();
+		if (removeOutdated) {
+			await this.removeOutdatedExtensions();
+		}
 	}
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI | undefined): Promise<ILocalExtension[]> {
@@ -581,7 +595,7 @@ class InstallGalleryExtensionTask extends InstallExtensionTask {
 		const zipPath = await this.downloadExtension(this.gallery, this._operation);
 		try {
 			const local = await this.installExtension({ zipPath, key: ExtensionKey.create(this.gallery), metadata }, token);
-			if (existingExtension && (existingExtension.targetPlatform !== local.targetPlatform || semver.neq(existingExtension.manifest.version, local.manifest.version))) {
+			if (existingExtension && !this.options.profileLocation && (existingExtension.targetPlatform !== local.targetPlatform || semver.neq(existingExtension.manifest.version, local.manifest.version))) {
 				await this.extensionsScanner.setUninstalled(existingExtension);
 			}
 			return { local, metadata };
@@ -650,7 +664,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 				} catch (e) {
 					throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
 				}
-			} else if (semver.gt(existing.manifest.version, this.manifest.version)) {
+			} else if (!this.options.profileLocation && semver.gt(existing.manifest.version, this.manifest.version)) {
 				await this.extensionsScanner.setUninstalled(existing);
 			}
 		} else {
@@ -696,7 +710,7 @@ class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUni
 
 	constructor(
 		readonly extension: ILocalExtension,
-		private readonly options: UninstallExtensionTaskOptions,
+		private readonly options: ServerUninstallOptions,
 		private readonly extensionsScanner: ExtensionsScanner,
 	) {
 		super();

@@ -16,7 +16,6 @@ import { assertType } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,7 +24,6 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, PANEL_BORDER, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 export class CommandCenterControl {
 
@@ -38,34 +36,15 @@ export class CommandCenterControl {
 
 	constructor(
 		windowTitle: WindowTitle,
+		hoverDelegate: IHoverDelegate,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
-		@IHoverService hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		this.element.classList.add('command-center');
-
-		const hoverDelegate = new class implements IHoverDelegate {
-
-			private _lastHoverHideTime: number = 0;
-
-			readonly showHover = hoverService.showHover.bind(hoverService);
-			readonly placement = 'element';
-
-			get delay(): number {
-				return Date.now() - this._lastHoverHideTime < 200
-					? 0  // show instantly when a hover was recently shown
-					: configurationService.getValue<number>('workbench.hover.delay');
-			}
-
-			onDidHideHover() {
-				this._lastHoverHideTime = Date.now();
-			}
-		};
 
 		const titleToolbar = new ToolBar(this.element, contextMenuService, {
 			actionViewItemProvider: (action) => {

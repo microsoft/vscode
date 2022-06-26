@@ -30,6 +30,8 @@ export interface IMdWorkspace {
 
 	pathExists(resource: vscode.Uri): Promise<boolean>;
 
+	readDirectory(resource: vscode.Uri): Promise<[string, vscode.FileType][]>;
+
 	readonly onDidChangeMarkdownDocument: vscode.Event<ITextDocument>;
 	readonly onDidCreateMarkdownDocument: vscode.Event<ITextDocument>;
 	readonly onDidDeleteMarkdownDocument: vscode.Event<vscode.Uri>;
@@ -188,5 +190,9 @@ export class VsCodeMdWorkspace extends Disposable implements IMdWorkspace {
 			return false;
 		}
 		return targetResourceStat.type === vscode.FileType.File || targetResourceStat.type === vscode.FileType.Directory;
+	}
+
+	public async readDirectory(resource: vscode.Uri): Promise<[string, vscode.FileType][]> {
+		return vscode.workspace.fs.readDirectory(resource);
 	}
 }

@@ -461,6 +461,17 @@ suite('Markdown: MdLinkComputer', () => {
 			new vscode.Range(5, 7, 5, 17),
 		]);
 	});
+
+	test('Should not include link with empty angle bracket', async () => {
+		const links = await getLinksForFile(joinLines(
+			`[](<>)`,
+			`[link](<>)`,
+			`[link](<> "text")`,
+			`[link](<> 'text')`,
+			`[link](<> (text))`,
+		));
+		assertLinksEqual(links, []);
+	});
 });
 
 

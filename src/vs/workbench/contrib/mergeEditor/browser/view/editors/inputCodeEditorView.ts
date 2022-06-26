@@ -14,7 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { autorun, derivedObservable, IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { InputState, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { applyObservableDecorations, h, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
 import { CodeEditorView, ICodeEditorViewOptions } from './codeEditorView';
@@ -36,24 +36,23 @@ export class InputCodeEditorView extends CodeEditorView {
 
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
 			if (range && !range.isEmpty) {
-
-
 				const blockClassNames = ['merge-editor-block'];
 				const isHandled = model.isHandled(modifiedBaseRange).read(reader);
 				if (isHandled) {
 					blockClassNames.push('handled');
 				}
 				if (modifiedBaseRange === activeModifiedBaseRange) {
-					blockClassNames.push('active');
+					blockClassNames.push('focused');
 				}
-				blockClassNames.push('input' + this.inputNumber);
+				const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
+				blockClassNames.push(inputClassName);
 
 				result.push({
 					range: range.toInclusiveRange()!,
 					options: {
 						isWholeLine: true,
 						blockClassName: blockClassNames.join(' '),
-						description: 'Base Range Projection',
+						description: 'Merge Editor',
 						minimap: {
 							position: MinimapPosition.Gutter,
 							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
@@ -67,13 +66,25 @@ export class InputCodeEditorView extends CodeEditorView {
 
 				const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
 				for (const diff of inputDiffs) {
+					const range = diff.outputRange.toInclusiveRange();
+					if (range) {
+						result.push({
+							range,
+							options: {
+								className: `merge-editor-diff ${inputClassName}`,
+								description: 'Merge Editor',
+								isWholeLine: true,
+							}
+						});
+					}
+
 					if (diff.rangeMappings) {
 						for (const d of diff.rangeMappings) {
 							result.push({
 								range: d.outputRange,
 								options: {
-									className: `merge-editor-diff-input1`,
-									description: 'Base Range Projection'
+									className: `merge-editor-diff-word ${inputClassName}`,
+									description: 'Merge Editor'
 								}
 							});
 						}
@@ -270,9 +281,9 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			});
 		}));
 
-		target.appendChild(h('div.background', [noBreakWhitespace]).root);
+		target.appendChild(dom.h('div.background', [noBreakWhitespace]).root);
 		target.appendChild(
-			h('div.checkbox', [h('div.checkbox-background', [checkBox.domNode])]).root
+			dom.h('div.checkbox', [dom.h('div.checkbox-background', [checkBox.domNode])]).root
 		);
 	}
 
