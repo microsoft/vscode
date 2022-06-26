@@ -103,13 +103,6 @@ export interface INotebookKernelService {
 	preselectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
 
 	/**
-	 * Bind a notebook type to a kernel.
-	 * @param viewType
-	 * @param kernel
-	 */
-	selectKernelForNotebookType(kernel: INotebookKernel, viewType: string): void;
-
-	/**
 	 * Set a perference of a kernel for a certain notebook. Higher values win, `undefined` removes the preference
 	 */
 	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;

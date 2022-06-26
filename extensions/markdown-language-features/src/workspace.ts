@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { ITextDocument } from './types/textDocument';
 import { coalesce } from './util/arrays';
 import { Disposable } from './util/dispose';
 import { isMarkdownFile, looksLikeMarkdownPath } from './util/file';
@@ -12,46 +13,27 @@ import { Limiter } from './util/limiter';
 import { ResourceMap } from './util/resourceMap';
 
 /**
- * Minimal version of {@link vscode.TextLine}. Used for mocking out in testing.
- */
-export interface SkinnyTextLine {
-	readonly text: string;
-	readonly isEmptyOrWhitespace: boolean;
-}
-
-/**
- * Minimal version of {@link vscode.TextDocument}. Used for mocking out in testing.
- */
-export interface SkinnyTextDocument {
-	readonly uri: vscode.Uri;
-	readonly version: number;
-	readonly lineCount: number;
-
-	getText(range?: vscode.Range): string;
-	lineAt(line: number): SkinnyTextLine;
-	positionAt(offset: number): vscode.Position;
-}
-
-/**
  * Provides set of markdown files in the current workspace.
  */
-export interface MdWorkspaceContents {
+export interface IMdWorkspace {
 	/**
 	 * Get list of all known markdown files.
 	 */
-	getAllMarkdownDocuments(): Promise<Iterable<SkinnyTextDocument>>;
+	getAllMarkdownDocuments(): Promise<Iterable<ITextDocument>>;
 
 	/**
 	 * Check if a document already exists in the workspace contents.
 	 */
 	hasMarkdownDocument(resource: vscode.Uri): boolean;
 
-	getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined>;
+	getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<ITextDocument | undefined>;
 
 	pathExists(resource: vscode.Uri): Promise<boolean>;
 
-	readonly onDidChangeMarkdownDocument: vscode.Event<SkinnyTextDocument>;
-	readonly onDidCreateMarkdownDocument: vscode.Event<SkinnyTextDocument>;
+	readDirectory(resource: vscode.Uri): Promise<[string, vscode.FileType][]>;
+
+	readonly onDidChangeMarkdownDocument: vscode.Event<ITextDocument>;
+	readonly onDidCreateMarkdownDocument: vscode.Event<ITextDocument>;
 	readonly onDidDeleteMarkdownDocument: vscode.Event<vscode.Uri>;
 }
 
@@ -60,15 +42,15 @@ export interface MdWorkspaceContents {
  *
  * This includes both opened text documents and markdown files in the workspace.
  */
-export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspaceContents {
+export class VsCodeMdWorkspace extends Disposable implements IMdWorkspace {
 
-	private readonly _onDidChangeMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<SkinnyTextDocument>());
-	private readonly _onDidCreateMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<SkinnyTextDocument>());
+	private readonly _onDidChangeMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<ITextDocument>());
+	private readonly _onDidCreateMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<ITextDocument>());
 	private readonly _onDidDeleteMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<vscode.Uri>());
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
 
-	private readonly _documentCache = new ResourceMap<SkinnyTextDocument>();
+	private readonly _documentCache = new ResourceMap<ITextDocument>();
 
 	private readonly utf8Decoder = new TextDecoder('utf-8');
 
@@ -78,11 +60,11 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 	 *
 	 * @returns Array of processed .md files.
 	 */
-	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
+	async getAllMarkdownDocuments(): Promise<ITextDocument[]> {
 		const maxConcurrent = 20;
 
-		const foundFiles = new Set<string>();
-		const limiter = new Limiter<SkinnyTextDocument | undefined>(maxConcurrent);
+		const foundFiles = new ResourceMap<void>();
+		const limiter = new Limiter<ITextDocument | undefined>(maxConcurrent);
 
 		// Add files on disk
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
@@ -90,7 +72,7 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 			return limiter.queue(async () => {
 				const doc = await this.getOrLoadMarkdownDocument(resource);
 				if (doc) {
-					foundFiles.add(doc.uri.toString());
+					foundFiles.set(resource);
 				}
 				return doc;
 			});
@@ -98,7 +80,7 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 
 		// Add opened files (such as untitled files)
 		const openTextDocumentResults = await Promise.all(vscode.workspace.textDocuments
-			.filter(doc => !foundFiles.has(doc.uri.toString()) && this.isRelevantMarkdownDocument(doc)));
+			.filter(doc => !foundFiles.has(doc.uri) && this.isRelevantMarkdownDocument(doc)));
 
 		return coalesce([...onDiskResults, ...openTextDocumentResults]);
 	}
@@ -167,7 +149,7 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		return isMarkdownFile(doc) && doc.uri.scheme !== 'vscode-bulkeditpreview';
 	}
 
-	public async getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
+	public async getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<ITextDocument | undefined> {
 		const existing = this._documentCache.get(resource);
 		if (existing) {
 			return existing;
@@ -208,5 +190,9 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 			return false;
 		}
 		return targetResourceStat.type === vscode.FileType.File || targetResourceStat.type === vscode.FileType.Directory;
+	}
+
+	public async readDirectory(resource: vscode.Uri): Promise<[string, vscode.FileType][]> {
+		return vscode.workspace.fs.readDirectory(resource);
 	}
 }

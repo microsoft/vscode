@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { ILogger } from '../logging';
 import { MdTableOfContentsProvider, TocEntry } from '../tableOfContents';
-import { SkinnyTextDocument } from '../workspaceContents';
+import { ITextDocument } from '../types/textDocument';
 
 interface MarkdownSymbol {
 	readonly level: number;
@@ -21,13 +21,13 @@ export class MdDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 		private readonly logger: ILogger,
 	) { }
 
-	public async provideDocumentSymbolInformation(document: SkinnyTextDocument): Promise<vscode.SymbolInformation[]> {
+	public async provideDocumentSymbolInformation(document: ITextDocument): Promise<vscode.SymbolInformation[]> {
 		this.logger.verbose('DocumentSymbolProvider', `provideDocumentSymbolInformation - ${document.uri}`);
 		const toc = await this.tocProvider.getForDocument(document);
 		return toc.entries.map(entry => this.toSymbolInformation(entry));
 	}
 
-	public async provideDocumentSymbols(document: SkinnyTextDocument): Promise<vscode.DocumentSymbol[]> {
+	public async provideDocumentSymbols(document: ITextDocument): Promise<vscode.DocumentSymbol[]> {
 		const toc = await this.tocProvider.getForDocument(document);
 		const root: MarkdownSymbol = {
 			level: -Infinity,

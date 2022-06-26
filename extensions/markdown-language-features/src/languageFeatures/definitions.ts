@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import { SkinnyTextDocument } from '../workspaceContents';
+import { ITextDocument } from '../types/textDocument';
 import { MdReferencesProvider } from './references';
 
 export class MdVsCodeDefinitionProvider implements vscode.DefinitionProvider {
@@ -12,7 +12,7 @@ export class MdVsCodeDefinitionProvider implements vscode.DefinitionProvider {
 		private readonly referencesProvider: MdReferencesProvider,
 	) { }
 
-	async provideDefinition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Definition | undefined> {
+	async provideDefinition(document: ITextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Definition | undefined> {
 		const allRefs = await this.referencesProvider.getReferencesAtPosition(document, position, token);
 
 		return allRefs.find(ref => ref.kind === 'link' && ref.isDefinition)?.location;

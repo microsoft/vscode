@@ -10,7 +10,7 @@ import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dat
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { generateUuid } from 'vs/base/common/uuid';
-import { toVSDataTransfer } from 'vs/editor/browser/dnd';
+import { toVSDataTransfer, UriList } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -176,8 +176,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			if (!dataTransfer.has(Mimes.uriList)) {
 				const resources = await this._clipboardService.readResources();
 				if (resources.length) {
-					const value = resources.join('\n');
-					dataTransfer.append(Mimes.uriList, createStringDataTransferItem(value));
+					dataTransfer.append(Mimes.uriList, createStringDataTransferItem(UriList.create(resources)));
 				}
 			}
 

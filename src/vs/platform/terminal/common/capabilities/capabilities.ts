@@ -4,7 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IGenericMarkProperties, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+
+interface IEvent<T, U = void> {
+	(listener: (arg1: T, arg2: U) => any): IDisposable;
+}
+
+export interface IMarker extends IDisposable {
+	/**
+	 * A unique identifier for this marker.
+	 */
+	readonly id: number;
+
+	/**
+	 * Whether this marker is disposed.
+	 */
+	readonly isDisposed: boolean;
+
+	/**
+	 * The actual line index in the buffer at this point in time. This is set to
+	 * -1 if the marker has been disposed.
+	 */
+	readonly line: number;
+
+	/**
+	 * Event listener to get notified when the marker gets disposed. Automatic disposal
+	 * might happen for a marker, that got invalidated by scrolling out or removal of
+	 * a line from the buffer.
+	 */
+	onDispose: IEvent<void>;
+}
+
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
@@ -82,6 +113,15 @@ export interface ICwdDetectionCapability {
 	updateCwd(cwd: string): void;
 }
 
+export const enum CommandInvalidationReason {
+	Windows = 'windows',
+	NoProblemsReported = 'noProblemsReported'
+}
+
+export interface ICommandInvalidationRequest {
+	reason: CommandInvalidationReason;
+}
+
 export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
@@ -93,7 +133,7 @@ export interface ICommandDetectionCapability {
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
-	readonly onCurrentCommandInvalidated: Event<void>;
+	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
 	setIsCommandStorageDisabled(): void;
@@ -102,20 +142,38 @@ export interface ICommandDetectionCapability {
 	 * case the terminal's initial cwd should be used.
 	 */
 	getCwdForLine(line: number): string | undefined;
-	handlePromptStart(): void;
+	handlePromptStart(options?: IHandleCommandOptions): void;
 	handleContinuationStart(): void;
 	handleContinuationEnd(): void;
 	handleRightPromptStart(): void;
 	handleRightPromptEnd(): void;
-	handleCommandStart(): void;
-	handleCommandExecuted(): void;
-	handleCommandFinished(exitCode: number | undefined): void;
+	handleCommandStart(options?: IHandleCommandOptions): void;
+	handleGenericCommand(options?: IHandleCommandOptions): void;
+	handleCommandExecuted(options?: IHandleCommandOptions): void;
+	handleCommandFinished(exitCode?: number, options?: IHandleCommandOptions): void;
+	invalidateCurrentCommand(request: ICommandInvalidationRequest): void;
 	/**
 	 * Set the command line explicitly.
 	 */
 	setCommandLine(commandLine: string): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export interface IHandleCommandOptions {
+	/**
+	 * Whether to allow an empty command to be registered. This should be used to support certain
+	 * shell integration scripts/features where tracking the command line may not be possible.
+	 */
+	ignoreCommandLine?: boolean;
+	/**
+	 * The marker to use
+	 */
+	marker?: IMarker;
+	/**
+	 * Properties for a generic mark
+	 */
+	genericMarkProperties?: IGenericMarkProperties;
 }
 
 export interface INaiveCwdDetectionCapability {
@@ -141,6 +199,7 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	getOutput(): string | undefined;
 	hasOutput: boolean;
+	genericMarkProperties?: IGenericMarkProperties;
 }
 
 /**

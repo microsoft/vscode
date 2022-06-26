@@ -17,10 +17,11 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction, Command } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
@@ -47,6 +48,7 @@ function stripNewlines(str: string): string {
 
 export interface CodeActionShowOptions {
 	readonly includeDisabledActions: boolean;
+	readonly fromLightbulb?: boolean;
 }
 
 export class CodeActionMenu extends Disposable {
@@ -62,6 +64,7 @@ export class CodeActionMenu extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -101,7 +104,30 @@ export class CodeActionMenu extends Disposable {
 			domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
 			getAnchor: () => anchor,
 			getActions: () => menuActions,
-			onHide: () => {
+			onHide: (didCancel) => {
+				const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
+
+				type ApplyCodeActionEvent = {
+					codeActionFrom: CodeActionTriggerSource;
+					validCodeActions: number;
+					cancelled: boolean;
+				};
+
+				type ApplyCodeEventClassification = {
+					codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
+					validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
+					cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
+					owner: 'mjbvz';
+					comment: 'Event used to gain insights into how code actions are being triggered';
+				};
+
+				this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+					codeActionFrom: openedFromString,
+					validCodeActions: codeActions.validActions.length,
+					cancelled: didCancel,
+
+				});
+
 				this._visible = false;
 				this._editor.focus();
 			},
@@ -116,7 +142,6 @@ export class CodeActionMenu extends Disposable {
 		documentation: readonly Command[]
 	): IAction[] {
 		const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(item.action, () => this._delegate.onSelectCodeAction(item, trigger));
-
 		const result: IAction[] = actionsToShow
 			.map(toCodeActionAction);
 

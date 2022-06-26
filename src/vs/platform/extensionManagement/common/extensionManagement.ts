@@ -238,10 +238,11 @@ export interface IGalleryMetadata {
 	targetPlatform?: TargetPlatform;
 }
 
-export type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; isSystem: boolean; updated: boolean; preRelease: boolean; installedTimestamp: number }>;
+export type Metadata = Partial<IGalleryMetadata & { isApplicationScoped: boolean; isMachineScoped: boolean; isBuiltin: boolean; isSystem: boolean; updated: boolean; preRelease: boolean; installedTimestamp: number }>;
 
 export interface ILocalExtension extends IExtension {
 	isMachineScoped: boolean;
+	isApplicationScoped: boolean;
 	publisherId: string | null;
 	publisherDisplayName: string | null;
 	installedTimestamp?: number;
@@ -355,9 +356,14 @@ export interface InstallExtensionResult {
 	readonly context?: IStringDictionary<any>;
 }
 
-export interface DidUninstallExtensionEvent {
+export interface UninstallExtensionEvent {
 	identifier: IExtensionIdentifier;
-	error?: string;
+}
+
+export interface DidUninstallExtensionEvent {
+	readonly identifier: IExtensionIdentifier;
+	readonly version?: string;
+	readonly error?: string;
 }
 
 export enum ExtensionManagementErrorCode {
@@ -398,7 +404,7 @@ export type InstallOptions = {
 	context?: IStringDictionary<any>;
 };
 export type InstallVSIXOptions = Omit<InstallOptions, 'installGivenVersion'> & { installOnlyNewlyAddedFromExtensionPack?: boolean };
-export type UninstallOptions = { donotIncludePack?: boolean; donotCheckDependents?: boolean };
+export type UninstallOptions = { readonly donotIncludePack?: boolean; readonly donotCheckDependents?: boolean; readonly versionOnly?: boolean; readonly remove?: boolean };
 
 export interface IExtensionManagementParticipant {
 	postInstall(local: ILocalExtension, source: URI | IGalleryExtension, options: InstallOptions | InstallVSIXOptions, token: CancellationToken): Promise<void>;
@@ -411,7 +417,7 @@ export interface IExtensionManagementService {
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	onUninstallExtension: Event<IExtensionIdentifier>;
+	onUninstallExtension: Event<UninstallExtensionEvent>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	zip(extension: ILocalExtension): Promise<URI>;
@@ -433,6 +439,11 @@ export interface IExtensionManagementService {
 	getTargetPlatform(): Promise<TargetPlatform>;
 }
 
+export type ServerInstallExtensionEvent = InstallExtensionEvent & { profileLocation?: URI; applicationScoped?: boolean };
+export type ServerInstallExtensionResult = InstallExtensionResult & { profileLocation?: URI; applicationScoped?: boolean };
+export type ServerUninstallExtensionEvent = UninstallExtensionEvent & { profileLocation?: URI; applicationScoped?: boolean };
+export type ServerDidUninstallExtensionEvent = DidUninstallExtensionEvent & { profileLocation?: URI; applicationScoped?: boolean };
+
 export type ServerInstallOptions = InstallOptions & { profileLocation?: URI };
 export type ServerInstallVSIXOptions = InstallVSIXOptions & { profileLocation?: URI };
 export type ServerUninstallOptions = UninstallOptions & { profileLocation?: URI };
@@ -440,6 +451,10 @@ export type ServerUninstallOptions = UninstallOptions & { profileLocation?: URI 
 export const IServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, IServerExtensionManagementService>(IExtensionManagementService);
 export interface IServerExtensionManagementService extends IExtensionManagementService {
 	readonly _serviceBrand: undefined;
+	onInstallExtension: Event<ServerInstallExtensionEvent>;
+	onDidInstallExtensions: Event<readonly ServerInstallExtensionResult[]>;
+	onUninstallExtension: Event<ServerUninstallExtensionEvent>;
+	onDidUninstallExtension: Event<ServerDidUninstallExtensionEvent>;
 	getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	install(vsix: URI, options?: ServerInstallVSIXOptions): Promise<ILocalExtension>;
 	installFromGallery(extension: IGalleryExtension, options?: ServerInstallOptions): Promise<ILocalExtension>;

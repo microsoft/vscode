@@ -7,9 +7,10 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as URI from 'vscode-uri';
 import { Slugifier } from '../slugify';
+import { ITextDocument } from '../types/textDocument';
 import { Disposable } from '../util/dispose';
 import { resolveDocumentLink } from '../util/openDocumentLink';
-import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
+import { IMdWorkspace } from '../workspace';
 import { InternalHref } from './documentLinks';
 import { MdHeaderReference, MdLinkReference, MdReference, MdReferencesProvider, tryResolveLinkPath } from './references';
 
@@ -58,14 +59,14 @@ export class MdVsCodeRenameProvider extends Disposable implements vscode.RenameP
 	private readonly renameNotSupportedText = localize('invalidRenameLocation', "Rename not supported at location");
 
 	public constructor(
-		private readonly workspaceContents: MdWorkspaceContents,
+		private readonly workspace: IMdWorkspace,
 		private readonly referencesProvider: MdReferencesProvider,
 		private readonly slugifier: Slugifier,
 	) {
 		super();
 	}
 
-	public async prepareRename(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<undefined | { readonly range: vscode.Range; readonly placeholder: string }> {
+	public async prepareRename(document: ITextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<undefined | { readonly range: vscode.Range; readonly placeholder: string }> {
 		const allRefsInfo = await this.getAllReferences(document, position, token);
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -122,11 +123,11 @@ export class MdVsCodeRenameProvider extends Disposable implements vscode.RenameP
 		return references.find(ref => ref.isDefinition && ref.kind === 'header') as MdHeaderReference | undefined;
 	}
 
-	public async provideRenameEdits(document: SkinnyTextDocument, position: vscode.Position, newName: string, token: vscode.CancellationToken): Promise<vscode.WorkspaceEdit | undefined> {
+	public async provideRenameEdits(document: ITextDocument, position: vscode.Position, newName: string, token: vscode.CancellationToken): Promise<vscode.WorkspaceEdit | undefined> {
 		return (await this.provideRenameEditsImpl(document, position, newName, token))?.edit;
 	}
 
-	public async provideRenameEditsImpl(document: SkinnyTextDocument, position: vscode.Position, newName: string, token: vscode.CancellationToken): Promise<MdWorkspaceEdit | undefined> {
+	public async provideRenameEditsImpl(document: ITextDocument, position: vscode.Position, newName: string, token: vscode.CancellationToken): Promise<MdWorkspaceEdit | undefined> {
 		const allRefsInfo = await this.getAllReferences(document, position, token);
 		if (token.isCancellationRequested || !allRefsInfo || !allRefsInfo.references.length) {
 			return undefined;
@@ -153,7 +154,7 @@ export class MdVsCodeRenameProvider extends Disposable implements vscode.RenameP
 		const edit = new vscode.WorkspaceEdit();
 		const fileRenames: MdFileRenameEdit[] = [];
 
-		const targetUri = await tryResolveLinkPath(triggerHref.path, this.workspaceContents) ?? triggerHref.path;
+		const targetUri = await tryResolveLinkPath(triggerHref.path, this.workspace) ?? triggerHref.path;
 
 		const rawNewFilePath = resolveDocumentLink(newName, triggerDocument);
 		let resolvedNewFilePath = rawNewFilePath;
@@ -168,7 +169,7 @@ export class MdVsCodeRenameProvider extends Disposable implements vscode.RenameP
 		}
 
 		// First rename the file
-		if (await this.workspaceContents.pathExists(targetUri)) {
+		if (await this.workspace.pathExists(targetUri)) {
 			fileRenames.push({ from: targetUri, to: resolvedNewFilePath });
 			edit.renameFile(targetUri, resolvedNewFilePath);
 		}
@@ -241,7 +242,7 @@ export class MdVsCodeRenameProvider extends Disposable implements vscode.RenameP
 		return { edit };
 	}
 
-	private async getAllReferences(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReferencesResponse | undefined> {
+	private async getAllReferences(document: ITextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReferencesResponse | undefined> {
 		const version = document.version;
 
 		if (this.cachedRefs
@@ -272,9 +273,9 @@ export class MdVsCodeRenameProvider extends Disposable implements vscode.RenameP
 
 export function registerRenameSupport(
 	selector: vscode.DocumentSelector,
-	workspaceContents: MdWorkspaceContents,
+	workspace: IMdWorkspace,
 	referencesProvider: MdReferencesProvider,
 	slugifier: Slugifier,
 ): vscode.Disposable {
-	return vscode.languages.registerRenameProvider(selector, new MdVsCodeRenameProvider(workspaceContents, referencesProvider, slugifier));
+	return vscode.languages.registerRenameProvider(selector, new MdVsCodeRenameProvider(workspace, referencesProvider, slugifier));
 }
