@@ -24,7 +24,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
-import { INotificationService, NotificationsDoNotDisturbMode } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -64,7 +64,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
-		this._register(this.notificationService.onDidSetDoNotDisturbMode((mode) => this.onDidSetDoNotDisturbMode(mode)));
+		this._register(this.notificationService.onDidSetDoNotDisturbMode(() => this.onDidSetDoNotDisturbMode()));
 	}
 
 	get isVisible(): boolean {
@@ -231,6 +231,13 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		}
 	}
 
+	private onDidSetDoNotDisturbMode(): void {
+		// Hide the notification center when do not disturb is enabled
+		if (this.notificationService.doNotDisturbMode) {
+			this.hide();
+		}
+	}
+
 	hide(): void {
 		if (!this._isVisible || !this.notificationsCenterContainer || !this.notificationsList) {
 			return; // already hidden
@@ -319,12 +326,6 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			if (!notification.hasProgress) {
 				notification.close();
 			}
-		}
-	}
-
-	onDidSetDoNotDisturbMode(mode: NotificationsDoNotDisturbMode): void {
-		if (mode === NotificationsDoNotDisturbMode.ENABLED) {
-			this.hide();
 		}
 	}
 }

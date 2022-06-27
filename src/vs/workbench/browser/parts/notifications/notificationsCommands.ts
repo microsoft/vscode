@@ -248,8 +248,8 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Toggle Do Not Disturb Mode
 	CommandsRegistry.registerCommand(TOGGLE_DO_NOT_DISTURB_MODE, accessor => {
 		const notificationService = accessor.get(INotificationService);
-		const currentMode = notificationService.getDoNotDisturbMode();
-		notificationService.setDoNotDisturbMode(!currentMode);
+		const currentMode = notificationService.doNotDisturbMode;
+		notificationService.doNotDisturbMode = !currentMode;
 	});
 
 	// Commands for Command Palette

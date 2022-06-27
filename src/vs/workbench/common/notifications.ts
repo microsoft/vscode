@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationsDoNotDisturbMode } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu } from 'vs/platform/notification/common/notification';
 import { toErrorMessage, isErrorWithActions } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -172,9 +172,6 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 
 	private readonly _onDidChangeFilter = this._register(new Emitter<NotificationsFilter>());
 	readonly onDidChangeFilter = this._onDidChangeFilter.event;
-
-	private readonly _onDidChangeDoNotDisturbMode = this._register(new Emitter<NotificationsDoNotDisturbMode>());
-	readonly onDidChangeDoNotDisturbMode = this._onDidChangeDoNotDisturbMode.event;
 
 	private readonly _notifications: INotificationViewItem[] = [];
 	get notifications(): INotificationViewItem[] { return this._notifications; }

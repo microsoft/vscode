@@ -40,7 +40,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 	}
@@ -68,15 +68,9 @@ export class ProgressService extends Disposable implements IProgressService {
 			return handleStringLocation(location);
 		}
 
-		const isDoNotDisturbEnabled = this.notificationService.getDoNotDisturbMode();
-
 		switch (location) {
 			case ProgressLocation.Notification:
-				// Show progress in status bar if do not disturb mode is enabled
-				if (isDoNotDisturbEnabled) {
-					return this.withWindowProgress({ ...options, location: ProgressLocation.Window }, task);
-				}
-				return this.withNotificationProgress({ ...options, location }, task, onDidCancel);
+				return this.withNotificationProgress({ ...options, location, silent: this.notificationService.doNotDisturbMode }, task, onDidCancel);
 			case ProgressLocation.Window:
 				if ((options as IProgressWindowOptions).command) {
 					// Window progress with command get's shown in the status bar

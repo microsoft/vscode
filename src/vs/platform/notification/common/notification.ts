@@ -310,11 +310,6 @@ export enum NotificationsFilter {
 	ERROR
 }
 
-export enum NotificationsDoNotDisturbMode {
-	OFF,
-	ENABLED
-}
-
 /**
  * A service to bring up notifications and non-modal prompts.
  *
@@ -323,6 +318,8 @@ export enum NotificationsDoNotDisturbMode {
 export interface INotificationService {
 
 	readonly _serviceBrand: undefined;
+
+	doNotDisturbMode: boolean;
 
 	/**
 	 * Emitted when a new notification is added.
@@ -335,9 +332,9 @@ export interface INotificationService {
 	readonly onDidRemoveNotification: Event<INotification>;
 
 	/**
- * Emitted when a do not disturb mode has changed.
- */
-	readonly onDidSetDoNotDisturbMode: Event<NotificationsDoNotDisturbMode>;
+	 * Emitted when a do not disturb mode has changed.
+	 */
+	readonly onDidSetDoNotDisturbMode: Event<void>;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
@@ -398,16 +395,6 @@ export interface INotificationService {
 	 * @param filter the filter to use
 	 */
 	setFilter(filter: NotificationsFilter): void;
-
-	/**
-	 * Gets current do not disturb mode.
-	 */
-	getDoNotDisturbMode(): boolean;
-
-	/**
-	 * Toggles do not disturb mode so that toast notifications do not show.
-	 */
-	setDoNotDisturbMode(mode: boolean): void;
 }
 
 export class NoOpNotification implements INotificationHandle {

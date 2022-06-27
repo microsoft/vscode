@@ -83,10 +83,7 @@ export class NotificationsStatus extends Disposable {
 			showBeak: this.isNotificationsCenterVisible
 		};
 
-		const isDoNotDisturbEnabled = this.notificationService.getDoNotDisturbMode();
-		// console.log(dndMode);
-
-		if (isDoNotDisturbEnabled === true) {
+		if (this.notificationService.doNotDisturbMode) {
 			statusProperties = {
 				...statusProperties,
 				name: localize('status.doNotDisturb', "Do Not Disturb"),

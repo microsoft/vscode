@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions, NotificationsDoNotDisturbMode } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions } from 'vs/platform/notification/common/notification';
 import { NotificationsModel, ChoiceAction, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -16,7 +16,9 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	declare readonly _serviceBrand: undefined;
 
-	static readonly isDoNotDisturbEnabledKey = 'notifications.isDoNotDisturbModeEnabled';
+	static readonly DND_SETTINGS_KEY = 'notifications.isDoNotDisturbModeEnabled';
+
+	private _doNotDisturbMode = this.storageService.getBoolean(NotificationService.DND_SETTINGS_KEY, StorageScope.APPLICATION, false);
 
 	readonly model = this._register(new NotificationsModel());
 
@@ -26,7 +28,7 @@ export class NotificationService extends Disposable implements INotificationServ
 	private readonly _onDidRemoveNotification = this._register(new Emitter<INotification>());
 	readonly onDidRemoveNotification = this._onDidRemoveNotification.event;
 
-	private readonly _onDidSetDoNotDisturbMode = this._register(new Emitter<NotificationsDoNotDisturbMode>());
+	private readonly _onDidSetDoNotDisturbMode = this._register(new Emitter<void>());
 	readonly onDidSetDoNotDisturbMode = this._onDidSetDoNotDisturbMode.event;
 
 	constructor(
@@ -35,7 +37,6 @@ export class NotificationService extends Disposable implements INotificationServ
 		super();
 
 		this.registerListeners();
-		this.restoreDoNotDisturbModeState();
 	}
 
 	private registerListeners(): void {
@@ -64,29 +65,25 @@ export class NotificationService extends Disposable implements INotificationServ
 		}));
 	}
 
-	getDoNotDisturbMode() {
-		return this.storageService.getBoolean(NotificationService.isDoNotDisturbEnabledKey, StorageScope.APPLICATION, false);
+	get doNotDisturbMode() {
+		return this._doNotDisturbMode;
 	}
 
-	setDoNotDisturbMode(mode: boolean): void {
-		this.storageService.store(NotificationService.isDoNotDisturbEnabledKey, mode, StorageScope.APPLICATION, StorageTarget.MACHINE);
-
-		if (mode === true) {
-			this.setFilter(NotificationsFilter.ERROR);
-			this._onDidSetDoNotDisturbMode.fire(NotificationsDoNotDisturbMode.ENABLED);
+	set doNotDisturbMode(enabled: boolean) {
+		if (this._doNotDisturbMode === enabled) {
+			return; // no change
 		}
-
-		if (mode === false) {
-			this.setFilter(NotificationsFilter.OFF);
-			this._onDidSetDoNotDisturbMode.fire(NotificationsDoNotDisturbMode.OFF);
+		this.storageService.store(NotificationService.DND_SETTINGS_KEY, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this._doNotDisturbMode = enabled;
+		let filter: NotificationsFilter;
+		if (enabled) {
+			filter = NotificationsFilter.ERROR;
+		} else {
+			filter = NotificationsFilter.OFF;
 		}
+		this.setFilter(filter);
+		this._onDidSetDoNotDisturbMode.fire();
 	}
-
-	restoreDoNotDisturbModeState(): void {
-		const mode = this.getDoNotDisturbMode();
-		this.setDoNotDisturbMode(mode);
-	}
-
 
 	setFilter(filter: NotificationsFilter): void {
 		this.model.setFilter(filter);
