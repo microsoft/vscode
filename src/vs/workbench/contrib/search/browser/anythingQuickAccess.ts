@@ -10,7 +10,7 @@ import { prepareQuery, IPreparedQuery, compareItemsByFuzzyScore, scoreItemFuzzy,
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSearchConfiguration } from 'vs/workbench/contrib/search/common/search';
-import { ISearchService, ISearchComplete } from 'vs/workbench/services/search/common/search';
+import { ISearchService, ISearchComplete, IFileQuery } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { untildify } from 'vs/base/common/labels';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -165,7 +165,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISearchService private readonly searchService: ISearchService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWorkspaceContextService protected readonly contextService: IWorkspaceContextService,
 		@IPathService private readonly pathService: IPathService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
@@ -178,9 +178,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		prefix: string = AnythingQuickAccessProvider.PREFIX
 	) {
-		super(AnythingQuickAccessProvider.PREFIX, {
+		super(prefix, {
 			canAcceptInBackground: true,
 			noResultsPick: AnythingQuickAccessProvider.NO_RESULTS_PICK
 		});
@@ -483,11 +484,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly fileQueryDelayer = this._register(new ThrottledDelayer<URI[]>(AnythingQuickAccessProvider.TYPING_SEARCH_DELAY));
 
-	private readonly fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
+	protected readonly fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
 
 	private createFileQueryCache(): FileQueryCacheState {
 		return new FileQueryCacheState(
-			cacheKey => this.fileQueryBuilder.file(this.contextService.getWorkspace().folders, this.getFileQueryOptions({ cacheKey })),
+			cacheKey => this.createFileQuery(this.getFileQueryOptions({ cacheKey })),
 			query => this.searchService.fileSearch(query),
 			cacheKey => this.searchService.clearCache(cacheKey),
 			this.pickState.fileQueryCache
@@ -634,14 +635,17 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private doGetFileSearchResults(filePattern: string, token: CancellationToken): Promise<ISearchComplete> {
 		return this.searchService.fileSearch(
-			this.fileQueryBuilder.file(
-				this.contextService.getWorkspace().folders,
+			this.createFileQuery(
 				this.getFileQueryOptions({
 					filePattern,
 					cacheKey: this.pickState.fileQueryCache?.cacheKey,
 					maxResults: AnythingQuickAccessProvider.MAX_RESULTS
 				})
 			), token);
+	}
+
+	protected createFileQuery(options: IFileQueryBuilderOptions): IFileQuery {
+		return this.fileQueryBuilder.file(this.contextService.getWorkspace().folders, options);
 	}
 
 	private getFileQueryOptions(input: { filePattern?: string; cacheKey?: string; maxResults?: number }): IFileQueryBuilderOptions {
