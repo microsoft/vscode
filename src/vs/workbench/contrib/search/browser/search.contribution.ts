@@ -55,7 +55,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ISearchConfiguration, SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configurationMigration';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);

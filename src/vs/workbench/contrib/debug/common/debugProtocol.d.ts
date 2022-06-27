@@ -49,7 +49,7 @@ declare module DebugProtocol {
 		/** The command requested. */
 		command: string;
 		/** Contains the raw error in short form if 'success' is false.
-			This raw error might be interpreted by the frontend and is not shown in the UI.
+			This raw error might be interpreted by the client and is not shown in the UI.
 			Some predefined values exist.
 			Values:
 			'cancelled': request was cancelled.
@@ -69,16 +69,15 @@ declare module DebugProtocol {
 	}
 
 	/** Cancel request; value of command field is 'cancel'.
-		The 'cancel' request is used by the frontend in two situations:
+		The 'cancel' request is used by the client in two situations:
 		- to indicate that it is no longer interested in the result produced by a specific request issued earlier
 		- to cancel a progress sequence. Clients should only call this request if the capability 'supportsCancelRequest' is true.
 		This request has a hint characteristic: a debug adapter can only be expected to make a 'best effort' in honouring this request but there are no guarantees.
-		The 'cancel' request may return an error if it could not cancel an operation but a frontend should refrain from presenting this error to end users.
-		A frontend client should only call this request if the capability 'supportsCancelRequest' is true.
-		The request that got canceled still needs to send a response back. This can either be a normal result ('success' attribute true)
-		or an error response ('success' attribute false and the 'message' set to 'cancelled').
-		Returning partial results from a cancelled request is possible but please note that a frontend client has no generic way for detecting that a response is partial or not.
-		 The progress that got cancelled still needs to send a 'progressEnd' event back.
+		The 'cancel' request may return an error if it could not cancel an operation but a client should refrain from presenting this error to end users.
+		A client should only call this request if the capability 'supportsCancelRequest' is true.
+		The request that got cancelled still needs to send a response back. This can either be a normal result ('success' attribute true) or an error response ('success' attribute false and the 'message' set to 'cancelled').
+		Returning partial results from a cancelled request is possible but please note that a client has no generic way for detecting that a response is partial or not.
+		The progress that got cancelled still needs to send a 'progressEnd' event back.
 		 A client should not assume that progress just got cancelled after sending the 'cancel' request.
 	*/
 	interface CancelRequest extends Request {
@@ -107,11 +106,11 @@ declare module DebugProtocol {
 		A debug adapter is expected to send this event when it is ready to accept configuration requests (but not before the 'initialize' request has finished).
 		The sequence of events/requests is as follows:
 		- adapters sends 'initialized' event (after the 'initialize' request has returned)
-		- frontend sends zero or more 'setBreakpoints' requests
-		- frontend sends one 'setFunctionBreakpoints' request (if capability 'supportsFunctionBreakpoints' is true)
-		- frontend sends a 'setExceptionBreakpoints' request if one or more 'exceptionBreakpointFilters' have been defined (or if 'supportsConfigurationDoneRequest' is not defined or false)
-		- frontend sends other future configuration requests
-		- frontend sends one 'configurationDone' request to indicate the end of the configuration.
+		- client sends zero or more 'setBreakpoints' requests
+		- client sends one 'setFunctionBreakpoints' request (if capability 'supportsFunctionBreakpoints' is true)
+		- client sends a 'setExceptionBreakpoints' request if one or more 'exceptionBreakpointFilters' have been defined (or if 'supportsConfigurationDoneRequest' is not true)
+		- client sends other future configuration requests
+		- client sends one 'configurationDone' request to indicate the end of the configuration.
 	*/
 	interface InitializedEvent extends Event {
 		// event: 'initialized';
@@ -133,7 +132,7 @@ declare module DebugProtocol {
 			description?: string;
 			/** The thread which was stopped. */
 			threadId?: number;
-			/** A value of true hints to the frontend that this event should not change the focus. */
+			/** A value of true hints to the client that this event should not change the focus. */
 			preserveFocusHint?: boolean;
 			/** Additional information. E.g. if reason is 'exception', text contains the exception name. This string is shown in the UI. */
 			text?: string;
@@ -211,10 +210,10 @@ declare module DebugProtocol {
 	interface OutputEvent extends Event {
 		// event: 'output';
 		body: {
-			/** The output category. If not specified or if the category is not understand by the client, 'console' is assumed.
+			/** The output category. If not specified or if the category is not understood by the client, 'console' is assumed.
 				Values:
 				'console': Show the output in the client's default message UI, e.g. a 'debug console'. This category should only be used for informational output from the debugger (as opposed to the debuggee).
-				'important': A hint for the client to show the ouput in the client's UI for important and highly visible information, e.g. as a popup notification. This category should only be used for important messages from the debugger (as opposed to the debuggee). Since this category value is a hint, clients might ignore the hint and assume the 'console' category.
+				'important': A hint for the client to show the output in the client's UI for important and highly visible information, e.g. as a popup notification. This category should only be used for important messages from the debugger (as opposed to the debuggee). Since this category value is a hint, clients might ignore the hint and assume the 'console' category.
 				'stdout': Show the output as normal program output from the debuggee.
 				'stderr': Show the output as error program output from the debuggee.
 				'telemetry': Send the output to telemetry instead of showing it to the user.
@@ -228,8 +227,8 @@ declare module DebugProtocol {
 				The 'output' attribute becomes the name of the group and is not indented.
 				'startCollapsed': Start a new group in collapsed mode. Subsequent output events are members of the group and should be shown indented (as soon as the group is expanded).
 				The 'output' attribute becomes the name of the group and is not indented.
-				'end': End the current group and decreases the indentation of subsequent output events.
-				A non empty 'output' attribute is shown as the unindented end of the group.
+				'end': End the current group and decrease the indentation of subsequent output events.
+				A nonempty 'output' attribute is shown as the unindented end of the group.
 			*/
 			group?: 'start' | 'startCollapsed' | 'end';
 			/** If an attribute 'variablesReference' exists and its value is > 0, the output contains objects which can be retrieved by passing 'variablesReference' to the 'variables' request. The value should be less than or equal to 2147483647 (2^31-1). */
@@ -255,7 +254,7 @@ declare module DebugProtocol {
 				Values: 'changed', 'new', 'removed', etc.
 			*/
 			reason: 'changed' | 'new' | 'removed' | string;
-			/** The 'id' attribute is used to find the target breakpoint and the other attributes are used as the new values. */
+			/** The 'id' attribute is used to find the target breakpoint, the other attributes are used as the new values. */
 			breakpoint: Breakpoint;
 		};
 	}
@@ -311,8 +310,8 @@ declare module DebugProtocol {
 
 	/** Event message for 'capabilities' event type.
 		The event indicates that one or more capabilities have changed.
-		Since the capabilities are dependent on the frontend and its UI, it might not be possible to change that at random times (or too late).
-		Consequently this event has a hint characteristic: a frontend can only be expected to make a 'best effort' in honouring individual capabilities but there are no guarantees.
+		Since the capabilities are dependent on the client and its UI, it might not be possible to change that at random times (or too late).
+		Consequently this event has a hint characteristic: a client can only be expected to make a 'best effort' in honouring individual capabilities but there are no guarantees.
 		Only changed capabilities need to be included, all other capabilities keep their values.
 	*/
 	interface CapabilitiesEvent extends Event {
@@ -324,8 +323,7 @@ declare module DebugProtocol {
 	}
 
 	/** Event message for 'progressStart' event type.
-		The event signals that a long running operation is about to start and
-		provides additional information for the client to set up a corresponding progress and cancellation UI.
+		The event signals that a long running operation is about to start and provides additional information for the client to set up a corresponding progress and cancellation UI.
 		The client is free to delay the showing of the UI in order to reduce flicker.
 		This event should only be sent if the client has passed the value true for the 'supportsProgressReporting' capability of the 'initialize' request.
 	*/
@@ -338,12 +336,11 @@ declare module DebugProtocol {
 			progressId: string;
 			/** Mandatory (short) title of the progress reporting. Shown in the UI to describe the long running operation. */
 			title: string;
-			/** The request ID that this progress report is related to. If specified a debug adapter is expected to emit
-				progress events for the long running request until the request has been either completed or cancelled.
+			/** The request ID that this progress report is related to. If specified a debug adapter is expected to emit progress events for the long running request until the request has been either completed or cancelled.
 				If the request ID is omitted, the progress report is assumed to be related to some general activity of the debug adapter.
 			*/
 			requestId?: number;
-			/** If true, the request that reports progress may be canceled with a 'cancel' request.
+			/** If true, the request that reports progress may be cancelled with a 'cancel' request.
 				So this property basically controls whether the client should use UX that supports cancellation.
 				Clients that don't support cancellation are allowed to ignore the setting.
 			*/
@@ -356,7 +353,7 @@ declare module DebugProtocol {
 	}
 
 	/** Event message for 'progressUpdate' event type.
-		The event signals that the progress reporting needs to updated with a new message and/or percentage.
+		The event signals that the progress reporting needs to be updated with a new message and/or percentage.
 		The client does not have to update the UI immediately, but the clients needs to keep track of the message and/or percentage values.
 		This event should only be sent if the client has passed the value true for the 'supportsProgressReporting' capability of the 'initialize' request.
 	*/
@@ -394,7 +391,7 @@ declare module DebugProtocol {
 	interface InvalidatedEvent extends Event {
 		// event: 'invalidated';
 		body: {
-			/** Optional set of logical areas that got invalidated. This property has a hint characteristic: a client can only be expected to make a 'best effort' in honouring the areas but there are no guarantees. If this property is missing, empty, or if values are not understand the client should assume a single value 'all'. */
+			/** Optional set of logical areas that got invalidated. This property has a hint characteristic: a client can only be expected to make a 'best effort' in honouring the areas but there are no guarantees. If this property is missing, empty, or if values are not understood, the client should assume a single value 'all'. */
 			areas?: InvalidatedAreas[];
 			/** If specified, the client only needs to refetch data related to this thread. */
 			threadId?: number;
@@ -406,7 +403,7 @@ declare module DebugProtocol {
 	/** Event message for 'memory' event type.
 		This event indicates that some memory range has been updated. It should only be sent if the debug adapter has received a value true for the `supportsMemoryEvent` capability of the `initialize` request.
 		Clients typically react to the event by re-issuing a `readMemory` request if they show the memory identified by the `memoryReference` and if the updated memory range overlaps the displayed range. Clients should not make assumptions how individual memory references relate to each other, so they should not assume that they are part of a single continuous address range and might overlap.
-		Debug adapters can use this event to indicate that the contents of a memory range has changed due to some other DAP request like `setVariable` or `setExpression`. Debug adapters are not expected to emit this event for each and every memory change of a running program, because that information is typically not available from debuggers and it would flood clients with too many events.
+		Debug adapters can use this event to indicate that the contents of a memory range has changed due to some other request like `setVariable` or `setExpression`. Debug adapters are not expected to emit this event for each and every memory change of a running program, because that information is typically not available from debuggers and it would flood clients with too many events.
 	*/
 	interface MemoryEvent extends Event {
 		// event: 'memory';
@@ -455,8 +452,7 @@ declare module DebugProtocol {
 	}
 
 	/** Initialize request; value of command field is 'initialize'.
-		The 'initialize' request is sent as the first request from the client to the debug adapter
-		in order to configure it with client capabilities and to retrieve capabilities from the debug adapter.
+		The 'initialize' request is sent as the first request from the client to the debug adapter in order to configure it with client capabilities and to retrieve capabilities from the debug adapter.
 		Until the debug adapter has responded to with an 'initialize' response, the client must not send any additional requests or events to the debug adapter.
 		In addition the debug adapter is not allowed to send any requests or events to the client until it has responded with an 'initialize' response.
 		The 'initialize' request may only be sent once.
@@ -468,13 +464,13 @@ declare module DebugProtocol {
 
 	/** Arguments for 'initialize' request. */
 	interface InitializeRequestArguments {
-		/** The ID of the (frontend) client using this adapter. */
+		/** The ID of the client using this adapter. */
 		clientID?: string;
-		/** The human readable name of the (frontend) client using this adapter. */
+		/** The human-readable name of the client using this adapter. */
 		clientName?: string;
 		/** The ID of the debug adapter. */
 		adapterID: string;
-		/** The ISO-639 locale of the (frontend) client using this adapter, e.g. en-US or de-CH. */
+		/** The ISO-639 locale of the client using this adapter, e.g. en-US or de-CH. */
 		locale?: string;
 		/** If true all line numbers are 1-based (default). */
 		linesStartAt1?: boolean;
@@ -535,7 +531,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'launch' request. Additional attributes are implementation specific. */
 	interface LaunchRequestArguments {
-		/** If noDebug is true the launch request should launch the program without enabling debugging. */
+		/** If noDebug is true, the launch request should launch the program without enabling debugging. */
 		noDebug?: boolean;
 		/** Optional data from the previous, restarted session.
 			The data is sent as the 'restart' attribute of the 'terminated' event.
@@ -685,7 +681,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'setBreakpoints' request. */
 	interface SetBreakpointsArguments {
-		/** The source location of the breakpoints; either 'source.path' or 'source.reference' must be specified. */
+		/** The source location of the breakpoints; either 'source.path' or 'source.sourceReference' must be specified. */
 		source: Source;
 		/** The code locations of the breakpoints. */
 		breakpoints?: SourceBreakpoint[];
@@ -738,7 +734,7 @@ declare module DebugProtocol {
 	}
 
 	/** SetExceptionBreakpoints request; value of command field is 'setExceptionBreakpoints'.
-		The request configures the debuggers response to thrown exceptions.
+		The request configures the debugger's response to thrown exceptions.
 		If an exception is configured to break, a 'stopped' event is fired (with reason 'exception').
 		Clients should only call this request if the capability 'exceptionBreakpointFilters' returns one or more filters.
 	*/
@@ -799,7 +795,7 @@ declare module DebugProtocol {
 			dataId: string | null;
 			/** UI string that describes on what data the breakpoint is set on or why a data breakpoint is not available. */
 			description: string;
-			/** Optional attribute listing the available access types for a potential data breakpoint. A UI frontend could surface this information. */
+			/** Optional attribute listing the available access types for a potential data breakpoint. A UI client could surface this information. */
 			accessTypes?: DataBreakpointAccessType[];
 			/** Optional attribute indicating that a potential data breakpoint could be persisted across sessions. */
 			canPersist?: boolean;
@@ -834,7 +830,7 @@ declare module DebugProtocol {
 	}
 
 	/** SetInstructionBreakpoints request; value of command field is 'setInstructionBreakpoints'.
-		Replaces all existing instruction breakpoints. Typically, instruction breakpoints would be set from a diassembly window.
+		Replaces all existing instruction breakpoints. Typically, instruction breakpoints would be set from a disassembly window.
 		To clear all instruction breakpoints, specify an empty array.
 		When an instruction breakpoint is hit, a 'stopped' event (with reason 'instruction breakpoint') is generated.
 		Clients should only call this request if the capability 'supportsInstructionBreakpoints' is true.
@@ -859,7 +855,7 @@ declare module DebugProtocol {
 	}
 
 	/** Continue request; value of command field is 'continue'.
-		The request resumes execution of all threads. If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true resumes only the specified thread. If not all threads were resumed, the 'allThreadsContinued' attribute of the response must be set to false.
+		The request resumes execution of all threads. If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests'), setting the 'singleThread' argument to true resumes only the specified thread. If not all threads were resumed, the 'allThreadsContinued' attribute of the response must be set to false.
 	*/
 	interface ContinueRequest extends Request {
 		// command: 'continue';
@@ -884,7 +880,7 @@ declare module DebugProtocol {
 
 	/** Next request; value of command field is 'next'.
 		The request executes one step (in the given granularity) for the specified thread and allows all other threads to run freely by resuming them.
-		If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true prevents other suspended threads from resuming.
+		If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests'), setting the 'singleThread' argument to true prevents other suspended threads from resuming.
 		The debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.
 	*/
 	interface NextRequest extends Request {
@@ -908,7 +904,7 @@ declare module DebugProtocol {
 
 	/** StepIn request; value of command field is 'stepIn'.
 		The request resumes the given thread to step into a function/method and allows all other threads to run freely by resuming them.
-		If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true prevents other suspended threads from resuming.
+		If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests'), setting the 'singleThread' argument to true prevents other suspended threads from resuming.
 		If the request cannot step into a target, 'stepIn' behaves like the 'next' request.
 		The debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.
 		If there are multiple function/method calls (or other targets) on the source line,
@@ -938,7 +934,7 @@ declare module DebugProtocol {
 
 	/** StepOut request; value of command field is 'stepOut'.
 		The request resumes the given thread to step out (return) from a function/method and allows all other threads to run freely by resuming them.
-		If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true prevents other suspended threads from resuming.
+		If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests'), setting the 'singleThread' argument to true prevents other suspended threads from resuming.
 		The debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.
 	*/
 	interface StepOutRequest extends Request {
@@ -962,7 +958,7 @@ declare module DebugProtocol {
 
 	/** StepBack request; value of command field is 'stepBack'.
 		The request executes one backward step (in the given granularity) for the specified thread and allows all other threads to run backward freely by resuming them.
-		If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true prevents other suspended threads from resuming.
+		If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests'), setting the 'singleThread' argument to true prevents other suspended threads from resuming.
 		The debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.
 		Clients should only call this request if the capability 'supportsStepBack' is true.
 	*/
@@ -986,7 +982,7 @@ declare module DebugProtocol {
 	}
 
 	/** ReverseContinue request; value of command field is 'reverseContinue'.
-		The request resumes backward execution of all threads. If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true resumes only the specified thread. If not all threads were resumed, the 'allThreadsContinued' attribute of the response must be set to false.
+		The request resumes backward execution of all threads. If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests'), setting the 'singleThread' argument to true resumes only the specified thread. If not all threads were resumed, the 'allThreadsContinued' attribute of the response must be set to false.
 		Clients should only call this request if the capability 'supportsStepBack' is true.
 	*/
 	interface ReverseContinueRequest extends Request {
@@ -1028,7 +1024,7 @@ declare module DebugProtocol {
 
 	/** Goto request; value of command field is 'goto'.
 		The request sets the location where the debuggee will continue to run.
-		This makes it possible to skip the execution of code or to executed code again.
+		This makes it possible to skip the execution of code or to execute code again.
 		The code between the current location and the goto target is not executed but skipped.
 		The debug adapter first sends the response and then a 'stopped' event with reason 'goto'.
 		Clients should only call this request if the capability 'supportsGotoTargetsRequest' is true (because only then goto targets exist that can be passed as arguments).
@@ -1071,7 +1067,7 @@ declare module DebugProtocol {
 
 	/** StackTrace request; value of command field is 'stackTrace'.
 		The request returns a stacktrace from the current execution state of a given thread.
-		A client can request all stack frames by omitting the startFrame and levels arguments. For performance conscious clients and if the debug adapter's 'supportsDelayedStackTraceLoading' capability is true, stack frames can be retrieved in a piecemeal way with the startFrame and levels arguments. The response of the stackTrace request may contain a totalFrames property that hints at the total number of frames in the stack. If a client needs this total number upfront, it can issue a request for a single (first) frame and depending on the value of totalFrames decide how to proceed. In any case a client should be prepared to receive less frames than requested, which is an indication that the end of the stack has been reached.
+		A client can request all stack frames by omitting the startFrame and levels arguments. For performance-conscious clients and if the debug adapter's 'supportsDelayedStackTraceLoading' capability is true, stack frames can be retrieved in a piecemeal way with the startFrame and levels arguments. The response of the stackTrace request may contain a totalFrames property that hints at the total number of frames in the stack. If a client needs this total number upfront, it can issue a request for a single (first) frame and depending on the value of totalFrames decide how to proceed. In any case a client should be prepared to receive fewer frames than requested, which is an indication that the end of the stack has been reached.
 	*/
 	interface StackTraceRequest extends Request {
 		// command: 'stackTrace';
@@ -1227,7 +1223,7 @@ declare module DebugProtocol {
 		body: {
 			/** Content of the source reference. */
 			content: string;
-			/** Optional content type (mime type) of the source. */
+			/** Optional content type (MIME type) of the source. */
 			mimeType?: string;
 		};
 	}
@@ -1315,7 +1311,7 @@ declare module DebugProtocol {
 	}
 
 	/** Evaluate request; value of command field is 'evaluate'.
-		Evaluates the given expression in the context of the top most stack frame.
+		Evaluates the given expression in the context of the topmost stack frame.
 		The expression has access to any variables and arguments that are in scope.
 	*/
 	interface EvaluateRequest extends Request {
@@ -1356,7 +1352,7 @@ declare module DebugProtocol {
 				This attribute should only be returned by a debug adapter if the client has passed the value true for the 'supportsVariableType' capability of the 'initialize' request.
 			*/
 			type?: string;
-			/** Properties of a evaluate result that can be used to determine how to render the result in the UI. */
+			/** Properties of an evaluate result that can be used to determine how to render the result in the UI. */
 			presentationHint?: VariablePresentationHint;
 			/** If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.
 				The value should be less than or equal to 2147483647 (2^31-1).
@@ -1767,8 +1763,7 @@ declare module DebugProtocol {
 
 		Additional attributes can be added to the module. They will show up in the module View if they have a corresponding ColumnDescriptor.
 
-		To avoid an unnecessary proliferation of additional attributes with similar semantics but different names
-		we recommend to re-use attributes from the 'recommended' list below first, and only introduce new attributes if nothing appropriate could be found.
+		To avoid an unnecessary proliferation of additional attributes with similar semantics but different names, we recommend to re-use attributes from the 'recommended' list below first, and only introduce new attributes if nothing appropriate could be found.
 	*/
 	interface Module {
 		/** Unique identifier for the module. */
@@ -1787,7 +1782,7 @@ declare module DebugProtocol {
 		isUserCode?: boolean;
 		/** Version of Module. */
 		version?: string;
-		/** User understandable description of if symbols were found for the module (ex: 'Symbols Loaded', 'Symbols not found', etc. */
+		/** User-understandable description of if symbols were found for the module (ex: 'Symbols Loaded', 'Symbols not found', etc. */
 		symbolStatus?: string;
 		/** Logical full path to the symbol file. The exact definition is implementation defined. */
 		symbolFilePath?: string;
@@ -1825,7 +1820,7 @@ declare module DebugProtocol {
 	interface Thread {
 		/** Unique identifier for the thread. */
 		id: number;
-		/** A name of the thread. */
+		/** The name of the thread. */
 		name: string;
 	}
 
@@ -1940,7 +1935,7 @@ declare module DebugProtocol {
 		name: string;
 		/** The variable's value.
 			This can be a multi-line text, e.g. for a function the body of a function.
-			For structured variables (which do not have a simple value), it is recommended to provide a one line representation of the structured object. This helps to identify the structured object in the collapsed state when its children are not yet visible.
+			For structured variables (which do not have a simple value), it is recommended to provide a one-line representation of the structured object. This helps to identify the structured object in the collapsed state when its children are not yet visible.
 			An empty string can be used if no value should be shown in the UI.
 		*/
 		value: string;
@@ -1981,8 +1976,7 @@ declare module DebugProtocol {
 			'innerClass': Indicates that the object is an inner class.
 			'interface': Indicates that the object is an interface.
 			'mostDerivedClass': Indicates that the object is the most derived class.
-			'virtual': Indicates that the object is virtual, that means it is a synthetic object introducedby the
-			adapter for rendering purposes, e.g. an index range for large arrays.
+			'virtual': Indicates that the object is virtual, that means it is a synthetic object introduced by the adapter for rendering purposes, e.g. an index range for large arrays.
 			'dataBreakpoint': Deprecated: Indicates that a data breakpoint is registered for the object. The 'hasDataBreakpoint' attribute should generally be used instead.
 			etc.
 		*/
@@ -2034,11 +2028,11 @@ declare module DebugProtocol {
 		*/
 		condition?: string;
 		/** An optional expression that controls how many hits of the breakpoint are ignored.
-			The backend is expected to interpret the expression as needed.
+			The debug adapter is expected to interpret the expression as needed.
 			The attribute is only honored by a debug adapter if the capability 'supportsHitConditionalBreakpoints' is true.
 		*/
 		hitCondition?: string;
-		/** If this attribute exists and is non-empty, the backend must not 'break' (stop)
+		/** If this attribute exists and is non-empty, the debug adapter must not 'break' (stop)
 			but log the message instead. Expressions within {} are interpolated.
 			The attribute is only honored by a debug adapter if the capability 'supportsLogPoints' is true.
 		*/
@@ -2054,7 +2048,7 @@ declare module DebugProtocol {
 		*/
 		condition?: string;
 		/** An optional expression that controls how many hits of the breakpoint are ignored.
-			The backend is expected to interpret the expression as needed.
+			The debug adapter is expected to interpret the expression as needed.
 			The attribute is only honored by a debug adapter if the capability 'supportsHitConditionalBreakpoints' is true.
 		*/
 		hitCondition?: string;
@@ -2072,7 +2066,7 @@ declare module DebugProtocol {
 		/** An optional expression for conditional breakpoints. */
 		condition?: string;
 		/** An optional expression that controls how many hits of the breakpoint are ignored.
-			The backend is expected to interpret the expression as needed.
+			The debug adapter is expected to interpret the expression as needed.
 		*/
 		hitCondition?: string;
 	}
@@ -2092,7 +2086,7 @@ declare module DebugProtocol {
 		*/
 		condition?: string;
 		/** An optional expression that controls how many hits of the breakpoint are ignored.
-			The backend is expected to interpret the expression as needed.
+			The debug adapter is expected to interpret the expression as needed.
 			The attribute is only honored by a debug adapter if the capability 'supportsHitConditionalBreakpoints' is true.
 		*/
 		hitCondition?: string;
@@ -2102,7 +2096,7 @@ declare module DebugProtocol {
 	interface Breakpoint {
 		/** An optional identifier for the breakpoint. It is needed if breakpoint events are used to update or remove breakpoints. */
 		id?: number;
-		/** If true breakpoint could be set (but not necessarily at the desired location). */
+		/** If true, the breakpoint could be set (but not necessarily at the desired location). */
 		verified: boolean;
 		/** An optional message about the state of the breakpoint.
 			This is shown to the user and can be used to explain why a breakpoint could not be verified.
@@ -2143,6 +2137,14 @@ declare module DebugProtocol {
 		id: number;
 		/** The name of the stepIn target (shown in the UI). */
 		label: string;
+		/** An optional line of the step in target. */
+		line?: number;
+		/** An optional column of the step in target. */
+		column?: number;
+		/** An optional end line of the range covered by the step in target. */
+		endLine?: number;
+		/** An optional end column of the range covered by the step in target. */
+		endColumn?: number;
 	}
 
 	/** A GotoTarget describes a code location that can be used as a target in the 'goto' request.
@@ -2264,8 +2266,7 @@ declare module DebugProtocol {
 	type ExceptionBreakMode = 'never' | 'always' | 'unhandled' | 'userUnhandled';
 
 	/** An ExceptionPathSegment represents a segment in a path that is used to match leafs or nodes in a tree of exceptions.
-		If a segment consists of more than one name, it matches the names provided if 'negate' is false or missing or
-		it matches anything except the names provided if 'negate' is true.
+		If a segment consists of more than one name, it matches the names provided if 'negate' is false or missing, or it matches anything except the names provided if 'negate' is true.
 	*/
 	interface ExceptionPathSegment {
 		/** If false or missing this segment matches the names provided, otherwise it matches anything except the names provided. */
@@ -2325,4 +2326,3 @@ declare module DebugProtocol {
 	*/
 	type InvalidatedAreas = 'all' | 'stacks' | 'threads' | 'variables' | string;
 }
-

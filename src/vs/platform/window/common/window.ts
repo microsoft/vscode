@@ -285,7 +285,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	backupPath?: string;
 
 	profiles: {
-		default: UriDto<IUserDataProfile>;
+		all: UriDto<IUserDataProfile>[];
 		current: UriDto<IUserDataProfile>;
 	};
 

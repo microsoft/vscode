@@ -7,6 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -18,7 +19,7 @@ import { IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDat
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { EditSession, EDIT_SESSION_SYNC_TITLE, ISessionSyncWorkbenchService } from 'vs/workbench/services/sessionSync/common/sessionSync';
+import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_TITLE, ISessionSyncWorkbenchService, EDIT_SESSIONS_SIGNED_IN_KEY } from 'vs/workbench/services/sessionSync/common/sessionSync';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -34,6 +35,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	private static CACHED_SESSION_STORAGE_KEY = 'editSessionSyncAccountPreference';
 
 	private initialized = false;
+	private readonly signedInContext: IContextKey<boolean>;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -44,6 +46,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IRequestService private readonly requestService: IRequestService,
 	) {
 		super();
@@ -55,19 +58,23 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 
 		this.registerResetAuthenticationAction();
+
+		this.signedInContext = EDIT_SESSIONS_SIGNED_IN.bindTo(this.contextKeyService);
+		this.signedInContext.set(this.existingSessionId !== undefined);
 	}
 
 	/**
 	 *
 	 * @param editSession An object representing edit session state to be restored.
+	 * @returns The ref of the stored edit session state.
 	 */
-	async write(editSession: EditSession): Promise<void> {
-		this.initialized = await this.waitAndInitialize();
+	async write(editSession: EditSession): Promise<string> {
+		await this.initialize();
 		if (!this.initialized) {
 			throw new Error('Please sign in to store your edit session.');
 		}
 
-		await this.storeClient?.write('editSessions', JSON.stringify(editSession), null);
+		return this.storeClient!.write('editSessions', JSON.stringify(editSession), null);
 	}
 
 	/**
@@ -76,8 +83,8 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	 *
 	 * @returns An object representing the requested or latest edit session state, if any.
 	 */
-	async read(ref: string | undefined): Promise<EditSession | undefined> {
-		this.initialized = await this.waitAndInitialize();
+	async read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined> {
+		await this.initialize();
 		if (!this.initialized) {
 			throw new Error('Please sign in to apply your latest edit session.');
 		}
@@ -87,14 +94,34 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 			if (ref !== undefined) {
 				content = await this.storeClient?.resolveContent('editSessions', ref);
 			} else {
-				content = (await this.storeClient?.read('editSessions', null))?.content;
+				const result = await this.storeClient?.read('editSessions', null);
+				content = result?.content;
+				ref = result?.ref;
 			}
 		} catch (ex) {
 			this.logService.error(ex);
 		}
 
 		// TODO@joyceerhl Validate session data, check schema version
-		return (content !== undefined && content !== null) ? JSON.parse(content) : undefined;
+		return (content !== undefined && content !== null && ref !== undefined) ? { ref: ref, editSession: JSON.parse(content) } : undefined;
+	}
+
+	async delete(ref: string) {
+		await this.initialize();
+		if (!this.initialized) {
+			throw new Error(`Unable to delete edit session with ref ${ref}.`);
+		}
+
+		try {
+			await this.storeClient?.delete('editSessions', ref);
+		} catch (ex) {
+			this.logService.error(ex);
+		}
+	}
+
+	private async initialize() {
+		this.initialized = await this.doInitialize();
+		this.signedInContext.set(this.initialized);
 	}
 
 	/**
@@ -103,7 +130,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	 * meaning that authentication is configured and it
 	 * can be used to communicate with the remote storage service
 	 */
-	private async waitAndInitialize(): Promise<boolean> {
+	private async doInitialize(): Promise<boolean> {
 		// Wait for authentication extensions to be registered
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
@@ -113,6 +140,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 
 		if (!this.storeClient) {
 			this.storeClient = new UserDataSyncStoreClient(URI.parse(this.serverConfiguration.url), this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
+			this._register(this.storeClient.onTokenFailed(() => this.clearAuthenticationPreference()));
 		}
 
 		// If we already have an existing auth session in memory, use that
@@ -148,7 +176,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	 */
 	private async getAccountPreference(): Promise<AuthenticationSession & { providerId: string } | undefined> {
 		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption>();
-		quickpick.title = localize('account preference', 'Edit Sessions');
+		quickpick.title = localize('account preference', 'Sign In to Use Edit Sessions');
 		quickpick.ok = false;
 		quickpick.placeholder = localize('choose account placeholder', "Select an account to sign in");
 		quickpick.ignoreFocusOut = true;
@@ -197,22 +225,31 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	 * Returns all authentication sessions available from {@link getAuthenticationProviders}.
 	 */
 	private async getAllSessions() {
-		const options: ExistingSession[] = [];
 		const authenticationProviders = await this.getAuthenticationProviders();
+		const accounts = new Map<string, ExistingSession>();
+		let currentSession: ExistingSession | undefined;
 
 		for (const provider of authenticationProviders) {
 			const sessions = await this.authenticationService.getSessions(provider.id, provider.scopes);
 
 			for (const session of sessions) {
-				options.push({
+				const item = {
 					label: session.account.label,
 					description: this.authenticationService.getLabel(provider.id),
 					session: { ...session, providerId: provider.id }
-				});
+				};
+				accounts.set(item.session.account.id, item);
+				if (this.existingSessionId === session.id) {
+					currentSession = item;
+				}
 			}
 		}
 
-		return options;
+		if (currentSession !== undefined) {
+			accounts.set(currentSession.session.account.id, currentSession);
+		}
+
+		return [...accounts.values()];
 	}
 
 	/**
@@ -240,14 +277,14 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	}
 
 	private get existingSessionId() {
-		return this.storageService.get(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
+		return this.storageService.get(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.APPLICATION);
 	}
 
 	private set existingSessionId(sessionId: string | undefined) {
 		if (sessionId === undefined) {
-			this.storageService.remove(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
+			this.storageService.remove(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.APPLICATION);
 		} else {
-			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.APPLICATION, StorageTarget.USER);
 		}
 	}
 
@@ -258,7 +295,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 
 	private async onDidChangeStorage(e: IStorageValueChangeEvent): Promise<void> {
 		if (e.key === SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY
-			&& e.scope === StorageScope.GLOBAL
+			&& e.scope === StorageScope.APPLICATION
 			&& this.#authenticationInfo?.sessionId !== this.existingSessionId
 		) {
 			this.#authenticationInfo = undefined;
@@ -270,6 +307,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		this.#authenticationInfo = undefined;
 		this.initialized = false;
 		this.existingSessionId = undefined;
+		this.signedInContext.set(false);
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
@@ -284,10 +322,16 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 			constructor() {
 				super({
 					id: 'workbench.sessionSync.actions.resetAuth',
-					title: localize('reset auth', '{0}: Reset Authentication State', EDIT_SESSION_SYNC_TITLE),
-					menu: {
+					title: localize('reset auth', '{0}: Sign Out', EDIT_SESSION_SYNC_TITLE),
+					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true),
+					menu: [{
 						id: MenuId.CommandPalette,
-					}
+					},
+					{
+						id: MenuId.AccountsContext,
+						group: '2_editSessions',
+						when: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true),
+					}]
 				});
 			}
 

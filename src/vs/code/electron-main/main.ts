@@ -62,14 +62,14 @@ import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesMainService, UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 /**
  * The main VS Code entry point.
@@ -185,7 +185,7 @@ class CodeMain {
 
 		// User Data Profiles
 		const userDataProfilesMainService = new UserDataProfilesMainService(stateMainService, uriIdentityService, environmentMainService, fileService, logService);
-		services.set(IUserDataProfilesService, userDataProfilesMainService);
+		services.set(IUserDataProfilesMainService, userDataProfilesMainService);
 
 		// Policy
 		const policyService = isWindows && productService.win32RegValueName ? disposables.add(new NativePolicyService(productService.win32RegValueName))
@@ -235,8 +235,8 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
-		return Promises.settled<unknown>([
+	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<void> {
+		await Promises.settled<unknown>([
 
 			// Environment service (paths)
 			Promise.all<string | undefined>([
@@ -250,11 +250,13 @@ class CodeMain {
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
 			// State service
-			stateMainService.init().then(() => userDataProfilesMainService.init()),
+			stateMainService.init(),
 
 			// Configuration service
 			configurationService.initialize()
 		]);
+
+		userDataProfilesMainService.setEnablement(configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {

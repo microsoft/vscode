@@ -34,7 +34,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
-import { Direction, ICreateTerminalOptions, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, ICreateTerminalOptions, IInternalXtermTerminal, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfileService, TerminalCommandId, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -51,7 +51,8 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
+import { clearShellFileHistory, getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -733,14 +734,22 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.navigationModeFocusPrevious', "Focus Previous Line (Navigation Mode)"), original: 'Focus Previous Line (Navigation Mode)' },
 				f1: true,
 				category,
-				keybinding: {
+				keybinding: [{
+					primary: KeyCode.UpArrow,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				{
 					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 					when: ContextKeyExpr.or(
 						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
 					),
 					weight: KeybindingWeight.WorkbenchContrib
-				},
+				}],
 				precondition: TerminalContextKeys.processSupported
 			});
 		}
@@ -751,23 +760,75 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.NavigationModeFocusPreviousPage,
+				title: { value: localize('workbench.action.terminal.navigationModeFocusPreviousPage', "Focus Previous Page (Navigation Mode)"), original: 'Focus Previous Page (Navigation Mode)' },
+				f1: true,
+				category,
+				keybinding: [{
+					primary: KeyCode.PageUp,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				}],
+				precondition: TerminalContextKeys.processSupported
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusPreviousPage();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.NavigationModeFocusNext,
 				title: { value: localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)"), original: 'Focus Next Line (Navigation Mode)' },
 				f1: true,
 				category,
-				keybinding: {
+				keybinding: [{
+					primary: KeyCode.DownArrow,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				{
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 					when: ContextKeyExpr.or(
 						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
 					),
 					weight: KeybindingWeight.WorkbenchContrib
-				},
+				}],
 				precondition: TerminalContextKeys.processSupported
 			});
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusNextLine();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.NavigationModeFocusNextPage,
+				title: { value: localize('workbench.action.terminal.navigationModeFocusNextPage', "Focus Next Page (Navigation Mode)"), original: 'Focus Next Page (Navigation Mode)' },
+				f1: true,
+				category,
+				keybinding: [{
+					primary: KeyCode.PageDown,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
+					),
+					weight: KeybindingWeight.WorkbenchContrib
+				}],
+				precondition: TerminalContextKeys.processSupported
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusNextPage();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -2067,7 +2128,7 @@ export function registerTerminalActions() {
 			super({
 				id: TerminalCommandId.SizeToContentWidthInstance,
 				title: terminalStrings.toggleSizeToContentWidth,
-				f1: false,
+				f1: true,
 				category,
 				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus)
 			});
@@ -2088,6 +2149,49 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			getCommandHistory(accessor).clear();
+			clearShellFileHistory();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.WriteDataToTerminal,
+				title: { value: localize('workbench.action.terminal.writeDataToTerminal', "Write Data to Terminal"), original: 'Write Data to Terminal' },
+				f1: true,
+				category: CATEGORIES.Developer.value
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			const quickInputService = accessor.get(IQuickInputService);
+
+			const instance = await terminalService.getActiveOrCreateInstance();
+			await terminalGroupService.showPanel();
+			await instance.processReady;
+			if (!instance.xterm) {
+				throw new Error('Cannot write data to terminal if xterm isn\'t initialized');
+			}
+			const data = await quickInputService.input({
+				value: '',
+				placeHolder: 'Enter data, use \\x to escape',
+				prompt: localize('workbench.action.terminal.writeDataToTerminal.prompt', "Enter data to write directly to the terminal, bypassing the pty"),
+			});
+			if (!data) {
+				return;
+			}
+			let escapedData = data
+				.replace(/\\n/g, '\n')
+				.replace(/\\r/g, '\r');
+			while (true) {
+				const match = escapedData.match(/\\x([0-9a-fA-F]{2})/);
+				if (match === null || match.index === undefined || match.length < 2) {
+					break;
+				}
+				escapedData = escapedData.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + escapedData.slice(match.index + 4);
+			}
+			const xterm = instance.xterm as any as IInternalXtermTerminal;
+			xterm._writeText(escapedData);
 		}
 	});
 

@@ -5,13 +5,13 @@
 
 import * as vscode from 'vscode';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { SkinnyTextDocument, SkinnyTextLine } from '../workspaceContents';
+import { ITextDocument, ITextLine } from '../types/textDocument';
 
-export class InMemoryDocument implements SkinnyTextDocument {
+export class InMemoryDocument implements ITextDocument {
 
 	private readonly _doc: TextDocument;
 
-	private lines: SkinnyTextLine[] | undefined;
+	private lines: ITextLine[] | undefined;
 
 	constructor(
 		public readonly uri: vscode.Uri, contents: string,
@@ -25,7 +25,7 @@ export class InMemoryDocument implements SkinnyTextDocument {
 		return this._doc.lineCount;
 	}
 
-	lineAt(index: any): SkinnyTextLine {
+	lineAt(index: any): ITextLine {
 		if (!this.lines) {
 			this.lines = this._doc.getText().split(/\r?\n/).map(text => ({
 				text,

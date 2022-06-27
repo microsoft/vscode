@@ -23,7 +23,7 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -36,7 +36,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
@@ -71,7 +71,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 				},
 				({ resource, options }): EditorInputWithOptions => {
 					// Global User Settings File
-					if (isEqual(resource, this.userDataProfilesService.currentProfile.settingsResource)) {
+					if (isEqual(resource, this.userDataProfileService.currentProfile.settingsResource)) {
 						return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource), options };
 					}
 

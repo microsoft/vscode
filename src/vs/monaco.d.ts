@@ -1483,6 +1483,7 @@ declare namespace monaco.editor {
 		 * CSS class name describing the decoration.
 		 */
 		className?: string | null;
+		blockClassName?: string | null;
 		/**
 		 * Message to be rendered when hovering over the glyph margin decoration.
 		 */
@@ -3822,6 +3823,10 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		enabled?: boolean;
+		/**
+		 * Control the rendering of minimap.
+		 */
+		autohide?: boolean;
 		/**
 		 * Control the side of the minimap in editor.
 		 * Defaults to 'right'.

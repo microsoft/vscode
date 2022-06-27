@@ -212,12 +212,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async updateTitleBarOverlay(windowId: number | undefined, backgroundColor: string, foregroundColor: string): Promise<void> {
+	async updateTitleBarOverlay(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			window.win.setTitleBarOverlay({
-				color: backgroundColor,
-				symbolColor: foregroundColor
+				color: options.backgroundColor,
+				symbolColor: options.foregroundColor,
+				height: options.height ? options.height - 1 : undefined // account for window border
 			});
 		}
 	}

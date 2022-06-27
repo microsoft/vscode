@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { UriDto } from 'vs/base/common/types';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export type Key = string;
@@ -26,7 +26,7 @@ export interface IBaseSerializableStorageRequest {
 
 	/**
 	 * Workspace to correlate storage. Can be undefined to
-	 * denote application or global scope depending on profile.
+	 * denote application or profile scope depending on profile.
 	 */
 	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
 }
@@ -102,7 +102,7 @@ abstract class BaseProfileAwareStorageDatabaseClient extends BaseStorageDatabase
 	}
 }
 
-class ApplicationStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient {
+export class ApplicationStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient {
 
 	constructor(channel: IChannel) {
 		super(channel, undefined);
@@ -118,7 +118,7 @@ class ApplicationStorageDatabaseClient extends BaseProfileAwareStorageDatabaseCl
 	}
 }
 
-class GlobalStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient {
+export class ProfileStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient {
 
 	constructor(channel: IChannel, profile: UriDto<IUserDataProfile>) {
 		super(channel, profile);
@@ -126,7 +126,7 @@ class GlobalStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient 
 
 	async close(): Promise<void> {
 
-		// The global storage database is shared across all instances of
+		// The profile storage database is shared across all instances of
 		// the same profile so we do not close it from the window.
 		// However we dispose the listener for external changes because
 		// we no longer interested in it.
@@ -135,7 +135,7 @@ class GlobalStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient 
 	}
 }
 
-class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implements IStorageDatabase {
+export class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implements IStorageDatabase {
 
 	readonly onDidChangeItemsExternal = Event.None; // unsupported for workspace storage because we only ever write from one window
 
@@ -150,43 +150,5 @@ class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implement
 		// can take care of that.
 
 		this.dispose();
-	}
-}
-
-export class StorageDatabaseChannelClient extends Disposable {
-
-	private _applicationStorage: ApplicationStorageDatabaseClient | undefined = undefined;
-	get applicationStorage() {
-		if (!this._applicationStorage) {
-			this._applicationStorage = new ApplicationStorageDatabaseClient(this.channel);
-		}
-
-		return this._applicationStorage;
-	}
-
-	private _globalStorage: GlobalStorageDatabaseClient | undefined = undefined;
-	get globalStorage() {
-		if (!this._globalStorage) {
-			this._globalStorage = new GlobalStorageDatabaseClient(this.channel, this.userDataProfileService.currentProfile);
-		}
-
-		return this._globalStorage;
-	}
-
-	private _workspaceStorage: WorkspaceStorageDatabaseClient | undefined = undefined;
-	get workspaceStorage() {
-		if (!this._workspaceStorage && this.workspace) {
-			this._workspaceStorage = new WorkspaceStorageDatabaseClient(this.channel, this.workspace);
-		}
-
-		return this._workspaceStorage;
-	}
-
-	constructor(
-		private channel: IChannel,
-		private userDataProfileService: IUserDataProfilesService,
-		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined
-	) {
-		super();
 	}
 }

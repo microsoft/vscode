@@ -6,45 +6,19 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { DiagnosticComputer, DiagnosticConfiguration, DiagnosticLevel, DiagnosticManager, DiagnosticOptions } from '../languageFeatures/diagnostics';
-import { MdLinkComputer } from '../languageFeatures/documentLinkProvider';
+import { DiagnosticCollectionReporter, DiagnosticComputer, DiagnosticConfiguration, DiagnosticLevel, DiagnosticManager, DiagnosticOptions, DiagnosticReporter } from '../languageFeatures/diagnostics';
+import { MdLinkProvider } from '../languageFeatures/documentLinks';
+import { MdReferencesProvider } from '../languageFeatures/references';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
+import { disposeAll } from '../util/dispose';
 import { InMemoryDocument } from '../util/inMemoryDocument';
-import { MdWorkspaceContents } from '../workspaceContents';
+import { ResourceMap } from '../util/resourceMap';
+import { IMdWorkspace } from '../workspace';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
+import { InMemoryMdWorkspace } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
 import { assertRangeEqual, joinLines, workspacePath } from './util';
-
-
-async function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: MdWorkspaceContents): Promise<vscode.Diagnostic[]> {
-	const engine = createNewMarkdownEngine();
-	const linkComputer = new MdLinkComputer(engine);
-	const computer = new DiagnosticComputer(engine, workspaceContents, linkComputer);
-	return (
-		await computer.getDiagnostics(doc, {
-			enabled: true,
-			validateFileLinks: DiagnosticLevel.warning,
-			validateFragmentLinks: DiagnosticLevel.warning,
-			validateMarkdownFileLinkFragments: DiagnosticLevel.warning,
-			validateReferences: DiagnosticLevel.warning,
-			ignoreLinks: [],
-		}, noopToken)
-	).diagnostics;
-}
-
-function createDiagnosticsManager(workspaceContents: MdWorkspaceContents, configuration = new MemoryDiagnosticConfiguration({})) {
-	const engine = createNewMarkdownEngine();
-	const linkComputer = new MdLinkComputer(engine);
-	return new DiagnosticManager(new DiagnosticComputer(engine, workspaceContents, linkComputer), configuration);
-}
-
-function assertDiagnosticsEqual(actual: readonly vscode.Diagnostic[], expectedRanges: readonly vscode.Range[]) {
-	assert.strictEqual(actual.length, expectedRanges.length);
-
-	for (let i = 0; i < actual.length; ++i) {
-		assertRangeEqual(actual[i].range, expectedRanges[i], `Range ${i} to be equal`);
-	}
-}
 
 const defaultDiagnosticsOptions = Object.freeze<DiagnosticOptions>({
 	enabled: true,
@@ -55,31 +29,91 @@ const defaultDiagnosticsOptions = Object.freeze<DiagnosticOptions>({
 	ignoreLinks: [],
 });
 
+async function getComputedDiagnostics(doc: InMemoryDocument, workspace: IMdWorkspace, options: Partial<DiagnosticOptions> = {}): Promise<vscode.Diagnostic[]> {
+	const engine = createNewMarkdownEngine();
+	const linkProvider = new MdLinkProvider(engine, workspace, nulLogger);
+	const tocProvider = new MdTableOfContentsProvider(engine, workspace, nulLogger);
+	const computer = new DiagnosticComputer(workspace, linkProvider, tocProvider);
+	return (
+		await computer.getDiagnostics(doc, { ...defaultDiagnosticsOptions, ...options, }, noopToken)
+	).diagnostics;
+}
+
+function assertDiagnosticsEqual(actual: readonly vscode.Diagnostic[], expectedRanges: readonly vscode.Range[]) {
+	assert.strictEqual(actual.length, expectedRanges.length, "Diagnostic count equal");
+
+	for (let i = 0; i < actual.length; ++i) {
+		assertRangeEqual(actual[i].range, expectedRanges[i], `Range ${i} to be equal`);
+	}
+}
+
+function orderDiagnosticsByRange(diagnostics: Iterable<vscode.Diagnostic>): readonly vscode.Diagnostic[] {
+	return Array.from(diagnostics).sort((a, b) => a.range.start.compareTo(b.range.start));
+}
+
 class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 
 	private readonly _onDidChange = new vscode.EventEmitter<void>();
 	public readonly onDidChange = this._onDidChange.event;
 
-	constructor(
-		private readonly _options: Partial<DiagnosticOptions>,
-	) { }
+	private _options: Partial<DiagnosticOptions>;
 
-	getOptions(_resource: vscode.Uri): DiagnosticOptions {
+	constructor(options: Partial<DiagnosticOptions>) {
+		this._options = options;
+	}
+
+	public getOptions(_resource: vscode.Uri): DiagnosticOptions {
 		return {
 			...defaultDiagnosticsOptions,
 			...this._options,
 		};
 	}
+
+	public update(newOptions: Partial<DiagnosticOptions>) {
+		this._options = newOptions;
+		this._onDidChange.fire();
+	}
 }
 
+class MemoryDiagnosticReporter extends DiagnosticReporter {
 
-suite('markdown: Diagnostics', () => {
+	private readonly diagnostics = new ResourceMap<readonly vscode.Diagnostic[]>();
+
+	override dispose(): void {
+		super.clear();
+		this.clear();
+	}
+
+	override clear(): void {
+		super.clear();
+		this.diagnostics.clear();
+	}
+
+	set(uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]): void {
+		this.diagnostics.set(uri, diagnostics);
+	}
+
+	areDiagnosticsEnabled(_uri: vscode.Uri): boolean {
+		return true;
+	}
+
+	delete(uri: vscode.Uri): void {
+		this.diagnostics.delete(uri);
+	}
+
+	get(uri: vscode.Uri): readonly vscode.Diagnostic[] {
+		return orderDiagnosticsByRange(this.diagnostics.get(uri) ?? []);
+	}
+}
+
+suite('markdown: Diagnostic Computer', () => {
+
 	test('Should not return any diagnostics for empty document', async () => {
 		const doc = new InMemoryDocument(workspacePath('doc.md'), joinLines(
 			`text`,
 		));
 
-		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryMdWorkspace([doc]));
 		assert.deepStrictEqual(diagnostics, []);
 	});
 
@@ -91,7 +125,7 @@ suite('markdown: Diagnostics', () => {
 			`[bad-ref]: /no/such/file.md`,
 		));
 
-		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryMdWorkspace([doc]));
 		assertDiagnosticsEqual(diagnostics, [
 			new vscode.Range(0, 6, 0, 22),
 			new vscode.Range(3, 11, 3, 27),
@@ -108,7 +142,7 @@ suite('markdown: Diagnostics', () => {
 			`[bad-ref]: #no-such-header`,
 		));
 
-		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryMdWorkspace([doc]));
 		assertDiagnosticsEqual(diagnostics, [
 			new vscode.Range(2, 6, 2, 21),
 			new vscode.Range(5, 11, 5, 26),
@@ -129,7 +163,7 @@ suite('markdown: Diagnostics', () => {
 			`# Other header`,
 		));
 
-		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]));
+		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryMdWorkspace([doc1, doc2]));
 		assertDiagnosticsEqual(diagnostics, [
 			new vscode.Range(5, 14, 5, 35),
 		]);
@@ -145,8 +179,8 @@ suite('markdown: Diagnostics', () => {
 			`[good](doc#my-header)`,
 		));
 
-		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryMdWorkspace([doc]));
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('Should generate diagnostics for non-existent link reference', async () => {
@@ -157,7 +191,7 @@ suite('markdown: Diagnostics', () => {
 			`[good]: http://example.com`,
 		));
 
-		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryMdWorkspace([doc]));
 		assertDiagnosticsEqual(diagnostics, [
 			new vscode.Range(1, 11, 1, 18),
 		]);
@@ -169,9 +203,9 @@ suite('markdown: Diagnostics', () => {
 			`[text][no-such-ref]`,
 		));
 
-		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration({ enabled: false }));
-		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const workspace = new InMemoryMdWorkspace([doc1]);
+		const diagnostics = await getComputedDiagnostics(doc1, workspace, new MemoryDiagnosticConfiguration({ enabled: false }).getOptions(doc1.uri));
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('Should not generate diagnostics for email autolink', async () => {
@@ -179,8 +213,8 @@ suite('markdown: Diagnostics', () => {
 			`a <user@example.com> c`,
 		));
 
-		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1]));
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryMdWorkspace([doc1]));
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('Should not generate diagnostics for html tag that looks like an autolink', async () => {
@@ -189,8 +223,8 @@ suite('markdown: Diagnostics', () => {
 			`a <scope:tag>b</scope:tag> c`,
 		));
 
-		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1]));
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryMdWorkspace([doc1]));
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('Should allow ignoring invalid file link using glob', async () => {
@@ -200,9 +234,9 @@ suite('markdown: Diagnostics', () => {
 			`[text]: /no-such-file`,
 		));
 
-		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration({ ignoreLinks: ['/no-such-file'] }));
-		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const workspace = new InMemoryMdWorkspace([doc1]);
+		const diagnostics = await getComputedDiagnostics(doc1, workspace, { ignoreLinks: ['/no-such-file'] });
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('Should be able to disable fragment validation for external files', async () => {
@@ -211,11 +245,10 @@ suite('markdown: Diagnostics', () => {
 		));
 		const doc2 = new InMemoryDocument(workspacePath('doc2.md'), joinLines(''));
 
-		const contents = new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]);
+		const workspace = new InMemoryMdWorkspace([doc1, doc2]);
 
-		const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration({ validateMarkdownFileLinkFragments: DiagnosticLevel.ignore }));
-		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const diagnostics = await getComputedDiagnostics(doc1, workspace, { validateMarkdownFileLinkFragments: DiagnosticLevel.ignore });
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('Disabling own fragment validation should also disable path fragment validation by default', async () => {
@@ -225,17 +258,15 @@ suite('markdown: Diagnostics', () => {
 		));
 		const doc2 = new InMemoryDocument(workspacePath('doc2.md'), joinLines(''));
 
-		const contents = new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]);
+		const workspace = new InMemoryMdWorkspace([doc1, doc2]);
 
 		{
-			const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration({ validateFragmentLinks: DiagnosticLevel.ignore }));
-			const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-			assert.deepStrictEqual(diagnostics.length, 0);
+			const diagnostics = await getComputedDiagnostics(doc1, workspace, { validateFragmentLinks: DiagnosticLevel.ignore });
+			assertDiagnosticsEqual(diagnostics, []);
 		}
 		{
 			// But we should be able to override the default
-			const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration({ validateFragmentLinks: DiagnosticLevel.ignore, validateMarkdownFileLinkFragments: DiagnosticLevel.warning }));
-			const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+			const diagnostics = await getComputedDiagnostics(doc1, workspace, { validateFragmentLinks: DiagnosticLevel.ignore, validateMarkdownFileLinkFragments: DiagnosticLevel.warning });
 			assertDiagnosticsEqual(diagnostics, [
 				new vscode.Range(1, 13, 1, 21),
 			]);
@@ -247,9 +278,10 @@ suite('markdown: Diagnostics', () => {
 			`[text](/no-such-file#header)`,
 		));
 
-		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration({ ignoreLinks: ['/no-such-file'] }));
-		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const workspace = new InMemoryMdWorkspace([doc1]);
+
+		const diagnostics = await getComputedDiagnostics(doc1, workspace, { ignoreLinks: ['/no-such-file'] });
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('ignoreLinks should not consider link fragment', async () => {
@@ -257,9 +289,10 @@ suite('markdown: Diagnostics', () => {
 			`[text](/no-such-file#header)`,
 		));
 
-		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration({ ignoreLinks: ['/no-such-file'] }));
-		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const workspace = new InMemoryMdWorkspace([doc1]);
+
+		const diagnostics = await getComputedDiagnostics(doc1, workspace, { ignoreLinks: ['/no-such-file'] });
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('ignoreLinks should support globs', async () => {
@@ -269,19 +302,19 @@ suite('markdown: Diagnostics', () => {
 			`![i](/images/sub/sub2/ccc.png)`,
 		));
 
-		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration({ ignoreLinks: ['/images/**/*.png'] }));
-		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const workspace = new InMemoryMdWorkspace([doc1]);
+		const diagnostics = await getComputedDiagnostics(doc1, workspace, { ignoreLinks: ['/images/**/*.png'] });
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('ignoreLinks should support ignoring header', async () => {
 		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
 			`![i](#no-such)`,
 		));
+		const workspace = new InMemoryMdWorkspace([doc1]);
 
-		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration({ ignoreLinks: ['#no-such'] }));
-		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const diagnostics = await getComputedDiagnostics(doc1, workspace, { ignoreLinks: ['#no-such'] });
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('ignoreLinks should support ignoring header in file', async () => {
@@ -290,16 +323,14 @@ suite('markdown: Diagnostics', () => {
 		));
 		const doc2 = new InMemoryDocument(workspacePath('doc2.md'), joinLines(''));
 
-		const contents = new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]);
+		const workspace = new InMemoryMdWorkspace([doc1, doc2]);
 		{
-			const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration({ ignoreLinks: ['/doc2.md#no-such'] }));
-			const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-			assert.deepStrictEqual(diagnostics.length, 0);
+			const diagnostics = await getComputedDiagnostics(doc1, workspace, { ignoreLinks: ['/doc2.md#no-such'] });
+			assertDiagnosticsEqual(diagnostics, []);
 		}
 		{
-			const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration({ ignoreLinks: ['/doc2.md#*'] }));
-			const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-			assert.deepStrictEqual(diagnostics.length, 0);
+			const diagnostics = await getComputedDiagnostics(doc1, workspace, { ignoreLinks: ['/doc2.md#*'] });
+			assertDiagnosticsEqual(diagnostics, []);
 		}
 	});
 
@@ -309,10 +340,10 @@ suite('markdown: Diagnostics', () => {
 		));
 		const doc2 = new InMemoryDocument(workspacePath('doc2.md'), joinLines(''));
 
-		const contents = new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]);
-		const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration({ ignoreLinks: ['/doc2.md'] }));
-		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const workspace = new InMemoryMdWorkspace([doc1, doc2]);
+
+		const diagnostics = await getComputedDiagnostics(doc1, workspace, { ignoreLinks: ['/doc2.md'] });
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('Should not detect checkboxes as invalid links', async () => {
@@ -322,10 +353,10 @@ suite('markdown: Diagnostics', () => {
 			`- [ ]`,
 		));
 
-		const contents = new InMemoryWorkspaceMarkdownDocuments([doc1]);
-		const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration({ ignoreLinks: ['/doc2.md'] }));
-		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-		assert.deepStrictEqual(diagnostics.length, 0);
+		const workspace = new InMemoryMdWorkspace([doc1]);
+
+		const diagnostics = await getComputedDiagnostics(doc1, workspace, { ignoreLinks: ['/doc2.md'] });
+		assertDiagnosticsEqual(diagnostics, []);
 	});
 
 	test('Should detect invalid links with titles', async () => {
@@ -337,7 +368,7 @@ suite('markdown: Diagnostics', () => {
 			`[link](no-such.md 'text')`,
 			`[link](no-such.md (text))`,
 		));
-		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryMdWorkspace([doc]));
 		assertDiagnosticsEqual(diagnostics, [
 			new vscode.Range(0, 8, 0, 18),
 			new vscode.Range(1, 8, 1, 18),
@@ -346,5 +377,217 @@ suite('markdown: Diagnostics', () => {
 			new vscode.Range(4, 7, 4, 17),
 			new vscode.Range(5, 7, 5, 17),
 		]);
+	});
+
+	test('Should generate diagnostics for non-existent header using file link to own file', async () => {
+		const doc = new InMemoryDocument(workspacePath('sub', 'doc.md'), joinLines(
+			`[bad](doc.md#no-such)`,
+			`[bad](doc#no-such)`,
+			`[bad](/sub/doc.md#no-such)`,
+			`[bad](/sub/doc#no-such)`,
+		));
+
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryMdWorkspace([doc]));
+		assertDiagnosticsEqual(orderDiagnosticsByRange(diagnostics), [
+			new vscode.Range(0, 12, 0, 20),
+			new vscode.Range(1, 9, 1, 17),
+			new vscode.Range(2, 17, 2, 25),
+			new vscode.Range(3, 14, 3, 22),
+		]);
+	});
+
+	test('Own header link using file path link should be controlled by "validateMarkdownFileLinkFragments" instead of "validateFragmentLinks"', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('sub', 'doc.md'), joinLines(
+			`[bad](doc.md#no-such)`,
+			`[bad](doc#no-such)`,
+			`[bad](/sub/doc.md#no-such)`,
+			`[bad](/sub/doc#no-such)`,
+		));
+
+		const workspace = new InMemoryMdWorkspace([doc1]);
+
+		const diagnostics = await getComputedDiagnostics(doc1, workspace, {
+			validateFragmentLinks: DiagnosticLevel.ignore,
+			validateMarkdownFileLinkFragments: DiagnosticLevel.warning,
+		});
+		assertDiagnosticsEqual(orderDiagnosticsByRange(diagnostics), [
+			new vscode.Range(0, 12, 0, 20),
+			new vscode.Range(1, 9, 1, 17),
+			new vscode.Range(2, 17, 2, 25),
+			new vscode.Range(3, 14, 3, 22),
+		]);
+	});
+});
+
+suite('Markdown: Diagnostics manager', () => {
+
+	const _disposables: vscode.Disposable[] = [];
+
+	setup(() => {
+		disposeAll(_disposables);
+	});
+
+	teardown(() => {
+		disposeAll(_disposables);
+	});
+
+	function createDiagnosticsManager(
+		workspace: IMdWorkspace,
+		configuration = new MemoryDiagnosticConfiguration({}),
+		reporter: DiagnosticReporter = new DiagnosticCollectionReporter(),
+	) {
+		const engine = createNewMarkdownEngine();
+		const linkProvider = new MdLinkProvider(engine, workspace, nulLogger);
+		const tocProvider = new MdTableOfContentsProvider(engine, workspace, nulLogger);
+		const referencesProvider = new MdReferencesProvider(engine, workspace, tocProvider, nulLogger);
+		const manager = new DiagnosticManager(
+			workspace,
+			new DiagnosticComputer(workspace, linkProvider, tocProvider),
+			configuration,
+			reporter,
+			referencesProvider,
+			tocProvider,
+			nulLogger,
+			0);
+		_disposables.push(linkProvider, tocProvider, referencesProvider, manager);
+		return manager;
+	}
+
+	test('Changing enable/disable should recompute diagnostics', async () => {
+		const doc1Uri = workspacePath('doc1.md');
+		const doc2Uri = workspacePath('doc2.md');
+		const workspace = new InMemoryMdWorkspace([
+			new InMemoryDocument(doc1Uri, joinLines(
+				`[text](#no-such-1)`,
+			)),
+			new InMemoryDocument(doc2Uri, joinLines(
+				`[text](#no-such-2)`,
+			))
+		]);
+
+		const reporter = new MemoryDiagnosticReporter();
+		const config = new MemoryDiagnosticConfiguration({ enabled: true });
+
+		const manager = createDiagnosticsManager(workspace, config, reporter);
+		await manager.ready;
+
+		// Check initial state (Enabled)
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
+			new vscode.Range(0, 7, 0, 17),
+		]);
+		assertDiagnosticsEqual(reporter.get(doc2Uri), [
+			new vscode.Range(0, 7, 0, 17),
+		]);
+
+		// Disable
+		config.update({ enabled: false });
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), []);
+		assertDiagnosticsEqual(reporter.get(doc2Uri), []);
+
+		// Enable
+		config.update({ enabled: true });
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
+			new vscode.Range(0, 7, 0, 17),
+		]);
+		assertDiagnosticsEqual(reporter.get(doc2Uri), [
+			new vscode.Range(0, 7, 0, 17),
+		]);
+	});
+
+	test('Should revalidate linked files when header changes', async () => {
+		const doc1Uri = workspacePath('doc1.md');
+		const doc1 = new InMemoryDocument(doc1Uri, joinLines(
+			`[text](#no-such)`,
+			`[text](/doc2.md#header)`,
+		));
+		const doc2Uri = workspacePath('doc2.md');
+		const doc2 = new InMemoryDocument(doc2Uri, joinLines(
+			`# Header`,
+			`[text](#header)`,
+			`[text](#no-such-2)`,
+		));
+
+		const workspace = new InMemoryMdWorkspace([doc1, doc2]);
+		const reporter = new MemoryDiagnosticReporter();
+
+		const manager = createDiagnosticsManager(workspace, new MemoryDiagnosticConfiguration({}), reporter);
+		await manager.ready;
+
+		// Check initial state
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
+			new vscode.Range(0, 7, 0, 15),
+		]);
+		assertDiagnosticsEqual(reporter.get(doc2Uri), [
+			new vscode.Range(2, 7, 2, 17),
+		]);
+
+		// Edit header
+		workspace.updateDocument(new InMemoryDocument(doc2Uri, joinLines(
+			`# new header`,
+			`[text](#new-header)`,
+			`[text](#no-such-2)`,
+		)));
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
+			new vscode.Range(0, 7, 0, 15),
+			new vscode.Range(1, 15, 1, 22),
+		]);
+		assertDiagnosticsEqual(reporter.get(doc2Uri), [
+			new vscode.Range(2, 7, 2, 17),
+		]);
+
+		// Revert to original file
+		workspace.updateDocument(new InMemoryDocument(doc2Uri, joinLines(
+			`# header`,
+			`[text](#header)`,
+			`[text](#no-such-2)`,
+		)));
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
+			new vscode.Range(0, 7, 0, 15)
+		]);
+		assertDiagnosticsEqual(reporter.get(doc2Uri), [
+			new vscode.Range(2, 7, 2, 17),
+		]);
+	});
+
+	test('Should revalidate linked files when file is deleted/created', async () => {
+		const doc1Uri = workspacePath('doc1.md');
+		const doc1 = new InMemoryDocument(doc1Uri, joinLines(
+			`[text](/doc2.md)`,
+			`[text](/doc2.md#header)`,
+		));
+		const doc2Uri = workspacePath('doc2.md');
+		const doc2 = new InMemoryDocument(doc2Uri, joinLines(
+			`# Header`
+		));
+
+		const workspace = new InMemoryMdWorkspace([doc1, doc2]);
+		const reporter = new MemoryDiagnosticReporter();
+
+		const manager = createDiagnosticsManager(workspace, new MemoryDiagnosticConfiguration({}), reporter);
+		await manager.ready;
+
+		// Check initial state
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), []);
+
+		// Edit header
+		workspace.deleteDocument(doc2Uri);
+
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), [
+			new vscode.Range(0, 7, 0, 15),
+			new vscode.Range(1, 7, 1, 22),
+		]);
+
+		// Revert to original file
+		workspace.createDocument(doc2);
+		await reporter.waitPendingWork();
+		assertDiagnosticsEqual(reporter.get(doc1Uri), []);
 	});
 });
