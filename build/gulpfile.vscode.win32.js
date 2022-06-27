@@ -112,6 +112,16 @@ function buildWin32Setup(arch, target) {
 			ProductJsonPath: productJsonPath
 		};
 
+		const quality = product.quality;
+		if (quality) {
+			const appxPackagePrefix = quality === 'insider' ? 'code_insiders' : 'code';
+			definitions['AppxPackage'] = `${appxPackagePrefix}_explorer_${arch}.appx`;
+			if (arch === 'ia32') {
+				definitions['AppxPackage'] = `${appxPackagePrefix}_explorer_x86.appx`;
+			}
+			definitions['AppxPackageFullname'] = `Microsoft.${product.win32RegValueName}_1.0.0.0_neutral__8wekyb3d8bbwe`;
+		}
+
 		packageInnoSetup(issPath, { definitions }, cb);
 	};
 }
