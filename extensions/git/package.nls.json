@@ -243,7 +243,7 @@
 	"config.logLevel.error": "Log only error, and critical information",
 	"config.logLevel.critical": "Log only critical information",
 	"config.logLevel.off": "Log nothing",
-	"config.experimental.mergeEditor": "Open the _experimental_ merge editor for files that are currently under conflict.",
+	"config.mergeEditor": "Open the merge editor for files that are currently under conflict.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
