@@ -22,8 +22,12 @@ export class InMemoryMdWorkspace extends Disposable implements IMdWorkspace {
 		}
 	}
 
-	public async getAllMarkdownDocuments() {
+	public values() {
 		return Array.from(this._documents.values());
+	}
+
+	public async getAllMarkdownDocuments() {
+		return this.values();
 	}
 
 	public async getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<ITextDocument | undefined> {

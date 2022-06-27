@@ -10,6 +10,7 @@ import { DiagnosticCollectionReporter, DiagnosticComputer, DiagnosticConfigurati
 import { MdLinkProvider } from '../languageFeatures/documentLinks';
 import { MdReferencesProvider } from '../languageFeatures/references';
 import { MdTableOfContentsProvider } from '../tableOfContents';
+import { ITextDocument } from '../types/textDocument';
 import { noopToken } from '../util/cancellation';
 import { DisposableStore } from '../util/dispose';
 import { InMemoryDocument } from '../util/inMemoryDocument';
@@ -79,6 +80,12 @@ class MemoryDiagnosticReporter extends DiagnosticReporter {
 
 	private readonly diagnostics = new ResourceMap<readonly vscode.Diagnostic[]>();
 
+	constructor(
+		private readonly workspace: InMemoryMdWorkspace,
+	) {
+		super();
+	}
+
 	override dispose(): void {
 		super.clear();
 		this.clear();
@@ -93,7 +100,7 @@ class MemoryDiagnosticReporter extends DiagnosticReporter {
 		this.diagnostics.set(uri, diagnostics);
 	}
 
-	areDiagnosticsEnabled(_uri: vscode.Uri): boolean {
+	isOpen(_uri: vscode.Uri): boolean {
 		return true;
 	}
 
@@ -103,6 +110,10 @@ class MemoryDiagnosticReporter extends DiagnosticReporter {
 
 	get(uri: vscode.Uri): readonly vscode.Diagnostic[] {
 		return orderDiagnosticsByRange(this.diagnostics.get(uri) ?? []);
+	}
+
+	getOpenDocuments(): ITextDocument[] {
+		return this.workspace.values();
 	}
 }
 
@@ -454,7 +465,7 @@ suite('Markdown: Diagnostics manager', () => {
 			))
 		]));
 
-		const reporter = store.add(new MemoryDiagnosticReporter());
+		const reporter = store.add(new MemoryDiagnosticReporter(workspace));
 		const config = new MemoryDiagnosticConfiguration({ enabled: true });
 
 		const manager = createDiagnosticsManager(store, workspace, config, reporter);
@@ -499,7 +510,7 @@ suite('Markdown: Diagnostics manager', () => {
 			`[text](#no-such-2)`,
 		));
 		const workspace = store.add(new InMemoryMdWorkspace([doc1, doc2]));
-		const reporter = store.add(new MemoryDiagnosticReporter());
+		const reporter = store.add(new MemoryDiagnosticReporter(workspace));
 
 		const manager = createDiagnosticsManager(store, workspace, new MemoryDiagnosticConfiguration({}), reporter);
 		await manager.ready;
@@ -554,7 +565,7 @@ suite('Markdown: Diagnostics manager', () => {
 			`# Header`
 		));
 		const workspace = store.add(new InMemoryMdWorkspace([doc1, doc2]));
-		const reporter = store.add(new MemoryDiagnosticReporter());
+		const reporter = store.add(new MemoryDiagnosticReporter(workspace));
 
 		const manager = createDiagnosticsManager(store, workspace, new MemoryDiagnosticConfiguration({}), reporter);
 		await manager.ready;

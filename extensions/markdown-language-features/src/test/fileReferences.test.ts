@@ -22,7 +22,7 @@ function getFileReferences(store: DisposableStore, resource: vscode.Uri, workspa
 	const engine = createNewMarkdownEngine();
 	const tocProvider = store.add(new MdTableOfContentsProvider(engine, workspace, nulLogger));
 	const computer = store.add(new MdReferencesProvider(engine, workspace, tocProvider, nulLogger));
-	return computer.getAllReferencesToFile(resource, noopToken);
+	return computer.getReferencesToFileInWorkspace(resource, noopToken);
 }
 
 function assertReferencesEqual(actualRefs: readonly MdReference[], ...expectedRefs: { uri: vscode.Uri; line: number }[]) {
