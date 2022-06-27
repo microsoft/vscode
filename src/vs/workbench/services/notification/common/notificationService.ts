@@ -32,6 +32,7 @@ export class NotificationService extends Disposable implements INotificationServ
 	) {
 		super();
 
+		this.updateDoNotDisturbFilters();
 		this.registerListeners();
 	}
 
@@ -80,16 +81,21 @@ export class NotificationService extends Disposable implements INotificationServ
 		this._doNotDisturbMode = enabled;
 
 		// Toggle via filter
+		this.updateDoNotDisturbFilters();
+
+		// Events
+		this._onDidChangeDoNotDisturbMode.fire();
+	}
+
+	private updateDoNotDisturbFilters(): void {
 		let filter: NotificationsFilter;
-		if (enabled) {
+		if (this._doNotDisturbMode) {
 			filter = NotificationsFilter.ERROR;
 		} else {
 			filter = NotificationsFilter.OFF;
 		}
-		this.model.setFilter(filter);
 
-		// Events
-		this._onDidChangeDoNotDisturbMode.fire();
+		this.model.setFilter(filter);
 	}
 
 	//#endregion
