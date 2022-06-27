@@ -97,8 +97,7 @@ export const enum VSCodeOscProperty {
  */
 export const enum ITermOscPt {
 	/**
-	 * Sets a mark on the scroll bar `OSC 1337 ; SetMark [; <Hover message>]`
-	 * Based on ITerm's `OSC 1337 ; SetMark`
+	 * Based on ITerm's `OSC 1337 ; SetMark` sets a mark on the scrollbar
 	 */
 	SetMark = 'SetMark'
 }
