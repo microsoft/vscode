@@ -778,25 +778,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async showLinkQuickpick(): Promise<void> {
+	async showLinkQuickpick(extended?: boolean): Promise<void> {
 		if (!this._terminalLinkQuickpick) {
 			this._terminalLinkQuickpick = this._instantiationService.createInstance(TerminalLinkQuickpick);
+			this._terminalLinkQuickpick.onDidRequestMoreLinks(() => {
+				this.showLinkQuickpick(true);
+			});
 		}
-		const links = await this._getLinks();
+		const links = await this._getLinks(extended);
 		if (!links) {
 			return;
 		}
 		return await this._terminalLinkQuickpick.show(links);
 	}
 
-	private async _getLinks(): Promise<IDetectedLinks | undefined> {
+	private async _getLinks(extended?: boolean): Promise<IDetectedLinks | undefined> {
 		if (!this.areLinksReady || !this._linkManager) {
 			throw new Error('terminal links are not ready, cannot generate link quick pick');
 		}
 		if (!this.xterm) {
 			throw new Error('no xterm');
 		}
-		return this._linkManager.getLinks();
+		return this._linkManager.getLinks(extended);
 	}
 
 	async openRecentLink(type: 'localFile' | 'url'): Promise<void> {
