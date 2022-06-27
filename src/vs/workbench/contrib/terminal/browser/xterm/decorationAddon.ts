@@ -289,6 +289,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 		if (genericMarkProperties) {
 			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.GenericMarkerIcon);
+			if (!genericMarkProperties.hoverMessage) {
+				//disable the mouse pointer
+				element.classList.add(DecorationSelector.Default);
+			}
 		} else if (exitCode === undefined) {
 			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
 			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
@@ -323,8 +327,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 						if (command.genericMarkProperties.hoverMessage) {
 							hoverContent = command.genericMarkProperties.hoverMessage;
 						} else {
-							//disable mouse pointer
-							element.classList.add(DecorationSelector.Default);
 							return;
 						}
 					} else if (command.exitCode) {

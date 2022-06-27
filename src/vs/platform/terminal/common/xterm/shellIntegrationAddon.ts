@@ -311,9 +311,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		const [command, hoverMessage, disableCommandStorage] = data.split(';');
 		switch (command) {
 			case ITermOscPt.SetMark: {
-				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ genericMarkProperties: { hoverMessage: hoverMessage || '', disableCommandStorage: disableCommandStorage === 'true' ? true : false } });
+				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ genericMarkProperties: { hoverMessage, disableCommandStorage: disableCommandStorage === 'true' ? true : false } });
 			}
-
 		}
 		// Unrecognized sequence
 		return false;
