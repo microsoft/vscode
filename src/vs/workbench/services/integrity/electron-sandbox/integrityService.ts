@@ -33,7 +33,7 @@ class IntegrityStorage {
 	}
 
 	private _read(): IStorageData | null {
-		const jsonValue = this.storageService.get(IntegrityStorage.KEY, StorageScope.PROFILE);
+		const jsonValue = this.storageService.get(IntegrityStorage.KEY, StorageScope.APPLICATION);
 		if (!jsonValue) {
 			return null;
 		}
@@ -50,7 +50,7 @@ class IntegrityStorage {
 
 	set(data: IStorageData | null): void {
 		this.value = data;
-		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 }
 
