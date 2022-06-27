@@ -1,6 +1,6 @@
 {
-	"name": "Code - OSS",
-	"short_name": "Code- OSS",
+	"name": "Gitpod",
+	"short_name": "Gitpod",
 	"start_url": "/",
 	"lang": "en-US",
 	"display": "standalone",
