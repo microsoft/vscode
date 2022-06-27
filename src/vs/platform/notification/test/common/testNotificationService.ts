@@ -17,7 +17,7 @@ export class TestNotificationService implements INotificationService {
 
 	declare readonly _serviceBrand: undefined;
 
-	declare doNotDisturbMode: boolean;
+	doNotDisturbMode: boolean = false;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 

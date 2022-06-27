@@ -16,10 +16,6 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	declare readonly _serviceBrand: undefined;
 
-	static readonly DND_SETTINGS_KEY = 'notifications.isDoNotDisturbModeEnabled';
-
-	private _doNotDisturbMode = this.storageService.getBoolean(NotificationService.DND_SETTINGS_KEY, StorageScope.APPLICATION, false);
-
 	readonly model = this._register(new NotificationsModel());
 
 	private readonly _onDidAddNotification = this._register(new Emitter<INotification>());
@@ -65,6 +61,12 @@ export class NotificationService extends Disposable implements INotificationServ
 		}));
 	}
 
+	//#region Do not disturb mode
+
+	static readonly DND_SETTINGS_KEY = 'notifications.doNotDisturbMode';
+
+	private _doNotDisturbMode = this.storageService.getBoolean(NotificationService.DND_SETTINGS_KEY, StorageScope.APPLICATION, false);
+
 	get doNotDisturbMode() {
 		return this._doNotDisturbMode;
 	}
@@ -73,8 +75,11 @@ export class NotificationService extends Disposable implements INotificationServ
 		if (this._doNotDisturbMode === enabled) {
 			return; // no change
 		}
+
 		this.storageService.store(NotificationService.DND_SETTINGS_KEY, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this._doNotDisturbMode = enabled;
+
+		// Toggle via filter
 		let filter: NotificationsFilter;
 		if (enabled) {
 			filter = NotificationsFilter.ERROR;
@@ -82,8 +87,12 @@ export class NotificationService extends Disposable implements INotificationServ
 			filter = NotificationsFilter.OFF;
 		}
 		this.setFilter(filter);
+
+		// Events
 		this._onDidChangeDoNotDisturbMode.fire();
 	}
+
+	//#endregion
 
 	setFilter(filter: NotificationsFilter): void {
 		this.model.setFilter(filter);

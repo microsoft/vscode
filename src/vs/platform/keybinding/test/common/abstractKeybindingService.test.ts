@@ -172,7 +172,7 @@ suite('AbstractKeybindingService', () => {
 						}
 					};
 				},
-				setFilter() { },
+				setFilter() { }
 			};
 
 			const resolver = new KeybindingResolver(items, [], () => { });

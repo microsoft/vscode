@@ -67,6 +67,12 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this._register(this.notificationService.onDidChangeDoNotDisturbMode(() => this.onDidChangeDoNotDisturbMode()));
 	}
 
+	private onDidChangeDoNotDisturbMode(): void {
+		if (this.notificationService.doNotDisturbMode) {
+			this.hide(); // hide the notification center when do not disturb is enabled
+		}
+	}
+
 	get isVisible(): boolean {
 		return !!this._isVisible;
 	}
@@ -228,12 +234,6 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			if (focusEditor) {
 				this.editorGroupService.activeGroup.focus();
 			}
-		}
-	}
-
-	private onDidChangeDoNotDisturbMode(): void {
-		if (this.notificationService.doNotDisturbMode) {
-			this.hide(); // Hide the notification center when do not disturb is enabled
 		}
 	}
 

@@ -24,7 +24,7 @@ const emptyCommandService: ICommandService = {
 
 const emptyNotificationService = new class implements INotificationService {
 	declare readonly _serviceBrand: undefined;
-	private _doNotDisturbMode: boolean = false;
+	doNotDisturbMode: boolean = false;
 	onDidAddNotification: Event<INotification> = Event.None;
 	onDidRemoveNotification: Event<INotification> = Event.None;
 	onDidChangeDoNotDisturbMode: Event<void> = Event.None;
@@ -49,10 +49,6 @@ const emptyNotificationService = new class implements INotificationService {
 	setFilter(filter: NotificationsFilter): void {
 		throw new Error('not implemented.');
 	}
-
-	get doNotDisturbMode(): boolean { return this._doNotDisturbMode; }
-
-	set doNotDisturbMode(enabled: boolean) { this._doNotDisturbMode = enabled; }
 };
 
 class EmptyNotificationService implements INotificationService {
