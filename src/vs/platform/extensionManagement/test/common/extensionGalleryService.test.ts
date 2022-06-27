@@ -21,8 +21,11 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { staticObservableValue } from 'vs/base/common/observableValue';
+import { Emitter, Event } from 'vs/base/common/event';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -36,6 +39,7 @@ class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 suite('Extension Gallery Service', () => {
 	const disposables: DisposableStore = new DisposableStore();
 	let fileService: IFileService, environmentService: IEnvironmentService, storageService: IStorageService, productService: IProductService, configurationService: IConfigurationService;
+	let telemetryService: ITelemetryService;
 
 	setup(() => {
 		const serviceMachineIdResource = joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'machineid');
@@ -47,14 +51,15 @@ suite('Extension Gallery Service', () => {
 		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
 		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
+		telemetryService = new MockTelemetryService();
 	});
 
 	teardown(() => disposables.clear());
 
 	test('marketplace machine id', async () => {
-		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService);
+		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, telemetryService);
 		assert.ok(isUUID(headers['X-Market-User-Id']));
-		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService);
+		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, telemetryService);
 		assert.strictEqual(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
 	});
 
@@ -153,3 +158,51 @@ suite('Extension Gallery Service', () => {
 		return { version, targetPlatform } as IRawGalleryExtensionVersion;
 	}
 });
+
+class MockTelemetryService implements ITelemetryService {
+	public _serviceBrand: undefined;
+	public telemetryLevel = staticObservableValue(TelemetryLevel.USAGE);
+	public sendErrorTelemetry = true;
+
+	public events: any[] = [];
+
+	private readonly emitter = new Emitter<any>();
+
+	public get eventLogged(): Event<any> {
+		return this.emitter.event;
+	}
+
+	public setEnabled(value: boolean): void {
+	}
+
+	public setExperimentProperty(name: string, value: string): void {
+	}
+
+	public publicLog(eventName: string, data?: any): Promise<void> {
+		const event = { name: eventName, data: data };
+		this.events.push(event);
+		this.emitter.fire(event);
+		return Promise.resolve();
+	}
+
+	public publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as any);
+	}
+
+	public publicLogError(eventName: string, data?: any): Promise<void> {
+		return this.publicLog(eventName, data);
+	}
+
+	public publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLogError(eventName, data as any);
+	}
+
+	public getTelemetryInfo(): Promise<ITelemetryInfo> {
+		return Promise.resolve({
+			instanceId: 'someValue.instanceId',
+			sessionId: 'someValue.sessionId',
+			machineId: 'someValue.machineId',
+			firstSessionDate: 'someValue.firstSessionDate'
+		});
+	}
+}

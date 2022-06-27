@@ -584,7 +584,14 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const config = productService.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
 		this.extensionsControlUrl = config && config.controlUrl;
-		this.commonHeadersPromise = resolveMarketplaceHeaders(productService.version, productService, this.environmentService, this.configurationService, this.fileService, storageService);
+		this.commonHeadersPromise = resolveMarketplaceHeaders(
+			productService.version,
+			productService,
+			this.environmentService,
+			this.configurationService,
+			this.fileService,
+			storageService,
+			this.telemetryService);
 	}
 
 	private api(path = ''): string {
@@ -923,14 +930,12 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 		const commonHeaders = await this.commonHeadersPromise;
 		const data = JSON.stringify(query.raw);
-		const { sessionId } = await this.telemetryService.getTelemetryInfo();
 		const headers = {
 			...commonHeaders,
 			'Content-Type': 'application/json',
 			'Accept': 'application/json;api-version=3.0-preview.1',
 			'Accept-Encoding': 'gzip',
 			'Content-Length': String(data.length),
-			'VSCode-SessionId': sessionId
 		};
 
 		const startTime = new Date().getTime();
