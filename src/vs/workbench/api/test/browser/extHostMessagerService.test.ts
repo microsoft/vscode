@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/base/test/common/mock';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -46,14 +46,11 @@ const emptyNotificationService = new class implements INotificationService {
 	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
-	setFilter(filter: NotificationsFilter): void {
-		throw new Error('not implemented.');
-	}
 };
 
 class EmptyNotificationService implements INotificationService {
 	declare readonly _serviceBrand: undefined;
-	private _doNotDisturbMode: boolean = false;
+	doNotDisturbMode: boolean = false;
 	constructor(private withNotify: (notification: INotification) => void) {
 	}
 
@@ -80,12 +77,6 @@ class EmptyNotificationService implements INotificationService {
 	status(message: string, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
-	setFilter(filter: NotificationsFilter): void {
-		throw new Error('Method not implemented.');
-	}
-	get doNotDisturbMode(): boolean { return this._doNotDisturbMode; }
-
-	set doNotDisturbMode(enabled: boolean) { this._doNotDisturbMode = enabled; }
 }
 
 suite('ExtHostMessageService', function () {

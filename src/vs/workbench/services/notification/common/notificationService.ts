@@ -86,17 +86,13 @@ export class NotificationService extends Disposable implements INotificationServ
 		} else {
 			filter = NotificationsFilter.OFF;
 		}
-		this.setFilter(filter);
+		this.model.setFilter(filter);
 
 		// Events
 		this._onDidChangeDoNotDisturbMode.fire();
 	}
 
 	//#endregion
-
-	setFilter(filter: NotificationsFilter): void {
-		this.model.setFilter(filter);
-	}
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {

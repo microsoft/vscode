@@ -393,13 +393,6 @@ export interface INotificationService {
 	 * @returns a disposable to hide the status message
 	 */
 	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
-
-	/**
-	 * Allows to configure a filter for notifications.
-	 *
-	 * @param filter the filter to use
-	 */
-	setFilter(filter: NotificationsFilter): void;
 }
 
 export class NoOpNotification implements INotificationHandle {

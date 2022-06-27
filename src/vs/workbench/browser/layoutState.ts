@@ -46,6 +46,7 @@ export const LayoutStateKeys = {
 	ZEN_MODE_EXIT_INFO: new RuntimeStateKey('zenMode.exitInfo', StorageScope.WORKSPACE, StorageTarget.USER, {
 		transitionedToCenteredEditorLayout: false,
 		transitionedToFullScreen: false,
+		handleNotificationsDoNotDisturbMode: false,
 		wasVisible: {
 			auxiliaryBar: false,
 			panel: false,

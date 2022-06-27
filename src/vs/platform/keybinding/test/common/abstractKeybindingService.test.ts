@@ -171,8 +171,7 @@ suite('AbstractKeybindingService', () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};
-				},
-				setFilter() { }
+				}
 			};
 
 			const resolver = new KeybindingResolver(items, [], () => { });
