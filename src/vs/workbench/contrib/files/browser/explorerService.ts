@@ -263,13 +263,8 @@ export class ExplorerService implements IExplorerService {
 			return;
 		}
 
-		// If file or parent matches exclude patterns, do not reveal nless reveal argument is 'force'
-		// However selectResource expects only a boolean to be passed even if accepts bool | string
-		let ignoreRevealExcludes = false;
-		if (reveal === 'force') {
-			ignoreRevealExcludes = true;
-			reveal = true;
-		}
+		// If file or parent matches exclude patterns, do not reveal unless reveal argument is 'force'
+		const ignoreRevealExcludes = reveal === 'force';
 
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
