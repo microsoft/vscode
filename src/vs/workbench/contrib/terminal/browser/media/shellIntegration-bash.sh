@@ -28,13 +28,20 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 		elif [ -f ~/.profile ]; then
 			. ~/.profile
 		fi
-		builtin unset VSCODE_SHELL_LOGIN=""
+		builtin unset VSCODE_SHELL_LOGIN
 	fi
 	builtin unset VSCODE_INJECTION
 fi
 
 # Disable shell integration if PROMPT_COMMAND is 2+ function calls since that is not handled.
 if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
+	builtin unset VSCODE_SHELL_INTEGRATION
+	builtin return
+fi
+
+# Disable shell integration if HISTCONTROL is set to erase duplicate entries as the exit code
+# reporting relies on the duplicates existing
+if [[ "$HISTCONTROL" =~ .*erasedups.* ]]; then
 	builtin unset VSCODE_SHELL_INTEGRATION
 	builtin return
 fi
@@ -118,20 +125,29 @@ __vsc_preexec() {
 }
 
 # Debug trapping/preexec inspired by starship (ISC)
-__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
-if [[ -z "$__vsc_dbg_trap" ]]; then
+if [[ -n "${bash_preexec_imported:-}" ]]; then
 	__vsc_preexec_only() {
 		__vsc_status="$?"
 		__vsc_preexec
 	}
-	trap '__vsc_preexec_only "$_"' DEBUG
-elif [[ "$__vsc_dbg_trap" != '__vsc_preexec "$_"' && "$__vsc_dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
-	__vsc_preexec_all() {
-		__vsc_status="$?"
-		builtin eval ${__vsc_dbg_trap}
-		__vsc_preexec
-	}
-	trap '__vsc_preexec_all "$_"' DEBUG
+	precmd_functions+=(__vsc_prompt_cmd)
+	preexec_functions+=(__vsc_preexec_only)
+else
+	__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	if [[ -z "$__vsc_dbg_trap" ]]; then
+		__vsc_preexec_only() {
+			__vsc_status="$?"
+			__vsc_preexec
+		}
+		trap '__vsc_preexec_only "$_"' DEBUG
+	elif [[ "$__vsc_dbg_trap" != '__vsc_preexec "$_"' && "$__vsc_dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
+		__vsc_preexec_all() {
+			__vsc_status="$?"
+			builtin eval ${__vsc_dbg_trap}
+			__vsc_preexec
+		}
+		trap '__vsc_preexec_all "$_"' DEBUG
+	fi
 fi
 
 __vsc_update_prompt
@@ -172,8 +188,10 @@ else
 	__vsc_original_prompt_command=${PROMPT_COMMAND[@]}
 fi
 
-if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then
-	PROMPT_COMMAND=__vsc_prompt_cmd_original
-else
-	PROMPT_COMMAND=__vsc_prompt_cmd
+if [[ -z "${bash_preexec_imported:-}" ]]; then
+	if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then
+		PROMPT_COMMAND=__vsc_prompt_cmd_original
+	else
+		PROMPT_COMMAND=__vsc_prompt_cmd
+	fi
 fi

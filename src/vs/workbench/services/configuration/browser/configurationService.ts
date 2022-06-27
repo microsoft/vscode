@@ -42,7 +42,7 @@ import { isUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	return userDataProfile.isDefault
@@ -108,6 +108,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		{ remoteAuthority, configurationCache }: { remoteAuthority?: string; configurationCache: IConfigurationCache },
 		environmentService: IWorkbenchEnvironmentService,
 		private readonly userDataProfileService: IUserDataProfileService,
+		private readonly userDataProfilesService: IUserDataProfilesService,
 		private readonly fileService: IFileService,
 		remoteAgentService: IRemoteAgentService,
 		private readonly uriIdentityService: IUriIdentityService,
@@ -160,7 +161,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (this.userDataProfileService.currentProfile.isDefault) {
 			this.applicationConfiguration = null;
 		} else {
-			this.applicationConfiguration = this.applicationConfigurationDisposables.add(this._register(new UserConfiguration(this.userDataProfileService.defaultProfile.settingsResource, undefined, [ConfigurationScope.APPLICATION], this.fileService, this.uriIdentityService, this.logService)));
+			this.applicationConfiguration = this.applicationConfigurationDisposables.add(this._register(new UserConfiguration(this.userDataProfilesService.defaultProfile.settingsResource, undefined, [ConfigurationScope.APPLICATION], this.fileService, this.uriIdentityService, this.logService)));
 			this.applicationConfigurationDisposables.add(this.applicationConfiguration.onDidChangeConfiguration(configurationModel => this.onApplicationConfigurationChanged(configurationModel)));
 		}
 	}

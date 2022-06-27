@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hash } from 'vs/base/common/hash';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
@@ -15,6 +16,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { isWeb } from 'vs/base/common/platform';
 
 /**
  * Flags to indicate whether to use the default profile or not.
@@ -61,6 +64,25 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 	);
 }
 
+export const PROFILES_ENABLEMENT_CONFIG = 'workbench.experimental.settingsProfiles.enabled';
+export const PROFILES_ENABLEMENT_CONFIG_SCHEMA: IConfigurationPropertySchema = {
+	'type': 'boolean',
+	'default': false,
+	'description': localize('workbench.experimental.settingsProfiles.enabled', "Controls whether to enable the Settings Profiles preview feature."),
+	scope: ConfigurationScope.APPLICATION
+};
+
+if (!isWeb) {
+	// Registering here so that the configuration is read properly in main and cli processes.
+	Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+		'properties': {
+			[PROFILES_ENABLEMENT_CONFIG]: PROFILES_ENABLEMENT_CONFIG_SCHEMA
+		}
+	});
+}
+
+export type DidChangeProfilesEvent = { readonly added: IUserDataProfile[]; readonly removed: IUserDataProfile[]; readonly all: IUserDataProfile[] };
+
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
 export interface IUserDataProfilesService {
 	readonly _serviceBrand: undefined;
@@ -68,7 +90,7 @@ export interface IUserDataProfilesService {
 	readonly profilesHome: URI;
 	readonly defaultProfile: IUserDataProfile;
 
-	readonly onDidChangeProfiles: Event<IUserDataProfile[]>;
+	readonly onDidChangeProfiles: Event<DidChangeProfilesEvent>;
 	readonly profiles: IUserDataProfile[];
 
 	newProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags): CustomUserDataProfile;
@@ -120,7 +142,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	get defaultProfile(): IUserDataProfile { return this.profiles[0] ?? this._defaultProfile; }
 	get profiles(): IUserDataProfile[] { return []; }
 
-	protected readonly _onDidChangeProfiles = this._register(new Emitter<IUserDataProfile[]>());
+	protected readonly _onDidChangeProfiles = this._register(new Emitter<DidChangeProfilesEvent>());
 	readonly onDidChangeProfiles = this._onDidChangeProfiles.event;
 
 	constructor(

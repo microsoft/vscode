@@ -12,7 +12,7 @@ import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChi
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IProcessDetails, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { IGenericMarkProperties, IProcessDetails, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 
@@ -342,6 +342,7 @@ export interface ITerminalCommand {
 	marker?: IXtermMarker;
 	hasOutput: boolean;
 	getOutput(): string | undefined;
+	genericMarkProperties?: IGenericMarkProperties;
 }
 
 export interface INavigationMode {

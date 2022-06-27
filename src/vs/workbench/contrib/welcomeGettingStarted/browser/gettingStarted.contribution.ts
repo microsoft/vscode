@@ -58,6 +58,7 @@ registerAction2(class extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
 
 		if (walkthroughID) {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
@@ -86,6 +87,12 @@ registerAction2(class extends Action2 {
 			}
 
 			const activeEditor = editorService.activeEditor;
+			// If the walkthrough is already open just reveal the step
+			if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
+				commandService.executeCommand('walkthroughs.selectStep', selectedStep);
+				return;
+			}
+
 			const gettingStartedInput = instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep });
 			// If it's the extension install page then lets replace it with the getting started page
 			if (activeEditor instanceof ExtensionsInput) {

@@ -24,7 +24,7 @@ export interface IWorkbenchAssignmentService extends IAssignmentService {
 class MementoKeyValueStorage implements IKeyValueStorage {
 	private mementoObj: MementoObject;
 	constructor(private memento: Memento) {
-		this.mementoObj = memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.mementoObj = memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	async getValue<T>(key: string, defaultValue?: T | undefined): Promise<T | undefined> {

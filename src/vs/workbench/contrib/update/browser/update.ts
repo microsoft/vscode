@@ -163,7 +163,7 @@ export class ProductContribution implements IWorkbenchContribution {
 				return;
 			}
 
-			const lastVersion = parseVersion(storageService.get(ProductContribution.KEY, StorageScope.PROFILE, ''));
+			const lastVersion = parseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
 			const currentVersion = parseVersion(productService.version);
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 			const releaseNotesUrl = productService.releaseNotesUrl;
@@ -186,7 +186,7 @@ export class ProductContribution implements IWorkbenchContribution {
 					});
 			}
 
-			storageService.store(ProductContribution.KEY, productService.version, StorageScope.PROFILE, StorageTarget.MACHINE);
+			storageService.store(ProductContribution.KEY, productService.version, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		});
 	}
 }
@@ -224,12 +224,12 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		*/
 
 		const currentVersion = this.productService.commit;
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.PROFILE);
+		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
 
 		// if current version != stored version, clear both fields
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.remove('update/lastKnownVersion', StorageScope.PROFILE);
-			this.storageService.remove('update/updateNotificationTime', StorageScope.PROFILE);
+			this.storageService.remove('update/lastKnownVersion', StorageScope.APPLICATION);
+			this.storageService.remove('update/updateNotificationTime', StorageScope.APPLICATION);
 		}
 
 		this.registerGlobalActivityActions();
@@ -400,15 +400,15 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private shouldShowNotification(): boolean {
 		const currentVersion = this.productService.commit;
 		const currentMillis = new Date().getTime();
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.PROFILE);
+		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
 
 		// if version != stored version, save version and date
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store('update/lastKnownVersion', currentVersion!, StorageScope.PROFILE, StorageTarget.MACHINE);
-			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storageService.store('update/lastKnownVersion', currentVersion!, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
-		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.PROFILE, currentMillis);
+		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.APPLICATION, currentMillis);
 		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
 
 		return diffDays > 5;
@@ -536,12 +536,12 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 						const userDataSyncStore = userDataSyncStoreManagementService.userDataSyncStore;
 						let userDataSyncStoreType: UserDataSyncStoreType | undefined;
 						if (userDataSyncStore && isSwitchingToInsiders && userDataSyncEnablementService.isEnabled()
-							&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.PROFILE, false)) {
+							&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.APPLICATION, false)) {
 							userDataSyncStoreType = await this.selectSettingsSyncService(dialogService);
 							if (!userDataSyncStoreType) {
 								return;
 							}
-							storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.PROFILE, StorageTarget.USER);
+							storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 							if (userDataSyncStoreType === 'stable') {
 								// Update the stable service type in the current window, so that it uses stable service after switched to insiders version (after reload).
 								await userDataSyncStoreManagementService.switch(userDataSyncStoreType);
@@ -576,7 +576,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 						} else {
 							// Reset
 							if (userDataSyncStoreType) {
-								storageService.remove(selectSettingsSyncServiceDialogShownKey, StorageScope.PROFILE);
+								storageService.remove(selectSettingsSyncServiceDialogShownKey, StorageScope.APPLICATION);
 							}
 						}
 					} catch (error) {

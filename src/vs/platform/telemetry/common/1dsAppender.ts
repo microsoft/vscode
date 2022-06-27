@@ -108,11 +108,12 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		}
 		data = mixin(data, this._defaultData);
 		data = validateTelemetryData(data);
+		const name = this._eventPrefix + '/' + eventName;
 
 		try {
 			this._withAIClient((aiClient) => aiClient.track({
-				name: this._eventPrefix + '/' + eventName,
-				data,
+				name,
+				baseData: { name, properties: data?.properties, measurements: data?.measurements }
 			}));
 		} catch { }
 	}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { h } from 'vs/base/browser/dom';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -12,7 +13,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { IObservable, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { h, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export interface ICodeEditorViewOptions {
@@ -66,7 +67,7 @@ export abstract class CodeEditorView extends Disposable {
 			glyphMargin: false,
 			lineNumbersMinChars: 2,
 		},
-		{ contributions: [] }
+		{}
 	);
 
 	public readonly isFocused = observableFromEvent(
