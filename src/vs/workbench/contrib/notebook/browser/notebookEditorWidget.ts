@@ -3241,7 +3241,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .cell-list-top-cell-toolbar-container .action-item { background-color: ${notebookBackground} }`);
 	}
 
-	const notebookBackgroundColor = theme.getColor(notebookEditorBackground) ?? editorBackground;
+	const notebookBackgroundColor = theme.getColor(notebookEditorBackground);
 
 	if (notebookBackgroundColor) {
 		collector.addRule(`.monaco-workbench .notebookOverlay.notebook-editor { background-color: ${notebookBackgroundColor}; }`);
