@@ -64,7 +64,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
-		this._register(this.notificationService.onDidSetDoNotDisturbMode(() => this.onDidSetDoNotDisturbMode()));
+		this._register(this.notificationService.onDidChangeDoNotDisturbMode(() => this.onDidChangeDoNotDisturbMode()));
 	}
 
 	get isVisible(): boolean {
@@ -231,10 +231,9 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		}
 	}
 
-	private onDidSetDoNotDisturbMode(): void {
-		// Hide the notification center when do not disturb is enabled
+	private onDidChangeDoNotDisturbMode(): void {
 		if (this.notificationService.doNotDisturbMode) {
-			this.hide();
+			this.hide(); // Hide the notification center when do not disturb is enabled
 		}
 	}
 

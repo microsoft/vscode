@@ -13,7 +13,7 @@ export class TestNotificationService implements INotificationService {
 
 	readonly onDidRemoveNotification: Event<INotification> = Event.None;
 
-	readonly onDidSetDoNotDisturbMode: Event<void> = Event.None;
+	readonly onDidChangeDoNotDisturbMode: Event<void> = Event.None;
 
 	declare readonly _serviceBrand: undefined;
 

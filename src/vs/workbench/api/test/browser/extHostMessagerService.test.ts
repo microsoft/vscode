@@ -27,7 +27,7 @@ const emptyNotificationService = new class implements INotificationService {
 	private _doNotDisturbMode: boolean = false;
 	onDidAddNotification: Event<INotification> = Event.None;
 	onDidRemoveNotification: Event<INotification> = Event.None;
-	onDidSetDoNotDisturbMode: Event<void> = Event.None;
+	onDidChangeDoNotDisturbMode: Event<void> = Event.None;
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
@@ -63,7 +63,7 @@ class EmptyNotificationService implements INotificationService {
 
 	onDidAddNotification: Event<INotification> = Event.None;
 	onDidRemoveNotification: Event<INotification> = Event.None;
-	onDidSetDoNotDisturbMode: Event<void> = Event.None;
+	onDidChangeDoNotDisturbMode: Event<void> = Event.None;
 	notify(notification: INotification): INotificationHandle {
 		this.withNotify(notification);
 

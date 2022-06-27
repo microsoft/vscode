@@ -144,7 +144,7 @@ suite('AbstractKeybindingService', () => {
 				doNotDisturbMode: false,
 				onDidAddNotification: undefined!,
 				onDidRemoveNotification: undefined!,
-				onDidSetDoNotDisturbMode: undefined!,
+				onDidChangeDoNotDisturbMode: undefined!,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
 					return new NoOpNotification();

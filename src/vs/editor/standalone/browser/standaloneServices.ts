@@ -232,11 +232,11 @@ export class StandaloneNotificationService implements INotificationService {
 
 	readonly onDidRemoveNotification: Event<INotification> = Event.None;
 
-	readonly onDidSetDoNotDisturbMode: Event<void> = Event.None;
+	readonly onDidChangeDoNotDisturbMode: Event<void> = Event.None;
 
 	public _serviceBrand: undefined;
 
-	public _doNotDisturbMode: boolean = false;
+	public doNotDisturbMode: boolean = false;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
@@ -277,10 +277,6 @@ export class StandaloneNotificationService implements INotificationService {
 	}
 
 	public setFilter(filter: NotificationsFilter): void { }
-
-	get doNotDisturbMode(): boolean { return this._doNotDisturbMode; }
-
-	set doNotDisturbMode(enabled: boolean) { this._doNotDisturbMode = enabled; }
 }
 
 export class StandaloneCommandService implements ICommandService {

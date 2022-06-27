@@ -28,8 +28,8 @@ export class NotificationService extends Disposable implements INotificationServ
 	private readonly _onDidRemoveNotification = this._register(new Emitter<INotification>());
 	readonly onDidRemoveNotification = this._onDidRemoveNotification.event;
 
-	private readonly _onDidSetDoNotDisturbMode = this._register(new Emitter<void>());
-	readonly onDidSetDoNotDisturbMode = this._onDidSetDoNotDisturbMode.event;
+	private readonly _onDidChangeDoNotDisturbMode = this._register(new Emitter<void>());
+	readonly onDidChangeDoNotDisturbMode = this._onDidChangeDoNotDisturbMode.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService
@@ -82,7 +82,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			filter = NotificationsFilter.OFF;
 		}
 		this.setFilter(filter);
-		this._onDidSetDoNotDisturbMode.fire();
+		this._onDidChangeDoNotDisturbMode.fire();
 	}
 
 	setFilter(filter: NotificationsFilter): void {
