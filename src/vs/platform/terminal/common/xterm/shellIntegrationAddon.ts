@@ -313,6 +313,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			case ITermOscPt.SetMark: {
 				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ genericMarkProperties: { hoverMessage: hoverMessage || '', disableCommandStorage: disableCommandStorage === 'true' ? true : false } });
 			}
+
 		}
 		// Unrecognized sequence
 		return false;
