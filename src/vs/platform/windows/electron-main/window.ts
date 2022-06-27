@@ -906,7 +906,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.editSessionId = this.environmentMainService.editSessionId; // set latest edit session id
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			current: configuration.workspace ? this.userDataProfilesService.getProfile(configuration.workspace) : this.userDataProfilesService.defaultProfile,
+			current: this.userDataProfilesService.getProfile(configuration.workspace ?? 'empty-window'),
 		};
 
 		// Load config
