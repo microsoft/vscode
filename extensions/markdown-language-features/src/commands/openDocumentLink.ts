@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { Command } from '../commandManager';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { openDocumentLink } from '../util/openDocumentLink';
+import { Schemes } from '../util/schemes';
 
 type UriComponents = {
 	readonly scheme?: string;
@@ -59,7 +60,7 @@ export class OpenDocumentLinkCommand implements Command {
 }
 
 function reviveUri(parts: any) {
-	if (parts.scheme === 'file') {
+	if (parts.scheme === Schemes.file) {
 		return vscode.Uri.file(parts.path);
 	}
 	return vscode.Uri.parse('').with(parts);
