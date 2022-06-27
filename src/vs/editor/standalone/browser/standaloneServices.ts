@@ -40,7 +40,7 @@ import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/com
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent } from 'vs/platform/label/common/label';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFilter, NotificationsDoNotDisturbMode } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -232,9 +232,11 @@ export class StandaloneNotificationService implements INotificationService {
 
 	readonly onDidRemoveNotification: Event<INotification> = Event.None;
 
-	readonly onDidSetDoNotDisturbMode: Event<NotificationsDoNotDisturbMode> = Event.None;
+	readonly onDidSetDoNotDisturbMode: Event<void> = Event.None;
 
 	public _serviceBrand: undefined;
+
+	public _doNotDisturbMode: boolean = false;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
@@ -276,9 +278,9 @@ export class StandaloneNotificationService implements INotificationService {
 
 	public setFilter(filter: NotificationsFilter): void { }
 
-	public getDoNotDisturbMode() { return false; }
+	get doNotDisturbMode(): boolean { return this._doNotDisturbMode; }
 
-	public setDoNotDisturbMode(mode: boolean): void { }
+	set doNotDisturbMode(enabled: boolean) { this._doNotDisturbMode = enabled; }
 }
 
 export class StandaloneCommandService implements ICommandService {
