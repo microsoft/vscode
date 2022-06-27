@@ -337,7 +337,11 @@ export class MergeEditorModel extends EditorModel {
 	}
 
 	public setLanguageId(languageId: string): void {
-		this.modelService.setMode(this.result, this.languageService.createById(languageId));
+		const language = this.languageService.createById(languageId);
+		this.modelService.setMode(this.base, language);
+		this.modelService.setMode(this.input1, language);
+		this.modelService.setMode(this.input2, language);
+		this.modelService.setMode(this.result, language);
 	}
 }
 
