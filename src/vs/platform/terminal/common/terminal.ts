@@ -181,11 +181,6 @@ export enum TitleEventSource {
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
 export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
 
-export interface IRawTerminalInstanceLayoutInfo<T> {
-	relativeSize: number;
-	terminal: T;
-}
-
 export enum TerminalIpcChannels {
 	/**
 	 * Communicates between the renderer process and shared process.
