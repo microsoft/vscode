@@ -47,7 +47,7 @@ const FIRST_PARTY_ALLOWED_EXTENSIONS = [
 
 export function readAccountUsages(storageService: IStorageService, providerId: string, accountName: string,): IAccountUsage[] {
 	const accountKey = `${providerId}-${accountName}-usages`;
-	const storedUsages = storageService.get(accountKey, StorageScope.PROFILE);
+	const storedUsages = storageService.get(accountKey, StorageScope.APPLICATION);
 	let usages: IAccountUsage[] = [];
 	if (storedUsages) {
 		try {
@@ -62,7 +62,7 @@ export function readAccountUsages(storageService: IStorageService, providerId: s
 
 export function removeAccountUsage(storageService: IStorageService, providerId: string, accountName: string): void {
 	const accountKey = `${providerId}-${accountName}-usages`;
-	storageService.remove(accountKey, StorageScope.PROFILE);
+	storageService.remove(accountKey, StorageScope.APPLICATION);
 }
 
 export function addAccountUsage(storageService: IStorageService, providerId: string, accountName: string, extensionId: string, extensionName: string) {
@@ -84,7 +84,7 @@ export function addAccountUsage(storageService: IStorageService, providerId: str
 		});
 	}
 
-	storageService.store(accountKey, JSON.stringify(usages), StorageScope.PROFILE, StorageTarget.MACHINE);
+	storageService.store(accountKey, JSON.stringify(usages), StorageScope.APPLICATION, StorageTarget.MACHINE);
 }
 
 export type AuthenticationSessionInfo = { readonly id: string; readonly accessToken: string; readonly providerId: string; readonly canSignOut?: boolean };
@@ -112,7 +112,7 @@ export interface AllowedExtension {
 export function readAllowedExtensions(storageService: IStorageService, providerId: string, accountName: string): AllowedExtension[] {
 	let trustedExtensions: AllowedExtension[] = [];
 	try {
-		const trustedExtensionSrc = storageService.get(`${providerId}-${accountName}`, StorageScope.PROFILE);
+		const trustedExtensionSrc = storageService.get(`${providerId}-${accountName}`, StorageScope.APPLICATION);
 		if (trustedExtensionSrc) {
 			trustedExtensions = JSON.parse(trustedExtensionSrc);
 		}
@@ -410,7 +410,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			allowList[index].allowed = isAllowed;
 		}
 
-		await this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.PROFILE, StorageTarget.USER);
+		await this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 	async showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean> {
@@ -475,7 +475,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
 
 				this.removeAccessRequest(providerId, extensionId);
-				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.PROFILE, StorageTarget.MACHINE);
+				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 				quickPick.dispose();
 				resolve(session);
@@ -615,7 +615,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				this.updatedAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
 
 				// And also set it as the preferred account for the extension
-				storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.PROFILE, StorageTarget.MACHINE);
+				storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			}
 		});
 
