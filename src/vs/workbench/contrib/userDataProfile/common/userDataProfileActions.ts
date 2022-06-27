@@ -17,14 +17,11 @@ import { asJson, asText, IRequestService } from 'vs/platform/request/common/requ
 import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 	constructor() {
-		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		super({
 			id: 'workbench.profiles.actions.createFromCurrentProfile',
 			title: {
@@ -33,12 +30,12 @@ registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: when,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
 					group: '1_create_profiles',
-					when,
+					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 1
 				}
 			]
@@ -60,7 +57,6 @@ registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 
 registerAction2(class CreateEmptyProfileAction extends Action2 {
 	constructor() {
-		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		super({
 			id: 'workbench.profiles.actions.createProfile',
 			title: {
@@ -69,12 +65,12 @@ registerAction2(class CreateEmptyProfileAction extends Action2 {
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: when,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
 					group: '1_create_profiles',
-					when,
+					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 2
 				}
 			]
@@ -96,7 +92,6 @@ registerAction2(class CreateEmptyProfileAction extends Action2 {
 
 registerAction2(class RemoveProfileAction extends Action2 {
 	constructor() {
-		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		super({
 			id: 'workbench.profiles.actions.removeProfile',
 			title: {
@@ -105,12 +100,12 @@ registerAction2(class RemoveProfileAction extends Action2 {
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: when,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
 					group: '2_manage_profiles',
-					when
+					when: PROFILES_ENABLEMENT_CONTEXT
 				}
 			]
 		});
@@ -142,7 +137,7 @@ registerAction2(class SwitchProfileAction extends Action2 {
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty')),
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
 
@@ -202,7 +197,7 @@ registerAction2(class ExportProfileAction extends Action2 {
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty')),
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
 
@@ -239,7 +234,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty')),
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
 
