@@ -42,7 +42,7 @@
 }
 
 .merge-editor-block.focused {
-	border: 1px soli var(--vscode-mergeEditor-conflictBorder-unhandledFocused);
+	border: 1px solid var(--vscode-mergeEditor-conflictBorder-unhandledFocused);
 }
 
 .merge-editor-block.handled {
