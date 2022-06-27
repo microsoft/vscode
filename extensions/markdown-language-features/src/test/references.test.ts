@@ -18,12 +18,19 @@ import { nulLogger } from './nulLogging';
 import { joinLines, withStore, workspacePath } from './util';
 
 
-function getReferences(store: DisposableStore, doc: InMemoryDocument, pos: vscode.Position, workspace: IMdWorkspace) {
+async function getReferences(store: DisposableStore, doc: InMemoryDocument, pos: vscode.Position, workspace: IMdWorkspace) {
 	const engine = createNewMarkdownEngine();
 	const tocProvider = store.add(new MdTableOfContentsProvider(engine, workspace, nulLogger));
 	const computer = store.add(new MdReferencesProvider(engine, workspace, tocProvider, nulLogger));
 	const provider = new MdVsCodeReferencesProvider(computer);
-	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
+	const refs = await provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
+	return refs.sort((a, b) => {
+		const pathCompare = a.uri.toString().localeCompare(b.uri.toString());
+		if (pathCompare !== 0) {
+			return pathCompare;
+		}
+		return a.range.start.compareTo(b.range.start);
+	});
 }
 
 function assertReferencesEqual(actualRefs: readonly vscode.Location[], ...expectedRefs: { uri: vscode.Uri; line: number; startCharacter?: number; endCharacter?: number }[]) {
@@ -130,7 +137,7 @@ suite('Markdown: Find all references', () => {
 	test('Should find references from header across files', withStore(async (store) => {
 		const docUri = workspacePath('doc.md');
 		const other1Uri = workspacePath('sub', 'other.md');
-		const other2Uri = workspacePath('other2.md');
+		const other2Uri = workspacePath('zOther2.md');
 
 		const doc = new InMemoryDocument(docUri, joinLines(
 			`# abc`,
@@ -216,7 +223,7 @@ suite('Markdown: Find all references', () => {
 	test('Should find references from link across files', withStore(async (store) => {
 		const docUri = workspacePath('doc.md');
 		const other1Uri = workspacePath('sub', 'other.md');
-		const other2Uri = workspacePath('other2.md');
+		const other2Uri = workspacePath('zOther2.md');
 
 		const doc = new InMemoryDocument(docUri, joinLines(
 			`# abc`,
@@ -300,9 +307,9 @@ suite('Markdown: Find all references', () => {
 
 		const refs = await getReferences(store, doc, new vscode.Position(0, 23), workspace);
 		assertReferencesEqual(refs!,
-			{ uri: other1Uri, line: 1 }, // Header definition
 			{ uri: docUri, line: 0 },
 			{ uri: docUri, line: 1 },
+			{ uri: other1Uri, line: 1 }, // Header definition
 		);
 	}));
 
@@ -467,7 +474,7 @@ suite('Markdown: Find all references', () => {
 		{
 			// Check refs to header fragment
 			const headerRefs = await getReferences(store, otherDoc, new vscode.Position(0, 16), workspace);
-			assertReferencesEqual(headerRefs!,
+			assertReferencesEqual(headerRefs,
 				{ uri: docUri, line: 0 }, // Header definition
 				{ uri: docUri, line: 2 },
 				{ uri: other1Uri, line: 0 },
@@ -477,7 +484,7 @@ suite('Markdown: Find all references', () => {
 		{
 			// Check refs to file itself from link with ext
 			const fileRefs = await getReferences(store, otherDoc, new vscode.Position(0, 9), workspace);
-			assertReferencesEqual(fileRefs!,
+			assertReferencesEqual(fileRefs,
 				{ uri: other1Uri, line: 0, endCharacter: 14 },
 				{ uri: other1Uri, line: 1, endCharacter: 19 },
 			);
@@ -485,7 +492,7 @@ suite('Markdown: Find all references', () => {
 		{
 			// Check refs to file itself from link without ext
 			const fileRefs = await getReferences(store, otherDoc, new vscode.Position(1, 17), workspace);
-			assertReferencesEqual(fileRefs!,
+			assertReferencesEqual(fileRefs,
 				{ uri: other1Uri, line: 0 },
 				{ uri: other1Uri, line: 1 },
 			);
