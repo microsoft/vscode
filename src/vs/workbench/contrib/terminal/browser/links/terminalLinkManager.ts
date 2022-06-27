@@ -148,7 +148,7 @@ export class TerminalLinkManager extends DisposableStore {
 		const webResults: ILink[] = [];
 		const fileResults: ILink[] = [];
 		let noMoreResults: boolean = false;
-		let topLine = !extended ? this._xterm.buffer.active.viewportY - Math.min(this._xterm.rows, 50) : this._lastTopLine! - (Math.min(this._xterm.rows, 50));
+		let topLine = !extended ? this._xterm.buffer.active.viewportY - Math.min(this._xterm.rows, 50) : this._lastTopLine! - 1000;
 		if (topLine < 0 || topLine - Math.min(this._xterm.rows, 50) < 0) {
 			noMoreResults = true;
 		}
