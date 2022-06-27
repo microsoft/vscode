@@ -323,9 +323,9 @@ function defaultComparator(a: CompletionItem, b: CompletionItem): number {
 		}
 	}
 	// check with 'label'
-	if (a.completion.label < b.completion.label) {
+	if (a.textLabel < b.textLabel) {
 		return -1;
-	} else if (a.completion.label > b.completion.label) {
+	} else if (a.textLabel > b.textLabel) {
 		return 1;
 	}
 	// check with 'type'

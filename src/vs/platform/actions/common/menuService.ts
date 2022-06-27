@@ -150,11 +150,20 @@ class Menu implements IMenu {
 			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
-					const action = isIMenuItem(item)
-						? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService)
-						: new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
+					let action: MenuItemAction | SubmenuItemAction | undefined;
+					if (isIMenuItem(item)) {
+						action = new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService);
+					} else {
+						action = new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
+						if (action.actions.length === 0) {
+							action.dispose();
+							action = undefined;
+						}
+					}
 
-					activeActions.push(action);
+					if (action) {
+						activeActions.push(action);
+					}
 				}
 			}
 			if (activeActions.length > 0) {
