@@ -136,4 +136,3 @@ function osc(data: string) {
 function csi(data: string) {
 	return `\\x1b[${data}`;
 }
-
