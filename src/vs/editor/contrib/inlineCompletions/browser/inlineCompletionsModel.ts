@@ -47,7 +47,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	private readonly debounceValue = this.debounceService.for(
 		this.languageFeaturesService.inlineCompletionsProvider,
 		'InlineCompletionsDebounce',
-		{ min: 50, max: 200 }
+		{ min: 50, max: 50 }
 	);
 
 	constructor(
