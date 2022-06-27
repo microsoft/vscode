@@ -38,20 +38,20 @@
 }
 
 .merge-editor-block {
-	border: 2px solid var(--vscode-mergeEditor-conflictBorder-unhandledUnfocused);
+	border: 1px solid var(--vscode-mergeEditor-conflictBorder-unhandledUnfocused);
 }
 
 .merge-editor-block.focused {
-	border: 2px solid var(--vscode-mergeEditor-conflictBorder-unhandledFocused);
+	border: 1px soli var(--vscode-mergeEditor-conflictBorder-unhandledFocused);
 }
 
 .merge-editor-block.handled {
-	border: 2px solid var(--vscode-mergeEditor-conflictBorder-handledUnfocused);
+	border: 1px solid var(--vscode-mergeEditor-conflictBorder-handledUnfocused);
 
 }
 
 .merge-editor-block.handled.focused {
-	border: 2px solid var(--vscode-mergeEditor-conflictBorder-handledFocused);
+	border: 1px solid var(--vscode-mergeEditor-conflictBorder-handledFocused);
 }
 
 .gutter-item {
