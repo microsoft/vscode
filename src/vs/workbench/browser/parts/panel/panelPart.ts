@@ -823,6 +823,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 				placeholders.push({ id: compositeItem.id, name: this.getCompositeActions(compositeItem.id).activityAction.label });
+			} else {
+				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 			}
 		}
 

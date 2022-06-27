@@ -28,6 +28,7 @@ export type WillRemoveProfileEvent = {
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
+	unsetWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<void>;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
 }
@@ -85,7 +86,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 
 		const storedProfile: StoredUserDataProfile = { name: profile.name, location: profile.location, useDefaultFlags: profile.useDefaultFlags };
 		const storedProfiles = [...this.getStoredProfiles(), storedProfile];
-		this.setStoredProfiles(storedProfiles);
+		this.setStoredProfiles(storedProfiles, [profile], []);
 		if (workspaceIdentifier) {
 			await this.setProfileForWorkspace(profile, workspaceIdentifier);
 		}
@@ -104,6 +105,14 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 		this.setStoredWorskpaceInfos(storedWorkspaceInfos);
 		return this.profilesObject.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+	}
+
+	async unsetWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<void> {
+		if (!this.enabled) {
+			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+		}
+		const workspace = this.getWorkspace(workspaceIdentifier);
+		this.setStoredWorskpaceInfos(this.getStoredWorskpaceInfos().filter(info => !this.uriIdentityService.extUri.isEqual(info.workspace, workspace)));
 	}
 
 	override async removeProfile(profile: IUserDataProfile): Promise<void> {
@@ -128,7 +137,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		await Promises.settled(joiners);
 
 		this.setStoredWorskpaceInfos(this.getStoredWorskpaceInfos().filter(p => !this.uriIdentityService.extUri.isEqual(p.profile, profile.location)));
-		this.setStoredProfiles(this.getStoredProfiles().filter(p => !this.uriIdentityService.extUri.isEqual(p.location, profile.location)));
+		this.setStoredProfiles(this.getStoredProfiles().filter(p => !this.uriIdentityService.extUri.isEqual(p.location, profile.location)), [], [profile]);
 
 		try {
 			if (this.profiles.length === 2) {
@@ -141,10 +150,10 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 	}
 
-	private setStoredProfiles(storedProfiles: StoredUserDataProfile[]) {
+	private setStoredProfiles(storedProfiles: StoredUserDataProfile[], added: IUserDataProfile[], removed: IUserDataProfile[]): void {
 		this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles);
 		this._profilesObject = undefined;
-		this._onDidChangeProfiles.fire(this.profiles);
+		this._onDidChangeProfiles.fire({ added, removed, all: this.profiles });
 	}
 
 	private setStoredWorskpaceInfos(storedWorkspaceInfos: StoredWorkspaceInfo[]) {

@@ -91,6 +91,8 @@ export class MergeEditorModel extends EditorModel {
 		return map.size - handledCount;
 	});
 
+	public readonly hasUnhandledConflicts = this.unhandledConflictsCount.map(value => value > 0);
+
 	public readonly input1ResultMapping = derivedObservable('input1ResultMapping', reader => {
 		const resultDiffs = this.resultDiffs.read(reader);
 		const modifiedBaseRanges = DocumentMapping.betweenOutputs(this.input1LinesDiffs.read(reader), resultDiffs, this.input1.getLineCount());
@@ -335,7 +337,11 @@ export class MergeEditorModel extends EditorModel {
 	}
 
 	public setLanguageId(languageId: string): void {
-		this.modelService.setMode(this.result, this.languageService.createById(languageId));
+		const language = this.languageService.createById(languageId);
+		this.modelService.setMode(this.base, language);
+		this.modelService.setMode(this.input1, language);
+		this.modelService.setMode(this.input2, language);
+		this.modelService.setMode(this.result, language);
 	}
 }
 

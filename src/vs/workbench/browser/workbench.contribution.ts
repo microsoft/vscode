@@ -677,7 +677,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'zenMode.silentNotifications': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('zenMode.silentNotifications', "Controls whether notifications are shown while in zen mode. If true, only error notifications will pop out.")
+				'description': localize('zenMode.silentNotifications', "Controls whether notifications do not disturb mode should be enabled while in zen mode. If true, only error notifications will pop out.")
 			}
 		}
 	});

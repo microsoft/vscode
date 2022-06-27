@@ -416,8 +416,11 @@ class Extensions extends Disposable {
 		extension.deprecationInfo = extensionsControlManifest.deprecated ? extensionsControlManifest.deprecated[extension.identifier.id.toLowerCase()] : undefined;
 	}
 
-	private readonly _onChange: Emitter<{ extension: Extension; operation?: InstallOperation } | undefined> = this._register(new Emitter<{ extension: Extension; operation?: InstallOperation } | undefined>());
-	get onChange(): Event<{ extension: Extension; operation?: InstallOperation } | undefined> { return this._onChange.event; }
+	private readonly _onChange = this._register(new Emitter<{ extension: Extension; operation?: InstallOperation } | undefined>());
+	get onChange() { return this._onChange.event; }
+
+	private readonly _onReset = this._register(new Emitter<void>());
+	get onReset() { return this._onReset.event; }
 
 	private installing: Extension[] = [];
 	private uninstalling: Extension[] = [];
@@ -435,6 +438,7 @@ class Extensions extends Disposable {
 		this._register(server.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 		this._register(server.extensionManagementService.onUninstallExtension(e => this.onUninstallExtension(e.identifier)));
 		this._register(server.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
+		this._register(server.extensionManagementService.onDidChangeProfileExtensions(e => this.onDidChangeProfileExtensions(e.added, e.removed)));
 		this._register(extensionEnablementService.onEnablementChanged(e => this.onEnablementChanged(e)));
 	}
 
@@ -554,6 +558,23 @@ class Extensions extends Disposable {
 		}
 	}
 
+	private async onDidChangeProfileExtensions(added: ILocalExtension[], removed: ILocalExtension[]): Promise<void> {
+		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
+		for (const addedExtension of added) {
+			if (this.installed.find(e => areSameExtensions(e.identifier, addedExtension.identifier))) {
+				const extension = this.instantiationService.createInstance(Extension, this.stateProvider, this.server, addedExtension, undefined);
+				this.installed.push(extension);
+				Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
+			}
+		}
+
+		if (removed.length) {
+			this.installed = this.installed.filter(e => !removed.some(removedExtension => areSameExtensions(e.identifier, removedExtension.identifier)));
+		}
+
+		this._onReset.fire();
+	}
+
 	private async onDidInstallExtensions(results: readonly InstallExtensionResult[]): Promise<void> {
 		for (const event of results) {
 			const { local, source } = event;
@@ -660,6 +681,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly _onChange: Emitter<IExtension | undefined> = new Emitter<IExtension | undefined>();
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
 
+	private readonly _onReset = new Emitter<void>();
+	get onReset() { return this._onReset.event; }
+
 	readonly preferPreReleases = this.productService.quality !== 'stable';
 
 	private installing: IExtension[] = [];
@@ -696,14 +720,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext)));
 			this._register(this.localExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
+			this._register(this.localExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
 		if (extensionManagementServerService.remoteExtensionManagementServer) {
 			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext)));
 			this._register(this.remoteExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
+			this._register(this.remoteExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
 		if (extensionManagementServerService.webExtensionManagementServer) {
 			this.webExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.webExtensionManagementServer, ext => this.getExtensionState(ext)));
 			this._register(this.webExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
+			this._register(this.webExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
 
 		this.updatesCheckDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.UpdatesCheckInterval);
