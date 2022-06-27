@@ -319,9 +319,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._hoverDelayer.trigger(() => {
 					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}...`;
 					hoverContent += '\n\n---\n\n';
-					if (command.genericMarkProperties?.hoverMessage) {
-						// TODO:@meganrogge localize
-						hoverContent = command.genericMarkProperties.hoverMessage;
+					if (command.genericMarkProperties) {
+						if (command.genericMarkProperties.hoverMessage) {
+							hoverContent = command.genericMarkProperties.hoverMessage;
+						} else {
+							//disable mouse pointer
+							element.classList.add(DecorationSelector.Default);
+							return;
+						}
 					} else if (command.exitCode) {
 						if (command.exitCode === -1) {
 							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
