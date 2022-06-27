@@ -28,6 +28,7 @@ export type WillRemoveProfileEvent = {
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
+	unsetWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<void>;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
 }
@@ -104,6 +105,14 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 		this.setStoredWorskpaceInfos(storedWorkspaceInfos);
 		return this.profilesObject.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+	}
+
+	async unsetWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<void> {
+		if (!this.enabled) {
+			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+		}
+		const workspace = this.getWorkspace(workspaceIdentifier);
+		this.setStoredWorskpaceInfos(this.getStoredWorskpaceInfos().filter(info => !this.uriIdentityService.extUri.isEqual(info.workspace, workspace)));
 	}
 
 	override async removeProfile(profile: IUserDataProfile): Promise<void> {
