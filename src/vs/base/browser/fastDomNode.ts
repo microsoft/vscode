@@ -110,7 +110,12 @@ export class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._fontWeight = fontWeight;
-		this.domNode.style.fontWeight = this._fontWeight;
+		if (fontWeight !== 'normal' && fontWeight !== 'bold') {
+			const fontWeightAsNumber = parseInt(fontWeight, 10);
+			this.domNode.style.fontVariationSettings = `"wght" ${fontWeightAsNumber}`;
+		} else {
+			this.domNode.style.fontWeight = this._fontWeight;
+		}
 	}
 
 	public setFontSize(_fontSize: number | string): void {

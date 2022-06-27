@@ -16,7 +16,12 @@ export function applyFontInfo(domNode: FastDomNode<HTMLElement> | HTMLElement, f
 		domNode.setLetterSpacing(fontInfo.letterSpacing);
 	} else {
 		domNode.style.fontFamily = fontInfo.getMassagedFontFamily();
-		domNode.style.fontWeight = fontInfo.fontWeight;
+		if (fontInfo.fontWeight !== 'normal' && fontInfo.fontWeight !== 'bold') {
+			const fontWeightAsNumber = parseInt(fontInfo.fontWeight, 10);
+			domNode.style.fontWeight = `"wght" ${fontWeightAsNumber}`;
+		} else {
+			domNode.style.fontWeight = fontInfo.fontWeight;
+		}
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
 		domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
