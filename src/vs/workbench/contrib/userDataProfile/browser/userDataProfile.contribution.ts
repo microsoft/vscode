@@ -11,7 +11,6 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { UserDataProfilesWorkbenchContribution } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfile';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import '../common/profileActions';
 import '../common/userDataProfileActions';
 
 if (!isWeb) {

@@ -17,7 +17,7 @@ import 'vs/css!./media/mergeEditor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -83,7 +83,7 @@ class MergeEditorLayout {
 	}
 }
 
-export class MergeEditor extends AbstractTextEditor<any> {
+export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 	static readonly ID = 'mergeEditor';
 
@@ -282,6 +282,9 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		this.inputResultView.setModel(viewModel, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
 		this._ctxBaseResourceScheme.set(model.base.uri.scheme);
 
+		const viewState = this.loadEditorViewState(input, context);
+		this._applyViewState(viewState);
+
 		this._sessionDisposables.add(thenIfNotDisposed(model.onInitialized, () => {
 			const firstConflict = model.modifiedBaseRanges.get().find(r => r.isConflicting);
 			if (!firstConflict) {
@@ -439,16 +442,49 @@ export class MergeEditor extends AbstractTextEditor<any> {
 		this._ctxUsesColumnLayout.set(newValue);
 	}
 
-	// --- view state (TODO@bpasero revisit with https://github.com/microsoft/vscode/issues/150804)
-
-	protected computeEditorViewState(resource: URI): undefined {
-		return undefined;
+	private _applyViewState(state: IMergeEditorViewState | undefined) {
+		if (!state) {
+			return;
+		}
+		this.inputResultView.editor.restoreViewState(state);
+		if (state.input1State) {
+			this.input1View.editor.restoreViewState(state.input1State);
+		}
+		if (state.input2State) {
+			this.input2View.editor.restoreViewState(state.input2State);
+		}
+		if (state.focusIndex >= 0) {
+			[this.input1View.editor, this.input2View.editor, this.inputResultView.editor][state.focusIndex].focus();
+		}
 	}
+
+	protected computeEditorViewState(resource: URI): IMergeEditorViewState | undefined {
+		if (isEqual(this.model?.result.uri, resource)) {
+			// TODO@bpasero Why not check `input#resource` and don't ask me for "forgein" resources?
+			return undefined;
+		}
+		const result = this.inputResultView.editor.saveViewState();
+		if (!result) {
+			return undefined;
+		}
+		const input1State = this.input1View.editor.saveViewState() ?? undefined;
+		const input2State = this.input2View.editor.saveViewState() ?? undefined;
+		const focusIndex = [this.input1View.editor, this.input2View.editor, this.inputResultView.editor].findIndex(editor => editor.hasWidgetFocus());
+		return { ...result, input1State, input2State, focusIndex };
+	}
+
 
 	protected tracksEditorViewState(input: EditorInput): boolean {
-		return false;
+		return input instanceof MergeEditorInput;
 	}
 }
+
+type IMergeEditorViewState = ICodeEditorViewState & {
+	readonly input1State?: ICodeEditorViewState;
+	readonly input2State?: ICodeEditorViewState;
+	readonly focusIndex: number;
+};
+
 
 function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: CodeEditorWidget, mapping: DocumentMapping | undefined, source: MappingDirection) {
 	if (!mapping) {

@@ -260,6 +260,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._options = validateDiffEditorOptions(options, {
 			enableSplitViewResizing: true,
 			renderSideBySide: true,
+			renderMarginRevertIcon: true,
 			maxComputationTime: 5000,
 			maxFileSize: 50,
 			ignoreTrimWhitespace: true,
@@ -646,7 +647,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				range,
 				text: '',
 			}]);
-		} else if (change.modifiedEndLineNumber === 0 && originalContent) {
+		} else if (change.modifiedEndLineNumber === 0 && originalContent !== null) {
 			// Delete change.
 			// To revert: insert the old content and a linebreak.
 
@@ -745,7 +746,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const changed = changedDiffEditorOptions(this._options, newOptions);
 		this._options = newOptions;
 
-		const beginUpdateDecorations = (changed.ignoreTrimWhitespace || changed.renderIndicators);
+		const beginUpdateDecorations = (changed.ignoreTrimWhitespace || changed.renderIndicators || changed.renderMarginRevertIcon);
 		const beginUpdateDecorationsSoon = (this._isVisible && (changed.maxComputationTime || changed.maxFileSize));
 
 		if (beginUpdateDecorations) {
@@ -1143,7 +1144,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const foreignOriginal = this._originalEditorState.getForeignViewZones(this._originalEditor.getWhitespaces());
 		const foreignModified = this._modifiedEditorState.getForeignViewZones(this._modifiedEditor.getWhitespaces());
 
-		const diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._options.ignoreTrimWhitespace, this._options.renderIndicators, foreignOriginal, foreignModified);
+		const diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._options.ignoreTrimWhitespace, this._options.renderIndicators, this._options.renderMarginRevertIcon, foreignOriginal, foreignModified);
 
 		try {
 			this._currentlyChangingViewZones = true;
@@ -1459,7 +1460,7 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 		return hasChanges;
 	}
 
-	public getEditorsDiffDecorations(lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[]): IEditorsDiffDecorationsWithZones {
+	public getEditorsDiffDecorations(lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, renderMarginRevertIcon: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[]): IEditorsDiffDecorationsWithZones {
 		// Get view zones
 		modifiedWhitespaces = modifiedWhitespaces.sort((a, b) => {
 			return a.afterLineNumber - b.afterLineNumber;
@@ -1471,7 +1472,7 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 
 		// Get decorations & overview ruler zones
 		const originalDecorations = this._getOriginalEditorDecorations(zones, lineChanges, ignoreTrimWhitespace, renderIndicators);
-		const modifiedDecorations = this._getModifiedEditorDecorations(zones, lineChanges, ignoreTrimWhitespace, renderIndicators);
+		const modifiedDecorations = this._getModifiedEditorDecorations(zones, lineChanges, ignoreTrimWhitespace, renderIndicators, renderMarginRevertIcon);
 
 		return {
 			original: {
@@ -1489,7 +1490,7 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 
 	protected abstract _getViewZones(lineChanges: ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], renderIndicators: boolean): IEditorsZones;
 	protected abstract _getOriginalEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations;
-	protected abstract _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations;
+	protected abstract _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, renderMarginRevertIcon: boolean): IEditorDiffDecorations;
 
 	public abstract setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
 	public abstract layout(): number;
@@ -2031,7 +2032,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		return result;
 	}
 
-	protected _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
+	protected _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, renderMarginRevertIcon: boolean): IEditorDiffDecorations {
 		const modifiedEditor = this._dataSource.getModifiedEditor();
 		const overviewZoneColor = String(this._insertColor);
 
@@ -2046,15 +2047,17 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		for (const lineChange of lineChanges) {
 
 			// Arrows for reverting changes.
-			if (lineChange.modifiedEndLineNumber > 0) {
-				result.decorations.push({
-					range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedStartLineNumber, 1),
-					options: DECORATIONS.arrowRevertChange
-				});
-			} else {
-				const viewZone = zones.modified.find(z => z.afterLineNumber === lineChange.modifiedStartLineNumber);
-				if (viewZone) {
-					viewZone.marginDomNode = createViewZoneMarginArrow();
+			if (renderMarginRevertIcon) {
+				if (lineChange.modifiedEndLineNumber > 0) {
+					result.decorations.push({
+						range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedStartLineNumber, 1),
+						options: DECORATIONS.arrowRevertChange
+					});
+				} else {
+					const viewZone = zones.modified.find(z => z.afterLineNumber === lineChange.modifiedStartLineNumber);
+					if (viewZone) {
+						viewZone.marginDomNode = createViewZoneMarginArrow();
+					}
 				}
 			}
 
@@ -2222,7 +2225,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 		return result;
 	}
 
-	protected _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
+	protected _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, renderMarginRevertIcon: boolean): IEditorDiffDecorations {
 		const modifiedEditor = this._dataSource.getModifiedEditor();
 		const overviewZoneColor = String(this._insertColor);
 
@@ -2641,6 +2644,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 	return {
 		enableSplitViewResizing: validateBooleanOption(options.enableSplitViewResizing, defaults.enableSplitViewResizing),
 		renderSideBySide: validateBooleanOption(options.renderSideBySide, defaults.renderSideBySide),
+		renderMarginRevertIcon: validateBooleanOption(options.renderMarginRevertIcon, defaults.renderMarginRevertIcon),
 		maxComputationTime: clampedInt(options.maxComputationTime, defaults.maxComputationTime, 0, Constants.MAX_SAFE_SMALL_INTEGER),
 		maxFileSize: clampedInt(options.maxFileSize, defaults.maxFileSize, 0, Constants.MAX_SAFE_SMALL_INTEGER),
 		ignoreTrimWhitespace: validateBooleanOption(options.ignoreTrimWhitespace, defaults.ignoreTrimWhitespace),
@@ -2656,6 +2660,7 @@ function changedDiffEditorOptions(a: ValidDiffEditorBaseOptions, b: ValidDiffEdi
 	return {
 		enableSplitViewResizing: (a.enableSplitViewResizing !== b.enableSplitViewResizing),
 		renderSideBySide: (a.renderSideBySide !== b.renderSideBySide),
+		renderMarginRevertIcon: (a.renderMarginRevertIcon !== b.renderMarginRevertIcon),
 		maxComputationTime: (a.maxComputationTime !== b.maxComputationTime),
 		maxFileSize: (a.maxFileSize !== b.maxFileSize),
 		ignoreTrimWhitespace: (a.ignoreTrimWhitespace !== b.ignoreTrimWhitespace),
