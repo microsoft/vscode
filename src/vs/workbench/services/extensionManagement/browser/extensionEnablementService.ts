@@ -580,9 +580,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _onDidChangeExtensions(added: ReadonlyArray<IExtension>, removed: ReadonlyArray<IExtension>): void {
-		const disabledByTrustExtensions = added.filter(e => this.getEnablementState(e) === EnablementState.DisabledByTrustRequirement);
-		if (disabledByTrustExtensions.length) {
-			this._onEnablementChanged.fire(disabledByTrustExtensions);
+		const disabledExtensions = added.filter(e => !this.isEnabledEnablementState(this.getEnablementState(e)));
+		if (disabledExtensions.length) {
+			this._onEnablementChanged.fire(disabledExtensions);
 		}
 		removed.forEach(({ identifier }) => this._reset(identifier));
 	}

@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const CONTEXT_CURRENT_PROFILE = new RawContextKey<string>('currentUserDataProfile', '');
@@ -109,17 +112,20 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private profileStatusAccessor: IStatusbarEntryAccessor | undefined;
 	private updateStatus(): void {
-		if (this.userDataProfilesService.profiles.length > 1 && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			const statusBarEntry = {
-				name: this.userDataProfileService.currentProfile.name!,
+		if (this.userDataProfilesService.profiles.length && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+			const statusBarEntry: IStatusbarEntry = {
+				name: PROFILES_CATEGORY,
 				command: 'workbench.profiles.actions.switchProfile',
 				ariaLabel: localize('currentProfile', "Current Settings Profile is {0}", this.userDataProfileService.currentProfile.name),
-				text: `${PROFILES_CATEGORY}: ${this.userDataProfileService.currentProfile.name!}`,
+				text: `$(${Codicon.multipleWindows.id}) ${this.userDataProfileService.currentProfile.name!}`,
+				tooltip: localize('profileTooltip', "{0}: {1}", PROFILES_CATEGORY, this.userDataProfileService.currentProfile.name),
+				color: themeColorFromId(STATUS_BAR_SETTINGS_PROFILE_FOREGROUND),
+				backgroundColor: themeColorFromId(STATUS_BAR_SETTINGS_PROFILE_BACKGROUND)
 			};
 			if (this.profileStatusAccessor) {
 				this.profileStatusAccessor.update(statusBarEntry);
 			} else {
-				this.profileStatusAccessor = this.statusBarService.addEntry(statusBarEntry, 'status.userDataProfile', StatusbarAlignment.LEFT, 1);
+				this.profileStatusAccessor = this.statusBarService.addEntry(statusBarEntry, 'status.userDataProfile', StatusbarAlignment.LEFT, Number.MAX_VALUE - 1);
 			}
 		} else {
 			if (this.profileStatusAccessor) {
@@ -129,3 +135,17 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		}
 	}
 }
+
+const STATUS_BAR_SETTINGS_PROFILE_FOREGROUND = registerColor('statusBarItem.settingsProfilesForeground', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('statusBarItemSettingsProfileForeground', "Foreground color for the settings profile entry on the status bar."));
+
+const STATUS_BAR_SETTINGS_PROFILE_BACKGROUND = registerColor('statusBarItem.settingsProfilesBackground', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('statusBarItemSettingsProfileBackground', "Background color for the settings profile entry on the status bar."));

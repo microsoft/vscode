@@ -62,6 +62,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorContextCopyAs', "'Copy as' submenu in the editor context menu")
 	},
 	{
+		key: 'editor/context/share',
+		id: MenuId.EditorContextShare,
+		description: localize('menus.editorContextShare', "'Share' submenu in the editor context menu"),
+		proposed: 'contribShareMenu'
+	},
+	{
 		key: 'explorer/context',
 		id: MenuId.ExplorerContext,
 		description: localize('menus.explorerContext', "The file explorer context menu")
@@ -248,6 +254,12 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.NewFile,
 		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu."),
 		supportsSubmenus: false,
+	},
+	{
+		key: 'file/share',
+		id: MenuId.MenubarShare,
+		description: localize('menus.share', "Share submenu shown in the top level File menu."),
+		proposed: 'contribShareMenu'
 	},
 	{
 		key: 'editor/inlineCompletions/actions',

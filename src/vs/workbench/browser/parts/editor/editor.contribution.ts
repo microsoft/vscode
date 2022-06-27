@@ -579,6 +579,13 @@ MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
 	order: 1
 });
 
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	title: localize('miShare', "Share"),
+	submenu: MenuId.MenubarShare,
+	group: '45_share',
+	order: 1,
+});
+
 // Layout menu
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
