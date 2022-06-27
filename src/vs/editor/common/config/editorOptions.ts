@@ -4814,7 +4814,7 @@ export const EditorOptions = {
 	)),
 	formatOnType: register(new EditorBooleanOption(
 		EditorOption.formatOnType, 'formatOnType', false,
-		{ description: nls.localize('formatOnType', "Controls whether the editor should automatically format the line after typing. A formatter must be available and the formatter should be able to format a range in a document.") }
+		{ description: nls.localize('formatOnType', "Controls whether the editor should automatically format the line after typing. A formatter must be available and the formatter should be able to format on type.") }
 	)),
 	glyphMargin: register(new EditorBooleanOption(
 		EditorOption.glyphMargin, 'glyphMargin', true,
