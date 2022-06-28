@@ -141,6 +141,7 @@ class HEADItem implements QuickPickItem {
 	get label(): string { return 'HEAD'; }
 	get description(): string { return (this.repository.HEAD && this.repository.HEAD.commit || '').substr(0, 8); }
 	get alwaysShow(): boolean { return true; }
+	get refName(): string { return 'HEAD'; }
 }
 
 class AddRemoteItem implements QuickPickItem {
@@ -1999,7 +2000,7 @@ export class CommandCenter {
 				return;
 			}
 
-			if (choice instanceof CheckoutItem && choice.refName) {
+			if (choice.refName) {
 				target = choice.refName;
 			}
 		}
