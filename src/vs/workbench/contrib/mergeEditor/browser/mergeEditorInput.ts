@@ -224,9 +224,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 			return ConfirmResult.SAVE;
 		}
 
-		// don't save: revert model and no save
-		console.assert(!isAnyAutoSave);
-		this._outTextModel?.revert({ force: true });
+		// don't save
 		return ConfirmResult.DONT_SAVE;
 	}
 
