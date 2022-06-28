@@ -13,7 +13,7 @@ import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagemen
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { EXTENSIONS_RESOURCE_NAME, IUserDataProfile, IUserDataProfilesService, UseDefaultProfileFlags, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { DidChangeProfilesEvent, EXTENSIONS_RESOURCE_NAME, IUserDataProfile, IUserDataProfilesService, UseDefaultProfileFlags, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -38,6 +38,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+		this._register(userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e)));
 	}
 
 	private async checkAndCreateExtensionsProfileResource(): Promise<URI> {
@@ -49,6 +50,12 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			return this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, EXTENSIONS_RESOURCE_NAME));
 		}
 		throw new Error('Invalid Profile');
+	}
+
+	private onDidChangeProfiles(e: DidChangeProfilesEvent): void {
+		if (e.removed.some(profile => profile.id === this.userDataProfileService.currentProfile.id)) {
+			this.enterProfile(this.userDataProfilesService.defaultProfile, false, localize('reload message when removed', "The current profile has been removed. Please reload to switch back to default profile"));
+		}
 	}
 
 	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile> {
@@ -112,11 +119,11 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		return 'empty-window';
 	}
 
-	private async enterProfile(profile: IUserDataProfile, preserveData: boolean): Promise<void> {
+	private async enterProfile(profile: IUserDataProfile, preserveData: boolean, reloadMessage?: string): Promise<void> {
 		if (this.environmentService.remoteAuthority) {
 			const result = await this.dialogService.confirm({
 				type: 'info',
-				message: localize('reload message', "Switching a profile requires reloading VS Code."),
+				message: reloadMessage ?? localize('reload message', "Switching a profile requires reloading VS Code."),
 				primaryButton: localize('reload button', "&&Reload"),
 			});
 			if (result.confirmed) {
