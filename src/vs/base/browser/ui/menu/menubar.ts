@@ -979,7 +979,7 @@ export class MenuBar extends Disposable {
 		const actualMenuIndex = menuIndex >= this.numMenusShown ? MenuBar.OVERFLOW_INDEX : menuIndex;
 		const customMenu = actualMenuIndex === MenuBar.OVERFLOW_INDEX ? this.overflowMenu : this.menus[actualMenuIndex];
 
-		if (!customMenu.actions || !customMenu.buttonElement) {
+		if (!customMenu.actions || !customMenu.buttonElement || !customMenu.titleElement) {
 			return;
 		}
 
@@ -987,19 +987,19 @@ export class MenuBar extends Disposable {
 
 		customMenu.buttonElement.classList.add('open');
 
-		const buttonBoundingRect = customMenu.buttonElement.getBoundingClientRect();
-		const buttonBoundingRectZoom = DOM.getDomNodeZoomLevel(customMenu.buttonElement);
+		const titleBoundingRect = customMenu.titleElement.getBoundingClientRect();
+		const titleBoundingRectZoom = DOM.getDomNodeZoomLevel(customMenu.titleElement);
 
 		if (this.options.compactMode === Direction.Right) {
-			menuHolder.style.top = `${buttonBoundingRect.top}px`;
-			menuHolder.style.left = `${buttonBoundingRect.left + this.container.clientWidth}px`;
+			menuHolder.style.top = `${titleBoundingRect.top}px`;
+			menuHolder.style.left = `${titleBoundingRect.left + this.container.clientWidth}px`;
 		} else if (this.options.compactMode === Direction.Left) {
-			menuHolder.style.top = `${buttonBoundingRect.top}px`;
+			menuHolder.style.top = `${titleBoundingRect.top}px`;
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.top = `${buttonBoundingRect.bottom * buttonBoundingRectZoom}px`;
-			menuHolder.style.left = `${buttonBoundingRect.left * buttonBoundingRectZoom}px`;
+			menuHolder.style.top = `${titleBoundingRect.bottom * titleBoundingRectZoom}px`;
+			menuHolder.style.left = `${titleBoundingRect.left * titleBoundingRectZoom}px`;
 		}
 
 		customMenu.buttonElement.appendChild(menuHolder);

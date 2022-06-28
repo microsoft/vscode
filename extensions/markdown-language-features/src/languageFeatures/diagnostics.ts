@@ -242,7 +242,9 @@ export abstract class DiagnosticReporter extends Disposable {
 
 	public abstract delete(uri: vscode.Uri): void;
 
-	public abstract areDiagnosticsEnabled(uri: vscode.Uri): boolean;
+	public abstract isOpen(uri: vscode.Uri): boolean;
+
+	public abstract getOpenDocuments(): ITextDocument[];
 
 	public addWorkItem(promise: Promise<any>): Promise<any> {
 		this.pending.add(promise);
@@ -256,6 +258,7 @@ export abstract class DiagnosticReporter extends Disposable {
 }
 
 export class DiagnosticCollectionReporter extends DiagnosticReporter {
+
 	private readonly collection: vscode.DiagnosticCollection;
 
 	constructor() {
@@ -269,11 +272,11 @@ export class DiagnosticCollectionReporter extends DiagnosticReporter {
 	}
 
 	public set(uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]): void {
-		this.collection.set(uri, this.areDiagnosticsEnabled(uri) ? diagnostics : []);
+		this.collection.set(uri, this.isOpen(uri) ? diagnostics : []);
 	}
 
-	public areDiagnosticsEnabled(uri: vscode.Uri): boolean {
-		const tabs = this.getAllTabResources();
+	public isOpen(uri: vscode.Uri): boolean {
+		const tabs = this.getTabResources();
 		return tabs.has(uri);
 	}
 
@@ -281,7 +284,12 @@ export class DiagnosticCollectionReporter extends DiagnosticReporter {
 		this.collection.delete(uri);
 	}
 
-	private getAllTabResources(): ResourceMap<void> {
+	public getOpenDocuments(): ITextDocument[] {
+		const tabs = this.getTabResources();
+		return vscode.workspace.textDocuments.filter(doc => tabs.has(doc.uri));
+	}
+
+	private getTabResources(): ResourceMap<void> {
 		const openedTabDocs = new ResourceMap<void>();
 		for (const group of vscode.window.tabGroups.all) {
 			for (const tab of group.tabs) {
@@ -365,7 +373,7 @@ export class DiagnosticManager extends Disposable {
 		return this.reporter.addWorkItem(
 			(async () => {
 				const triggered = new ResourceMap<Promise<void>>();
-				for (const ref of await this.referencesProvider.getAllReferencesToFile(uri, noopToken)) {
+				for (const ref of await this.referencesProvider.getReferencesToFileInDocs(uri, this.reporter.getOpenDocuments(), noopToken)) {
 					const file = ref.location.uri;
 					if (!triggered.has(file)) {
 						triggered.set(file, this.triggerDiagnostics(file));
@@ -398,7 +406,7 @@ export class DiagnosticManager extends Disposable {
 			const doc = await this.workspace.getOrLoadMarkdownDocument(resource);
 			if (doc) {
 				await this.inFlightDiagnostics.trigger(doc.uri, async (token) => {
-					if (this.reporter.areDiagnosticsEnabled(doc.uri)) {
+					if (this.reporter.isOpen(doc.uri)) {
 						const state = await this.recomputeDiagnosticState(doc, token);
 						this.linkWatcher.updateLinksForDocument(doc.uri, state.config.enabled && state.config.validateFileLinks ? state.links : []);
 						this.reporter.set(doc.uri, state.diagnostics);
@@ -417,12 +425,7 @@ export class DiagnosticManager extends Disposable {
 		this.inFlightDiagnostics.clear();
 
 		return this.reporter.addWorkItem(
-			(async () => {
-				// TODO: This pulls in all md files in the workspace. Instead we only care about opened text documents.
-				// Need a new way to handle that.
-				const allDocs = await this.workspace.getAllMarkdownDocuments();
-				await Promise.all(Array.from(allDocs, doc => this.triggerDiagnostics(doc.uri)));
-			})()
+			Promise.all(Array.from(this.reporter.getOpenDocuments(), doc => this.triggerDiagnostics(doc.uri)))
 		);
 	}
 

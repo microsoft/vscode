@@ -14,31 +14,28 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 	constructor() {
-		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		super({
 			id: 'workbench.profiles.actions.createFromCurrentProfile',
 			title: {
-				value: localize('save profile as', "Create from Current Profile..."),
+				value: localize('save profile as', "Create from Current Settings Profile..."),
 				original: 'Create from Current Profile...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: when,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
 					group: '1_create_profiles',
-					when,
+					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 1
 				}
 			]
@@ -50,7 +47,7 @@ registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 		const name = await quickInputService.input({
 			placeHolder: localize('name', "Profile name"),
-			title: localize('save profile as', "Create from Current Profile..."),
+			title: localize('save profile as', "Create from Current Settings Profile..."),
 		});
 		if (name) {
 			await userDataProfileManagementService.createAndEnterProfile(name, undefined, true);
@@ -60,21 +57,20 @@ registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 
 registerAction2(class CreateEmptyProfileAction extends Action2 {
 	constructor() {
-		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		super({
 			id: 'workbench.profiles.actions.createProfile',
 			title: {
-				value: localize('create profile', "Create an Empty Profile..."),
+				value: localize('create profile', "Create an Empty Settings Profile..."),
 				original: 'Create an Empty Profile...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: when,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
 					group: '1_create_profiles',
-					when,
+					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 2
 				}
 			]
@@ -96,21 +92,20 @@ registerAction2(class CreateEmptyProfileAction extends Action2 {
 
 registerAction2(class RemoveProfileAction extends Action2 {
 	constructor() {
-		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		super({
 			id: 'workbench.profiles.actions.removeProfile',
 			title: {
-				value: localize('remove profile', "Remove Profile..."),
+				value: localize('remove profile', "Remove Settings Profile..."),
 				original: 'Remove Profile...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: when,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
 					group: '2_manage_profiles',
-					when
+					when: PROFILES_ENABLEMENT_CONTEXT
 				}
 			]
 		});
@@ -137,12 +132,12 @@ registerAction2(class SwitchProfileAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.switchProfile',
 			title: {
-				value: localize('switch profile', "Switch Settings Profile"),
-				original: 'Switch Settings Profile'
+				value: localize('switch profile', "Switch Settings Profile..."),
+				original: 'Switch Settings Profile...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty')),
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
 
@@ -172,7 +167,7 @@ registerAction2(class CleanupProfilesAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.cleanupProfiles',
 			title: {
-				value: localize('cleanup profile', "Cleanup Profiles"),
+				value: localize('cleanup profile', "Cleanup Settings Profiles"),
 				original: 'Cleanup Profiles'
 			},
 			category: CATEGORIES.Developer,
@@ -195,21 +190,29 @@ registerAction2(class CleanupProfilesAction extends Action2 {
 registerAction2(class ExportProfileAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.exportProfile2',
+			id: 'workbench.profiles.actions.exportProfile',
 			title: {
-				value: localize('export profile', "Export Settings as a Profile (2)..."),
-				original: 'Export Settings as a Profile as a Profile (2)...'
+				value: localize('export profile', "Export Settings Profile..."),
+				original: 'Export Settings Profile...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty')),
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
+			menu: [
+				{
+					id: ManageProfilesSubMenu,
+					group: '3_import_export_profiles',
+					when: PROFILES_ENABLEMENT_CONTEXT,
+					order: 1
+				}
+			]
 		});
 	}
 
 	async run(accessor: ServicesAccessor) {
 		const textFileService = accessor.get(ITextFileService);
 		const fileDialogService = accessor.get(IFileDialogService);
-		const profileService = accessor.get(IUserDataProfileWorkbenchService);
+		const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
 		const notificationService = accessor.get(INotificationService);
 
 		const profileLocation = await fileDialogService.showSaveDialog({
@@ -222,7 +225,7 @@ registerAction2(class ExportProfileAction extends Action2 {
 			return;
 		}
 
-		const profile = await profileService.createProfile({ skipComments: true });
+		const profile = await userDataProfileImportExportService.exportProfile({ skipComments: true });
 		await textFileService.create([{ resource: profileLocation, value: JSON.stringify(profile), options: { overwrite: true } }]);
 
 		notificationService.info(localize('export success', "{0}: Exported successfully.", PROFILES_CATEGORY));
@@ -232,14 +235,22 @@ registerAction2(class ExportProfileAction extends Action2 {
 registerAction2(class ImportProfileAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.importProfile2',
+			id: 'workbench.profiles.actions.importProfile',
 			title: {
-				value: localize('import profile', "Import Settings from a Profile (2)..."),
-				original: 'Import Settings from a Profile (2)...'
+				value: localize('import profile', "Import Settings Profile..."),
+				original: 'Import Settings Profile...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty')),
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
+			menu: [
+				{
+					id: ManageProfilesSubMenu,
+					group: '3_import_export_profiles',
+					when: PROFILES_ENABLEMENT_CONTEXT,
+					order: 2
+				}
+			]
 		});
 	}
 
@@ -248,7 +259,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const fileService = accessor.get(IFileService);
 		const requestService = accessor.get(IRequestService);
-		const userDataProfileMangementService = accessor.get(IUserDataProfileManagementService);
+		const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
 
 		const disposables = new DisposableStore();
 		const quickPick = disposables.add(quickInputService.createQuickPick());
@@ -267,13 +278,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 			quickPick.hide();
 			const profile = quickPick.selectedItems[0].description ? await this.getProfileFromURL(quickPick.value, requestService) : await this.getProfileFromFileSystem(fileDialogService, fileService);
 			if (profile) {
-				const name = await quickInputService.input({
-					placeHolder: localize('name', "Profile name"),
-					title: localize('save profile as', "Create from Current Profile..."),
-				});
-				if (name) {
-					await userDataProfileMangementService.createAndEnterProfileFromTemplate(name, profile);
-				}
+				await userDataProfileImportExportService.importProfile(profile);
 			}
 		}));
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));

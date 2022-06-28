@@ -1298,7 +1298,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.deltaDecorations(oldDecorations, newDecorations, this._id);
 	}
 
-	public setDecorations(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
+	public removeDecorations(decorationIds: string[]): void {
+		if (!this._modelData || decorationIds.length === 0) {
+			return;
+		}
+
+		this._modelData.model.changeDecorations((changeAccessor) => {
+			changeAccessor.deltaDecorations(decorationIds, []);
+		});
+	}
+
+	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1340,7 +1350,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
 	}
 
-	public setDecorationsFast(decorationTypeKey: string, ranges: IRange[]): void {
+	public setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void {
 
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1360,7 +1370,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
 	}
 
-	public removeDecorations(decorationTypeKey: string): void {
+	public removeDecorationsByType(decorationTypeKey: string): void {
 		// remove decorations for type and sub type
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey];
 		if (oldDecorationsIds) {

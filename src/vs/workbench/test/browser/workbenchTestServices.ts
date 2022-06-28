@@ -156,13 +156,15 @@ import { TestEditorWorkerService } from 'vs/editor/test/common/services/testEdit
 import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription, IRelaxedExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { EnablementState, IExtensionManagementServer, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService, ScanOptions } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -1927,4 +1929,98 @@ export class TestRemoteAgentService implements IRemoteAgentService {
 	async logTelemetry(eventName: string, data?: ITelemetryData): Promise<void> { }
 	async flushTelemetry(): Promise<void> { }
 	async getRoundTripTime(): Promise<number | undefined> { return undefined; }
+}
+
+export class TestWorkbenchExtensionEnablementService implements IWorkbenchExtensionEnablementService {
+	_serviceBrand: undefined;
+	onEnablementChanged = Event.None;
+	getEnablementState(extension: IExtension): EnablementState { return EnablementState.EnabledGlobally; }
+	getEnablementStates(extensions: IExtension[], workspaceTypeOverrides?: { trusted?: boolean | undefined } | undefined): EnablementState[] { return []; }
+	getDependenciesEnablementStates(extension: IExtension): [IExtension, EnablementState][] { return []; }
+	canChangeEnablement(extension: IExtension): boolean { return true; }
+	canChangeWorkspaceEnablement(extension: IExtension): boolean { return true; }
+	isEnabled(extension: IExtension): boolean { return true; }
+	isEnabledEnablementState(enablementState: EnablementState): boolean { return true; }
+	isDisabledGlobally(extension: IExtension): boolean { return false; }
+	async setEnablement(extensions: IExtension[], state: EnablementState): Promise<boolean[]> { return []; }
+	async updateExtensionsEnablementsWhenWorkspaceTrustChanges(): Promise<void> { }
+}
+
+export class TestWorkbenchExtensionManagementService implements IWorkbenchExtensionManagementService {
+	_serviceBrand: undefined;
+	onInstallExtension = Event.None;
+	onDidInstallExtensions = Event.None;
+	onUninstallExtension = Event.None;
+	onDidUninstallExtension = Event.None;
+	onDidChangeProfileExtensions = Event.None;
+	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+		throw new Error('Method not implemented.');
+	}
+	installWebExtension(location: URI): Promise<ILocalExtension> {
+		throw new Error('Method not implemented.');
+	}
+	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions | undefined): Promise<ILocalExtension[]> {
+		throw new Error('Method not implemented.');
+	}
+	async updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> { return extension; }
+	getExtensionManagementServerToInstall(manifest: Readonly<IRelaxedExtensionManifest>): IExtensionManagementServer | null {
+		throw new Error('Method not implemented.');
+	}
+	zip(extension: ILocalExtension): Promise<URI> {
+		throw new Error('Method not implemented.');
+	}
+	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
+		throw new Error('Method not implemented.');
+	}
+	getManifest(vsix: URI): Promise<Readonly<IRelaxedExtensionManifest>> {
+		throw new Error('Method not implemented.');
+	}
+	install(vsix: URI, options?: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+		throw new Error('Method not implemented.');
+	}
+	async canInstall(extension: IGalleryExtension): Promise<boolean> { return false; }
+	installFromGallery(extension: IGalleryExtension, options?: InstallOptions | undefined): Promise<ILocalExtension> {
+		throw new Error('Method not implemented.');
+	}
+	uninstall(extension: ILocalExtension, options?: UninstallOptions | undefined): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
+	}
+	async getInstalled(type?: ExtensionType | undefined): Promise<ILocalExtension[]> { return []; }
+	getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
+		throw new Error('Method not implemented.');
+	}
+	getMetadata(extension: ILocalExtension): Promise<Partial<IGalleryMetadata & { isApplicationScoped: boolean; isMachineScoped: boolean; isBuiltin: boolean; isSystem: boolean; updated: boolean; preRelease: boolean; installedTimestamp: number }> | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> { return local; }
+	async updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> { return local; }
+	registerParticipant(pariticipant: IExtensionManagementParticipant): void { }
+	async getTargetPlatform(): Promise<TargetPlatform> { return TargetPlatform.UNDEFINED; }
+}
+
+export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {
+	_serviceBrand: undefined;
+	async scanSystemExtensions(): Promise<IExtension[]> { return []; }
+	async scanUserExtensions(options?: ScanOptions | undefined): Promise<IScannedExtension[]> { return []; }
+	async scanExtensionsUnderDevelopment(): Promise<IExtension[]> { return []; }
+	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IScannedExtension | null> {
+		throw new Error('Method not implemented.');
+	}
+	addExtension(location: URI, metadata?: Partial<IGalleryMetadata & { isApplicationScoped: boolean; isMachineScoped: boolean; isBuiltin: boolean; isSystem: boolean; updated: boolean; preRelease: boolean; installedTimestamp: number }> | undefined): Promise<IExtension> {
+		throw new Error('Method not implemented.');
+	}
+	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Partial<IGalleryMetadata & { isApplicationScoped: boolean; isMachineScoped: boolean; isBuiltin: boolean; isSystem: boolean; updated: boolean; preRelease: boolean; installedTimestamp: number }> | undefined): Promise<IExtension> {
+		throw new Error('Method not implemented.');
+	}
+	removeExtension(identifier: IExtensionIdentifier, version?: string | undefined): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	scanMetadata(extensionLocation: URI): Promise<Partial<IGalleryMetadata & { isApplicationScoped: boolean; isMachineScoped: boolean; isBuiltin: boolean; isSystem: boolean; updated: boolean; preRelease: boolean; installedTimestamp: number }> | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	scanExtensionManifest(extensionLocation: URI): Promise<Readonly<IRelaxedExtensionManifest> | null> {
+		throw new Error('Method not implemented.');
+	}
 }

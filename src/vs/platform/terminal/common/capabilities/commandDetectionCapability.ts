@@ -602,7 +602,7 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 	}
 	let output = '';
 	for (let i = startLine; i < endLine; i++) {
-		output += buffer.getLine(i)?.translateToString() + '\n';
+		output += buffer.getLine(i)?.translateToString(true) + '\n';
 	}
 	return output === '' ? undefined : output;
 }

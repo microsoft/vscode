@@ -28,6 +28,7 @@ class CheckoutItem implements QuickPickItem {
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
 	get label(): string { return `${this.repository.isBranchProtected(this.ref.name ?? '') ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`; }
 	get description(): string { return this.shortCommit; }
+	get refName(): string | undefined { return this.ref.name; }
 
 	constructor(protected repository: Repository, protected ref: Ref) { }
 
@@ -140,6 +141,7 @@ class HEADItem implements QuickPickItem {
 	get label(): string { return 'HEAD'; }
 	get description(): string { return (this.repository.HEAD && this.repository.HEAD.commit || '').substr(0, 8); }
 	get alwaysShow(): boolean { return true; }
+	get refName(): string { return 'HEAD'; }
 }
 
 class AddRemoteItem implements QuickPickItem {
@@ -1998,7 +2000,9 @@ export class CommandCenter {
 				return;
 			}
 
-			target = choice.label;
+			if (choice.refName) {
+				target = choice.refName;
+			}
 		}
 
 		await repository.branch(branchName, true, target);

@@ -10,17 +10,19 @@ import { MdVsCodeDefinitionProvider } from '../languageFeatures/definitions';
 import { MdReferencesProvider } from '../languageFeatures/references';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
+import { DisposableStore } from '../util/dispose';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { IMdWorkspace } from '../workspace';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryMdWorkspace } from './inMemoryWorkspace';
 import { nulLogger } from './nulLogging';
-import { joinLines, workspacePath } from './util';
+import { joinLines, withStore, workspacePath } from './util';
 
 
-function getDefinition(doc: InMemoryDocument, pos: vscode.Position, workspace: IMdWorkspace) {
+function getDefinition(store: DisposableStore, doc: InMemoryDocument, pos: vscode.Position, workspace: IMdWorkspace) {
 	const engine = createNewMarkdownEngine();
-	const referencesProvider = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
+	const tocProvider = store.add(new MdTableOfContentsProvider(engine, workspace, nulLogger));
+	const referencesProvider = store.add(new MdReferencesProvider(engine, workspace, tocProvider, nulLogger));
 	const provider = new MdVsCodeDefinitionProvider(referencesProvider);
 	return provider.provideDefinition(doc, pos, noopToken);
 }
@@ -46,31 +48,33 @@ function assertDefinitionsEqual(actualDef: vscode.Definition, ...expectedDefs: {
 }
 
 suite('markdown: Go to definition', () => {
-	test('Should not return definition when on link text', async () => {
+	test('Should not return definition when on link text', withStore(async (store) => {
 		const doc = new InMemoryDocument(workspacePath('doc.md'), joinLines(
 			`[ref](#abc)`,
 			`[ref]: http://example.com`,
 		));
+		const workspace = store.add(new InMemoryMdWorkspace([doc]));
 
-		const defs = await getDefinition(doc, new vscode.Position(0, 1), new InMemoryMdWorkspace([doc]));
+		const defs = await getDefinition(store, doc, new vscode.Position(0, 1), workspace);
 		assert.deepStrictEqual(defs, undefined);
-	});
+	}));
 
-	test('Should find definition links within file from link', async () => {
+	test('Should find definition links within file from link', withStore(async (store) => {
 		const docUri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(docUri, joinLines(
 			`[link 1][abc]`, // trigger here
 			``,
 			`[abc]: https://example.com`,
 		));
+		const workspace = store.add(new InMemoryMdWorkspace([doc]));
 
-		const defs = await getDefinition(doc, new vscode.Position(0, 12), new InMemoryMdWorkspace([doc]));
+		const defs = await getDefinition(store, doc, new vscode.Position(0, 12), workspace);
 		assertDefinitionsEqual(defs!,
 			{ uri: docUri, line: 2 },
 		);
-	});
+	}));
 
-	test('Should find definition links using shorthand', async () => {
+	test('Should find definition links using shorthand', withStore(async (store) => {
 		const docUri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(docUri, joinLines(
 			`[ref]`, // trigger 1
@@ -79,59 +83,62 @@ suite('markdown: Go to definition', () => {
 			``,
 			`[ref]: /Hello.md` // trigger 3
 		));
+		const workspace = store.add(new InMemoryMdWorkspace([doc]));
 
 		{
-			const defs = await getDefinition(doc, new vscode.Position(0, 2), new InMemoryMdWorkspace([doc]));
+			const defs = await getDefinition(store, doc, new vscode.Position(0, 2), workspace);
 			assertDefinitionsEqual(defs!,
 				{ uri: docUri, line: 4 },
 			);
 		}
 		{
-			const defs = await getDefinition(doc, new vscode.Position(2, 7), new InMemoryMdWorkspace([doc]));
+			const defs = await getDefinition(store, doc, new vscode.Position(2, 7), workspace);
 			assertDefinitionsEqual(defs!,
 				{ uri: docUri, line: 4 },
 			);
 		}
 		{
-			const defs = await getDefinition(doc, new vscode.Position(4, 2), new InMemoryMdWorkspace([doc]));
+			const defs = await getDefinition(store, doc, new vscode.Position(4, 2), workspace);
 			assertDefinitionsEqual(defs!,
 				{ uri: docUri, line: 4 },
 			);
 		}
-	});
+	}));
 
-	test('Should find definition links within file from definition', async () => {
+	test('Should find definition links within file from definition', withStore(async (store) => {
 		const docUri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(docUri, joinLines(
 			`[link 1][abc]`,
 			``,
 			`[abc]: https://example.com`, // trigger here
 		));
+		const workspace = store.add(new InMemoryMdWorkspace([doc]));
 
-		const defs = await getDefinition(doc, new vscode.Position(2, 3), new InMemoryMdWorkspace([doc]));
+		const defs = await getDefinition(store, doc, new vscode.Position(2, 3), workspace);
 		assertDefinitionsEqual(defs!,
 			{ uri: docUri, line: 2 },
 		);
-	});
+	}));
 
-	test('Should not find definition links across files', async () => {
+	test('Should not find definition links across files', withStore(async (store) => {
 		const docUri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(docUri, joinLines(
 			`[link 1][abc]`,
 			``,
 			`[abc]: https://example.com`,
 		));
-
-		const defs = await getDefinition(doc, new vscode.Position(0, 12), new InMemoryMdWorkspace([
+		const workspace = store.add(new InMemoryMdWorkspace([
 			doc,
 			new InMemoryDocument(workspacePath('other.md'), joinLines(
 				`[link 1][abc]`,
 				``,
-				`[abc]: https://example.com?bad`,
+				`[abc]: https://example.com?bad`
 			))
 		]));
+
+		const defs = await getDefinition(store, doc, new vscode.Position(0, 12), workspace);
 		assertDefinitionsEqual(defs!,
 			{ uri: docUri, line: 2 },
 		);
-	});
+	}));
 });

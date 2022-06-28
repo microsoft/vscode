@@ -13,8 +13,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -54,26 +53,25 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerManageProfilesSubMenu(): void {
 		const that = this;
-		const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
 			submenu: ManageProfilesSubMenu,
 			group: '5_profiles',
-			when,
+			when: PROFILES_ENABLEMENT_CONTEXT,
 			order: 3
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
 			title: PROFILES_TTILE,
 			submenu: ManageProfilesSubMenu,
 			group: '5_profiles',
-			when,
+			when: PROFILES_ENABLEMENT_CONTEXT,
 			order: 3
 		});
 		MenuRegistry.appendMenuItem(MenuId.AccountsContext, <ISubmenuItem>{
 			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
 			submenu: ManageProfilesSubMenu,
 			group: '1_profiles',
-			when,
+			when: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
 
@@ -89,7 +87,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const that = this;
 		return registerAction2(class ProfileEntryAction extends Action2 {
 			constructor() {
-				const when = ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, WorkbenchStateContext.notEqualsTo('empty'));
 				super({
 					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
 					title: profile.name,
@@ -99,7 +96,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							id: ManageProfilesSubMenu,
 							group: '0_profiles',
-							when,
+							when: PROFILES_ENABLEMENT_CONTEXT,
 						}
 					]
 				});
@@ -112,7 +109,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private profileStatusAccessor: IStatusbarEntryAccessor | undefined;
 	private updateStatus(): void {
-		if (this.userDataProfilesService.profiles.length && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+		if (this.userDataProfilesService.profiles.length) {
 			const statusBarEntry: IStatusbarEntry = {
 				name: PROFILES_CATEGORY,
 				command: 'workbench.profiles.actions.switchProfile',

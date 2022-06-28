@@ -31,15 +31,13 @@ export const IUserDataProfileManagementService = createDecorator<IUserDataProfil
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
-	createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<void>;
-	createAndEnterProfileFromTemplate(name: string, template: IUserDataProfileTemplate, useDefaultFlags?: UseDefaultProfileFlags): Promise<void>;
+	createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
 
 }
 
 export interface IUserDataProfileTemplate {
-	readonly name?: string;
 	readonly settings?: string;
 	readonly globalState?: string;
 	readonly extensions?: string;
@@ -49,7 +47,6 @@ export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataPro
 	const candidate = thing as IUserDataProfileTemplate | undefined;
 
 	return !!(candidate && typeof candidate === 'object'
-		&& (isUndefined(candidate.name) || typeof candidate.name === 'string')
 		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
 		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
 		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string'));
@@ -57,12 +54,12 @@ export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataPro
 
 export type ProfileCreationOptions = { readonly skipComments: boolean };
 
-export const IUserDataProfileWorkbenchService = createDecorator<IUserDataProfileWorkbenchService>('IUserDataProfileWorkbenchService');
-export interface IUserDataProfileWorkbenchService {
+export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
+export interface IUserDataProfileImportExportService {
 	readonly _serviceBrand: undefined;
 
-	createProfile(options?: ProfileCreationOptions): Promise<IUserDataProfileTemplate>;
-	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
+	exportProfile(options?: ProfileCreationOptions): Promise<IUserDataProfileTemplate>;
+	importProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
 export interface IResourceProfile {

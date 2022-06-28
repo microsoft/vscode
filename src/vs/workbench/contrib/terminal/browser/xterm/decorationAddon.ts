@@ -289,6 +289,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 		if (genericMarkProperties) {
 			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.GenericMarkerIcon);
+			if (!genericMarkProperties.hoverMessage) {
+				//disable the mouse pointer
+				element.classList.add(DecorationSelector.Default);
+			}
 		} else if (exitCode === undefined) {
 			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
 			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
@@ -317,11 +321,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					return;
 				}
 				this._hoverDelayer.trigger(() => {
-					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}...`;
+					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}`;
 					hoverContent += '\n\n---\n\n';
-					if (command.genericMarkProperties?.hoverMessage) {
-						// TODO:@meganrogge localize
-						hoverContent = command.genericMarkProperties.hoverMessage;
+					if (command.genericMarkProperties) {
+						if (command.genericMarkProperties.hoverMessage) {
+							hoverContent = command.genericMarkProperties.hoverMessage;
+						} else {
+							return;
+						}
 					} else if (command.exitCode) {
 						if (command.exitCode === -1) {
 							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));

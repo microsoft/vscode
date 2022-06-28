@@ -67,7 +67,6 @@ export type MdReference = MdLinkReference | MdHeaderReference;
 export class MdReferencesProvider extends Disposable {
 
 	private readonly _linkCache: MdWorkspaceInfoCache<readonly MdLink[]>;
-	private readonly _linkComputer: MdLinkComputer;
 
 	public constructor(
 		private readonly parser: IMdParser,
@@ -77,8 +76,8 @@ export class MdReferencesProvider extends Disposable {
 	) {
 		super();
 
-		this._linkComputer = new MdLinkComputer(parser);
-		this._linkCache = this._register(new MdWorkspaceInfoCache(workspace, doc => this._linkComputer.getAllLinks(doc, noopToken)));
+		const linkComputer = new MdLinkComputer(parser);
+		this._linkCache = this._register(new MdWorkspaceInfoCache(workspace, doc => linkComputer.getAllLinks(doc, noopToken)));
 	}
 
 	public async getReferencesAtPosition(document: ITextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
@@ -97,11 +96,26 @@ export class MdReferencesProvider extends Disposable {
 		}
 	}
 
-	public async getAllReferencesToFile(resource: vscode.Uri, _token: vscode.CancellationToken): Promise<MdReference[]> {
-		this.logger.verbose('ReferencesProvider', `getAllReferencesToFile: ${resource}`);
+	public async getReferencesToFileInWorkspace(resource: vscode.Uri, token: vscode.CancellationToken): Promise<MdReference[]> {
+		this.logger.verbose('ReferencesProvider', `getAllReferencesToFileInWorkspace: ${resource}`);
 
 		const allLinksInWorkspace = (await this._linkCache.values()).flat();
-		return Array.from(this.findAllLinksToFile(resource, allLinksInWorkspace, undefined));
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		return Array.from(this.findLinksToFile(resource, allLinksInWorkspace, undefined));
+	}
+
+	public async getReferencesToFileInDocs(resource: vscode.Uri, otherDocs: readonly ITextDocument[], token: vscode.CancellationToken): Promise<MdReference[]> {
+		this.logger.verbose('ReferencesProvider', `getAllReferencesToFileInFiles: ${resource}`);
+
+		const links = (await this._linkCache.getForDocs(otherDocs)).flat();
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		return Array.from(this.findLinksToFile(resource, links, undefined));
 	}
 
 	private async getReferencesToHeader(document: ITextDocument, header: TocEntry): Promise<MdReference[]> {
@@ -137,7 +151,7 @@ export class MdReferencesProvider extends Disposable {
 	}
 
 	private async getReferencesToLinkAtPosition(document: ITextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
-		const docLinks = await this._linkComputer.getAllLinks(document, token);
+		const docLinks = (await this._linkCache.getForDocs([document]))[0];
 
 		for (const link of docLinks) {
 			if (link.kind === 'definition') {
@@ -223,7 +237,7 @@ export class MdReferencesProvider extends Disposable {
 				}
 			}
 		} else { // Triggered on a link without a fragment so we only require matching the file and ignore fragments
-			references.push(...this.findAllLinksToFile(resolvedResource ?? sourceLink.href.path, allLinksInWorkspace, sourceLink));
+			references.push(...this.findLinksToFile(resolvedResource ?? sourceLink.href.path, allLinksInWorkspace, sourceLink));
 		}
 
 		return references;
@@ -238,8 +252,8 @@ export class MdReferencesProvider extends Disposable {
 			|| uri.Utils.extname(href.path) === '' && href.path.with({ path: href.path.path + '.md' }).fsPath === targetDoc.fsPath;
 	}
 
-	private *findAllLinksToFile(resource: vscode.Uri, allLinksInWorkspace: readonly MdLink[], sourceLink: MdLink | undefined): Iterable<MdReference> {
-		for (const link of allLinksInWorkspace) {
+	private *findLinksToFile(resource: vscode.Uri, links: readonly MdLink[], sourceLink: MdLink | undefined): Iterable<MdReference> {
+		for (const link of links) {
 			if (link.href.kind !== 'internal' || !this.looksLikeLinkToDoc(link.href, resource)) {
 				continue;
 			}
