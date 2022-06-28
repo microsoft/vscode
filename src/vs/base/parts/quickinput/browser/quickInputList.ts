@@ -40,6 +40,7 @@ interface IListElement {
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
 	readonly labelHighlights?: IMatch[];
+	readonly labelWithoutIcons: string;
 	readonly descriptionHighlights?: IMatch[];
 	readonly detailHighlights?: IMatch[];
 	readonly checked: boolean;
@@ -71,6 +72,7 @@ class ListElement implements IListElement, IDisposable {
 	}
 	separator?: IQuickPickSeparator;
 	labelHighlights?: IMatch[];
+	labelWithoutIcons!: string;
 	descriptionHighlights?: IMatch[];
 	detailHighlights?: IMatch[];
 	fireButtonTriggered!: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
@@ -459,6 +461,7 @@ export class QuickInputList {
 					saneDescription,
 					saneDetail,
 					labelHighlights: item.highlights?.label,
+					labelWithoutIcons: parseLabelWithIcons(saneLabel).text.trim(),
 					descriptionHighlights: item.highlights?.description,
 					detailHighlights: item.highlights?.detail,
 					checked: false,
@@ -738,7 +741,7 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 		return 0;
 	}
 
-	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
+	return compareAnything(elementA.labelWithoutIcons, elementB.labelWithoutIcons, lookFor);
 }
 
 class QuickInputAccessibilityProvider implements IListAccessibilityProvider<ListElement> {
