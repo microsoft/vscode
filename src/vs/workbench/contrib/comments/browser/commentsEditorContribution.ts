@@ -31,7 +31,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { CommentGlyphWidget, overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { isMouseUpEventMatchMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadZoneWidget';
+import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadZoneWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -405,7 +405,12 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private onEditorMouseMove(e: IEditorMouseEvent): void {
-		this._commentingRangeDecorator.updateHover(e.target.position?.lineNumber);
+		const position = e.target.position?.lineNumber;
+		if (e.event.leftButton.valueOf() && position && this.mouseDownInfo) {
+			this._commentingRangeDecorator.updateSelection(position, new Range(this.mouseDownInfo.lineNumber, 1, position, 1));
+		} else {
+			this._commentingRangeDecorator.updateHover(position);
+		}
 	}
 
 	private onEditorChangeCursorSelection(e?: ICursorSelectionChangedEvent): void {
@@ -691,22 +696,37 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		const matchedLineNumber = isMouseUpEventMatchMouseDown(this.mouseDownInfo, e);
+		const matchedLineNumber = isMouseUpEventDragFromMouseDown(this.mouseDownInfo, e);
 		this.mouseDownInfo = null;
 
 		if (matchedLineNumber === null || !e.target.element) {
 			return;
 		}
+		const mouseUpIsOnDecorator = (e.target.element.className.indexOf('comment-diff-added') >= 0);
 
-		if (e.target.element.className.indexOf('comment-diff-added') >= 0) {
-			const lineNumber = e.target.position!.lineNumber;
-			// Check for selection at line number.
-			let range: Range = new Range(lineNumber, 1, lineNumber, 1);
-			const selection = this.editor.getSelection();
-			if (selection && (selection.startLineNumber <= lineNumber) && (lineNumber <= selection.endLineNumber)) {
-				range = selection;
-				this.editor.setSelection(new Range(selection.endLineNumber, 1, selection.endLineNumber, 1));
+		const lineNumber = e.target.position!.lineNumber;
+		let range: Range | undefined;
+		let selection: Range | null | undefined;
+		// Check for drag along gutter decoration
+		if ((matchedLineNumber !== lineNumber)) {
+			if (matchedLineNumber > lineNumber) {
+				selection = new Range(matchedLineNumber, this.editor.getModel()!.getLineLength(matchedLineNumber) + 1, lineNumber, 1);
+			} else {
+				selection = new Range(matchedLineNumber, 1, lineNumber, this.editor.getModel()!.getLineLength(lineNumber) + 1);
 			}
+		} else if (mouseUpIsOnDecorator) {
+			selection = this.editor.getSelection();
+		}
+
+		// Check for selection at line number.
+		if (selection && (selection.startLineNumber <= lineNumber) && (lineNumber <= selection.endLineNumber)) {
+			range = selection;
+			this.editor.setSelection(new Range(selection.endLineNumber, 1, selection.endLineNumber, 1));
+		} else if (mouseUpIsOnDecorator) {
+			range = new Range(lineNumber, 1, lineNumber, 1);
+		}
+
+		if (range) {
 			this.addOrToggleCommentAtLine(range, e);
 		}
 	}
