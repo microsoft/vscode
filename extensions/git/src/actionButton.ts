@@ -49,7 +49,7 @@ export class ActionButtonCommand {
 	}
 
 	get button(): SourceControlActionButton | undefined {
-		if (!this.state.HEAD || !this.state.HEAD.name || !this.state.HEAD.commit) { return undefined; }
+		if (!this.state.HEAD || !this.state.HEAD.name) { return undefined; }
 
 		let actionButton: SourceControlActionButton | undefined;
 		if (this.state.repositoryHasNoChanges) {
