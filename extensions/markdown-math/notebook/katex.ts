@@ -43,10 +43,12 @@ export async function activate(ctx: RendererContext<void>) {
 	document.head.appendChild(styleTemplate);
 
 	const katex = require('@iktakahiro/markdown-it-katex');
+	const macros = {};
 	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {
 		return md.use(katex, {
 			globalGroup: true,
 			enableBareBlocks: true,
+			macros
 		});
 	});
 }

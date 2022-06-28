@@ -48,7 +48,7 @@ suite('ShellIntegrationAddon', () => {
 		});
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(ILogService, NullLogService);
-		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon);
+		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, undefined, undefined);
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});

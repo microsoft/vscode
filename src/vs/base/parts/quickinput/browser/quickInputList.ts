@@ -748,7 +748,9 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<List
 	}
 
 	getAriaLabel(element: ListElement): string | null {
-		return element.saneAriaLabel;
+		return element.separator?.label
+			? `${element.saneAriaLabel}, ${element.separator.label}`
+			: element.saneAriaLabel;
 	}
 
 	getWidgetRole() {

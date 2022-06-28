@@ -35,10 +35,10 @@ suite('Arrays', () => {
 
 		function assertMedian(expexted: number, data: number[], nth: number = Math.floor(data.length / 2)) {
 			const compare = (a: number, b: number) => a - b;
-			let actual1 = arrays.quickSelect(nth, data, compare);
+			const actual1 = arrays.quickSelect(nth, data, compare);
 			assert.strictEqual(actual1, expexted);
 
-			let actual2 = data.slice().sort(compare)[nth];
+			const actual2 = data.slice().sort(compare)[nth];
 			assert.strictEqual(actual2, expexted);
 		}
 
@@ -140,7 +140,24 @@ suite('Arrays', () => {
 		assert.strictEqual(arrays.binarySearch(array, 0, compare), ~0);
 		assert.strictEqual(arrays.binarySearch(array, 6, compare), ~3);
 		assert.strictEqual(arrays.binarySearch(array, 70, compare), ~10);
+	});
 
+	test('binarySearch2', () => {
+		function compareTo(key: number) {
+			return (index: number) => {
+				return array[index] - key;
+			};
+		}
+		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
+
+		assert.strictEqual(arrays.binarySearch2(10, compareTo(1)), 0);
+		assert.strictEqual(arrays.binarySearch2(10, compareTo(5)), 2);
+
+		// insertion point
+		assert.strictEqual(arrays.binarySearch2(10, compareTo(0)), ~0);
+		assert.strictEqual(arrays.binarySearch2(10, compareTo(6)), ~3);
+		assert.strictEqual(arrays.binarySearch2(10, compareTo(70)), ~10);
+		assert.strictEqual(arrays.binarySearch2(2, compareTo(5)), ~2);
 	});
 
 	test('distinct', () => {
@@ -214,7 +231,7 @@ suite('Arrays', () => {
 	}
 
 	test('coalesce', () => {
-		let a: Array<number | null> = arrays.coalesce([null, 1, null, 2, 3]);
+		const a: Array<number | null> = arrays.coalesce([null, 1, null, 2, 3]);
 		assert.strictEqual(a.length, 3);
 		assert.strictEqual(a[0], 1);
 		assert.strictEqual(a[1], 2);
@@ -264,7 +281,7 @@ suite('Arrays', () => {
 		assert.strictEqual(a[1], 2);
 		assert.strictEqual(a[2], 3);
 
-		let b: number[] = [];
+		const b: number[] = [];
 		b[10] = 1;
 		b[20] = 2;
 		b[30] = 3;
@@ -274,7 +291,7 @@ suite('Arrays', () => {
 		assert.strictEqual(b[1], 2);
 		assert.strictEqual(b[2], 3);
 
-		let sparse: number[] = [];
+		const sparse: number[] = [];
 		sparse[0] = 1;
 		sparse[1] = 1;
 		sparse[17] = 1;

@@ -14,8 +14,7 @@ import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -131,7 +130,7 @@ class FileItem extends BreadcrumbsItem {
 
 	render(container: HTMLElement): void {
 		// file/folder
-		let label = this._instantiationService.createInstance(ResourceLabel, container, {});
+		const label = this._instantiationService.createInstance(ResourceLabel, container, {});
 		label.element.setFile(this.element.uri, {
 			hidePath: true,
 			hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
@@ -390,11 +389,11 @@ export class BreadcrumbsControl {
 					picker = this._instantiationService.createInstance(BreadcrumbsOutlinePicker, parent, event.item.model.resource);
 				}
 
-				let selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
-				let zoomListener = PixelRatio.onDidChange(() => this._contextViewService.hideContextView({ source: this }));
+				const selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
+				const zoomListener = PixelRatio.onDidChange(() => this._contextViewService.hideContextView({ source: this }));
 
-				let focusTracker = dom.trackFocus(parent);
-				let blurListener = focusTracker.onDidBlur(() => {
+				const focusTracker = dom.trackFocus(parent);
+				const blurListener = focusTracker.onDidBlur(() => {
 					this._breadcrumbsPickerIgnoreOnceItem = this._widget.isDOMFocused() ? event.item : undefined;
 					this._contextViewService.hideContextView({ source: this });
 				});
@@ -412,15 +411,15 @@ export class BreadcrumbsControl {
 			},
 			getAnchor: () => {
 				if (!pickerAnchor) {
-					let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
+					const maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
 					let maxHeight = Math.min(window.innerHeight * 0.7, 300);
 
-					let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
-					let pickerArrowSize = 8;
+					const pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
+					const pickerArrowSize = 8;
 					let pickerArrowOffset: number;
 
-					let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
-					let y = data.top + data.height + pickerArrowSize;
+					const data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
+					const y = data.top + data.height + pickerArrowSize;
 					if (y + maxHeight >= window.innerHeight) {
 						maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
 					}
@@ -429,7 +428,7 @@ export class BreadcrumbsControl {
 						x = maxInnerWidth - pickerWidth;
 					}
 					if (event.payload instanceof StandardMouseEvent) {
-						let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
+						const maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
 						pickerArrowOffset = event.payload.posx - x;
 						if (pickerArrowOffset > maxPickerArrowOffset) {
 							x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
@@ -470,8 +469,8 @@ export class BreadcrumbsControl {
 				await this._editorService.openEditor({ resource: element.uri, options: { pinned } }, group);
 			} else {
 				// show next picker
-				let items = this._widget.getItems();
-				let idx = items.indexOf(event.item);
+				const items = this._widget.getItems();
+				const idx = items.indexOf(event.item);
 				this._widget.setFocused(items[idx + 1]);
 				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 			}
@@ -494,26 +493,32 @@ export class BreadcrumbsControl {
 //#region commands
 
 // toggle command
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
-		category: CATEGORIES.View
+registerAction2(class ToggleBreadcrumb extends Action2 {
+
+	constructor() {
+		super({
+			id: 'breadcrumbs.toggle',
+			title: {
+				value: localize('cmd.toggle', "Toggle Breadcrumbs"),
+				mnemonicTitle: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
+				original: 'Toggle Breadcrumbs',
+			},
+			category: CATEGORIES.View,
+			toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
+			menu: [
+				{ id: MenuId.CommandPalette },
+				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 3 },
+				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 }
+			]
+		});
 	}
-});
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '5_editor',
-	order: 3,
-	command: {
-		id: 'breadcrumbs.toggle',
-		title: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
-		toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true)
+
+	run(accessor: ServicesAccessor): void {
+		const config = accessor.get(IConfigurationService);
+		const value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
+		BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
 	}
-});
-CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
-	let config = accessor.get(IConfigurationService);
-	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
-	BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
+
 });
 
 // focus/focus-and-select
@@ -530,20 +535,27 @@ function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): voi
 		}
 	}
 }
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: 'breadcrumbs.focusAndSelect',
-		title: { value: localize('cmd.focus', "Focus Breadcrumbs"), original: 'Focus Breadcrumbs' },
-		precondition: BreadcrumbsControl.CK_BreadcrumbsVisible
+registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
+	constructor() {
+		super({
+			id: 'breadcrumbs.focusAndSelect',
+			title: {
+				value: localize('cmd.focus', "Focus Breadcrumbs"),
+				original: 'Focus Breadcrumbs'
+			},
+			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
+				when: BreadcrumbsControl.CK_BreadcrumbsPossible,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		focusAndSelectHandler(accessor, true);
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focusAndSelect',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
-	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
-	handler: accessor => focusAndSelectHandler(accessor, true)
-});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
 	weight: KeybindingWeight.WorkbenchContrib,

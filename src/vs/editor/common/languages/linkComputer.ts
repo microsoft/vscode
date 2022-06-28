@@ -160,7 +160,7 @@ function getClassifier(): CharacterClassifier<CharacterClass> {
 			_classifier.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
 		}
 
-		const CANNOT_END_WITH_CHARACTERS = '.,;';
+		const CANNOT_END_WITH_CHARACTERS = '.,;:';
 		for (let i = 0; i < CANNOT_END_WITH_CHARACTERS.length; i++) {
 			_classifier.set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
 		}

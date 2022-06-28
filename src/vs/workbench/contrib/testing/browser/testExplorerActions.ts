@@ -111,6 +111,21 @@ export class UnhideTestAction extends Action2 {
 	}
 }
 
+export class UnhideAllTestsAction extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.UnhideAllTestsAction,
+			title: localize('unhideAllTests', 'Unhide All Tests'),
+		});
+	}
+
+	public override run(accessor: ServicesAccessor) {
+		const service = accessor.get(ITestService);
+		service.excluded.clear();
+		return Promise.resolve();
+	}
+}
+
 const testItemInlineAndInContext = (order: ActionOrder, when?: ContextKeyExpression) => [
 	{
 		id: MenuId.TestItem,
@@ -1190,4 +1205,5 @@ export const allTestActions = [
 	TestingViewAsTreeAction,
 	ToggleInlineTestOutput,
 	UnhideTestAction,
+	UnhideAllTestsAction,
 ];

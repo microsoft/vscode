@@ -7,6 +7,8 @@ import { UriHandler, Uri, window, Disposable, commands } from 'vscode';
 import { dispose } from './util';
 import * as querystring from 'querystring';
 
+const schemes = new Set(['file', 'git', 'http', 'https', 'ssh']);
+
 export class GitProtocolHandler implements UriHandler {
 
 	private disposables: Disposable[] = [];
@@ -26,9 +28,35 @@ export class GitProtocolHandler implements UriHandler {
 
 		if (!data.url) {
 			console.warn('Failed to open URI:', uri);
+			return;
 		}
 
-		commands.executeCommand('git.clone', data.url);
+		if (Array.isArray(data.url) && data.url.length === 0) {
+			console.warn('Failed to open URI:', uri);
+			return;
+		}
+
+		let cloneUri: Uri;
+		try {
+			let rawUri = Array.isArray(data.url) ? data.url[0] : data.url;
+
+			// Handle SSH Uri
+			// Ex: git@github.com:microsoft/vscode.git
+			rawUri = rawUri.replace(/^(git@[^\/:]+)(:)/i, 'ssh://$1/');
+
+			cloneUri = Uri.parse(rawUri, true);
+
+			// Validate against supported schemes
+			if (!schemes.has(cloneUri.scheme.toLowerCase())) {
+				throw new Error('Unsupported scheme.');
+			}
+		}
+		catch (ex) {
+			console.warn('Invalid URI:', uri);
+			return;
+		}
+
+		commands.executeCommand('git.clone', cloneUri.toString(true));
 	}
 
 	dispose(): void {

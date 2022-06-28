@@ -92,7 +92,7 @@ export class FindDecorations implements IDisposable {
 	}
 
 	public getCurrentMatchesPosition(desiredRange: Range): number {
-		let candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
+		const candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
 		for (const candidate of candidates) {
 			const candidateOpts = candidate.options;
 			if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION) {
@@ -108,7 +108,7 @@ export class FindDecorations implements IDisposable {
 		let matchPosition = 0;
 		if (nextMatch) {
 			for (let i = 0, len = this._decorations.length; i < len; i++) {
-				let range = this._editor.getModel().getDecorationRange(this._decorations[i]);
+				const range = this._editor.getModel().getDecorationRange(this._decorations[i]);
 				if (nextMatch.equalsRange(range)) {
 					newCurrentDecorationId = this._decorations[i];
 					matchPosition = (i + 1);
@@ -134,8 +134,8 @@ export class FindDecorations implements IDisposable {
 				if (newCurrentDecorationId !== null) {
 					let rng = this._editor.getModel().getDecorationRange(newCurrentDecorationId)!;
 					if (rng.startLineNumber !== rng.endLineNumber && rng.endColumn === 1) {
-						let lineBeforeEnd = rng.endLineNumber - 1;
-						let lineBeforeEndMaxColumn = this._editor.getModel().getLineMaxColumn(lineBeforeEnd);
+						const lineBeforeEnd = rng.endLineNumber - 1;
+						const lineBeforeEndMaxColumn = this._editor.getModel().getLineMaxColumn(lineBeforeEnd);
 						rng = new Range(rng.startLineNumber, rng.startColumn, lineBeforeEnd, lineBeforeEndMaxColumn);
 					}
 					this._rangeHighlightDecorationId = changeAccessor.addDecoration(rng, FindDecorations._RANGE_HIGHLIGHT_DECORATION);
@@ -150,7 +150,7 @@ export class FindDecorations implements IDisposable {
 		this._editor.changeDecorations((accessor) => {
 
 			let findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
-			let newOverviewRulerApproximateDecorations: IModelDeltaDecoration[] = [];
+			const newOverviewRulerApproximateDecorations: IModelDeltaDecoration[] = [];
 
 			if (findMatches.length > 1000) {
 				// we go into a mode where the overview ruler gets "approximate" decorations
@@ -189,7 +189,7 @@ export class FindDecorations implements IDisposable {
 			}
 
 			// Find matches
-			let newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(findMatches.length);
+			const newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(findMatches.length);
 			for (let i = 0, len = findMatches.length; i < len; i++) {
 				newFindMatchesDecorations[i] = {
 					range: findMatches[i].range,
@@ -223,8 +223,8 @@ export class FindDecorations implements IDisposable {
 			return null;
 		}
 		for (let i = this._decorations.length - 1; i >= 0; i--) {
-			let decorationId = this._decorations[i];
-			let r = this._editor.getModel().getDecorationRange(decorationId);
+			const decorationId = this._decorations[i];
+			const r = this._editor.getModel().getDecorationRange(decorationId);
 			if (!r || r.endLineNumber > position.lineNumber) {
 				continue;
 			}
@@ -245,8 +245,8 @@ export class FindDecorations implements IDisposable {
 			return null;
 		}
 		for (let i = 0, len = this._decorations.length; i < len; i++) {
-			let decorationId = this._decorations[i];
-			let r = this._editor.getModel().getDecorationRange(decorationId);
+			const decorationId = this._decorations[i];
+			const r = this._editor.getModel().getDecorationRange(decorationId);
 			if (!r || r.startLineNumber < position.lineNumber) {
 				continue;
 			}

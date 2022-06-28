@@ -125,7 +125,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $registerBreakpoints(DTOs: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void> {
 
-		for (let dto of DTOs) {
+		for (const dto of DTOs) {
 			if (dto.type === 'sourceMulti') {
 				const rawbps = dto.lines.map(l =>
 					<IBreakpointData>{
@@ -242,9 +242,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $setDebugSessionName(sessionId: DebugSessionUUID, name: string): void {
 		const session = this.debugService.getModel().getSession(sessionId);
-		if (session) {
-			session.setName(name);
-		}
+		session?.setName(name);
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
@@ -284,9 +282,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $appendDebugConsole(value: string): void {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		const session = this.debugService.getViewModel().focusedSession;
-		if (session) {
-			session.appendToRepl(value, severity.Warning);
-		}
+		session?.appendToRepl(value, severity.Warning);
 	}
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {

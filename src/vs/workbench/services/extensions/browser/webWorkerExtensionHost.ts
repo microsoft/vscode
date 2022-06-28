@@ -12,11 +12,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionHost, ExtensionHostLogFileName, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName, LocalWebWorkerRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { joinPath } from 'vs/base/common/resources';
@@ -30,11 +30,12 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { FileAccess } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { parentOriginHash } from 'vs/workbench/browser/webview';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
-	readonly extensions: IExtensionDescription[];
+	readonly allExtensions: IExtensionDescription[];
+	readonly myExtensions: ExtensionIdentifier[];
 }
 
 export interface IWebWorkerExtensionHostDataProvider {
@@ -45,7 +46,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	public readonly remoteAuthority = null;
 	public readonly lazyStart: boolean;
-	public readonly extensions = new ExtensionDescriptionRegistry([]);
+	public readonly extensions = new ExtensionHostExtensions();
 
 	private readonly _onDidExit = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
@@ -66,6 +67,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILogService private readonly _logService: ILogService,
 		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
+		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@IProductService private readonly _productService: IProductService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -130,6 +132,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const iframe = document.createElement('iframe');
 		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
 		iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+		iframe.setAttribute('allow', 'usb; serial; hid; cross-origin-isolated;');
+		iframe.setAttribute('aria-hidden', 'true');
 		iframe.style.display = 'none';
 
 		const vscodeWebWorkerExtHostId = generateUuid();
@@ -250,9 +254,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			return;
 		}
 		this._isTerminating = true;
-		if (this._protocol) {
-			this._protocol.send(createMessageOfType(MessageType.Terminate));
-		}
+		this._protocol?.send(createMessageOfType(MessageType.Terminate));
 		super.dispose();
 	}
 
@@ -267,7 +269,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	private async _createExtHostInitData(): Promise<IExtensionHostInitData> {
 		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 		const workspace = this._contextService.getWorkspace();
-		this.extensions.deltaExtensions(initData.extensions, []);
+		const deltaExtensions = this.extensions.set(initData.allExtensions, initData.myExtensions);
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
@@ -280,7 +282,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-				globalStorageHome: this._environmentService.globalStorageHome,
+				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
@@ -289,9 +291,12 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				name: this._labelService.getWorkspaceLabel(workspace),
 				transient: workspace.transient
 			},
-			resolvedExtensions: [],
-			hostExtensions: [],
-			extensions: this.extensions.getAllExtensionDescriptions(),
+			consoleForward: {
+				includeStack: false,
+				logNative: this._environmentService.debugRenderer
+			},
+			allExtensions: deltaExtensions.toAdd,
+			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
 			logsLocation: this._extensionHostLogsLocation,

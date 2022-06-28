@@ -1768,11 +1768,10 @@ export class PieceTreeBase {
 			return '';
 		}
 		const buffer = this._buffers[node.piece.bufferIndex];
-		let currentContent;
 		const piece = node.piece;
 		const startOffset = this.offsetInBuffer(piece.bufferIndex, piece.start);
 		const endOffset = this.offsetInBuffer(piece.bufferIndex, piece.end);
-		currentContent = buffer.buffer.substring(startOffset, endOffset);
+		const currentContent = buffer.buffer.substring(startOffset, endOffset);
 		return currentContent;
 	}
 

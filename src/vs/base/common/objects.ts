@@ -75,7 +75,7 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>):
 		}
 		seen.add(obj);
 		const r2 = {};
-		for (let i2 in obj) {
+		for (const i2 in obj) {
 			if (_hasOwnProperty.call(obj, i2)) {
 				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, seen);
 			}
@@ -184,11 +184,6 @@ export function safeStringify(obj: any): string {
 		}
 		return value;
 	});
-}
-
-export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R | undefined, defaultValue: R): R {
-	const result = fn(obj);
-	return typeof result === 'undefined' ? defaultValue : result;
 }
 
 type obj = { [key: string]: any };

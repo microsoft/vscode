@@ -32,7 +32,7 @@
 			"dark_vs": "variable.language: #569CD6",
 			"light_vs": "variable.language: #0000FF",
 			"hc_black": "variable.language.this: #569CD6",
-			"hc_light": "variable.language: #0000FF"
+			"hc_light": "variable.language: #0F4A85"
 		}
 	},
 	{
@@ -104,7 +104,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{

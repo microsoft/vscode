@@ -322,7 +322,7 @@ function configureCrashReporter() {
 
 		if (!fs.existsSync(crashReporterDirectory)) {
 			try {
-				fs.mkdirSync(crashReporterDirectory);
+				fs.mkdirSync(crashReporterDirectory, { recursive: true });
 			} catch (error) {
 				console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory does not seem to exist or cannot be created.`);
 				app.exit(1);

@@ -8,14 +8,9 @@ import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/cont
 import { ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IBufferLine, Terminal } from 'xterm';
 
-const enum Constants {
-	/**
-	 * The max line length to try extract word links from.
-	 */
-	MaxLineLength = 2000
-}
-
 export class TerminalExternalLinkDetector implements ITerminalLinkDetector {
+	readonly maxLinkLength = 2000;
+
 	constructor(
 		readonly id: string,
 		readonly xterm: Terminal,
@@ -26,7 +21,7 @@ export class TerminalExternalLinkDetector implements ITerminalLinkDetector {
 	async detect(lines: IBufferLine[], startLine: number, endLine: number): Promise<ITerminalSimpleLink[]> {
 		// Get the text representation of the wrapped line
 		const text = getXtermLineContent(this.xterm.buffer.active, startLine, endLine, this.xterm.cols);
-		if (text === '' || text.length > Constants.MaxLineLength) {
+		if (text === '' || text.length > this.maxLinkLength) {
 			return [];
 		}
 

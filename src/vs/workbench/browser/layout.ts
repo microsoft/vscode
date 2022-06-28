@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -33,7 +33,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
 import { assertIsDefined, isNumber } from 'vs/base/common/types';
-import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
 import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -144,16 +144,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	get dimension(): IDimension { return this._dimension; }
 
 	get offset() {
-		return {
-			top: (() => {
-				let offset = 0;
-				if (this.isVisible(Parts.TITLEBAR_PART)) {
-					offset = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
-				}
-
-				return offset;
-			})()
-		};
+		let top = 0;
+		let quickPickTop = 0;
+		if (this.isVisible(Parts.TITLEBAR_PART)) {
+			top = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
+			quickPickTop = this.titleService.isCommandCenterVisible ? 0 : top;
+		}
+		return { top, quickPickTop };
 	}
 
 	//#endregion
@@ -270,6 +267,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService) === 'custom') {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
+
+		// Title Menu changes
+		this._register(this.titleService.onDidChangeCommandCenterVisibility(() => this.layout()));
 
 		// Theme changes
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateStyles()));
@@ -504,7 +504,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Panel View Container To Restore
 		if (this.isVisible(Parts.PANEL_PART)) {
-			let viewContainerToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id);
+			const viewContainerToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id);
 
 			if (viewContainerToRestore) {
 				this.windowState.initialization.views.containerToRestore.panel = viewContainerToRestore;
@@ -515,7 +515,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Auxiliary Panel to restore
 		if (this.isVisible(Parts.AUXILIARYBAR_PART)) {
-			let viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
+			const viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
 
 			if (viewContainerToRestore) {
 				this.windowState.initialization.views.containerToRestore.auxiliaryBar = viewContainerToRestore;
@@ -617,16 +617,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			return {
 				filesToOpenOrCreate: defaultLayout.editors.map<IPath>(file => {
+					const legacyOverride = file.openWith;
+					const legacySelection = file.selection && file.selection.start && isNumber(file.selection.start.line) ? {
+						startLineNumber: file.selection.start.line,
+						startColumn: isNumber(file.selection.start.column) ? file.selection.start.column : 1,
+						endLineNumber: isNumber(file.selection.end.line) ? file.selection.end.line : undefined,
+						endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
+					} : undefined;
+
 					return {
 						fileUri: URI.revive(file.uri),
-						selection: file.selection && file.selection.start && isNumber(file.selection.start.line) ? {
-							startLineNumber: file.selection.start.line,
-							startColumn: isNumber(file.selection.start.column) ? file.selection.start.column : 1,
-							endLineNumber: isNumber(file.selection.end.line) ? file.selection.end.line : undefined,
-							endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
-						} : undefined,
 						openOnlyIfExists: file.openOnlyIfExists,
-						editorOverrideId: file.openWith
+						options: {
+							selection: legacySelection,
+							override: legacyOverride,
+							...file.options // keep at the end to override legacy selection/override that may be `undefined`
+						}
 					};
 				})
 			};
@@ -987,6 +993,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return true;
 		}
 
+		// with the command center enabled, we should always show
+		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
+			return true;
+		}
+
 		// remaining behavior is based on menubar visibility
 		switch (getMenuBarVisibility(this.configurationService)) {
 			case 'classic':
@@ -1076,6 +1087,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (!restoring) {
 				zenModeExitInfo.transitionedToFullScreen = toggleFullScreen;
 				zenModeExitInfo.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
+				zenModeExitInfo.handleNotificationsDoNotDisturbMode = !this.notificationService.doNotDisturbMode;
 				zenModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
 				zenModeExitInfo.wasVisible.panel = this.isVisible(Parts.PANEL_PART);
 				zenModeExitInfo.wasVisible.auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
@@ -1103,13 +1115,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.windowState.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
 			}
 
-			if (config.silentNotifications) {
-				this.notificationService.setFilter(NotificationsFilter.ERROR);
+			if (config.silentNotifications && zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
+				this.notificationService.doNotDisturbMode = true;
 			}
 			this.windowState.runtime.zenMode.transitionDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(WorkbenchLayoutSettings.ZEN_MODE_SILENT_NOTIFICATIONS)) {
-					const filter = this.configurationService.getValue(WorkbenchLayoutSettings.ZEN_MODE_SILENT_NOTIFICATIONS) ? NotificationsFilter.ERROR : NotificationsFilter.OFF;
-					this.notificationService.setFilter(filter);
+					const zenModeSilentNotifications = !!this.configurationService.getValue(WorkbenchLayoutSettings.ZEN_MODE_SILENT_NOTIFICATIONS);
+					if (zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
+						this.notificationService.doNotDisturbMode = zenModeSilentNotifications;
+					}
 				}
 			}));
 
@@ -1144,12 +1158,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.centerEditorLayout(false, true);
 			}
 
+			if (zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
+				this.notificationService.doNotDisturbMode = false;
+			}
+
 			setLineNumbers();
 
 			this.focus();
-
-			// Clear notifications filter
-			this.notificationService.setFilter(NotificationsFilter.OFF);
 
 			toggleFullScreen = zenModeExitInfo.transitionedToFullScreen && this.windowState.runtime.fullscreen;
 		}
@@ -1235,6 +1250,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.setEditorHidden(!visible, true);
 				}
 				this._onDidChangePartVisibility.fire();
+				this._onDidLayout.fire(this._dimension);
 			}));
 		}
 
@@ -1322,8 +1338,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
-		const sizeChangePxWidth = this.workbenchGrid.width * sizeChangeWidth / 100;
-		const sizeChangePxHeight = this.workbenchGrid.height * sizeChangeHeight / 100;
+		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(Math.abs(sizeChangeWidth));
+		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(Math.abs(sizeChangeHeight));
 
 		let viewSize: IViewSize;
 
@@ -2109,13 +2125,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 
 		type StartupLayoutEventClassification = {
-			activityBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			sideBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			auxiliaryBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			panelVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			statusbarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			sideBarPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			panelPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'sbatten';
+			comment: 'Information about the layout of the workbench during statup';
+			activityBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the activity bar is visible' };
+			sideBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the primary side bar is visible' };
+			auxiliaryBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the secondary side bar is visible' };
+			panelVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the panel is visible' };
+			statusbarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the status bar is visible' };
+			sideBarPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the primary side bar is on the left or right' };
+			panelPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the panel is on the bottom, left, or right' };
 		};
 
 		const layoutDescriptor: StartupLayoutEvent = {

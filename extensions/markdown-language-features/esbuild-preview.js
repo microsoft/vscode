@@ -28,7 +28,7 @@ function build() {
 		bundle: true,
 		minify: true,
 		sourcemap: false,
-		format: 'esm',
+		format: 'iife',
 		outdir: outDir,
 		platform: 'browser',
 		target: ['es2020'],

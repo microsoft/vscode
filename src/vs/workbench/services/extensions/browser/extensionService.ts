@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -16,7 +16,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IWebWorkerExtensionHostDataProvider, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
+import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier, IExtensionDescription, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
@@ -25,7 +25,6 @@ import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
@@ -45,15 +44,15 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
 	) {
 		super(
@@ -70,11 +69,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensionManifestPropertiesService,
 			webExtensionsScannerService,
 			logService,
-			remoteAgentService
+			remoteAgentService,
+			lifecycleService
 		);
 
 		// Initialize installed extensions first and do it only after workbench is ready
-		this._lifecycleService.when(LifecyclePhase.Ready).then(async () => {
+		lifecycleService.when(LifecyclePhase.Ready).then(async () => {
 			await this._userDataInitializationService.initializeInstalledExtensions(this._instantiationService);
 			this._initialize();
 		});
@@ -108,12 +108,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private _createLocalExtensionHostDataProvider(desiredRunningLocation: ExtensionRunningLocation): IWebWorkerExtensionHostDataProvider {
 		return {
-			getInitData: async () => {
+			getInitData: async (): Promise<IWebWorkerExtensionHostInitData> => {
 				const allExtensions = await this.getExtensions();
 				const localWebWorkerExtensions = this._filterByRunningLocation(allExtensions, desiredRunningLocation);
 				return {
 					autoStart: true,
-					extensions: localWebWorkerExtensions
+					allExtensions: allExtensions,
+					myExtensions: localWebWorkerExtensions.map(extension => extension.identifier)
 				};
 			}
 		};
@@ -232,8 +233,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				extensionHostLogsPath: remoteEnv.extensionHostLogsPath,
 				globalStorageHome: remoteEnv.globalStorageHome,
 				workspaceStorageHome: remoteEnv.workspaceStorageHome,
-				extensions: remoteExtensions,
-				allExtensions: this._registry.getAllExtensionDescriptions()
+				allExtensions: this._registry.getAllExtensionDescriptions(),
+				myExtensions: remoteExtensions.map(extension => extension.identifier),
 			};
 		}
 

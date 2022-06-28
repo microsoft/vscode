@@ -88,9 +88,14 @@ export function installDiagnosticsHandler(logger: Logger, appFn?: () => Applicat
 }
 
 let logsCounter = 1;
+let crashCounter = 1;
 
 export function suiteLogsPath(options: ApplicationOptions, suiteName: string): string {
 	return join(dirname(options.logsPath), `${logsCounter++}_suite_${suiteName.replace(/[^a-z0-9\-]/ig, '_')}`);
+}
+
+export function suiteCrashPath(options: ApplicationOptions, suiteName: string): string {
+	return join(dirname(options.crashesPath), `${crashCounter++}_suite_${suiteName.replace(/[^a-z0-9\-]/ig, '_')}`);
 }
 
 function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
@@ -99,7 +104,8 @@ function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) =
 
 		this.app = createApp({
 			...this.defaultOptions,
-			logsPath: suiteLogsPath(this.defaultOptions, suiteName)
+			logsPath: suiteLogsPath(this.defaultOptions, suiteName),
+			crashesPath: suiteCrashPath(this.defaultOptions, suiteName)
 		}, optionsTransform);
 		await this.app.start();
 	});
@@ -150,9 +156,13 @@ export function timeout(i: number) {
 }
 
 export async function retryWithRestart(app: Application, testFn: () => Promise<unknown>, retries = 3, timeoutMs = 20000): Promise<unknown> {
+	let lastError: Error | undefined = undefined;
 	for (let i = 0; i < retries; i++) {
 		const result = await Promise.race([
-			testFn().then(() => true, error => { throw error; }),
+			testFn().then(() => true, error => {
+				lastError = error;
+				return false;
+			}),
 			timeout(timeoutMs).then(() => false)
 		]);
 
@@ -162,6 +172,8 @@ export async function retryWithRestart(app: Application, testFn: () => Promise<u
 
 		await app.restart();
 	}
+
+	throw lastError ?? new Error('retryWithRestart failed with an unknown error');
 }
 
 export interface ITask<T> {

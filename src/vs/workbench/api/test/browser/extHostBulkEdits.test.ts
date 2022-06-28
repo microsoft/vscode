@@ -12,6 +12,7 @@ import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/api/test/c
 import { NullLogService } from 'vs/platform/log/common/log';
 import { assertType } from 'vs/base/common/types';
 import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 
@@ -22,7 +23,7 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 	setup(() => {
 		workspaceResourceEdits = null!;
 
-		let rpcProtocol = new TestRPCProtocol();
+		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadBulkEdits, new class extends mock<MainThreadBulkEditsShape>() {
 			override $tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceEditDto): Promise<boolean> {
 				workspaceResourceEdits = _workspaceResourceEdits;
@@ -44,9 +45,9 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 	});
 
 	test('uses version id if document available', async () => {
-		let edit = new extHostTypes.WorkspaceEdit();
+		const edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'hello');
-		await bulkEdits.applyWorkspaceEdit(edit);
+		await bulkEdits.applyWorkspaceEdit(edit, nullExtensionDescription);
 		assert.strictEqual(workspaceResourceEdits.edits.length, 1);
 		const [first] = workspaceResourceEdits.edits;
 		assertType(first._type === WorkspaceEditType.Text);
@@ -54,9 +55,9 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 	});
 
 	test('does not use version id if document is not available', async () => {
-		let edit = new extHostTypes.WorkspaceEdit();
+		const edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(URI.parse('foo:bar2'), new extHostTypes.Range(0, 0, 0, 0), 'hello');
-		await bulkEdits.applyWorkspaceEdit(edit);
+		await bulkEdits.applyWorkspaceEdit(edit, nullExtensionDescription);
 		assert.strictEqual(workspaceResourceEdits.edits.length, 1);
 		const [first] = workspaceResourceEdits.edits;
 		assertType(first._type === WorkspaceEditType.Text);

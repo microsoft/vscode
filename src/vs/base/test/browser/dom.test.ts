@@ -10,7 +10,7 @@ const $ = dom.$;
 suite('dom', () => {
 	test('hasClass', () => {
 
-		let element = document.createElement('div');
+		const element = document.createElement('div');
 		element.className = 'foobar boo far';
 
 		assert(element.classList.contains('foobar'));
@@ -55,7 +55,7 @@ suite('dom', () => {
 	});
 
 	test('removeClass should consider hyphens', function () {
-		let element = document.createElement('div');
+		const element = document.createElement('div');
 
 		element.classList.add('foo-bar');
 		element.classList.add('bar');
@@ -113,7 +113,7 @@ suite('dom', () => {
 
 		test('should build nodes with children', () => {
 			let div = $('div', undefined, $('span', { id: 'demospan' }));
-			let firstChild = div.firstChild as HTMLElement;
+			const firstChild = div.firstChild as HTMLElement;
 			assert.strictEqual(firstChild.tagName, 'SPAN');
 			assert.strictEqual(firstChild.id, 'demospan');
 
@@ -123,8 +123,8 @@ suite('dom', () => {
 		});
 
 		test('should build nodes with text children', () => {
-			let div = $('div', undefined, 'foobar');
-			let firstChild = div.firstChild as HTMLElement;
+			const div = $('div', undefined, 'foobar');
+			const firstChild = div.firstChild as HTMLElement;
 			assert.strictEqual(firstChild.tagName, undefined);
 			assert.strictEqual(firstChild.textContent, 'foobar');
 		});

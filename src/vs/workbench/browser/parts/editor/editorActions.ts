@@ -19,13 +19,18 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class ExecuteCommandAction extends Action {
 
@@ -1258,39 +1263,67 @@ export class OpenLastEditorInGroup extends AbstractNavigateEditorAction {
 	}
 }
 
-export class NavigateForwardAction extends Action {
+export class NavigateForwardAction extends Action2 {
 
 	static readonly ID = 'workbench.action.navigateForward';
 	static readonly LABEL = localize('navigateForward', "Go Forward");
 
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: NavigateForwardAction.ID,
+			title: { value: localize('navigateForward', "Go Forward"), original: 'Go Forward', mnemonicTitle: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward") },
+			f1: true,
+			icon: Codicon.arrowRight,
+			precondition: ContextKeyExpr.has('canNavigateForward'),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus }
+			},
+			menu: [
+				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 2 },
+				{ id: MenuId.CommandCenter, order: 2 }
+			]
+		});
 	}
 
-	override async run(): Promise<void> {
-		await this.historyService.goForward(GoFilter.NONE);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goForward(GoFilter.NONE);
 	}
 }
 
-export class NavigateBackwardsAction extends Action {
+export class NavigateBackwardsAction extends Action2 {
 
 	static readonly ID = 'workbench.action.navigateBack';
 	static readonly LABEL = localize('navigateBack', "Go Back");
 
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: NavigateBackwardsAction.ID,
+			title: { value: localize('navigateBack', "Go Back"), original: 'Go Back', mnemonicTitle: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back") },
+			f1: true,
+			precondition: ContextKeyExpr.has('canNavigateBack'),
+			icon: Codicon.arrowLeft,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus }
+			},
+			menu: [
+				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 1 },
+				{ id: MenuId.CommandCenter, order: 1 }
+			]
+		});
 	}
 
-	override async run(): Promise<void> {
-		await this.historyService.goBack(GoFilter.NONE);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goBack(GoFilter.NONE);
 	}
 }
 
@@ -1483,12 +1516,25 @@ export class ClearRecentFilesAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@IHistoryService private readonly historyService: IHistoryService
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
+
+		// Ask for confirmation
+		const { confirmed } = await this.dialogService.confirm({
+			message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
+			detail: localize('confirmClearDetail', "This action is irreversible!"),
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+			type: 'warning'
+		});
+
+		if (!confirmed) {
+			return;
+		}
 
 		// Clear global recently opened
 		this.workspacesService.clearRecentlyOpened();
@@ -1746,14 +1792,27 @@ export class ClearEditorHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
 
-		// Editor history
+		// Ask for confirmation
+		const { confirmed } = await this.dialogService.confirm({
+			message: localize('confirmClearEditorHistoryMessage', "Do you want to clear the history of recently opened editors?"),
+			detail: localize('confirmClearDetail', "This action is irreversible!"),
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+			type: 'warning'
+		});
+
+		if (!confirmed) {
+			return;
+		}
+
+		// Clear editor history
 		this.historyService.clear();
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
 	const tokenCount = context.getCount();

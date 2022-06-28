@@ -17,7 +17,7 @@ import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, join, posix } from 'vs/base/common/path';
-import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { assertType, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -46,7 +46,7 @@ import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
-import { WorkerMainProcessExtensionHostStarter } from 'vs/platform/extensions/electron-main/workerMainProcessExtensionHostStarter';
+import { ExtensionHostStarter } from 'vs/platform/extensions/electron-main/extensionHostStarter';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
@@ -70,7 +70,7 @@ import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedPro
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
-import { GlobalStorageMainService, IGlobalStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -99,6 +99,9 @@ import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { CredentialsNativeMainService } from 'vs/platform/credentials/electron-main/credentialsMainService';
+import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -263,7 +266,7 @@ export class CodeApplication extends Disposable {
 
 				// remote extension schemes have the following format
 				// http://127.0.0.1:<port>/vscode-remote-resource?path=
-				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
+				if (!uri.path.endsWith(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
 					return callback({ cancel: !isSvgRequestFromSafeContext(details) });
 				}
 			}
@@ -641,11 +644,11 @@ export class CodeApplication extends Disposable {
 		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
 		// Extension Host Starter
-		services.set(IExtensionHostStarter, new SyncDescriptor(WorkerMainProcessExtensionHostStarter));
+		services.set(IExtensionHostStarter, new SyncDescriptor(ExtensionHostStarter));
 
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
-		services.set(IGlobalStorageMainService, new SyncDescriptor(GlobalStorageMainService));
+		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService));
 
 		// External terminal
 		if (isWindows) {
@@ -695,12 +698,22 @@ export class CodeApplication extends Disposable {
 		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsMainService), { disableMarshalling: true });
 		this.mainProcessNodeIpcServer.registerChannel('diagnostics', diagnosticsChannel);
 
+		// Policies (main & shared process)
+		const policyChannel = new PolicyChannel(accessor.get(IPolicyService));
+		mainProcessElectronServer.registerChannel('policy', policyChannel);
+		sharedProcessClient.then(client => client.registerChannel('policy', policyChannel));
+
 		// Local Files
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
 		assertType(diskFileSystemProvider instanceof DiskFileSystemProvider);
 		const fileSystemProviderChannel = new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService, this.environmentMainService);
 		mainProcessElectronServer.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel);
 		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
+
+		// User Data Profiles
+		const userDataProfilesService = ProxyChannel.fromService(accessor.get(IUserDataProfilesMainService));
+		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
+		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
@@ -851,6 +864,26 @@ export class CodeApplication extends Disposable {
 					return true;
 				}
 
+				let shouldOpenInNewWindow = false;
+
+				// We should handle the URI in a new window if the URL contains `windowId=_blank`
+				const params = new URLSearchParams(uri.query);
+				if (params.get('windowId') === '_blank') {
+					params.delete('windowId');
+					uri = uri.with({ query: params.toString() });
+					shouldOpenInNewWindow = true;
+				}
+
+				// or if no window is open (macOS only)
+				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
+
+				// Pass along edit session id
+				if (params.get('editSessionId') !== null) {
+					environmentService.editSessionId = params.get('editSessionId') ?? undefined;
+					params.delete('editSessionId');
+					uri = uri.with({ query: params.toString() });
+				}
+
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
 				logService.trace('app#handleURL: windowOpenableFromProtocolLink = ', windowOpenableFromProtocolLink);
@@ -859,6 +892,7 @@ export class CodeApplication extends Disposable {
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
 						urisToOpen: [windowOpenableFromProtocolLink],
+						forceNewWindow: shouldOpenInNewWindow,
 						gotoLineMode: true
 						// remoteAuthority: will be determined based on windowOpenableFromProtocolLink
 					});
@@ -866,20 +900,6 @@ export class CodeApplication extends Disposable {
 					window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
 
 					return true;
-				}
-
-				// We should handle the URI in a new window if no window is open (macOS only)
-				let shouldOpenInNewWindow = isMacintosh && windowsMainService.getWindowCount() === 0;
-
-				// or if the URL contains `windowId=_blank`
-				if (!shouldOpenInNewWindow) {
-					const params = new URLSearchParams(uri.query);
-
-					if (params.get('windowId') === '_blank') {
-						params.delete('windowId');
-						uri = uri.with({ query: params.toString() });
-						shouldOpenInNewWindow = true;
-					}
 				}
 
 				if (shouldOpenInNewWindow) {
@@ -992,7 +1012,7 @@ export class CodeApplication extends Disposable {
 				],
 				defaultId: 0,
 				cancelId: 1,
-				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath, this.environmentMainService), this.productService.nameShort),
+				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri, { os: OS, tildify: this.environmentMainService }), this.productService.nameShort),
 				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
 				noLink: true
 			});
@@ -1098,7 +1118,7 @@ export class CodeApplication extends Disposable {
 				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of shared process crash to understand the nature of the crash better.' };
 				visible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether shared process window was visible or not.' };
 				shuttingdown: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the application is shutting down when the crash happens.' };
-				owner: 'bpaser';
+				owner: 'bpasero';
 				comment: 'Event which fires whenever an error occurs in the shared process';
 
 			};

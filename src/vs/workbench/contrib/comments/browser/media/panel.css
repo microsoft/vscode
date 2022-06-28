@@ -49,8 +49,7 @@
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .count,
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .user {
-	overflow: hidden;
-	text-overflow: ellipsis;
+	min-width: fit-content;
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .text {

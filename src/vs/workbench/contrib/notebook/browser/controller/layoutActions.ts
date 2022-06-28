@@ -173,15 +173,6 @@ registerAction2(class ToggleBreadcrumbFromEditorTitle extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
-	command: {
-		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
-	},
-	group: 'notebookLayout',
-	order: 2
-});
-
 registerAction2(class SaveMimeTypeDisplayOrder extends Action2 {
 	constructor() {
 		super({

@@ -53,7 +53,7 @@ export interface INotebookCellList {
 	getViewIndex2(modelIndex: number): number | undefined;
 	getModelIndex(cell: CellViewModel): number | undefined;
 	getModelIndex2(viewIndex: number): number | undefined;
-	getVisibleRangesPlusViewportBelow(): ICellRange[];
+	getVisibleRangesPlusViewportAboveAndBelow(): ICellRange[];
 	focusElement(element: ICellViewModel): void;
 	selectElements(elements: ICellViewModel[]): void;
 	getFocusedElements(): ICellViewModel[];
@@ -66,6 +66,7 @@ export interface INotebookCellList {
 	revealElementInCenterIfOutsideViewport(element: ICellViewModel): void;
 	revealElementInCenter(element: ICellViewModel): void;
 	revealElementInCenterIfOutsideViewportAsync(element: ICellViewModel): Promise<void>;
+	revealNearTopIfOutsideViewportAync(element: ICellViewModel): Promise<void>;
 	revealElementLineInViewAsync(element: ICellViewModel, line: number): Promise<void>;
 	revealElementLineInCenterAsync(element: ICellViewModel, line: number): Promise<void>;
 	revealElementLineInCenterIfOutsideViewportAsync(element: ICellViewModel, line: number): Promise<void>;

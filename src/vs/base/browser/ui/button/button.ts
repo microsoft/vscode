@@ -238,6 +238,7 @@ export interface IButtonWithDropdownOptions extends IButtonOptions {
 	readonly contextMenuProvider: IContextMenuProvider;
 	readonly actions: IAction[];
 	readonly actionRunner?: IActionRunner;
+	readonly addPrimaryActionToDropdown?: boolean;
 }
 
 export class ButtonWithDropdown extends Disposable implements IButton {
@@ -267,7 +268,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this._register(this.dropdownButton.onDidClick(e => {
 			options.contextMenuProvider.showContextMenu({
 				getAnchor: () => this.dropdownButton.element,
-				getActions: () => [this.action, ...options.actions],
+				getActions: () => options.addPrimaryActionToDropdown === false ? [...options.actions] : [this.action, ...options.actions],
 				actionRunner: options.actionRunner,
 				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false')
 			});

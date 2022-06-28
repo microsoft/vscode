@@ -58,7 +58,7 @@ import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionMana
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionUrlTrustService';
 import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
-import 'vs/workbench/services/localizations/electron-sandbox/localizationsService';
+import 'vs/workbench/services/localization/electron-sandbox/languagePackService';
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
 import 'vs/platform/extensionManagement/electron-sandbox/extensionsScannerService';
@@ -98,7 +98,7 @@ registerSingleton(IUserDataInitializationService, UserDataInitializationService)
 import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
 
 // Localizations
-import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
+import 'vs/workbench/contrib/localization/electron-sandbox/localization.contribution';
 
 // Explorer
 import 'vs/workbench/contrib/files/electron-sandbox/files.contribution';
