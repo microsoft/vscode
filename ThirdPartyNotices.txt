@@ -7,7 +7,7 @@ This project incorporates components from the projects listed below. The origina
 
 1.	atom/language-clojure version 0.22.8 (https://github.com/atom/language-clojure)
 2.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
-3.	atom/language-css version 0.45.0 (https://github.com/atom/language-css)
+3.	atom/language-css version 0.45.1 (https://github.com/atom/language-css)
 4.	atom/language-java version 0.32.1 (https://github.com/atom/language-java)
 5.	atom/language-sass version 0.62.1 (https://github.com/atom/language-sass)
 6.	atom/language-shellscript version 0.28.2 (https://github.com/atom/language-shellscript)
@@ -30,50 +30,53 @@ This project incorporates components from the projects listed below. The origina
 23.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
 24.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
 25.	James-Yu/LaTeX-Workshop version 8.19.1 (https://github.com/James-Yu/LaTeX-Workshop)
-26.	jeff-hykin/cpp-textmate-grammar version 1.12.11 (https://github.com/jeff-hykin/cpp-textmate-grammar)
-27.	jeff-hykin/cpp-textmate-grammar version 1.15.6 (https://github.com/jeff-hykin/cpp-textmate-grammar)
-28.	jlelong/vscode-latex-basics version 1.3.0 (https://github.com/jlelong/vscode-latex-basics)
-29.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
-30.	JuliaEditorSupport/atom-language-julia version 0.22.1 (https://github.com/JuliaEditorSupport/atom-language-julia)
-31.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
-32.	language-docker (https://github.com/moby/moby)
-33.	language-less version 0.34.2 (https://github.com/atom/language-less)
-34.	language-php version 0.48.1 (https://github.com/atom/language-php)
-35.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
-36.	marked version 4.0.16 (https://github.com/markedjs/marked)
-37.	mdn-data version 1.1.12 (https://github.com/mdn/data)
-38.	microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/microsoft/TypeScript-TmLanguage)
-39.	microsoft/vscode-JSON.tmLanguage (https://github.com/microsoft/vscode-JSON.tmLanguage)
-40.	microsoft/vscode-markdown-tm-grammar version 1.0.0 (https://github.com/microsoft/vscode-markdown-tm-grammar)
-41.	microsoft/vscode-mssql version 1.10.1 (https://github.com/microsoft/vscode-mssql)
-42.	mmims/language-batchfile version 0.7.6 (https://github.com/mmims/language-batchfile)
-43.	NVIDIA/cuda-cpp-grammar (https://github.com/NVIDIA/cuda-cpp-grammar)
-44.	PowerShell/EditorSyntax version 1.0.0 (https://github.com/PowerShell/EditorSyntax)
-45.	rust-syntax version 0.5.0 (https://github.com/dustypomerleau/rust-syntax)
-46.	semver version 5.5.0 (https://github.com/npm/node-semver)
-47.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
-48.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
-49.	sumneko/lua.tmbundle version 1.0.0 (https://github.com/sumneko/lua.tmbundle)
-50.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-51.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-52.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-53.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-54.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-55.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-56.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-57.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-58.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
-59.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-60.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-61.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-62.	trond-snekvik/vscode-rst version 1.5.1 (https://github.com/trond-snekvik/vscode-rst)
-63.	TypeScript-TmLanguage version 0.1.8 (https://github.com/microsoft/TypeScript-TmLanguage)
-64.	TypeScript-TmLanguage version 1.0.0 (https://github.com/microsoft/TypeScript-TmLanguage)
-65.	Unicode version 12.0.0 (https://home.unicode.org/)
-66.	vscode-codicons version 0.0.14 (https://github.com/microsoft/vscode-codicons)
-67.	vscode-logfile-highlighter version 2.11.0 (https://github.com/emilast/vscode-logfile-highlighter)
-68.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
-69.	Web Background Synchronization (https://github.com/WICG/background-sync)
+26.	jeff-hykin/better-c-syntax version 1.13.2 (https://github.com/jeff-hykin/better-c-syntax)
+27.	jeff-hykin/better-cpp-syntax version 1.15.17 (https://github.com/jeff-hykin/better-cpp-syntax)
+28.	jeff-hykin/better-objc-syntax version 0.2.0 (https://github.com/jeff-hykin/better-objc-syntax)
+29.	jeff-hykin/better-objcpp-syntax version 0.1.0 (https://github.com/jeff-hykin/better-objcpp-syntax)
+30.	jlelong/vscode-latex-basics version 1.3.0 (https://github.com/jlelong/vscode-latex-basics)
+31.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
+32.	JuliaEditorSupport/atom-language-julia version 0.22.1 (https://github.com/JuliaEditorSupport/atom-language-julia)
+33.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
+34.	language-docker (https://github.com/moby/moby)
+35.	language-less version 0.34.2 (https://github.com/atom/language-less)
+36.	language-php version 0.48.1 (https://github.com/atom/language-php)
+37.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
+38.	marked version 4.0.16 (https://github.com/markedjs/marked)
+39.	mdn-data version 1.1.12 (https://github.com/mdn/data)
+40.	microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/microsoft/TypeScript-TmLanguage)
+41.	microsoft/vscode-JSON.tmLanguage (https://github.com/microsoft/vscode-JSON.tmLanguage)
+42.	microsoft/vscode-markdown-tm-grammar version 1.0.0 (https://github.com/microsoft/vscode-markdown-tm-grammar)
+43.	microsoft/vscode-mssql version 1.10.1 (https://github.com/microsoft/vscode-mssql)
+44.	mmims/language-batchfile version 0.7.6 (https://github.com/mmims/language-batchfile)
+45.	NVIDIA/cuda-cpp-grammar (https://github.com/NVIDIA/cuda-cpp-grammar)
+46.	PowerShell/EditorSyntax version 1.0.0 (https://github.com/PowerShell/EditorSyntax)
+47.	rust-syntax version 0.5.0 (https://github.com/dustypomerleau/rust-syntax)
+48.	semver version 5.5.0 (https://github.com/npm/node-semver)
+49.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
+50.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
+51.	sumneko/lua.tmbundle version 1.0.0 (https://github.com/sumneko/lua.tmbundle)
+52.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+53.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+54.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+55.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+56.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+57.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+58.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+59.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+60.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
+61.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
+62.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
+63.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
+64.	trond-snekvik/vscode-rst version 1.5.1 (https://github.com/trond-snekvik/vscode-rst)
+65.	TypeScript-TmLanguage version 0.1.8 (https://github.com/microsoft/TypeScript-TmLanguage)
+66.	TypeScript-TmLanguage version 1.0.0 (https://github.com/microsoft/TypeScript-TmLanguage)
+67.	Unicode version 12.0.0 (https://home.unicode.org/)
+68.	vscode-codicons version 0.0.14 (https://github.com/microsoft/vscode-codicons)
+69.	vscode-logfile-highlighter version 2.11.0 (https://github.com/emilast/vscode-logfile-highlighter)
+70.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+71.	vscode-win32-app-container-tokens (https://github.com/microsoft/vscode-win32-app-container-tokens)
+72.	Web Background Synchronization (https://github.com/WICG/background-sync)
 
 
 %% atom/language-clojure NOTICES AND INFORMATION BEGIN HERE
@@ -1208,7 +1211,7 @@ SOFTWARE.
 =========================================
 END OF James-Yu/LaTeX-Workshop NOTICES AND INFORMATION
 
-%% jeff-hykin/cpp-textmate-grammar NOTICES AND INFORMATION BEGIN HERE
+%% jeff-hykin/better-c-syntax NOTICES AND INFORMATION BEGIN HERE
 =========================================
 MIT License
 
@@ -1232,7 +1235,85 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 =========================================
-END OF jeff-hykin/cpp-textmate-grammar NOTICES AND INFORMATION
+END OF jeff-hykin/better-c-syntax NOTICES AND INFORMATION
+
+%% jeff-hykin/better-cpp-syntax NOTICES AND INFORMATION BEGIN HERE
+=========================================
+MIT License
+
+Copyright (c) 2019 Jeff Hykin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+=========================================
+END OF jeff-hykin/better-cpp-syntax NOTICES AND INFORMATION
+
+%% jeff-hykin/better-objc-syntax NOTICES AND INFORMATION BEGIN HERE
+=========================================
+MIT License
+
+Copyright (c) 2019 Jeff Hykin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+=========================================
+END OF jeff-hykin/better-objc-syntax NOTICES AND INFORMATION
+
+%% jeff-hykin/better-objcpp-syntax NOTICES AND INFORMATION BEGIN HERE
+=========================================
+MIT License
+
+Copyright (c) 2019 Jeff Hykin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+=========================================
+END OF jeff-hykin/better-objcpp-syntax NOTICES AND INFORMATION
 
 %% jlelong/vscode-latex-basics NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -3122,6 +3203,32 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 =========================================
 END OF vscode-swift NOTICES AND INFORMATION
+
+%% vscode-win32-app-container-tokens NOTICES AND INFORMATION BEGIN HERE
+=========================================
+MIT License
+
+Copyright (c) Microsoft Corporation.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE
+=========================================
+END OF vscode-win32-app-container-tokens NOTICES AND INFORMATION
 
 %% Web Background Synchronization NOTICES AND INFORMATION BEGIN HERE
 =========================================
