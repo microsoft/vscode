@@ -19,7 +19,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		(e) => this._editor.hasModel()
 	);
 
-	private readonly viewZoneChanges = new ObservableValue(0, 'counter');
+	private readonly changeCounter = new ObservableValue(0, 'counter');
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -31,7 +31,11 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		this._register(autorun((reader) => this.render(reader), 'Render'));
 
 		this._editor.onDidChangeViewZones(e => {
-			this.viewZoneChanges.set(this.viewZoneChanges.get() + 1, undefined);
+			this.changeCounter.set(this.changeCounter.get() + 1, undefined);
+		});
+
+		this._editor.onDidContentSizeChange(e => {
+			this.changeCounter.set(this.changeCounter.get() + 1, undefined);
 		});
 	}
 
@@ -41,7 +45,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		if (!this.modelAttached.read(reader)) {
 			return;
 		}
-		this.viewZoneChanges.read(reader);
+		this.changeCounter.read(reader);
 		const scrollTop = this.scrollTop.read(reader);
 
 		const visibleRanges = this._editor.getVisibleRanges();
