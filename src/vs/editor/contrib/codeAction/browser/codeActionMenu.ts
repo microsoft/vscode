@@ -61,6 +61,7 @@ export interface CodeActionShowOptions {
 export interface ICodeActionMenuItem {
 	title: string;
 	detail?: string;
+	action?: CodeActionAction;
 	decoratorRight?: string;
 	isDisabled?: boolean;
 }
@@ -151,6 +152,7 @@ export class CodeActionMenu extends Disposable {
 	private parent: HTMLElement;
 	private listTrigger!: CodeActionTrigger;
 	private selected!: CodeActionItem;
+	private menuAction: IAction[] = [];
 	// private showActions: CodeActionItem[];
 
 	readonly onDidSelect: Event<ISelectedCodeAction> = this._onDidSelect.event;
@@ -197,12 +199,6 @@ export class CodeActionMenu extends Disposable {
 		// 	this.setOptions(this.options, this.selected);
 		// }
 
-		if (this.codeActionList) {
-			const temp = this.codeActionList.getSelection();
-			console.log(temp);
-		}
-
-
 
 		this.parent = document.createElement('div');
 		this.parent.style.backgroundColor = 'none';
@@ -212,6 +208,7 @@ export class CodeActionMenu extends Disposable {
 		this.parent.id = 'testRedSquare';
 		this.parent.style.position = 'absolute';
 		this.parent.style.top = '0';
+
 		this.listRenderer = new CodeMenuRenderer();
 
 		this.codeActionList = new List('test', this.parent, {
@@ -243,6 +240,11 @@ export class CodeActionMenu extends Disposable {
 
 	private _onListSelection(e: IListEvent<CodeAction>): void {
 		if (e.elements.length) {
+			e.elements.forEach(element => {
+				const itemAction = element.action.action;
+				console.log(itemAction);
+			});
+
 			const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(item.action, () => this._delegate.onSelectCodeAction(item, this.listTrigger));
 			// this._select(e.elements[0], e.indexes[0]);
 		}
@@ -270,18 +272,22 @@ export class CodeActionMenu extends Disposable {
 		return option;
 	}
 
-	private createCodeActionMenuList(element: HTMLElement): void {
+	private createCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): void {
 		// if (this.codeActionList) {
 		// 	return;
 		// }
 
-		const codeOption = <ICodeActionMenuItem>{ title: 'Extract to function in global scope', detail: 'test detail' };
-		const codeOption2 = <ICodeActionMenuItem>{ title: 'test2', detail: 'test2 detail' };
-		const codeOption3 = <ICodeActionMenuItem>{ title: 'test3', detail: 'test3 detail' };
-		const codeOption4 = <ICodeActionMenuItem>{ title: 'test4', detail: 'test4 detail' };
-		const codeOption5 = <ICodeActionMenuItem>{ title: 'test5', detail: 'test5 detail' };
-		const codeOption6 = <ICodeActionMenuItem>{ title: 'test6', detail: 'test6 detail' };
-		this.options = [codeOption, codeOption2, codeOption3, codeOption4, codeOption5, codeOption6];
+		inputArray.forEach((item, index) => {
+			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: item });
+		});
+
+		// const codeOption = <ICodeActionMenuItem>{ title: 'Extract to function in global scope', detail: 'test detail' };
+		// const codeOption2 = <ICodeActionMenuItem>{ title: 'test2', detail: 'test2 detail' };
+		// const codeOption3 = <ICodeActionMenuItem>{ title: 'test3', detail: 'test3 detail' };
+		// const codeOption4 = <ICodeActionMenuItem>{ title: 'test4', detail: 'test4 detail' };
+		// const codeOption5 = <ICodeActionMenuItem>{ title: 'test5', detail: 'test5 detail' };
+		// const codeOption6 = <ICodeActionMenuItem>{ title: 'test6', detail: 'test6 detail' };
+		// this.options = [codeOption, codeOption2, codeOption3, codeOption4, codeOption5, codeOption6];
 
 		// const paragraph = document.createTextNode('new paragraph and some more text');
 		// divElement.appendChild(paragraph);
@@ -319,18 +325,21 @@ export class CodeActionMenu extends Disposable {
 
 
 		this.listTrigger = trigger;
-		this.createCodeActionMenuList(this.parent);
-		this.setCodeActionMenuList();
 
-
-
+		// cycle through menuActions and build menu options from there
 
 		const menuActions = this.getMenuActions(trigger, actionsToShow, codeActions.documentation);
+
+		this.menuAction = menuActions;
+
 
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
 		const resolver = this._keybindingResolver.getResolver();
 
 		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
+
+		this.createCodeActionMenuList(this.parent, this.menuAction);
+		this.setCodeActionMenuList();
 
 		this._contextMenuService.showContextMenu({
 			domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
