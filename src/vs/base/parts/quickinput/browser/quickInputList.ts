@@ -35,6 +35,7 @@ interface IListElement {
 	readonly index: number;
 	readonly item: IQuickPickItem;
 	readonly saneLabel: string;
+	readonly saneSortLabel: string;
 	readonly saneMeta?: string;
 	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
@@ -52,6 +53,7 @@ class ListElement implements IListElement, IDisposable {
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
+	saneSortLabel!: string;
 	saneMeta!: string;
 	saneAriaLabel!: string;
 	saneDescription?: string;
@@ -440,6 +442,7 @@ export class QuickInputList {
 			if (item.type !== 'separator') {
 				const previous = index && inputElements[index - 1];
 				const saneLabel = item.label && item.label.replace(/\r?\n/g, ' ');
+				const saneSortLabel = parseLabelWithIcons(saneLabel).text.trim();
 				const saneMeta = item.meta && item.meta.replace(/\r?\n/g, ' ');
 				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
 				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
@@ -454,6 +457,7 @@ export class QuickInputList {
 					index,
 					item,
 					saneLabel,
+					saneSortLabel,
 					saneMeta,
 					saneAriaLabel,
 					saneDescription,
@@ -738,7 +742,7 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 		return 0;
 	}
 
-	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
+	return compareAnything(elementA.saneSortLabel, elementB.saneSortLabel, lookFor);
 }
 
 class QuickInputAccessibilityProvider implements IListAccessibilityProvider<ListElement> {

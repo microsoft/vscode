@@ -321,7 +321,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					return;
 				}
 				this._hoverDelayer.trigger(() => {
-					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}...`;
+					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}`;
 					hoverContent += '\n\n---\n\n';
 					if (command.genericMarkProperties) {
 						if (command.genericMarkProperties.hoverMessage) {

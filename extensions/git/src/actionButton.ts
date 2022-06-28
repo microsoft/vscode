@@ -49,7 +49,7 @@ export class ActionButtonCommand {
 	}
 
 	get button(): SourceControlActionButton | undefined {
-		if (!this.state.HEAD || !this.state.HEAD.name || !this.state.HEAD.commit) { return undefined; }
+		if (!this.state.HEAD || !this.state.HEAD.name) { return undefined; }
 
 		let actionButton: SourceControlActionButton | undefined;
 		if (this.state.repositoryHasNoChanges) {
@@ -111,17 +111,17 @@ export class ActionButtonCommand {
 					[
 						{
 							command: 'git.commit',
-							title: 'Commit',
+							title: localize('scm secondary button commit', "Commit"),
 							arguments: [this.repository.sourceControl, ''],
 						},
 						{
 							command: 'git.commit',
-							title: 'Commit & Push',
+							title: localize('scm secondary button commit and push', "Commit & Push"),
 							arguments: [this.repository.sourceControl, 'push'],
 						},
 						{
 							command: 'git.commit',
-							title: 'Commit & Sync',
+							title: localize('scm secondary button commit and sync', "Commit & Sync"),
 							arguments: [this.repository.sourceControl, 'sync'],
 						},
 					]

@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, CompareResult, tieBreakComparators, equals, numberComparator } from 'vs/base/common/arrays';
+import { compareBy, CompareResult, equals, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { splitLines } from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { IModelService } from 'vs/editor/common/services/model';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { autorunHandleChanges, derivedObservable, IObservable, IReader, ITransaction, keepAlive, ObservableValue, transaction, waitForState } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
-import { DetailedLineRangeMapping, DocumentMapping, LineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
+import { IDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { LineRangeEdit, RangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/editing';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
+import { DetailedLineRangeMapping, DocumentMapping, LineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from 'vs/workbench/contrib/mergeEditor/browser/model/textModelDiffs';
-import { concatArrays, leftJoin, elementAtOrUndefined } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { concatArrays, elementAtOrUndefined, leftJoin } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { ModifiedBaseRange, ModifiedBaseRangeState } from './modifiedBaseRange';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export const enum MergeEditorModelState {
 	initializing = 1,
@@ -30,7 +29,6 @@ export const enum MergeEditorModelState {
 }
 
 export class MergeEditorModel extends EditorModel {
-	private readonly diffComputer = new EditorWorkerServiceDiffComputer(this.editorWorkerService);
 	private readonly input1TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input1, this.diffComputer));
 	private readonly input2TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input2, this.diffComputer));
 	private readonly resultTextModelDiffs = this._register(new TextModelDiffs(this.base, this.result, this.diffComputer));
@@ -138,7 +136,7 @@ export class MergeEditorModel extends EditorModel {
 		readonly input2Detail: string | undefined,
 		readonly input2Description: string | undefined,
 		readonly result: ITextModel,
-		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
+		private readonly diffComputer: IDiffComputer,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
