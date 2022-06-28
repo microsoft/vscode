@@ -25,12 +25,21 @@
 	"darwinBundleIdentifier": "io.gitpod.code",
 	"linuxIconName": "io.gitpod.code",
 	"licenseFileName": "LICENSE.txt",
+	"twitterUrl": "https://twitter.com/gitpod",
 	"reportIssueUrl": "https://github.com/gitpod-io/gitpod/issues/new",
+	"requestFeatureUrl": "https://github.com/gitpod-io/gitpod/issues",
+	"reportMarketplaceIssueUrl": "https://github.com/eclipse/openvsx/issues",
+	"sendASmile": {
+		"reportIssueUrl": "https://github.com/gitpod-io/gitpod/issues/new",
+		"requestFeatureUrl": "https://github.com/gitpod-io/gitpod/issues"
+	},
 	"urlProtocol": "gitpod-code",
+	"embedderIdentifier": "Gitpod",
 	"enableTelemetry": true,
 	"aiConfig": {
 		"asimovKey": "foo",
-		"ariaKey": "foo"
+		"ariaKey": "foo",
+		"preferAria": false
 	},
 	"extensionEnabledApiProposals": {
 		"ms-vscode.vscode-selfhost-test-provider": [
