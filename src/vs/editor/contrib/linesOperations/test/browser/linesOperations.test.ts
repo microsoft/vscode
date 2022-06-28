@@ -829,8 +829,8 @@ suite('Editor Contrib - Line Operations', () => {
 				'_accessor: ServicesAccessor',
 				'Kebab-Case',
 			], {}, (editor) => {
-				let model = editor.getModel()!;
-				let kebabCaseAction = new KebabCaseAction();
+				const model = editor.getModel()!;
+				const kebabCaseAction = new KebabCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
 				executeAction(kebabCaseAction, editor);
