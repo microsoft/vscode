@@ -341,9 +341,13 @@ export async function tryResolveLinkPath(originalUri: vscode.Uri, workspace: IMd
 		return originalUri;
 	}
 
-	const dotMdResource = originalUri.with({ path: originalUri.path + '.md' });
-	if (await workspace.pathExists(dotMdResource)) {
-		return dotMdResource;
+	// We don't think the file exists. If it doesn't already have a `.md` extension, try tacking on a `.md` and using that instead
+	if (uri.Utils.extname(originalUri) !== '.md') {
+		const dotMdResource = originalUri.with({ path: originalUri.path + '.md' });
+		if (await workspace.pathExists(dotMdResource)) {
+			return dotMdResource;
+		}
 	}
+
 	return undefined;
 }
