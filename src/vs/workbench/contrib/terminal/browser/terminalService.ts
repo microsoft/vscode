@@ -164,6 +164,7 @@ export class TerminalService implements ITerminalService {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly _commandService: ICommandService
 	) {
+		//test change
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,

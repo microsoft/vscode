@@ -6,6 +6,9 @@
 			"script": "watch-clientd",
 			"label": "Core - Build",
 			"isBackground": true,
+			"icon": {
+				"color": "terminal.ansiMagenta"
+			},
 			"presentation": {
 				"reveal": "never",
 				"group": "buildWatchers",
