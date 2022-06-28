@@ -227,6 +227,11 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 
 		const data = await this.sessionSyncWorkbenchService.read(ref);
 		if (!data) {
+			if (ref === undefined) {
+				this.notificationService.info(localize('no edit session', 'There are no edit sessions to apply.'));
+			} else {
+				this.notificationService.warn(localize('no edit session content for ref', 'Could not apply edit session contents for ID {0}.', ref));
+			}
 			this.logService.info(`Edit Sessions: Aborting applying edit session as no edit session content is available to be applied from ref ${ref}.`);
 			return;
 		}
