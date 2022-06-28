@@ -5317,6 +5317,10 @@ declare namespace monaco.editor {
 		 */
 		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 		/**
+		 * Remove previously added decorations.
+		 */
+		removeDecorations(decorationIds: string[]): void;
+		/**
 		 * Get the layout info for the editor.
 		 */
 		getLayoutInfo(): EditorLayoutInfo;
