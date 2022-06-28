@@ -24,7 +24,7 @@ const NETWORK_ERROR = 'network error';
 
 const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
-const GITHUB_PUBLIC_API = 'https://api.github.com';
+const GITHUB_PUBLIC_AUTHORITY = 'api.github.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	constructor(private readonly Logger: Log) {
@@ -579,12 +579,11 @@ export class GitHubEnterpriseServer implements IGitHubServer {
 
 	private getServerUri(path: string = '') {
 		const apiUri = vscode.Uri.parse(vscode.workspace.getConfiguration('github-enterprise').get<string>('uri') || '', true);
-		const parsedPublicGithubUri = vscode.Uri.parse(GITHUB_PUBLIC_API);
 
 		// Some enterprise clients use Github public api rather than a custom
 		// server, in that case there's no /api/v3 in the path.
-		if (apiUri.authority.toLocaleLowerCase() === parsedPublicGithubUri.authority.toLocaleLowerCase()) {
-			return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}${path}`);
+		if (apiUri.authority.toLocaleLowerCase() === GITHUB_PUBLIC_AUTHORITY) {
+			return vscode.Uri.parse(`https://${apiUri.authority}${path}`);
 		}
 
 		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}/api/v3${path}`);
