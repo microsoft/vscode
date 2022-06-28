@@ -9,12 +9,13 @@
   },
   "scripts": {
     "postinstall": "node ./postinstall.mjs",
-    "compile": "yarn build:ts && yarn build:gitpod-web",
+    "compile": "yarn build:ts && yarn test:gitpod-web && yarn build:gitpod-web",
     "watch": "npm-run-all -lp watch:ts watch:gitpod-web",
     "build:ts": "../node_modules/.bin/tsc -b",
     "watch:ts": "../node_modules/.bin/tsc -b -w",
     "build:gitpod-web": "yarn --cwd gitpod-web build:webview",
-    "watch:gitpod-web": "yarn --cwd gitpod-web watch:webview"
+    "watch:gitpod-web": "yarn --cwd gitpod-web watch:webview",
+    "test:gitpod-web": "yarn --cwd gitpod-web test"
   },
   "devDependencies": {
     "@parcel/watcher": "2.0.5",

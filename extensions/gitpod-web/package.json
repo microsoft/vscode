@@ -440,54 +440,63 @@
         "label": "GitHub"
       }
     ],
-    "walkthroughs": [{
-      "id": "gitpod-getstarted",
-      "title": "Get Started with Gitpod",
-      "description": "Explore what Gitpod is and how to get the most out of it.",
-      "steps": [{
-        "id": "whatisgitpod",
-        "title": "What is Gitpod?",
-        "description": "",
-        "media": {
-          "markdown": "resources/walkthroughs/getstarted/what-is-gitpod.md"
-        }
-      }, {
-        "id": "prebuilds",
-        "title": "Prebuilds do the heavy lifting",
-        "description": "",
-        "media": {
-          "markdown": "resources/walkthroughs/getstarted/prebuilds.md"
-        }
-      }, {
-        "id": "workspaces",
-        "title": "A new workspace per task",
-        "description": "",
-        "media": {
-          "markdown": "resources/walkthroughs/getstarted/workspaces.md"
-        }
-      }, {
-        "id": "terminal",
-        "title": "Full access to a terminal",
-        "description": "",
-        "media": {
-          "markdown": "resources/walkthroughs/getstarted/terminal.md"
-        }
-      }, {
-        "id": "ports",
-        "title": "Open ports",
-        "description": "",
-        "media": {
-          "markdown": "resources/walkthroughs/getstarted/ports.md"
-        }
-      }, {
-        "id": "vscodedesktopsupport",
-        "title": "VS Code desktop support",
-        "description": "",
-        "media": {
-          "markdown": "resources/walkthroughs/getstarted/vscodedesktopsupport.md"
-        }
-      }]
-    }],
+    "walkthroughs": [
+      {
+        "id": "gitpod-getstarted",
+        "title": "Get Started with Gitpod",
+        "description": "Explore what Gitpod is and how to get the most out of it.",
+        "steps": [
+          {
+            "id": "whatisgitpod",
+            "title": "What is Gitpod?",
+            "description": "",
+            "media": {
+              "markdown": "resources/walkthroughs/getstarted/what-is-gitpod.md"
+            }
+          },
+          {
+            "id": "prebuilds",
+            "title": "Prebuilds do the heavy lifting",
+            "description": "",
+            "media": {
+              "markdown": "resources/walkthroughs/getstarted/prebuilds.md"
+            }
+          },
+          {
+            "id": "workspaces",
+            "title": "A new workspace per task",
+            "description": "",
+            "media": {
+              "markdown": "resources/walkthroughs/getstarted/workspaces.md"
+            }
+          },
+          {
+            "id": "terminal",
+            "title": "Full access to a terminal",
+            "description": "",
+            "media": {
+              "markdown": "resources/walkthroughs/getstarted/terminal.md"
+            }
+          },
+          {
+            "id": "ports",
+            "title": "Open ports",
+            "description": "",
+            "media": {
+              "markdown": "resources/walkthroughs/getstarted/ports.md"
+            }
+          },
+          {
+            "id": "vscodedesktopsupport",
+            "title": "VS Code desktop support",
+            "description": "",
+            "media": {
+              "markdown": "resources/walkthroughs/getstarted/vscodedesktopsupport.md"
+            }
+          }
+        ]
+      }
+    ],
     "configuration": {
       "title": "Gitpod",
       "properties": {
@@ -518,14 +527,17 @@
     "vscode:prepublish": "yarn build; yarn run compile --cwd ..",
     "install:webview": "yarn --cwd ./portsview --modules-folder node_modules",
     "watch:webview": "yarn --cwd ./portsview run dev",
-    "build:webview": "yarn --cwd ./portsview run build"
+    "build:webview": "yarn --cwd ./portsview run build",
+    "test": "mocha out/test/**/*.js"
   },
   "devDependencies": {
+    "@types/mocha": "^9.1.1",
     "@types/node": "16.x",
     "@types/node-fetch": "^2.5.12",
     "@types/uuid": "8.0.0",
     "@types/yauzl": "^2.9.1",
     "@types/yazl": "^2.4.2",
+    "mocha": "^10.0.0",
     "npm-run-all": "^4.1.5"
   },
   "dependencies": {
