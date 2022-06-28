@@ -11,7 +11,7 @@ import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Pi
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
 import { DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, SELECT_AND_START_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { getStateLabel, IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -26,10 +26,17 @@ export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQu
 	protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Picks<IPickerQuickAccessItem> | Promise<Picks<IPickerQuickAccessItem>> | FastAndSlowPicks<IPickerQuickAccessItem> | null {
 		const debugConsolePicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
-		this._debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl()).forEach((session, index) => {
-			const pick = this._createPick(session, index, filter);
-			if (pick) {
-				debugConsolePicks.push(pick);
+		this._debugService.getModel().getSessions(false).forEach((session, index) => {
+
+
+
+			if (!session.parentSession) {
+				debugConsolePicks.push({ type: 'separator', label: session.name });
+			} else {
+				const pick = this._createPick(session, index, filter);
+				if (pick) {
+					debugConsolePicks.push(pick);
+				}
 			}
 		});
 
@@ -47,14 +54,31 @@ export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQu
 		return debugConsolePicks;
 	}
 
-	private _createPick(session: IDebugSession, sessionIndex: number, filter: string): IPickerQuickAccessItem | undefined {
-		const label = session.name;
+	private _createParentTree(session: IDebugSession) {
+		const parentTree = [];
+		let currSession = session;
 
+		while (currSession.parentSession !== undefined) {
+			parentTree.push(currSession);
+			currSession = currSession.parentSession;
+		}
+		return parentTree;
+	}
+
+	private getSessionHierarchyString(session: IDebugSession) {
+		const parentTree = this._createParentTree(session);
+		const parentHierarchyStrings: String[] = [];
+		parentTree.slice(1).forEach((session) => parentHierarchyStrings.push(session.configuration.name));
+		return parentHierarchyStrings.join(' > ');
+	}
+
+	private _createPick(session: IDebugSession, sessionIndex: number, filter: string): IPickerQuickAccessItem | undefined {
+		const label = session.configuration.name;
 		const highlights = matchesFuzzy(filter, label, true);
 		if (highlights) {
 			return {
 				label,
-				description: getStateLabel(session.state),
+				description: this.getSessionHierarchyString(session),
 				highlights: { label: highlights },
 				accept: (keyMod, event) => {
 					this._debugService.focusStackFrame(undefined, undefined, session, { explicit: true });

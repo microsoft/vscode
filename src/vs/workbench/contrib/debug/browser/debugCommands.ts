@@ -87,7 +87,7 @@ export const SHOW_LOADED_SCRIPTS_LABEL = nls.localize('showLoadedScripts', "Show
 export const SELECT_DEBUG_CONSOLE_LABEL = nls.localize('selectDebugConsole', "Select Debug Console");
 
 export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
-export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
+export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug sessions ';
 
 interface CallStackContext {
 	sessionId: string;
