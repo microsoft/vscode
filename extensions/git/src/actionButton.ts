@@ -14,7 +14,7 @@ const localize = nls.loadMessageBundle();
 interface ActionButtonState {
 	readonly HEAD: Branch | undefined;
 	readonly isActionRunning: boolean;
-	readonly repositoryHasNoChanges: boolean;
+	readonly repositoryHasChanges: boolean;
 }
 
 export class ActionButtonCommand {
@@ -33,7 +33,7 @@ export class ActionButtonCommand {
 	private disposables: Disposable[] = [];
 
 	constructor(readonly repository: Repository) {
-		this._state = { HEAD: undefined, isActionRunning: false, repositoryHasNoChanges: false };
+		this._state = { HEAD: undefined, isActionRunning: false, repositoryHasChanges: false };
 
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
@@ -49,26 +49,23 @@ export class ActionButtonCommand {
 	}
 
 	get button(): SourceControlActionButton | undefined {
-		if (!this.state.HEAD || !this.state.HEAD.name || !this.state.HEAD.commit) { return undefined; }
+		if (!this.state.HEAD || !this.state.HEAD.name) { return undefined; }
 
-		let actionButton: SourceControlActionButton | undefined;
-		if (this.state.repositoryHasNoChanges) {
-			if (this.state.HEAD.upstream) {
-				// Sync Changes
-				actionButton = this.getSyncChangesActionButton();
-			} else {
-				// Publish Branch
-				actionButton = this.getPublishBranchActionButton();
-			}
-		} else {
-			// Commit Changes
-			actionButton = this.getCommitActionButton();
+		if (this.state.repositoryHasChanges) {
+			// Commit Changes (enabled)
+			return this.getCommitActionButton();
 		}
 
-		return actionButton;
+		const actionButton =
+			this.state.HEAD.upstream ?
+				this.getSyncChangesActionButton() : // Sync Changes
+				this.getPublishBranchActionButton(); // Publish Branch
+
+		// Publish Branch | Sync Changes | Commit Changes (disabled)
+		return actionButton ?? this.getCommitActionButton(false);
 	}
 
-	private getCommitActionButton(): SourceControlActionButton | undefined {
+	private getCommitActionButton(enabled: boolean = true): SourceControlActionButton | undefined {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ commit: boolean }>('showActionButton', { commit: true });
 
@@ -126,7 +123,7 @@ export class ActionButtonCommand {
 						},
 					]
 				],
-				enabled: !this.state.isActionRunning
+				enabled: enabled && !this.state.isActionRunning
 			};
 		}
 
@@ -196,11 +193,11 @@ export class ActionButtonCommand {
 		this.state = {
 			...this.state,
 			HEAD: this.repository.HEAD,
-			repositoryHasNoChanges:
-				this.repository.indexGroup.resourceStates.length === 0 &&
-				this.repository.mergeGroup.resourceStates.length === 0 &&
-				this.repository.untrackedGroup.resourceStates.length === 0 &&
-				this.repository.workingTreeGroup.resourceStates.length === 0
+			repositoryHasChanges:
+				this.repository.indexGroup.resourceStates.length !== 0 ||
+				this.repository.mergeGroup.resourceStates.length !== 0 ||
+				this.repository.untrackedGroup.resourceStates.length !== 0 ||
+				this.repository.workingTreeGroup.resourceStates.length !== 0
 		};
 	}
 
