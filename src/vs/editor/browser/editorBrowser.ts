@@ -857,19 +857,24 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 
 	/**
-	 * @internal
+	 * Remove previously added decorations.
 	 */
-	setDecorations(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
+	removeDecorations(decorationIds: string[]): void;
 
 	/**
 	 * @internal
 	 */
-	setDecorationsFast(decorationTypeKey: string, ranges: IRange[]): void;
+	setDecorationsByType(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
 
 	/**
 	 * @internal
 	 */
-	removeDecorations(decorationTypeKey: string): void;
+	setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void;
+
+	/**
+	 * @internal
+	 */
+	removeDecorationsByType(decorationTypeKey: string): void;
 
 	/**
 	 * Get the layout info for the editor.
