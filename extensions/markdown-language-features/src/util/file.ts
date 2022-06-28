@@ -18,10 +18,24 @@ const markdownFileExtensions = Object.freeze<string[]>([
 	'.workbook',
 ]);
 
+const imageFileExtensions = Object.freeze<string[]>([
+	'.jpg',
+	'.jpeg',
+	'.png',
+	'.gif',
+	'.webp',
+	'.bmp',
+	'.tiff',
+]);
+
 export function isMarkdownFile(document: vscode.TextDocument) {
 	return document.languageId === 'markdown';
 }
 
 export function looksLikeMarkdownPath(resolvedHrefPath: vscode.Uri) {
 	return markdownFileExtensions.includes(URI.Utils.extname(resolvedHrefPath).toLowerCase());
+}
+
+export function looksLikeImagePath(resolvedHrefPath: vscode.Uri) {
+	return imageFileExtensions.includes(URI.Utils.extname(resolvedHrefPath).toLowerCase());
 }
