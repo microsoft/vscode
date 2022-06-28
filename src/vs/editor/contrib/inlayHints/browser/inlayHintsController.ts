@@ -597,7 +597,7 @@ export class InlayHintsController implements IEditorContribution {
 	}
 
 	private _removeAllDecorations(): void {
-		this._editor.deltaDecorations(Array.from(this._decorationsMetadata.keys()), []);
+		this._editor.removeDecorations(Array.from(this._decorationsMetadata.keys()));
 		for (const obj of this._decorationsMetadata.values()) {
 			obj.classNameRef.dispose();
 		}

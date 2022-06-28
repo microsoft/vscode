@@ -115,7 +115,9 @@ class VisualEditorState {
 		this._zonesMap = {};
 
 		// (2) Model decorations
-		this._decorations = editor.deltaDecorations(this._decorations, []);
+		editor.changeDecorations((changeAccessor) => {
+			this._decorations = changeAccessor.deltaDecorations(this._decorations, []);
+		});
 	}
 
 	public apply(editor: CodeEditorWidget, overviewRuler: editorBrowser.IOverviewRuler | null, newDecorations: IEditorDiffDecorationsWithZones, restoreScrollState: boolean): void {
@@ -153,7 +155,9 @@ class VisualEditorState {
 		scrollState?.restore(editor);
 
 		// decorations
-		this._decorations = editor.deltaDecorations(this._decorations, newDecorations.decorations);
+		editor.changeDecorations((changeAccessor) => {
+			this._decorations = changeAccessor.deltaDecorations(this._decorations, newDecorations.decorations);
+		});
 
 		// overview ruler
 		overviewRuler?.setZones(newDecorations.overviewZones);

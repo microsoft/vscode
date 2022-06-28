@@ -9,8 +9,8 @@ import { FoldingRegion, FoldingRegions, ILineRange } from './foldingRanges';
 
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean, isHidden: boolean): IModelDecorationOptions;
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
+	removeDecorations(decorationIds: string[]): void;
 }
 
 export interface FoldingModelChangeEvent {
@@ -162,7 +162,9 @@ export class FoldingModel {
 			k++;
 		}
 
-		this._editorDecorationIds = this._decorationProvider.deltaDecorations(this._editorDecorationIds, newEditorDecorations);
+		this._decorationProvider.changeDecorations((changeAccessor) => {
+			this._editorDecorationIds = changeAccessor.deltaDecorations(this._editorDecorationIds, newEditorDecorations);
+		});
 		this._regions = newRegions;
 		this._isInitialized = true;
 		this._updateEventEmitter.fire({ model: this });
@@ -207,7 +209,7 @@ export class FoldingModel {
 	}
 
 	public dispose() {
-		this._decorationProvider.deltaDecorations(this._editorDecorationIds, []);
+		this._decorationProvider.removeDecorations(this._editorDecorationIds);
 	}
 
 	getAllRegionsAtLine(lineNumber: number, filter?: (r: FoldingRegion, level: number) => boolean): FoldingRegion[] {
