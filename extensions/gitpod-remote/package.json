@@ -3,7 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "publisher": "gitpod",
-  "version": "0.0.31",
+  "version": "0.0.32",
   "license": "MIT",
   "preview": true,
   "icon": "resources/gitpod.png",
