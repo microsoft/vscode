@@ -163,6 +163,9 @@ export function registerHearbeat(context: GitpodExtensionContext): void {
 		}
 		try {
 			await context.gitpod.server.sendHeartBeat({ instanceId: context.info.getInstanceId(), wasClosed });
+			if (wasClosed) {
+				context.fireAnalyticsEvent({ eventName: 'ide_close_signal', properties: { clientKind: 'vscode' } });
+			}
 		} catch (err) {
 			context.logger.error(`failed to send ${suffix}:`, err);
 			console.error(`failed to send ${suffix}`, err);

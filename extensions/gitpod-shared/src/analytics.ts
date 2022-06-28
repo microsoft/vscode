@@ -43,6 +43,9 @@ export type GitpodAnalyticsEvent =
 	}> |
 	GAET<'vscode_active_language', {
 		lang: string; ext?: string;
+	}> |
+	GAET<'ide_close_signal', {
+		clientKind: 'vscode';
 	}>;
 
 export function registerUsageAnalytics(context: GitpodExtensionContext): void {
