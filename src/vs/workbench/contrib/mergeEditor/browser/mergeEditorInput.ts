@@ -16,6 +16,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { autorun } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -109,7 +110,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 				this.input2.title,
 				this.input2.detail,
 				this.input2.description,
-				result.object.textEditorModel
+				result.object.textEditorModel,
+				this._instaService.createInstance(EditorWorkerServiceDiffComputer),
 			);
 
 			await this._model.onInitialized;
