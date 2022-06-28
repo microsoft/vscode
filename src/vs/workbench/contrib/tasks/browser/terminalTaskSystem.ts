@@ -56,7 +56,7 @@ import { GroupKind } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
 import { Codicon } from 'vs/base/common/codicons';
 import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from 'vs/workbench/contrib/terminal/browser/terminalEscapeSequences';
 
-const taskShellIntegrationStartSequence = VSCodeSequence(VSCodeOscPt.PromptStart) + VSCodeSequence(VSCodeOscPt.Property, VSCodeOscProperty.Task) + VSCodeSequence(VSCodeOscPt.CommandStart);
+const taskShellIntegrationStartSequence = VSCodeSequence(VSCodeOscPt.PromptStart) + VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Task}=True`) + VSCodeSequence(VSCodeOscPt.CommandStart);
 const taskShellIntegrationOutputSequence = VSCodeSequence(VSCodeOscPt.CommandExecuted);
 
 interface ITerminalData {
