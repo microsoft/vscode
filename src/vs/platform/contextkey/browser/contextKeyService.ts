@@ -225,6 +225,9 @@ class SimpleContextKeyChangeEvent implements IContextKeyChangeEvent {
 	affectsSome(keys: IReadableSet<string>): boolean {
 		return keys.has(this.key);
 	}
+	allKeysContainedIn(keys: IReadableSet<string>): boolean {
+		return this.affectsSome(keys);
+	}
 }
 
 class ArrayContextKeyChangeEvent implements IContextKeyChangeEvent {
@@ -236,6 +239,9 @@ class ArrayContextKeyChangeEvent implements IContextKeyChangeEvent {
 			}
 		}
 		return false;
+	}
+	allKeysContainedIn(keys: IReadableSet<string>): boolean {
+		return this.keys.every(key => keys.has(key));
 	}
 }
 
@@ -249,12 +255,13 @@ class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
 		}
 		return false;
 	}
+	allKeysContainedIn(keys: IReadableSet<string>): boolean {
+		return this.events.every(evt => evt.allKeysContainedIn(keys));
+	}
 }
 
 function allEventKeysInContext(event: IContextKeyChangeEvent, context: Record<string, any>): boolean {
-	return (event instanceof ArrayContextKeyChangeEvent && event.keys.every(key => key in context)) ||
-		(event instanceof SimpleContextKeyChangeEvent && event.key in context) ||
-		(event instanceof CompositeContextKeyChangeEvent && event.events.every(e => allEventKeysInContext(e, context)));
+	return event.allKeysContainedIn(new Set(Object.keys(context)));
 }
 
 export abstract class AbstractContextKeyService implements IContextKeyService {
