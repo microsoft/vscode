@@ -21,7 +21,7 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService, TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
@@ -37,7 +37,6 @@ class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 suite('Extension Gallery Service', () => {
 	const disposables: DisposableStore = new DisposableStore();
 	let fileService: IFileService, environmentService: IEnvironmentService, storageService: IStorageService, productService: IProductService, configurationService: IConfigurationService;
-	let telemetryService: ITelemetryService;
 
 	setup(() => {
 		const serviceMachineIdResource = joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'machineid');
@@ -49,15 +48,14 @@ suite('Extension Gallery Service', () => {
 		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
 		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
-		telemetryService = NullTelemetryService;
 	});
 
 	teardown(() => disposables.clear());
 
 	test('marketplace machine id', async () => {
-		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, telemetryService);
+		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.ok(isUUID(headers['X-Market-User-Id']));
-		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, telemetryService);
+		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.strictEqual(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
 	});
 
