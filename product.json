@@ -25,8 +25,16 @@
 	"darwinBundleIdentifier": "openvscode.server",
 	"linuxIconName": "openvscode.server",
 	"licenseFileName": "LICENSE.txt",
+	"twitterUrl": "https://twitter.com/gitpod",
 	"reportIssueUrl": "https://github.com/gitpod-io/openvscode-server/issues/new",
+	"requestFeatureUrl": "https://github.com/gitpod-io/openvscode-server/issues",
+	"reportMarketplaceIssueUrl": "https://github.com/eclipse/openvsx/issues",
+	"sendASmile": {
+		"reportIssueUrl": "https://github.com/gitpod-io/openvscode-server/issues/new",
+		"requestFeatureUrl": "https://github.com/gitpod-io/openvscode-server/issues"
+	},
 	"urlProtocol": "openvscode-server",
+	"embedderIdentifier": "openvscode-server",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"extensionEnabledApiProposals": {
 		"ms-vscode.vscode-selfhost-test-provider": [
