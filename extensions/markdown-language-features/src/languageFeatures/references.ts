@@ -10,7 +10,7 @@ import { MdTableOfContentsProvider, TocEntry } from '../tableOfContents';
 import { ITextDocument } from '../types/textDocument';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
-import { looksLikeMarkdownPath } from '../util/file';
+import { looksLikeImagePath, looksLikeMarkdownPath } from '../util/file';
 import { MdWorkspaceInfoCache } from '../util/workspaceCache';
 import { IMdWorkspace } from '../workspace';
 import { InternalHref, MdLink, MdLinkComputer } from './documentLinks';
@@ -341,8 +341,8 @@ export async function tryResolveLinkPath(originalUri: vscode.Uri, workspace: IMd
 		return originalUri;
 	}
 
-	// We don't think the file exists. If it doesn't already have a `.md` extension, try tacking on a `.md` and using that instead
-	if (uri.Utils.extname(originalUri) !== '.md') {
+	// We don't think the file exists. If it already doesn't look like a markdown or image file, try tacking on a `.md` and using that instead
+	if (!looksLikeMarkdownPath(originalUri) && !looksLikeImagePath(originalUri)) {
 		const dotMdResource = originalUri.with({ path: originalUri.path + '.md' });
 		if (await workspace.pathExists(dotMdResource)) {
 			return dotMdResource;
