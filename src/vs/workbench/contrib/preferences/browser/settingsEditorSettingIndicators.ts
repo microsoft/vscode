@@ -290,21 +290,21 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	// Add sync ignored text
 	const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), configurationService);
 	if (ignoredSettings.includes(element.setting.key)) {
-		ariaLabelSections.push(localize('syncIgnoredTitle', "This setting is ignored during sync"));
+		ariaLabelSections.push(localize('syncIgnoredAriaLabel', "Setting ignored during sync"));
 	}
 
 	// Add default override indicator text
 	const sourceToDisplay = getDefaultValueSourceToDisplay(element);
 	if (sourceToDisplay !== undefined) {
-		ariaLabelSections.push(localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay));
+		ariaLabelSections.push(localize('defaultOverriddenDetailsAriaLabel', "{0} overrides the default value", sourceToDisplay));
 	}
 
 	// Add text about default values being overridden in other languages
-	const otherLanguageOverridesStart = localize('defaultOverriddenListPreface', "The default value of the setting has also been overridden for the following languages:");
 	const otherLanguageOverridesList = element.overriddenDefaultsLanguageList
 		.map(language => languageService.getLanguageName(language)).join(', ');
 	if (element.overriddenDefaultsLanguageList.length) {
-		ariaLabelSections.push(`${otherLanguageOverridesStart} ${otherLanguageOverridesList}`);
+		const otherLanguageOverridesText = localize('defaultOverriddenLanguagesList', "Language-specific default values exist for {0}", otherLanguageOverridesList);
+		ariaLabelSections.push(otherLanguageOverridesText);
 	}
 
 	const ariaLabel = ariaLabelSections.join('. ');
