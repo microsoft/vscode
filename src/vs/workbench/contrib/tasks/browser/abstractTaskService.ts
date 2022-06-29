@@ -3277,18 +3277,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				let selectedEntry: TaskQuickPickEntryType | undefined;
 				this._showIgnoredFoldersMessage().then(() => {
 					for (const task of tasks) {
-						let label;
-						let picked = false;
-						let entry;
 						const taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
 						if (taskGroup && taskGroup.isDefault && taskGroup._id === TaskGroup.Build._id) {
-							label = nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', TaskQuickPick.getTaskLabelWithIcon(task, task.getQualifiedLabel()));
-							picked = true;
+							const label = nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', TaskQuickPick.getTaskLabelWithIcon(task, task.getQualifiedLabel()));
 							selectedTask = task;
-							selectedEntry = { label: label || TaskQuickPick.getTaskLabelWithIcon(task), task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined, picked };
+							selectedEntry = { label, task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined };
 							TaskQuickPick.applyColorStyles(task, selectedEntry, this._themeService);
 						} else {
-							entry = { label: label || TaskQuickPick.getTaskLabelWithIcon(task), task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined, picked };
+							const entry = { label: TaskQuickPick.getTaskLabelWithIcon(task), task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined };
 							TaskQuickPick.applyColorStyles(task, entry, this._themeService);
 							entries.push(entry);
 						}
