@@ -238,7 +238,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 		target.classList.add('merge-accept-gutter-marker');
 
-		const checkBox = new Toggle({ isChecked: false, title: localize('acceptMerge', "Accept Merge"), icon: Codicon.check });
+		const checkBox = new Toggle({ isChecked: false, title: localize('accept', "Accept"), icon: Codicon.check });
 		this._register(
 			dom.addDisposableListener(checkBox.domNode, dom.EventType.MOUSE_DOWN, (e) => {
 				if (e.button === 2) {
