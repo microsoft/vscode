@@ -1495,7 +1495,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 
 		const originalDataTransfer = toVSDataTransfer(originalEvent.dataTransfer);
-		addExternalEditorsDropData(originalDataTransfer, originalEvent);
+		addExternalEditorsDropData(originalDataTransfer, originalEvent, true);
 
 		const outDataTransfer = new VSDataTransfer();
 		for (const [type, item] of originalDataTransfer.entries()) {
