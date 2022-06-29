@@ -1625,7 +1625,7 @@ export class CommandCenter {
 
 		const postCommitCommand = config.get<'none' | 'push' | 'sync'>('postCommitCommand');
 		if ((opts.postCommitCommand === undefined && postCommitCommand === 'push') || opts.postCommitCommand === 'push') {
-			await this._push(repository, { pushType: PushType.Push, silent: true });
+			await this._push(repository, { pushType: PushType.Push });
 		}
 		if ((opts.postCommitCommand === undefined && postCommitCommand === 'sync') || opts.postCommitCommand === 'sync') {
 			await this.sync(repository);
