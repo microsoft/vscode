@@ -119,10 +119,15 @@ export class InputCodeEditorView extends CodeEditorView {
 							id: idx.toString(),
 							range: baseRange.getInputRange(this.inputNumber),
 							enabled: model.isUpToDate,
-							toggleState: derivedObservable('toggle', (reader) => model
-								.getState(baseRange)
-								.read(reader)
-								.getInput(this.inputNumber)
+							toggleState: derivedObservable('toggle', (reader) => {
+								const input = model
+									.getState(baseRange)
+									.read(reader)
+									.getInput(this.inputNumber);
+								return input === InputState.second && !baseRange.isOrderRelevant
+									? InputState.first
+									: input;
+							}
 							),
 							setState: (value, tx) => viewModel.setState(
 								baseRange,
@@ -177,7 +182,7 @@ export class InputCodeEditorView extends CodeEditorView {
 												state.withInput1(!both).withInput2(!both),
 												both
 											),
-											{ enabled: true } // TODO
+											{ enabled: baseRange.canBeCombined }
 										)
 										: undefined,
 									baseRange.isConflicting
@@ -188,7 +193,7 @@ export class InputCodeEditorView extends CodeEditorView {
 												state.swap(),
 												false
 											),
-											{ enabled: !state.isEmpty }
+											{ enabled: !state.isEmpty && (!both || baseRange.isOrderRelevant) }
 										)
 										: undefined,
 
