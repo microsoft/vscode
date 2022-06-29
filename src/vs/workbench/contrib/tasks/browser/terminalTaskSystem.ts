@@ -512,7 +512,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			for (const dependency of task.configurationProperties.dependsOn) {
 				const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 				if (dependencyTask) {
-					dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
+					dependencyTask.configurationProperties.icon = dependencyTask.configurationProperties.icon || task.configurationProperties.icon;
 					const key = dependencyTask.getMapKey();
 					let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
 					if (!promise) {
