@@ -1106,13 +1106,19 @@ export class CommandCenter {
 		}
 
 		await doc.save();
-		await repository.add([uri]);
 
 		// TODO@jrieken there isn't a `TabInputTextMerge` instance yet, till now the merge editor
 		// uses the `TabInputText` for the out-resource and we use that to identify and CLOSE the tab
 		const { activeTab } = window.tabGroups.activeTabGroup;
+		let didCloseTab = false;
 		if (activeTab && activeTab?.input instanceof TabInputText && activeTab.input.uri.toString() === uri.toString()) {
-			await window.tabGroups.close(activeTab, true);
+			didCloseTab = await window.tabGroups.close(activeTab, true);
+		}
+
+		// Only stage if the merge editor has been successfully closed. That means all conflicts have been
+		// handled or unhandled conflicts are OK by the user.
+		if (didCloseTab) {
+			await repository.add([uri]);
 		}
 	}
 
