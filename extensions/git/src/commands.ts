@@ -1120,9 +1120,8 @@ export class CommandCenter {
 		// handled or unhandled conflicts are OK by the user.
 		if (didCloseTab) {
 			await repository.add([uri]);
+			await commands.executeCommand('workbench.view.scm');
 		}
-
-		await commands.executeCommand('workbench.view.scm');
 	}
 
 	private async _stageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
