@@ -153,8 +153,8 @@ export class ActionButtonCommand {
 		// Branch does not have an upstream or the button is disabled
 		if (!this.state.HEAD?.upstream || !showActionButton.sync) { return undefined; }
 
-		const ahead = `${this.state.HEAD.ahead}$(arrow-up)`;
-		const behind = this.state.HEAD.behind ? `${this.state.HEAD.behind}$(arrow-down) ` : '';
+		const ahead = this.state.HEAD.ahead ? ` ${this.state.HEAD.ahead}$(arrow-up)` : '';
+		const behind = this.state.HEAD.behind ? ` ${this.state.HEAD.behind}$(arrow-down)` : '';
 		const icon = this.state.isActionRunning ? '$(sync~spin)' : '$(sync)';
 
 		const rebaseWhenSync = config.get<string>('rebaseWhenSync');
@@ -162,13 +162,13 @@ export class ActionButtonCommand {
 		return {
 			command: {
 				command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-				title: `${icon} ${behind} ${ahead}`,
+				title: `${icon}${behind}${ahead}`,
 				tooltip: this.state.isActionRunning ?
 					localize('syncing changes', "Synchronizing Changes...")
 					: this.repository.syncTooltip,
 				arguments: [this.repository.sourceControl],
 			},
-			description: localize('scm button sync description', "{0} Sync Changes {1}{2}", icon, behind, ahead),
+			description: localize('scm button sync description', "{0} Sync Changes{1}{2}", icon, behind, ahead),
 			enabled: !this.state.isActionRunning
 		};
 	}
