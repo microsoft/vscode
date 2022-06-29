@@ -290,8 +290,9 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				}
 			}
 
-			this.logService.info(`Edit Sessions: Deleting edit session with ref ${ref} after successfully applying it to current workspace.`);
+			this.logService.info(`Edit Sessions: Deleting edit session with ref ${ref} after successfully applying it to current workspace...`);
 			await this.sessionSyncWorkbenchService.delete(ref);
+			this.logService.info(`Edit Sessions: Deleted edit session with ref ${ref}.`);
 		} catch (ex) {
 			this.logService.error('Edit Sessions: Failed to apply edit session, reason: ', (ex as Error).toString());
 			this.notificationService.error(localize('apply failed', "Failed to apply your edit session."));
