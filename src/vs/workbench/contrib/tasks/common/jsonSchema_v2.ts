@@ -97,15 +97,16 @@ const detail: IJSONSchema = {
 
 const icon: IJSONSchema = {
 	type: 'object',
+	description: nls.localize('JsonSchema.tasks.icon', 'An optional icon for the task'),
 	properties: {
 		id: {
-			description: nls.localize('JsonSchema.tasks.icon.id', 'An optional icon for the task'),
-			type: 'string',
+			description: nls.localize('JsonSchema.tasks.icon.id', 'An optional codicon ID to use'),
+			type: ['string', 'null'],
 			enum: Array.from(Codicon.getAll(), icon => icon.id),
 			markdownEnumDescriptions: Array.from(Codicon.getAll(), icon => `$(${icon.id})`),
 		},
 		color: {
-			description: nls.localize('JsonSchema.tasks.icon.color', 'An optional color to use for the task icon'),
+			description: nls.localize('JsonSchema.tasks.icon.color', 'An optional color of the icon'),
 			type: ['string', 'null'],
 			enum: [
 				'terminal.ansiBlack',

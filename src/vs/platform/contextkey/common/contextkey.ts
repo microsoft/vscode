@@ -1597,6 +1597,7 @@ export interface IReadableSet<T> {
 
 export interface IContextKeyChangeEvent {
 	affectsSome(keys: IReadableSet<string>): boolean;
+	allKeysContainedIn(keys: IReadableSet<string>): boolean;
 }
 
 export interface IContextKeyService {

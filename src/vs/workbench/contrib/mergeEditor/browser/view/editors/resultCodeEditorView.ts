@@ -10,7 +10,7 @@ import { autorun, derivedObservable } from 'vs/workbench/contrib/audioCues/brows
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
-import { CodeEditorView, ICodeEditorViewOptions } from './codeEditorView';
+import { CodeEditorView } from './codeEditorView';
 
 export class ResultCodeEditorView extends CodeEditorView {
 	private readonly decorations = derivedObservable('decorations', reader => {
@@ -99,10 +99,9 @@ export class ResultCodeEditorView extends CodeEditorView {
 	});
 
 	constructor(
-		options: ICodeEditorViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(options, instantiationService);
+		super(instantiationService);
 
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 

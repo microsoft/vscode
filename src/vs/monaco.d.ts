@@ -3459,6 +3459,11 @@ declare namespace monaco.editor {
 		 */
 		renderIndicators?: boolean;
 		/**
+		 * Shows icons in the glyph margin to revert changes.
+		 * Default to true.
+		 */
+		renderMarginRevertIcon?: boolean;
+		/**
 		 * Original model should be editable?
 		 * Defaults to false.
 		 */
@@ -5308,9 +5313,13 @@ declare namespace monaco.editor {
 		getDecorationsInRange(range: Range): IModelDecoration[] | null;
 		/**
 		 * All decorations added through this call will get the ownerId of this editor.
-		 * @see {@link ITextModel.deltaDecorations}
+		 * @deprecated
 		 */
 		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
+		/**
+		 * Remove previously added decorations.
+		 */
+		removeDecorations(decorationIds: string[]): void;
 		/**
 		 * Get the layout info for the editor.
 		 */

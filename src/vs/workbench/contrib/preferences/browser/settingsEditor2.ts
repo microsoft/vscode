@@ -907,7 +907,8 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(this.settingsTree.onDidFocus(() => {
-			if (document.activeElement?.classList.contains('monaco-list')) {
+			const classList = document.activeElement?.classList;
+			if (classList && classList.contains('monaco-list') && classList.contains('settings-editor-tree')) {
 				this._currentFocusContext = SettingsFocusContext.SettingTree;
 				this.settingRowFocused.set(true);
 			}

@@ -8,6 +8,7 @@ import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatus
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class NotificationsStatus extends Disposable {
 
@@ -21,7 +22,8 @@ export class NotificationsStatus extends Disposable {
 
 	constructor(
 		private readonly model: INotificationsModel,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 
@@ -37,6 +39,7 @@ export class NotificationsStatus extends Disposable {
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.model.onDidChangeStatusMessage(e => this.onDidChangeStatusMessage(e)));
+		this._register(this.notificationService.onDidChangeDoNotDisturbMode(() => this.updateNotificationsCenterStatusItem()));
 	}
 
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
@@ -69,8 +72,9 @@ export class NotificationsStatus extends Disposable {
 			}
 		}
 
-		// Show the bell with a dot if there are unread or in-progress notifications
-		const statusProperties: IStatusbarEntry = {
+		// Show the status bar entry depending on do not disturb setting
+
+		let statusProperties: IStatusbarEntry = {
 			name: localize('status.notifications', "Notifications"),
 			text: `${notificationsInProgress > 0 || this.newNotificationsCount > 0 ? '$(bell-dot)' : '$(bell)'}`,
 			ariaLabel: localize('status.notifications', "Notifications"),
@@ -78,6 +82,16 @@ export class NotificationsStatus extends Disposable {
 			tooltip: this.getTooltip(notificationsInProgress),
 			showBeak: this.isNotificationsCenterVisible
 		};
+
+		if (this.notificationService.doNotDisturbMode) {
+			statusProperties = {
+				...statusProperties,
+				name: localize('status.doNotDisturb', "Do Not Disturb"),
+				text: '$(bell-slash)',
+				ariaLabel: localize('status.doNotDisturb', "Do Not Disturb"),
+				tooltip: localize('status.doNotDisturbTooltip', "Do Not Disturb Mode is Enabled")
+			};
+		}
 
 		if (!this.notificationsCenterStatusItem) {
 			this.notificationsCenterStatusItem = this.statusbarService.addEntry(

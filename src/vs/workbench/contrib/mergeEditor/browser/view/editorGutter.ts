@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { h } from 'vs/base/browser/dom';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -19,7 +20,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		(e) => this._editor.hasModel()
 	);
 
-	private readonly viewZoneChanges = new ObservableValue(0, 'counter');
+	private readonly changeCounter = new ObservableValue(0, 'counter');
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -27,11 +28,25 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		private readonly itemProvider: IGutterItemProvider<T>
 	) {
 		super();
-		this._domNode.className = 'gutter';
+		this._domNode.className = 'gutter monaco-editor';
+		const scrollDecoration = this._domNode.appendChild(
+			h('div.scroll-decoration', { role: 'presentation', ariaHidden: true, style: { width: '100%' } })
+				.root
+		);
+
+		this._register(autorun((reader) => {
+			scrollDecoration.className = this.scrollTop.read(reader) === 0 ? '' : 'scroll-decoration';
+		}, 'update scroll decoration'));
+
+
 		this._register(autorun((reader) => this.render(reader), 'Render'));
 
 		this._editor.onDidChangeViewZones(e => {
-			this.viewZoneChanges.set(this.viewZoneChanges.get() + 1, undefined);
+			this.changeCounter.set(this.changeCounter.get() + 1, undefined);
+		});
+
+		this._editor.onDidContentSizeChange(e => {
+			this.changeCounter.set(this.changeCounter.get() + 1, undefined);
 		});
 	}
 
@@ -41,7 +56,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		if (!this.modelAttached.read(reader)) {
 			return;
 		}
-		this.viewZoneChanges.read(reader);
+		this.changeCounter.read(reader);
 		const scrollTop = this.scrollTop.read(reader);
 
 		const visibleRanges = this._editor.getVisibleRanges();

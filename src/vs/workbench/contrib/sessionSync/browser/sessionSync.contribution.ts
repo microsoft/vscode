@@ -157,7 +157,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				if (uri === undefined) { return; }
 
 				// Run the store action to get back a ref
-				const ref = await that.storeEditSession();
+				const ref = await that.storeEditSession(false);
 
 				// Append the ref to the URI
 				if (ref !== undefined) {
@@ -215,7 +215,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				await that.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('storing edit session', 'Storing edit session...')
-				}, async () => await that.storeEditSession());
+				}, async () => await that.storeEditSession(true));
 			}
 		}));
 	}
@@ -227,6 +227,11 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 
 		const data = await this.sessionSyncWorkbenchService.read(ref);
 		if (!data) {
+			if (ref === undefined) {
+				this.notificationService.info(localize('no edit session', 'There are no edit sessions to apply.'));
+			} else {
+				this.notificationService.warn(localize('no edit session content for ref', 'Could not apply edit session contents for ID {0}.', ref));
+			}
 			this.logService.info(`Edit Sessions: Aborting applying edit session as no edit session content is available to be applied from ref ${ref}.`);
 			return;
 		}
@@ -293,8 +298,9 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		}
 	}
 
-	async storeEditSession(): Promise<string | undefined> {
+	async storeEditSession(fromStoreCommand: boolean): Promise<string | undefined> {
 		const folders: Folder[] = [];
+		let hasEdits = false;
 
 		for (const repository of this.scmService.repositories) {
 			// Look through all resource groups and compute which files were added/modified/deleted
@@ -321,6 +327,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 					}
 				} catch { }
 
+				hasEdits = true;
+
 				if (await this.fileService.exists(uri)) {
 					workingChanges.push({ type: ChangeType.Addition, fileType: FileType.File, contents: (await this.fileService.readFile(uri)).value.toString(), relativeFilePath: relativeFilePath });
 				} else {
@@ -330,6 +338,14 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			}
 
 			folders.push({ workingChanges, name: name ?? '' });
+		}
+
+		if (!hasEdits) {
+			this.logService.info('Edit Sessions: Skipping storing edit session as there are no edits to store.');
+			if (fromStoreCommand) {
+				this.notificationService.info(localize('no edits to store', 'Skipped storing edit session as there are no edits to store.'));
+			}
+			return undefined;
 		}
 
 		const data: EditSession = { folders, version: 1 };

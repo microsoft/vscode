@@ -17,6 +17,18 @@
   resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.6.1.tgz#f8d1f7145baf932b75077c48107edff48501fc14"
   integrity sha512-Y4Oc8yGURGVF4WhCZcu+EVy+MAIeQDLDVeDlLn59H0C1w+7xr8dL2ZtDBioy+Hog1Edrd6zOwr3Na7xe1iC/UA==
 
+axios@^0.26.1:
+  version "0.26.1"
+  resolved "https://registry.yarnpkg.com/axios/-/axios-0.26.1.tgz#1ede41c51fcf51bbbd6fd43669caaa4f0495aaa9"
+  integrity sha512-fPwcX4EvnSHuInCMItEhAGnaSEXRBjtzh9fOtsE6E1G6p7vl7edEeZe11QHf18+6+9gR5PbKV/sGKNaD8YaMeA==
+  dependencies:
+    follow-redirects "^1.14.8"
+
+follow-redirects@^1.14.8:
+  version "1.15.1"
+  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.15.1.tgz#0ca6a452306c9b276e4d3127483e29575e207ad5"
+  integrity sha512-yLAMQs+k0b2m7cVxpS1VKJVvoz7SS9Td1zss3XRwXj+ZDH00RJgnuLx7E44wx02kQLrdM3aOOy+FpzS7+8OizA==
+
 jsonc-parser@^2.2.1:
   version "2.3.1"
   resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.3.1.tgz#59549150b133f2efacca48fe9ce1ec0659af2342"
@@ -27,10 +39,24 @@ semver@5.5.1:
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.5.1.tgz#7dfdd8814bdb7cabc7be0fb1d734cfb66c940477"
   integrity sha512-PqpAxfrEhlSUWge8dwIp4tZnQ25DIOthpiaHNIthsjEFQD6EvqUKUDM7L8O2rShkFccYo1VjJR0coWfNkCubRw==
 
+tas-client@0.1.45:
+  version "0.1.45"
+  resolved "https://registry.yarnpkg.com/tas-client/-/tas-client-0.1.45.tgz#83bbf73f8458a0f527f9a389f7e1c37f63a64a76"
+  integrity sha512-IG9UmCpDbDPK23UByQ27rLybkRZYEx2eC9EkieXdwPKKjZPD2zPwfQmyGnZrZet4FUt3yj0ytkwz+liR9Nz/nA==
+  dependencies:
+    axios "^0.26.1"
+
 vscode-nls@^5.0.0:
   version "5.0.0"
   resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.0.0.tgz#99f0da0bd9ea7cda44e565a74c54b1f2bc257840"
   integrity sha512-u0Lw+IYlgbEJFF6/qAqG2d1jQmJl0eyAGJHoAJqr2HT4M2BNuQYSEiSE75f52pXHSJm8AlTjnLLbBFPrdz2hpA==
+
+vscode-tas-client@^0.1.47:
+  version "0.1.47"
+  resolved "https://registry.yarnpkg.com/vscode-tas-client/-/vscode-tas-client-0.1.47.tgz#d66795cbbaa231aba659b6c40d43927d73596375"
+  integrity sha512-SlEPDi+0gwxor4ANzBtXwqROPQdQkClHeVJgnkvdDF5Xnl407htCsabTPAq4Di8muObORtLchqQS/k1ocaGDEg==
+  dependencies:
+    tas-client "0.1.45"
 
 vscode-uri@^3.0.3:
   version "3.0.3"

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -14,15 +13,13 @@ import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagemen
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { EXTENSIONS_RESOURCE_NAME, IUserDataProfile, IUserDataProfilesService, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { DidChangeProfilesEvent, EXTENSIONS_RESOURCE_NAME, IUserDataProfile, IUserDataProfilesService, UseDefaultProfileFlags, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileManagementService, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileManagementService extends Disposable implements IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
@@ -36,13 +33,12 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IHostService private readonly hostService: IHostService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IProgressService private readonly progressService: IProgressService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService logService: ILogService
 	) {
 		super();
+		this._register(userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e)));
 	}
 
 	private async checkAndCreateExtensionsProfileResource(): Promise<URI> {
@@ -56,11 +52,14 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		throw new Error('Invalid Profile');
 	}
 
-	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<void> {
-		const workspaceIdentifier = this.getWorkspaceIdentifier();
-		if (!workspaceIdentifier) {
-			throw new Error(localize('cannotCreateProfileInEmptyWorkbench', "Cannot create a profile in an empty workspace"));
+	private onDidChangeProfiles(e: DidChangeProfilesEvent): void {
+		if (e.removed.some(profile => profile.id === this.userDataProfileService.currentProfile.id)) {
+			this.enterProfile(this.userDataProfilesService.defaultProfile, false, localize('reload message when removed', "The current profile has been removed. Please reload to switch back to default profile"));
 		}
+	}
+
+	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile> {
+		const workspaceIdentifier = this.getWorkspaceIdentifier();
 		const promises: Promise<any>[] = [];
 		const newProfile = this.userDataProfilesService.newProfile(name, useDefaultFlags);
 		await this.fileService.createFolder(newProfile.location);
@@ -77,6 +76,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		await Promise.allSettled(promises);
 		const createdProfile = await this.userDataProfilesService.createProfile(newProfile, workspaceIdentifier);
 		await this.enterProfile(createdProfile, !!fromExisting);
+		return createdProfile;
 	}
 
 	async removeProfile(profile: IUserDataProfile): Promise<void> {
@@ -98,9 +98,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 
 	async switchProfile(profile: IUserDataProfile): Promise<void> {
 		const workspaceIdentifier = this.getWorkspaceIdentifier();
-		if (!workspaceIdentifier) {
-			throw new Error(localize('cannotSwitchProfileInEmptyWorkbench', "Cannot switch a profile in an empty workspace"));
-		}
 		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
 			throw new Error(`Profile ${profile.name} does not exist`);
 		}
@@ -111,34 +108,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		await this.enterProfile(profile, false);
 	}
 
-	async createAndEnterProfileFromTemplate(name: string, template: IUserDataProfileTemplate, useDefaultFlags: UseDefaultProfileFlags): Promise<void> {
-		const workspaceIdentifier = this.getWorkspaceIdentifier();
-		if (!workspaceIdentifier) {
-			throw new Error(localize('cannotCreateProfileInEmptyWorkbench', "Cannot create a profile in an empty workspace"));
-		}
-		const profile = await this.progressService.withProgress({
-			location: ProgressLocation.Notification,
-			title: localize('profiles.creating', "{0}: Creating...", PROFILES_CATEGORY),
-		}, async progress => {
-			const promises: Promise<any>[] = [];
-			const newProfile = this.userDataProfilesService.newProfile(name, useDefaultFlags);
-			await this.fileService.createFolder(newProfile.location);
-			if (template.globalState) {
-				// todo: create global state
-			}
-			if (template.settings) {
-				promises.push(this.fileService.writeFile(newProfile.settingsResource, VSBuffer.fromString(template.settings)));
-			}
-			if (template.extensions && newProfile.extensionsResource) {
-				promises.push(this.fileService.writeFile(newProfile.extensionsResource, VSBuffer.fromString(template.extensions)));
-			}
-			await Promise.allSettled(promises);
-			return this.userDataProfilesService.createProfile(newProfile, workspaceIdentifier);
-		});
-		await this.enterProfile(profile, false);
-	}
-
-	private getWorkspaceIdentifier(): ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier | undefined {
+	private getWorkspaceIdentifier(): WorkspaceIdentifier {
 		const workspace = this.workspaceContextService.getWorkspace();
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
@@ -146,14 +116,14 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			case WorkbenchState.WORKSPACE:
 				return { configPath: workspace.configuration!, id: workspace.id };
 		}
-		return undefined;
+		return 'empty-window';
 	}
 
-	private async enterProfile(profile: IUserDataProfile, preserveData: boolean): Promise<void> {
+	private async enterProfile(profile: IUserDataProfile, preserveData: boolean, reloadMessage?: string): Promise<void> {
 		if (this.environmentService.remoteAuthority) {
 			const result = await this.dialogService.confirm({
 				type: 'info',
-				message: localize('reload message', "Switching a profile requires reloading VS Code."),
+				message: reloadMessage ?? localize('reload message', "Switching a profile requires reloading VS Code."),
 				primaryButton: localize('reload button', "&&Reload"),
 			});
 			if (result.confirmed) {

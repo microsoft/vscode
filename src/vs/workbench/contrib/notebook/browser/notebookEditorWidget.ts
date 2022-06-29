@@ -47,7 +47,7 @@ import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/co
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, iconForeground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, toolbarHoverBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PANEL_BORDER, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { EDITOR_PANE_BACKGROUND, PANEL_BORDER, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, CellRevealType, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
@@ -919,21 +919,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list; },
 				overrideStyles: {
-					listBackground: editorBackground,
-					listActiveSelectionBackground: editorBackground,
+					listBackground: notebookEditorBackground,
+					listActiveSelectionBackground: notebookEditorBackground,
 					listActiveSelectionForeground: foreground,
-					listFocusAndSelectionBackground: editorBackground,
+					listFocusAndSelectionBackground: notebookEditorBackground,
 					listFocusAndSelectionForeground: foreground,
-					listFocusBackground: editorBackground,
+					listFocusBackground: notebookEditorBackground,
 					listFocusForeground: foreground,
 					listHoverForeground: foreground,
-					listHoverBackground: editorBackground,
+					listHoverBackground: notebookEditorBackground,
 					listHoverOutline: focusBorder,
 					listFocusOutline: focusBorder,
-					listInactiveSelectionBackground: editorBackground,
+					listInactiveSelectionBackground: notebookEditorBackground,
 					listInactiveSelectionForeground: foreground,
-					listInactiveFocusBackground: editorBackground,
-					listInactiveFocusOutline: editorBackground,
+					listInactiveFocusBackground: notebookEditorBackground,
+					listInactiveFocusOutline: notebookEditorBackground,
 				},
 				accessibilityProvider: {
 					getAriaLabel: (element) => {
@@ -3157,6 +3157,13 @@ export const cellEditorBackground = registerColor('notebook.cellEditorBackground
 	hcLight: null
 }, nls.localize('notebook.cellEditorBackground', "Cell editor background color."));
 
+export const notebookEditorBackground = registerColor('notebook.editorBackground', {
+	light: EDITOR_PANE_BACKGROUND,
+	dark: EDITOR_PANE_BACKGROUND,
+	hcDark: null,
+	hcLight: null
+}, nls.localize('notebook.editorBackground', "Notebook background color."));
+
 registerThemingParticipant((theme, collector) => {
 	// add css variable rules
 
@@ -3232,6 +3239,12 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .monaco-list-row.cell-drag-image { background-color: ${notebookBackground}; }`);
 		collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container .action-item { background-color: ${notebookBackground} }`);
 		collector.addRule(`.notebookOverlay .cell-list-top-cell-toolbar-container .action-item { background-color: ${notebookBackground} }`);
+	}
+
+	const notebookBackgroundColor = theme.getColor(notebookEditorBackground);
+
+	if (notebookBackgroundColor) {
+		collector.addRule(`.monaco-workbench .notebookOverlay.notebook-editor { background-color: ${notebookBackgroundColor}; }`);
 	}
 
 	const editorBackgroundColor = theme.getColor(cellEditorBackground) ?? theme.getColor(editorBackground);

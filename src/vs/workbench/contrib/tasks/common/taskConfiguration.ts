@@ -1635,7 +1635,7 @@ namespace CustomTask {
 			{
 				name: configuredProps.configurationProperties.name || contributedTask.configurationProperties.name,
 				identifier: configuredProps.configurationProperties.identifier || contributedTask.configurationProperties.identifier,
-				icon: contributedTask.configurationProperties.icon
+				icon: configuredProps.configurationProperties.icon
 			},
 
 		);

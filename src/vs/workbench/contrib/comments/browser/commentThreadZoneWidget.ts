@@ -56,6 +56,22 @@ export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	return { lineNumber: range.startLineNumber };
 }
 
+export function isMouseUpEventDragFromMouseDown(mouseDownInfo: { lineNumber: number } | null, e: IEditorMouseEvent) {
+	if (!mouseDownInfo) {
+		return null;
+	}
+
+	const { lineNumber } = mouseDownInfo;
+
+	const range = e.target.range;
+
+	if (!range) {
+		return null;
+	}
+
+	return lineNumber;
+}
+
 export function isMouseUpEventMatchMouseDown(mouseDownInfo: { lineNumber: number } | null, e: IEditorMouseEvent) {
 	if (!mouseDownInfo) {
 		return null;

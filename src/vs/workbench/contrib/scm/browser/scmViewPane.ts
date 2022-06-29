@@ -2629,11 +2629,13 @@ export class SCMActionButton implements IDisposable {
 
 		if (button.secondaryCommands?.length) {
 			const actions: IAction[] = [];
-			for (const commandGroup of button.secondaryCommands) {
-				for (const command of commandGroup) {
+			for (let index = 0; index < button.secondaryCommands.length; index++) {
+				for (const command of button.secondaryCommands[index]) {
 					actions.push(new Action(command.id, command.title, undefined, true, async () => await executeButtonAction(command.id, ...(command.arguments || []))));
 				}
-				actions.push(new Separator());
+				if (index !== button.secondaryCommands.length - 1) {
+					actions.push(new Separator());
+				}
 			}
 
 			// ButtonWithDropdown

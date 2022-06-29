@@ -8,17 +8,15 @@ import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { IObservable, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-
-export interface ICodeEditorViewOptions {
-	readonly: boolean;
-}
 
 export abstract class CodeEditorView extends Disposable {
 	private readonly _viewModel = new ObservableValue<undefined | MergeEditorViewModel>(undefined, 'viewModel');
@@ -61,14 +59,15 @@ export abstract class CodeEditorView extends Disposable {
 	public readonly editor = this.instantiationService.createInstance(
 		CodeEditorWidget,
 		this.htmlElements.editor,
+		{},
 		{
-			minimap: { enabled: false },
-			readOnly: this._options.readonly,
-			glyphMargin: false,
-			lineNumbersMinChars: 2,
-		},
-		{}
+			contributions: this.getEditorContributions(),
+		}
 	);
+
+	public updateOptions(newOptions: Readonly<IEditorOptions>): void {
+		this.editor.updateOptions(newOptions);
+	}
 
 	public readonly isFocused = observableFromEvent(
 		Event.any(this.editor.onDidBlurEditorWidget, this.editor.onDidFocusEditorWidget),
@@ -82,16 +81,15 @@ export abstract class CodeEditorView extends Disposable {
 
 	public readonly cursorLineNumber = this.cursorPosition.map(p => p?.lineNumber);
 
-	/*derivedObservable('cursorLineNumber', reader => {
-		return this.cursorPosition.read(reader)?.lineNumber;
-	});*/
-
 	constructor(
-		private readonly _options: ICodeEditorViewOptions,
 		@IInstantiationService
 		private readonly instantiationService: IInstantiationService
 	) {
 		super();
+	}
+
+	protected getEditorContributions(): IEditorContributionDescription[] | undefined {
+		return undefined;
 	}
 
 	public setModel(

@@ -143,6 +143,16 @@ export class MdWorkspaceInfoCache<T> extends Disposable {
 		return Array.from(await this._cache.entries(), x => x[1]);
 	}
 
+	public async getForDocs(docs: readonly ITextDocument[]): Promise<T[]> {
+		for (const doc of docs) {
+			if (!this._cache.has(doc.uri)) {
+				this.update(doc);
+			}
+		}
+
+		return Promise.all(docs.map(doc => this._cache.get(doc.uri) as Promise<T>));
+	}
+
 	private async ensureInit(): Promise<void> {
 		if (!this._init) {
 			this._init = this.populateCache();
@@ -157,7 +167,9 @@ export class MdWorkspaceInfoCache<T> extends Disposable {
 	private async populateCache(): Promise<void> {
 		const markdownDocumentUris = await this.workspace.getAllMarkdownDocuments();
 		for (const document of markdownDocumentUris) {
-			this.update(document);
+			if (!this._cache.has(document.uri)) {
+				this.update(document);
+			}
 		}
 	}
 

@@ -140,7 +140,10 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 
 		if (!this.storeClient) {
 			this.storeClient = new UserDataSyncStoreClient(URI.parse(this.serverConfiguration.url), this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
-			this._register(this.storeClient.onTokenFailed(() => this.clearAuthenticationPreference()));
+			this._register(this.storeClient.onTokenFailed(() => {
+				this.logService.info('Edit Sessions: clearing edit sessions authentication preference because of successive token failures.');
+				this.clearAuthenticationPreference();
+			}));
 		}
 
 		// If we already have an existing auth session in memory, use that

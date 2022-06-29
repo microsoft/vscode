@@ -16,9 +16,11 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { autorun } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class MergeEditorInputData {
@@ -46,6 +48,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
@@ -107,7 +110,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 				this.input2.title,
 				this.input2.detail,
 				this.input2.description,
-				result.object.textEditorModel
+				result.object.textEditorModel,
+				this._instaService.createInstance(EditorWorkerServiceDiffComputer),
 			);
 
 			await this._model.onInitialized;
@@ -173,30 +177,57 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 			return ConfirmResult.SAVE;
 		}
 
+		const actions: string[] = [];
+		const options = {
+			cancelId: 0,
+			detail: inputs.length > 1
+				? localize('unhandledConflicts.detailN', 'Merge conflicts in {0} editors will remain unhandled.', inputs.length)
+				: localize('unhandledConflicts.detail1', 'Merge conflicts in this editor will remain unhandled.')
+		};
+
+		const isAnyAutoSave = this._filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF;
+		if (!isAnyAutoSave) {
+			// manual-save: FYI and discard
+			actions.push(
+				localize('unhandledConflicts.manualSaveIgnore', "Save and Continue with Conflicts"), // 0
+				localize('unhandledConflicts.manualSaveNoSave', "Don't Save") // 1
+			);
+
+		} else {
+			// auto-save: only FYI
+			actions.push(
+				localize('unhandledConflicts.ignore', "Continue with Conflicts"), // 0
+			);
+		}
+
+		actions.push(localize('unhandledConflicts.cancel', "Cancel"));
+		options.cancelId = actions.length - 1;
+
 		const { choice } = await this._dialogService.show(
 			Severity.Info,
-			localize('unhandledConflicts.msg', 'Do you want to continue with unhandled conflicts?'),
-			[
-				localize('unhandledConflicts.ignore', "Continue with Conflicts"),
-				localize('unhandledConflicts.cancel', "Cancel")
-			],
-			{
-				cancelId: 1,
-				detail: inputsWithUnhandledConflicts.length > 1
-					? localize('unhandledConflicts.detailN', 'Merge conflicts in {0} editors will remain unhandled.', inputsWithUnhandledConflicts.length)
-					: localize('unhandledConflicts.detail1', 'Merge conflicts in this editor will remain unhandled.')
-			}
+			localize('unhandledConflicts.msg', 'Do you want to continue with unhandled conflicts?'), // 1
+			actions,
+			options
 		);
 
-		if (choice !== 0) {
+		if (choice === options.cancelId) {
+			// cancel: stay in editor
 			return ConfirmResult.CANCEL;
 		}
 
-		// continue with conflicts, tell inputs to ignore unhandled changes
-		for (const input of inputsWithUnhandledConflicts) {
+		// save or revert: in both cases we tell the inputs to ignore unhandled conflicts
+		// for the dirty state computation.
+		for (const input of inputs) {
 			input._ignoreUnhandledConflictsForDirtyState = true;
 		}
-		return ConfirmResult.SAVE;
+
+		if (choice === 0) {
+			// conflicts: continue with remaining conflicts
+			return ConfirmResult.SAVE;
+		}
+
+		// don't save
+		return ConfirmResult.DONT_SAVE;
 	}
 
 	setLanguageId(languageId: string, _setExplicitly?: boolean): void {

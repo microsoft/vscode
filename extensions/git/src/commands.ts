@@ -28,6 +28,7 @@ class CheckoutItem implements QuickPickItem {
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
 	get label(): string { return `${this.repository.isBranchProtected(this.ref.name ?? '') ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`; }
 	get description(): string { return this.shortCommit; }
+	get refName(): string | undefined { return this.ref.name; }
 
 	constructor(protected repository: Repository, protected ref: Ref) { }
 
@@ -140,6 +141,7 @@ class HEADItem implements QuickPickItem {
 	get label(): string { return 'HEAD'; }
 	get description(): string { return (this.repository.HEAD && this.repository.HEAD.commit || '').substr(0, 8); }
 	get alwaysShow(): boolean { return true; }
+	get refName(): string { return 'HEAD'; }
 }
 
 class AddRemoteItem implements QuickPickItem {
@@ -1104,14 +1106,20 @@ export class CommandCenter {
 		}
 
 		await doc.save();
-		await repository.add([uri]);
 
 		// TODO@jrieken there isn't a `TabInputTextMerge` instance yet, till now the merge editor
 		// uses the `TabInputText` for the out-resource and we use that to identify and CLOSE the tab
 		// see https://github.com/microsoft/vscode/issues/153213
 		const { activeTab } = window.tabGroups.activeTabGroup;
+		let didCloseTab = false;
 		if (activeTab && activeTab?.input instanceof TabInputText && activeTab.input.uri.toString() === uri.toString()) {
-			await window.tabGroups.close(activeTab, true);
+			didCloseTab = await window.tabGroups.close(activeTab, true);
+		}
+
+		// Only stage if the merge editor has been successfully closed. That means all conflicts have been
+		// handled or unhandled conflicts are OK by the user.
+		if (didCloseTab) {
+			await repository.add([uri]);
 		}
 
 		await commands.executeCommand('workbench.view.scm');
@@ -2001,7 +2009,9 @@ export class CommandCenter {
 				return;
 			}
 
-			target = choice.label;
+			if (choice.refName) {
+				target = choice.refName;
+			}
 		}
 
 		await repository.branch(branchName, true, target);

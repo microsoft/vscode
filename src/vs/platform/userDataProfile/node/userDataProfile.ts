@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStringDictionary } from 'vs/base/common/collections';
 import { ResourceMap } from 'vs/base/common/map';
 import { revive } from 'vs/base/common/marshalling';
 import { UriDto } from 'vs/base/common/types';
@@ -12,29 +13,30 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UseDefaultProfileFlags, IUserDataProfile, IUserDataProfilesService, UserDataProfilesService as BaseUserDataProfilesService, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { UseDefaultProfileFlags, IUserDataProfile, IUserDataProfilesService, UserDataProfilesService as BaseUserDataProfilesService, toUserDataProfile, WorkspaceIdentifier, EmptyWindowWorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-type UserDataProfilesObject = {
+export type UserDataProfilesObject = {
 	profiles: IUserDataProfile[];
 	workspaces: ResourceMap<IUserDataProfile>;
+	emptyWindow?: IUserDataProfile;
 };
 
-type StoredUserDataProfile = {
+export type StoredUserDataProfile = {
 	name: string;
 	location: URI;
 	useDefaultFlags?: UseDefaultProfileFlags;
 };
 
-type StoredWorkspaceInfo = {
-	workspace: URI;
-	profile: URI;
+export type StoredProfileAssociations = {
+	workspaces?: IStringDictionary<string>;
+	emptyWindow?: string;
 };
 
 export class UserDataProfilesService extends BaseUserDataProfilesService implements IUserDataProfilesService {
 
 	protected static readonly PROFILES_KEY = 'userDataProfiles';
-	protected static readonly WORKSPACE_PROFILE_INFO_KEY = 'workspaceAndProfileInfo';
+	protected static readonly PROFILE_ASSOCIATIONS_KEY = 'profileAssociations';
 
 	protected enabled: boolean = false;
 
@@ -60,37 +62,55 @@ export class UserDataProfilesService extends BaseUserDataProfilesService impleme
 		}
 		if (!this._profilesObject) {
 			const profiles = this.getStoredProfiles().map<IUserDataProfile>(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.useDefaultFlags));
+			let emptyWindow: IUserDataProfile | undefined;
 			const workspaces = new ResourceMap<IUserDataProfile>();
 			if (profiles.length) {
 				profiles.unshift(this.createDefaultUserDataProfile(true));
-				for (const workspaceProfileInfo of this.getStoredWorskpaceInfos()) {
-					const profile = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, workspaceProfileInfo.profile));
-					if (profile) {
-						workspaces.set(workspaceProfileInfo.workspace, profile);
+				const profileAssicaitions = this.getStoredProfileAssociations();
+				if (profileAssicaitions.workspaces) {
+					for (const [workspacePath, profilePath] of Object.entries(profileAssicaitions.workspaces)) {
+						const workspace = URI.parse(workspacePath);
+						const profileLocation = URI.parse(profilePath);
+						const profile = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profileLocation));
+						if (profile) {
+							workspaces.set(workspace, profile);
+						}
 					}
 				}
+				if (profileAssicaitions.emptyWindow) {
+					const emptyWindowProfileLocation = URI.parse(profileAssicaitions.emptyWindow);
+					emptyWindow = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, emptyWindowProfileLocation));
+				}
 			}
-			this._profilesObject = { profiles, workspaces };
+			this._profilesObject = { profiles, workspaces, emptyWindow };
 		}
 		return this._profilesObject;
 	}
 
 	override get profiles(): IUserDataProfile[] { return this.profilesObject.profiles; }
 
-	override getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile {
-		return this.profilesObject.workspaces.get(this.getWorkspace(workspaceIdentifier)) ?? this.defaultProfile;
+	override getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile {
+		const workspace = this.getWorkspace(workspaceIdentifier);
+		const profile = URI.isUri(workspace) ? this.profilesObject.workspaces.get(workspace) : this.profilesObject.emptyWindow;
+		return profile ?? this.defaultProfile;
 	}
 
-	protected getWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier) {
-		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) ? workspaceIdentifier.uri : workspaceIdentifier.configPath;
+	protected getWorkspace(workspaceIdentifier: WorkspaceIdentifier): URI | EmptyWindowWorkspaceIdentifier {
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return workspaceIdentifier.uri;
+		}
+		if (isWorkspaceIdentifier(workspaceIdentifier)) {
+			return workspaceIdentifier.configPath;
+		}
+		return 'empty-window';
 	}
 
 	protected getStoredProfiles(): StoredUserDataProfile[] {
 		return revive(this.stateService.getItem<UriDto<StoredUserDataProfile>[]>(UserDataProfilesService.PROFILES_KEY, []));
 	}
 
-	protected getStoredWorskpaceInfos(): StoredWorkspaceInfo[] {
-		return revive(this.stateService.getItem<UriDto<StoredWorkspaceInfo>[]>(UserDataProfilesService.WORKSPACE_PROFILE_INFO_KEY, []));
+	protected getStoredProfileAssociations(): StoredProfileAssociations {
+		return revive(this.stateService.getItem<UriDto<StoredProfileAssociations>>(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY, {}));
 	}
 
 }

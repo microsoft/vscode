@@ -5,6 +5,7 @@
 import * as assert from 'assert';
 import * as os from 'os';
 import * as vscode from 'vscode';
+import { DisposableStore } from '../util/dispose';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 
 export const joinLines = (...args: string[]) =>
@@ -36,4 +37,15 @@ export function assertRangeEqual(expected: vscode.Range, actual: vscode.Range, m
 	assert.strictEqual(expected.start.character, actual.start.character, message);
 	assert.strictEqual(expected.end.line, actual.end.line, message);
 	assert.strictEqual(expected.end.character, actual.end.character, message);
+}
+
+export function withStore<R>(fn: (this: Mocha.Context, store: DisposableStore) => Promise<R>) {
+	return async function (this: Mocha.Context): Promise<R> {
+		const store = new DisposableStore();
+		try {
+			return await fn.call(this, store);
+		} finally {
+			store.dispose();
+		}
+	};
 }

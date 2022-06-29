@@ -81,6 +81,9 @@ if (!isWeb) {
 	});
 }
 
+export type EmptyWindowWorkspaceIdentifier = 'empty-window';
+export type WorkspaceIdentifier = ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier | EmptyWindowWorkspaceIdentifier;
+
 export type DidChangeProfilesEvent = { readonly added: IUserDataProfile[]; readonly removed: IUserDataProfile[]; readonly all: IUserDataProfile[] };
 
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
@@ -94,9 +97,9 @@ export interface IUserDataProfilesService {
 	readonly profiles: IUserDataProfile[];
 
 	newProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags): CustomUserDataProfile;
-	createProfile(profile: IUserDataProfile, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
-	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile>;
-	getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile;
+	createProfile(profile: IUserDataProfile, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
+	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile>;
+	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 }
 
@@ -163,8 +166,8 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return { ...profile, isDefault: true, extensionsResource: extensions ? profile.extensionsResource : undefined };
 	}
 
-	createProfile(profile: IUserDataProfile, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
-	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
-	getProfile(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): IUserDataProfile { throw new Error('Not implemented'); }
+	createProfile(profile: IUserDataProfile, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
+	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
+	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile { throw new Error('Not implemented'); }
 	removeProfile(profile: IUserDataProfile): Promise<void> { throw new Error('Not implemented'); }
 }
