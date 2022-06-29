@@ -586,7 +586,8 @@
       {
         "command": "git.acceptMerge",
         "title": "%command.git.acceptMerge%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "isMergeEditor"
       }
     ],
     "keybindings": [
