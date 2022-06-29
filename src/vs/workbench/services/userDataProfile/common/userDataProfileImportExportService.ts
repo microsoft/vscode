@@ -8,19 +8,19 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { ExtensionsProfile } from 'vs/workbench/services/userDataProfile/common/extensionsProfile';
-import { GlobalStateProfile } from 'vs/workbench/services/userDataProfile/common/globalStateProfile';
+import { ExtensionsImportExport } from 'vs/workbench/services/userDataProfile/common/extensionsImportExport';
+import { GlobalStateImportExport } from 'vs/workbench/services/userDataProfile/common/globalStateImportExport';
 import { IUserDataProfileTemplate, IUserDataProfileImportExportService, PROFILES_CATEGORY, IUserDataProfileManagementService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { SettingsProfile } from 'vs/workbench/services/userDataProfile/common/settingsProfile';
+import { SettingsImportExport } from 'vs/workbench/services/userDataProfile/common/settingsImportExport';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class UserDataProfileImportExportService implements IUserDataProfileImportExportService {
 
 	readonly _serviceBrand: undefined;
 
-	private readonly settingsProfile: SettingsProfile;
-	private readonly globalStateProfile: GlobalStateProfile;
-	private readonly extensionsProfile: ExtensionsProfile;
+	private readonly settingsProfile: SettingsImportExport;
+	private readonly globalStateProfile: GlobalStateImportExport;
+	private readonly extensionsProfile: ExtensionsImportExport;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -29,15 +29,15 @@ export class UserDataProfileImportExportService implements IUserDataProfileImpor
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
-		this.settingsProfile = instantiationService.createInstance(SettingsProfile);
-		this.globalStateProfile = instantiationService.createInstance(GlobalStateProfile);
-		this.extensionsProfile = instantiationService.createInstance(ExtensionsProfile);
+		this.settingsProfile = instantiationService.createInstance(SettingsImportExport);
+		this.globalStateProfile = instantiationService.createInstance(GlobalStateImportExport);
+		this.extensionsProfile = instantiationService.createInstance(ExtensionsImportExport);
 	}
 
 	async exportProfile(options?: { skipComments: boolean }): Promise<IUserDataProfileTemplate> {
-		const settings = await this.settingsProfile.getProfileContent(options);
-		const globalState = await this.globalStateProfile.getProfileContent();
-		const extensions = await this.extensionsProfile.getProfileContent();
+		const settings = await this.settingsProfile.export(options);
+		const globalState = await this.globalStateProfile.export();
+		const extensions = await this.extensionsProfile.export();
 		return {
 			settings,
 			globalState,
@@ -60,13 +60,13 @@ export class UserDataProfileImportExportService implements IUserDataProfileImpor
 		}, async progress => {
 			await this.userDataProfileManagementService.createAndEnterProfile(name);
 			if (profileTemplate.settings) {
-				await this.settingsProfile.applyProfile(profileTemplate.settings);
+				await this.settingsProfile.import(profileTemplate.settings);
 			}
 			if (profileTemplate.globalState) {
-				await this.globalStateProfile.applyProfile(profileTemplate.globalState);
+				await this.globalStateProfile.import(profileTemplate.globalState);
 			}
 			if (profileTemplate.extensions) {
-				await this.extensionsProfile.applyProfile(profileTemplate.extensions);
+				await this.extensionsProfile.import(profileTemplate.extensions);
 			}
 		});
 

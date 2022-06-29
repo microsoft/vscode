@@ -8,7 +8,7 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platf
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfileService, IResourceProfile, ProfileCreationOptions } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService, IUserDataImportExport, ProfileCreationOptions } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { removeComments, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 
@@ -16,7 +16,7 @@ interface ISettingsContent {
 	settings: string;
 }
 
-export class SettingsProfile implements IResourceProfile {
+export class SettingsImportExport implements IUserDataImportExport {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -26,7 +26,7 @@ export class SettingsProfile implements IResourceProfile {
 	) {
 	}
 
-	async getProfileContent(options?: ProfileCreationOptions): Promise<string> {
+	async export(options?: ProfileCreationOptions): Promise<string> {
 		const ignoredSettings = this.getIgnoredSettings();
 		const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.userDataProfileService.currentProfile.settingsResource);
 		const localContent = await this.getLocalFileContent();
@@ -40,7 +40,7 @@ export class SettingsProfile implements IResourceProfile {
 		return JSON.stringify(settingsContent);
 	}
 
-	async applyProfile(content: string): Promise<void> {
+	async import(content: string): Promise<void> {
 		const settingsContent: ISettingsContent = JSON.parse(content);
 		this.logService.trace(`Profile: Applying settings...`);
 		const localSettingsContent = await this.getLocalFileContent();

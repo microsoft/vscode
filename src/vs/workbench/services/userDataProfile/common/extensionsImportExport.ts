@@ -9,7 +9,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IResourceProfile } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataImportExport } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IProfileExtension {
 	identifier: IExtensionIdentifier;
@@ -17,7 +17,7 @@ interface IProfileExtension {
 	disabled?: boolean;
 }
 
-export class ExtensionsProfile implements IResourceProfile {
+export class ExtensionsImportExport implements IUserDataImportExport {
 
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
@@ -27,12 +27,12 @@ export class ExtensionsProfile implements IResourceProfile {
 	) {
 	}
 
-	async getProfileContent(): Promise<string> {
+	async export(): Promise<string> {
 		const extensions = await this.getLocalExtensions();
 		return JSON.stringify(extensions);
 	}
 
-	async applyProfile(content: string): Promise<void> {
+	async import(content: string): Promise<void> {
 		const profileExtensions: IProfileExtension[] = JSON.parse(content);
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const extensionsToEnableOrDisable: { extension: ILocalExtension; enablementState: EnablementState }[] = [];
@@ -46,7 +46,6 @@ export class ExtensionsProfile implements IResourceProfile {
 				extensionsToEnableOrDisable.push({ extension: installedExtension, enablementState: e.disabled ? EnablementState.DisabledGlobally : EnablementState.EnabledGlobally });
 			}
 		}
-		const extensionsToUninstall: ILocalExtension[] = installedExtensions.filter(extension => extension.type === ExtensionType.User && !profileExtensions.some(({ identifier }) => areSameExtensions(identifier, extension.identifier)));
 		for (const { extension, enablementState } of extensionsToEnableOrDisable) {
 			this.logService.trace(`Profile: Updating extension enablement...`, extension.identifier.id);
 			await this.extensionEnablementService.setEnablement([extension], enablementState);
@@ -67,9 +66,6 @@ export class ExtensionsProfile implements IResourceProfile {
 					this.logService.info(`Profile: Skipped installing extension because it cannot be installed.`, extension.displayName || extension.identifier.id);
 				}
 			}));
-		}
-		if (extensionsToUninstall.length) {
-			await Promise.all(extensionsToUninstall.map(e => this.extensionManagementService.uninstall(e)));
 		}
 	}
 

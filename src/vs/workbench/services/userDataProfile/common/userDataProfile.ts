@@ -62,9 +62,9 @@ export interface IUserDataProfileImportExportService {
 	importProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
-export interface IResourceProfile {
-	getProfileContent(): Promise<string>;
-	applyProfile(content: string): Promise<void>;
+export interface IUserDataImportExport {
+	export(): Promise<string>;
+	import(content: string): Promise<void>;
 }
 
 export const ManageProfilesSubMenu = new MenuId('SettingsProfiles');
