@@ -142,6 +142,10 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 						synchronizeScrolling(this.input1View.editor, this.inputResultView.editor, mapping, MappingDirection.input);
 						this.input2View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
 					}
+					if (c.scrollLeftChanged) {
+						this.input2View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
+						this.inputResultView.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
+					}
 				})
 			)
 		);
@@ -152,6 +156,10 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 						const mapping = this.model?.input2ResultMapping.get();
 						synchronizeScrolling(this.input2View.editor, this.inputResultView.editor, mapping, MappingDirection.input);
 						this.input1View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+					}
+					if (c.scrollLeftChanged) {
+						this.input1View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
+						this.inputResultView.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
 					}
 				})
 			)
@@ -164,6 +172,10 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 						synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping1, MappingDirection.output);
 						const mapping2 = this.model?.input2ResultMapping.get();
 						synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2, MappingDirection.output);
+					}
+					if (c.scrollLeftChanged) {
+						this.input1View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
+						this.input2View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
 					}
 				})
 			)
