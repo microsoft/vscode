@@ -535,7 +535,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			lock = await this._registryLock.acquire('handleDeltaExtensions');
 			while (this._deltaExtensionsQueue.length > 0) {
 				const item = this._deltaExtensionsQueue.shift()!;
-				await this._deltaExtensions(item.toAdd, item.toRemove);
+				await this._deltaExtensions([], item.toRemove);
+				await this._deltaExtensions(item.toAdd, []);
 			}
 		} finally {
 			this._inHandleDeltaExtensions = false;
