@@ -32,7 +32,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -776,6 +776,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.updateContexts();
 			this.updateActivity();
 		}));
+
+		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 	}
 	private _reportTelemetry() {
 		const extensionIds = this.installed.filter(extension =>
@@ -1595,6 +1597,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}).then(undefined, error => this.onError(error));
 	}
 
+	//#region Ignore Autoupdates when specific versions are installed
+
 	/* TODO: @sandy081 Extension version shall be moved to extensions.json file */
 	private _ignoredAutoUpdateExtensions: string[] | undefined;
 	private get ignoredAutoUpdateExtensions(): string[] {
@@ -1607,6 +1611,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private set ignoredAutoUpdateExtensions(extensionIds: string[]) {
 		this._ignoredAutoUpdateExtensions = distinct(extensionIds.map(id => id.toLowerCase()));
 		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private onDidChangeStorage(e: IStorageValueChangeEvent): void {
+		if (e.scope === StorageScope.PROFILE && e.key === 'extensions.ignoredAutoUpdateExtension') {
+			this._ignoredAutoUpdateExtensions = undefined;
+		}
 	}
 
 	private ignoreAutoUpdate(extensionKey: ExtensionKey): void {
@@ -1622,5 +1632,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private resetIgnoreAutoUpdateExtensions(): void {
 		this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => this.local.some(local => !!local.local && new ExtensionKey(local.identifier, local.version).toString() === extensionId));
 	}
+
+	//#endregion
 
 }
