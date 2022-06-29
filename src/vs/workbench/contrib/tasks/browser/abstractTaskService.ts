@@ -3272,27 +3272,58 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					this._runConfigureTasks();
 					return;
 				}
+				const entries: QuickPickInput<TaskQuickPickEntryType>[] = [];
 				let selectedTask: Task | undefined;
-				let selectedEntry: ITaskQuickPickEntry;
-				for (const task of tasks) {
-					const taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
-					if (taskGroup && taskGroup.isDefault && taskGroup._id === TaskGroup.Build._id) {
-						selectedTask = task;
-						break;
-					}
-				}
-				if (selectedTask) {
-					selectedEntry = {
-						label: nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', selectedTask.getQualifiedLabel()),
-						task: selectedTask,
-						detail: this._showDetail() ? selectedTask.configurationProperties.detail : undefined
-					};
-				}
+				let selectedEntry: TaskQuickPickEntryType | undefined;
 				this._showIgnoredFoldersMessage().then(() => {
-					this._showQuickPick(tasks,
-						nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'), undefined, true, false, selectedEntry).
+					for (const task of tasks) {
+						const taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
+						if (taskGroup && taskGroup.isDefault && taskGroup._id === TaskGroup.Build._id) {
+							const label = nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', TaskQuickPick.getTaskLabelWithIcon(task, task.getQualifiedLabel()));
+							selectedTask = task;
+							selectedEntry = { label, task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined };
+							TaskQuickPick.applyColorStyles(task, selectedEntry, this._themeService);
+						} else {
+							const entry = { label: TaskQuickPick.getTaskLabelWithIcon(task), task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined };
+							TaskQuickPick.applyColorStyles(task, entry, this._themeService);
+							entries.push(entry);
+						}
+					}
+					if (selectedEntry) {
+						entries.unshift(selectedEntry);
+					}
+					const tokenSource = new CancellationTokenSource();
+					const cancellationToken: CancellationToken = tokenSource.token;
+					this._quickInputService.pick(entries,
+						{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure') }, cancellationToken).
+						then(async (entry) => {
+							if (cancellationToken.isCancellationRequested) {
+								// canceled when there's only one task
+								const task = (await entries)[0];
+								if ((<any>task).task) {
+									entry = <TaskQuickPickEntryType>task;
+								}
+							}
+							const task: Task | undefined | null = entry && 'task' in entry ? entry.task : undefined;
+							if ((task === undefined) || (task === null)) {
+								return;
+							}
+							if (task === selectedTask && CustomTask.is(task)) {
+								this.openConfig(task);
+							}
+							if (!InMemoryTask.is(task)) {
+								this.customize(task, { group: { kind: 'build', isDefault: true } }, true).then(() => {
+									if (selectedTask && (task !== selectedTask) && !InMemoryTask.is(selectedTask)) {
+										this.customize(selectedTask, { group: 'build' }, false);
+									}
+								});
+							}
+						});
+					this._quickInputService.pick(entries, {
+						placeHolder: nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task')
+					}).
 						then((entry) => {
-							const task: Task | undefined | null = entry ? entry.task : undefined;
+							const task: Task | undefined | null = entry && 'task' in entry ? entry.task : undefined;
 							if ((task === undefined) || (task === null)) {
 								return;
 							}
