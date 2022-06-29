@@ -152,29 +152,32 @@ export class InputCodeEditorView extends CodeEditorView {
 								return [
 									baseRange.input1Diffs.length > 0
 										? action(
-											'mergeEditor.takeInput1',
-											localize('mergeEditor.takeInput1', 'Take Input 1'),
+											'mergeEditor.acceptInput1',
+											localize('mergeEditor.accept', 'Accept ') + model.input1Title,
 											state.toggle(1),
 											state.input1
 										)
 										: undefined,
 									baseRange.input2Diffs.length > 0
 										? action(
-											'mergeEditor.takeInput2',
-											localize('mergeEditor.takeInput2', 'Take Input 2'),
+											'mergeEditor.acceptInput2',
+											localize('mergeEditor.accept', 'Accept ') + model.input2Title,
 											state.toggle(2),
 											state.input2
 										)
 										: undefined,
 									baseRange.isConflicting
-										? action(
-											'mergeEditor.takeBothSides',
-											localize(
-												'mergeEditor.takeBothSides',
-												'Take Both Sides'
+										? setFields(
+											action(
+												'mergeEditor.acceptBoth',
+												localize(
+													'mergeEditor.acceptBoth',
+													'Accept Both'
+												),
+												state.withInput1(!both).withInput2(!both),
+												both
 											),
-											state.withInput1(!both).withInput2(!both),
-											both
+											{ enabled: true } // TODO
 										)
 										: undefined,
 									baseRange.isConflicting
