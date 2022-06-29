@@ -1109,6 +1109,7 @@ export class CommandCenter {
 
 		// TODO@jrieken there isn't a `TabInputTextMerge` instance yet, till now the merge editor
 		// uses the `TabInputText` for the out-resource and we use that to identify and CLOSE the tab
+		// see https://github.com/microsoft/vscode/issues/153213
 		const { activeTab } = window.tabGroups.activeTabGroup;
 		let didCloseTab = false;
 		if (activeTab && activeTab?.input instanceof TabInputText && activeTab.input.uri.toString() === uri.toString()) {
@@ -1119,6 +1120,7 @@ export class CommandCenter {
 		// handled or unhandled conflicts are OK by the user.
 		if (didCloseTab) {
 			await repository.add([uri]);
+			await commands.executeCommand('workbench.view.scm');
 		}
 	}
 
