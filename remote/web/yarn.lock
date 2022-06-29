@@ -131,22 +131,22 @@ vscode-textmate@7.0.1:
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-7.0.1.tgz#8118a32b02735dccd14f893b495fa5389ad7de79"
   integrity sha512-zQ5U/nuXAAMsh691FtV0wPz89nSkHbs+IQV8FDk+wew9BlSDhf4UmWGlWJfTR2Ti6xZv87Tj5fENzKf6Qk7aLw==
 
-xterm-addon-search@0.9.0-beta.41:
-  version "0.9.0-beta.41"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.41.tgz#0992da36fe01ff6d71449265a9dabeef7f9d0a3f"
-  integrity sha512-b1vuWR5JZ8QIiObbKkwSzpzf4x0B9hdzGCHJG+PXWT/xbxk65DOe/X9rgrRyOnCWe5ylQGG4DIHTiREigTp0lg==
+xterm-addon-search@0.9.0:
+  version "0.9.0"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0.tgz#95278ebb818cfcf882209ae75be96e0bea5d52a5"
+  integrity sha512-aoolI8YuHvdGw+Qjg8g2M4kst0v86GtB7WeBm4F0jNXA005/6QbWWy9eCsvnIDLJOFI5JSSrZnD6CaOkvBQYPA==
 
 xterm-addon-unicode11@0.4.0-beta.3:
   version "0.4.0-beta.3"
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.4.0-beta.3.tgz#f350184155fafd5ad0d6fbf31d13e6ca7dea1efa"
   integrity sha512-FryZAVwbUjKTmwXnm1trch/2XO60F5JsDvOkZhzobV1hm10sFLVuZpFyHXiUx7TFeeFsvNP+S77LAtWoeT5z+Q==
 
-xterm-addon-webgl@0.12.0-beta.43:
-  version "0.12.0-beta.43"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.43.tgz#916ed4e390371403aab0d277097cd8a61be436e8"
-  integrity sha512-hGXfwT6TOmp0tBDiS/iF8s0SLHLd3shJ5zQyS4HNtq99B5cEhHhwaUAZAfjLt5rnUt0kvqR9YWtGsDux5dWVLA==
+xterm-addon-webgl@0.12.0:
+  version "0.12.0"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0.tgz#2fba8d31890a122adafa1c2fb945482e2ae12973"
+  integrity sha512-3P5ihdjPnxH6Wrvqjki9UD+duoVrp1fvnO/pSpXP2F1L2GwY6TDNExgj8Yg141vMCNgQbcVqmsTLYEYZxjY92A==
 
-xterm@4.19.0-beta.67:
-  version "4.19.0-beta.67"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.19.0-beta.67.tgz#9a7d79be64469c91bb693b9f5a50b5a22e921cd3"
-  integrity sha512-4bYTnT6g91N5QId1qPaiSvkpsxMQYpuPdPJItvBZFOcQLTuFSX85x5NeFuDvhNqi33eMFPimyGhzH/JvAV1v/Q==
+xterm@4.19.0:
+  version "4.19.0"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.19.0.tgz#c0f9d09cd61de1d658f43ca75f992197add9ef6d"
+  integrity sha512-c3Cp4eOVsYY5Q839dR5IejghRPpxciGmLWWaP9g+ppfMeBChMeLa1DCA+pmX/jyDZ+zxFOmlJL/82qVdayVoGQ==
