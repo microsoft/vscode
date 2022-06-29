@@ -327,7 +327,8 @@
       {
         "command": "git.undoCommit",
         "title": "%command.undoCommit%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.checkout",
