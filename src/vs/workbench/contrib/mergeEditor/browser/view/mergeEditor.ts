@@ -40,7 +40,7 @@ import { autorunWithStore, IObservable } from 'vs/workbench/contrib/audioCues/br
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { DocumentMapping, getOppositeDirection, MappingDirection } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { ReentrancyBarrier, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { deepMerge, ReentrancyBarrier, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -92,9 +92,9 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private _grid!: Grid<IView>;
 
 
-	private readonly input1View = this._register(this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable }));
-	private readonly input2View = this._register(this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable }));
-	private readonly inputResultView = this._register(this.instantiation.createInstance(ResultCodeEditorView, { readonly: false }));
+	private readonly input1View = this._register(this.instantiation.createInstance(InputCodeEditorView, 1));
+	private readonly input2View = this._register(this.instantiation.createInstance(InputCodeEditorView, 2));
+	private readonly inputResultView = this._register(this.instantiation.createInstance(ResultCodeEditorView));
 
 	private readonly _layoutMode: MergeEditorLayout;
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
@@ -250,9 +250,16 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	private applyOptions(options: ICodeEditorOptions): void {
-		this.input1View.editor.updateOptions({ ...options, readOnly: !this.inputsWritable });
-		this.input2View.editor.updateOptions({ ...options, readOnly: !this.inputsWritable });
-		this.inputResultView.editor.updateOptions(options);
+		const inputOptions: ICodeEditorOptions = deepMerge<ICodeEditorOptions>(options, {
+			minimap: { enabled: false },
+			glyphMargin: false,
+			lineNumbersMinChars: 2,
+			readOnly: !this.inputsWritable
+		});
+
+		this.input1View.updateOptions(inputOptions);
+		this.input2View.updateOptions(inputOptions);
+		this.inputResultView.updateOptions(options);
 	}
 
 	protected getMainControl(): ICodeEditor | undefined {

@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { noBreakWhitespace } from 'vs/base/common/strings';
+import { isDefined } from 'vs/base/common/types';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
+import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,9 +21,7 @@ import { InputState, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEd
 import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
-import { CodeEditorView, ICodeEditorViewOptions } from './codeEditorView';
-import * as dom from 'vs/base/browser/dom';
-import { isDefined } from 'vs/base/common/types';
+import { CodeEditorView } from './codeEditorView';
 
 export class InputCodeEditorView extends CodeEditorView {
 	private readonly decorations = derivedObservable('decorations', reader => {
@@ -97,11 +99,10 @@ export class InputCodeEditorView extends CodeEditorView {
 
 	constructor(
 		public readonly inputNumber: 1 | 2,
-		options: ICodeEditorViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
-		super(options, instantiationService);
+		super(instantiationService);
 
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 
@@ -209,6 +210,10 @@ export class InputCodeEditorView extends CodeEditorView {
 				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService),
 			})
 		);
+	}
+
+	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
 	}
 }
 
