@@ -1711,6 +1711,51 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { all: true, amend: true });
 	}
 
+	@command('git.commitMessageAccept')
+	async commitMessageAccept(arg?: Uri): Promise<void> {
+		if (!arg) { return; }
+
+		// Close the tab
+		this._closeEditorTab(arg);
+	}
+
+	@command('git.commitMessageDiscard')
+	async commitMessageDiscard(arg?: Uri): Promise<void> {
+		if (!arg) { return; }
+
+		// Clear the contents of the editor
+		const editors = window.visibleTextEditors
+			.filter(e => e.document.languageId === 'git-commit' && e.document.uri.toString() === arg.toString());
+
+		if (editors.length !== 1) { return; }
+
+		const commitMsgEditor = editors[0];
+		const commitMsgDocument = commitMsgEditor.document;
+
+		const editResult = await commitMsgEditor.edit(builder => {
+			const firstLine = commitMsgDocument.lineAt(0);
+			const lastLine = commitMsgDocument.lineAt(commitMsgDocument.lineCount - 1);
+
+			builder.delete(new Range(firstLine.range.start, lastLine.range.end));
+		});
+
+		if (!editResult) { return; }
+
+		// Save the document
+		const saveResult = await commitMsgDocument.save();
+		if (!saveResult) { return; }
+
+		// Close the tab
+		this._closeEditorTab(arg);
+	}
+
+	private _closeEditorTab(uri: Uri): void {
+		const tabToClose = window.tabGroups.all.map(g => g.tabs).flat()
+			.filter(t => t.input instanceof TabInputText && t.input.uri.toString() === uri.toString());
+
+		window.tabGroups.close(tabToClose);
+	}
+
 	private async _commitEmpty(repository: Repository, noVerify?: boolean): Promise<void> {
 		const root = Uri.file(repository.root);
 		const config = workspace.getConfiguration('git', root);

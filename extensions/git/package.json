@@ -308,6 +308,18 @@
         "enablement": "!commitInProgress"
       },
       {
+        "command": "git.commitMessageAccept",
+        "title": "%command.commitMessageAccept%",
+        "icon": "$(check)",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitMessageDiscard",
+        "title": "%command.commitMessageDiscard%",
+        "icon": "$(discard)",
+        "category": "Git"
+      },
+      {
         "command": "git.restoreCommitTemplate",
         "title": "%command.restoreCommitTemplate%",
         "category": "Git"
@@ -794,6 +806,14 @@
         },
         {
           "command": "git.restoreCommitTemplate",
+          "when": "false"
+        },
+        {
+          "command": "git.commitMessageAccept",
+          "when": "false"
+        },
+        {
+          "command": "git.commitMessageDiscard",
           "when": "false"
         },
         {
@@ -1480,6 +1500,16 @@
           "command": "git.openChange",
           "group": "navigation",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges"
+        },
+        {
+          "command": "git.commitMessageAccept",
+          "group": "navigation",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit && commitInProgress"
+        },
+        {
+          "command": "git.commitMessageDiscard",
+          "group": "navigation",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit && commitInProgress"
         },
         {
           "command": "git.stageSelectedRanges",
