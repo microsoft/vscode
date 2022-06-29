@@ -31,7 +31,7 @@ export class NativeProfileAwareExtensionManagementService extends ExtensionManag
 	private readonly _onDidChangeProfileExtensions = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
 	readonly onDidChangeProfileExtensions = this._onDidChangeProfileExtensions.event;
 
-	constructor(channel: IChannel, private extensionsProfileResource: URI | undefined,
+	constructor(channel: IChannel, public extensionsProfileResource: URI | undefined,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(channel);
