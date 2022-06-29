@@ -508,7 +508,7 @@
         "gitpod.experimental.portsView.enabled": {
           "type": "boolean",
           "description": "Enable Gitpod portsView experiment features",
-          "default": false
+          "default": true
         }
       }
     },
