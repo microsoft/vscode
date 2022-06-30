@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { noBreakWhitespace } from 'vs/base/common/strings';
@@ -185,6 +185,7 @@ export class InputCodeEditorView extends CodeEditorView {
 											{ enabled: baseRange.canBeCombined }
 										)
 										: undefined,
+									new Separator(),
 									baseRange.isConflicting
 										? setFields(
 											action(
