@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
-import { ctxMergeEditorLayout, ctxIsMergeEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeEditorLayout } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OpenMergeEditor extends Action2 {
@@ -210,7 +210,7 @@ export class ToggleActiveConflictInput1 extends Action2 {
 		super({
 			id: 'merge.toggleActiveConflictInput1',
 			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.toggleActiveConflictInput1', "Toggle Active Conflict In Input 1"),
+			title: localize('merge.toggleCurrentConflictFromLeft', "Toggle Current Conflict from Left"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
@@ -233,7 +233,7 @@ export class ToggleActiveConflictInput2 extends Action2 {
 		super({
 			id: 'merge.toggleActiveConflictInput2',
 			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.toggleActiveConflictInput2', "Toggle Active Conflict In Input 2"),
+			title: localize('merge.toggleCurrentConflictFromRight', "Toggle Current Conflict from Right"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
