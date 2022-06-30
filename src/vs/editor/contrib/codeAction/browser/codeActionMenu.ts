@@ -61,7 +61,7 @@ export interface CodeActionShowOptions {
 export interface ICodeActionMenuItem {
 	title: string;
 	detail?: string;
-	action?: CodeActionAction;
+	action: IAction;
 	decoratorRight?: string;
 	isDisabled?: boolean;
 }
@@ -135,7 +135,7 @@ export class CodeActionWidget<T> extends List<T> {
 }
 
 interface ISelectedCodeAction {
-	action: CodeAction;
+	action: CodeActionAction;
 	index: number;
 	model: CodeActionModel;
 }
@@ -153,6 +153,7 @@ export class CodeActionMenu extends Disposable {
 	private listTrigger!: CodeActionTrigger;
 	private selected!: CodeActionItem;
 	private menuAction: IAction[] = [];
+	private loc: any;
 	// private showActions: CodeActionItem[];
 
 	readonly onDidSelect: Event<ISelectedCodeAction> = this._onDidSelect.event;
@@ -199,7 +200,6 @@ export class CodeActionMenu extends Disposable {
 		// 	this.setOptions(this.options, this.selected);
 		// }
 
-
 		this.parent = document.createElement('div');
 		this.parent.style.backgroundColor = 'none';
 		this.parent.style.border = '3px solid red';
@@ -208,6 +208,7 @@ export class CodeActionMenu extends Disposable {
 		this.parent.id = 'testRedSquare';
 		this.parent.style.position = 'absolute';
 		this.parent.style.top = '0';
+
 
 		this.listRenderer = new CodeMenuRenderer();
 
@@ -219,8 +220,6 @@ export class CodeActionMenu extends Disposable {
 				return 'test';
 			}
 		}, [this.listRenderer],
-
-
 
 			//new class, + new instance, id of rendere match id of getTemplateID
 			//renderTemplate, renderElement
@@ -238,25 +237,18 @@ export class CodeActionMenu extends Disposable {
 		return this._visible;
 	}
 
-	private _onListSelection(e: IListEvent<CodeAction>): void {
+	private _onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
 		if (e.elements.length) {
 			e.elements.forEach(element => {
-				const itemAction = element.action.action;
+				const itemAction = element;
 				console.log(itemAction);
+				element.action.run();
+				// const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(itemAction, () => this._delegate.onSelectCodeAction(item, this.listTrigger));
+				// console.log(toCodeActionAction);
 			});
 
-			const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(item.action, () => this._delegate.onSelectCodeAction(item, this.listTrigger));
-			// this._select(e.elements[0], e.indexes[0]);
 		}
 	}
-
-	// private _select(action: CodeAction, index: number): void {
-	// 	const completionModel = this._completionModel;
-	// 	if (completionModel) {
-	// 		this._onDidSelect.fire({ action, index, model: completionModel });
-	// 		// this.editor.focus();
-	// 	}
-	// }
 
 
 	private setCodeActionMenuList() {
@@ -272,32 +264,14 @@ export class CodeActionMenu extends Disposable {
 		return option;
 	}
 
-	private createCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): void {
+	private createCodeActionMenuList(element: HTMLElement, inputArray: IAction[], anchor: any): void {
 		// if (this.codeActionList) {
 		// 	return;
 		// }
 
 		inputArray.forEach((item, index) => {
-			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: item });
+			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index] });
 		});
-
-		// const codeOption = <ICodeActionMenuItem>{ title: 'Extract to function in global scope', detail: 'test detail' };
-		// const codeOption2 = <ICodeActionMenuItem>{ title: 'test2', detail: 'test2 detail' };
-		// const codeOption3 = <ICodeActionMenuItem>{ title: 'test3', detail: 'test3 detail' };
-		// const codeOption4 = <ICodeActionMenuItem>{ title: 'test4', detail: 'test4 detail' };
-		// const codeOption5 = <ICodeActionMenuItem>{ title: 'test5', detail: 'test5 detail' };
-		// const codeOption6 = <ICodeActionMenuItem>{ title: 'test6', detail: 'test6 detail' };
-		// this.options = [codeOption, codeOption2, codeOption3, codeOption4, codeOption5, codeOption6];
-
-		// const paragraph = document.createTextNode('new paragraph and some more text');
-		// divElement.appendChild(paragraph);
-		// this.selectElement = document.createElement('select');
-		// this.selectElement.add(this.createOption('testestestest', 0, false));
-		// this.selectElement.add(this.createOption('test2', 0, false));
-		// divElement.appendChild(this.selectElement);
-
-		// const listContainer = document.createElement('div');
-		// divElement.appendChild(listContainer);
 
 		this._editor.getDomNode()?.append(this.parent);
 	}
@@ -334,11 +308,14 @@ export class CodeActionMenu extends Disposable {
 
 
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
+		this.loc = anchor;
+
+
 		const resolver = this._keybindingResolver.getResolver();
 
 		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
 
-		this.createCodeActionMenuList(this.parent, this.menuAction);
+		this.createCodeActionMenuList(this.parent, this.menuAction, anchor);
 		this.setCodeActionMenuList();
 
 		this._contextMenuService.showContextMenu({
