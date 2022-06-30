@@ -44,15 +44,15 @@ registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
 const resumeLatestCommand = {
 	id: 'workbench.experimental.editSessions.actions.resumeLatest',
-	title: localize('resume latest', "{0}: Resume Latest Edit Session", EDIT_SESSION_SYNC_TITLE),
+	title: { value: localize('resume latest', "{0}: Resume Latest Edit Session", EDIT_SESSION_SYNC_TITLE), original: 'Edit Sessions' },
 };
 const storeCurrentCommand = {
 	id: 'workbench.experimental.editSessions.actions.storeCurrent',
-	title: localize('store current', "{0}: Store Current Edit Session", EDIT_SESSION_SYNC_TITLE),
+	title: { value: localize('store current', "{0}: Store Current Edit Session", EDIT_SESSION_SYNC_TITLE), original: 'Edit Sessions' },
 };
 const continueEditSessionCommand = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession',
-	title: localize('continue edit session', "Continue Edit Session..."),
+	title: { value: localize('continue edit session', "Continue Edit Session..."), original: 'Continue Edit Session...' },
 };
 const openLocalFolderCommand = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession.openLocalFolder',
