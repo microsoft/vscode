@@ -512,7 +512,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			for (const dependency of task.configurationProperties.dependsOn) {
 				const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 				if (dependencyTask) {
-					dependencyTask.configurationProperties.icon = dependencyTask.configurationProperties.icon || task.configurationProperties.icon;
+					if (dependencyTask.configurationProperties.icon) {
+						dependencyTask.configurationProperties.icon.id ||= task.configurationProperties.icon?.id;
+						dependencyTask.configurationProperties.icon.color ||= task.configurationProperties.icon?.color;
+					} else {
+						dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
+					}
 					const key = dependencyTask.getMapKey();
 					let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
 					if (!promise) {
@@ -1037,7 +1042,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				remoteAuthority: this._environmentService.remoteAuthority
 			});
 			let icon: URI | ThemeIcon | { light: URI; dark: URI } | undefined;
-			if (task.configurationProperties.icon) {
+			if (task.configurationProperties.icon?.id) {
 				icon = ThemeIcon.fromId(task.configurationProperties.icon.id);
 			} else {
 				const taskGroupKind = task.configurationProperties.group ? GroupKind.to(task.configurationProperties.group) : undefined;
