@@ -142,7 +142,7 @@
 	"config.ignoreLimitWarning": "Ignores the warning when there are too many changes in a repository.",
 	"config.ignoreRebaseWarning": "Ignores the warning when it looks like the branch might have been rebased when pulling.",
 	"config.defaultCloneDirectory": "The default location to clone a git repository.",
-	"config.useEditorAsCommitInput": "Use an editor to author the commit message.",
+	"config.useEditorAsCommitInput": "Controls whether a full text editor will be used to author commit messages, whenever no message is provided in the commit input box.",
 	"config.verboseCommit": "Enable verbose output when `#git.useEditorAsCommitInput#` is enabled.",
 	"config.enableSmartCommit": "Commit all changes when there are no staged changes.",
 	"config.smartCommitChanges": "Control which changes are automatically staged by Smart Commit.",
