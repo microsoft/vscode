@@ -294,7 +294,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		if (sessionId === undefined) {
 			this.storageService.remove(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.APPLICATION);
 		} else {
-			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.APPLICATION, StorageTarget.USER);
+			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 	}
 
@@ -306,10 +306,15 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	private async onDidChangeStorage(e: IStorageValueChangeEvent): Promise<void> {
 		if (e.key === SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY
 			&& e.scope === StorageScope.APPLICATION
-			&& this.#authenticationInfo?.sessionId !== this.existingSessionId
 		) {
-			this.#authenticationInfo = undefined;
-			this.initialized = false;
+			const newSessionId = this.existingSessionId;
+			const previousSessionId = this.#authenticationInfo?.sessionId;
+
+			if (previousSessionId !== newSessionId) {
+				this.logService.trace(`Edit Sessions: resetting authentication state because authentication session ID preference changed from ${previousSessionId} to ${newSessionId}.`);
+				this.#authenticationInfo = undefined;
+				this.initialized = false;
+			}
 		}
 	}
 
