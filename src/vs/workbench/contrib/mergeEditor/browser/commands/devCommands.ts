@@ -18,6 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { ctxIsMergeEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 
 interface MergeEditorContents {
 	languageId: string;
@@ -32,9 +33,11 @@ export class MergeEditorCopyContentsToJSON extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.dev.copyContents',
-			title: localize('merge.dev.copyContents', "Developer Merge Editor: Copy Contents of Inputs, Base and Result as JSON"),
+			category: 'Merge Editor (Dev)',
+			title: localize('merge.dev.copyContents', "Copy Contents of Inputs, Base and Result as JSON"),
 			icon: Codicon.layoutCentered,
 			f1: true,
+			precondition: ctxIsMergeEditor,
 		});
 	}
 
@@ -76,7 +79,8 @@ export class MergeEditorOpenContents extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.dev.openContents',
-			title: localize('merge.dev.openContents', "Developer Merge Editor: Open Contents of Inputs, Base and Result from JSON"),
+			category: 'Merge Editor (Dev)',
+			title: localize('merge.dev.openContents', "Open Contents of Inputs, Base and Result from JSON"),
 			icon: Codicon.layoutCentered,
 			f1: true,
 		});

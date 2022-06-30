@@ -37,6 +37,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private scopeOverridesElement: HTMLElement;
 	private scopeOverridesLabel: SimpleIconLabel;
 	private syncIgnoredElement: HTMLElement;
+	private syncIgnoredHover: ICustomHover | undefined;
 	private defaultOverrideIndicatorElement: HTMLElement;
 	private hoverDelegate: IHoverDelegate;
 	private hover: ICustomHover | undefined;
@@ -60,6 +61,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			showHover: (options: IHoverDelegateOptions, focus?: boolean) => {
 				return hoverService.showHover(options, focus);
 			},
+			onDidHideHover: () => { },
 			delay: configurationService.getValue<number>('workbench.hover.delay'),
 			placement: 'element'
 		};
@@ -74,16 +76,16 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private createSyncIgnoredElement(): HTMLElement {
 		const syncIgnoredElement = $('span.setting-item-ignored');
 		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
-		syncIgnoredLabel.text = '$(info) ' + localize('extensionSyncIgnoredLabel', 'Not synced');
+		syncIgnoredLabel.text = localize('extensionSyncIgnoredLabel', 'Not synced');
 		const syncIgnoredHoverContent = localize('syncIgnoredTitle', "This setting is ignored during sync");
-		setupCustomHover(this.hoverDelegate, syncIgnoredElement, syncIgnoredHoverContent);
+		this.syncIgnoredHover = setupCustomHover(this.hoverDelegate, syncIgnoredElement, syncIgnoredHoverContent);
 		return syncIgnoredElement;
 	}
 
 	private createDefaultOverrideIndicator(): HTMLElement {
 		const defaultOverrideIndicator = $('span.setting-item-default-overridden');
 		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
-		defaultOverrideLabel.text = '$(info) ' + localize('defaultOverriddenLabel', "Default value changed");
+		defaultOverrideLabel.text = localize('defaultOverriddenLabel', "Default value changed");
 		return defaultOverrideIndicator;
 	}
 
@@ -125,6 +127,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	dispose() {
 		this.hover?.dispose();
+		this.syncIgnoredHover?.dispose();
 	}
 
 	updateScopeOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
@@ -167,8 +170,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// show the text in a custom hover only if
 				// the feature flag isn't on.
 				this.scopeOverridesElement.style.display = 'inline';
-				let scopeOverridesLabelText = '$(info) ';
-				scopeOverridesLabelText += element.isConfigured ?
+				const scopeOverridesLabelText = element.isConfigured ?
 					localize('alsoConfiguredElsewhere', "Also modified elsewhere") :
 					localize('configuredElsewhere', "Modified elsewhere");
 				this.scopeOverridesLabel.text = scopeOverridesLabelText;
@@ -290,21 +292,21 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	// Add sync ignored text
 	const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), configurationService);
 	if (ignoredSettings.includes(element.setting.key)) {
-		ariaLabelSections.push(localize('syncIgnoredTitle', "This setting is ignored during sync"));
+		ariaLabelSections.push(localize('syncIgnoredAriaLabel', "Setting ignored during sync"));
 	}
 
 	// Add default override indicator text
 	const sourceToDisplay = getDefaultValueSourceToDisplay(element);
 	if (sourceToDisplay !== undefined) {
-		ariaLabelSections.push(localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay));
+		ariaLabelSections.push(localize('defaultOverriddenDetailsAriaLabel', "{0} overrides the default value", sourceToDisplay));
 	}
 
 	// Add text about default values being overridden in other languages
-	const otherLanguageOverridesStart = localize('defaultOverriddenListPreface', "The default value of the setting has also been overridden for the following languages:");
 	const otherLanguageOverridesList = element.overriddenDefaultsLanguageList
 		.map(language => languageService.getLanguageName(language)).join(', ');
 	if (element.overriddenDefaultsLanguageList.length) {
-		ariaLabelSections.push(`${otherLanguageOverridesStart} ${otherLanguageOverridesList}`);
+		const otherLanguageOverridesText = localize('defaultOverriddenLanguagesList', "Language-specific default values exist for {0}", otherLanguageOverridesList);
+		ariaLabelSections.push(otherLanguageOverridesText);
 	}
 
 	const ariaLabel = ariaLabelSections.join('. ');

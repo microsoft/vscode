@@ -23,7 +23,7 @@ import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -40,8 +40,9 @@ import { autorunWithStore, IObservable } from 'vs/workbench/contrib/audioCues/br
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { DocumentMapping, getOppositeDirection, MappingDirection } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { ReentrancyBarrier, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { deepMerge, ReentrancyBarrier, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
+import { ctxBaseResourceScheme, ctxIsMergeEditor, ctxMergeEditorLayout, MergeEditorLayoutTypes } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -49,12 +50,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import './colors';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
 import { ResultCodeEditorView } from './editors/resultCodeEditorView';
-
-export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false);
-export const ctxMergeEditorLayout = new RawContextKey<MergeEditorLayoutTypes>('mergeEditorLayout', 'mixed');
-export const ctxBaseResourceScheme = new RawContextKey<string>('baseResourceScheme', '');
-
-export type MergeEditorLayoutTypes = 'mixed' | 'columns';
 
 class MergeEditorLayout {
 
@@ -92,9 +87,9 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private _grid!: Grid<IView>;
 
 
-	private readonly input1View = this._register(this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: !this.inputsWritable }));
-	private readonly input2View = this._register(this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: !this.inputsWritable }));
-	private readonly inputResultView = this._register(this.instantiation.createInstance(ResultCodeEditorView, { readonly: false }));
+	private readonly input1View = this._register(this.instantiation.createInstance(InputCodeEditorView, 1));
+	private readonly input2View = this._register(this.instantiation.createInstance(InputCodeEditorView, 2));
+	private readonly inputResultView = this._register(this.instantiation.createInstance(ResultCodeEditorView));
 
 	private readonly _layoutMode: MergeEditorLayout;
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
@@ -142,6 +137,10 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 						synchronizeScrolling(this.input1View.editor, this.inputResultView.editor, mapping, MappingDirection.input);
 						this.input2View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
 					}
+					if (c.scrollLeftChanged) {
+						this.input2View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
+						this.inputResultView.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
+					}
 				})
 			)
 		);
@@ -152,6 +151,10 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 						const mapping = this.model?.input2ResultMapping.get();
 						synchronizeScrolling(this.input2View.editor, this.inputResultView.editor, mapping, MappingDirection.input);
 						this.input1View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+					}
+					if (c.scrollLeftChanged) {
+						this.input1View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
+						this.inputResultView.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
 					}
 				})
 			)
@@ -164,6 +167,10 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 						synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping1, MappingDirection.output);
 						const mapping2 = this.model?.input2ResultMapping.get();
 						synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2, MappingDirection.output);
+					}
+					if (c.scrollLeftChanged) {
+						this.input1View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
+						this.input2View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
 					}
 				})
 			)
@@ -250,9 +257,16 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	private applyOptions(options: ICodeEditorOptions): void {
-		this.input1View.editor.updateOptions({ ...options, readOnly: !this.inputsWritable });
-		this.input2View.editor.updateOptions({ ...options, readOnly: !this.inputsWritable });
-		this.inputResultView.editor.updateOptions(options);
+		const inputOptions: ICodeEditorOptions = deepMerge<ICodeEditorOptions>(options, {
+			minimap: { enabled: false },
+			glyphMargin: false,
+			lineNumbersMinChars: 2,
+			readOnly: !this.inputsWritable
+		});
+
+		this.input1View.updateOptions(inputOptions);
+		this.input2View.updateOptions(inputOptions);
+		this.inputResultView.updateOptions(options);
 	}
 
 	protected getMainControl(): ICodeEditor | undefined {

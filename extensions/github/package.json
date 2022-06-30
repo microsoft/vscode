@@ -59,7 +59,7 @@
       "editor/context/share": [
         {
             "command": "github.copyVscodeDevLink",
-            "when": "github.hasGitHubRepo"
+            "when": "github.hasGitHubRepo && resourceScheme != untitled"
         }
       ]
     },

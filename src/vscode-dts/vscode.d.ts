@@ -10166,6 +10166,8 @@ declare module 'vscode' {
 		 * This includes drops from within the same tree.
 		 * The mime type of a tree is recommended to be of the format `application/vnd.code.tree.<treeidlowercase>`.
 		 *
+		 * Use the special `files` mime type to support all types of dropped files {@link DataTransferFile files}, regardless of the file's actual mime type.
+		 *
 		 * To learn the mime type of a dragged item:
 		 * 1. Set up your `DragAndDropController`
 		 * 2. Use the Developer: Set Log Level... command to set the level to "Debug"
