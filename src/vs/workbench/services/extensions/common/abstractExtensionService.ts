@@ -546,23 +546,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[] | IExtension[]): Promise<void> {
-		const toAdd: IExtensionDescription[] = [];
-		for (let i = 0, len = _toAdd.length; i < len; i++) {
-			const extension = _toAdd[i];
-
-			const extensionDescription = await this._scanSingleExtension(extension);
-			if (!extensionDescription) {
-				// could not scan extension...
-				continue;
-			}
-
-			if (!this.canAddExtension(extensionDescription)) {
-				continue;
-			}
-
-			toAdd.push(extensionDescription);
-		}
-
 		let toRemove: IExtensionDescription[] = [];
 		for (let i = 0, len = _toRemove.length; i < len; i++) {
 			const extensionOrId = _toRemove[i];
@@ -585,6 +568,23 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 
 			toRemove.push(extensionDescription);
+		}
+
+		const toAdd: IExtensionDescription[] = [];
+		for (let i = 0, len = _toAdd.length; i < len; i++) {
+			const extension = _toAdd[i];
+
+			const extensionDescription = await this._scanSingleExtension(extension);
+			if (!extensionDescription) {
+				// could not scan extension...
+				continue;
+			}
+
+			if (!this._canAddExtension(extensionDescription, toRemove)) {
+				continue;
+			}
+
+			toAdd.push(extensionDescription);
 		}
 
 		if (toAdd.length === 0 && toRemove.length === 0) {
@@ -643,15 +643,19 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	public canAddExtension(extension: IExtensionDescription): boolean {
-		const existing = this._registry.getExtensionDescription(extension.identifier);
-		if (existing) {
-			// this extension is already running (most likely at a different version)
-			return false;
-		}
+		return this._canAddExtension(extension, []);
+	}
 
-		// Check if extension is renamed
-		if (extension.uuid && this._registry.getAllExtensionDescriptions().some(e => e.uuid === extension.uuid)) {
-			return false;
+	private _canAddExtension(extension: IExtensionDescription, extensionsBeingRemoved: IExtensionDescription[]): boolean {
+		// (Also check for renamed extensions)
+		const existing = this._registry.getExtensionDescriptionByIdOrUUID(extension.identifier, extension.id);
+		if (existing) {
+			// This extension is already known (most likely at a different version)
+			// so it cannot be added again unless it is removed first
+			const isBeingRemoved = extensionsBeingRemoved.some((extensionDescription) => ExtensionIdentifier.equals(extension.identifier, extensionDescription.identifier));
+			if (!isBeingRemoved) {
+				return false;
+			}
 		}
 
 		const extensionKind = this._getExtensionKind(extension);
@@ -667,7 +671,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public canRemoveExtension(extension: IExtensionDescription): boolean {
 		const extensionDescription = this._registry.getExtensionDescription(extension.identifier);
 		if (!extensionDescription) {
-			// ignore removing an extension which is not running
+			// Can't remove an extension that is unknown!
 			return false;
 		}
 
