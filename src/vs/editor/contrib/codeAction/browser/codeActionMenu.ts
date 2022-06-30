@@ -14,7 +14,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, dispose, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -130,9 +130,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 }
 
 
-export class CodeActionWidget<T> extends List<T> {
-
-}
 
 interface ISelectedCodeAction {
 	action: CodeActionAction;
@@ -141,7 +138,7 @@ interface ISelectedCodeAction {
 }
 
 
-export class CodeActionMenu extends Disposable {
+export class CodeActionMenu extends Disposable implements IContentWidget {
 
 	private codeActionList!: List<ICodeActionMenuItem>;
 	private options: ICodeActionMenuItem[] = [];
@@ -149,7 +146,7 @@ export class CodeActionMenu extends Disposable {
 	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
 	private readonly _disposables = new DisposableStore();
 	private readonly _onDidSelect = new Emitter<ISelectedCodeAction>();
-	private parent: HTMLElement;
+	private parent!: HTMLElement;
 	private listTrigger!: CodeActionTrigger;
 	private selected!: CodeActionItem;
 	private menuAction: IAction[] = [];
@@ -200,8 +197,71 @@ export class CodeActionMenu extends Disposable {
 		// 	this.setOptions(this.options, this.selected);
 		// }
 
+	}
+	allowEditorOverflow?: boolean | undefined;
+	suppressMouseDown?: boolean | undefined;
+
+	getId(): string {
+		throw new Error('Method not implemented.');
+	}
+	getDomNode(): HTMLElement {
+		throw new Error('Method not implemented.');
+	}
+	getPosition(): IContentWidgetPosition | null {
+		throw new Error('Method not implemented.');
+	}
+
+	get isVisible(): boolean {
+		return this._visible;
+	}
+
+	private _onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
+		if (e.elements.length) {
+			e.elements.forEach(element => {
+				const itemAction = element;
+				console.log(itemAction);
+				element.action.run();
+				// const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(itemAction, () => this._delegate.onSelectCodeAction(item, this.listTrigger));
+				// console.log(toCodeActionAction);
+			});
+			// this.codeActionList.dispose();
+			// this._editor.removeContentWidget(this);
+			this._editor.getDomNode()?.removeChild(this.parent);
+			this.codeActionList.dispose();
+			this.menuAction = [];
+			this.options = [];
+
+			// this.parent.dispose();
+		}
+	}
+
+
+	private setCodeActionMenuList() {
+		this.codeActionList?.splice(0, this.codeActionList.length, this.options);
+	}
+
+	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
+		const option = document.createElement('option');
+		option.value = value;
+		option.text = value;
+		option.disabled = !!disabled;
+
+		return option;
+	}
+
+	// override dispose(): void {
+	// 	this.codeActionList.dispose();
+	// 	this._disposables.dispose();
+	// }
+
+
+	private createCodeActionMenuList(element: HTMLElement, inputArray: IAction[], anchor: any): void {
+		// if (this.codeActionList) {
+		// 	return;
+		// }
+
 		this.parent = document.createElement('div');
-		this.parent.style.backgroundColor = 'none';
+		this.parent.style.backgroundColor = 'red';
 		this.parent.style.border = '3px solid red';
 		this.parent.style.width = '300px';
 		this.parent.style.height = '500px';
@@ -231,43 +291,6 @@ export class CodeActionMenu extends Disposable {
 		}
 
 
-	}
-
-	get isVisible(): boolean {
-		return this._visible;
-	}
-
-	private _onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
-		if (e.elements.length) {
-			e.elements.forEach(element => {
-				const itemAction = element;
-				console.log(itemAction);
-				element.action.run();
-				// const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(itemAction, () => this._delegate.onSelectCodeAction(item, this.listTrigger));
-				// console.log(toCodeActionAction);
-			});
-
-		}
-	}
-
-
-	private setCodeActionMenuList() {
-		this.codeActionList?.splice(0, this.codeActionList.length, this.options);
-	}
-
-	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
-		const option = document.createElement('option');
-		option.value = value;
-		option.text = value;
-		option.disabled = !!disabled;
-
-		return option;
-	}
-
-	private createCodeActionMenuList(element: HTMLElement, inputArray: IAction[], anchor: any): void {
-		// if (this.codeActionList) {
-		// 	return;
-		// }
 
 		inputArray.forEach((item, index) => {
 			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index] });
@@ -318,40 +341,40 @@ export class CodeActionMenu extends Disposable {
 		this.createCodeActionMenuList(this.parent, this.menuAction, anchor);
 		this.setCodeActionMenuList();
 
-		this._contextMenuService.showContextMenu({
-			domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
-			getAnchor: () => anchor,
-			getActions: () => menuActions,
-			onHide: (didCancel) => {
-				const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
+		// this._contextMenuService.showContextMenu({
+		// 	domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
+		// 	getAnchor: () => anchor,
+		// 	getActions: () => menuActions,
+		// 	onHide: (didCancel) => {
+		// 		const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
 
-				type ApplyCodeActionEvent = {
-					codeActionFrom: CodeActionTriggerSource;
-					validCodeActions: number;
-					cancelled: boolean;
-				};
+		// 		type ApplyCodeActionEvent = {
+		// 			codeActionFrom: CodeActionTriggerSource;
+		// 			validCodeActions: number;
+		// 			cancelled: boolean;
+		// 		};
 
-				type ApplyCodeEventClassification = {
-					codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-					validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-					cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-					owner: 'mjbvz';
-					comment: 'Event used to gain insights into how code actions are being triggered';
-				};
+		// 		type ApplyCodeEventClassification = {
+		// 			codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
+		// 			validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
+		// 			cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
+		// 			owner: 'mjbvz';
+		// 			comment: 'Event used to gain insights into how code actions are being triggered';
+		// 		};
 
-				this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-					codeActionFrom: openedFromString,
-					validCodeActions: codeActions.validActions.length,
-					cancelled: didCancel,
+		// 		this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+		// 			codeActionFrom: openedFromString,
+		// 			validCodeActions: codeActions.validActions.length,
+		// 			cancelled: didCancel,
 
-				});
+		// 		});
 
-				this._visible = false;
-				this._editor.focus();
-			},
-			autoSelectFirstItem: true,
-			getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
-		});
+		// 		this._visible = false;
+		// 		this._editor.focus();
+		// 	},
+		// 	autoSelectFirstItem: true,
+		// 	getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
+		// });
 	}
 
 	private getMenuActions(
