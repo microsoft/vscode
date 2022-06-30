@@ -12,7 +12,7 @@
 
 	const copyOpt: HoverOption = {
 		icon: "copy",
-		title: "Copy Url",
+		title: "Copy URL",
 		command: "urlCopy",
 	};
 

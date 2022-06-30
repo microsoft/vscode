@@ -13,7 +13,7 @@
 
 	export let alwaysShow = false;
 	export let options: HoverOption[] = [
-		{ icon: "copy", command: "copy", title: "Copy Url" },
+		{ icon: "copy", command: "copy", title: "Copy URL" },
 	];
 
 	const dispatch = createEventDispatcher<{ command: string }>();
