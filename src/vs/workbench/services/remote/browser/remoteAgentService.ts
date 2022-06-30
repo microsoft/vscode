@@ -18,6 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 
@@ -39,11 +40,18 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IHostService private readonly _hostService: IHostService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
+		type ConnectFailedClassification = {
+			owner: '';
+			comment: '';
+		};
+		type ConnectFailedEvent = {};
 		// Let's cover the case where connecting to fetch the remote extension info fails
 		remoteAgentService.getRawEnvironment()
 			.then(undefined, (err) => {
 				if (!RemoteAuthorityResolverError.isHandled(err)) {
+					telemetryService.publicLog2<ConnectFailedEvent, ConnectFailedClassification>('gitpod.connectFailed', {});
 					this._presentConnectionError(err);
 				}
 			});
