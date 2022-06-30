@@ -47,7 +47,7 @@
   "contributes": {
     "notebookRenderer": [
       {
-        "id": "markdownItRenderer",
+        "id": "vscode.markdown-it-renderer",
         "displayName": "Markdown it renderer",
         "entrypoint": "./notebook-out/index.js",
         "mimeTypes": [
