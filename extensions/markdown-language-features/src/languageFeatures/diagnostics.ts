@@ -514,17 +514,17 @@ export class DiagnosticComputer {
 		const diagnostics: vscode.Diagnostic[] = [];
 		for (const link of links) {
 			if (link.href.kind === 'internal'
-				&& link.source.text.startsWith('#')
+				&& link.source.hrefText.startsWith('#')
 				&& link.href.path.toString() === doc.uri.toString()
 				&& link.href.fragment
 				&& !toc.lookup(link.href.fragment)
 			) {
-				if (!this.isIgnoredLink(options, link.source.text)) {
+				if (!this.isIgnoredLink(options, link.source.hrefText)) {
 					diagnostics.push(new LinkDoesNotExistDiagnostic(
 						link.source.hrefRange,
 						localize('invalidHeaderLink', 'No header found: \'{0}\'', link.href.fragment),
 						severity,
-						link.source.text));
+						link.source.hrefText));
 				}
 			}
 		}
@@ -556,7 +556,7 @@ export class DiagnosticComputer {
 		const fragmentErrorSeverity = toSeverity(typeof options.validateMarkdownFileLinkFragments === 'undefined' ? options.validateFragmentLinks : options.validateMarkdownFileLinkFragments);
 
 		// We've already validated our own fragment links in `validateOwnHeaderLinks`
-		const linkSet = new FileLinkMap(links.filter(link => !link.source.text.startsWith('#')));
+		const linkSet = new FileLinkMap(links.filter(link => !link.source.hrefText.startsWith('#')));
 		if (linkSet.size === 0) {
 			return [];
 		}
@@ -585,10 +585,10 @@ export class DiagnosticComputer {
 						if (fragmentLinks.length) {
 							const toc = await this.tocProvider.get(resolvedHrefPath);
 							for (const link of fragmentLinks) {
-								if (!toc.lookup(link.fragment) && !this.isIgnoredLink(options, link.source.pathText) && !this.isIgnoredLink(options, link.source.text)) {
+								if (!toc.lookup(link.fragment) && !this.isIgnoredLink(options, link.source.pathText) && !this.isIgnoredLink(options, link.source.hrefText)) {
 									const msg = localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', link.fragment);
 									const range = link.source.fragmentRange?.with({ start: link.source.fragmentRange.start.translate(0, -1) }) ?? link.source.hrefRange;
-									diagnostics.push(new LinkDoesNotExistDiagnostic(range, msg, fragmentErrorSeverity, link.source.text));
+									diagnostics.push(new LinkDoesNotExistDiagnostic(range, msg, fragmentErrorSeverity, link.source.hrefText));
 								}
 							}
 						}
