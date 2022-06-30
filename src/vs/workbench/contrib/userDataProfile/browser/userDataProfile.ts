@@ -6,14 +6,19 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -30,9 +35,12 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IStatusbarService private readonly statusBarService: IStatusbarService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IProductService private readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		this.registerConfiguration();
 
 		this.currentProfileContext = CONTEXT_CURRENT_PROFILE.bindTo(contextKeyService);
 		this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
@@ -42,6 +50,22 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(Event.any(this.workspaceContextService.onDidChangeWorkbenchState, this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfilesService.onDidChangeProfiles)(() => this.updateStatus()));
 
 		this.registerActions();
+	}
+
+	private registerConfiguration(): void {
+		if (!isWeb && this.productService.quality !== 'stable') {
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+				...workbenchConfigurationNodeBase,
+				'properties': {
+					[PROFILES_ENABLEMENT_CONFIG]: {
+						'type': 'boolean',
+						'default': false,
+						'description': localize('workbench.experimental.settingsProfiles.enabled', "Controls whether to enable the Settings Profiles preview feature."),
+						scope: ConfigurationScope.APPLICATION
+					}
+				}
+			});
+		}
 	}
 
 	private registerActions(): void {

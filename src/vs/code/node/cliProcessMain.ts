@@ -164,7 +164,7 @@ class CliMain extends Disposable {
 			configurationService.initialize()
 		]);
 
-		userDataProfilesService.setEnablement(configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
