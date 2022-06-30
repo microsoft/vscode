@@ -624,6 +624,38 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByVirtualWorkspace);
 	});
 
+	test('test enable a remote workspace extension and local ui extension that is a dependency of remote', async () => {
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), null));
+		const localUIExtension = aLocalExtension2('pub.a', { main: 'main.js', extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const remoteUIExtension = aLocalExtension2('pub.a', { main: 'main.js', extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: 'vscode-remote' }) });
+		const target = aLocalExtension2('pub.b', { main: 'main.js', extensionDependencies: ['pub.a'] }, { location: URI.file(`pub.b`).with({ scheme: 'vscode-remote' }) });
+		testObject = new TestExtensionEnablementService(instantiationService);
+
+		installed.push(localUIExtension, remoteUIExtension, target);
+		await testObject.setEnablement([target, localUIExtension], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([target, localUIExtension], EnablementState.EnabledGlobally);
+		assert.ok(testObject.isEnabled(target));
+		assert.ok(testObject.isEnabled(localUIExtension));
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+		assert.strictEqual(testObject.getEnablementState(localUIExtension), EnablementState.EnabledGlobally);
+	});
+
+	test('test enable a remote workspace extension also enables its dependency in local', async () => {
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), null));
+		const localUIExtension = aLocalExtension2('pub.a', { main: 'main.js', extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const remoteUIExtension = aLocalExtension2('pub.a', { main: 'main.js', extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: 'vscode-remote' }) });
+		const target = aLocalExtension2('pub.b', { main: 'main.js', extensionDependencies: ['pub.a'] }, { location: URI.file(`pub.b`).with({ scheme: 'vscode-remote' }) });
+		testObject = new TestExtensionEnablementService(instantiationService);
+
+		installed.push(localUIExtension, remoteUIExtension, target);
+		await testObject.setEnablement([target, localUIExtension], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([target], EnablementState.EnabledGlobally);
+		assert.ok(testObject.isEnabled(target));
+		assert.ok(testObject.isEnabled(localUIExtension));
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+		assert.strictEqual(testObject.getEnablementState(localUIExtension), EnablementState.EnabledGlobally);
+	});
+
 	test('test canChangeEnablement return false when extension is disabled in virtual workspace', () => {
 		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false } });
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
