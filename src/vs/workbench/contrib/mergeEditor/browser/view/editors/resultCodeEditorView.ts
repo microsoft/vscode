@@ -5,6 +5,7 @@
 
 import { CompareResult } from 'vs/base/common/arrays';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
+import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { autorun, derivedObservable } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
@@ -113,8 +114,17 @@ export class ResultCodeEditorView extends CodeEditorView {
 			}
 			const count = model.unhandledConflictsCount.read(reader);
 
-			// TODO @joh
-			this._detail.setLabel(`${count} Remaining Conflicts`);
+			this._detail.setLabel(count === 1
+				? localize(
+					'mergeEditor.remainingConflicts',
+					'{0} Remaining Conflict',
+					count
+				)
+				: localize(
+					'mergeEditor.remainingConflict',
+					'{0} Remaining Conflicts',
+					count
+				));
 		}, 'update label'));
 	}
 }
