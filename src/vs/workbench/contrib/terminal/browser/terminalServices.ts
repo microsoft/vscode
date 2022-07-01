@@ -179,6 +179,7 @@ export class TerminalService implements ITerminalService {
 			this._initInstanceListeners(instance);
 			this._onDidCreateInstance.fire(instance);
 		});
+		sdfsdfs
 		this.onDidReceiveInstanceLinks(instance => this._setInstanceLinkProviders(instance));
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
