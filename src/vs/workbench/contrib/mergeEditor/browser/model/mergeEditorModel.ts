@@ -6,7 +6,7 @@
 import { CompareResult, equals } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { autorunHandleChanges, derivedObservable, IObservable, IReader, ITransaction, keepAlive, ObservableValue, transaction, waitForState } from 'vs/workbench/contrib/audioCues/browser/observable';
@@ -120,6 +120,8 @@ export class MergeEditorModel extends EditorModel {
 		);
 	});
 
+	readonly resultSnapshot: ITextSnapshot;
+
 	constructor(
 		readonly base: ITextModel,
 		readonly input1: ITextModel,
@@ -137,6 +139,7 @@ export class MergeEditorModel extends EditorModel {
 	) {
 		super();
 
+		this.resultSnapshot = result.createSnapshot();
 		this._register(keepAlive(this.modifiedBaseRangeStateStores));
 		this._register(keepAlive(this.modifiedBaseRangeHandlingStateStores));
 		this._register(keepAlive(this.input1ResultMapping));
