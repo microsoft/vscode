@@ -224,10 +224,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, options, CancellationToken.None)));
 						if (!URI.isUri(task.source)) {
 							const isUpdate = task.operation === InstallOperation.Update;
+							const durationSinceUpdate = isUpdate ? undefined : (new Date().getTime() - task.source.lastUpdated) / 1000;
 							reportTelemetry(this.telemetryService, isUpdate ? 'extensionGallery:update' : 'extensionGallery:install', {
 								extensionData: getGalleryExtensionTelemetryData(task.source),
 								duration: new Date().getTime() - startTime,
-								durationSinceUpdate: isUpdate ? undefined : new Date().getTime() - task.source.lastUpdated
+								durationSinceUpdate
 							});
 							// In web, report extension install statistics explicitly. In Desktop, statistics are automatically updated while downloading the VSIX.
 							if (isWeb && task.operation !== InstallOperation.Update) {

@@ -39,7 +39,7 @@ import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions';
 import { ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -176,7 +176,12 @@ export class ExtensionsListView extends ViewPane {
 			horizontalScrolling: false,
 			accessibilityProvider: <IListAccessibilityProvider<IExtension | null>>{
 				getAriaLabel(extension: IExtension | null): string {
-					return extension ? localize('extension.arialabel', "{0}, {1}, {2}, {3}", extension.displayName, extension.version, extension.publisherDisplayName, extension.description) : '';
+					if (!extension) {
+						return '';
+					}
+					const publisher = localize('extension.arialabel.publihser', "Publisher {0}", extension.publisherDisplayName);
+					const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
+					return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description}`;
 				},
 				getWidgetAriaLabel(): string {
 					return localize('extensions', "Extensions");
@@ -1199,6 +1204,24 @@ export class VirtualWorkspacePartiallySupportedExtensionsView extends Extensions
 export class DeprecatedExtensionsView extends ExtensionsListView {
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return ExtensionsListView.isSearchDeprecatedExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
+	}
+}
+
+export class SearchMarketplaceExtensionsView extends ExtensionsListView {
+
+	private readonly reportSearchFinishedDelayer = this._register(new ThrottledDelayer(2000));
+	private searchWaitPromise: Promise<void> = Promise.resolve();
+
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
+		const queryPromise = super.show(query);
+		this.reportSearchFinishedDelayer.trigger(() => this.reportSearchFinished());
+		this.searchWaitPromise = queryPromise.then(null, null);
+		return queryPromise;
+	}
+
+	private async reportSearchFinished(): Promise<void> {
+		await this.searchWaitPromise;
+		this.telemetryService.publicLog2('extensionsView:MarketplaceSearchFinished');
 	}
 }
 

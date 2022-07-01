@@ -577,18 +577,21 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 	) {
 		super();
 
-		const decorationIds = editor.deltaDecorations(
-			[],
-			completionsSource.items.map(i => ({
-				range: i.range,
-				options: {
-					description: 'inline-completion-tracking-range'
-				},
-			}))
-		);
+		const decorationIds = editor.changeDecorations((changeAccessor) => {
+			return changeAccessor.deltaDecorations(
+				[],
+				completionsSource.items.map(i => ({
+					range: i.range,
+					options: {
+						description: 'inline-completion-tracking-range'
+					},
+				}))
+			);
+		});
+
 		this._register(toDisposable(() => {
 			this.isDisposing = true;
-			editor.deltaDecorations(decorationIds, []);
+			editor.removeDecorations(decorationIds);
 		}));
 
 		this.completions = completionsSource.items.map((c, idx) => new CachedInlineCompletion(c, decorationIds[idx]));

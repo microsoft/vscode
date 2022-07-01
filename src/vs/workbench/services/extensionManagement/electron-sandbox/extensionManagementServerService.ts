@@ -17,6 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { NativeProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/profileAwareExtensionManagementService';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class ExtensionManagementServerService extends Disposable implements IExtensionManagementServerService {
 
@@ -30,12 +31,18 @@ export class ExtensionManagementServerService extends Disposable implements IExt
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		const localExtensionManagementService = this._register(instantiationService.createInstance(NativeProfileAwareExtensionManagementService, sharedProcessService.getChannel('extensions'), userDataProfileService.currentProfile.extensionsResource));
 		this.localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local") };
+		this._register(userDataProfilesService.onDidChangeProfiles(e => {
+			if (userDataProfileService.currentProfile.isDefault) {
+				localExtensionManagementService.extensionsProfileResource = userDataProfilesService.defaultProfile.extensionsResource;
+			}
+		}));
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(localExtensionManagementService.switchExtensionsProfile(e.profile.extensionsResource))));
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {

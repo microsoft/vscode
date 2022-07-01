@@ -3,23 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { noBreakWhitespace } from 'vs/base/common/strings';
+import { isDefined } from 'vs/base/common/types';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
+import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { attachToggleStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { autorun, derivedObservable, IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { InputState, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
-import { CodeEditorView, ICodeEditorViewOptions } from './codeEditorView';
-import * as dom from 'vs/base/browser/dom';
-import { isDefined } from 'vs/base/common/types';
+import { CodeEditorView } from './codeEditorView';
 
 export class InputCodeEditorView extends CodeEditorView {
 	private readonly decorations = derivedObservable('decorations', reader => {
@@ -97,11 +101,11 @@ export class InputCodeEditorView extends CodeEditorView {
 
 	constructor(
 		public readonly inputNumber: 1 | 2,
-		options: ICodeEditorViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IThemeService themeService: IThemeService,
 	) {
-		super(options, instantiationService);
+		super(instantiationService);
 
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 
@@ -118,10 +122,15 @@ export class InputCodeEditorView extends CodeEditorView {
 							id: idx.toString(),
 							range: baseRange.getInputRange(this.inputNumber),
 							enabled: model.isUpToDate,
-							toggleState: derivedObservable('toggle', (reader) => model
-								.getState(baseRange)
-								.read(reader)
-								.getInput(this.inputNumber)
+							toggleState: derivedObservable('toggle', (reader) => {
+								const input = model
+									.getState(baseRange)
+									.read(reader)
+									.getInput(this.inputNumber);
+								return input === InputState.second && !baseRange.isOrderRelevant
+									? InputState.first
+									: input;
+							}
 							),
 							setState: (value, tx) => viewModel.setState(
 								baseRange,
@@ -151,31 +160,35 @@ export class InputCodeEditorView extends CodeEditorView {
 								return [
 									baseRange.input1Diffs.length > 0
 										? action(
-											'mergeEditor.takeInput1',
-											localize('mergeEditor.takeInput1', 'Take Input 1'),
+											'mergeEditor.acceptInput1',
+											localize('mergeEditor.accept', 'Accept {0}', model.input1Title),
 											state.toggle(1),
 											state.input1
 										)
 										: undefined,
 									baseRange.input2Diffs.length > 0
 										? action(
-											'mergeEditor.takeInput2',
-											localize('mergeEditor.takeInput2', 'Take Input 2'),
+											'mergeEditor.acceptInput2',
+											localize('mergeEditor.accept', 'Accept {0}', model.input2Title),
 											state.toggle(2),
 											state.input2
 										)
 										: undefined,
 									baseRange.isConflicting
-										? action(
-											'mergeEditor.takeBothSides',
-											localize(
-												'mergeEditor.takeBothSides',
-												'Take Both Sides'
+										? setFields(
+											action(
+												'mergeEditor.acceptBoth',
+												localize(
+													'mergeEditor.acceptBoth',
+													'Accept Both'
+												),
+												state.withInput1(!both).withInput2(!both),
+												both
 											),
-											state.withInput1(!both).withInput2(!both),
-											both
+											{ enabled: baseRange.canBeCombined }
 										)
 										: undefined,
+									new Separator(),
 									baseRange.isConflicting
 										? setFields(
 											action(
@@ -184,7 +197,7 @@ export class InputCodeEditorView extends CodeEditorView {
 												state.swap(),
 												false
 											),
-											{ enabled: !state.isEmpty }
+											{ enabled: !state.isEmpty && (!both || baseRange.isOrderRelevant) }
 										)
 										: undefined,
 
@@ -206,9 +219,13 @@ export class InputCodeEditorView extends CodeEditorView {
 							}
 						}));
 				},
-				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService),
+				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService, themeService),
 			})
 		);
+	}
+
+	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
 	}
 }
 
@@ -226,6 +243,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 		item: ModifiedBaseRangeGutterItemInfo,
 		private readonly target: HTMLElement,
 		contextMenuService: IContextMenuService,
+		themeService: IThemeService
 	) {
 		super();
 
@@ -233,7 +251,10 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 		target.classList.add('merge-accept-gutter-marker');
 
-		const checkBox = new Toggle({ isChecked: false, title: localize('acceptMerge', "Accept Merge"), icon: Codicon.check });
+		const checkBox = new Toggle({ isChecked: false, title: localize('accept', "Accept"), icon: Codicon.check });
+
+		this._register(attachToggleStyler(checkBox, themeService));
+
 		this._register(
 			dom.addDisposableListener(checkBox.domNode, dom.EventType.MOUSE_DOWN, (e) => {
 				if (e.button === 2) {

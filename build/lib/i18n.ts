@@ -714,15 +714,22 @@ export function createXlfFilesForExtensions(): ThroughStream {
 				const basename = path.basename(file.path);
 				if (basename === 'package.nls.json') {
 					const json: PackageJsonFormat = JSON.parse(buffer.toString('utf8'));
-					const keys = Object.keys(json);
-					const messages = keys.map((key) => {
+					const keys: Array<string | LocalizeInfo> = [];
+					const messages: string[] = [];
+					Object.keys(json).forEach((key) => {
 						const value = json[key];
 						if (Is.string(value)) {
-							return value;
+							keys.push(key);
+							messages.push(value);
 						} else if (value) {
-							return value.message;
+							keys.push({
+								key,
+								comment: value.comment
+							});
+							messages.push(value.message);
 						} else {
-							return `Unknown message for key: ${key}`;
+							keys.push(key);
+							messages.push(`Unknown message for key: ${key}`);
 						}
 					});
 					getXlf().addFile(`extensions/${extensionName}/package`, keys, messages);

@@ -9,6 +9,7 @@ import { IMdParser } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { ITextDocument } from '../types/textDocument';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
+import { Schemes } from '../util/schemes';
 import { IMdWorkspace } from '../workspace';
 import { MdLinkProvider } from './documentLinks';
 
@@ -286,7 +287,13 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 		const pathSegmentEnd = position.translate({ characterDelta: context.linkSuffix.length });
 		const replacementRange = new vscode.Range(pathSegmentStart, pathSegmentEnd);
 
-		const dirInfo = await this.workspace.readDirectory(parentDir);
+		let dirInfo: [string, vscode.FileType][];
+		try {
+			dirInfo = await this.workspace.readDirectory(parentDir);
+		} catch {
+			return;
+		}
+
 		for (const [name, type] of dirInfo) {
 			// Exclude paths that start with `.`
 			if (name.startsWith('.')) {
@@ -324,7 +331,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 
 	private resolvePath(root: vscode.Uri, ref: string): vscode.Uri | undefined {
 		try {
-			if (root.scheme === 'file') {
+			if (root.scheme === Schemes.file) {
 				return vscode.Uri.file(resolve(dirname(root.fsPath), ref));
 			} else {
 				return root.with({

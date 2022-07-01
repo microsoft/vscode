@@ -82,7 +82,7 @@ export const DEBUG_START_LABEL = nls.localize('startDebug', "Start Debugging");
 export const DEBUG_RUN_LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 export const NEXT_DEBUG_CONSOLE_LABEL = nls.localize('nextDebugConsole', "Focus Next Debug Console");
 export const PREV_DEBUG_CONSOLE_LABEL = nls.localize('prevDebugConsole', "Focus Previous Debug Console");
-export const SHOW_LOADED_SCRIPTS_LABEL = nls.localize('showLoadedScripts', "Show Loaded Scripts");
+export const OPEN_LOADED_SCRIPTS_LABEL = nls.localize('openLoadedScript', "Open Loaded Script...");
 
 export const SELECT_DEBUG_CONSOLE_LABEL = nls.localize('selectDebugConsole', "Select Debug Console");
 

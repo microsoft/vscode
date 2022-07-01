@@ -8,11 +8,11 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { ctxIsMergeEditor, ctxMergeEditorLayout, MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
+import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeEditorLayout } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OpenMergeEditor extends Action2 {
@@ -112,13 +112,14 @@ export class SetMixedLayout extends Action2 {
 		super({
 			id: 'merge.mixedLayout',
 			title: localize('layout.mixed', "Mixed Layout"),
-			toggled: ContextKeyExpr.equals(ctxMergeEditorLayout.key, 'mixed'),
+			toggled: ctxMergeEditorLayout.isEqualTo('mixed'),
 			menu: [{
 				id: MenuId.EditorTitle,
 				when: ctxIsMergeEditor,
 				group: '1_merge',
 				order: 9,
-			}]
+			}],
+			precondition: ctxIsMergeEditor,
 		});
 	}
 
@@ -135,13 +136,14 @@ export class SetColumnLayout extends Action2 {
 		super({
 			id: 'merge.columnLayout',
 			title: localize('layout.column', "Column Layout"),
-			toggled: ContextKeyExpr.equals(ctxMergeEditorLayout.key, 'columns'),
+			toggled: ctxMergeEditorLayout.isEqualTo('columns'),
 			menu: [{
 				id: MenuId.EditorTitle,
 				when: ctxIsMergeEditor,
 				group: '1_merge',
 				order: 10,
-			}]
+			}],
+			precondition: ctxIsMergeEditor,
 		});
 	}
 
@@ -166,6 +168,7 @@ export class GoToNextConflict extends Action2 {
 				group: 'navigation',
 			}],
 			f1: true,
+			precondition: ctxIsMergeEditor,
 		});
 	}
 
@@ -190,6 +193,7 @@ export class GoToPreviousConflict extends Action2 {
 				group: 'navigation',
 			}],
 			f1: true,
+			precondition: ctxIsMergeEditor,
 		});
 	}
 
@@ -206,8 +210,9 @@ export class ToggleActiveConflictInput1 extends Action2 {
 		super({
 			id: 'merge.toggleActiveConflictInput1',
 			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.toggleActiveConflictInput1', "Toggle Active Conflict In Input 1"),
+			title: localize('merge.toggleCurrentConflictFromLeft', "Toggle Current Conflict from Left"),
 			f1: true,
+			precondition: ctxIsMergeEditor,
 		});
 	}
 
@@ -228,8 +233,9 @@ export class ToggleActiveConflictInput2 extends Action2 {
 		super({
 			id: 'merge.toggleActiveConflictInput2',
 			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.toggleActiveConflictInput2', "Toggle Active Conflict In Input 2"),
+			title: localize('merge.toggleCurrentConflictFromRight', "Toggle Current Conflict from Right"),
 			f1: true,
+			precondition: ctxIsMergeEditor,
 		});
 	}
 
@@ -252,6 +258,7 @@ export class CompareInput1WithBaseCommand extends Action2 {
 			category: localize('mergeEditor', "Merge Editor"),
 			title: localize('mergeEditor.compareInput1WithBase', "Compare Input 1 With Base"),
 			f1: true,
+			precondition: ctxIsMergeEditor,
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
@@ -268,6 +275,7 @@ export class CompareInput2WithBaseCommand extends Action2 {
 			category: localize('mergeEditor', "Merge Editor"),
 			title: localize('mergeEditor.compareInput2WithBase', "Compare Input 2 With Base"),
 			f1: true,
+			precondition: ctxIsMergeEditor,
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {

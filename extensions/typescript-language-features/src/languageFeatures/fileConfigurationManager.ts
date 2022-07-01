@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -189,6 +190,8 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
+			// @ts-expect-error until TS 4.8
+			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
@@ -204,6 +207,18 @@ export default class FileConfigurationManager extends Disposable {
 			case 'double': return 'double';
 			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
 		}
+	}
+
+	private getAutoImportFileExcludePatternsPreference(config: vscode.WorkspaceConfiguration, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
+		return workspaceFolder && config.get<string[]>('autoImportFileExcludePatterns')?.map(p => {
+			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
+			const slashNormalized = p.replace(/\\/g, '/');
+			const isRelative = /^\.\.?($|\/)/.test(slashNormalized);
+			return path.isAbsolute(p) ? p :
+				p.startsWith('*') ? '/' + slashNormalized :
+					isRelative ? vscode.Uri.joinPath(workspaceFolder, p).fsPath :
+						'/**/' + slashNormalized;
+		});
 	}
 }
 

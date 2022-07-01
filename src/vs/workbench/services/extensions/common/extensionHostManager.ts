@@ -131,7 +131,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		};
 		this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', startingTelemetryEvent);
 
-		this._proxy = this._extensionHost.start()!.then(
+		this._proxy = this._extensionHost.start().then(
 			(protocol) => {
 				this._hasStarted = true;
 

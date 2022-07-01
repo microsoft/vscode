@@ -5,12 +5,13 @@
 
 import { CompareResult } from 'vs/base/common/arrays';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
+import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { autorun, derivedObservable } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
-import { CodeEditorView, ICodeEditorViewOptions } from './codeEditorView';
+import { CodeEditorView } from './codeEditorView';
 
 export class ResultCodeEditorView extends CodeEditorView {
 	private readonly decorations = derivedObservable('decorations', reader => {
@@ -99,10 +100,9 @@ export class ResultCodeEditorView extends CodeEditorView {
 	});
 
 	constructor(
-		options: ICodeEditorViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(options, instantiationService);
+		super(instantiationService);
 
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 
@@ -114,8 +114,17 @@ export class ResultCodeEditorView extends CodeEditorView {
 			}
 			const count = model.unhandledConflictsCount.read(reader);
 
-			// TODO @joh
-			this._detail.setLabel(`${count} Remaining Conflicts`);
+			this._detail.setLabel(count === 1
+				? localize(
+					'mergeEditor.remainingConflicts',
+					'{0} Remaining Conflict',
+					count
+				)
+				: localize(
+					'mergeEditor.remainingConflict',
+					'{0} Remaining Conflicts',
+					count
+				));
 		}, 'update label'));
 	}
 }
