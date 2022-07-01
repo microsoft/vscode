@@ -114,17 +114,18 @@ export class ResultCodeEditorView extends CodeEditorView {
 			}
 			const count = model.unhandledConflictsCount.read(reader);
 
-			this._detail.setLabel(count === 1
+			this.htmlElements.detail.innerText = count === 1
 				? localize(
 					'mergeEditor.remainingConflicts',
-					'{0} Remaining Conflict',
+					'{0} Conflict Remaining',
 					count
 				)
 				: localize(
 					'mergeEditor.remainingConflict',
-					'{0} Remaining Conflicts',
+					'{0} Conflicts Remaining ',
 					count
-				));
+				);
+
 		}, 'update label'));
 	}
 }
