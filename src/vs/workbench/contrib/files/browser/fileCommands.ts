@@ -628,7 +628,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		args: [
 			{
 				isOptional: true,
-				name: 'viewType',
+				name: 'New Untitled File args',
 				description: 'The editor view type and language ID if known',
 				schema: {
 					'type': 'object',
@@ -654,6 +654,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				pinned: true
 			},
 			languageId: args?.languageId,
-		});
+		}, SIDE_GROUP);
 	}
 });
