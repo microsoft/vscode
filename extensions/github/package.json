@@ -37,6 +37,10 @@
       {
         "command": "github.copyVscodeDevLink",
         "title": "Copy vscode.dev Link"
+	  },
+	  {
+		"command": "github.copyVscodeDevLinkFile",
+		"title": "Copy vscode.dev Link"
       }
     ],
     "menus": {
@@ -48,11 +52,15 @@
         {
           "command": "github.copyVscodeDevLink",
           "when": "false"
+        },
+        {
+          "command": "github.copyVscodeDevLinkFile",
+          "when": "false"
         }
       ],
       "file/share": [
         {
-            "command": "github.copyVscodeDevLink",
+            "command": "github.copyVscodeDevLinkFile",
             "when": "github.hasGitHubRepo"
         }
       ],
