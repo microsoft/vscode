@@ -16,6 +16,8 @@ import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelen
 import { localize } from 'vs/nls';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { attachToggleStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { autorun, derivedObservable, IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { InputState, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
@@ -101,6 +103,7 @@ export class InputCodeEditorView extends CodeEditorView {
 		public readonly inputNumber: 1 | 2,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super(instantiationService);
 
@@ -216,7 +219,7 @@ export class InputCodeEditorView extends CodeEditorView {
 							}
 						}));
 				},
-				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService),
+				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService, themeService),
 			})
 		);
 	}
@@ -240,6 +243,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 		item: ModifiedBaseRangeGutterItemInfo,
 		private readonly target: HTMLElement,
 		contextMenuService: IContextMenuService,
+		themeService: IThemeService
 	) {
 		super();
 
@@ -248,6 +252,9 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 		target.classList.add('merge-accept-gutter-marker');
 
 		const checkBox = new Toggle({ isChecked: false, title: localize('accept', "Accept"), icon: Codicon.check });
+
+		this._register(attachToggleStyler(checkBox, themeService));
+
 		this._register(
 			dom.addDisposableListener(checkBox.domNode, dom.EventType.MOUSE_DOWN, (e) => {
 				if (e.button === 2) {
