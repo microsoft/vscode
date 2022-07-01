@@ -34,7 +34,7 @@ export class ExtensionsCleaner extends Disposable {
 	) {
 		super();
 
-		extensionManagementService.removeUninstalledExtensions(this.userDataProfilesService.profiles.length > 1);
+		extensionManagementService.removeUninstalledExtensions(this.userDataProfilesService.profiles.length === 0);
 		migrateUnsupportedExtensions(extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);
 		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
 		this._register(instantiationService.createInstance(ProfileExtensionsCleaner));
