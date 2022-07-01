@@ -43,13 +43,11 @@ function rangeString(range: vscode.Range | undefined) {
 	return hash;
 }
 
-export function getPermalink(gitAPI: GitAPI, hostPrefix?: string): string | undefined {
+export function getPermalink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: string): string | undefined {
 	hostPrefix = hostPrefix ?? 'https://github.com';
 	const { uri, range } = getFileAndPosition();
-	if (!uri) {
-		return;
-	}
-	const gitRepo = getRepositoryForFile(gitAPI, uri);
+	// Use the first repo if we cannot determine a repo from the uri.
+	const gitRepo = (uri ? getRepositoryForFile(gitAPI, uri) : gitAPI.repositories[0]) ?? gitAPI.repositories[0];
 	if (!gitRepo) {
 		return;
 	}
@@ -71,8 +69,8 @@ export function getPermalink(gitAPI: GitAPI, hostPrefix?: string): string | unde
 	}
 
 	const commitHash = gitRepo.state.HEAD?.commit;
-	const pathSegment = uri.path.substring(gitRepo.rootUri.path.length);
+	const fileSegments = (useSelection && uri) ? `${uri.path.substring(gitRepo.rootUri.path.length)}${rangeString(range)}` : '';
 
 	return `${hostPrefix}/${repo.owner}/${repo.repo}/blob/${commitHash
-		}${pathSegment}${rangeString(range)}`;
+		}${fileSegments}`;
 }
