@@ -38,6 +38,20 @@ class SCMInput implements ISCMInput {
 	private readonly _onDidChangePlaceholder = new Emitter<string>();
 	readonly onDidChangePlaceholder: Event<string> = this._onDidChangePlaceholder.event;
 
+	private _enabled = true;
+
+	get enabled(): boolean {
+		return this._enabled;
+	}
+
+	set enabled(enabled: boolean) {
+		this._enabled = enabled;
+		this._onDidChangeEnablement.fire(enabled);
+	}
+
+	private readonly _onDidChangeEnablement = new Emitter<boolean>();
+	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
+
 	private _visible = true;
 
 	get visible(): boolean {
@@ -90,45 +104,45 @@ class SCMInput implements ISCMInput {
 		}
 
 		// Migrate from old format // TODO@joao: remove this migration code a few releases
-		const userKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.GLOBAL, StorageTarget.USER)), key => key.startsWith('scm/input:'));
+		const userKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.APPLICATION, StorageTarget.USER)), key => key.startsWith('scm/input:'));
 
 		for (const key of userKeys) {
 			try {
-				const rawHistory = storageService.get(key, StorageScope.GLOBAL, '');
+				const rawHistory = storageService.get(key, StorageScope.APPLICATION, '');
 				const history = JSON.parse(rawHistory);
 
 				if (Array.isArray(history)) {
 					if (history.length === 0 || (history.length === 1 && history[0] === '')) {
 						// remove empty histories
-						storageService.remove(key, StorageScope.GLOBAL);
+						storageService.remove(key, StorageScope.APPLICATION);
 					} else {
 						// migrate existing histories to have a timestamp
-						storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.MACHINE);
+						storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.APPLICATION, StorageTarget.MACHINE);
 					}
 				} else {
 					// move to MACHINE target
-					storageService.store(key, rawHistory, StorageScope.GLOBAL, StorageTarget.MACHINE);
+					storageService.store(key, rawHistory, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				}
 			} catch {
 				// remove unparseable entries
-				storageService.remove(key, StorageScope.GLOBAL);
+				storageService.remove(key, StorageScope.APPLICATION);
 			}
 		}
 
 		// Garbage collect
-		const machineKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE)), key => key.startsWith('scm/input:'));
+		const machineKeys = Iterable.filter(Iterable.from(storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE)), key => key.startsWith('scm/input:'));
 
 		for (const key of machineKeys) {
 			try {
-				const history = JSON.parse(storageService.get(key, StorageScope.GLOBAL, ''));
+				const history = JSON.parse(storageService.get(key, StorageScope.APPLICATION, ''));
 
 				if (Array.isArray(history?.history) && Number.isInteger(history?.timestamp) && new Date().getTime() - history?.timestamp > 2592000000) {
 					// garbage collect after 30 days
-					storageService.remove(key, StorageScope.GLOBAL);
+					storageService.remove(key, StorageScope.APPLICATION);
 				}
 			} catch {
 				// remove unparseable entries
-				storageService.remove(key, StorageScope.GLOBAL);
+				storageService.remove(key, StorageScope.APPLICATION);
 			}
 		}
 
@@ -146,7 +160,7 @@ class SCMInput implements ISCMInput {
 
 		if (key) {
 			try {
-				history = JSON.parse(this.storageService.get(key, StorageScope.GLOBAL, '')).history;
+				history = JSON.parse(this.storageService.get(key, StorageScope.APPLICATION, '')).history;
 				history = history?.map(s => s ?? '');
 			} catch {
 				// noop
@@ -175,9 +189,9 @@ class SCMInput implements ISCMInput {
 				const history = [...this.historyNavigator].map(s => s ?? '');
 
 				if (history.length === 0 || (history.length === 1 && history[0] === '')) {
-					storageService.remove(key, StorageScope.GLOBAL);
+					storageService.remove(key, StorageScope.APPLICATION);
 				} else {
-					storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.MACHINE);
+					storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.APPLICATION, StorageTarget.MACHINE);
 				}
 				this.didChangeHistory = false;
 			});

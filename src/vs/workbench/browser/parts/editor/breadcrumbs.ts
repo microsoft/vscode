@@ -79,9 +79,9 @@ export abstract class BreadcrumbsConfig<T> {
 	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
 		return {
 			bindTo(service) {
-				let onDidChange = new Emitter<void>();
+				const onDidChange = new Emitter<void>();
 
-				let listener = service.onDidChangeConfiguration(e => {
+				const listener = service.onDidChangeConfiguration(e => {
 					if (e.affectsConfiguration(name)) {
 						onDidChange.fire(undefined);
 					}

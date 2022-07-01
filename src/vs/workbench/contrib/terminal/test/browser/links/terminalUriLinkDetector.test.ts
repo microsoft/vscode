@@ -79,25 +79,32 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 			{ range: [[16, 1], [29, 1]], text: 'http://bar.foo' }
 		]);
 	});
-	test('should not filtrer out https:// link that exceed 1024 characters', async () => {
-		// 8 + 101 * 10 = 1018 characters
-		await assertLink(TerminalBuiltinLinkType.Url, `https://${'foobarbaz/'.repeat(101)}`, [{
-			range: [[1, 1], [58, 13]],
-			text: `https://${'foobarbaz/'.repeat(101)}`
-		}]);
-		// 8 + 102 * 10 = 1028 characters
-		await assertLink(TerminalBuiltinLinkType.Url, `https://${'foobarbaz/'.repeat(102)}`, [{
-			range: [[1, 1], [68, 13]],
-			text: `https://${'foobarbaz/'.repeat(102)}`
-		}]);
+	test('should detect file:// links with :line suffix', async () => {
+		await assertLink(TerminalBuiltinLinkType.LocalFile, 'file:///c:/folder/file:23', [
+			{ range: [[1, 1], [25, 1]], text: 'file:///c:/folder/file:23' }
+		]);
 	});
-	test('should filter out file:// links that exceed 1024 characters', async () => {
-		// 8 + 101 * 10 = 1018 characters
-		await assertLink(TerminalBuiltinLinkType.LocalFile, `file:///${'foobarbaz/'.repeat(101)}`, [{
-			text: `file:///${'foobarbaz/'.repeat(101)}`,
-			range: [[1, 1], [58, 13]]
+	test('should detect file:// links with :line:col suffix', async () => {
+		await assertLink(TerminalBuiltinLinkType.LocalFile, 'file:///c:/folder/file:23:10', [
+			{ range: [[1, 1], [28, 1]], text: 'file:///c:/folder/file:23:10' }
+		]);
+	});
+	test('should filter out https:// link that exceed 4096 characters', async () => {
+		// 8 + 200 * 10 = 2008 characters
+		await assertLink(TerminalBuiltinLinkType.Url, `https://${'foobarbaz/'.repeat(200)}`, [{
+			range: [[1, 1], [8, 26]],
+			text: `https://${'foobarbaz/'.repeat(200)}`
 		}]);
-		// 8 + 102 * 10 = 1028 characters
-		await assertLink(TerminalBuiltinLinkType.LocalFile, `file:///${'foobarbaz/'.repeat(102)}`, []);
+		// 8 + 450 * 10 = 4508 characters
+		await assertLink(TerminalBuiltinLinkType.Url, `https://${'foobarbaz/'.repeat(450)}`, []);
+	});
+	test('should filter out file:// links that exceed 4096 characters', async () => {
+		// 8 + 200 * 10 = 2008 characters
+		await assertLink(TerminalBuiltinLinkType.LocalFile, `file:///${'foobarbaz/'.repeat(200)}`, [{
+			text: `file:///${'foobarbaz/'.repeat(200)}`,
+			range: [[1, 1], [8, 26]]
+		}]);
+		// 8 + 450 * 10 = 4508 characters
+		await assertLink(TerminalBuiltinLinkType.LocalFile, `file:///${'foobarbaz/'.repeat(450)}`, []);
 	});
 });

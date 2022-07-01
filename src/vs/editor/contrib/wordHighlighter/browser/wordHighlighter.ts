@@ -227,7 +227,7 @@ class WordHighlighter {
 			this._stopAll();
 		}));
 		this.toUnhook.add(editor.onDidChangeConfiguration((e) => {
-			let newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
+			const newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
 			if (this.occurrencesHighlight !== newValue) {
 				this.occurrencesHighlight = newValue;
 				this._stopAll();
@@ -262,10 +262,10 @@ class WordHighlighter {
 	}
 
 	public moveNext() {
-		let highlights = this._getSortedHighlights();
-		let index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
-		let newIndex = ((index + 1) % highlights.length);
-		let dest = highlights[newIndex];
+		const highlights = this._getSortedHighlights();
+		const index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
+		const newIndex = ((index + 1) % highlights.length);
+		const dest = highlights[newIndex];
 		try {
 			this._ignorePositionChangeEvent = true;
 			this.editor.setPosition(dest.getStartPosition());
@@ -281,10 +281,10 @@ class WordHighlighter {
 	}
 
 	public moveBack() {
-		let highlights = this._getSortedHighlights();
-		let index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
-		let newIndex = ((index - 1 + highlights.length) % highlights.length);
-		let dest = highlights[newIndex];
+		const highlights = this._getSortedHighlights();
+		const index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
+		const newIndex = ((index - 1 + highlights.length) % highlights.length);
+		const dest = highlights[newIndex];
 		try {
 			this._ignorePositionChangeEvent = true;
 			this.editor.setPosition(dest.getStartPosition());
@@ -348,9 +348,9 @@ class WordHighlighter {
 	}
 
 	private _getWord(): IWordAtPosition | null {
-		let editorSelection = this.editor.getSelection();
-		let lineNumber = editorSelection.startLineNumber;
-		let startColumn = editorSelection.startColumn;
+		const editorSelection = this.editor.getSelection();
+		const lineNumber = editorSelection.startLineNumber;
+		const startColumn = editorSelection.startColumn;
 
 		return this.model.getWordAtPosition({
 			lineNumber: lineNumber,
@@ -359,7 +359,7 @@ class WordHighlighter {
 	}
 
 	private _run(): void {
-		let editorSelection = this.editor.getSelection();
+		const editorSelection = this.editor.getSelection();
 
 		// ignore multiline selection
 		if (editorSelection.startLineNumber !== editorSelection.endLineNumber) {
@@ -367,8 +367,8 @@ class WordHighlighter {
 			return;
 		}
 
-		let startColumn = editorSelection.startColumn;
-		let endColumn = editorSelection.endColumn;
+		const startColumn = editorSelection.startColumn;
+		const endColumn = editorSelection.endColumn;
 
 		const word = this._getWord();
 
@@ -409,7 +409,7 @@ class WordHighlighter {
 			// Stop all previous actions and start fresh
 			this._stopAll();
 
-			let myRequestId = ++this.workerRequestTokenId;
+			const myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
 
 			this.workerRequest = computeOccurencesAtPosition(this.providers, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators));
@@ -425,8 +425,8 @@ class WordHighlighter {
 	}
 
 	private _beginRenderDecorations(): void {
-		let currentTime = (new Date()).getTime();
-		let minimumRenderTime = this.lastCursorPositionChangeTime + 250;
+		const currentTime = (new Date()).getTime();
+		const minimumRenderTime = this.lastCursorPositionChangeTime + 250;
 
 		if (currentTime >= minimumRenderTime) {
 			// Synchronous
@@ -442,7 +442,7 @@ class WordHighlighter {
 
 	private renderDecorations(): void {
 		this.renderDecorationsTimer = -1;
-		let decorations: IModelDeltaDecoration[] = [];
+		const decorations: IModelDeltaDecoration[] = [];
 		for (const info of this.workerRequestValue) {
 			if (info.range) {
 				decorations.push({

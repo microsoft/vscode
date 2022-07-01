@@ -62,7 +62,7 @@ class FocusAuxiliaryBarAction extends Action {
 		}
 
 		// Focus into active composite
-		let composite = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+		const composite = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
 		if (composite) {
 			composite.focus();
 		}

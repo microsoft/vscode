@@ -26,11 +26,11 @@ import { ltrim } from 'vs/base/common/strings';
 
 	class TestParcelWatcher extends ParcelWatcher {
 
-		testNormalizePaths(paths: string[]): string[] {
+		testNormalizePaths(paths: string[], excludes: string[] = []): string[] {
 
 			// Work with strings as paths to simplify testing
 			const requests: IRecursiveWatchRequest[] = paths.map(path => {
-				return { path, excludes: [], recursive: true };
+				return { path, excludes, recursive: true };
 			});
 
 			return this.normalizeRequests(requests).map(request => request.path);
@@ -285,7 +285,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'deep', 'conway.js');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
@@ -553,6 +553,10 @@ import { ltrim } from 'vs/base/common/strings';
 			assert.deepStrictEqual(watcher.testNormalizePaths(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
 			assert.deepStrictEqual(watcher.testNormalizePaths(['/a', '/a/b', '/a/c/d']), ['/a']);
 		}
+	});
+
+	test('should ignore when everything excluded', () => {
+		assert.deepStrictEqual(watcher.testNormalizePaths(['/foo/bar', '/bar'], ['**', 'something']), []);
 	});
 
 	test('excludes are converted to absolute paths', () => {

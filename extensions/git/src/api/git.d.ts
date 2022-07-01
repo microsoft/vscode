@@ -129,6 +129,8 @@ export interface LogOptions {
 	readonly path?: string;
 }
 
+export type PostCommitCommand = 'push' | 'sync' | string;
+
 export interface CommitOptions {
 	all?: boolean | 'tracked';
 	amend?: boolean;
@@ -137,6 +139,9 @@ export interface CommitOptions {
 	empty?: boolean;
 	noVerify?: boolean;
 	requireUserConfig?: boolean;
+	useEditor?: boolean;
+	verbose?: boolean;
+	postCommitCommand?: PostCommitCommand;
 }
 
 export interface FetchOptions {
@@ -290,7 +295,7 @@ export interface GitExtension {
 	/**
 	 * Returns a specific API version.
 	 *
-	 * Throws error if git extension is disabled. You can listed to the
+	 * Throws error if git extension is disabled. You can listen to the
 	 * [GitExtension.onDidChangeEnablement](#GitExtension.onDidChangeEnablement) event
 	 * to know when the extension becomes enabled/disabled.
 	 *
@@ -336,4 +341,5 @@ export const enum GitErrorCodes {
 	PatchDoesNotApply = 'PatchDoesNotApply',
 	NoPathFound = 'NoPathFound',
 	UnknownPath = 'UnknownPath',
+	EmptyCommitMessage = 'EmptyCommitMessage'
 }

@@ -360,7 +360,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		// determine default action
 		let defaultAction: IAction | undefined;
-		let defaultActionId = _storageService.get(this._storageKey, StorageScope.WORKSPACE);
+		const defaultActionId = _storageService.get(this._storageKey, StorageScope.WORKSPACE);
 		if (defaultActionId) {
 			defaultAction = submenuAction.actions.find(a => defaultActionId === a.id);
 		}

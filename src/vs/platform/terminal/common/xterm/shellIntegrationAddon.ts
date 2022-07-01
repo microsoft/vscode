@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IShellIntegration } from 'vs/platform/terminal/common/terminal';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
@@ -117,6 +117,16 @@ const enum VSCodeOscPt {
 }
 
 /**
+ * ITerm sequences
+ */
+const enum ITermOscPt {
+	/**
+	 * Based on ITerm's `OSC 1337 ; SetMark`, sets a mark on the scroll bar
+	 */
+	SetMark = 'SetMark'
+}
+
+/**
  * The shell integration addon extends xterm by reading shell integration sequences and creating
  * capabilities and passing along relevant sequences to the capabilities. This is meant to
  * encapsulate all handling/parsing of sequences so the capabilities don't need to.
@@ -126,32 +136,95 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	readonly capabilities = new TerminalCapabilityStore();
 	private _hasUpdatedTelemetry: boolean = false;
 	private _activationTimeout: any;
+	private _commonProtocolDisposables: IDisposable[] = [];
 
 	constructor(
+		private readonly _disableTelemetry: boolean | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
+		this._register(toDisposable(() => {
+			this._clearActivationTimeout();
+			this._disposeCommonProtocol();
+		}));
+	}
+
+	private _disposeCommonProtocol(): void {
+		dispose(this._commonProtocolDisposables);
+		this._commonProtocolDisposables.length = 0;
 	}
 
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._doHandleITermSequence(data)));
+		this._commonProtocolDisposables.push(
+			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data))
+		);
 		this._ensureCapabilitiesOrAddFailureTelemetry();
+	}
+
+	private _handleFinalTermSequence(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		// Pass the sequence along to the capability
+		// It was considered to disable the common protocol in order to not confuse the VS Code
+		// shell integration if both happen for some reason. This doesn't work for powerlevel10k
+		// when instant prompt is enabled though. If this does end up being a problem we could pass
+		// a type flag through the capability calls
+		const [command, ...args] = data.split(';');
+		switch (command) {
+			case 'A':
+				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
+				return true;
+			case 'B':
+				// Ignore the command line for these sequences as it's unreliable for example in powerlevel10k
+				this._createOrGetCommandDetection(this._terminal).handleCommandStart({ ignoreCommandLine: true });
+				return true;
+			case 'C':
+				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
+				return true;
+			case 'D': {
+				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
+				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private _handleVSCodeSequence(data: string): boolean {
 		const didHandle = this._doHandleVSCodeSequence(data);
 		if (!this._hasUpdatedTelemetry && didHandle) {
-			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationSucceeded');
+			this._telemetryService?.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates shell integration was activated' }>('terminal/shellIntegrationActivationSucceeded');
 			this._hasUpdatedTelemetry = true;
-			if (this._activationTimeout !== undefined) {
-				clearTimeout(this._activationTimeout);
-				this._activationTimeout = undefined;
-			}
+			this._clearActivationTimeout();
 		}
 		return didHandle;
+	}
+
+	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
+		if (!this._telemetryService || this._disableTelemetry) {
+			return;
+		}
+		this._activationTimeout = setTimeout(() => {
+			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
+				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationTimeout');
+				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
+			}
+			this._hasUpdatedTelemetry = true;
+		}, 10000);
+	}
+
+	private _clearActivationTimeout(): void {
+		if (this._activationTimeout !== undefined) {
+			clearTimeout(this._activationTimeout);
+			this._activationTimeout = undefined;
+		}
 	}
 
 	private _doHandleVSCodeSequence(data: string): boolean {
@@ -212,14 +285,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					case 'Cwd': {
 						this._createOrGetCwdDetection().updateCwd(value);
 						const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-						if (commandDetection) {
-							commandDetection.setCwd(value);
-						}
+						commandDetection?.setCwd(value);
 						return true;
 					}
 					case 'IsWindows': {
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
 						return true;
+					}
+					case 'Task': {
+						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
 					}
 				}
 			}
@@ -229,14 +303,19 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return false;
 	}
 
-	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
-		this._activationTimeout = setTimeout(() => {
-			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
-				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationTimeout');
-				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
+	private _doHandleITermSequence(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		const [command] = data.split(';');
+		switch (command) {
+			case ITermOscPt.SetMark: {
+				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ genericMarkProperties: { disableCommandStorage: true } });
 			}
-			this._hasUpdatedTelemetry = true;
-		}, 10000);
+		}
+		// Unrecognized sequence
+		return false;
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {

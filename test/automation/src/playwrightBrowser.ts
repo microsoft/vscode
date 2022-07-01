@@ -44,7 +44,7 @@ async function launchServer(options: LaunchOptions) {
 	const args = [
 		'--disable-telemetry',
 		'--disable-workspace-trust',
-		`--port${port++}`,
+		`--port=${port++}`,
 		'--enable-smoke-test-driver',
 		`--extensions-dir=${extensionsPath}`,
 		`--server-data-dir=${agentFolder}`,

@@ -15,8 +15,6 @@
     "notebookControllerKind",
     "notebookDebugOptions",
     "notebookDeprecated",
-    "notebookEditor",
-    "notebookEditorDecorationType",
     "notebookLiveShare",
     "notebookMessaging",
     "notebookMime"

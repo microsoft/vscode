@@ -102,6 +102,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
+			owner: 'sbatten';
 			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
@@ -141,7 +142,7 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		}));
 
 		this._register(addDisposableListener(this.container, EventType.KEY_UP, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				EventHelper.stop(e, true);
 				this.showContextMenu();
@@ -295,7 +296,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		const actions = await super.resolveContextMenuActions(disposables);
 
 		actions.unshift(...[
-			toAction({ id: 'hideAccounts', label: localize('hideAccounts', "Hide Accounts"), run: () => this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER) }),
+			toAction({ id: 'hideAccounts', label: localize('hideAccounts', "Hide Accounts"), run: () => this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.PROFILE, StorageTarget.USER) }),
 			new Separator()
 		]);
 

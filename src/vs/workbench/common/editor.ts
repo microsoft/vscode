@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
 import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
@@ -326,12 +326,23 @@ export interface IVisibleEditorPane extends IEditorPane {
 }
 
 /**
+ * The text editor pane is the container for workbench text editors.
+ */
+export interface ITextEditorPane extends IEditorPane {
+
+	/**
+	 * Returns the underlying text editor widget of this editor.
+	 */
+	getControl(): IEditor | undefined;
+}
+
+/**
  * The text editor pane is the container for workbench text diff editors.
  */
 export interface ITextDiffEditorPane extends IEditorPane {
 
 	/**
-	 * Returns the underlying text editor widget of this editor.
+	 * Returns the underlying text diff editor widget of this editor.
 	 */
 	getControl(): IDiffEditor | undefined;
 }
@@ -709,7 +720,7 @@ export interface EditorInputWithPreferredResource {
 	 * URIs. But when displaying the editor label to the user, the
 	 * preferred URI should be used.
 	 *
-	 * Not all editors have a `preferredResouce`. The `EditorResourceAccessor`
+	 * Not all editors have a `preferredResource`. The `EditorResourceAccessor`
 	 * utility can be used to always get the right resource without having
 	 * to do instanceof checks.
 	 */

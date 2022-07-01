@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/4d30ff834ec324f56291addd197aa1e423cedfdd",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/0dfae8cc4807fecfbf8f1add095d9817df824c95",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -2272,7 +2272,43 @@
 					"match": "\\bfrom\\b"
 				},
 				{
+					"include": "#import-export-assert-clause"
+				},
+				{
 					"include": "#import-export-clause"
+				}
+			]
+		},
+		"import-export-assert-clause": {
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(assert)\\s*(\\{)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.assert.js"
+				},
+				"2": {
+					"name": "punctuation.definition.block.js"
+				}
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.block.js"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#string"
+				},
+				{
+					"name": "meta.object-literal.key.js",
+					"match": "(?:[_$[:alpha:]][_$[:alnum:]]*)\\s*(?=(\\/\\*([^\\*]|(\\*[^\\/]))*\\*\\/\\s*)*:)"
+				},
+				{
+					"name": "punctuation.separator.key-value.js",
+					"match": ":"
 				}
 			]
 		},
@@ -3914,7 +3950,7 @@
 				},
 				{
 					"name": "storage.modifier.js",
-					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(extends)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(extends|in|out)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"include": "#type"
@@ -5064,7 +5100,7 @@
 		},
 		"directives": {
 			"name": "comment.line.triple-slash.directive.js",
-			"begin": "^(///)\\s*(?=<(reference|amd-dependency|amd-module)(\\s+(path|types|no-default-lib|lib|name)\\s*=\\s*((\\'([^\\'\\\\]|\\\\.)*\\')|(\\\"([^\\\"\\\\]|\\\\.)*\\\")|(\\`([^\\`\\\\]|\\\\.)*\\`)))+\\s*/>\\s*$)",
+			"begin": "^(///)\\s*(?=<(reference|amd-dependency|amd-module)(\\s+(path|types|no-default-lib|lib|name|resolution-mode)\\s*=\\s*((\\'([^\\'\\\\]|\\\\.)*\\')|(\\\"([^\\\"\\\\]|\\\\.)*\\\")|(\\`([^\\`\\\\]|\\\\.)*\\`)))+\\s*/>\\s*$)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.comment.js"
@@ -5092,7 +5128,7 @@
 					"patterns": [
 						{
 							"name": "entity.other.attribute-name.directive.js",
-							"match": "path|types|no-default-lib|lib|name"
+							"match": "path|types|no-default-lib|lib|name|resolution-mode"
 						},
 						{
 							"name": "keyword.operator.assignment.js",

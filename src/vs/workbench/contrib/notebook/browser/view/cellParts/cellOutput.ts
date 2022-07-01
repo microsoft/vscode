@@ -92,9 +92,7 @@ export class CellOutputElement extends Disposable {
 	}
 
 	detach() {
-		if (this.renderedOutputContainer) {
-			this.renderedOutputContainer.parentElement?.removeChild(this.renderedOutputContainer);
-		}
+		this.renderedOutputContainer?.parentElement?.removeChild(this.renderedOutputContainer);
 
 		let count = 0;
 		if (this.innerContainer) {
@@ -602,7 +600,7 @@ export class CellOutputContainer extends CellPart {
 				});
 
 				// exclusive
-				let reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
+				const reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
 
 				const newlyInsertedEntries = newlyInserted.map(insert => {
 					return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this, this.templateData.outputContainer, insert));
@@ -622,7 +620,7 @@ export class CellOutputContainer extends CellPart {
 				entry.element.dispose();
 			});
 
-			let reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
+			const reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
 
 			const newlyInsertedEntries = newlyInserted.map(insert => {
 				return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this, this.templateData.outputContainer, insert));

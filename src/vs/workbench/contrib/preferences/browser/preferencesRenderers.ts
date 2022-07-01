@@ -175,6 +175,7 @@ class EditSettingRenderer extends Disposable {
 
 	constructor(private editor: ICodeEditor, private primarySettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
@@ -283,6 +284,9 @@ class EditSettingRenderer extends Disposable {
 		return this.getSettingsAtLineNumber(lineNumber).filter(setting => {
 			const configurationNode = configurationMap[setting.key];
 			if (configurationNode) {
+				if (configurationNode.policy && this.configurationService.inspect(setting.key).policyValue !== undefined) {
+					return false;
+				}
 				if (this.isDefaultSettings()) {
 					if (setting.key === 'launch') {
 						// Do not show because of https://github.com/microsoft/vscode/issues/32593
@@ -522,6 +526,9 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 				for (const setting of section.settings) {
 					const configuration = configurationRegistry[setting.key];
 					if (configuration) {
+						if (this.handlePolicyConfiguration(setting, configuration, markerData)) {
+							continue;
+						}
 						switch (this.settingsEditorModel.configurationTarget) {
 							case ConfigurationTarget.USER_LOCAL:
 								this.handleLocalUserConfiguration(setting, configuration, markerData);
@@ -548,6 +555,25 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			}
 		}
 		return markerData;
+	}
+
+	private handlePolicyConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): boolean {
+		if (!configuration.policy) {
+			return false;
+		}
+		if (this.configurationService.inspect(setting.key).policyValue === undefined) {
+			return false;
+		}
+		if (this.settingsEditorModel.configurationTarget === ConfigurationTarget.DEFAULT) {
+			return false;
+		}
+		markerData.push({
+			severity: MarkerSeverity.Hint,
+			tags: [MarkerTag.Unnecessary],
+			...setting.range,
+			message: nls.localize('unsupportedPolicySetting', "This setting cannot be applied because it is configured in the system policy.")
+		});
+		return true;
 	}
 
 	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {

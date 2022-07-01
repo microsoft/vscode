@@ -27,7 +27,7 @@ import { mixin } from 'vs/base/common/objects';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDataTransfer } from 'vs/base/common/dataTransfer';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 
 export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
@@ -831,8 +831,8 @@ export interface ITreeViewDataProvider {
 export interface ITreeViewDragAndDropController {
 	readonly dropMimeTypes: string[];
 	readonly dragMimeTypes: string[];
-	handleDrag(sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<IDataTransfer | undefined>;
-	handleDrop(elements: IDataTransfer, target: ITreeItem | undefined, token: CancellationToken, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
+	handleDrag(sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<VSDataTransfer | undefined>;
+	handleDrop(elements: VSDataTransfer, target: ITreeItem | undefined, token: CancellationToken, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
 
 export interface IEditableData {

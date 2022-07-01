@@ -706,6 +706,11 @@ export interface IDiffEditorBaseOptions {
 	 */
 	renderIndicators?: boolean;
 	/**
+	 * Shows icons in the glyph margin to revert changes.
+	 * Default to true.
+	 */
+	renderMarginRevertIcon?: boolean;
+	/**
 	 * Original model should be editable?
 	 * Defaults to false.
 	 */
@@ -818,7 +823,7 @@ export interface IEditorOption<K extends EditorOption, V> {
 	/**
 	 * Might modify `value`.
 	*/
-	applyUpdate(value: V, update: V): ApplyUpdateResult<V>;
+	applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V>;
 }
 
 /**
@@ -847,7 +852,7 @@ abstract class BaseEditorOption<K extends EditorOption, T, V> implements IEditor
 		this.schema = schema;
 	}
 
-	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+	public applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V> {
 		return applyUpdate(value, update);
 	}
 
@@ -865,7 +870,7 @@ export class ApplyUpdateResult<T> {
 	) { }
 }
 
-function applyUpdate<T>(value: T, update: T): ApplyUpdateResult<T> {
+function applyUpdate<T>(value: T | undefined, update: T): ApplyUpdateResult<T> {
 	if (typeof value !== 'object' || typeof update !== 'object' || !value || !update) {
 		return new ApplyUpdateResult(update, value !== update);
 	}
@@ -902,7 +907,7 @@ abstract class ComputedEditorOption<K extends EditorOption, V> implements IEdito
 		this.defaultValue = <any>undefined;
 	}
 
-	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+	public applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V> {
 		return applyUpdate(value, update);
 	}
 
@@ -927,7 +932,7 @@ class SimpleEditorOption<K extends EditorOption, V> implements IEditorOption<K, 
 		this.schema = schema;
 	}
 
-	public applyUpdate(value: V, update: V): ApplyUpdateResult<V> {
+	public applyUpdate(value: V | undefined, update: V): ApplyUpdateResult<V> {
 		return applyUpdate(value, update);
 	}
 
@@ -2523,11 +2528,10 @@ export interface IEditorInlayHintsOptions {
 	fontFamily?: string;
 
 	/**
-	 * The display style to render inlay hints with.
-	 * Compact mode disables the borders and padding around the inlay hint.
-	 * Defaults to 'standard'.
+	 * Enables the padding around the inlay hint.
+	 * Defaults to false.
 	 */
-	displayStyle: 'standard' | 'compact';
+	padding?: boolean;
 }
 
 /**
@@ -2538,7 +2542,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', displayStyle: 'compact' };
+		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -2564,16 +2568,11 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.fontFamily,
 					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
-				// 'editor.inlayHints.displayStyle': {
-				// 	type: 'string',
-				// 	enum: ['standard', 'compact'],
-				// 	enumDescriptions: [
-				// 		nls.localize('inlayHints.displayStyle.standard', "Renders inlay hints with the default style."),
-				// 		nls.localize('inlayHints.displayStyle.compact', "Renders inlay hints without any padding, and removes the rounded borders."),
-				// 	],
-				// 	default: defaults.displayStyle,
-				// 	description: nls.localize('inlayHints.displayStyle', "Controls the display style of inlay hints.")
-				// }
+				'editor.inlayHints.padding': {
+					type: 'boolean',
+					default: defaults.padding,
+					description: nls.localize('inlayHints.padding', "Enables the padding around the inlay hints in the editor.")
+				}
 			}
 		);
 	}
@@ -2590,7 +2589,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			enabled: stringSet<'on' | 'off' | 'offUnlessPressed' | 'onUnlessPressed'>(input.enabled, this.defaultValue.enabled, ['on', 'off', 'offUnlessPressed', 'onUnlessPressed']),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
-			displayStyle: stringSet<'standard' | 'compact'>(input.displayStyle, this.defaultValue.displayStyle, ['standard', 'compact'])
+			padding: boolean(input.padding, this.defaultValue.padding)
 		};
 	}
 }
@@ -2631,6 +2630,10 @@ export interface IEditorMinimapOptions {
 	 * Defaults to true.
 	 */
 	enabled?: boolean;
+	/**
+	 * Control the rendering of minimap.
+	 */
+	autohide?: boolean;
 	/**
 	 * Control the side of the minimap in editor.
 	 * Defaults to 'right'.
@@ -2675,6 +2678,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			size: 'proportional',
 			side: 'right',
 			showSlider: 'mouseover',
+			autohide: false,
 			renderCharacters: true,
 			maxColumn: 120,
 			scale: 1,
@@ -2686,6 +2690,11 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
+				},
+				'editor.minimap.autohide': {
+					type: 'boolean',
+					default: defaults.autohide,
+					description: nls.localize('minimap.autohide', "Controls whether the minimap is hidden automatically.")
 				},
 				'editor.minimap.size': {
 					type: 'string',
@@ -2739,6 +2748,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 		const input = _input as IEditorMinimapOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			autohide: boolean(input.autohide, this.defaultValue.autohide),
 			size: stringSet<'proportional' | 'fill' | 'fit'>(input.size, this.defaultValue.size, ['proportional', 'fill', 'fit']),
 			side: stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
@@ -3125,7 +3135,7 @@ class EditorRulers extends BaseEditorOption<EditorOption.rulers, (number | IRule
 	public validate(input: any): IRulerOption[] {
 		if (Array.isArray(input)) {
 			const rulers: IRulerOption[] = [];
-			for (let _element of input) {
+			for (const _element of input) {
 				if (typeof _element === 'number') {
 					rulers.push({
 						column: EditorIntOption.clampedInt(_element, 0, 0, 10000),
@@ -3482,16 +3492,16 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 		);
 	}
 
-	public override applyUpdate(value: Required<Readonly<IUnicodeHighlightOptions>>, update: Required<Readonly<IUnicodeHighlightOptions>>): ApplyUpdateResult<Required<Readonly<IUnicodeHighlightOptions>>> {
+	public override applyUpdate(value: Required<Readonly<IUnicodeHighlightOptions>> | undefined, update: Required<Readonly<IUnicodeHighlightOptions>>): ApplyUpdateResult<Required<Readonly<IUnicodeHighlightOptions>>> {
 		let didChange = false;
-		if (update.allowedCharacters) {
+		if (update.allowedCharacters && value) {
 			// Treat allowedCharacters atomically
 			if (!objects.equals(value.allowedCharacters, update.allowedCharacters)) {
 				value = { ...value, allowedCharacters: update.allowedCharacters };
 				didChange = true;
 			}
 		}
-		if (update.allowedLocales) {
+		if (update.allowedLocales && value) {
 			// Treat allowedLocales atomically
 			if (!objects.equals(value.allowedLocales, update.allowedLocales)) {
 				value = { ...value, allowedLocales: update.allowedLocales };
@@ -5002,7 +5012,7 @@ export const EditorOptions = {
 	scrollbar: register(new EditorScrollbar()),
 	scrollBeyondLastColumn: register(new EditorIntOption(
 		EditorOption.scrollBeyondLastColumn, 'scrollBeyondLastColumn',
-		5, 0, Constants.MAX_SAFE_SMALL_INTEGER,
+		4, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{ description: nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally.") }
 	)),
 	scrollBeyondLastLine: register(new EditorBooleanOption(

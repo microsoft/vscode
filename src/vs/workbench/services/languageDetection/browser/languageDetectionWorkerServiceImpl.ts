@@ -151,7 +151,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 	private initEditorOpenedListeners(storageService: IStorageService) {
 		try {
-			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.GLOBAL, '[]'));
+			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.PROFILE, '[]'));
 			this.historicalGlobalOpenedLanguageIds.fromJSON(globalLangHistroyData);
 		} catch (e) { console.error(e); }
 
@@ -166,7 +166,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 				this.sessionOpenedLanguageIds.add(activeLanguage);
 				this.historicalGlobalOpenedLanguageIds.set(activeLanguage, true);
 				this.historicalWorkspaceOpenedLanguageIds.set(activeLanguage, true);
-				storageService.store(LanguageDetectionService.globalOpenedLanguagesStorageKey, JSON.stringify(this.historicalGlobalOpenedLanguageIds.toJSON()), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				storageService.store(LanguageDetectionService.globalOpenedLanguagesStorageKey, JSON.stringify(this.historicalGlobalOpenedLanguageIds.toJSON()), StorageScope.PROFILE, StorageTarget.MACHINE);
 				storageService.store(LanguageDetectionService.workspaceOpenedLanguagesStorageKey, JSON.stringify(this.historicalWorkspaceOpenedLanguageIds.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				this.dirtyBiases = true;
 			}
@@ -203,6 +203,7 @@ export class LanguageDetectionWorkerHost {
 	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
 		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number };
 		type LanguageDetectionStatsClassification = {
+			owner: 'TylerLeonhardt';
 			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -337,6 +338,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		}
 
 		type LanguageDetectionPerfClassification = {
+			owner: 'TylerLeonhardt';
 			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 			detection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};

@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDataTransfer, IDataTransferItem } from 'vs/base/common/dataTransfer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { addExternalEditorsDropData, toVSDataTransfer, UriList } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { DocumentOnDropEditProvider, SnippetTextEdit } from 'vs/editor/common/languages';
+import { DocumentOnDropEdit, DocumentOnDropEditProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { extractEditorsDropData, FileAdditionalNativeProperties } from 'vs/platform/dnd/browser/dnd';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 
@@ -32,9 +34,9 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	constructor(
 		editor: ICodeEditor,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		super();
 
@@ -75,78 +77,37 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			return;
 		}
 
-		const cts = new CancellationTokenSource();
-		editor.onDidDispose(() => cts.cancel());
-		model.onDidChangeContent(() => cts.cancel());
+		const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value);
+		try {
+			const providers = this._languageFeaturesService.documentOnDropEditProvider.ordered(model);
+			for (const provider of providers) {
+				const edit = await provider.provideDocumentOnDropEdits(model, position, ourDataTransfer, tokenSource.token);
+				if (tokenSource.token.isCancellationRequested || editor.getModel().getVersionId() !== modelVersionNow) {
+					return;
+				}
 
-		const providers = this._languageFeaturesService.documentOnDropEditProvider.ordered(model);
-		for (const provider of providers) {
-			const edit = await provider.provideDocumentOnDropEdits(model, position, ourDataTransfer, cts.token);
-			if (cts.token.isCancellationRequested || editor.getModel().getVersionId() !== modelVersionNow) {
-				return;
-			}
+				if (edit) {
+					const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+					performSnippetEdit(editor, typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet, [Selection.fromRange(range, SelectionDirection.LTR)]);
 
-			if (edit) {
-				performSnippetEdit(editor, edit);
-				return;
+					if (edit.additionalEdit) {
+						await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor });
+					}
+					return;
+				}
 			}
+		} finally {
+			tokenSource.dispose();
 		}
 	}
 
-	public async extractDataTransferData(dragEvent: DragEvent): Promise<IDataTransfer> {
-		const textEditorDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
+	public async extractDataTransferData(dragEvent: DragEvent): Promise<VSDataTransfer> {
 		if (!dragEvent.dataTransfer) {
-			return textEditorDataTransfer;
+			return new VSDataTransfer();
 		}
 
-		for (const item of dragEvent.dataTransfer.items) {
-			const type = item.type;
-			if (item.kind === 'string') {
-				const asStringValue = new Promise<string>(resolve => item.getAsString(resolve));
-				textEditorDataTransfer.set(type, {
-					asString: () => asStringValue,
-					asFile: () => undefined,
-					value: undefined
-				});
-			} else if (item.kind === 'file') {
-				const file = item.getAsFile();
-				if (file) {
-					textEditorDataTransfer.set(type, {
-						asString: () => Promise.resolve(''),
-						asFile: () => {
-							const uri = (file as FileAdditionalNativeProperties).path ? URI.parse((file as FileAdditionalNativeProperties).path!) : undefined;
-							return {
-								name: file.name,
-								uri: uri,
-								data: async () => {
-									return new Uint8Array(await file.arrayBuffer());
-								},
-							};
-						},
-						value: undefined
-					});
-				}
-			}
-		}
-
-		if (!textEditorDataTransfer.has(Mimes.uriList)) {
-			const editorData = (await this._instantiationService.invokeFunction(extractEditorsDropData, dragEvent))
-				.filter(input => input.resource)
-				.map(input => input.resource!.toString());
-
-			if (editorData.length) {
-				const added: IDataTransfer = new Map<string, IDataTransferItem>();
-
-				const str = distinct(editorData).join('\n');
-				added.set(Mimes.uriList.toLowerCase(), {
-					asFile: () => undefined,
-					asString: async () => str,
-					value: str,
-				});
-				return added;
-			}
-		}
-
+		const textEditorDataTransfer = toVSDataTransfer(dragEvent.dataTransfer);
+		addExternalEditorsDropData(textEditorDataTransfer, dragEvent);
 		return textEditorDataTransfer;
 	}
 }
@@ -157,26 +118,28 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
-	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: IDataTransfer, _token: CancellationToken): Promise<SnippetTextEdit | undefined> {
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-
-		const urlListEntry = dataTransfer.get('text/uri-list');
+	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
+		const urlListEntry = dataTransfer.get(Mimes.uriList);
 		if (urlListEntry) {
 			const urlList = await urlListEntry.asString();
-			return this.doUriListDrop(range, urlList);
+			const snippet = this.getUriListInsertText(urlList);
+			if (snippet) {
+				return { insertText: snippet };
+			}
 		}
 
 		const textEntry = dataTransfer.get('text') ?? dataTransfer.get(Mimes.text);
 		if (textEntry) {
 			const text = await textEntry.asString();
-			return { range, snippet: text };
+			return { insertText: text };
 		}
+
 		return undefined;
 	}
 
-	private doUriListDrop(range: Range, urlList: string): SnippetTextEdit | undefined {
+	private getUriListInsertText(strUriList: string): string | undefined {
 		const uris: URI[] = [];
-		for (const resource of urlList.split('\n')) {
+		for (const resource of UriList.parse(strUriList)) {
 			try {
 				uris.push(URI.parse(resource));
 			} catch {
@@ -188,7 +151,7 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 			return;
 		}
 
-		const snippet = uris
+		return uris
 			.map(uri => {
 				const root = this._workspaceContextService.getWorkspaceFolder(uri);
 				if (root) {
@@ -200,10 +163,9 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 				return uri.fsPath;
 			})
 			.join(' ');
-
-		return { range, snippet };
 	}
 }
 
 
 registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController);
+

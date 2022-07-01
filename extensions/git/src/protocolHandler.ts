@@ -38,7 +38,15 @@ export class GitProtocolHandler implements UriHandler {
 
 		let cloneUri: Uri;
 		try {
-			cloneUri = Uri.parse(Array.isArray(data.url) ? data.url[0] : data.url, true);
+			let rawUri = Array.isArray(data.url) ? data.url[0] : data.url;
+
+			// Handle SSH Uri
+			// Ex: git@github.com:microsoft/vscode.git
+			rawUri = rawUri.replace(/^(git@[^\/:]+)(:)/i, 'ssh://$1/');
+
+			cloneUri = Uri.parse(rawUri, true);
+
+			// Validate against supported schemes
 			if (!schemes.has(cloneUri.scheme.toLowerCase())) {
 				throw new Error('Unsupported scheme.');
 			}

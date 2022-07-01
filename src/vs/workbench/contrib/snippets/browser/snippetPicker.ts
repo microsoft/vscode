@@ -87,6 +87,9 @@ export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippe
 		picker.items = makeSnippetPicks();
 	});
 	picker.items = makeSnippetPicks();
+	if (!picker.items.length) {
+		picker.validationMessage = nls.localize('pick.noSnippetAvailable', "No snippet available");
+	}
 	picker.show();
 
 	// wait for an item to be picked or the picker to become hidden

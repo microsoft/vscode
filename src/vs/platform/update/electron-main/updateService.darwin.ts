@@ -38,8 +38,8 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
-	override async initialize(): Promise<void> {
-		await super.initialize();
+	override initialize(): void {
+		super.initialize();
 		this.onRawError(this.onError, this, this.disposables);
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
 		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this.disposables);
@@ -92,6 +92,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		}
 
 		type UpdateDownloadedClassification = {
+			owner: 'joaomoreno';
 			version: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 		this.telemetryService.publicLog2<{ version: String }, UpdateDownloadedClassification>('update:downloaded', { version: update.version });

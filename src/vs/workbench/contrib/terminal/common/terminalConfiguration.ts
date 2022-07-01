@@ -280,8 +280,8 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownEnumDescriptions: [
 				localize('terminal.integrated.gpuAcceleration.auto', "Let VS Code detect which renderer will give the best experience."),
 				localize('terminal.integrated.gpuAcceleration.on', "Enable GPU acceleration within the terminal."),
-				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal."),
-				localize('terminal.integrated.gpuAcceleration.canvas', "Use the fallback canvas renderer within the terminal. This uses a 2d context instead of webgl and may be better on some systems.")
+				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal. The terminal will render much slower when GPU acceleration is off but it should reliably work on all systems."),
+				localize('terminal.integrated.gpuAcceleration.canvas', "Use the terminal's fallback canvas renderer which uses a 2d context instead of webgl which may perform better on some systems. Note that some features are limited in the canvas renderer like opaque selection.")
 			],
 			default: 'auto',
 			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
@@ -500,12 +500,12 @@ const terminalConfiguration: IConfigurationNode = {
 			]
 		},
 		[TerminalSettingId.EnablePersistentSessions]: {
-			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions for the workspace across window reloads."),
+			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions/history for the workspace across window reloads."),
 			type: 'boolean',
 			default: true
 		},
 		[TerminalSettingId.PersistentSessionReviveProcess]: {
-			markdownDescription: localize('terminal.integrated.persistentSessionReviveProcess', "When the terminal process must be shutdown (eg. on window or application close), this determines when the previous terminal session contents should be restored and processes be recreated when the workspace is next opened.\n\nCaveats:\n\n- Restoring of the process current working directory depends on whether it is supported by the shell.\n- Time to persist the session during shutdown is limited, so it may be aborted when using high-latency remote connections."),
+			markdownDescription: localize('terminal.integrated.persistentSessionReviveProcess', "When the terminal process must be shutdown (eg. on window or application close), this determines when the previous terminal session contents/history should be restored and processes be recreated when the workspace is next opened.\n\nCaveats:\n\n- Restoring of the process current working directory depends on whether it is supported by the shell.\n- Time to persist the session during shutdown is limited, so it may be aborted when using high-latency remote connections."),
 			type: 'string',
 			enum: ['onExit', 'onExitAndWindowClose', 'never'],
 			markdownEnumDescriptions: [
@@ -521,7 +521,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.AutoReplies]: {
-			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- Use {0} to automatically respond to the terminate batch job prompt on Windows.\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {1} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"Terminate batch job (Y/N)": "\\r"`', '`"\\r"`'),
+			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- Use {0} to automatically respond to the terminate batch job prompt on Windows.\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {1} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"Terminate batch job (Y/N)": "Y\\r"`', '`"\\r"`'),
 			type: 'object',
 			additionalProperties: {
 				oneOf: [{

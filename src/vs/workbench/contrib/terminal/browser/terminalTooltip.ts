@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
 export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown: boolean, configurationService: IConfigurationService): string {
-	if (!configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)) {
+	if (!configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) || instance.disableShellIntegrationReporting) {
 		return '';
 	}
 	const shellIntegrationCapabilities: TerminalCapability[] = [];
@@ -24,7 +24,11 @@ export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown
 	if (shellIntegrationCapabilities.length > 0) {
 		shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('shellIntegration.enabled', "Shell integration activated")}`;
 	} else {
-		shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('shellIntegration.activationFailed', "Shell integration failed to activate")}`;
+		if (instance.shellLaunchConfig.ignoreShellIntegration) {
+			shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch. Disabling shell integration with terminal.integrated.shellIntegration.enabled might help.")}`;
+		} else {
+			shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('shellIntegration.activationFailed', "Shell integration failed to activate")}`;
+		}
 	}
 	return shellIntegrationString;
 }

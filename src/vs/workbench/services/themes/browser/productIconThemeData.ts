@@ -107,14 +107,14 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 	}
 
 	static fromStorageData(storageService: IStorageService): ProductIconThemeData | undefined {
-		const input = storageService.get(ProductIconThemeData.STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(ProductIconThemeData.STORAGE_KEY, StorageScope.PROFILE);
 		if (!input) {
 			return undefined;
 		}
 		try {
-			let data = JSON.parse(input);
+			const data = JSON.parse(input);
 			const theme = new ProductIconThemeData('', '', '');
-			for (let key in data) {
+			for (const key in data) {
 				switch (key) {
 					case 'id':
 					case 'label':
@@ -148,7 +148,7 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 			watch: this.watch,
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 		});
-		storageService.store(ProductIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store(ProductIconThemeData.STORAGE_KEY, data, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 }
 
@@ -159,7 +159,7 @@ interface ProductIconThemeDocument {
 function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderService, location: URI, warnings: string[]): Promise<ProductIconThemeDocument> {
 	return fileService.readExtensionResource(location).then((content) => {
 		const parseErrors: Json.ParseError[] = [];
-		let contentValue = Json.parse(content, parseErrors);
+		const contentValue = Json.parse(content, parseErrors);
 		if (parseErrors.length > 0) {
 			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing product icons file: {0}", parseErrors.map(e => getParseErrorMessage(e.error)).join(', '))));
 		} else if (Json.getNodeType(contentValue) !== 'object') {

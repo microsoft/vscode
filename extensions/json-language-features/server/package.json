@@ -15,7 +15,7 @@
     "jsonc-parser": "^3.0.0",
     "request-light": "^0.5.8",
     "vscode-json-languageservice": "^5.0.0",
-    "vscode-languageserver": "^8.0.1",
+    "vscode-languageserver": "^8.0.2-next.4",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {

@@ -38,6 +38,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class OutputViewPane extends ViewPane {
 
@@ -83,9 +84,7 @@ export class OutputViewPane extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-		if (this.editorPromise) {
-			this.editorPromise.then(() => this.editor.focus());
-		}
+		this.editorPromise?.then(() => this.editor.focus());
 	}
 
 	override renderBody(container: HTMLElement): void {
@@ -182,9 +181,10 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IOutputService private readonly outputService: IOutputService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IFileService fileService: IFileService
 	) {
-		super(OUTPUT_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
+		super(OUTPUT_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
 	}
 
 	override getId(): string {
@@ -288,7 +288,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 	) {
 		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', "Output Channels"), optionsAsChildren: true });
 
-		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
 		this._register(outputChannelRegistry.onDidRegisterChannel(() => this.updateOptions()));
 		this._register(outputChannelRegistry.onDidRemoveChannel(() => this.updateOptions()));
 		this._register(this.outputService.onActiveOutputChannel(() => this.updateOptions()));

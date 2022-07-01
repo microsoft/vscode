@@ -32,7 +32,7 @@ suite('ResourceWorkingCopy', function () {
 	}
 
 	let disposables: DisposableStore;
-	let resource = URI.file('test/resource');
+	const resource = URI.file('test/resource');
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let workingCopy: TestResourceWorkingCopy;

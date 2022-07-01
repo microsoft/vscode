@@ -119,9 +119,7 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 	}
 
 	disposeElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		if (this.renderer.disposeElement) {
-			this.renderer.disposeElement(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
-		}
+		this.renderer.disposeElement?.(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
 	}
 
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {
@@ -196,9 +194,7 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		if (this.dnd.onDragStart) {
-			this.dnd.onDragStart(asAsyncDataTreeDragAndDropData(data), originalEvent);
-		}
+		this.dnd.onDragStart?.(asAsyncDataTreeDragAndDropData(data), originalEvent);
 	}
 
 	onDragOver(data: IDragAndDropData, targetNode: IAsyncDataTreeNode<TInput, T> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
@@ -210,9 +206,7 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 	}
 
 	onDragEnd(originalEvent: DragEvent): void {
-		if (this.dnd.onDragEnd) {
-			this.dnd.onDragEnd(originalEvent);
-		}
+		this.dnd.onDragEnd?.(originalEvent);
 	}
 }
 
@@ -1086,15 +1080,11 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 	}
 
 	disposeElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		if (this.renderer.disposeElement) {
-			this.renderer.disposeElement(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
-		}
+		this.renderer.disposeElement?.(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
 	}
 
 	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T>>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		if (this.renderer.disposeCompressedElements) {
-			this.renderer.disposeCompressedElements(this.compressibleNodeMapperProvider().map(node) as ITreeNode<ICompressedTreeNode<T>, TFilterData>, index, templateData.templateData, height);
-		}
+		this.renderer.disposeCompressedElements?.(this.compressibleNodeMapperProvider().map(node) as ITreeNode<ICompressedTreeNode<T>, TFilterData>, index, templateData.templateData, height);
 	}
 
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {
@@ -1189,10 +1179,10 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 
 		const expanded: string[] = [];
 		const root = this.tree.getCompressedTreeNode();
-		const queue = [root];
+		const stack = [root];
 
-		while (queue.length > 0) {
-			const node = queue.shift()!;
+		while (stack.length > 0) {
+			const node = stack.pop()!;
 
 			if (node !== root && node.collapsible && !node.collapsed) {
 				for (const asyncNode of node.element!.elements) {
@@ -1200,7 +1190,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 				}
 			}
 
-			queue.push(...node.children);
+			stack.push(...node.children);
 		}
 
 		return { focus, selection, expanded, scrollTop: this.scrollTop };

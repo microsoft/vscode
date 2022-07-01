@@ -33,7 +33,7 @@ export class FindFileReferencesCommand implements Command {
 			location: vscode.ProgressLocation.Window,
 			title: localize('progress.title', "Finding file references")
 		}, async (_progress, token) => {
-			const references = await this.referencesProvider.getAllReferencesToFile(resource!, token);
+			const references = await this.referencesProvider.getReferencesToFileInWorkspace(resource!, token);
 			const locations = references.map(ref => ref.location);
 
 			const config = vscode.workspace.getConfiguration('references');
@@ -49,6 +49,9 @@ export class FindFileReferencesCommand implements Command {
 	}
 }
 
-export function registerFindFileReferences(commandManager: CommandManager, referencesProvider: MdReferencesProvider): vscode.Disposable {
+export function registerFindFileReferenceSupport(
+	commandManager: CommandManager,
+	referencesProvider: MdReferencesProvider
+): vscode.Disposable {
 	return commandManager.register(new FindFileReferencesCommand(referencesProvider));
 }

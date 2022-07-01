@@ -690,8 +690,11 @@ export class DebugService implements IDebugService {
 				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.canPersist);
 				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
 
-				if (this.viewsService.isViewVisible(REPL_VIEW_ID) && this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd) {
-					this.viewsService.closeView(REPL_VIEW_ID);
+				if (this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd) {
+					const debugConsoleContainer = this.viewDescriptorService.getViewContainerByViewId(REPL_VIEW_ID);
+					if (debugConsoleContainer && this.viewsService.isViewContainerVisible(debugConsoleContainer.id)) {
+						this.viewsService.closeViewContainer(debugConsoleContainer.id);
+					}
 				}
 			}
 		}));
@@ -867,8 +870,8 @@ export class DebugService implements IDebugService {
 						const lineNumber = stackFrame.range.startLineNumber;
 						if (lineNumber >= 1 && lineNumber <= model.getLineCount()) {
 							const lineContent = control.getModel().getLineContent(lineNumber);
-							aria.alert(nls.localize({ key: 'debuggingPaused', comment: ['First placeholder is the stack frame name, second is the line number, third placeholder is the reason why debugging is stopped, for example "breakpoint" and the last one is the file line content.'] },
-								"{0}:{1}, debugging paused {2}, {3}", stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', lineContent));
+							aria.alert(nls.localize({ key: 'debuggingPaused', comment: ['First placeholder is the file line content, second placeholder is the reason why debugging is stopped, for example "breakpoint", third is the stack frame name, and last is the line number.'] },
+								"{0}, debugging paused {1}, {2}:{3}", lineContent, thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
 						}
 					}
 				}

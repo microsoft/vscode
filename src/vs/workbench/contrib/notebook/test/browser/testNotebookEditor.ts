@@ -422,7 +422,7 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 		return this._executions.get(cellUri);
 	}
 
-	createCellExecution(controllerId: string, notebook: URI, cellHandle: number): INotebookCellExecution {
+	createCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution {
 		const onComplete = () => this._executions.delete(CellUri.generate(notebook, cellHandle));
 		const exe = new TestCellExecution(notebook, cellHandle, onComplete);
 		this._executions.set(CellUri.generate(notebook, cellHandle), exe);

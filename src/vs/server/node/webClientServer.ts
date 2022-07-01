@@ -255,7 +255,7 @@ export class WebClientServer {
 			);
 
 			const newQuery = Object.create(null);
-			for (let key in parsedUrl.query) {
+			for (const key in parsedUrl.query) {
 				if (key !== connectionTokenQueryName) {
 					newQuery[key] = parsedUrl.query[key];
 				}
@@ -267,11 +267,12 @@ export class WebClientServer {
 			return res.end();
 		}
 
-		let originalHost = req.headers['x-original-host'];
-		if (Array.isArray(originalHost)) {
-			originalHost = originalHost[0];
-		}
-		const remoteAuthority = originalHost || req.headers.host;
+		const getFirstHeader = (headerName: string) => {
+			const val = req.headers[headerName];
+			return Array.isArray(val) ? val[0] : val;
+		};
+
+		const remoteAuthority = getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host;
 		if (!remoteAuthority) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
@@ -320,10 +321,12 @@ export class WebClientServer {
 			callbackRoute: this._callbackRoute
 		};
 
+		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: this._staticRoute,
+			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${!nlsBaseUrl.endsWith('/') ? '/' : ''}${this._productService.commit}/${this._productService.version}/` : '',
 		};
 
 

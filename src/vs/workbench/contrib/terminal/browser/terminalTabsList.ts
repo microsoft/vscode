@@ -625,7 +625,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		this._autoFocusInstance = undefined;
 
 		let sourceInstances: ITerminalInstance[] | undefined;
-		let promises: Promise<IProcessDetails | undefined>[] = [];
+		const promises: Promise<IProcessDetails | undefined>[] = [];
 		const resources = getTerminalResourcesFromDragEvent(originalEvent);
 		if (resources) {
 			for (const uri of resources) {
