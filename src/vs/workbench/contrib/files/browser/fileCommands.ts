@@ -654,6 +654,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				pinned: true
 			},
 			languageId: args?.languageId,
-		}, SIDE_GROUP);
+		});
 	}
 });
