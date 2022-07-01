@@ -14,6 +14,7 @@ const localize = nls.loadMessageBundle();
 interface ActionButtonState {
 	readonly HEAD: Branch | undefined;
 	readonly isCommitInProgress: boolean;
+	readonly isMergeInProgress: boolean;
 	readonly isSyncInProgress: boolean;
 	readonly repositoryHasChanges: boolean;
 }
@@ -34,7 +35,13 @@ export class ActionButtonCommand {
 	private disposables: Disposable[] = [];
 
 	constructor(readonly repository: Repository) {
-		this._state = { HEAD: undefined, isCommitInProgress: false, isSyncInProgress: false, repositoryHasChanges: false };
+		this._state = {
+			HEAD: undefined,
+			isCommitInProgress: false,
+			isMergeInProgress: false,
+			isSyncInProgress: false,
+			repositoryHasChanges: false
+		};
 
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
@@ -123,7 +130,7 @@ export class ActionButtonCommand {
 					},
 				]
 			],
-			enabled: this.state.repositoryHasChanges && !this.state.isCommitInProgress
+			enabled: this.state.repositoryHasChanges && !this.state.isCommitInProgress && !this.state.isMergeInProgress
 		};
 	}
 
@@ -131,8 +138,8 @@ export class ActionButtonCommand {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ publish: boolean }>('showActionButton', { publish: true });
 
-		// Branch does have an upstream, commit is in progress, or the button is disabled
-		if (this.state.HEAD?.upstream || this.state.isCommitInProgress || !showActionButton.publish) { return undefined; }
+		// Branch does have an upstream, commit/merge is in progress, or the button is disabled
+		if (this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || !showActionButton.publish) { return undefined; }
 
 		return {
 			command: {
@@ -151,8 +158,8 @@ export class ActionButtonCommand {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ sync: boolean }>('showActionButton', { sync: true });
 
-		// Branch does not have an upstream, commit is in progress, or the button is disabled
-		if (!this.state.HEAD?.upstream || this.state.isCommitInProgress || !showActionButton.sync) { return undefined; }
+		// Branch does not have an upstream, commit/merge is in progress, or the button is disabled
+		if (!this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || !showActionButton.sync) { return undefined; }
 
 		const ahead = this.state.HEAD.ahead ? ` ${this.state.HEAD.ahead}$(arrow-up)` : '';
 		const behind = this.state.HEAD.behind ? ` ${this.state.HEAD.behind}$(arrow-down)` : '';
@@ -190,9 +197,10 @@ export class ActionButtonCommand {
 		this.state = {
 			...this.state,
 			HEAD: this.repository.HEAD,
+			isMergeInProgress:
+				this.repository.mergeGroup.resourceStates.length !== 0,
 			repositoryHasChanges:
 				this.repository.indexGroup.resourceStates.length !== 0 ||
-				this.repository.mergeGroup.resourceStates.length !== 0 ||
 				this.repository.untrackedGroup.resourceStates.length !== 0 ||
 				this.repository.workingTreeGroup.resourceStates.length !== 0
 		};
