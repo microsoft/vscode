@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_TITLE, EditSessionSchemaVersion } from 'vs/workbench/services/sessionSync/common/sessionSync';
+import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EditSessionSchemaVersion } from 'vs/workbench/services/sessionSync/common/sessionSync';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -44,11 +44,13 @@ registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
 const resumeLatestCommand = {
 	id: 'workbench.experimental.editSessions.actions.resumeLatest',
-	title: { value: localize('resume latest', "{0}: Resume Latest Edit Session", EDIT_SESSION_SYNC_TITLE), original: 'Edit Sessions' },
+	title: { value: localize('resume latest', "Resume Latest Edit Session"), original: 'Resume Latest Edit Session' },
+	category: EDIT_SESSION_SYNC_CATEGORY,
 };
 const storeCurrentCommand = {
 	id: 'workbench.experimental.editSessions.actions.storeCurrent',
-	title: { value: localize('store current', "{0}: Store Current Edit Session", EDIT_SESSION_SYNC_TITLE), original: 'Edit Sessions' },
+	title: { value: localize('store current', "Store Current Edit Session"), original: 'Store Current Edit Session' },
+	category: EDIT_SESSION_SYNC_CATEGORY,
 };
 const continueEditSessionCommand = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession',
@@ -56,7 +58,7 @@ const continueEditSessionCommand = {
 };
 const openLocalFolderCommand = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession.openLocalFolder',
-	title: localize('continue edit session in local folder', "Open In Local Folder"),
+	title: { value: localize('continue edit session in local folder', "Open In Local Folder"), original: 'Open In Local Folder' },
 };
 const queryParamName = 'editSessionId';
 
@@ -146,8 +148,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class ContinueEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					id: continueEditSessionCommand.id,
-					title: continueEditSessionCommand.title,
+					...continueEditSessionCommand,
 					f1: true
 				});
 			}
@@ -181,8 +182,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class ApplyLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					id: resumeLatestCommand.id,
-					title: resumeLatestCommand.title,
+					...resumeLatestCommand,
 					menu: {
 						id: MenuId.CommandPalette,
 					}
@@ -203,8 +203,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class StoreLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					id: storeCurrentCommand.id,
-					title: storeCurrentCommand.title,
+					...storeCurrentCommand,
 					menu: {
 						id: MenuId.CommandPalette,
 					}
@@ -275,7 +274,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				const result = await this.dialogService.confirm({
 					message: localize('apply edit session warning', 'Applying your edit session may overwrite your existing uncommitted changes. Do you want to proceed?'),
 					type: 'warning',
-					title: EDIT_SESSION_SYNC_TITLE
+					title: EDIT_SESSION_SYNC_CATEGORY.value
 				});
 				if (!result.confirmed) {
 					return;
@@ -399,8 +398,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class ContinueInLocalFolderAction extends Action2 {
 			constructor() {
 				super({
-					id: openLocalFolderCommand.id,
-					title: openLocalFolderCommand.title,
+					...openLocalFolderCommand,
 					precondition: IsWebContext
 				});
 			}
