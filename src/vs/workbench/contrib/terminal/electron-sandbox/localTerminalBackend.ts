@@ -38,7 +38,7 @@ export class LocalTerminalBackendContribution implements IWorkbenchContribution 
 	) {
 		const backend = instantiationService.createInstance(LocalTerminalBackend, undefined);
 		Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-		terminalService.handleNewRegisteredBackend(backend);
+		terminalService.handleNew(backend);
 	}
 }
 

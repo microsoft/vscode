@@ -41,7 +41,7 @@ export class RemoteTerminalBackendContribution implements IWorkbenchContribution
 				const channel = instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
 				const backend = instantiationService.createInstance(RemoteTerminalBackend, remoteAuthority, channel);
 				Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-				terminalService.handleNewRegisteredBackend(backend);
+				terminalService.handleNew(backend);
 			}
 		}
 	}

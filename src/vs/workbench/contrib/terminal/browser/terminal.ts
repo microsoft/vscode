@@ -208,7 +208,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined;
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
-	handleNewRegisteredBackend(backend: ITerminalBackend): void;
+	handleNew(backend: ITerminalBackend): void;
 	toggleEscapeSequenceLogging(): Promise<void>;
 }
 export class TerminalLinkQuickPickEvent extends MouseEvent {

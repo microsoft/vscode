@@ -179,7 +179,6 @@ export class TerminalService implements ITerminalService {
 			this._initInstanceListeners(instance);
 			this._onDidCreateInstance.fire(instance);
 		});
-
 		this.onDidReceiveInstanceLinks(instance => this._setInstanceLinkProviders(instance));
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
@@ -254,7 +253,7 @@ export class TerminalService implements ITerminalService {
 		return undefined;
 	}
 
-	handleNewRegisteredBackend(backend: ITerminalBackend) {
+	handleNew(backend: ITerminalBackend) {
 		if (backend.remoteAuthority === this._environmentService.remoteAuthority) {
 			this._primaryBackend = backend;
 			const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
