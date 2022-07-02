@@ -8,7 +8,7 @@ import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
-import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
+import { FocusFilesToExcludeKeybinding, FocusFilesToIncludeKeybinding, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -41,6 +41,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 const OpenInEditorCommandId = 'search.action.openInEditor';
 const OpenNewEditorToSideCommandId = 'search.action.openNewEditorToSide';
 const FocusQueryEditorWidgetCommandId = 'search.action.focusQueryEditorWidget';
+const FocusQueryEditorFilesToIncludeCommandId = 'search.action.FocusQueryEditorFilesToInclude';
+const FocusQueryEditorFilesToExcludeCommandId = 'search.action.FocusQueryEditorFilesToExclude';
 
 const ToggleSearchEditorCaseSensitiveCommandId = 'toggleSearchEditorCaseSensitive';
 const ToggleSearchEditorWholeWordCommandId = 'toggleSearchEditorWholeWord';
@@ -370,6 +372,50 @@ registerAction2(class extends Action2 {
 		const input = editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			(editorService.activeEditorPane as SearchEditor).focusSearchInput();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FocusQueryEditorFilesToIncludeCommandId,
+			title: { value: localize('search.action.FocusQueryEditorFilesToIncludeCommandId', "Focus Search Editor Files to Include"), original: 'Focus Search Editor Files to Include' },
+			category,
+			f1: true,
+			precondition: SearchEditorConstants.InSearchEditor,
+			keybinding: Object.assign({
+				weight: KeybindingWeight.WorkbenchContrib,
+			}, FocusFilesToIncludeKeybinding)
+		});
+	}
+	async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		const input = editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			(editorService.activeEditorPane as SearchEditor).focusFilesToIncludeInput();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FocusQueryEditorFilesToExcludeCommandId,
+			title: { value: localize('search.action.FocusQueryEditorFilesToExcludeCommandId', "Focus Search Editor Files to Exclude"), original: 'Focus Search Editor Files to Exclude' },
+			category,
+			f1: true,
+			precondition: SearchEditorConstants.InSearchEditor,
+			keybinding: Object.assign({
+				weight: KeybindingWeight.WorkbenchContrib,
+			}, FocusFilesToExcludeKeybinding)
+		});
+	}
+	async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		const input = editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			(editorService.activeEditorPane as SearchEditor).focusFilesToExcludeInput();
 		}
 	}
 });
