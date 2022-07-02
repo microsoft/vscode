@@ -101,5 +101,65 @@
 			"$$"
 		],
 		"description": "Insert fenced math"
+	},
+	"Insert table": {
+		"prefix": "table",
+		"body": [
+			"| ${1:column} |",
+			"| --- |",
+			"| ${2:value}|",
+			"${0}"
+		],
+		"description": "Insert table"
+	},
+	"Insert table two columns": {
+		"prefix": "table2",
+		"body": [
+			"| ${1:column1} | ${2:column2} |",
+			"| --- | --- |",
+			"| ${3:value1}| ${4:value2} |",
+			"${0}"
+		],
+		"description": "Insert table two columns"
+	},
+	"Insert table three columns": {
+		"prefix": "table3",
+		"body": [
+			"| ${1:column1} | ${2:column2} | ${3:column3} |",
+			"| --- | --- | --- |",
+			"| ${4:value1}| ${5:value3} | ${6:value3} |",
+			"${0}"
+		],
+		"description": "Insert table three columns"
+	},
+	"Insert table four columns": {
+		"prefix": "table4",
+		"body": [
+			"| ${1:column1} | ${2:column2} | ${3:column3} | ${4:column4} |",
+			"| --- | --- | --- | --- |",
+			"| ${5:value1}| ${6:value2} | ${7:value3} | ${8:value4} |",
+			"${0}"
+		],
+		"description": "Insert table four columns"
+	},
+	"Insert table five columns": {
+		"prefix": "table5",
+		"body": [
+			"| ${1:column1} | ${2:column2} | ${3:column3} | ${4:column4} | ${5:column5} |",
+			"| --- | --- | --- | --- | --- |",
+			"| ${6:value1}| ${7:value2} | ${8:value3} | ${9:value4} | ${10:value5} |",
+			"${0}"
+		],
+		"description": "Insert table five columns"
+	},
+	"Insert table six columns": {
+		"prefix": "table6",
+		"body": [
+			"| ${1:column1} | ${2:column2} | ${3:column3} | ${4:column4} | ${5:column5} | ${6:column6} |",
+			"| --- | --- | --- | --- | --- | --- |",
+			"| ${7:value1}| ${8:value2} | ${9:value3} | ${10:value4} | ${11:value5} | ${12:value6} |",
+			"${0}"
+		],
+		"description": "Insert table six columns"
 	}
 }
