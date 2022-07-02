@@ -336,6 +336,11 @@
         "category": "Git"
       },
       {
+        "command": "git.switch",
+        "title": "%command.switch%",
+        "category": "Git"
+      },
+      {
         "command": "git.checkoutDetached",
         "title": "%command.checkoutDetached%",
         "category": "Git"

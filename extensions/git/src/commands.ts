@@ -1862,6 +1862,11 @@ export class CommandCenter {
 		return this._checkout(repository, { treeish });
 	}
 
+	@command('git.switch', { repository: true })
+	async switchTo(repository: Repository, treeish?: string): Promise<boolean> {
+		return this._checkout(repository, { treeish });
+	}
+
 	@command('git.checkoutDetached', { repository: true })
 	async checkoutDetached(repository: Repository, treeish?: string): Promise<boolean> {
 		return this._checkout(repository, { detached: true, treeish });

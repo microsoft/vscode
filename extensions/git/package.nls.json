@@ -51,6 +51,7 @@
 	"command.restoreCommitTemplate": "Restore Commit Template",
 	"command.undoCommit": "Undo Last Commit",
 	"command.checkout": "Checkout to...",
+	"command.switch": "Switch to...",
 	"command.checkoutDetached": "Checkout to (Detached)...",
 	"command.branch": "Create Branch...",
 	"command.branchFrom": "Create Branch From...",
