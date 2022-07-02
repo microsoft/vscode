@@ -10,7 +10,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
@@ -39,7 +39,7 @@ export class MarkdownRenderer {
 	});
 
 	private readonly _onDidRenderAsync = new Emitter<void>();
-	readonly onDidRenderAsync = this._onDidRenderAsync.event;
+	readonly onDidRenderAsync = Event.debounce(this._onDidRenderAsync.event, (_, e) => e, 50);
 
 	constructor(
 		private readonly _options: IMarkdownRendererOptions,
