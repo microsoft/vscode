@@ -194,9 +194,9 @@ suite('MainThreadEditors', () => {
 
 	test(`applyWorkspaceEdit returns false if model is changed by user`, () => {
 
-		let model = modelService.createModel('something', null, resource);
+		const model = modelService.createModel('something', null, resource);
 
-		let workspaceResourceEdit: IWorkspaceTextEditDto = {
+		const workspaceResourceEdit: IWorkspaceTextEditDto = {
 			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
@@ -216,9 +216,9 @@ suite('MainThreadEditors', () => {
 
 	test(`issue #54773: applyWorkspaceEdit checks model version in race situation`, () => {
 
-		let model = modelService.createModel('something', null, resource);
+		const model = modelService.createModel('something', null, resource);
 
-		let workspaceResourceEdit1: IWorkspaceTextEditDto = {
+		const workspaceResourceEdit1: IWorkspaceTextEditDto = {
 			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
@@ -227,7 +227,7 @@ suite('MainThreadEditors', () => {
 				range: new Range(1, 1, 1, 1)
 			}
 		};
-		let workspaceResourceEdit2: IWorkspaceTextEditDto = {
+		const workspaceResourceEdit2: IWorkspaceTextEditDto = {
 			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
@@ -237,11 +237,11 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		let p1 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
+		const p1 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
 			// first edit request succeeds
 			assert.strictEqual(result, true);
 		});
-		let p2 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
+		const p2 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
 			// second edit request fails
 			assert.strictEqual(result, false);
 		});

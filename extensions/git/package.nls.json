@@ -46,6 +46,8 @@
 	"command.commitAllNoVerify": "Commit All (No Verify)",
 	"command.commitAllSignedNoVerify": "Commit All (Signed Off, No Verify)",
 	"command.commitAllAmendNoVerify": "Commit All (Amend, No Verify)",
+	"command.commitMessageAccept": "Accept Commit Message",
+	"command.commitMessageDiscard": "Discard Commit Message",
 	"command.restoreCommitTemplate": "Restore Commit Template",
 	"command.undoCommit": "Undo Last Commit",
 	"command.checkout": "Checkout to...",
@@ -140,6 +142,8 @@
 	"config.ignoreLimitWarning": "Ignores the warning when there are too many changes in a repository.",
 	"config.ignoreRebaseWarning": "Ignores the warning when it looks like the branch might have been rebased when pulling.",
 	"config.defaultCloneDirectory": "The default location to clone a git repository.",
+	"config.useEditorAsCommitInput": "Controls whether a full text editor will be used to author commit messages, whenever no message is provided in the commit input box.",
+	"config.verboseCommit": "Enable verbose output when `#git.useEditorAsCommitInput#` is enabled.",
 	"config.enableSmartCommit": "Commit all changes when there are no staged changes.",
 	"config.smartCommitChanges": "Control which changes are automatically staged by Smart Commit.",
 	"config.smartCommitChanges.all": "Automatically stage all changes.",
@@ -210,16 +214,17 @@
 	"config.requireGitUserConfig": "Controls whether to require explicit Git user configuration or allow Git to guess if missing.",
 	"config.showCommitInput": "Controls whether to show the commit input in the Git source control panel.",
 	"config.terminalAuthentication": "Controls whether to enable VS Code to be the authentication handler for git processes spawned in the integrated terminal. Note: terminals need to be restarted to pick up a change in this setting.",
+	"config.terminalGitEditor": "Controls whether to enable VS Code to be git editor for git processes spawned in the integrated terminal. Note: terminals need to be restarted to pick up a change in this setting.",
 	"config.timeline.showAuthor": "Controls whether to show the commit author in the Timeline view.",
 	"config.timeline.showUncommitted": "Controls whether to show uncommitted changes in the Timeline view.",
 	"config.timeline.date": "Controls which date to use for items in the Timeline view.",
 	"config.timeline.date.committed": "Use the committed date",
 	"config.timeline.date.authored": "Use the authored date",
 	"config.useCommitInputAsStashMessage": "Controls whether to use the message from the commit input box as the default stash message.",
-	"config.showUnpublishedCommitsButton": "Controls whether to show an action button to sync or publish, if there are unpublished commits.",
-	"config.showUnpublishedCommitsButton.always": "Always shows the action button, if there are unpublished commits.",
-	"config.showUnpublishedCommitsButton.whenEmpty": "Only shows the action button if there are no other changes and there are unpublished commits.",
-	"config.showUnpublishedCommitsButton.never": "Never shows the action button.",
+	"config.showActionButton": "Controls whether an action button can be shown in the Source Control view.",
+	"config.showActionButton.commit": "Show an action button to commit changes.",
+	"config.showActionButton.publish": "Show an action button to publish a local branch.",
+	"config.showActionButton.sync": "Show an action button to sync changes.",
 	"config.statusLimit": "Controls how to limit the number of changes that can be parsed from Git status command. Can be set to 0 for no limit.",
 	"config.experimental.installGuide": "Experimental improvements for the git setup flow.",
 	"config.repositoryScanIgnoredFolders": "List of folders that are ignored while scanning for Git repositories when `#git.autoRepositoryDetection#` is set to `true` or `subFolders`.",
@@ -240,7 +245,7 @@
 	"config.logLevel.error": "Log only error, and critical information",
 	"config.logLevel.critical": "Log only critical information",
 	"config.logLevel.off": "Log nothing",
-	"config.experimental.mergeEditor": "Open the _experimental_ merge editor for files that are currently under conflict.",
+	"config.mergeEditor": "Open the merge editor for files that are currently under conflict.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
@@ -261,15 +266,7 @@
 	"colors.ignored": "Color for ignored resources.",
 	"colors.conflict": "Color for resources with conflicts.",
 	"colors.submodule": "Color for submodule resources.",
-	"view.workbench.scm.missing": {
-		"message": "A valid git installation was not detected, more details can be found in the [git output](command:git.showOutput).\nPlease [install git](https://git-scm.com/), or learn more about how to use git and source control in VS Code in [our docs](https://aka.ms/vscode-scm).\nIf you're using a different version control system, you can [search the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22) for additional extensions.",
-		"comment": [
-			"{Locked='](command:git.showOutput'}",
-			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
-			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
-		]
-	},
-	"view.workbench.scm.missing.guide.windows": {
+	"view.workbench.scm.missing.windows": {
 		"message": "[Download Git for Windows](https://git-scm.com/download/win)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [
 			"{Locked='](command:workbench.action.reloadWindow'}",
@@ -277,7 +274,7 @@
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
-	"view.workbench.scm.missing.guide.mac": {
+	"view.workbench.scm.missing.mac": {
 		"message": "[Download Git for macOS](https://git-scm.com/download/mac)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [
 			"{Locked='](command:workbench.action.reloadWindow'}",
@@ -285,7 +282,7 @@
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
-	"view.workbench.scm.missing.guide.linux": {
+	"view.workbench.scm.missing.linux": {
 		"message": "Source control depends on Git being installed.\n[Download Git for Linux](https://git-scm.com/download/linux)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [
 			"{Locked='](command:workbench.action.reloadWindow'}",
@@ -293,7 +290,7 @@
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
-	"view.workbench.scm.missing.guide": "Install Git, a popular source control system, to track code changes and collaborate with others. Learn more in our [Git guides](https://aka.ms/vscode-scm).",
+	"view.workbench.scm.missing": "Install Git, a popular source control system, to track code changes and collaborate with others. Learn more in our [Git guides](https://aka.ms/vscode-scm).",
 	"view.workbench.scm.disabled": {
 		"message": "If you would like to use git features, please enable git in your [settings](command:workbench.action.openSettings?%5B%22git.enabled%22%5D).\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [

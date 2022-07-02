@@ -718,7 +718,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			});
 		}
 
-		this.replInput.setDecorations('repl-decoration', DECORATION_KEY, decorations);
+		this.replInput.setDecorationsByType('repl-decoration', DECORATION_KEY, decorations);
 	}
 
 	override saveState(): void {

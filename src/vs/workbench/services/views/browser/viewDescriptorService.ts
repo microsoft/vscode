@@ -19,7 +19,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { getViewsStateStorageId, ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
-import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 
 interface ICachedViewContainerInfo {
 	containerId: string;
@@ -346,7 +346,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
-		let container = this.registerGeneratedViewContainer(location);
+		const container = this.registerGeneratedViewContainer(location);
 		this.moveViewsToContainer([view], container);
 	}
 
@@ -476,7 +476,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		// Clean up caches of container
 		this.cachedViewContainerInfo.delete(viewContainerId);
 		this.cachedViewContainerLocationsValue = JSON.stringify([...this.cachedViewContainerInfo]);
-		this.storageService.remove(getViewsStateStorageId(viewContainer?.storageId || getViewContainerStorageId(viewContainerId)), StorageScope.GLOBAL);
+		this.storageService.remove(getViewsStateStorageId(viewContainer?.storageId || getViewContainerStorageId(viewContainerId)), StorageScope.PROFILE);
 	}
 
 	private registerGeneratedViewContainer(location: ViewContainerLocation, existingId?: string): ViewContainer {
@@ -528,12 +528,12 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private onDidStorageChange(e: IStorageValueChangeEvent): void {
-		if (e.key === ViewDescriptorService.CACHED_VIEW_POSITIONS && e.scope === StorageScope.GLOBAL
+		if (e.key === ViewDescriptorService.CACHED_VIEW_POSITIONS && e.scope === StorageScope.PROFILE
 			&& this.cachedViewPositionsValue !== this.getStoredCachedViewPositionsValue() /* This checks if current window changed the value or not */) {
 			this.onDidCachedViewPositionsStorageChange();
 		}
 
-		if (e.key === ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS && e.scope === StorageScope.GLOBAL
+		if (e.key === ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS && e.scope === StorageScope.PROFILE
 			&& this.cachedViewContainerLocationsValue !== this.getStoredCachedViewContainerLocationsValue() /* This checks if current window changed the value or not */) {
 			this.onDidCachedViewContainerLocationsStorageChange();
 		}
@@ -545,7 +545,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const newCachedPositions = this.getCachedViewPositions();
 		const viewsToMove: { views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }[] = [];
 
-		for (let viewId of newCachedPositions.keys()) {
+		for (const viewId of newCachedPositions.keys()) {
 			const viewDescriptor = this.getViewDescriptorById(viewId);
 			if (!viewDescriptor) {
 				continue;
@@ -633,19 +633,19 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private getStoredCachedViewPositionsValue(): string {
-		return this.storageService.get(ViewDescriptorService.CACHED_VIEW_POSITIONS, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(ViewDescriptorService.CACHED_VIEW_POSITIONS, StorageScope.PROFILE, '[]');
 	}
 
 	private setStoredCachedViewPositionsValue(value: string): void {
-		this.storageService.store(ViewDescriptorService.CACHED_VIEW_POSITIONS, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(ViewDescriptorService.CACHED_VIEW_POSITIONS, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private getStoredCachedViewContainerLocationsValue(): string {
-		return this.storageService.get(ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS, StorageScope.PROFILE, '[]');
 	}
 
 	private setStoredCachedViewContainerLocationsValue(value: string): void {
-		this.storageService.store(ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private saveViewPositionsToCache(): void {

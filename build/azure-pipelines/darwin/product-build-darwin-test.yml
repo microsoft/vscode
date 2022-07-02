@@ -1,178 +1,17 @@
 parameters:
-  - name: VSCODE_QUALITY
-    type: string
   - name: VSCODE_RUN_UNIT_TESTS
     type: boolean
-    default: true
   - name: VSCODE_RUN_INTEGRATION_TESTS
     type: boolean
-    default: true
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
-    default: true
 
 steps:
-  - task: NodeTool@0
-    inputs:
-      versionSpec: "16.x"
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - task: AzureKeyVault@1
-      displayName: "Azure Key Vault: Get Secrets"
-      inputs:
-        azureSubscription: "vscode-builds-subscription"
-        KeyVaultName: vscode
-        SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
-
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: Compilation
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download compilation output
-
-  - script: |
-      set -e
-      tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-    displayName: Extract compilation output
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    # Set up the credentials to retrieve distro repo and setup git persona
-    # to create a merge commit for when we merge distro into oss
-    - script: |
-        set -e
-        cat << EOF > ~/.netrc
-        machine github.com
-        login vscode
-        password $(github-distro-mixin-password)
-        EOF
-
-        git config user.email "vscode@microsoft.com"
-        git config user.name "VSCode"
-      displayName: Prepare tooling
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-        echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-        git checkout FETCH_HEAD
-      condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-      displayName: Checkout override commit
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-      displayName: Merge distro
-
-  - script: |
-      mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
-    displayName: Prepare yarn cache flags
-
-  - task: Cache@2
-    inputs:
-      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
-
-  - script: |
-      set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules cache
-
-  - script: |
-      set -e
-      npm install -g node-gyp@latest
-      node-gyp --version
-    displayName: Update node-gyp
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      set -e
-      npx https://aka.ms/enablesecurefeed standAlone
-    timeoutInMinutes: 5
-    retryCountOnTaskFailure: 3
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-    displayName: Switch to Terrapin packages
-
-  - script: |
-      set -e
-      export npm_config_arch=$(VSCODE_ARCH)
-      export npm_config_node_gyp=$(which node-gyp)
-
-      for i in {1..3}; do # try 3 times, for Terrapin
-        yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
-          exit 1
-        fi
-        echo "Yarn failed $i, trying again..."
-      done
-    env:
-      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Install dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      set -e
-      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
-      mkdir -p .build/node_modules_cache
-      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Create node_modules archive
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    # This script brings in the right resources (images, icons, etc) based on the quality (insiders, stable, exploration)
-    - script: |
-        set -e
-        node build/azure-pipelines/mixin
-      displayName: Mix in quality
-
-  - script: |
-      set -e
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
-    displayName: Build client
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        node build/azure-pipelines/mixin --server
-      displayName: Mix in server quality
-
-  - script: |
-      set -e
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
-    displayName: Build Server
-
   - script: |
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     displayName: Download Electron and Playwright
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    # Setting hardened entitlements is a requirement for:
-    # * Running tests on Big Sur (because Big Sur has additional security precautions)
-    - script: |
-        set -e
-        security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-        security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
-        security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-        echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
-        security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
-        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-        VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
-      displayName: Set Hardened Entitlements
 
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - script: |
@@ -199,6 +38,7 @@ steps:
     - script: |
         set -e
         yarn gulp \
+          compile-extension:configuration-editing \
           compile-extension:css-language-features-server \
           compile-extension:emmet \
           compile-extension:git \
@@ -212,11 +52,9 @@ steps:
           compile-extension:typescript-language-features \
           compile-extension:vscode-api-tests \
           compile-extension:vscode-colorize-tests \
-          compile-extension:vscode-custom-editor-tests \
           compile-extension:vscode-notebook-tests \
           compile-extension:vscode-test-resolver
       displayName: Build integration tests
-      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - script: |
@@ -295,31 +133,49 @@ steps:
       continueOnError: true
       condition: succeededOrFailed()
 
-  - task: PublishPipelineArtifact@0
-    inputs:
-      artifactName: crash-dump-macos-$(VSCODE_ARCH)
-      targetPath: .build/crashes
-    displayName: "Publish Crash Reports"
-    continueOnError: true
-    condition: failed()
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+    - task: PublishPipelineArtifact@0
+      inputs:
+        targetPath: .build/crashes
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: crash-dump-macos-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: crash-dump-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: crash-dump-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+      displayName: "Publish Crash Reports"
+      continueOnError: true
+      condition: failed()
 
-  # In order to properly symbolify above crash reports
-  # (if any), we need the compiled native modules too
-  - task: PublishPipelineArtifact@0
-    inputs:
-      artifactName: node-modules-macos-$(VSCODE_ARCH)
-      targetPath: node_modules
-    displayName: "Publish Node Modules"
-    continueOnError: true
-    condition: failed()
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+    # In order to properly symbolify above crash reports
+    # (if any), we need the compiled native modules too
+    - task: PublishPipelineArtifact@0
+      inputs:
+        targetPath: node_modules
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: node-modules-macos-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: node-modules-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: node-modules-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+      displayName: "Publish Node Modules"
+      continueOnError: true
+      condition: failed()
 
-  - task: PublishPipelineArtifact@0
-    inputs:
-      artifactName: logs-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
-      targetPath: .build/logs
-    displayName: "Publish Log Files"
-    continueOnError: true
-    condition: failed()
+  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+    - task: PublishPipelineArtifact@0
+      inputs:
+        targetPath: .build/logs
+        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+          artifactName: logs-macos-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+          artifactName: logs-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: logs-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+      displayName: "Publish Log Files"
+      continueOnError: true
+      condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results

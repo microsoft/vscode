@@ -136,7 +136,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	dispose(): void {
 		this._disposables.dispose();
-		for (let [, registration] of this._kernels.values()) {
+		for (const [, registration] of this._kernels.values()) {
 			registration.dispose();
 		}
 	}
@@ -153,7 +153,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!selected) {
 				return;
 			}
-			for (let [handle, candidate] of this._kernels) {
+			for (const [handle, candidate] of this._kernels) {
 				if (candidate[0] === selected) {
 					this._proxy.$acceptKernelMessageFromRenderer(handle, editor.getId(), e.message);
 					break;
@@ -266,9 +266,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		const updates = data.value;
 		try {
 			const execution = this._executions.get(handle);
-			if (execution) {
-				execution.update(updates.map(NotebookDto.fromCellExecuteUpdateDto));
-			}
+			execution?.update(updates.map(NotebookDto.fromCellExecuteUpdateDto));
 		} catch (e) {
 			onUnexpectedError(e);
 		}
@@ -277,9 +275,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void {
 		try {
 			const execution = this._executions.get(handle);
-			if (execution) {
-				execution.complete(NotebookDto.fromCellExecuteCompleteDto(data.value));
-			}
+			execution?.complete(NotebookDto.fromCellExecuteCompleteDto(data.value));
 		} catch (e) {
 			onUnexpectedError(e);
 		} finally {

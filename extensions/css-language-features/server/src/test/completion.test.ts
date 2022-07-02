@@ -19,13 +19,13 @@ export interface ItemDescription {
 
 suite('Completions', () => {
 
-	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, _offset: number) {
-		let matches = completions.items.filter(completion => {
+	const assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, _offset: number) {
+		const matches = completions.items.filter(completion => {
 			return completion.label === expected.label;
 		});
 
 		assert.strictEqual(matches.length, 1, `${expected.label} should only existing once: Actual: ${completions.items.map(c => c.label).join(', ')}`);
-		let match = matches[0];
+		const match = matches[0];
 		if (expected.resultText && TextEdit.is(match.textEdit)) {
 			assert.strictEqual(TextDocument.applyEdits(document, [match.textEdit]), expected.resultText);
 		}
@@ -47,21 +47,21 @@ suite('Completions', () => {
 
 		const context = getDocumentContext(testUri, workspaceFolders);
 		const stylesheet = cssLanguageService.parseStylesheet(document);
-		let list = await cssLanguageService.doComplete2(document, position, stylesheet, context);
+		const list = await cssLanguageService.doComplete2(document, position, stylesheet, context);
 
 		if (expected.count) {
 			assert.strictEqual(list.items.length, expected.count);
 		}
 		if (expected.items) {
-			for (let item of expected.items) {
+			for (const item of expected.items) {
 				assertCompletion(list, item, document, offset);
 			}
 		}
 	}
 
 	test('CSS url() Path completion', async function () {
-		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
 
 		await assertCompletions('html { background-image: url("./|")', {
 			items: [
@@ -119,8 +119,8 @@ suite('Completions', () => {
 	});
 
 	test('CSS url() Path Completion - Unquoted url', async function () {
-		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
 
 		await assertCompletions('html { background-image: url(./|)', {
 			items: [
@@ -148,8 +148,8 @@ suite('Completions', () => {
 	});
 
 	test('CSS @import Path completion', async function () {
-		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
 
 		await assertCompletions(`@import './|'`, {
 			items: [
@@ -171,8 +171,8 @@ suite('Completions', () => {
 	 * For SCSS, `@import 'foo';` can be used for importing partial file `_foo.scss`
 	 */
 	test('SCSS @import Path completion', async function () {
-		let testCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+		const testCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
 
 		/**
 		 * We are in a CSS file, so no special treatment for SCSS partial files
@@ -184,7 +184,7 @@ suite('Completions', () => {
 			]
 		}, testCSSUri, folders);
 
-		let testSCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/scss/main.scss')).toString();
+		const testSCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/scss/main.scss')).toString();
 		await assertCompletions(`@import './|'`, {
 			items: [
 				{ label: '_foo.scss', resultText: `@import './foo'` }
@@ -193,8 +193,8 @@ suite('Completions', () => {
 	});
 
 	test('Completion should ignore files/folders starting with dot', async function () {
-		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
 
 		await assertCompletions('html { background-image: url("../|")', {
 			count: 4

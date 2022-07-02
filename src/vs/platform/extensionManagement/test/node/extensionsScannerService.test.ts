@@ -8,6 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { AbstractExtensionsScannerService, IExtensionsScannerService, IScannedExtensionManifest, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionType, IExtensionManifest, MANIFEST_CACHE_FOLDER, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -16,6 +17,8 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 let translations: Translations = Object.create(null);
 const ROOT = URI.file('/ROOT');
@@ -23,6 +26,8 @@ const ROOT = URI.file('/ROOT');
 class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
 
 	constructor(
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService nativeEnvironmentService: INativeEnvironmentService,
@@ -33,7 +38,7 @@ class ExtensionsScannerService extends AbstractExtensionsScannerService implemen
 			URI.file(nativeEnvironmentService.extensionsPath),
 			joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
 			joinPath(ROOT, MANIFEST_CACHE_FOLDER),
-			fileService, logService, nativeEnvironmentService, productService);
+			userDataProfilesService, extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService);
 	}
 
 	protected async getTranslations(language: string): Promise<Translations> {
@@ -58,12 +63,17 @@ suite('NativeExtensionsScanerService Test', () => {
 		instantiationService.stub(IFileService, fileService);
 		const systemExtensionsLocation = joinPath(ROOT, 'system');
 		const userExtensionsLocation = joinPath(ROOT, 'extensions');
-		instantiationService.stub(INativeEnvironmentService, {
+		const environmentService = instantiationService.stub(INativeEnvironmentService, {
 			userHome: ROOT,
+			userRoamingDataHome: ROOT,
 			builtinExtensionsPath: systemExtensionsLocation.fsPath,
 			extensionsPath: userExtensionsLocation.fsPath,
 		});
 		instantiationService.stub(IProductService, { version: '1.66.0' });
+		const uriIdentityService = new UriIdentityService(fileService);
+		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, logService);
+		instantiationService.stub(IExtensionsProfileScannerService, new ExtensionsProfileScannerService(fileService, uriIdentityService, userDataProfilesService, logService));
+		instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, logService));
 		await fileService.createFolder(systemExtensionsLocation);
 		await fileService.createFolder(userExtensionsLocation);
 	});

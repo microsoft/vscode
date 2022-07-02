@@ -74,6 +74,7 @@ export interface IConfigurationChangeEvent {
 export interface IConfigurationValue<T> {
 
 	readonly defaultValue?: T;
+	readonly applicationValue?: T;
 	readonly userValue?: T;
 	readonly userLocalValue?: T;
 	readonly userRemoteValue?: T;
@@ -84,6 +85,7 @@ export interface IConfigurationValue<T> {
 	readonly value?: T;
 
 	readonly default?: { value?: T; override?: T };
+	readonly application?: { value?: T; override?: T };
 	readonly user?: { value?: T; override?: T };
 	readonly userLocal?: { value?: T; override?: T };
 	readonly userRemote?: { value?: T; override?: T };
@@ -166,6 +168,7 @@ export interface IOverrides {
 export interface IConfigurationData {
 	defaults: IConfigurationModel;
 	policy: IConfigurationModel;
+	application: IConfigurationModel;
 	user: IConfigurationModel;
 	workspace: IConfigurationModel;
 	folders: [UriComponents, IConfigurationModel][];
@@ -181,7 +184,7 @@ export interface IConfigurationCompareResult {
 export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {
 	const root = Object.create(null);
 
-	for (let key in properties) {
+	for (const key in properties) {
 		addToValueTree(root, key, properties[key], conflictReporter);
 	}
 
@@ -194,7 +197,7 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 
 	let curr = settingsTreeRoot;
 	for (let i = 0; i < segments.length; i++) {
-		let s = segments[i];
+		const s = segments[i];
 		let obj = curr[s];
 		switch (typeof obj) {
 			case 'undefined':

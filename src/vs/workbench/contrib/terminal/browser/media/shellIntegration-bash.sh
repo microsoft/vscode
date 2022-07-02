@@ -3,29 +3,46 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-VSCODE_SHELL_INTEGRATION=1
-
-if [ -z "$VSCODE_SHELL_LOGIN" ]; then
-	. ~/.bashrc
-else
-	# Imitate -l because --init-file doesn't support it:
-	# run the first of these files that exists
-	if [ -f /etc/profile ]; then
-		. /etc/profile
-	fi
-	# exceute the first that exists
-	if [ -f ~/.bash_profile ]; then
-		. ~/.bash_profile
-	elif [ -f ~/.bash_login ]; then
-		. ~/.bash_login
-	elif [ -f ~/.profile ]; then
-		. ~/.profile
-	fi
-	VSCODE_SHELL_LOGIN=""
+# Prevent the script recursing when setting up
+if [[ -n "$VSCODE_SHELL_INTEGRATION" ]]; then
+	builtin return
 fi
 
+VSCODE_SHELL_INTEGRATION=1
+
+# Run relevant rc/profile only if shell integration has been injected, not when run manually
+if [ "$VSCODE_INJECTION" == "1" ]; then
+	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
+		. ~/.bashrc
+	else
+		# Imitate -l because --init-file doesn't support it:
+		# run the first of these files that exists
+		if [ -f /etc/profile ]; then
+			. /etc/profile
+		fi
+		# exceute the first that exists
+		if [ -f ~/.bash_profile ]; then
+			. ~/.bash_profile
+		elif [ -f ~/.bash_login ]; then
+			. ~/.bash_login
+		elif [ -f ~/.profile ]; then
+			. ~/.profile
+		fi
+		builtin unset VSCODE_SHELL_LOGIN
+	fi
+	builtin unset VSCODE_INJECTION
+fi
+
+# Disable shell integration if PROMPT_COMMAND is 2+ function calls since that is not handled.
 if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
-	VSCODE_SHELL_INTEGRATION=""
+	builtin unset VSCODE_SHELL_INTEGRATION
+	builtin return
+fi
+
+# Disable shell integration if HISTCONTROL is set to erase duplicate entries as the exit code
+# reporting relies on the duplicates existing
+if [[ "$HISTCONTROL" =~ .*erasedups.* ]]; then
+	builtin unset VSCODE_SHELL_INTEGRATION
 	builtin return
 fi
 
@@ -75,7 +92,6 @@ __vsc_command_complete() {
 	fi
 	__vsc_update_cwd
 }
-
 __vsc_update_prompt() {
 	# in command execution
 	if [ "$__vsc_in_command_execution" = "1" ]; then
@@ -109,20 +125,29 @@ __vsc_preexec() {
 }
 
 # Debug trapping/preexec inspired by starship (ISC)
-__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
-if [[ -z "$__vsc_dbg_trap" ]]; then
+if [[ -n "${bash_preexec_imported:-}" ]]; then
 	__vsc_preexec_only() {
 		__vsc_status="$?"
 		__vsc_preexec
 	}
-	trap '__vsc_preexec_only "$_"' DEBUG
-elif [[ "$__vsc_dbg_trap" != '__vsc_preexec "$_"' && "$__vsc_dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
-	__vsc_preexec_all() {
-		__vsc_status="$?"
-		builtin eval ${__vsc_dbg_trap}
-		__vsc_preexec
-	}
-	trap '__vsc_preexec_all "$_"' DEBUG
+	precmd_functions+=(__vsc_prompt_cmd)
+	preexec_functions+=(__vsc_preexec_only)
+else
+	__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	if [[ -z "$__vsc_dbg_trap" ]]; then
+		__vsc_preexec_only() {
+			__vsc_status="$?"
+			__vsc_preexec
+		}
+		trap '__vsc_preexec_only "$_"' DEBUG
+	elif [[ "$__vsc_dbg_trap" != '__vsc_preexec "$_"' && "$__vsc_dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
+		__vsc_preexec_all() {
+			__vsc_status="$?"
+			builtin eval ${__vsc_dbg_trap}
+			__vsc_preexec
+		}
+		trap '__vsc_preexec_all "$_"' DEBUG
+	fi
 fi
 
 __vsc_update_prompt
@@ -163,8 +188,10 @@ else
 	__vsc_original_prompt_command=${PROMPT_COMMAND[@]}
 fi
 
-if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then
-	PROMPT_COMMAND=__vsc_prompt_cmd_original
-else
-	PROMPT_COMMAND=__vsc_prompt_cmd
+if [[ -z "${bash_preexec_imported:-}" ]]; then
+	if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then
+		PROMPT_COMMAND=__vsc_prompt_cmd_original
+	else
+		PROMPT_COMMAND=__vsc_prompt_cmd
+	fi
 fi

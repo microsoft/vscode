@@ -49,7 +49,7 @@ export class CommentFormActions implements IDisposable {
 
 	triggerDefaultAction() {
 		if (this._actions.length) {
-			let lastAction = this._actions[0];
+			const lastAction = this._actions[0];
 
 			if (lastAction.enabled) {
 				this.actionHandler(lastAction);

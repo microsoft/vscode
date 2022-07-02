@@ -54,8 +54,8 @@ suite('SnippetController', () => {
 			editor.getModel()!.updateOptions({
 				insertSpaces: false
 			});
-			let snippetController = editor.registerAndInstantiateContribution(TestSnippetController.ID, TestSnippetController);
-			let template = [
+			const snippetController = editor.registerAndInstantiateContribution(TestSnippetController.ID, TestSnippetController);
+			const template = [
 				'for (var ${1:index}; $1 < ${2:array}.length; $1++) {',
 				'\tvar element = $2[$1];',
 				'\t$0',

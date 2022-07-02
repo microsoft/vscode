@@ -83,9 +83,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		const actions = delegate.getActions();
 		if (actions.length) {
 			const onHide = once(() => {
-				if (delegate.onHide) {
-					delegate.onHide(false);
-				}
+				delegate.onHide?.(false);
 
 				dom.ModifierKeyEmitter.getInstance().resetKeyStatus();
 				this._onDidHideContextMenu.fire();

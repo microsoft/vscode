@@ -25,7 +25,7 @@ export class DownloadService implements IDownloadService {
 			await this.fileService.copy(resource, target);
 			return;
 		}
-		const options = { type: 'GET', url: resource.toString() };
+		const options = { type: 'GET', url: resource.toString(true) };
 		const context = await this.requestService.request(options, cancellationToken);
 		if (context.res.statusCode === 200) {
 			await this.fileService.writeFile(target, context.stream);

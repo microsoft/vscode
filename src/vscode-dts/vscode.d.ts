@@ -1638,34 +1638,34 @@ declare module 'vscode' {
 		 * true if this file system watcher has been created such that
 		 * it ignores creation file system events.
 		 */
-		ignoreCreateEvents: boolean;
+		readonly ignoreCreateEvents: boolean;
 
 		/**
 		 * true if this file system watcher has been created such that
 		 * it ignores change file system events.
 		 */
-		ignoreChangeEvents: boolean;
+		readonly ignoreChangeEvents: boolean;
 
 		/**
 		 * true if this file system watcher has been created such that
 		 * it ignores delete file system events.
 		 */
-		ignoreDeleteEvents: boolean;
+		readonly ignoreDeleteEvents: boolean;
 
 		/**
 		 * An event which fires on file/folder creation.
 		 */
-		onDidCreate: Event<Uri>;
+		readonly onDidCreate: Event<Uri>;
 
 		/**
 		 * An event which fires on file/folder change.
 		 */
-		onDidChange: Event<Uri>;
+		readonly onDidChange: Event<Uri>;
 
 		/**
 		 * An event which fires on file/folder deletion.
 		 */
-		onDidDelete: Event<Uri>;
+		readonly onDidDelete: Event<Uri>;
 	}
 
 	/**
@@ -5980,7 +5980,7 @@ declare module 'vscode' {
 	 * To get an instance of a `DiagnosticCollection` use
 	 * {@link languages.createDiagnosticCollection createDiagnosticCollection}.
 	 */
-	export interface DiagnosticCollection {
+	export interface DiagnosticCollection extends Iterable<[uri: Uri, diagnostics: readonly Diagnostic[]]> {
 
 		/**
 		 * The name of this diagnostic collection, for instance `typescript`. Every diagnostic
@@ -10054,18 +10054,62 @@ declare module 'vscode' {
 		 * `true` if the {@link TreeView tree view} is visible otherwise `false`.
 		 */
 		readonly visible: boolean;
-
 	}
 
 	/**
-	 * A class for encapsulating data transferred during a drag and drop event.
-	 *
-	 * You can use the `value` of the `DataTransferItem` to get back the object you put into it
-	 * so long as the extension that created the `DataTransferItem` runs in the same extension host.
+	 * A file associated with a {@linkcode DataTransferItem}.
+	 */
+	export interface DataTransferFile {
+		/**
+		 * The name of the file.
+		 */
+		readonly name: string;
+
+		/**
+		 * The full file path of the file.
+		 *
+		 * May be `undefined` on web.
+		 */
+		readonly uri?: Uri;
+
+		/**
+		 * The full file contents of the file.
+		 */
+		data(): Thenable<Uint8Array>;
+	}
+
+	/**
+	 * Encapsulates data transferred during drag and drop operations.
 	 */
 	export class DataTransferItem {
+		/**
+		 * Get a string representation of this item.
+		 *
+		 * If {@linkcode DataTransferItem.value} is an object, this returns the result of json stringifying {@linkcode DataTransferItem.value} value.
+		 */
 		asString(): Thenable<string>;
+
+		/**
+		 * Try getting the {@link DataTransferFile file} associated with this data transfer item.
+		 *
+		 * Note that the file object is only valid for the scope of the drag and drop operation.
+		 *
+		 * @returns The file for the data transfer or `undefined` if the item is either not a file or the
+		 * file data cannot be accessed.
+		 */
+		asFile(): DataTransferFile | undefined;
+
+		/**
+		 * Custom data stored on this item.
+		 *
+		 * You can use `value` to share data across operations. The original object can be retrieved so long as the extension that
+		 * created the `DataTransferItem` runs in the same extension host.
+		 */
 		readonly value: any;
+
+		/**
+		 * @param value Custom data stored on this item. Can be retrieved using {@linkcode DataTransferItem.value}.
+		 */
 		constructor(value: any);
 	}
 
@@ -10076,14 +10120,14 @@ declare module 'vscode' {
 	 * data transfer. These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
 	 * an element in the same drag and drop controller.
 	 */
-	export class DataTransfer {
+	export class DataTransfer implements Iterable<[mimeType: string, item: DataTransferItem]> {
 		/**
 		 * Retrieves the data transfer item for a given mime type.
 		 *
 		 * @param mimeType The mime type to get the data transfer item for, such as `text/plain` or `image/png`.
 		 *
 		 * Special mime types:
-		 * - `text/uri-list` — A string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
+		 * - `text/uri-list` — A string with `toString()`ed Uris separated by `\r\n`. To specify a cursor position in the file,
 		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 */
 		get(mimeType: string): DataTransferItem | undefined;
@@ -10097,9 +10141,16 @@ declare module 'vscode' {
 
 		/**
 		 * Allows iteration through the data transfer items.
+		 *
 		 * @param callbackfn Callback for iteration through the data transfer items.
+		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callbackfn: (value: DataTransferItem, key: string) => void): void;
+		forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: any): void;
+
+		/**
+		 * Get a new iterator with the `[mime, item]` pairs for each element in this data transfer.
+		 */
+		[Symbol.iterator](): IterableIterator<[mimeType: string, item: DataTransferItem]>;
 	}
 
 	/**
@@ -10114,6 +10165,8 @@ declare module 'vscode' {
 		 * To support drops from trees, you will need to add the mime type of that tree.
 		 * This includes drops from within the same tree.
 		 * The mime type of a tree is recommended to be of the format `application/vnd.code.tree.<treeidlowercase>`.
+		 *
+		 * Use the special `files` mime type to support all types of dropped files {@link DataTransferFile files}, regardless of the file's actual mime type.
 		 *
 		 * To learn the mime type of a dragged item:
 		 * 1. Set up your `DragAndDropController`
@@ -10766,7 +10819,7 @@ declare module 'vscode' {
 	/**
 	 * A collection of mutations that an extension can apply to a process environment.
 	 */
-	export interface EnvironmentVariableCollection {
+	export interface EnvironmentVariableCollection extends Iterable<[variable: string, mutator: EnvironmentVariableMutator]> {
 		/**
 		 * Whether the collection should be cached for the workspace and applied to the terminal
 		 * across window reloads. When true the collection will be active immediately such when the
@@ -13756,6 +13809,11 @@ declare module 'vscode' {
 		placeholder: string;
 
 		/**
+		 * Controls whether the input box is enabled (default is `true`).
+		 */
+		enabled: boolean;
+
+		/**
 		 * Controls whether the input box is visible (default is `true`).
 		 */
 		visible: boolean;
@@ -15630,7 +15688,7 @@ declare module 'vscode' {
 	 * Collection of test items, found in {@link TestItem.children} and
 	 * {@link TestController.items}.
 	 */
-	export interface TestItemCollection {
+	export interface TestItemCollection extends Iterable<[id: string, testItem: TestItem]> {
 		/**
 		 * Gets the number of items in the collection.
 		 */
@@ -15648,7 +15706,7 @@ declare module 'vscode' {
 		 * @param callback Function to execute for each entry.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: unknown): void;
+		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: any): void;
 
 		/**
 		 * Adds the test item to the children. If an item with the same ID already

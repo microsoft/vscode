@@ -37,7 +37,8 @@ export enum TerminalCommandIdWithValue {
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
-	AttachToSession = 'workbench.action.terminal.attachToSession'
+	AttachToSession = 'workbench.action.terminal.attachToSession',
+	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal'
 }
 
 /**
@@ -83,8 +84,16 @@ export class Terminal {
 			await this.code.dispatchKeybinding('enter');
 			await this.quickinput.waitForQuickInputClosed();
 		}
-		if (commandId === TerminalCommandId.Show || commandId === TerminalCommandId.CreateNewEditor || commandId === TerminalCommandId.CreateNew || commandId === TerminalCommandId.NewWithProfile) {
-			return await this._waitForTerminal(expectedLocation === 'editor' || commandId === TerminalCommandId.CreateNewEditor ? 'editor' : 'panel');
+		switch (commandId) {
+			case TerminalCommandId.Show:
+			case TerminalCommandId.CreateNewEditor:
+			case TerminalCommandId.CreateNew:
+			case TerminalCommandId.NewWithProfile:
+				await this._waitForTerminal(expectedLocation === 'editor' || commandId === TerminalCommandId.CreateNewEditor ? 'editor' : 'panel');
+				break;
+			case TerminalCommandId.KillAll:
+				await this.code.waitForElements(Selector.Xterm, true, e => e.length === 0);
+				break;
 		}
 	}
 
@@ -104,6 +113,9 @@ export class Terminal {
 		}
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
+		if (commandId === TerminalCommandIdWithValue.NewWithProfile) {
+			await this._waitForTerminal();
+		}
 	}
 
 	async runCommandInTerminal(commandText: string, skipEnter?: boolean): Promise<void> {
@@ -142,11 +154,11 @@ export class Terminal {
 		let index = 0;
 		while (index < expectedCount) {
 			for (let groupIndex = 0; groupIndex < expectedGroups.length; groupIndex++) {
-				let terminalsInGroup = expectedGroups[groupIndex].length;
+				const terminalsInGroup = expectedGroups[groupIndex].length;
 				let indexInGroup = 0;
 				const isSplit = terminalsInGroup > 1;
 				while (indexInGroup < terminalsInGroup) {
-					let instance = expectedGroups[groupIndex][indexInGroup];
+					const instance = expectedGroups[groupIndex][indexInGroup];
 					const nameRegex = instance.name && isSplit ? new RegExp('\\s*[├┌└]\\s*' + instance.name) : instance.name ? new RegExp(/^\s*/ + instance.name) : undefined;
 					await this.assertTabExpected(undefined, index, nameRegex, instance.icon, instance.color, instance.description);
 					indexInGroup++;

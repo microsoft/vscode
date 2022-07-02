@@ -7,14 +7,18 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { ConfigurationMigrationWorkbenchContribution, workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
-import 'vs/workbench/common/configurationMigration';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 // Configuration
 (function registerConfiguration(): void {
+
+	// Migration support
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ConfigurationMigrationWorkbenchContribution, LifecyclePhase.Eventually);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -92,7 +96,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['text', 'hidden'],
 				'default': 'text',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled hint should be inline text in the editor or a floating button or hidden.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled text hint should be visible in the editor.")
 			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
@@ -538,10 +542,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
 			},
-			'window.experimental.commandCenter': {
+			'window.commandCenter': {
 				type: 'boolean',
 				default: false,
-				markdownDescription: localize('window.experimental.commandCenter', "Show command launcher together with the window title. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
+				markdownDescription: localize('window.commandCenter', "Show command launcher together with the window title. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
@@ -673,7 +677,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'zenMode.silentNotifications': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('zenMode.silentNotifications', "Controls whether notifications are shown while in zen mode. If true, only error notifications will pop out.")
+				'description': localize('zenMode.silentNotifications', "Controls whether notifications do not disturb mode should be enabled while in zen mode. If true, only error notifications will pop out.")
 			}
 		}
 	});

@@ -357,13 +357,9 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
-		if (request.insert) {
-			request.insert.forEach((value, key) => this.items.set(key, value));
-		}
+		request.insert?.forEach((value, key) => this.items.set(key, value));
 
-		if (request.delete) {
-			request.delete.forEach(key => this.items.delete(key));
-		}
+		request.delete?.forEach(key => this.items.delete(key));
 	}
 
 	async close(): Promise<void> { }

@@ -58,10 +58,10 @@
     ],
     "notebookRenderer": [
       {
-        "id": "markdownItRenderer-katex",
+        "id": "vscode.markdown-it-katex-extension",
         "displayName": "Markdown it KaTeX renderer",
         "entrypoint": {
-          "extends": "markdownItRenderer",
+          "extends": "vscode.markdown-it-renderer",
           "path": "./notebook-out/katex.js"
         }
       }

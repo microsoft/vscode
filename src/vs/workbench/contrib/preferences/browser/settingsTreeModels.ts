@@ -7,20 +7,20 @@ import * as arrays from 'vs/base/common/arrays';
 import { escapeRegExpCharacters, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isArray, withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, LOCAL_MACHINE_PROFILE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -152,6 +152,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
+	overriddenDefaultsLanguageList: string[] = [];
 
 	/**
 	 * For each language that contributes setting values or default overrides, we can see those values here.
@@ -166,7 +167,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		parent: SettingsTreeGroupElement,
 		inspectResult: IInspectResult,
 		isWorkspaceTrusted: boolean,
-		private readonly languageService: ILanguageService
+		private readonly languageService: ILanguageService,
+		private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
@@ -209,26 +211,41 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		let displayValue = isConfigured ? inspected[targetSelector] : inspected.defaultValue;
 		const overriddenScopeList: string[] = [];
-		if (targetSelector !== 'workspaceValue' && typeof inspected.workspaceValue !== 'undefined') {
-			overriddenScopeList.push(localize('workspace', "Workspace"));
+		const overriddenDefaultsLanguageList: string[] = [];
+		if ((languageSelector || targetSelector !== 'workspaceValue') && typeof inspected.workspaceValue !== 'undefined') {
+			overriddenScopeList.push('workspace:');
 		}
-
-		if (targetSelector !== 'userRemoteValue' && typeof inspected.userRemoteValue !== 'undefined') {
-			overriddenScopeList.push(localize('remote', "Remote"));
+		if ((languageSelector || targetSelector !== 'userRemoteValue') && typeof inspected.userRemoteValue !== 'undefined') {
+			overriddenScopeList.push('remote:');
 		}
-
-		if (targetSelector !== 'userLocalValue' && typeof inspected.userLocalValue !== 'undefined') {
-			overriddenScopeList.push(localize('user', "User"));
+		if ((languageSelector || targetSelector !== 'userLocalValue') && typeof inspected.userLocalValue !== 'undefined') {
+			overriddenScopeList.push('user:');
 		}
 
 		if (inspected.overrideIdentifiers) {
 			for (const overrideIdentifier of inspected.overrideIdentifiers) {
 				const inspectedOverride = inspectedLanguageOverrides.get(overrideIdentifier);
 				if (inspectedOverride) {
+					if (this.languageService.isRegisteredLanguageId(overrideIdentifier)) {
+						if (languageSelector !== overrideIdentifier && typeof inspectedOverride.default?.override !== 'undefined') {
+							overriddenDefaultsLanguageList.push(overrideIdentifier);
+						}
+						if ((languageSelector !== overrideIdentifier || targetSelector !== 'workspaceValue') && typeof inspectedOverride.workspace?.override !== 'undefined') {
+							overriddenScopeList.push(`workspace:${overrideIdentifier}`);
+						}
+						if ((languageSelector !== overrideIdentifier || targetSelector !== 'userRemoteValue') && typeof inspectedOverride.userRemote?.override !== 'undefined') {
+							overriddenScopeList.push(`remote:${overrideIdentifier}`);
+						}
+						if ((languageSelector !== overrideIdentifier || targetSelector !== 'userLocalValue') && typeof inspectedOverride.userLocal?.override !== 'undefined') {
+							overriddenScopeList.push(`user:${overrideIdentifier}`);
+						}
+					}
 					this.languageOverrideValues.set(overrideIdentifier, inspectedOverride);
 				}
 			}
 		}
+		this.overriddenScopeList = overriddenScopeList;
+		this.overriddenDefaultsLanguageList = overriddenDefaultsLanguageList;
 
 		// The user might have added, removed, or modified a language filter,
 		// so we reset the default value source to the non-language-specific default value source for now.
@@ -267,9 +284,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 				this.tags.add(MODIFIED_SETTING_TAG);
 			}
 
-			if (this.setting.tags) {
-				this.setting.tags.forEach(tag => this.tags!.add(tag));
-			}
+			this.setting.tags?.forEach(tag => this.tags!.add(tag));
 
 			if (this.setting.restricted) {
 				this.tags.add(REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG);
@@ -280,7 +295,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		}
 
-		this.overriddenScopeList = overriddenScopeList;
 		if (this.setting.description.length > SettingsTreeSettingElement.MAX_DESC_LINES) {
 			const truncatedDescLines = this.setting.description.slice(0, SettingsTreeSettingElement.MAX_DESC_LINES);
 			truncatedDescLines.push('[...]');
@@ -364,8 +378,13 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return REMOTE_MACHINE_SCOPES.indexOf(this.setting.scope) !== -1;
 		}
 
-		if (configTarget === ConfigurationTarget.USER_LOCAL && isRemote) {
-			return LOCAL_MACHINE_SCOPES.indexOf(this.setting.scope) !== -1;
+		if (configTarget === ConfigurationTarget.USER_LOCAL) {
+			if (!this.userDataProfileService.currentProfile.isDefault) {
+				return LOCAL_MACHINE_PROFILE_SCOPES.indexOf(this.setting.scope) !== -1;
+			}
+			if (isRemote) {
+				return LOCAL_MACHINE_SCOPES.indexOf(this.setting.scope) !== -1;
+			}
 		}
 
 		return true;
@@ -452,7 +471,8 @@ export class SettingsTreeModel {
 		protected _viewState: ISettingsEditorViewState,
 		private _isWorkspaceTrusted: boolean,
 		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
-		@ILanguageService private readonly _languageService: ILanguageService
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 	) {
 	}
 
@@ -482,7 +502,7 @@ export class SettingsTreeModel {
 	}
 
 	private disposeChildren(children: SettingsTreeGroupChild[]) {
-		for (let child of children) {
+		for (const child of children) {
 			this.recursiveDispose(child);
 		}
 	}
@@ -550,7 +570,7 @@ export class SettingsTreeModel {
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
 		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._viewState.languageFilter, this._configurationService);
-		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService);
+		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService, this._userDataProfileService);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
 		nameElements.push(element);
@@ -793,9 +813,10 @@ export class SearchResultModel extends SettingsTreeModel {
 		isWorkspaceTrusted: boolean,
 		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
-		@ILanguageService languageService: ILanguageService
+		@ILanguageService languageService: ILanguageService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
-		super(viewState, isWorkspaceTrusted, configurationService, languageService);
+		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService);
 		this.update({ id: 'searchResultModel', label: '' });
 	}
 
@@ -810,9 +831,7 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		const localMatchKeys = new Set();
 		const localResult = this.rawSearchResults[SearchResultIdx.Local];
-		if (localResult) {
-			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
-		}
+		localResult?.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
 
 		const remoteResult = this.rawSearchResults[SearchResultIdx.Remote];
 		if (remoteResult) {

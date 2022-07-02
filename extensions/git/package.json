@@ -213,82 +213,110 @@
         "command": "git.commit",
         "title": "%command.commit%",
         "category": "Git",
-        "icon": "$(check)"
+        "icon": "$(check)",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStaged",
         "title": "%command.commitStaged%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitEmpty",
         "title": "%command.commitEmpty%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStagedSigned",
         "title": "%command.commitStagedSigned%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStagedAmend",
         "title": "%command.commitStagedAmend%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAll",
         "title": "%command.commitAll%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAllSigned",
         "title": "%command.commitAllSigned%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAllAmend",
         "title": "%command.commitAllAmend%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitNoVerify",
         "title": "%command.commitNoVerify%",
         "category": "Git",
-        "icon": "$(check)"
+        "icon": "$(check)",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStagedNoVerify",
         "title": "%command.commitStagedNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitEmptyNoVerify",
         "title": "%command.commitEmptyNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStagedSignedNoVerify",
         "title": "%command.commitStagedSignedNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitStagedAmendNoVerify",
         "title": "%command.commitStagedAmendNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAllNoVerify",
         "title": "%command.commitAllNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAllSignedNoVerify",
         "title": "%command.commitAllSignedNoVerify%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.commitAllAmendNoVerify",
         "title": "%command.commitAllAmendNoVerify%",
+        "category": "Git",
+        "enablement": "!commitInProgress"
+      },
+      {
+        "command": "git.commitMessageAccept",
+        "title": "%command.commitMessageAccept%",
+        "icon": "$(check)",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitMessageDiscard",
+        "title": "%command.commitMessageDiscard%",
+        "icon": "$(discard)",
         "category": "Git"
       },
       {
@@ -299,7 +327,8 @@
       {
         "command": "git.undoCommit",
         "title": "%command.undoCommit%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!commitInProgress"
       },
       {
         "command": "git.checkout",
@@ -570,7 +599,8 @@
       {
         "command": "git.acceptMerge",
         "title": "%command.git.acceptMerge%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "isMergeEditor"
       }
     ],
     "keybindings": [
@@ -777,6 +807,14 @@
         },
         {
           "command": "git.restoreCommitTemplate",
+          "when": "false"
+        },
+        {
+          "command": "git.commitMessageAccept",
+          "when": "false"
+        },
+        {
+          "command": "git.commitMessageDiscard",
           "when": "false"
         },
         {
@@ -1462,7 +1500,17 @@
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file && scmActiveResourceHasChanges"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges"
+        },
+        {
+          "command": "git.commitMessageAccept",
+          "group": "navigation",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit && commitInProgress"
+        },
+        {
+          "command": "git.commitMessageDiscard",
+          "group": "navigation",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit && commitInProgress"
         },
         {
           "command": "git.stageSelectedRanges",
@@ -1500,7 +1548,7 @@
       "merge/toolbar": [
         {
           "command": "git.acceptMerge",
-          "when": "isMergeEditor"
+          "when": "isMergeEditor && baseResourceScheme =~ /^git$|^file$/"
         }
       ],
       "scm/change/title": [
@@ -2013,6 +2061,17 @@
           "scope": "machine",
           "description": "%config.defaultCloneDirectory%"
         },
+        "git.useEditorAsCommitInput": {
+          "type": "boolean",
+          "description": "%config.useEditorAsCommitInput%",
+          "default": true
+        },
+        "git.verboseCommit": {
+          "type": "boolean",
+          "scope": "resource",
+          "markdownDescription": "%config.verboseCommit%",
+          "default": false
+        },
         "git.enableSmartCommit": {
           "type": "boolean",
           "scope": "resource",
@@ -2321,7 +2380,8 @@
         "git.requireGitUserConfig": {
           "type": "boolean",
           "description": "%config.requireGitUserConfig%",
-          "default": true
+          "default": true,
+          "scope": "resource"
         },
         "git.showCommitInput": {
           "type": "boolean",
@@ -2331,9 +2391,13 @@
         },
         "git.terminalAuthentication": {
           "type": "boolean",
-          "scope": "resource",
           "default": true,
           "description": "%config.terminalAuthentication%"
+        },
+        "git.terminalGitEditor": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.terminalGitEditor%"
         },
         "git.useCommitInputAsStashMessage": {
           "type": "boolean",
@@ -2375,20 +2439,29 @@
           "description": "%config.timeline.showUncommitted%",
           "scope": "window"
         },
-        "git.showUnpublishedCommitsButton": {
-          "type": "string",
-          "enum": [
-            "always",
-            "whenEmpty",
-            "never"
-          ],
-          "enumDescriptions": [
-            "%config.showUnpublishedCommitsButton.always%",
-            "%config.showUnpublishedCommitsButton.whenEmpty%",
-            "%config.showUnpublishedCommitsButton.never%"
-          ],
-          "default": "whenEmpty",
-          "description": "%config.showUnpublishedCommitsButton%",
+        "git.showActionButton": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "%config.showActionButton%",
+          "properties": {
+            "commit": {
+              "type": "boolean",
+              "description": "%config.showActionButton.commit%"
+            },
+            "publish": {
+              "type": "boolean",
+              "description": "%config.showActionButton.publish%"
+            },
+            "sync": {
+              "type": "boolean",
+              "description": "%config.showActionButton.sync%"
+            }
+          },
+          "default": {
+            "commit": true,
+            "publish": true,
+            "sync": true
+          },
           "scope": "resource"
         },
         "git.statusLimit": {
@@ -2396,19 +2469,6 @@
           "scope": "resource",
           "default": 10000,
           "description": "%config.statusLimit%"
-        },
-        "git.experimental.installGuide": {
-          "type": "string",
-          "enum": [
-            "default",
-            "download"
-          ],
-          "tags": [
-            "experimental"
-          ],
-          "scope": "machine",
-          "description": "%config.experimental.installGuide%",
-          "default": "default"
         },
         "git.repositoryScanIgnoredFolders": {
           "type": "array",
@@ -2433,7 +2493,6 @@
             "type": "string"
           },
           "default": [],
-          "scope": "resource",
           "markdownDescription": "%config.commandsToLog%"
         },
         "git.logLevel": {
@@ -2460,14 +2519,11 @@
           "markdownDescription": "%config.logLevel%",
           "scope": "window"
         },
-        "git.experimental.mergeEditor": {
+        "git.mergeEditor": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "%config.experimental.mergeEditor%",
-          "scope": "window",
-          "tags": [
-            "experimental"
-          ]
+          "markdownDescription": "%config.mergeEditor%",
+          "scope": "window"
         }
       }
     },
@@ -2592,54 +2648,49 @@
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.missing.guide%",
-        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download"
-      },
-      {
-        "view": "scm",
-        "contents": "%view.workbench.scm.missing.guide.mac%",
-        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isMac"
-      },
-      {
-        "view": "scm",
-        "contents": "%view.workbench.scm.missing.guide.windows%",
-        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isWindows"
-      },
-      {
-        "view": "scm",
-        "contents": "%view.workbench.scm.missing.guide.linux%",
-        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isLinux"
-      },
-      {
-        "view": "scm",
         "contents": "%view.workbench.scm.missing%",
-        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == default"
+        "when": "config.git.enabled && git.missing"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.mac%",
+        "when": "config.git.enabled && git.missing && isMac"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.windows%",
+        "when": "config.git.enabled && git.missing && isWindows"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.linux%",
+        "when": "config.git.enabled && git.missing && isLinux"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.empty%",
-        "when": "config.git.enabled && workbenchState == empty",
+        "when": "config.git.enabled && !git.missing && workbenchState == empty",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && workbenchState == folder",
+        "when": "config.git.enabled && !git.missing && workbenchState == folder",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && workbenchState == workspace && workspaceFolderCount != 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.emptyWorkspace%",
-        "when": "config.git.enabled && workbenchState == workspace && workspaceFolderCount == 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },
@@ -2661,7 +2712,7 @@
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "5.0.0",
-    "@vscode/extension-telemetry": "0.4.10",
+    "@vscode/extension-telemetry": "0.6.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "^7.2.0",

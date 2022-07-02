@@ -288,7 +288,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const proxy = request.proxy;
 		this._terminalProcessProxies.set(proxy.instanceId, proxy);
 
-		// Note that onReisze is not being listened to here as it needs to fire when max dimensions
+		// Note that onResize is not being listened to here as it needs to fire when max dimensions
 		// change, excluding the dimension override
 		const initialDimensions: ITerminalDimensionsDto | undefined = request.cols && request.rows ? {
 			columns: request.cols,
@@ -318,9 +318,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $sendProcessProperty(terminalId: number, property: IProcessProperty<any>): void {
 		if (property.type === ProcessPropertyType.Title) {
 			const instance = this._terminalService.getInstanceFromId(terminalId);
-			if (instance) {
-				instance.refreshTabLabels(property.value, TitleEventSource.Api);
-			}
+			instance?.refreshTabLabels(property.value, TitleEventSource.Api);
 		}
 		this._terminalProcessProxies.get(terminalId)?.emitProcessProperty(property);
 	}

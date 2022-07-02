@@ -24,10 +24,10 @@ import { IEncryptionMainService } from 'vs/platform/encryption/common/encryption
 import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -70,6 +70,8 @@ import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/co
 import { ExtensionHostStatusService, IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
+import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 
 const eventPrefix = 'monacoworkbench';
@@ -108,8 +110,14 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IFileService, fileService);
 	fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService)));
 
+	// User Data Profiles
+	const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, logService);
+	services.set(IUserDataProfilesService, userDataProfilesService);
+
+	// Configuration
 	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService(), logService);
 	services.set(IConfigurationService, configurationService);
+	await configurationService.initialize();
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
 	services.set(IExtensionHostStatusService, extensionHostStatusService);
@@ -155,8 +163,9 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const downloadChannel = socketServer.getChannel('download', router);
 	services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, () => getUriTransformer('renderer') /* TODO: @Sandy @Joao need dynamic context based router */));
 
+	services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 	services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
-	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+	services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 	services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
@@ -179,9 +188,9 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(ICredentialsMainService, new SyncDescriptor(CredentialsWebMainService));
 
 	instantiationService.invokeFunction(accessor => {
-		const extensionManagementService = accessor.get(IExtensionManagementService);
+		const extensionManagementService = accessor.get(INativeServerExtensionManagementService);
 		const extensionsScannerService = accessor.get(IExtensionsScannerService);
-		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, extensionManagementCLIService, logService, extensionHostStatusService, extensionsScannerService);
+		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionManagementCLIService, logService, extensionHostStatusService, extensionsScannerService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), appInsightsAppender);
@@ -204,7 +213,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		socketServer.registerChannel('credentials', credentialsChannel);
 
 		// clean up deprecated extensions
-		(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+		extensionManagementService.removeUninstalledExtensions(true);
 
 		disposables.add(new ErrorTelemetry(accessor.get(ITelemetryService)));
 

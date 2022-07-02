@@ -171,12 +171,12 @@ export class TerminalViewPane extends ViewPane {
 				// defer focusing the panel to the focus() call
 				// to prevent overriding preserveFocus for extensions
 				this._terminalGroupService.showPanel(false);
-				if (hadTerminals) {
-					this._terminalGroupService.activeGroup?.setVisible(visible);
-				}
 			} else {
-				this._terminalGroupService.activeGroup?.setVisible(false);
+				for (const instance of this._terminalGroupService.instances) {
+					instance.resetFocusContextKey();
+				}
 			}
+			this._terminalGroupService.updateVisibility();
 		}));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 	}
@@ -521,7 +521,7 @@ function getSingleTabLabel(instance: ITerminalInstance | undefined, separator: s
 	if (!instance || !instance.title) {
 		return '';
 	}
-	let iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
+	const iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
 	const label = `$(${icon?.id || iconClass}) ${getSingleTabTitle(instance, separator)}`;
 
 	const primaryStatus = instance.statusList.primary;

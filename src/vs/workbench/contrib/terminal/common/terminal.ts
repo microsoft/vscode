@@ -12,7 +12,7 @@ import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChi
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IProcessDetails, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { IGenericMarkProperties, IProcessDetails, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 
@@ -342,12 +342,15 @@ export interface ITerminalCommand {
 	marker?: IXtermMarker;
 	hasOutput: boolean;
 	getOutput(): string | undefined;
+	genericMarkProperties?: IGenericMarkProperties;
 }
 
 export interface INavigationMode {
 	exitNavigationMode(): void;
 	focusPreviousLine(): void;
 	focusNextLine(): void;
+	focusPreviousPage(): void;
+	focusNextPage(): void;
 }
 
 export interface IBeforeProcessDataEvent {
@@ -454,11 +457,6 @@ export interface IStartExtensionTerminalRequest {
 	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
-export interface IDefaultShellAndArgsRequest {
-	useAutomationShell: boolean;
-	callback: (shell: string, args: string[] | string | undefined) => void;
-}
-
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TerminalCommandId {
@@ -473,6 +471,7 @@ export const enum TerminalCommandId {
 	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
 	OpenDetectedLink = 'workbench.action.terminal.openDetectedLink',
 	OpenWordLink = 'workbench.action.terminal.openWordLink',
+	ShellIntegrationLearnMore = 'workbench.action.terminal.learnMore',
 	OpenFileLink = 'workbench.action.terminal.openFileLink',
 	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
@@ -554,7 +553,9 @@ export const enum TerminalCommandId {
 	ToggleFindCaseSensitive = 'workbench.action.terminal.toggleFindCaseSensitive',
 	NavigationModeExit = 'workbench.action.terminal.navigationModeExit',
 	NavigationModeFocusNext = 'workbench.action.terminal.navigationModeFocusNext',
+	NavigationModeFocusNextPage = 'workbench.action.terminal.navigationModeFocusNextPage',
 	NavigationModeFocusPrevious = 'workbench.action.terminal.navigationModeFocusPrevious',
+	NavigationModeFocusPreviousPage = 'workbench.action.terminal.navigationModeFocusPreviousPage',
 	ShowEnvironmentInformation = 'workbench.action.terminal.showEnvironmentInformation',
 	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
@@ -564,6 +565,7 @@ export const enum TerminalCommandId {
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
 	ClearCommandHistory = 'workbench.action.terminal.clearCommandHistory',
+	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

@@ -39,13 +39,13 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 			};
 
 			const rules = [];
-			for (let contribution of iconRegistry.getIcons()) {
+			for (const contribution of iconRegistry.getIcons()) {
 				const rule = formatIconRule(contribution);
 				if (rule) {
 					rules.push(rule);
 				}
 			}
-			for (let id in usedFontIds) {
+			for (const id in usedFontIds) {
 				const definition = usedFontIds[id];
 				const fontWeight = definition.weight ? `font-weight: ${definition.weight};` : '';
 				const fontStyle = definition.style ? `font-style: ${definition.style};` : '';

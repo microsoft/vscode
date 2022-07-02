@@ -6,7 +6,7 @@
 				"git": {
 					"name": "ionide/ionide-fsgrammar",
 					"repositoryUrl": "https://github.com/ionide/ionide-fsgrammar",
-					"commitHash": "8825a76681cdc14801b5d9490372ff67ec6b9711"
+					"commitHash": "e177bd7f9d3402f70d2f1fb42c74057ed1ccf6fa"
 				}
 			},
 			"license": "MIT",

@@ -648,7 +648,7 @@ export class SuggestModel implements IDisposable {
 			// Select those providers have not contributed to this completion model and re-trigger completions for
 			// them. Also adopt the existing items and merge them into the new completion model
 			const inactiveProvider = new Set(this._languageFeaturesService.completionProvider.all(this._editor.getModel()!));
-			for (let provider of this._completionModel.allProvider) {
+			for (const provider of this._completionModel.allProvider) {
 				inactiveProvider.delete(provider);
 			}
 			const items = this._completionModel.adopt(new Set());
@@ -664,7 +664,7 @@ export class SuggestModel implements IDisposable {
 
 		} else {
 			// typed -> moved cursor RIGHT -> update UI
-			let oldLineContext = this._completionModel.lineContext;
+			const oldLineContext = this._completionModel.lineContext;
 			let isFrozen = false;
 
 			this._completionModel.lineContext = {

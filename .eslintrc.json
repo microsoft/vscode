@@ -14,6 +14,12 @@
 		"constructor-super": "warn",
 		"curly": "warn",
 		"eqeqeq": "warn",
+		"prefer-const": [
+			"warn",
+			{
+				"destructuring": "all"
+			}
+		],
 		"no-buffer-constructor": "warn",
 		"no-caller": "warn",
 		"no-case-declarations": "warn",
@@ -204,7 +210,8 @@
 						// - electron-browser
 						"when": "hasBrowser",
 						"allow": [
-							"vs/css!./**/*"
+							"vs/css!./**/*",
+							"@microsoft/applicationinsights-web"
 						]
 					},
 					{
@@ -214,7 +221,6 @@
 						// - electron-main
 						"when": "hasNode",
 						"allow": [
-							"@microsoft/applicationinsights-web",
 							"@parcel/watcher",
 							"@vscode/sqlite3",
 							"@vscode/vscode-languagedetection",
@@ -269,6 +275,7 @@
 						// imports that are allowed in all /test/ files
 						"when": "test",
 						"allow": [
+							"vs/css.build",
 							"assert",
 							"sinon",
 							"sinon-test"
@@ -323,7 +330,9 @@
 							"vs/base/~",
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
-							"tas-client-umd" // node module allowed even in /common/
+							"tas-client-umd", // node module allowed even in /common/
+							"@microsoft/1ds-core-js",// node module allowed even in /common/
+							"@microsoft/1ds-post-js" // node module allowed even in /common/
 						]
 					},
 					{
@@ -437,8 +446,7 @@
 							}, // TODO@layers
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
-							"@vscode/vscode-languagedetection", // node module allowed even in /common/
-							"@microsoft/applicationinsights-web" // node module allowed even in /common/
+							"@vscode/vscode-languagedetection" // node module allowed even in /common/
 						]
 					},
 					{
@@ -569,7 +577,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/vs/{css.d.ts,monaco.d.ts,nls.d.ts,nls.mock.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.build.ts,nls.mock.ts}",
 						"restrictions": []
 					},
 					{

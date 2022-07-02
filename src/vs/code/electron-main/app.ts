@@ -70,7 +70,7 @@ import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedPro
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
-import { GlobalStorageMainService, IGlobalStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -101,6 +101,7 @@ import { IWorkspacesManagementMainService, WorkspacesManagementMainService } fro
 import { CredentialsNativeMainService } from 'vs/platform/credentials/electron-main/credentialsMainService';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -647,7 +648,7 @@ export class CodeApplication extends Disposable {
 
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
-		services.set(IGlobalStorageMainService, new SyncDescriptor(GlobalStorageMainService));
+		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService));
 
 		// External terminal
 		if (isWindows) {
@@ -708,6 +709,11 @@ export class CodeApplication extends Disposable {
 		const fileSystemProviderChannel = new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService, this.environmentMainService);
 		mainProcessElectronServer.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel);
 		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
+
+		// User Data Profiles
+		const userDataProfilesService = ProxyChannel.fromService(accessor.get(IUserDataProfilesMainService));
+		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
+		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
@@ -870,6 +876,13 @@ export class CodeApplication extends Disposable {
 
 				// or if no window is open (macOS only)
 				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
+
+				// Pass along edit session id
+				if (params.get('editSessionId') !== null) {
+					environmentService.editSessionId = params.get('editSessionId') ?? undefined;
+					params.delete('editSessionId');
+					uri = uri.with({ query: params.toString() });
+				}
 
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);

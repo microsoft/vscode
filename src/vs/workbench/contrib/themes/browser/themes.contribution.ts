@@ -6,9 +6,10 @@
 import { localize } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
@@ -34,6 +35,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -99,16 +101,18 @@ class MarketplaceThemesPicker {
 		try {
 			const installedExtensions = await this._installedExtensions;
 
-			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 40 };
+			const options = { text: `${this.marketplaceQuery} ${value}`, pageSize: 20 };
 			const pager = await this.extensionGalleryService.query(options, token);
-			for (let i = 0; i < pager.total && i < 1; i++) {
+			for (let i = 0; i < pager.total && i < 1; i++) { // loading multiple pages is turned of for now to avoid flickering
 				if (token.isCancellationRequested) {
 					break;
 				}
 
 				const nThemes = this._marketplaceThemes.length;
+				const gallery = i === 0 ? pager.firstPage : await pager.getPage(i, token);
 
-				const gallery = await pager.getPage(i, token);
+				const promises: Promise<IWorkbenchTheme[]>[] = [];
+				const promisesGalleries = [];
 				for (let i = 0; i < gallery.length; i++) {
 					if (token.isCancellationRequested) {
 						break;
@@ -116,12 +120,18 @@ class MarketplaceThemesPicker {
 					const ext = gallery[i];
 					if (!installedExtensions.has(ext.identifier.id) && !this._marketplaceExtensions.has(ext.identifier.id)) {
 						this._marketplaceExtensions.add(ext.identifier.id);
-						const themes = await this.getMarketplaceColorThemes(ext.publisher, ext.name, ext.version);
-						for (const theme of themes) {
-							this._marketplaceThemes.push({ id: theme.id, theme: theme, label: theme.label, description: `${ext.displayName} · ${ext.publisherDisplayName}`, galleryExtension: ext, buttons: [configureButton] });
-						}
+						promises.push(this.getMarketplaceColorThemes(ext.publisher, ext.name, ext.version));
+						promisesGalleries.push(ext);
 					}
 				}
+				const allThemes = await Promise.all(promises);
+				for (let i = 0; i < allThemes.length; i++) {
+					const ext = promisesGalleries[i];
+					for (const theme of allThemes[i]) {
+						this._marketplaceThemes.push({ id: theme.id, theme: theme, label: theme.label, description: `${ext.displayName} · ${ext.publisherDisplayName}`, galleryExtension: ext, buttons: [configureButton] });
+					}
+				}
+
 				if (nThemes !== this._marketplaceThemes.length) {
 					this._marketplaceThemes.sort((t1, t2) => t1.label.localeCompare(t2.label));
 					this._onDidChange.fire();
@@ -151,7 +161,7 @@ class MarketplaceThemesPicker {
 			quickpick.canSelectMany = false;
 			quickpick.onDidChangeValue(() => this.trigger(quickpick.value));
 			quickpick.onDidAccept(async _ => {
-				let themeItem = quickpick.selectedItems[0];
+				const themeItem = quickpick.selectedItems[0];
 				if (themeItem?.galleryExtension) {
 					result = 'selected';
 					quickpick.hide();
@@ -456,7 +466,10 @@ registerAction2(class extends Action2 {
 CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string; name: string; version: string }, themeSettingsId?: string) {
 	const themeService = accessor.get(IWorkbenchThemeService);
 
-	const themes = await themeService.getMarketplaceColorThemes(extension.publisher, extension.name, extension.version);
+	let themes = findBuiltInThemes(await themeService.getColorThemes(), extension);
+	if (themes.length === 0) {
+		themes = await themeService.getMarketplaceColorThemes(extension.publisher, extension.name, extension.version);
+	}
 	for (const theme of themes) {
 		if (!themeSettingsId || theme.settingsId === themeSettingsId) {
 			await themeService.setColorTheme(theme, 'preview');
@@ -465,6 +478,10 @@ CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async fun
 	}
 	return undefined;
 });
+
+function findBuiltInThemes(themes: IWorkbenchColorTheme[], extension: { publisher: string; name: string }): IWorkbenchColorTheme[] {
+	return themes.filter(({ extensionData }) => extensionData && extensionData.extensionIsBuiltin && equalsIgnoreCase(extensionData.extensionPublisher, extension.publisher) && equalsIgnoreCase(extensionData.extensionName, extension.name));
+}
 
 function configurationEntries(label: string): QuickPickInput<ThemeItem>[] {
 	return [
@@ -512,7 +529,7 @@ function toEntry(theme: IWorkbenchTheme): ThemeItem {
 
 function toEntries(themes: Array<IWorkbenchTheme>, label?: string): QuickPickInput<ThemeItem>[] {
 	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
-	let entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
+	const entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
 	if (entries.length > 0 && label) {
 		entries.unshift({ type: 'separator', label });
 	}
@@ -575,6 +592,51 @@ registerAction2(class extends Action2 {
 	}
 });
 
+const toggleLightDarkThemesCommandId = 'workbench.action.toggleLightDarkThemes';
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: toggleLightDarkThemesCommandId,
+			title: { value: localize('toggleLightDarkThemes.label', "Toggle between Light/Dark Themes"), original: 'Toggle between Light/Dark Themes' },
+			category: CATEGORIES.Preferences,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor) {
+		const themeService = accessor.get(IWorkbenchThemeService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const currentTheme = themeService.getColorTheme();
+		let newSettingsId: string = ThemeSettings.PREFERRED_DARK_THEME;
+		switch (currentTheme.type) {
+			case ColorScheme.LIGHT:
+				newSettingsId = ThemeSettings.PREFERRED_DARK_THEME;
+				break;
+			case ColorScheme.DARK:
+				newSettingsId = ThemeSettings.PREFERRED_LIGHT_THEME;
+				break;
+			case ColorScheme.HIGH_CONTRAST_LIGHT:
+				newSettingsId = ThemeSettings.PREFERRED_HC_DARK_THEME;
+				break;
+			case ColorScheme.HIGH_CONTRAST_DARK:
+				newSettingsId = ThemeSettings.PREFERRED_HC_LIGHT_THEME;
+				break;
+		}
+
+		const themeSettingId: string = configurationService.getValue(newSettingsId);
+
+		if (themeSettingId && typeof themeSettingId === 'string') {
+			const theme = (await themeService.getColorThemes()).find(t => t.settingsId === themeSettingId);
+			if (theme) {
+				themeService.setColorTheme(theme.id, 'auto');
+			}
+		}
+	}
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '4_themes',
 	command: {
@@ -601,7 +663,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	},
 	order: 3
 });
-
 
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	group: '4_themes',

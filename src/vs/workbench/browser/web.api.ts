@@ -110,6 +110,16 @@ export interface IWorkbench {
 	 * has been persisted.
 	 */
 	shutdown: () => Promise<void>;
+
+	/**
+	 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
+	 * By default, openTunnel only support localhost; however, a tunnelFactory can be used to support other ips.
+	 *
+	 * @throws When run in an environment without a remote.
+	 *
+	 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
+	 */
+	openTunnel(tunnelOptions: ITunnelOptions): Thenable<ITunnel>;
 }
 
 export interface IWorkbenchConstructionOptions {
@@ -158,6 +168,11 @@ export interface IWorkbenchConstructionOptions {
 	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
 	 */
 	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string };
+
+	/**
+	 * The identifier of an edit session associated with the current workspace.
+	 */
+	readonly editSessionId?: string;
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
@@ -236,7 +251,7 @@ export interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
+	 * Optional default layout to apply on first time the workspace is opened (unless `force` is specified).
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 

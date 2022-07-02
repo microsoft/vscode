@@ -146,6 +146,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('sideBySide', "Controls whether the diff editor shows the diff side by side or inline.")
 		},
+		'diffEditor.renderMarginRevertIcon': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('renderMarginRevertIcon', "When enabled, the diff editor shows arrows in its glyph margin to revert changes.")
+		},
 		'diffEditor.ignoreTrimWhitespace': {
 			type: 'boolean',
 			default: true,

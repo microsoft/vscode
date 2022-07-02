@@ -70,7 +70,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		switch (location) {
 			case ProgressLocation.Notification:
-				return this.withNotificationProgress({ ...options, location }, task, onDidCancel);
+				return this.withNotificationProgress({ ...options, location, silent: this.notificationService.doNotDisturbMode }, task, onDidCancel);
 			case ProgressLocation.Window:
 				if ((options as IProgressWindowOptions).command) {
 					// Window progress with command get's shown in the status bar
@@ -127,9 +127,9 @@ export class ProgressService extends Disposable implements IProgressService {
 		if (idx < this.windowProgressStack.length) {
 			const [options, progress] = this.windowProgressStack[idx];
 
-			let progressTitle = options.title;
-			let progressMessage = progress.value && progress.value.message;
-			let progressCommand = (<IProgressWindowOptions>options).command;
+			const progressTitle = options.title;
+			const progressMessage = progress.value && progress.value.message;
+			const progressCommand = (<IProgressWindowOptions>options).command;
 			let text: string;
 			let title: string;
 			const source = options.source && typeof options.source !== 'string' ? options.source.label : options.source;

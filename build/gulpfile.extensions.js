@@ -66,7 +66,6 @@ const compilations = [
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',
 	'vscode-colorize-tests/tsconfig.json',
-	'vscode-custom-editor-tests/tsconfig.json',
 	'vscode-notebook-tests/tsconfig.json',
 	'vscode-test-resolver/tsconfig.json'
 ];
@@ -91,7 +90,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const baseUrl = getBaseUrl(out);
 
 	let headerId, headerOut;
-	let index = relativeDirname.indexOf('/');
+	const index = relativeDirname.indexOf('/');
 	if (index < 0) {
 		headerId = 'vscode.' + relativeDirname;
 		headerOut = 'out';
@@ -100,7 +99,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		headerOut = relativeDirname.substr(index + 1) + '/out';
 	}
 
-	function createPipeline(build, emitError) {
+	function createPipeline(build, emitError, transpileOnly) {
 		const nlsDev = require('vscode-nls-dev');
 		const tsb = require('./lib/tsb');
 		const sourcemaps = require('gulp-sourcemaps');
@@ -110,7 +109,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
 
-		const compilation = tsb.create(absolutePath, overrideOptions, false, err => reporter(err.toString()));
+		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly }, err => reporter(err.toString()));
 
 		const pipeline = function () {
 			const input = es.through();
@@ -152,6 +151,16 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const cleanTask = task.define(`clean-extension-${name}`, util.rimraf(out));
 
+	const transpileTask = task.define(`transpile-extension:${name}`, task.series(cleanTask, () => {
+		const pipeline = createPipeline(false, true, true);
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
+		const input = es.merge(nonts, pipeline.tsProjectSrc());
+
+		return input
+			.pipe(pipeline())
+			.pipe(gulp.dest(out));
+	}));
+
 	const compileTask = task.define(`compile-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false, true);
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
@@ -184,11 +193,15 @@ const tasks = compilations.map(function (tsconfigFile) {
 	}));
 
 	// Tasks
+	gulp.task(transpileTask);
 	gulp.task(compileTask);
 	gulp.task(watchTask);
 
-	return { compileTask, watchTask, compileBuildTask };
+	return { transpileTask, compileTask, watchTask, compileBuildTask };
 });
+
+const transpileExtensionsTask = task.define('transpile-extensions', task.parallel(...tasks.map(t => t.transpileTask)));
+gulp.task(transpileExtensionsTask);
 
 const compileExtensionsTask = task.define('compile-extensions', task.parallel(...tasks.map(t => t.compileTask)));
 gulp.task(compileExtensionsTask);

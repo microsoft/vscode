@@ -125,6 +125,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
+		private readonly _initialCwd: Promise<string>,
 		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
 		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
 		private readonly _os: OperatingSystem,
@@ -153,39 +154,43 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 				return;
 			}
 		});
-		let matchLink = text;
+		let cwdResolvedText = text;
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			matchLink = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, pathSeparator) || text;
+			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, pathSeparator) || text;
 		}
-		const sanitizedLink = matchLink.replace(/:\d+(:\d+)?$/, '');
-		try {
-			const result = await this._getExactMatch(sanitizedLink);
-			if (result) {
-				const { uri, isDirectory } = result;
-				const linkToOpen = {
-					// Use the absolute URI's path here so the optional line/col get detected
-					text: result.uri.fsPath + (matchLink.match(/:\d+(:\d+)?$/)?.[0] || ''),
-					uri,
-					bufferRange: link.bufferRange,
-					type: link.type
-				};
-				if (uri) {
-					return isDirectory ? this._localFolderInWorkspaceOpener.open(linkToOpen) : this._localFileOpener.open(linkToOpen);
-				}
+
+		// Try open the cwd resolved link first
+		if (await this._tryOpenExactLink(cwdResolvedText, link)) {
+			return;
+		}
+
+		// If the cwd resolved text didn't match, try find the link without the cwd resolved, for
+		// example when a command prints paths in a sub-directory of the current cwd
+		if (text !== cwdResolvedText) {
+			if (await this._tryOpenExactLink(text, link)) {
+				return;
 			}
-		} catch {
-			// Fallback to searching quick access
-			return this._quickInputService.quickAccess.show(text);
 		}
+
 		// Fallback to searching quick access
 		return this._quickInputService.quickAccess.show(text);
 	}
 
 	private async _getExactMatch(sanitizedLink: string): Promise<IResourceMatch | undefined> {
+		// Make the link relative to the cwd if it isn't absolute
+		const pathModule = osPathModule(this._os);
+		const isAbsolute = pathModule.isAbsolute(sanitizedLink);
+		let absolutePath: string | undefined = isAbsolute ? sanitizedLink : undefined;
+		const initialCwd = await this._initialCwd;
+		if (!isAbsolute && initialCwd.length > 0) {
+			absolutePath = pathModule.join(initialCwd, sanitizedLink);
+		}
+
+		// Try open as an absolute link
 		let resourceMatch: IResourceMatch | undefined;
-		if (osPathModule(this._os).isAbsolute(sanitizedLink)) {
+		if (absolutePath) {
+			const slashNormalizedPath = this._os === OperatingSystem.Windows ? absolutePath.replace(/\\/g, '/') : absolutePath;
 			const scheme = this._workbenchEnvironmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
-			const slashNormalizedPath = this._os === OperatingSystem.Windows ? sanitizedLink.replace(/\\/g, '/') : sanitizedLink;
 			const uri = URI.from({ scheme, path: slashNormalizedPath });
 			try {
 				const fileStat = await this._fileService.stat(uri);
@@ -194,6 +199,8 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 				// File or dir doesn't exist, continue on
 			}
 		}
+
+		// Search the workspace if an exact match based on the absolute path was not found
 		if (!resourceMatch) {
 			const results = await this._searchService.fileSearch(
 				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
@@ -207,6 +214,30 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 			}
 		}
 		return resourceMatch;
+	}
+
+	private async _tryOpenExactLink(text: string, link: ITerminalSimpleLink): Promise<boolean> {
+		const sanitizedLink = text.replace(/:\d+(:\d+)?$/, '');
+		try {
+			const result = await this._getExactMatch(sanitizedLink);
+			if (result) {
+				const { uri, isDirectory } = result;
+				const linkToOpen = {
+					// Use the absolute URI's path here so the optional line/col get detected
+					text: result.uri.fsPath + (text.match(/:\d+(:\d+)?$/)?.[0] || ''),
+					uri,
+					bufferRange: link.bufferRange,
+					type: link.type
+				};
+				if (uri) {
+					await (isDirectory ? this._localFolderInWorkspaceOpener.open(linkToOpen) : this._localFileOpener.open(linkToOpen));
+					return true;
+				}
+			}
+		} catch {
+			return false;
+		}
+		return false;
 	}
 }
 

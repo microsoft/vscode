@@ -139,20 +139,6 @@ suite('Labels', () => {
 		assert.strictEqual(labels.template(t, { dirty: '* ', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), '* somefile.txt - monaco - Visual Studio Code');
 	});
 
-	(isWindows ? test.skip : test)('getBaseLabel - unix', () => {
-		assert.strictEqual(labels.getBaseLabel('/some/folder/file.txt'), 'file.txt');
-		assert.strictEqual(labels.getBaseLabel('/some/folder'), 'folder');
-		assert.strictEqual(labels.getBaseLabel('/'), '/');
-	});
-
-	(!isWindows ? test.skip : test)('getBaseLabel - windows', () => {
-		assert.strictEqual(labels.getBaseLabel('c:'), 'C:');
-		assert.strictEqual(labels.getBaseLabel('c:\\'), 'C:');
-		assert.strictEqual(labels.getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
-		assert.strictEqual(labels.getBaseLabel('c:\\some\\folder'), 'folder');
-		assert.strictEqual(labels.getBaseLabel('c:\\some\\f:older'), 'f:older'); // https://github.com/microsoft/vscode-remote-release/issues/4227
-	});
-
 	test('mnemonicButtonLabel', () => {
 		assert.strictEqual(labels.mnemonicButtonLabel('Hello World'), 'Hello World');
 		assert.strictEqual(labels.mnemonicButtonLabel(''), '');

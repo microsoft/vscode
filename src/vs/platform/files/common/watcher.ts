@@ -291,21 +291,26 @@ export function coalesceEvents(changes: IDiskFileChange[]): IDiskFileChange[] {
 	return coalescer.coalesce();
 }
 
+export function normalizeWatcherPattern(path: string, pattern: string | IRelativePattern): string | IRelativePattern {
+
+	// Patterns are always matched on the full absolute path
+	// of the event. As such, if the pattern is not absolute
+	// and is a string and does not start with a leading
+	// `**`, we have to convert it to a relative pattern with
+	// the given `base`
+
+	if (typeof pattern === 'string' && !pattern.startsWith(GLOBSTAR) && !isAbsolute(pattern)) {
+		return { base: path, pattern };
+	}
+
+	return pattern;
+}
+
 export function parseWatcherPatterns(path: string, patterns: Array<string | IRelativePattern>): ParsedPattern[] {
 	const parsedPatterns: ParsedPattern[] = [];
 
 	for (const pattern of patterns) {
-		let normalizedPattern = pattern;
-
-		// Patterns are always matched on the full absolute path
-		// of the event. As such, if the pattern is not absolute
-		// and does not start with a leading `**`, we have to
-		// convert it to a relative pattern with the given `base`
-		if (typeof normalizedPattern === 'string' && !normalizedPattern.startsWith(GLOBSTAR) && !isAbsolute(normalizedPattern)) {
-			normalizedPattern = { base: path, pattern: normalizedPattern };
-		}
-
-		parsedPatterns.push(parse(normalizedPattern));
+		parsedPatterns.push(parse(normalizeWatcherPattern(path, pattern)));
 	}
 
 	return parsedPatterns;

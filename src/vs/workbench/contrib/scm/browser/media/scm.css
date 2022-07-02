@@ -173,6 +173,10 @@
 	background: transparent !important;
 }
 
+.scm-view .monaco-list .monaco-list-row.cursor-default {
+	cursor: default;
+}
+
 .scm-view.show-actions .scm-provider > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
@@ -239,6 +243,16 @@
 	line-height: 22px;
 	font-size: small !important;
 	margin: 0 0.2em 0 0;
+}
+
+.scm-view .button-container > .monaco-button-dropdown {
+	flex-grow: 1;
+}
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button {
+	display:flex;
+	align-items: center;
+	padding: 0 4px;
 }
 
 .scm-view .scm-editor.hidden {

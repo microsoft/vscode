@@ -19,7 +19,8 @@ import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isWindows } from 'vs/base/common/platform';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { CodeDataTransfers, createDraggedEditorInputFromRawResourcesData, Extensions, extractEditorsDropData, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat } from 'vs/platform/dnd/browser/dnd';
+import { UriList } from 'vs/editor/browser/dnd';
+import { CodeDataTransfers, createDraggedEditorInputFromRawResourcesData, Extensions, extractEditorsAndFilesDropData, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat } from 'vs/platform/dnd/browser/dnd';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -60,7 +61,7 @@ export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise
 	if (dataTransfer.has(resourcesKey)) {
 		try {
 			const asString = await dataTransfer.get(resourcesKey)?.asString();
-			const rawResourcesData = JSON.stringify(asString?.split('\\n').filter(value => !value.startsWith('#')));
+			const rawResourcesData = JSON.stringify(UriList.parse(asString ?? ''));
 			editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
 		} catch (error) {
 			// Invalid transfer
@@ -68,11 +69,6 @@ export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise
 	}
 
 	return editors;
-}
-
-export function convertResourceUrlsToUriList(resourceUrls: string): string {
-	const asJson: URI[] = JSON.parse(resourceUrls);
-	return asJson.map(uri => uri.toString()).join('\n');
 }
 
 export interface IResourcesDropHandlerOptions {
@@ -105,7 +101,7 @@ export class ResourcesDropHandler {
 	}
 
 	async handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): Promise<void> {
-		const editors = await this.instantiationService.invokeFunction(accessor => extractEditorsDropData(accessor, event));
+		const editors = await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, event));
 		if (!editors.length) {
 			return;
 		}
@@ -193,7 +189,7 @@ export class ResourcesDropHandler {
 			await this.workspaceEditingService.addFolders(folderURIs);
 		}
 
-		// Finaly, enter untitled workspace when dropping >1 folders
+		// Finally, enter untitled workspace when dropping >1 folders
 		else {
 			await this.workspaceEditingService.createAndEnterWorkspace(folderURIs);
 		}
@@ -609,9 +605,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 					return;
 				}
 
-				if (callbacks.onDragLeave) {
-					callbacks.onDragLeave({ eventData: e, dragAndDropData: data! });
-				}
+				callbacks.onDragLeave?.({ eventData: e, dragAndDropData: data! });
 			},
 			onDrop: e => {
 				if (callbacks.onDrop) {

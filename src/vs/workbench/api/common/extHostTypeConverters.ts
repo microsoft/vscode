@@ -562,15 +562,6 @@ export namespace TextEdit {
 	}
 }
 
-export namespace SnippetTextEdit {
-	export function from(edit: vscode.SnippetTextEdit): languages.SnippetTextEdit {
-		return {
-			range: Range.from(edit.range),
-			snippet: edit.snippet.value
-		};
-	}
-}
-
 export namespace WorkspaceEdit {
 
 	export interface IVersionInformationProvider {
@@ -578,7 +569,7 @@ export namespace WorkspaceEdit {
 		getNotebookDocumentVersion(uri: URI): number | undefined;
 	}
 
-	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider, allowSnippetTextEdit?: boolean): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
@@ -607,14 +598,21 @@ export namespace WorkspaceEdit {
 					});
 
 				} else if (entry._type === types.FileEditType.Text) {
+
 					// text edits
-					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
+					const dto = <extHostProtocol.IWorkspaceTextEditDto>{
 						_type: extHostProtocol.WorkspaceEditType.Text,
 						resource: entry.uri,
 						edit: TextEdit.from(entry.edit),
 						modelVersionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
 						metadata: entry.metadata
-					});
+					};
+					if (allowSnippetTextEdit && entry.edit.newText2 instanceof types.SnippetString) {
+						dto.edit.insertAsSnippet = true;
+						dto.edit.text = entry.edit.newText2.value;
+					}
+					result.edits.push(dto);
+
 				} else if (entry._type === types.FileEditType.Cell) {
 					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
 						_type: extHostProtocol.WorkspaceEditType.Cell,
@@ -1574,7 +1572,7 @@ export namespace NotebookData {
 			metadata: data.metadata ?? Object.create(null),
 			cells: [],
 		};
-		for (let cell of data.cells) {
+		for (const cell of data.cells) {
 			types.NotebookCellData.validate(cell);
 			res.cells.push(NotebookCellData.from(cell));
 		}
@@ -1684,16 +1682,6 @@ export namespace NotebookExclusiveDocumentPattern {
 	}
 }
 
-export namespace NotebookDecorationRenderOptions {
-	export function from(options: vscode.NotebookDecorationRenderOptions): notebooks.INotebookDecorationRenderOptions {
-		return {
-			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
-			borderColor: <string | types.ThemeColor>options.borderColor,
-			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
-		};
-	}
-}
-
 export namespace NotebookStatusBarItem {
 	export function from(item: vscode.NotebookCellStatusBarItem, commandsConverter: Command.ICommandsConverter, disposables: DisposableStore): notebooks.INotebookCellStatusBarItem {
 		const command = typeof item.command === 'string' ? { title: '', command: item.command } : item.command;
@@ -1789,6 +1777,7 @@ export namespace TestItem {
 				add: () => { },
 				delete: () => { },
 				forEach: () => { },
+				*[Symbol.iterator]() { },
 				get: () => undefined,
 				replace: () => { },
 				size: 0,

@@ -36,24 +36,24 @@ function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
 }
 
 export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Keybinding | null, expected: IResolvedKeybinding[]): void {
-	let actual: IResolvedKeybinding[] = mapper.resolveKeybinding(keybinding!).map(toIResolvedKeybinding);
+	const actual: IResolvedKeybinding[] = mapper.resolveKeybinding(keybinding!).map(toIResolvedKeybinding);
 	assert.deepStrictEqual(actual, expected);
 }
 
 export function assertResolveKeyboardEvent(mapper: IKeyboardMapper, keyboardEvent: IKeyboardEvent, expected: IResolvedKeybinding): void {
-	let actual = toIResolvedKeybinding(mapper.resolveKeyboardEvent(keyboardEvent));
+	const actual = toIResolvedKeybinding(mapper.resolveKeyboardEvent(keyboardEvent));
 	assert.deepStrictEqual(actual, expected);
 }
 
 export function assertResolveUserBinding(mapper: IKeyboardMapper, parts: (SimpleKeybinding | ScanCodeBinding)[], expected: IResolvedKeybinding[]): void {
-	let actual: IResolvedKeybinding[] = mapper.resolveUserBinding(parts).map(toIResolvedKeybinding);
+	const actual: IResolvedKeybinding[] = mapper.resolveUserBinding(parts).map(toIResolvedKeybinding);
 	assert.deepStrictEqual(actual, expected);
 }
 
 export function readRawMapping<T>(file: string): Promise<T> {
 	return Promises.readFile(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/electron-browser/${file}.js`)).then((buff) => {
-		let contents = buff.toString();
-		let func = new Function('define', contents);
+		const contents = buff.toString();
+		const func = new Function('define', contents);
 		let rawMappings: T | null = null;
 		func(function (value: T) {
 			rawMappings = value;

@@ -24,6 +24,7 @@ import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
 import { boolean } from 'vs/editor/common/config/editorOptions';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { MessagePortMain } from 'electron';
+import { ExtHostConnectionType, readExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
@@ -90,6 +91,12 @@ function patchProcess(allowExit: boolean) {
 		const err = new Error('An extension called process.crash() and this was prevented.');
 		console.warn(err.stack);
 	};
+
+	// Set ELECTRON_RUN_AS_NODE environment variable for extensions that use
+	// child_process.spawn with process.execPath and expect to run as node process
+	// on the desktop.
+	// Refs https://github.com/microsoft/vscode/issues/151012#issuecomment-1156593228
+	process.env['ELECTRON_RUN_AS_NODE'] = '1';
 }
 
 interface IRendererConnection {
@@ -104,7 +111,9 @@ let onTerminate = function (reason: string) {
 };
 
 function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
-	if (process.env.VSCODE_WILL_SEND_MESSAGE_PORT) {
+	const extHostConnection = readExtHostConnection(process.env);
+
+	if (extHostConnection.type === ExtHostConnectionType.MessagePort) {
 
 		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
@@ -133,13 +142,13 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 		});
 
-	} else if (process.env.VSCODE_EXTHOST_WILL_SEND_SOCKET) {
+	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 
 			let protocol: PersistentProtocol | null = null;
 
-			let timer = setTimeout(() => {
+			const timer = setTimeout(() => {
 				onTerminate('VSCODE_EXTHOST_IPC_SOCKET timeout');
 			}, 60000);
 
@@ -197,14 +206,12 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			// Now that we have managed to install a message listener, ask the other side to send us the socket
 			const req: IExtHostReadyMessage = { type: 'VSCODE_EXTHOST_IPC_READY' };
-			if (process.send) {
-				process.send(req);
-			}
+			process.send?.(req);
 		});
 
 	} else {
 
-		const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
+		const pipeName = extHostConnection.pipeName;
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 

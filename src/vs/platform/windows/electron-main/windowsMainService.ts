@@ -51,6 +51,7 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 
 //#region Helper Interfaces
@@ -195,6 +196,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -239,7 +241,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
-		let cli = this.environmentMainService.args;
+		const cli = this.environmentMainService.args;
 		const remoteAuthority = options?.remoteAuthority || undefined;
 		const forceEmpty = true;
 		const forceReuseWindow = options?.forceReuseWindow;
@@ -916,7 +918,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private resolveOpenable(openable: IWindowOpenable, options: IPathResolveOptions = Object.create(null)): IPathToOpen | undefined {
 
 		// handle file:// openables with some extra validation
-		let uri = this.resourceFromOpenable(openable);
+		const uri = this.resourceFromOpenable(openable);
 		if (uri.scheme === Schemas.file) {
 			if (isFileToOpen(openable)) {
 				options = { ...options, forceOpenWorkspaceAsFile: true };
@@ -1298,6 +1300,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// loading the window.
 			backupPath: options.emptyWindowBackupInfo ? join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder) : undefined,
 
+			profiles: {
+				all: this.userDataProfilesService.profiles,
+				current: this.userDataProfilesService.getProfile(options.workspace ?? 'empty-window'),
+			},
+
 			homeDir: this.environmentMainService.userHome.fsPath,
 			tmpDir: this.environmentMainService.tmpDir.fsPath,
 			userDataDir: this.environmentMainService.userDataPath,
@@ -1324,6 +1331,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
+			editSessionId: this.environmentMainService.editSessionId,
 		};
 
 		let window: ICodeWindow | undefined;
@@ -1350,9 +1358,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Add as window tab if configured (macOS only)
 			if (options.forceNewTabbedWindow) {
 				const activeWindow = this.getLastActiveWindow();
-				if (activeWindow) {
-					activeWindow.addTabbedWindow(createdWindow);
-				}
+				activeWindow?.addTabbedWindow(createdWindow);
 			}
 
 			// Add to our list of windows
@@ -1468,9 +1474,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	sendToFocused(channel: string, ...args: any[]): void {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
-		if (focusedWindow) {
-			focusedWindow.sendWhenReady(channel, CancellationToken.None, ...args);
-		}
+		focusedWindow?.sendWhenReady(channel, CancellationToken.None, ...args);
 	}
 
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
