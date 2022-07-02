@@ -5,9 +5,14 @@
 
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
-import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 import type * as rendererApi from 'vscode-notebook-renderer';
+
+// !! IMPORTANT !! ----------------------------------------------------------------------------------
+// import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+// We can ONLY IMPORT as type in this module. This also applies to const enums that would evaporate
+// in normal compiles but remain a dependency in transpile-only compiles
+// !! IMPORTANT !! ----------------------------------------------------------------------------------
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringified and injected into
@@ -75,7 +80,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	let currentOptions = ctx.options;
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
-	let lineLimit = ctx.lineLimit;
+	const lineLimit = ctx.lineLimit;
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -754,8 +759,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	let _highlighter: IHighlighter | null = null;
-	let matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
-	let currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
+	const matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
+	const currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
 
 	class JSHighlighter implements IHighlighter {
 		private _findMatchIndex = -1;
@@ -776,9 +781,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		highlightCurrentMatch(index: number) {
 			const oldMatch = this.matches[this._findMatchIndex];
-			if (oldMatch) {
-				oldMatch.highlightResult?.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
-			}
+			oldMatch?.highlightResult?.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
 
 			const match = this.matches[index];
 			this._findMatchIndex = index;
@@ -875,11 +878,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }) => {
 		let find = true;
-		let matches: IFindMatch[] = [];
+		const matches: IFindMatch[] = [];
 
-		let range = document.createRange();
+		const range = document.createRange();
 		range.selectNodeContents(document.getElementById('findStart')!);
-		let sel = window.getSelection();
+		const sel = window.getSelection();
 		sel?.removeAllRanges();
 		sel?.addRange(range);
 
@@ -1985,7 +1988,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public render(content: webviewMessages.ICreationContent, preloadsAndErrors: unknown[]) {
 			this._content = { content, preloadsAndErrors };
-			if (content.type === RenderOutputType.Html) {
+			if (content.type === 0 /* RenderOutputType.Html */) {
 				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 				this.element.innerHTML = trustedHtml as string;
 				domEval(this.element);

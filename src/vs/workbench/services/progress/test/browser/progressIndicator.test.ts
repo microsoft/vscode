@@ -87,9 +87,9 @@ class TestProgressBar {
 suite('Progress Indicator', () => {
 
 	test('CompositeScope', () => {
-		let paneCompositeService = new TestPaneCompositeService();
-		let viewsService = new TestViewsService();
-		let service = new CompositeProgressScope(paneCompositeService, viewsService, 'test.scopeId', false);
+		const paneCompositeService = new TestPaneCompositeService();
+		const viewsService = new TestViewsService();
+		const service = new CompositeProgressScope(paneCompositeService, viewsService, 'test.scopeId', false);
 		const testViewlet = new TestViewlet('test.scopeId');
 
 		assert(!service.isActive);
@@ -107,10 +107,10 @@ suite('Progress Indicator', () => {
 	});
 
 	test('CompositeProgressIndicator', async () => {
-		let testProgressBar = new TestProgressBar();
-		let paneCompositeService = new TestPaneCompositeService();
-		let viewsService = new TestViewsService();
-		let service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, paneCompositeService, viewsService);
+		const testProgressBar = new TestProgressBar();
+		const paneCompositeService = new TestPaneCompositeService();
+		const viewsService = new TestViewsService();
+		const service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, paneCompositeService, viewsService);
 
 		// Active: Show (Infinite)
 		let fn = service.show(true);

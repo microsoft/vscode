@@ -74,12 +74,12 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		this._updateAriaLabel();
 
 		this._register(dom.addDisposableListener(this._commentsElement, dom.EventType.KEY_DOWN, (e) => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e as KeyboardEvent);
 			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
 				const moveFocusWithinBounds = (change: number): number => {
 					if (this._focusedComment === undefined && change >= 0) { return 0; }
 					if (this._focusedComment === undefined && change < 0) { return this._commentElements.length - 1; }
-					let newIndex = this._focusedComment! + change;
+					const newIndex = this._focusedComment! + change;
 					return Math.min(Math.max(0, newIndex), this._commentElements.length - 1);
 				};
 
@@ -111,7 +111,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	}
 
 	private _refresh() {
-		let dimensions = dom.getClientArea(this.container);
+		const dimensions = dom.getClientArea(this.container);
 		this._onDidResize.fire(dimensions);
 	}
 
@@ -126,7 +126,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	}
 
 	getCommentCoords(commentUniqueId: number): { thread: dom.IDomNodePagePosition; comment: dom.IDomNodePagePosition } | undefined {
-		let matchedNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === commentUniqueId);
+		const matchedNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === commentUniqueId);
 		if (matchedNode && matchedNode.length) {
 			const commentThreadCoords = dom.getDomNodePagePosition(this._commentElements[0].domNode);
 			const commentCoords = dom.getDomNodePagePosition(matchedNode[0].domNode);
@@ -143,11 +143,11 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
 
-		let commentElementsToDel: CommentNode<T>[] = [];
-		let commentElementsToDelIndex: number[] = [];
+		const commentElementsToDel: CommentNode<T>[] = [];
+		const commentElementsToDelIndex: number[] = [];
 		for (let i = 0; i < oldCommentsLen; i++) {
-			let comment = this._commentElements[i].comment;
-			let newComment = commentThread.comments ? commentThread.comments.filter(c => c.uniqueIdInThread === comment.uniqueIdInThread) : [];
+			const comment = this._commentElements[i].comment;
+			const newComment = commentThread.comments ? commentThread.comments.filter(c => c.uniqueIdInThread === comment.uniqueIdInThread) : [];
 
 			if (newComment.length) {
 				this._commentElements[i].update(newComment[0]);
@@ -169,11 +169,11 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 
 		let lastCommentElement: HTMLElement | null = null;
-		let newCommentNodeList: CommentNode<T>[] = [];
-		let newCommentsInEditMode: CommentNode<T>[] = [];
+		const newCommentNodeList: CommentNode<T>[] = [];
+		const newCommentsInEditMode: CommentNode<T>[] = [];
 		for (let i = newCommentsLen - 1; i >= 0; i--) {
-			let currentComment = commentThread.comments![i];
-			let oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === currentComment.uniqueIdInThread);
+			const currentComment = commentThread.comments![i];
+			const oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === currentComment.uniqueIdInThread);
 			if (oldCommentNode.length) {
 				lastCommentElement = oldCommentNode[0].domNode;
 				newCommentNodeList.unshift(oldCommentNode[0]);
@@ -233,7 +233,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	}
 
 	private createNewCommentNode(comment: languages.Comment): CommentNode<T> {
-		let newCommentNode = this._scopedInstatiationService.createInstance(CommentNode,
+		const newCommentNode = this._scopedInstatiationService.createInstance(CommentNode,
 			this._commentThread,
 			comment,
 			this.owner,

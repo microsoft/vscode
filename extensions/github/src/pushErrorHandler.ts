@@ -21,8 +21,9 @@ export function isInCodespaces(): boolean {
 async function handlePushError(repository: Repository, remote: Remote, refspec: string, owner: string, repo: string): Promise<void> {
 	const yes = localize('create a fork', "Create Fork");
 	const no = localize('no', "No");
+	const askFork = localize('fork', "You don't have permissions to push to '{0}/{1}' on GitHub. Would you like to create a fork and push to it instead?", owner, repo);
 
-	const answer = await window.showInformationMessage(localize('fork', "You don't have permissions to push to '{0}/{1}' on GitHub. Would you like to create a fork and push to it instead?", owner, repo), yes, no);
+	const answer = await window.showInformationMessage(askFork, yes, no);
 	if (answer !== yes) {
 		return;
 	}
@@ -114,7 +115,7 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 				if (templates.length > 0) {
 					templates.sort((a, b) => a.path.localeCompare(b.path));
 
-					const template = await pickPullRequestTemplate(templates);
+					const template = await pickPullRequestTemplate(repository.rootUri, templates);
 
 					if (template) {
 						body = new TextDecoder('utf-8').decode(await workspace.fs.readFile(template));
@@ -191,8 +192,8 @@ export async function findPullRequestTemplates(repositoryRootUri: Uri): Promise<
 	return results.flatMap(x => x.status === 'fulfilled' && x.value || []);
 }
 
-export async function pickPullRequestTemplate(templates: Uri[]): Promise<Uri | undefined> {
-	const quickPickItemFromUri = (x: Uri) => ({ label: x.path, template: x });
+export async function pickPullRequestTemplate(repositoryRootUri: Uri, templates: Uri[]): Promise<Uri | undefined> {
+	const quickPickItemFromUri = (x: Uri) => ({ label: path.relative(repositoryRootUri.path, x.path), template: x });
 	const quickPickItems = [
 		{
 			label: localize('no pr template', "No template"),
@@ -202,7 +203,8 @@ export async function pickPullRequestTemplate(templates: Uri[]): Promise<Uri | u
 		...templates.map(quickPickItemFromUri)
 	];
 	const quickPickOptions: QuickPickOptions = {
-		placeHolder: localize('select pr template', "Select the Pull Request template")
+		placeHolder: localize('select pr template', "Select the Pull Request template"),
+		ignoreFocusOut: true
 	};
 	const pickedTemplate = await window.showQuickPick(quickPickItems, quickPickOptions);
 	return pickedTemplate?.template;

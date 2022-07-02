@@ -137,7 +137,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		quickpick.activeItems = [items[items.length - 1]];
 		quickpick.show();
 
-		let cursorTop = getScrollTop();
+		const cursorTop = getScrollTop();
 
 		assert.notStrictEqual(cursorTop, 0);
 
@@ -162,7 +162,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		quickpick.activeItems = [items[items.length - 1]];
 		quickpick.show();
 
-		let cursorTop = getScrollTop();
+		const cursorTop = getScrollTop();
 		assert.notStrictEqual(cursorTop, 0);
 
 		quickpick.keepScrollPosition = true;

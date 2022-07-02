@@ -12,7 +12,7 @@ export async function getSelectionRanges(languageModes: LanguageModes, document:
 		const htmlRange = await htmlMode!.getSelectionRange!(document, position);
 		const mode = languageModes.getModeAtPosition(document, position);
 		if (mode && mode.getSelectionRange) {
-			let range = await mode.getSelectionRange(document, position);
+			const range = await mode.getSelectionRange(document, position);
 			let top = range;
 			while (top.parent && insideRangeButNotSame(htmlRange.range, top.parent.range)) {
 				top = top.parent;

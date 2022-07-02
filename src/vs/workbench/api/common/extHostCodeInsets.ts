@@ -134,8 +134,6 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 
 	$onDidReceiveMessage(handle: number, message: any): void {
 		const value = this._insets.get(handle);
-		if (value) {
-			value.onDidReceiveMessage.fire(message);
-		}
+		value?.onDidReceiveMessage.fire(message);
 	}
 }

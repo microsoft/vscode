@@ -9,17 +9,17 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { AbstractProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
-import { CommonTask, TaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
+import { CommonTask, ITaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalStatus, ITerminalStatusList, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 class TestTaskService implements Partial<ITaskService> {
-	private readonly _onDidStateChange: Emitter<TaskEvent> = new Emitter();
-	public get onDidStateChange(): Event<TaskEvent> {
+	private readonly _onDidStateChange: Emitter<ITaskEvent> = new Emitter();
+	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
 	}
-	public triggerStateChange(event: TaskEvent): void {
+	public triggerStateChange(event: ITaskEvent): void {
 		this._onDidStateChange.fire(event);
 	}
 }
@@ -38,7 +38,12 @@ class TestTask extends CommonTask {
 }
 
 class TestProblemCollector implements Partial<AbstractProblemCollector> {
-
+	protected readonly _onDidFindFirstMatch = new Emitter<void>();
+	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
+	protected readonly _onDidFindErrors = new Emitter<void>();
+	readonly onDidFindErrors = this._onDidFindErrors.event;
+	protected readonly _onDidRequestInvalidateLastMarker = new Emitter<void>();
+	readonly onDidRequestInvalidateLastMarker = this._onDidRequestInvalidateLastMarker.event;
 }
 
 suite('Task Terminal Status', () => {
@@ -65,7 +70,7 @@ suite('Task Terminal Status', () => {
 		taskService.triggerStateChange({ kind: TaskEventKind.End, exitCode: 2 });
 		await poll<void>(async () => Promise.resolve(), () => testTerminal?.statusList.primary?.id === FAILED_TASK_STATUS.id, 'terminal status should be updated');
 	});
-	test('Should add active status when a non-background task is run for a second time in the same terminal', async () => {
+	test('Should add active status when a non-background task is run for a second time in the same terminal', () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted });
 		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
@@ -74,6 +79,24 @@ suite('Task Terminal Status', () => {
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted, runType: TaskRunType.SingleRun });
 		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
+		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
+	});
+	test('Should drop status when a background task exits', async () => {
+		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
+		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted, runType: TaskRunType.Background });
+		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
+		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
+		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
+		taskService.triggerStateChange({ kind: TaskEventKind.ProcessEnded, exitCode: 0 });
+		await poll<void>(async () => Promise.resolve(), () => testTerminal?.statusList.statuses?.includes(SUCCEEDED_TASK_STATUS) === false, 'terminal should have dropped status');
+	});
+	test('Should add succeeded status when a non-background task exits', () => {
+		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
+		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted, runType: TaskRunType.SingleRun });
+		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
+		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
+		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
+		taskService.triggerStateChange({ kind: TaskEventKind.ProcessEnded, exitCode: 0 });
 		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
 	});
 });

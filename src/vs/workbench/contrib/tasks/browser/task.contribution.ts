@@ -20,7 +20,7 @@ import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatus
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
 
-import { TaskEvent, TaskEventKind, TaskGroup, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskEvent, TaskEventKind, TaskGroup, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ProcessExecutionSupportedContext, ShellExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -56,31 +56,31 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 });
 
 export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
-	private runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
-	private activeTasksCount: number = 0;
+	private _runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
+	private _activeTasksCount: number = 0;
 
 	constructor(
-		@ITaskService private readonly taskService: ITaskService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IProgressService private readonly progressService: IProgressService
+		@ITaskService private readonly _taskService: ITaskService,
+		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@IProgressService private readonly _progressService: IProgressService
 	) {
 		super();
-		this.registerListeners();
+		this._registerListeners();
 	}
 
-	private registerListeners(): void {
+	private _registerListeners(): void {
 		let promise: Promise<void> | undefined = undefined;
 		let resolver: (value?: void | Thenable<void>) => void;
-		this.taskService.onDidStateChange(event => {
+		this._taskService.onDidStateChange(event => {
 			if (event.kind === TaskEventKind.Changed) {
-				this.updateRunningTasksStatus();
+				this._updateRunningTasksStatus();
 			}
 
-			if (!this.ignoreEventForUpdateRunningTasksCount(event)) {
+			if (!this._ignoreEventForUpdateRunningTasksCount(event)) {
 				switch (event.kind) {
 					case TaskEventKind.Active:
-						this.activeTasksCount++;
-						if (this.activeTasksCount === 1) {
+						this._activeTasksCount++;
+						if (this._activeTasksCount === 1) {
 							if (!promise) {
 								promise = new Promise<void>((resolve) => {
 									resolver = resolve;
@@ -91,9 +91,9 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 					case TaskEventKind.Inactive:
 						// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
 						// So try to treat them accordingly.
-						if (this.activeTasksCount > 0) {
-							this.activeTasksCount--;
-							if (this.activeTasksCount === 0) {
+						if (this._activeTasksCount > 0) {
+							this._activeTasksCount--;
+							if (this._activeTasksCount === 0) {
 								if (promise && resolver!) {
 									resolver!();
 								}
@@ -101,8 +101,8 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 						}
 						break;
 					case TaskEventKind.Terminated:
-						if (this.activeTasksCount !== 0) {
-							this.activeTasksCount = 0;
+						if (this._activeTasksCount !== 0) {
+							this._activeTasksCount = 0;
 							if (promise && resolver!) {
 								resolver!();
 							}
@@ -111,8 +111,8 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 				}
 			}
 
-			if (promise && (event.kind === TaskEventKind.Active) && (this.activeTasksCount === 1)) {
-				this.progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
+			if (promise && (event.kind === TaskEventKind.Active) && (this._activeTasksCount === 1)) {
+				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
 					progress.report({ message: nls.localize('building', 'Building...') });
 					return promise!;
 				}).then(() => {
@@ -122,12 +122,12 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 		});
 	}
 
-	private async updateRunningTasksStatus(): Promise<void> {
-		const tasks = await this.taskService.getActiveTasks();
+	private async _updateRunningTasksStatus(): Promise<void> {
+		const tasks = await this._taskService.getActiveTasks();
 		if (tasks.length === 0) {
-			if (this.runningTasksStatusItem) {
-				this.runningTasksStatusItem.dispose();
-				this.runningTasksStatusItem = undefined;
+			if (this._runningTasksStatusItem) {
+				this._runningTasksStatusItem.dispose();
+				this._runningTasksStatusItem = undefined;
 			}
 		} else {
 			const itemProps: IStatusbarEntry = {
@@ -138,16 +138,16 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 				command: 'workbench.action.tasks.showTasks',
 			};
 
-			if (!this.runningTasksStatusItem) {
-				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, 'status.runningTasks', StatusbarAlignment.LEFT, 49 /* Medium Priority, next to Markers */);
+			if (!this._runningTasksStatusItem) {
+				this._runningTasksStatusItem = this._statusbarService.addEntry(itemProps, 'status.runningTasks', StatusbarAlignment.LEFT, 49 /* Medium Priority, next to Markers */);
 			} else {
-				this.runningTasksStatusItem.update(itemProps);
+				this._runningTasksStatusItem.update(itemProps);
 			}
 		}
 	}
 
-	private ignoreEventForUpdateRunningTasksCount(event: TaskEvent): boolean {
-		if (!this.taskService.inTerminal()) {
+	private _ignoreEventForUpdateRunningTasksCount(event: ITaskEvent): boolean {
+		if (!this._taskService.inTerminal()) {
 			return false;
 		}
 
@@ -364,7 +364,7 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 
 // Tasks Output channel. Register it before using it in Task Service.
-let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 outputChannelRegistry.registerChannel({ id: AbstractTaskService.OutputChannelId, label: AbstractTaskService.OutputChannelLabel, log: false });
 
 
@@ -381,7 +381,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 });
 
 // tasks.json validation
-let schema: IJSONSchema = {
+const schema: IJSONSchema = {
 	id: tasksSchemaId,
 	description: 'Task definition file',
 	type: 'object',
@@ -411,7 +411,7 @@ schema.definitions = {
 };
 schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])];
 
-let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
+const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(tasksSchemaId, schema);
 
 ProblemMatcherRegistry.onMatcherChanged(() => {
@@ -495,6 +495,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('task.quickOpen.showAll', "Causes the Tasks: Run Task command to use the slower \"show all\" behavior instead of the faster two level picker where tasks are grouped by provider."),
 			default: false
+		},
+		'task.showDecorations': {
+			type: 'boolean',
+			description: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks."),
+			default: true
 		},
 		'task.saveBeforeRun': {
 			markdownDescription: nls.localize(

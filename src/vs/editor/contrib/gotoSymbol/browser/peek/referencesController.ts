@@ -94,7 +94,7 @@ export abstract class ReferencesController implements IEditorContribution {
 			}
 		}));
 		const storageKey = 'peekViewLayout';
-		const data = LayoutData.fromJSON(this._storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
+		const data = LayoutData.fromJSON(this._storageService.get(storageKey, StorageScope.PROFILE, '{}'));
 		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
@@ -102,14 +102,14 @@ export abstract class ReferencesController implements IEditorContribution {
 		this._disposables.add(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 			if (this._widget) {
-				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.PROFILE, StorageTarget.MACHINE);
 				this._widget = undefined;
 			}
 			this.closeWidget();
 		}));
 
 		this._disposables.add(this._widget.onDidSelectReference(event => {
-			let { element, kind } = event;
+			const { element, kind } = event;
 			if (!element) {
 				return;
 			}
@@ -159,9 +159,9 @@ export abstract class ReferencesController implements IEditorContribution {
 					}
 
 					// set 'best' selection
-					let uri = this._editor.getModel().uri;
-					let pos = new Position(range.startLineNumber, range.startColumn);
-					let selection = this._model.nearestReference(uri, pos);
+					const uri = this._editor.getModel().uri;
+					const pos = new Position(range.startLineNumber, range.startColumn);
+					const selection = this._model.nearestReference(uri, pos);
 					if (selection) {
 						return this._widget.setSelection(selection).then(() => {
 							if (this._widget && this._editor.getOption(EditorOption.peekWidgetDefaultFocus) === 'editor') {

@@ -326,7 +326,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		const suffixRegex = /^(.+ copy)( \d+)?$/;
 		if (suffixRegex.test(namePrefix)) {
 			return namePrefix.replace(suffixRegex, (match, g1?, g2?) => {
-				let number = (g2 ? parseInt(g2) : 1);
+				const number = (g2 ? parseInt(g2) : 1);
 				return number === 0
 					? `${g1}`
 					: (number < Constants.MAX_SAFE_SMALL_INTEGER
@@ -343,10 +343,10 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
 
 	// file.1.txt=>file.2.txt
-	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
+	const suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
 	if (!isFolder && name.match(suffixFileRegex)) {
 		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g2);
+			const number = parseInt(g2);
 			return number < maxNumber
 				? g1 + String(number + 1).padStart(g2.length, '0') + g3
 				: `${g1}${g2}.1${g3}`;
@@ -354,10 +354,10 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	}
 
 	// 1.file.txt=>2.file.txt
-	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
+	const prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
 	if (!isFolder && name.match(prefixFileRegex)) {
 		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g1);
+			const number = parseInt(g1);
 			return number < maxNumber
 				? String(number + 1).padStart(g1.length, '0') + g2 + g3
 				: `${g1}${g2}.1${g3}`;
@@ -365,10 +365,10 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	}
 
 	// 1.txt=>2.txt
-	let prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
+	const prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
 	if (!isFolder && name.match(prefixFileNoNameRegex)) {
 		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
-			let number = parseInt(g1);
+			const number = parseInt(g1);
 			return number < maxNumber
 				? String(number + 1).padStart(g1.length, '0') + g2
 				: `${g1}.1${g2}`;
@@ -382,10 +382,10 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	}
 
 	// 123 => 124
-	let noNameNoExtensionRegex = RegExp('(\\d+)$');
+	const noNameNoExtensionRegex = RegExp('(\\d+)$');
 	if (!isFolder && lastIndexOfDot === -1 && name.match(noNameNoExtensionRegex)) {
 		return name.replace(noNameNoExtensionRegex, (match, g1?) => {
-			let number = parseInt(g1);
+			const number = parseInt(g1);
 			return number < maxNumber
 				? String(number + 1).padStart(g1.length, '0')
 				: `${g1}.1`;
@@ -394,7 +394,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 
 	// file => file1
 	// file1 => file2
-	let noExtensionRegex = RegExp('(.*)(\\d*)$');
+	const noExtensionRegex = RegExp('(.*)(\\d*)$');
 	if (!isFolder && lastIndexOfDot === -1 && name.match(noExtensionRegex)) {
 		return name.replace(noExtensionRegex, (match, g1?, g2?) => {
 			let number = parseInt(g2);
@@ -410,7 +410,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	// folder.1=>folder.2
 	if (isFolder && name.match(/(\d+)$/)) {
 		return name.replace(/(\d+)$/, (match, ...groups) => {
-			let number = parseInt(groups[0]);
+			const number = parseInt(groups[0]);
 			return number < maxNumber
 				? String(number + 1).padStart(groups[0].length, '0')
 				: `${groups[0]}.1`;
@@ -420,7 +420,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	// 1.folder=>2.folder
 	if (isFolder && name.match(/^(\d+)/)) {
 		return name.replace(/^(\d+)(.*)$/, (match, ...groups) => {
-			let number = parseInt(groups[0]);
+			const number = parseInt(groups[0]);
 			return number < maxNumber
 				? String(number + 1).padStart(groups[0].length, '0') + groups[1]
 				: `${groups[0]}${groups[1]}.1`;

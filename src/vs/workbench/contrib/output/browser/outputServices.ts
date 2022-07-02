@@ -145,9 +145,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			this.setActiveChannel(channel);
 			this._onActiveOutputChannel.fire(channelId);
 			const outputView = this.viewsService.getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID);
-			if (outputView) {
-				outputView.showChannel(channel, true);
-			}
+			outputView?.showChannel(channel, true);
 		}
 	}
 
@@ -204,7 +202,7 @@ export class LogContentProvider {
 
 	provideTextContent(resource: URI): Promise<ITextModel> | null {
 		if (resource.scheme === LOG_SCHEME) {
-			let channelModel = this.getChannelModel(resource);
+			const channelModel = this.getChannelModel(resource);
 			if (channelModel) {
 				return channelModel.loadModel();
 			}

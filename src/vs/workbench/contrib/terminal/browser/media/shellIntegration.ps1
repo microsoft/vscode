@@ -3,6 +3,11 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
+# Prevent installing more than once per session
+if (Test-Path variable:global:__VSCodeOriginalPrompt) {
+	return;
+}
+
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
 $Global:__LastHistoryId = -1

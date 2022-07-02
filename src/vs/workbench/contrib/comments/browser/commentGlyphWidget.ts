@@ -46,7 +46,7 @@ export class CommentGlyphWidget {
 
 	setLineNumber(lineNumber: number): void {
 		this._lineNumber = lineNumber;
-		let commentsDecorations = [{
+		const commentsDecorations = [{
 			range: {
 				startLineNumber: lineNumber, startColumn: 1,
 				endLineNumber: lineNumber, endColumn: 1

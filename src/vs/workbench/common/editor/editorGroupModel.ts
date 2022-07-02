@@ -971,8 +971,8 @@ export class EditorGroupModel extends Disposable {
 		// Serialize all editor inputs so that we can store them.
 		// Editors that cannot be serialized need to be ignored
 		// from mru, active, preview and sticky if any.
-		let serializableEditors: EditorInput[] = [];
-		let serializedEditors: ISerializedEditorInput[] = [];
+		const serializableEditors: EditorInput[] = [];
+		const serializedEditors: ISerializedEditorInput[] = [];
 		let serializablePreviewIndex: number | undefined;
 		let serializableSticky = this.sticky;
 

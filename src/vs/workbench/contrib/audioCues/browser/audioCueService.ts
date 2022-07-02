@@ -52,7 +52,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	private getVolumeInPercent(): number {
-		let volume = this.configurationService.getValue<number>('audioCues.volume');
+		const volume = this.configurationService.getValue<number>('audioCues.volume');
 		if (typeof volume !== 'number') {
 			return 50;
 		}

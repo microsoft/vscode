@@ -10,7 +10,7 @@ export function deserializePipePositions(text: string): [string, Position[]] {
 	let resultText = '';
 	let lineNumber = 1;
 	let charIndex = 0;
-	let positions: Position[] = [];
+	const positions: Position[] = [];
 	for (let i = 0, len = text.length; i < len; i++) {
 		const chr = text.charAt(i);
 		if (chr === '\n') {
@@ -59,7 +59,7 @@ export function serializePipePositions(text: string, positions: Position[]): str
 }
 
 export function testRepeatedActionAndExtractPositions(text: string, initialPosition: Position, action: (editor: ITestCodeEditor) => void, record: (editor: ITestCodeEditor) => Position, stopCondition: (editor: ITestCodeEditor) => boolean): Position[] {
-	let actualStops: Position[] = [];
+	const actualStops: Position[] = [];
 	withTestCodeEditor(text, {}, (editor) => {
 		editor.setPosition(initialPosition);
 		while (true) {

@@ -5,7 +5,7 @@
 
 import { CompareResult, ArrayQueue } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IObservable, autorun } from 'vs/workbench/contrib/audioCues/browser/observable';
@@ -52,87 +52,6 @@ export class ReentrancyBarrier {
 		}
 	}
 }
-
-export function n<TTag extends string>(tag: TTag): never;
-export function n<TTag extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
-	tag: TTag,
-	children: T
-): (ArrayToObj<T> & Record<'root', TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-export function n<TTag extends string, TId extends string>(
-	tag: TTag,
-	attributes: { $: TId }
-): Record<TId, TagToElement<TTag>>;
-export function n<TTag extends string, TId extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
-	tag: TTag,
-	attributes: { $: TId },
-	children: T
-): (ArrayToObj<T> & Record<TId, TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-export function n(tag: string, ...args: [] | [attributes: { $: string } | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
-	let attributes: Record<string, any>;
-	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;
-
-	if (Array.isArray(args[0])) {
-		attributes = {};
-		children = args[0];
-	} else {
-		attributes = args[0] as any || {};
-		children = args[1];
-	}
-
-	const [tagName, className] = tag.split('.');
-	const el = document.createElement(tagName);
-	if (className) {
-		el.className = className;
-	}
-
-	const result: Record<string, HTMLElement> = {};
-
-	if (children) {
-		for (const c of children) {
-			if (c instanceof HTMLElement) {
-				el.appendChild(c);
-			} else if (typeof c === 'string') {
-				el.append(c);
-			} else {
-				Object.assign(result, c);
-				el.appendChild(c.root);
-			}
-		}
-	}
-
-	for (const [key, value] of Object.entries(attributes)) {
-		if (key === '$') {
-			result[value] = el;
-			continue;
-		}
-		el.setAttribute(key, value);
-	}
-
-	result['root'] = el;
-
-	return result;
-}
-
-type RemoveHTMLElement<T> = T extends HTMLElement ? never : T;
-
-type ArrayToObj<T extends any[]> = UnionToIntersection<RemoveHTMLElement<T[number]>>;
-
-
-type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never;
-
-type HTMLElementsByTagName = {
-	div: HTMLDivElement;
-	span: HTMLSpanElement;
-	a: HTMLAnchorElement;
-};
-
-type TagToElement<T> = T extends `${infer TStart}.${string}`
-	? TStart extends keyof HTMLElementsByTagName
-	? HTMLElementsByTagName[TStart]
-	: HTMLElement
-	: T extends keyof HTMLElementsByTagName
-	? HTMLElementsByTagName[T]
-	: HTMLElement;
 
 export function setStyle(
 	element: HTMLElement,
@@ -182,4 +101,61 @@ export function* leftJoin<TLeft, TRight>(
 		const equals = rightQueue.takeWhile(rightElement => CompareResult.isNeitherLessOrGreaterThan(compare(leftElement, rightElement)));
 		yield { left: leftElement, rights: equals || [] };
 	}
+}
+
+export function* join<TLeft, TRight>(
+	left: Iterable<TLeft>,
+	right: readonly TRight[],
+	compare: (left: TLeft, right: TRight) => CompareResult,
+): IterableIterator<{ left?: TLeft; rights: TRight[] }> {
+	const rightQueue = new ArrayQueue(right);
+	for (const leftElement of left) {
+		const skipped = rightQueue.takeWhile(rightElement => CompareResult.isGreaterThan(compare(leftElement, rightElement)));
+		if (skipped) {
+			yield { rights: skipped };
+		}
+		const equals = rightQueue.takeWhile(rightElement => CompareResult.isNeitherLessOrGreaterThan(compare(leftElement, rightElement)));
+		yield { left: leftElement, rights: equals || [] };
+	}
+}
+
+export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][number][] {
+	return ([] as any[]).concat(...arrays);
+}
+
+export function elementAtOrUndefined<T>(arr: T[], index: number): T | undefined {
+	return arr[index];
+}
+
+export function thenIfNotDisposed<T>(promise: Promise<T>, then: () => void): IDisposable {
+	let disposed = false;
+	promise.then(() => {
+		if (disposed) {
+			return;
+		}
+		then();
+	});
+	return toDisposable(() => {
+		disposed = true;
+	});
+}
+
+export function setFields<T extends {}>(obj: T, fields: Partial<T>): T {
+	return Object.assign(obj, fields);
+}
+
+export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
+	const result = {} as T;
+	for (const key in source1) {
+		result[key] = source1[key];
+	}
+	for (const key in source2) {
+		const source2Value = source2[key];
+		if (typeof result[key] === 'object' && source2Value && typeof source2Value === 'object') {
+			result[key] = deepMerge<any>(result[key], source2Value);
+		} else {
+			result[key] = source2Value as any;
+		}
+	}
+	return result;
 }

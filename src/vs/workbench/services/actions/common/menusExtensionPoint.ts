@@ -62,6 +62,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorContextCopyAs', "'Copy as' submenu in the editor context menu")
 	},
 	{
+		key: 'editor/context/share',
+		id: MenuId.EditorContextShare,
+		description: localize('menus.editorContextShare', "'Share' submenu in the editor context menu"),
+		proposed: 'contribShareMenu'
+	},
+	{
 		key: 'explorer/context',
 		id: MenuId.ExplorerContext,
 		description: localize('menus.explorerContext', "The file explorer context menu")
@@ -250,6 +256,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 	},
 	{
+		key: 'file/share',
+		id: MenuId.MenubarShare,
+		description: localize('menus.share', "Share submenu shown in the top level File menu."),
+		proposed: 'contribShareMenu'
+	},
+	{
 		key: 'editor/inlineCompletions/actions',
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
@@ -335,7 +347,7 @@ namespace schema {
 			return false;
 		}
 
-		for (let item of items) {
+		for (const item of items) {
 			if (isMenuItem(item)) {
 				if (!isValidMenuItem(item, collector)) {
 					return false;
@@ -671,7 +683,7 @@ submenusExtensionPoint.setHandler(extensions => {
 
 	_submenus.clear();
 
-	for (let extension of extensions) {
+	for (const extension of extensions) {
 		const { value, collector } = extension;
 
 		forEach(value, entry => {
@@ -684,7 +696,7 @@ submenusExtensionPoint.setHandler(extensions => {
 				return;
 			}
 			if (_submenus.has(entry.value.id)) {
-				collector.warn(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
+				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
 				return;
 			}
 			if (!entry.value.label) {
@@ -733,7 +745,7 @@ menusExtensionPoint.setHandler(extensions => {
 
 	const items: { id: MenuId; item: IMenuItem | ISubmenuItem }[] = [];
 
-	for (let extension of extensions) {
+	for (const extension of extensions) {
 		const { value, collector } = extension;
 
 		forEach(value, entry => {

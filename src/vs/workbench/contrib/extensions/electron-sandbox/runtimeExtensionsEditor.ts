@@ -191,7 +191,7 @@ export class SaveExtensionHostProfileAction extends Action {
 	}
 
 	private async _asyncRun(): Promise<any> {
-		let picked = await this._nativeHostService.showSaveDialog({
+		const picked = await this._nativeHostService.showSaveDialog({
 			title: nls.localize('saveprofile.dialogTitle', "Save Extension Host Profile"),
 			buttonLabel: nls.localize('saveprofile.saveButton', "Save"),
 			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,

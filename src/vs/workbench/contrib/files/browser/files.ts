@@ -61,7 +61,7 @@ export interface IExplorerView {
 }
 
 function getFocus(listService: IListService): unknown | undefined {
-	let list = listService.lastFocusedList;
+	const list = listService.lastFocusedList;
 	if (list?.getHTMLElement() === document.activeElement) {
 		let focus: unknown;
 		if (list instanceof List) {

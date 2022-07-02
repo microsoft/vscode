@@ -469,14 +469,14 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private getHiddenCategories(): Set<string> {
-		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.GLOBAL, '[]')));
+		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.PROFILE, '[]')));
 	}
 
 	private setHiddenCategories(hidden: string[]) {
 		this.storageService.store(
 			hiddenEntriesConfigurationKey,
 			JSON.stringify(hidden),
-			StorageScope.GLOBAL,
+			StorageScope.PROFILE,
 			StorageTarget.USER);
 	}
 
@@ -643,8 +643,13 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	async selectStepLoose(id: string) {
-		const toSelect = this.editorInput.selectedCategory + '#' + id;
-		this.selectStep(toSelect);
+		// Allow passing in id with a category appended or with just the id of the step
+		if (id.startsWith(`${this.editorInput.selectedCategory}#`)) {
+			this.selectStep(id);
+		} else {
+			const toSelect = this.editorInput.selectedCategory + '#' + id;
+			this.selectStep(toSelect);
+		}
 	}
 
 	private async selectStep(id: string | undefined, delayFocus = true, forceRebuild = false) {
@@ -795,9 +800,9 @@ export class GettingStartedPage extends EditorPane {
 				await this.gettingStartedService.installedExtensionsRegistered;
 				this.container.classList.remove('loading');
 				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+				this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 			}
 
-			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 			if (!this.currentWalkthrough) {
 				console.error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
 				this.editorInput.selectedCategory = undefined;
@@ -815,7 +820,7 @@ export class GettingStartedPage extends EditorPane {
 			this.buildTelemetryFooter(telemetryNotice);
 			footer.appendChild(telemetryNotice);
 		} else if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory) {
-			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL) || new Date().toUTCString();
+			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
 			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
 
@@ -1152,7 +1157,7 @@ export class GettingStartedPage extends EditorPane {
 					this.storageService.store(
 						restoreWalkthroughsConfigurationKey,
 						JSON.stringify(restoreData),
-						StorageScope.GLOBAL, StorageTarget.MACHINE);
+						StorageScope.PROFILE, StorageTarget.MACHINE);
 					this.hostService.openWindow([{ folderUri: toOpen }]);
 				}
 			});

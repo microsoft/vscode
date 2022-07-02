@@ -21,7 +21,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { Barrier, timeout } from 'vs/base/common/async';
+import { Barrier } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -53,7 +53,6 @@ export interface IExtensionHostManager {
 	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null>;
 	start(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void>;
 	extensionTestsExecute(): Promise<number>;
-	extensionTestsSendExit(exitCode: number): Promise<void>;
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
 
@@ -132,7 +131,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		};
 		this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', startingTelemetryEvent);
 
-		this._proxy = this._extensionHost.start()!.then(
+		this._proxy = this._extensionHost.start().then(
 			(protocol) => {
 				this._hasStarted = true;
 
@@ -239,8 +238,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	private async _measureUp(proxy: IExtensionHostProxy): Promise<number> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		let buff = VSBuffer.alloc(SIZE);
-		let value = Math.ceil(Math.random() * 256);
+		const buff = VSBuffer.alloc(SIZE);
+		const value = Math.ceil(Math.random() * 256);
 		for (let i = 0; i < buff.byteLength; i++) {
 			buff.writeUInt8(i, value);
 		}
@@ -294,16 +293,27 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
 		for (let i = 0, len = namedCustomers.length; i < len; i++) {
 			const [id, ctor] = namedCustomers[i];
-			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._customers.push(instance);
-			this._rpcProtocol.set(id, instance);
+			try {
+				const instance = this._instantiationService.createInstance(ctor, extHostContext);
+				this._customers.push(instance);
+				this._rpcProtocol.set(id, instance);
+			} catch (err) {
+				this._logService.critical(`Cannot instantiate named customer: '${id.sid}'`);
+				this._logService.critical(err);
+				errors.onUnexpectedError(err);
+			}
 		}
 
 		// Customers
 		const customers = ExtHostCustomersRegistry.getCustomers();
 		for (const ctor of customers) {
-			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._customers.push(instance);
+			try {
+				const instance = this._instantiationService.createInstance(ctor, extHostContext);
+				this._customers.push(instance);
+			} catch (err) {
+				this._logService.critical(err);
+				errors.onUnexpectedError(err);
+			}
 		}
 
 		if (!extensionHostProxy) {
@@ -358,7 +368,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 			if (tryEnableInspector) {
 				await this._extensionHost.enableInspectPort();
 			}
-			let port = this._extensionHost.getInspectPort();
+			const port = this._extensionHost.getInspectPort();
 			if (port) {
 				return port;
 			}
@@ -416,20 +426,6 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 			throw new Error('Could not obtain Extension Host Proxy');
 		}
 		return proxy.extensionTestsExecute();
-	}
-
-	public async extensionTestsSendExit(exitCode: number): Promise<void> {
-		const proxy = await this._proxy;
-		if (!proxy) {
-			return;
-		}
-		// This method does not wait for the actual RPC to be confirmed
-		// It waits for the socket to drain (i.e. the message has been sent)
-		// It also times out after 5s in case drain takes too long
-		proxy.extensionTestsExit(exitCode);
-		if (this._rpcProtocol) {
-			await Promise.race([this._rpcProtocol.drain(), timeout(5000)]);
-		}
 	}
 
 	public representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
@@ -609,11 +605,6 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
 		return actual.extensionTestsExecute();
 	}
-	public async extensionTestsSendExit(exitCode: number): Promise<void> {
-		await this._startCalled.wait();
-		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
-		return actual.extensionTestsSendExit(exitCode);
-	}
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
 		await this._startCalled.wait();
 		if (this._actual) {
@@ -632,7 +623,7 @@ function prettyWithoutArrays(data: any): any {
 		return data;
 	}
 	if (data && typeof data === 'object' && typeof data.toString === 'function') {
-		let result = data.toString();
+		const result = data.toString();
 		if (result !== '[object Object]') {
 			return result;
 		}
@@ -689,7 +680,7 @@ interface ExtHostLatencyProvider {
 	measure(): Promise<ExtHostLatencyResult | null>;
 }
 
-let providers: ExtHostLatencyProvider[] = [];
+const providers: ExtHostLatencyProvider[] = [];
 function registerLatencyTestProvider(provider: ExtHostLatencyProvider): IDisposable {
 	providers.push(provider);
 	return {

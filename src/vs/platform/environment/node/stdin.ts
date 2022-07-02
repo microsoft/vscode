@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createWriteStream } from 'fs';
 import { tmpdir } from 'os';
+import { Queue } from 'vs/base/common/async';
 import { randomPath } from 'vs/base/common/extpath';
+import { Promises } from 'vs/base/node/pfs';
 import { resolveTerminalEncoding } from 'vs/base/node/terminalEncoding';
 
 export function hasStdinWithoutTty() {
@@ -38,10 +39,6 @@ export function getStdinFilePath(): string {
 }
 
 export async function readFromStdin(targetPath: string, verbose: boolean): Promise<void> {
-
-	// open tmp file for writing
-	const stdinFileStream = createWriteStream(targetPath);
-
 	let encoding = await resolveTerminalEncoding(verbose);
 
 	const iconv = await import('@vscode/iconv-lite-umd');
@@ -51,15 +48,21 @@ export async function readFromStdin(targetPath: string, verbose: boolean): Promi
 	}
 
 	// Pipe into tmp file using terminals encoding
+	// Use a `Queue` to be able to use `appendFile`
+	// which helps file watchers to be aware of the
+	// changes because each append closes the underlying
+	// file descriptor.
+	// (https://github.com/microsoft/vscode/issues/148952)
 	const decoder = iconv.getDecoder(encoding);
-	process.stdin.on('data', chunk => stdinFileStream.write(decoder.write(chunk)));
+	const appendFileQueue = new Queue();
+	process.stdin.on('data', chunk => {
+		const chunkStr = decoder.write(chunk);
+		appendFileQueue.queue(() => Promises.appendFile(targetPath, chunkStr));
+	});
 	process.stdin.on('end', () => {
 		const end = decoder.end();
 		if (typeof end === 'string') {
-			stdinFileStream.write(end);
+			appendFileQueue.queue(() => Promises.appendFile(targetPath, end));
 		}
-		stdinFileStream.end();
 	});
-	process.stdin.on('error', error => stdinFileStream.destroy(error));
-	process.stdin.on('close', () => stdinFileStream.close());
 }

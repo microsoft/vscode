@@ -554,7 +554,7 @@ registerAction2(class extends Action2 {
 		inputBox.placeholder = localize('createLocalHistoryPlaceholder', "Enter the new name of the local history entry for '{0}'", labelService.getUriBasenameLabel(resource));
 		inputBox.show();
 		inputBox.onDidAccept(async () => {
-			let entrySource = inputBox.value;
+			const entrySource = inputBox.value;
 			inputBox.dispose();
 
 			if (entrySource) {

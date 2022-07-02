@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, TerminalLocation, ProcessPropertyType, IProcessPropertyMap, IShellIntegration } from 'vs/platform/terminal/common/terminal';
-import { INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalBackend, ITerminalProcessExtHostProxy, IRegisterContributedProfileArgs } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { IEditableData } from 'vs/workbench/common/views';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IExtensionTerminalProfile, IProcessPropertyMap, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IEditableData } from 'vs/workbench/common/views';
+import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { IMarker } from 'xterm';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -339,6 +341,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalF
 	hidePanel(): void;
 	focusTabs(): void;
 	showTabs(): void;
+	updateVisibility(): void;
 }
 
 /**
@@ -635,6 +638,17 @@ export interface ITerminalInstance {
 	showEnvironmentInfoHover(): void;
 
 	/**
+	 * Registers and returns a marker
+	 */
+	registerMarker(): IMarker | undefined;
+
+	/**
+	 * Adds a decoration to the buffer at the @param marker with
+	 * @param genericMarkProperties
+	 */
+	addGenericMark(marker: IMarker, genericMarkProperties: IGenericMarkProperties): void;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
 	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used
@@ -668,6 +682,12 @@ export interface ITerminalInstance {
 	 * Clear current selection.
 	 */
 	clearSelection(): void;
+
+	/**
+	 * When the panel is hidden or a terminal in the editor area becomes inactive, reset the focus context key
+	 * to avoid issues like #147180.
+	 */
+	resetFocusContextKey(): void;
 
 	/**
 	 * Select all text in the terminal.
@@ -746,7 +766,7 @@ export interface ITerminalInstance {
 	 *
 	 * @param container The element to attach the terminal instance to.
 	 */
-	attachToElement(container: HTMLElement): Promise<void> | void;
+	attachToElement(container: HTMLElement): void;
 
 	/**
 	 * Detaches the terminal instance from the terminal editor DOM element.
@@ -918,6 +938,22 @@ export interface IXtermTerminal {
 	 * Clears the active search result decorations
 	 */
 	clearActiveSearchDecoration(): void;
+
+	/**
+	 * Adds a decoration at the @param marker with the given properties
+	 * @param properties
+	 */
+	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void;
+}
+
+export interface IInternalXtermTerminal {
+	/**
+	 * Writes text directly to the terminal, bypassing the process.
+	 *
+	 * **WARNING:** This should never be used outside of the terminal component and only for
+	 * developer purposed inside the terminal component.
+	 */
+	_writeText(data: string): void; // eslint-disable-line @typescript-eslint/naming-convention
 }
 
 export interface IRequestAddInstanceToGroupEvent {

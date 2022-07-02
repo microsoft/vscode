@@ -43,13 +43,13 @@
 
 		// Set up nls if the user is not using the default language (English)
 		const nlsConfig = {};
-		const locale = navigator.language;
+		const locale = window.localStorage.getItem('vscode.nls.locale') || navigator.language;
 		if (!locale.startsWith('en')) {
 			nlsConfig['vs/nls'] = {
 				availableLanguages: {
 					'*': locale
 				},
-				baseUrl: '{{WORKBENCH_NLS_BASE_URL}}'
+				translationServiceUrl: '{{WORKBENCH_NLS_BASE_URL}}'
 			};
 		}
 

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as nls from 'vs/nls';
 
 const LANGUAGE_DEFAULT = 'en';
 
@@ -67,7 +68,6 @@ const isElectronRenderer = isElectronProcess && nodeProcess?.type === 'renderer'
 
 interface INavigator {
 	userAgent: string;
-	language: string;
 	maxTouchPoints?: number;
 }
 declare const navigator: INavigator;
@@ -80,7 +80,17 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
-	_locale = navigator.language;
+
+	const configuredLocale = nls.getConfiguredDefaultLocale(
+		// This call _must_ be done in the file that calls `nls.getConfiguredDefaultLocale`
+		// to ensure that the NLS AMD Loader plugin has been loaded and configured.
+		// This is because the loader plugin decides what the default locale is based on
+		// how it's able to resolve the strings.
+		nls.localize({ key: 'ensureLoaderPluginIsLoaded', comment: ['{Locked}'] }, '_')
+	);
+
+	_locale = configuredLocale || LANGUAGE_DEFAULT;
+
 	_language = _locale;
 }
 
@@ -209,7 +219,7 @@ export const setTimeout0 = (() => {
 			id: number;
 			callback: () => void;
 		}
-		let pending: IQueueElement[] = [];
+		const pending: IQueueElement[] = [];
 		globals.addEventListener('message', (e: MessageEvent) => {
 			if (e.data && e.data.vscodeScheduleAsyncWork) {
 				for (let i = 0, len = pending.length; i < len; i++) {

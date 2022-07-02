@@ -153,9 +153,14 @@
 
 .extension-editor > .header > .details > .subtitle,
 .extension-editor > .header > .details > .subtitle .install,
-.extension-editor > .header > .details > .subtitle .rating {
+.extension-editor > .header > .details > .subtitle .rating,
+.extension-editor > .header > .details > .subtitle .sponsor {
 	display: flex;
 	align-items: center;
+}
+
+.extension-editor > .header > .details > .subtitle .sponsor .codicon {
+	padding-right: 3px;
 }
 
 .extension-editor > .header > .details > .subtitle .install > .count {
@@ -249,49 +254,36 @@
 .extension-editor > .header > .details > .actions-status-container > .status {
 	line-height: 22px;
 	font-size: 90%;
-	display: flex;
+	margin-top: 3px;
 }
 
 .extension-editor > .header > .details > .actions-status-container.list-layout > .status {
 	margin-top: 5px;
 }
 
-.extension-editor > .header > .details > .actions-status-container > .status > .monaco-action-bar {
-	height: 22px;
-	margin-right: 2px;
-}
-
-.extension-editor > .header > .details > .actions-status-container > .status > .monaco-action-bar .extension-action {
-	margin-top: 3px;
-}
-
-.extension-editor > .header > .details > .actions-status-container.list-layout > .status > .monaco-action-bar .extension-action {
-	margin-top: 0px;
-}
-
-.extension-editor > .header > .details > .actions-status-container:not(.list-layout) > .status > .status-text {
-	margin-top: 2px;
+.extension-editor > .header > .details > .actions-status-container > .status .codicon {
+	vertical-align: text-bottom;
 }
 
 .extension-editor > .header > .details > .pre-release-text p,
-.extension-editor > .header > .details > .actions-status-container > .status > .status-text p {
+.extension-editor > .header > .details > .actions-status-container > .status p {
 	margin-top: 0px;
 	margin-bottom: 0px;
 }
 
 .extension-editor > .header > .details > .pre-release-text a,
-.extension-editor > .header > .details > .actions-status-container > .status > .status-text a {
+.extension-editor > .header > .details > .actions-status-container > .status a {
 	color: var(--vscode-textLink-foreground)
 }
 
 .extension-editor > .header > .details > .pre-release-text a:hover,
-.extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover {
+.extension-editor > .header > .details > .actions-status-container > .status a:hover {
 	text-decoration: underline;
 	color: var(--vscode-textLink-activeForeground)
 }
 
 .extension-editor > .header > .details > .pre-release-text a:active,
-.extension-editor > .header > .details > .actions-status-container > .status > .status-text a:active {
+.extension-editor > .header > .details > .actions-status-container > .status a:active {
 	color: var(--vscode-textLink-activeForeground)
 }
 
@@ -427,27 +419,6 @@
 .extension-editor > .body > .content > .details > .additional-details-container .additional-details-element > .additional-details-title {
 	font-size: 120%;
 	padding-bottom: 15px;
-}
-
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container .extension-sponsor-container {
-	margin-top: 5px;
-}
-
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container .extension-sponsor-container > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
-	border-radius: 0px;
-	padding-top: 0;
-	padding-bottom: 0;
-}
-
-.extension-editor>.body>.content>.details>.additional-details-container .resources-container .extension-sponsor-container>.monaco-action-bar>.actions-container>.action-item {
-	width: 100%;
-}
-
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container .extension-sponsor-container > .monaco-action-bar > .actions-container > .action-item .extension-action.extension-sponsor {
-	padding-top: 2px;
-	padding-bottom: 2px;
-	max-width: 150px;
-	justify-content: center;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category,

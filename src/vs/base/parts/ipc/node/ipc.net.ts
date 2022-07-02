@@ -669,13 +669,13 @@ function unmask(buffer: VSBuffer, mask: number): void {
 	if (mask === 0) {
 		return;
 	}
-	let cnt = buffer.byteLength >>> 2;
+	const cnt = buffer.byteLength >>> 2;
 	for (let i = 0; i < cnt; i++) {
 		const v = buffer.readUInt32BE(i * 4);
 		buffer.writeUInt32BE(v ^ mask, i * 4);
 	}
-	let offset = cnt * 4;
-	let bytesLeft = buffer.byteLength - offset;
+	const offset = cnt * 4;
+	const bytesLeft = buffer.byteLength - offset;
 	const m3 = (mask >>> 24) & 0b11111111;
 	const m2 = (mask >>> 16) & 0b11111111;
 	const m1 = (mask >>> 8) & 0b11111111;

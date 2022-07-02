@@ -29,7 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
-import { IGlobalStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
@@ -40,6 +40,8 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { revive } from 'vs/base/common/marshalling';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -112,6 +114,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
+	private _profile: IUserDataProfile | undefined;
+	get profile(): IUserDataProfile | undefined { if (!this._profile) { this._profile = revive(this._config?.profiles.current); } return this._profile; }
+
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
 	private _config: INativeWindowConfiguration | undefined;
@@ -151,8 +156,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IFileService private readonly fileService: IFileService,
-		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService,
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
@@ -174,7 +180,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.windowState = state;
 			this.logService.trace('window#ctor: using window state', state);
 
-			// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
+			// In case we are maximized or fullscreen, only show later
+			// after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
@@ -187,7 +194,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				backgroundColor: this.themeMainService.getBackgroundColor(),
 				minWidth: WindowMinimumSize.WIDTH,
 				minHeight: WindowMinimumSize.HEIGHT,
-				show: !isFullscreenOrMaximized,
+				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
@@ -195,7 +202,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 					enableWebSQL: false,
 					spellcheck: false,
-					nativeWindowOpen: true,
 					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
 					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 					// Refs https://github.com/microsoft/vscode/issues/140098
@@ -271,6 +277,26 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			this._id = this._win.id;
 
+			// re-position traffic light if command center is visible
+			if (useCustomTitleStyle && isMacintosh) {
+				const ccConfigKey = 'window.commandCenter';
+				const trafficLightUpdater = () => {
+					// temporarily disabled because of https://github.com/microsoft/vscode/pull/150272#issuecomment-1152218493
+					// const on = this.configurationService.getValue<boolean>(ccConfigKey);
+					// if (on) {
+					// 	this._win.setTrafficLightPosition({ x: 7, y: 9 });
+					// } else {
+					// 	this._win.setTrafficLightPosition({ x: 7, y: 6 });
+					// }
+				};
+				trafficLightUpdater();
+				this.configurationService.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration(ccConfigKey)) {
+						trafficLightUpdater();
+					}
+				}, undefined, this._store);
+			}
+
 			// Open devtools if instructed from command line args
 			if (this.environmentMainService.args['open-devtools'] === true) {
 				this._win.webContents.openDevTools();
@@ -301,23 +327,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			if (isFullscreenOrMaximized) {
 				mark('code/willMaximizeCodeWindow');
+
+				// this call may or may not show the window, depends
+				// on the platform: currently on Windows and Linux will
+				// show the window as active. To be on the safe side,
+				// we show the window at the end of this block.
 				this._win.maximize();
 
 				if (this.windowState.mode === WindowMode.Fullscreen) {
 					this.setFullScreen(true);
 				}
 
-				if (
-					!this._win.isVisible() ||
-					// TODO@electron: Required condition ever since https://github.com/electron/electron/pull/33536
-					// landed in Electron 17.4.2: calling `window.maximize()` on macOS will wrongly result in
-					// `window.isVisible()` to return `true` even though a different window might still be on top.
-					// As such, we also need to ask for `window.isFocused()` which on macOS will ask whether the
-					// window is a "key" window.
-					(isMacintosh && !this._win.isFocused())
-				) {
-					this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
-				}
+				// to reduce flicker from the default window size
+				// to maximize or fullscreen, we only show after
+				this._win.show();
 				mark('code/didMaximizeCodeWindow');
 			}
 
@@ -519,7 +542,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private marketplaceHeadersPromise: Promise<object> | undefined;
 	private getMarketplaceHeaders(): Promise<object> {
 		if (!this.marketplaceHeadersPromise) {
-			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, this.globalStorageMainService);
+			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(
+				this.productService.version,
+				this.productService,
+				this.environmentMainService,
+				this.configurationService,
+				this.fileService,
+				this.applicationStorageMainService,
+				this.telemetryService);
 		}
 
 		return this.marketplaceHeadersPromise;
@@ -880,6 +910,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
+		configuration.editSessionId = this.environmentMainService.editSessionId; // set latest edit session id
+		configuration.profiles = {
+			all: this.userDataProfilesService.profiles,
+			current: this.userDataProfilesService.getProfile(configuration.workspace ?? 'empty-window'),
+		};
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });

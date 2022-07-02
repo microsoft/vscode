@@ -55,7 +55,7 @@ async function start() {
 	 * @typedef { import('./vs/server/node/remoteExtensionHostAgentServer').IServerAPI } IServerAPI
 	 */
 	/** @type {IServerAPI | null} */
-	let _remoteExtensionHostAgentServer = null;
+	const _remoteExtensionHostAgentServer = null;
 	/** @type {Promise<IServerAPI> | null} */
 	let _remoteExtensionHostAgentServerPromise = null;
 	/** @returns {Promise<IServerAPI>} */

@@ -33,7 +33,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
 import { assertIsDefined, isNumber } from 'vs/base/common/types';
-import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
 import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -269,7 +269,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Title Menu changes
-		this._register(this.titleService.onDidChangeTitleMenuVisibility(() => this._onDidLayout.fire(this._dimension)));
+		this._register(this.titleService.onDidChangeCommandCenterVisibility(() => this.layout()));
 
 		// Theme changes
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateStyles()));
@@ -504,7 +504,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Panel View Container To Restore
 		if (this.isVisible(Parts.PANEL_PART)) {
-			let viewContainerToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id);
+			const viewContainerToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id);
 
 			if (viewContainerToRestore) {
 				this.windowState.initialization.views.containerToRestore.panel = viewContainerToRestore;
@@ -515,7 +515,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Auxiliary Panel to restore
 		if (this.isVisible(Parts.AUXILIARYBAR_PART)) {
-			let viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
+			const viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
 
 			if (viewContainerToRestore) {
 				this.windowState.initialization.views.containerToRestore.auxiliaryBar = viewContainerToRestore;
@@ -993,6 +993,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return true;
 		}
 
+		// with the command center enabled, we should always show
+		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
+			return true;
+		}
+
 		// remaining behavior is based on menubar visibility
 		switch (getMenuBarVisibility(this.configurationService)) {
 			case 'classic':
@@ -1082,6 +1087,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (!restoring) {
 				zenModeExitInfo.transitionedToFullScreen = toggleFullScreen;
 				zenModeExitInfo.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
+				zenModeExitInfo.handleNotificationsDoNotDisturbMode = !this.notificationService.doNotDisturbMode;
 				zenModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
 				zenModeExitInfo.wasVisible.panel = this.isVisible(Parts.PANEL_PART);
 				zenModeExitInfo.wasVisible.auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
@@ -1109,13 +1115,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.windowState.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
 			}
 
-			if (config.silentNotifications) {
-				this.notificationService.setFilter(NotificationsFilter.ERROR);
+			if (config.silentNotifications && zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
+				this.notificationService.doNotDisturbMode = true;
 			}
 			this.windowState.runtime.zenMode.transitionDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(WorkbenchLayoutSettings.ZEN_MODE_SILENT_NOTIFICATIONS)) {
-					const filter = this.configurationService.getValue(WorkbenchLayoutSettings.ZEN_MODE_SILENT_NOTIFICATIONS) ? NotificationsFilter.ERROR : NotificationsFilter.OFF;
-					this.notificationService.setFilter(filter);
+					const zenModeSilentNotifications = !!this.configurationService.getValue(WorkbenchLayoutSettings.ZEN_MODE_SILENT_NOTIFICATIONS);
+					if (zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
+						this.notificationService.doNotDisturbMode = zenModeSilentNotifications;
+					}
 				}
 			}));
 
@@ -1150,12 +1158,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.centerEditorLayout(false, true);
 			}
 
+			if (zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
+				this.notificationService.doNotDisturbMode = false;
+			}
+
 			setLineNumbers();
 
 			this.focus();
-
-			// Clear notifications filter
-			this.notificationService.setFilter(NotificationsFilter.OFF);
 
 			toggleFullScreen = zenModeExitInfo.transitionedToFullScreen && this.windowState.runtime.fullscreen;
 		}
@@ -1241,6 +1250,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.setEditorHidden(!visible, true);
 				}
 				this._onDidChangePartVisibility.fire();
+				this._onDidLayout.fire(this._dimension);
 			}));
 		}
 

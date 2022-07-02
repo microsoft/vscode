@@ -23,6 +23,7 @@ import * as strings from 'vs/base/common/strings';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
+import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find (\u21C5 for history)");
@@ -222,7 +223,7 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	private _getKeybinding(actionId: string): string {
-		let kb = this._keybindingService?.lookupKeybinding(actionId);
+		const kb = this._keybindingService?.lookupKeybinding(actionId);
 		if (!kb) {
 			return '';
 		}
@@ -329,7 +330,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this._matchesCount.innerText = '';
 		let label = '';
 		this._matchesCount.classList.toggle('no-results', false);
-		if (count?.resultCount && count?.resultCount <= 0) {
+		if (count?.resultCount !== undefined && count?.resultCount === 0) {
 			label = NLS_NO_RESULTS;
 			if (!!this.inputValue) {
 				this._matchesCount.classList.toggle('no-results', true);
@@ -337,9 +338,23 @@ export abstract class SimpleFindWidget extends Widget {
 		} else if (count?.resultCount) {
 			label = strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
 		}
+		alertFn(this._announceSearchResults(label, this.inputValue));
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
 		this._foundMatch = !!count && count.resultCount > 0;
+	}
+
+	private _announceSearchResults(label: string, searchString?: string): string {
+		if (!searchString) {
+			return nls.localize('ariaSearchNoInput', "Enter search input");
+		}
+		if (label === NLS_NO_RESULTS) {
+			return searchString === ''
+				? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
+				: nls.localize('ariaSearchNoResult', "{0} found for '{1}'", label, searchString);
+		}
+
+		return nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
 	}
 }
 

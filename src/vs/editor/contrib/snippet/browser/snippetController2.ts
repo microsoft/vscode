@@ -9,13 +9,14 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, SnippetTextEdit } from 'vs/editor/common/languages';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { Choice, SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
 import { localize } from 'vs/nls';
@@ -335,13 +336,56 @@ registerEditorCommand(new CommandCtor({
 
 // ---
 
-export function performSnippetEdit(editor: ICodeEditor, edit: SnippetTextEdit) {
+export function performSnippetEdit(editor: ICodeEditor, snippet: string, selections: ISelection[]): boolean {
 	const controller = SnippetController2.get(editor);
 	if (!controller) {
 		return false;
 	}
 	editor.focus();
-	editor.setSelection(edit.range);
-	controller.insert(edit.snippet);
+	editor.setSelections(selections ?? []);
+	controller.insert(snippet);
+	return controller.isInSnippet();
+}
+
+
+export type ISnippetEdit = {
+	range: Range;
+	snippet: string;
+};
+
+// ---
+
+export function performSnippetEdits(editor: ICodeEditor, edits: ISnippetEdit[]) {
+
+	if (!editor.hasModel()) {
+		return false;
+	}
+	if (edits.length === 0) {
+		return false;
+	}
+
+	const model = editor.getModel();
+	let newText = '';
+	let last: ISnippetEdit | undefined;
+	edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+
+	for (const item of edits) {
+		if (last) {
+			const between = Range.fromPositions(last.range.getEndPosition(), item.range.getStartPosition());
+			const text = model.getValueInRange(between);
+			newText += SnippetParser.escape(text);
+		}
+		newText += item.snippet;
+		last = item;
+	}
+
+	const controller = SnippetController2.get(editor);
+	if (!controller) {
+		return false;
+	}
+	model.pushStackElement();
+	const range = Range.plusRange(edits[0].range, edits[edits.length - 1].range);
+	editor.setSelection(range);
+	controller.insert(newText, { undoStopBefore: false });
 	return controller.isInSnippet();
 }

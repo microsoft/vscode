@@ -47,7 +47,7 @@
   "contributes": {
     "notebookRenderer": [
       {
-        "id": "markdownItRenderer",
+        "id": "vscode.markdown-it-renderer",
         "displayName": "Markdown it renderer",
         "entrypoint": "./notebook-out/index.js",
         "mimeTypes": [
@@ -419,7 +419,7 @@
           "type": "boolean",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteLinks.enabled%",
-          "default": false,
+          "default": true,
           "tags": [
             "experimental"
           ]
@@ -447,10 +447,10 @@
             "experimental"
           ]
         },
-        "markdown.experimental.validate.headerLinks.enabled": {
+        "markdown.experimental.validate.fragmentLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.headerLinks.enabled.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.fragmentLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
@@ -466,6 +466,19 @@
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.enabled.description%",
           "default": "warning",
+          "enum": [
+            "ignore",
+            "warning",
+            "error"
+          ],
+          "tags": [
+            "experimental"
+          ]
+        },
+        "markdown.experimental.validate.fileLinks.markdownFragmentLinks": {
+          "type": "string",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.markdownFragmentLinks.description%",
           "enum": [
             "ignore",
             "warning",
@@ -531,7 +544,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.4.10",
+    "@vscode/extension-telemetry": "0.6.1",
     "dompurify": "^2.3.3",
     "highlight.js": "^11.4.0",
     "markdown-it": "^12.3.2",

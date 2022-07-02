@@ -323,7 +323,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			ariaLabelledBy: 'keybindings-editor-aria-label-element',
 			recordEnter: true,
 			quoteRecordedKeys: true,
-			history: this.getMemento(StorageScope.GLOBAL, StorageTarget.USER)['searchHistory'] || [],
+			history: this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] || [],
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => {
 			clearInputAction.enabled = !!searchValue;
@@ -371,7 +371,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			getKeyBinding: action => this.keybindingsService.lookupKeybinding(action.id)
 		}));
 		toolBar.setActions(actions);
-		this._register(this.keybindingsService.onDidUpdateKeybindings(e => toolBar.setActions(actions)));
+		this._register(this.keybindingsService.onDidUpdateKeybindings(() => toolBar.setActions(actions)));
 	}
 
 	private updateSearchOptions(): void {
@@ -534,9 +534,15 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.renderKeybindingsEntries(this.searchWidget.hasFocus());
 		this.searchHistoryDelayer.trigger(() => {
 			this.searchWidget.inputBox.addToHistory();
-			this.getMemento(StorageScope.GLOBAL, StorageTarget.USER)['searchHistory'] = this.searchWidget.inputBox.getHistory();
+			this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] = this.searchWidget.inputBox.getHistory();
 			this.saveState();
 		});
+	}
+
+	public clearKeyboardShortcutSearchHistory(): void {
+		this.searchWidget.inputBox.clearHistory();
+		this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] = this.searchWidget.inputBox.getHistory();
+		this.saveState();
 	}
 
 	private renderKeybindingsEntries(reset: boolean, preserveFocus?: boolean): void {

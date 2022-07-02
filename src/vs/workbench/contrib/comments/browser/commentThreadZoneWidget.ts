@@ -56,6 +56,22 @@ export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	return { lineNumber: range.startLineNumber };
 }
 
+export function isMouseUpEventDragFromMouseDown(mouseDownInfo: { lineNumber: number } | null, e: IEditorMouseEvent) {
+	if (!mouseDownInfo) {
+		return null;
+	}
+
+	const { lineNumber } = mouseDownInfo;
+
+	const range = e.target.range;
+
+	if (!range) {
+		return null;
+	}
+
+	return lineNumber;
+}
+
 export function isMouseUpEventMatchMouseDown(mouseDownInfo: { lineNumber: number } | null, e: IEditorMouseEvent) {
 	if (!mouseDownInfo) {
 		return null;
@@ -161,7 +177,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		if (commentUniqueId !== undefined) {
-			let height = this.editor.getLayoutInfo().height;
+			const height = this.editor.getLayoutInfo().height;
 			const coords = this._commentThreadWidget.getCommentCoords(commentUniqueId);
 			if (coords) {
 				const commentThreadCoords = coords.thread;
@@ -198,7 +214,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			{
 				actionRunner: () => {
 					if (!this._commentThread.comments || !this._commentThread.comments.length) {
-						let newPosition = this.getPosition();
+						const newPosition = this.getPosition();
 
 						if (newPosition) {
 							let range: Range;
@@ -342,7 +358,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}));
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollasibleState(state => {
+		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollapsibleState(state => {
 			if (state === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
 				const lineNumber = this._commentThread.range.startLineNumber;
 
@@ -388,7 +404,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				return;
 			}
 
-			let currentPosition = this.getPosition();
+			const currentPosition = this.getPosition();
 
 			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber) {
 				this._viewZone.afterLineNumber = currentPosition.lineNumber;

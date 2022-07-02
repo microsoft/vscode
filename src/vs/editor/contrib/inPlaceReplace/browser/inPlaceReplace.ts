@@ -92,9 +92,9 @@ class InPlaceReplaceController implements IEditorContribution {
 			}
 
 			// Selection
-			let editRange = Range.lift(result.range);
+			const editRange = Range.lift(result.range);
 			let highlightRange = result.range;
-			let diff = result.value.length - (selection!.endColumn - selection!.startColumn);
+			const diff = result.value.length - (selection!.endColumn - selection!.startColumn);
 
 			// highlight
 			highlightRange = {

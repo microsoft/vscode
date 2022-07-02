@@ -131,7 +131,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	};
 
 	// Create the language client and start the client.
-	let client = newLanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), clientOptions);
+	const client = newLanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), clientOptions);
 	client.registerProposedFeatures();
 
 	await client.start();
@@ -208,7 +208,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 						trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
 						insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
 					};
-					let params: DocumentRangeFormattingParams = {
+					const params: DocumentRangeFormattingParams = {
 						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
 						range: client.code2ProtocolConverter.asRange(range),
 						options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
@@ -230,18 +230,18 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	toDispose.push(languages.registerCompletionItemProvider(documentSelector, {
 		provideCompletionItems(doc, pos) {
 			const results: CompletionItem[] = [];
-			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
-			let match = lineUntilPos.match(regionCompletionRegExpr);
+			const lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
+			const match = lineUntilPos.match(regionCompletionRegExpr);
 			if (match) {
-				let range = new Range(new Position(pos.line, match[1].length), pos);
-				let beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
+				const range = new Range(new Position(pos.line, match[1].length), pos);
+				const beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
 				beginProposal.range = range;
 				beginProposal.insertText = new SnippetString('<!-- #region $1-->');
 				beginProposal.documentation = localize('folding.start', 'Folding Region Start');
 				beginProposal.filterText = match[2];
 				beginProposal.sortText = 'za';
 				results.push(beginProposal);
-				let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
+				const endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
 				endProposal.range = range;
 				endProposal.insertText = new SnippetString('<!-- #endregion -->');
 				endProposal.documentation = localize('folding.end', 'Folding Region End');
@@ -249,10 +249,10 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				endProposal.sortText = 'zb';
 				results.push(endProposal);
 			}
-			let match2 = lineUntilPos.match(htmlSnippetCompletionRegExpr);
+			const match2 = lineUntilPos.match(htmlSnippetCompletionRegExpr);
 			if (match2 && doc.getText(new Range(new Position(0, 0), pos)).match(htmlSnippetCompletionRegExpr)) {
-				let range = new Range(new Position(pos.line, match2[1].length), pos);
-				let snippetProposal = new CompletionItem('HTML sample', CompletionItemKind.Snippet);
+				const range = new Range(new Position(pos.line, match2[1].length), pos);
+				const snippetProposal = new CompletionItem('HTML sample', CompletionItemKind.Snippet);
 				snippetProposal.range = range;
 				const content = ['<!DOCTYPE html>',
 					'<html>',

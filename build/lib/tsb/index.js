@@ -13,6 +13,9 @@ const stream_1 = require("stream");
 const path_1 = require("path");
 const utils_1 = require("./utils");
 const fs_1 = require("fs");
+const log = require("fancy-log");
+const colors = require("ansi-colors");
+const transpiler_1 = require("./transpiler");
 class EmptyDuplex extends stream_1.Duplex {
     _write(_chunk, _encoding, callback) { callback(); }
     _read() { this.push(null); }
@@ -23,7 +26,7 @@ function createNullCompiler() {
     return result;
 }
 const _defaultOnError = (err) => console.log(JSON.stringify(err, null, 4));
-function create(projectPath, existingOptions, verbose = false, onError = _defaultOnError) {
+function create(projectPath, existingOptions, config, onError = _defaultOnError) {
     function printDiagnostic(diag) {
         if (!diag.file || !diag.start) {
             onError(ts.flattenDiagnosticMessageText(diag.messageText, '\n'));
@@ -43,24 +46,62 @@ function create(projectPath, existingOptions, verbose = false, onError = _defaul
         cmdLine.errors.forEach(printDiagnostic);
         return createNullCompiler();
     }
-    const _builder = builder.createTypeScriptBuilder({ verbose }, projectPath, cmdLine);
-    function createStream(token) {
+    function logFn(topic, message) {
+        if (config.verbose) {
+            log(colors.cyan(topic), message);
+        }
+    }
+    // FULL COMPILE stream doing transpile, syntax and semantic diagnostics
+    function createCompileStream(builder, token) {
         return through(function (file) {
             // give the file to the compiler
             if (file.isStream()) {
                 this.emit('error', 'no support for streams');
                 return;
             }
-            _builder.file(file);
+            builder.file(file);
         }, function () {
             // start the compilation process
-            _builder.build(file => this.queue(file), printDiagnostic, token).catch(e => console.error(e)).then(() => this.queue(null));
+            builder.build(file => this.queue(file), printDiagnostic, token).catch(e => console.error(e)).then(() => this.queue(null));
         });
     }
-    const result = (token) => createStream(token);
+    // TRANSPILE ONLY stream doing just TS to JS conversion
+    function createTranspileStream(transpiler) {
+        return through(function (file) {
+            // give the file to the compiler
+            if (file.isStream()) {
+                this.emit('error', 'no support for streams');
+                return;
+            }
+            if (!file.contents) {
+                return;
+            }
+            if (!config.transpileOnlyIncludesDts && file.path.endsWith('.d.ts')) {
+                return;
+            }
+            if (!transpiler.onOutfile) {
+                transpiler.onOutfile = file => this.queue(file);
+            }
+            transpiler.transpile(file);
+        }, function () {
+            transpiler.join().then(() => {
+                this.queue(null);
+                transpiler.onOutfile = undefined;
+            });
+        });
+    }
+    let result;
+    if (config.transpileOnly) {
+        const transpiler = new transpiler_1.Transpiler(logFn, printDiagnostic, projectPath, cmdLine);
+        result = (() => createTranspileStream(transpiler));
+    }
+    else {
+        const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
+        result = ((token) => createCompileStream(_builder, token));
+    }
     result.src = (opts) => {
         let _pos = 0;
-        let _fileNames = cmdLine.fileNames.slice(0);
+        const _fileNames = cmdLine.fileNames.slice(0);
         return new class extends stream_1.Readable {
             constructor() {
                 super({ objectMode: true });

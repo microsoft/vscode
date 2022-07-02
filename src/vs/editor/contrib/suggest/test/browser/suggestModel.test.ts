@@ -200,7 +200,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	let disposables: DisposableStore;
 	let model: TextModel;
 	const languageFeaturesService = new LanguageFeaturesService();
-	let registry = languageFeaturesService.completionProvider;
+	const registry = languageFeaturesService.completionProvider;
 
 	setup(function () {
 		disposables = new DisposableStore();
