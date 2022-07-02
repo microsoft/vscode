@@ -287,7 +287,13 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 		const pathSegmentEnd = position.translate({ characterDelta: context.linkSuffix.length });
 		const replacementRange = new vscode.Range(pathSegmentStart, pathSegmentEnd);
 
-		const dirInfo = await this.workspace.readDirectory(parentDir);
+		let dirInfo: [string, vscode.FileType][];
+		try {
+			dirInfo = await this.workspace.readDirectory(parentDir);
+		} catch {
+			return;
+		}
+
 		for (const [name, type] of dirInfo) {
 			// Exclude paths that start with `.`
 			if (name.startsWith('.')) {

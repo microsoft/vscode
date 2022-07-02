@@ -558,6 +558,7 @@ export class Codicon implements CSSIcon {
 	public static readonly mapFilled = new Codicon('map-filled', { fontCharacter: '\\ec06' });
 	public static readonly circleSmall = new Codicon('circle-small', { fontCharacter: '\\ec07' });
 	public static readonly bellSlash = new Codicon('bell-slash', { fontCharacter: '\\ec08' });
+	public static readonly bellSlashDot = new Codicon('bell-slash-dot', { fontCharacter: '\\f101' });
 
 
 	// derived icons, that could become separate icons

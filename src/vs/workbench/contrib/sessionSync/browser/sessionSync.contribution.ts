@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_TITLE, EditSessionSchemaVersion } from 'vs/workbench/services/sessionSync/common/sessionSync';
+import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EditSessionSchemaVersion } from 'vs/workbench/services/sessionSync/common/sessionSync';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -44,19 +44,21 @@ registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
 const resumeLatestCommand = {
 	id: 'workbench.experimental.editSessions.actions.resumeLatest',
-	title: localize('resume latest', "{0}: Resume Latest Edit Session", EDIT_SESSION_SYNC_TITLE),
+	title: { value: localize('resume latest', "Resume Latest Edit Session"), original: 'Resume Latest Edit Session' },
+	category: EDIT_SESSION_SYNC_CATEGORY,
 };
 const storeCurrentCommand = {
 	id: 'workbench.experimental.editSessions.actions.storeCurrent',
-	title: localize('store current', "{0}: Store Current Edit Session", EDIT_SESSION_SYNC_TITLE),
+	title: { value: localize('store current', "Store Current Edit Session"), original: 'Store Current Edit Session' },
+	category: EDIT_SESSION_SYNC_CATEGORY,
 };
 const continueEditSessionCommand = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession',
-	title: localize('continue edit session', "Continue Edit Session..."),
+	title: { value: localize('continue edit session', "Continue Edit Session..."), original: 'Continue Edit Session...' },
 };
 const openLocalFolderCommand = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession.openLocalFolder',
-	title: localize('continue edit session in local folder', "Open In Local Folder"),
+	title: { value: localize('continue edit session in local folder', "Open In Local Folder"), original: 'Open In Local Folder' },
 };
 const queryParamName = 'editSessionId';
 
@@ -146,8 +148,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class ContinueEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					id: continueEditSessionCommand.id,
-					title: continueEditSessionCommand.title,
+					...continueEditSessionCommand,
 					f1: true
 				});
 			}
@@ -157,7 +158,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				if (uri === undefined) { return; }
 
 				// Run the store action to get back a ref
-				const ref = await that.storeEditSession();
+				const ref = await that.storeEditSession(false);
 
 				// Append the ref to the URI
 				if (ref !== undefined) {
@@ -181,8 +182,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class ApplyLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					id: resumeLatestCommand.id,
-					title: resumeLatestCommand.title,
+					...resumeLatestCommand,
 					menu: {
 						id: MenuId.CommandPalette,
 					}
@@ -203,8 +203,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class StoreLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					id: storeCurrentCommand.id,
-					title: storeCurrentCommand.title,
+					...storeCurrentCommand,
 					menu: {
 						id: MenuId.CommandPalette,
 					}
@@ -215,7 +214,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				await that.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('storing edit session', 'Storing edit session...')
-				}, async () => await that.storeEditSession());
+				}, async () => await that.storeEditSession(true));
 			}
 		}));
 	}
@@ -227,6 +226,11 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 
 		const data = await this.sessionSyncWorkbenchService.read(ref);
 		if (!data) {
+			if (ref === undefined) {
+				this.notificationService.info(localize('no edit session', 'There are no edit sessions to apply.'));
+			} else {
+				this.notificationService.warn(localize('no edit session content for ref', 'Could not apply edit session contents for ID {0}.', ref));
+			}
 			this.logService.info(`Edit Sessions: Aborting applying edit session as no edit session content is available to be applied from ref ${ref}.`);
 			return;
 		}
@@ -270,7 +274,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				const result = await this.dialogService.confirm({
 					message: localize('apply edit session warning', 'Applying your edit session may overwrite your existing uncommitted changes. Do you want to proceed?'),
 					type: 'warning',
-					title: EDIT_SESSION_SYNC_TITLE
+					title: EDIT_SESSION_SYNC_CATEGORY.value
 				});
 				if (!result.confirmed) {
 					return;
@@ -285,16 +289,18 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				}
 			}
 
-			this.logService.info(`Edit Sessions: Deleting edit session with ref ${ref} after successfully applying it to current workspace.`);
+			this.logService.info(`Edit Sessions: Deleting edit session with ref ${ref} after successfully applying it to current workspace...`);
 			await this.sessionSyncWorkbenchService.delete(ref);
+			this.logService.info(`Edit Sessions: Deleted edit session with ref ${ref}.`);
 		} catch (ex) {
 			this.logService.error('Edit Sessions: Failed to apply edit session, reason: ', (ex as Error).toString());
 			this.notificationService.error(localize('apply failed', "Failed to apply your edit session."));
 		}
 	}
 
-	async storeEditSession(): Promise<string | undefined> {
+	async storeEditSession(fromStoreCommand: boolean): Promise<string | undefined> {
 		const folders: Folder[] = [];
+		let hasEdits = false;
 
 		for (const repository of this.scmService.repositories) {
 			// Look through all resource groups and compute which files were added/modified/deleted
@@ -321,6 +327,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 					}
 				} catch { }
 
+				hasEdits = true;
+
 				if (await this.fileService.exists(uri)) {
 					workingChanges.push({ type: ChangeType.Addition, fileType: FileType.File, contents: (await this.fileService.readFile(uri)).value.toString(), relativeFilePath: relativeFilePath });
 				} else {
@@ -330,6 +338,14 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			}
 
 			folders.push({ workingChanges, name: name ?? '' });
+		}
+
+		if (!hasEdits) {
+			this.logService.info('Edit Sessions: Skipping storing edit session as there are no edits to store.');
+			if (fromStoreCommand) {
+				this.notificationService.info(localize('no edits to store', 'Skipped storing edit session as there are no edits to store.'));
+			}
+			return undefined;
 		}
 
 		const data: EditSession = { folders, version: 1 };
@@ -382,8 +398,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class ContinueInLocalFolderAction extends Action2 {
 			constructor() {
 				super({
-					id: openLocalFolderCommand.id,
-					title: openLocalFolderCommand.title,
+					...openLocalFolderCommand,
 					precondition: IsWebContext
 				});
 			}

@@ -1881,6 +1881,7 @@
 		"dockerfile": "_docker",
 		"ignore": "_git",
 		"fsharp": "_f-sharp",
+		"git-commit": "_git",
 		"go": "_go2",
 		"groovy": "_grails",
 		"handlebars": "_mustache",
@@ -2197,6 +2198,7 @@
 			"dockerfile": "_docker_light",
 			"ignore": "_git_light",
 			"fsharp": "_f-sharp_light",
+			"git-commit": "_git_light",
 			"go": "_go2_light",
 			"groovy": "_grails_light",
 			"handlebars": "_mustache_light",
@@ -2338,5 +2340,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/6b83574de165123583d6d8d5b3b6c91f04b7153d"
+	"version": "https://github.com/jesseweed/seti-ui/commit/4dd6c27e1f5aed8068c2451dbaf0db3364545937"
 }

@@ -92,7 +92,7 @@ export class MergeEditorViewModel {
 			const range = this.getRange(lastFocusedEditor, modifiedBaseRange, undefined);
 			lastFocusedEditor.editor.setPosition({
 				lineNumber: range.startLineNumber,
-				column: 1,
+				column: lastFocusedEditor.editor.getModel()!.getLineFirstNonWhitespaceColumn(range.startLineNumber),
 			});
 			lastFocusedEditor.editor.revealLinesNearTop(range.startLineNumber, range.endLineNumberExclusive, ScrollType.Smooth);
 		}

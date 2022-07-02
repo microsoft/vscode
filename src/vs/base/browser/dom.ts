@@ -1734,6 +1734,19 @@ export function computeClippingRect(elementOrRect: HTMLElement | DOMRectReadOnly
 	return { top, right, bottom, left };
 }
 
+interface DomNodeAttributes {
+	role?: string;
+	ariaHidden?: boolean;
+	style?: StyleAttributes;
+}
+
+interface StyleAttributes {
+	height?: number | string;
+	width?: number | string;
+}
+
+//<div role="presentation" aria-hidden="true" class="scroll-decoration"></div>
+
 /**
  * A helper function to create nested dom nodes.
  *
@@ -1749,22 +1762,22 @@ export function computeClippingRect(elementOrRect: HTMLElement | DOMRectReadOnly
  * private readonly editor = createEditor(this.htmlElements.editor);
  * ```
 */
-export function h<TTag extends string>(tag: TTag): never;
 export function h<TTag extends string, TId extends string>(
 	tag: TTag,
-	attributes: { $: TId }
+	attributes: { $: TId } & DomNodeAttributes
 ): Record<TId | 'root', TagToElement<TTag>>;
+export function h<TTag extends string>(tag: TTag, attributes: DomNodeAttributes): Record<'root', TagToElement<TTag>>;
 export function h<TTag extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
 	children: T
 ): (ArrayToObj<T> & Record<'root', TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
 export function h<TTag extends string, TId extends string, T extends (HTMLElement | string | Record<string, HTMLElement>)[]>(
 	tag: TTag,
-	attributes: { $: TId },
+	attributes: { $: TId } & DomNodeAttributes,
 	children: T
 ): (ArrayToObj<T> & Record<TId, TagToElement<TTag>>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-export function h(tag: string, ...args: [] | [attributes: { $: string } | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
-	let attributes: Record<string, any>;
+export function h(tag: string, ...args: [] | [attributes: { $: string } & DomNodeAttributes | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
+	let attributes: { $?: string } & DomNodeAttributes;
 	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;
 
 	if (Array.isArray(args[0])) {
@@ -1801,12 +1814,25 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } | Record
 			result[value] = el;
 			continue;
 		}
-		el.setAttribute(key, value);
+		if (key === 'style') {
+			for (const [cssKey, cssValue] of Object.entries(value)) {
+				el.style.setProperty(
+					camelCaseToHyphenCase(cssKey),
+					typeof cssValue === 'number' ? cssValue + 'px' : '' + cssValue
+				);
+			}
+			continue;
+		}
+		el.setAttribute(camelCaseToHyphenCase(key), value.toString());
 	}
 
 	result['root'] = el;
 
 	return result;
+}
+
+function camelCaseToHyphenCase(str: string) {
+	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
 type RemoveHTMLElement<T> = T extends HTMLElement ? never : T;

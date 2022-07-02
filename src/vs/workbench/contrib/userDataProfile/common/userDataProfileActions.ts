@@ -147,7 +147,7 @@ registerAction2(class SwitchProfileAction extends Action2 {
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 
-		const profiles = userDataProfilesService.profiles.filter(p => p.id !== userDataProfileService.currentProfile.id);
+		const profiles = userDataProfilesService.profiles;
 		if (profiles.length) {
 			const picks: Array<IQuickPickItem & { profile: IUserDataProfile }> = profiles.map(profile => ({
 				label: profile.name!,

@@ -179,7 +179,7 @@ export class MdVsCodeRenameProvider extends Disposable implements vscode.RenameP
 			if (ref.kind === 'link') {
 				// Try to preserve style of existing links
 				let newPath: string;
-				if (ref.link.source.text.startsWith('/')) {
+				if (ref.link.source.hrefText.startsWith('/')) {
 					const root = resolveDocumentLink('/', ref.link.source.resource);
 					newPath = '/' + path.relative(root.toString(true), rawNewFilePath.toString(true));
 				} else {

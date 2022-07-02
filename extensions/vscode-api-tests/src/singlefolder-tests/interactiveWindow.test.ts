@@ -33,9 +33,9 @@ async function addCell(code: string, notebook: vscode.NotebookDocument) {
 	return notebook.cellAt(notebook.cellCount - 1);
 }
 
-async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
+async function addCellAndRun(code: string, notebook: vscode.NotebookDocument, i: number) {
 	const cell = await addCell(code, notebook);
-	await vscode.commands.executeCommand('notebook.execute');
+	await vscode.commands.executeCommand('notebook.cell.execute', { start: i, end: i + 1 });
 	assert.strictEqual(cell.outputs.length, 1, 'execute failed');
 	return cell;
 }
@@ -78,7 +78,7 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 
 		// Run and add a bunch of cells
 		for (let i = 0; i < 10; i++) {
-			await addCellAndRun(`print ${i}`, notebookEditor.notebook);
+			await addCellAndRun(`print ${i}`, notebookEditor.notebook, i);
 		}
 
 		// Verify visible range has the last cell

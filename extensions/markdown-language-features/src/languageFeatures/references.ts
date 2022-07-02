@@ -259,7 +259,7 @@ export class MdReferencesProvider extends Disposable {
 			}
 
 			// Exclude cases where the file is implicitly referencing itself
-			if (link.source.text.startsWith('#') && link.source.resource.fsPath === resource.fsPath) {
+			if (link.source.hrefText.startsWith('#') && link.source.resource.fsPath === resource.fsPath) {
 				continue;
 			}
 

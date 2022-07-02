@@ -18,7 +18,7 @@ import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -59,6 +59,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ctxIsMergeEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -1290,7 +1291,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('accept merges title', "Accept Merge"),
 					menu: [{
 						id: MenuId.MergeToolbar,
-						when: ContextKeyExpr.and(ContextKeyDefinedExpr.create('isMergeEditor'), ContextKeyEqualsExpr.create('baseResourceScheme', USER_DATA_SYNC_SCHEME)),
+						when: ContextKeyExpr.and(ctxIsMergeEditor, ContextKeyEqualsExpr.create('baseResourceScheme', USER_DATA_SYNC_SCHEME)),
 					}],
 				});
 			}

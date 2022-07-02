@@ -415,7 +415,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.contentsDomNode.style.paddingBottom = '';
 		this._updateFont();
 
-		this._editor.layoutContentWidget(this);
 		this.onContentsChanged();
 
 		// Simply force a synchronous render on the editor
@@ -424,7 +423,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
-		this._editor.layoutContentWidget(this);
 		this.onContentsChanged();
 
 		if (visibleData.stoleFocus) {
@@ -447,6 +445,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public onContentsChanged(): void {
+		this._editor.layoutContentWidget(this);
 		this._hover.onContentsChanged();
 
 		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
