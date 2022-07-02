@@ -68,6 +68,7 @@ export const DIFF_FOCUS_PRIMARY_SIDE = 'workbench.action.compareEditor.focusPrim
 export const DIFF_FOCUS_SECONDARY_SIDE = 'workbench.action.compareEditor.focusSecondarySide';
 export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherSide';
 export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
+export const TOGGLE_BRACKET_PAIR_COLORIZATION_ENABLE = 'toggle.bracketPairColorization.enable';
 
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
 export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
@@ -415,6 +416,13 @@ function registerDiffEditorCommands(): void {
 		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue);
 	}
 
+	function toggleBracketPairColorization(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const newValue = !configurationService.getValue('editor.bracketPairColorization.enabled');
+		configurationService.updateValue('editor.bracketPairColorization.enabled', newValue);
+	}
+
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
 		weight: KeybindingWeight.WorkbenchContrib,
@@ -465,6 +473,14 @@ function registerDiffEditorCommands(): void {
 		when: undefined,
 		primary: undefined,
 		handler: accessor => toggleDiffIgnoreTrimWhitespace(accessor)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: TOGGLE_BRACKET_PAIR_COLORIZATION_ENABLE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => toggleBracketPairColorization(accessor)
 	});
 }
 
