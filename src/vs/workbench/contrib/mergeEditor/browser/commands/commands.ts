@@ -175,7 +175,7 @@ export class GoToNextConflict extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.viewModel.get()?.goToNextConflict();
+			activeEditorPane.viewModel.get()?.goToNextModifiedBaseRange(true);
 		}
 	}
 }
@@ -200,7 +200,7 @@ export class GoToPreviousConflict extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.viewModel.get()?.goToPreviousConflict();
+			activeEditorPane.viewModel.get()?.goToPreviousModifiedBaseRange(true);
 		}
 	}
 }
