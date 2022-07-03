@@ -60,6 +60,7 @@ export interface IUserDataProfileImportExportService {
 
 	exportProfile(options?: ProfileCreationOptions): Promise<IUserDataProfileTemplate>;
 	importProfile(profile: IUserDataProfileTemplate): Promise<void>;
+	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
 export interface IResourceProfile {

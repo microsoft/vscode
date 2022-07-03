@@ -7,8 +7,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -19,6 +19,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 	constructor() {
@@ -196,14 +197,14 @@ registerAction2(class ExportProfileAction extends Action2 {
 				original: 'Export Settings Profile...'
 			},
 			category: PROFILES_CATEGORY,
-			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT,
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
 					group: '3_import_export_profiles',
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 1
+				}, {
+					id: MenuId.CommandPalette
 				}
 			]
 		});
@@ -241,14 +242,14 @@ registerAction2(class ImportProfileAction extends Action2 {
 				original: 'Import Settings Profile...'
 			},
 			category: PROFILES_CATEGORY,
-			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT,
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
 					group: '3_import_export_profiles',
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 2
+				}, {
+					id: MenuId.CommandPalette
 				}
 			]
 		});
@@ -260,6 +261,19 @@ registerAction2(class ImportProfileAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const requestService = accessor.get(IRequestService);
 		const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
+		const dialogService = accessor.get(IDialogService);
+		const contextKeyService = accessor.get(IContextKeyService);
+
+		const isSettingProfilesEnabled = contextKeyService.contextMatchesRules(PROFILES_ENABLEMENT_CONTEXT);
+
+		if (!isSettingProfilesEnabled) {
+			if (!(await dialogService.confirm({
+				title: localize('import profile title', "Import Settings from a Profile"),
+				message: localize('confiirmation message', "This will replace your current settings. Are you sure you want to continue?"),
+			})).confirmed) {
+				return;
+			}
+		}
 
 		const disposables = new DisposableStore();
 		const quickPick = disposables.add(quickInputService.createQuickPick());
@@ -278,7 +292,11 @@ registerAction2(class ImportProfileAction extends Action2 {
 			quickPick.hide();
 			const profile = quickPick.selectedItems[0].description ? await this.getProfileFromURL(quickPick.value, requestService) : await this.getProfileFromFileSystem(fileDialogService, fileService);
 			if (profile) {
-				await userDataProfileImportExportService.importProfile(profile);
+				if (isSettingProfilesEnabled) {
+					await userDataProfileImportExportService.importProfile(profile);
+				} else {
+					await userDataProfileImportExportService.setProfile(profile);
+				}
 			}
 		}));
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
