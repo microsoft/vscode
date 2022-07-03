@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createServer, Server } from 'net';
+/* eslint-disable code-import-patterns */
+/* eslint-disable code-layering */
+
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -31,7 +33,7 @@ export class NativeLocalProcessExtensionHost extends SandboxLocalProcessExtensio
 
 interface INamedPipePreparedData {
 	pipeName: string;
-	namedPipeServer: Server;
+	namedPipeServer: import('net').Server;
 }
 
 class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommunication<INamedPipePreparedData> {
@@ -44,8 +46,9 @@ class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommun
 		super();
 	}
 
-	prepare(): Promise<INamedPipePreparedData> {
-		return new Promise<{ pipeName: string; namedPipeServer: Server }>((resolve, reject) => {
+	async prepare(): Promise<INamedPipePreparedData> {
+		const { createServer } = await import('net');
+		return new Promise<{ pipeName: string; namedPipeServer: import('net').Server }>((resolve, reject) => {
 			const pipeName = createRandomIPCHandle();
 
 			const namedPipeServer = createServer();

@@ -812,10 +812,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(this.environmentMainService.sandbox ?
-			'vs/code/electron-sandbox/workbench/workbench.html' :
-			'vs/code/electron-browser/workbench/workbench.html', require
-		).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri('vs/code/electron-sandbox/workbench/workbench.html', require).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
