@@ -14,7 +14,7 @@ import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverV
 import { CodeEditorView } from './codeEditorView';
 
 export class ResultCodeEditorView extends CodeEditorView {
-	private readonly decorations = derivedObservable('decorations', reader => {
+	private readonly decorations = derivedObservable('result.decorations', reader => {
 		const viewModel = this.viewModel.read(reader);
 		if (!viewModel) {
 			return [];
@@ -125,6 +125,6 @@ export class ResultCodeEditorView extends CodeEditorView {
 					'{0} Remaining Conflicts',
 					count
 				));
-		}, 'update label'));
+		}, 'update remainingConflicts label'));
 	}
 }

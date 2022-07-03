@@ -5,21 +5,24 @@
 
 import { h } from 'vs/base/browser/dom';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { observableSignalFromEvent } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
 	private readonly scrollTop = observableFromEvent(
 		this._editor.onDidScrollChange,
-		(e) => this._editor.getScrollTop()
+		(e) => /** @description editor.onDidScrollChange */ this._editor.getScrollTop()
 	);
+	private readonly isScrollTopZero = this.scrollTop.map((scrollTop) => /** @description isScrollTopZero */ scrollTop === 0);
 	private readonly modelAttached = observableFromEvent(
 		this._editor.onDidChangeModel,
-		(e) => this._editor.hasModel()
+		(e) => /** @description editor.onDidChangeModel */ this._editor.hasModel()
 	);
 
-	private readonly changeCounter = new ObservableValue(0, 'counter');
+	private readonly editorOnDidChangeViewZones = observableSignalFromEvent('onDidChangeViewZones', this._editor.onDidChangeViewZones);
+	private readonly editorOnDidContentSizeChange = observableSignalFromEvent('onDidContentSizeChange', this._editor.onDidContentSizeChange);
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -34,19 +37,10 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		);
 
 		this._register(autorun((reader) => {
-			scrollDecoration.className = this.scrollTop.read(reader) === 0 ? '' : 'scroll-decoration';
+			scrollDecoration.className = this.isScrollTopZero.read(reader) ? '' : 'scroll-decoration';
 		}, 'update scroll decoration'));
 
-
-		this._register(autorun((reader) => this.render(reader), 'Render'));
-
-		this._editor.onDidChangeViewZones(e => {
-			this.changeCounter.set(this.changeCounter.get() + 1, undefined);
-		});
-
-		this._editor.onDidContentSizeChange(e => {
-			this.changeCounter.set(this.changeCounter.get() + 1, undefined);
-		});
+		this._register(autorun((reader) => this.render(reader), 'EditorGutter.Render'));
 	}
 
 	private readonly views = new Map<string, ManagedGutterItemView>();
@@ -55,7 +49,10 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		if (!this.modelAttached.read(reader)) {
 			return;
 		}
-		this.changeCounter.read(reader);
+
+		this.editorOnDidChangeViewZones.read(reader);
+		this.editorOnDidContentSizeChange.read(reader);
+
 		const scrollTop = this.scrollTop.read(reader);
 
 		const visibleRanges = this._editor.getVisibleRanges();

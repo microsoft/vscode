@@ -79,7 +79,7 @@ export function applyObservableDecorations(editor: CodeEditorWidget, decorations
 		editor.changeDecorations(a => {
 			decorationIds = a.deltaDecorations(decorationIds, d);
 		});
-	}, 'Update Decorations'));
+	}, `Apply decorations from ${decorations.debugName}`));
 	d.add({
 		dispose: () => {
 			editor.changeDecorations(a => {

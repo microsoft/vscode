@@ -54,6 +54,7 @@ export class TextModelDiffs extends Disposable {
 		}
 
 		transaction(tx => {
+			/** @description Starting Diff Computation. */
 			this._state.set(
 				initializing ? TextModelDiffState.initializing : TextModelDiffState.updating,
 				tx,
@@ -72,6 +73,7 @@ export class TextModelDiffs extends Disposable {
 		}
 
 		transaction(tx => {
+			/** @description Completed Diff Computation */
 			if (result.diffs) {
 				this._state.set(TextModelDiffState.upToDate, tx, TextModelDiffChangeReason.textChange);
 				this._diffs.set(result.diffs, tx, TextModelDiffChangeReason.textChange);

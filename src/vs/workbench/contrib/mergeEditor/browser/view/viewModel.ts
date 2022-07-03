@@ -135,6 +135,7 @@ export class MergeEditorViewModel {
 			return;
 		}
 		transaction(tx => {
+			/** @description Toggle Active Conflict */
 			this.setState(
 				activeModifiedBaseRange,
 				this.model.getState(activeModifiedBaseRange).get().toggle(inputNumber),

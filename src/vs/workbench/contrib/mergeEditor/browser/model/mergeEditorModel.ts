@@ -44,7 +44,7 @@ export class MergeEditorModel extends EditorModel {
 		return MergeEditorModelState.upToDate;
 	});
 
-	public readonly isUpToDate = derivedObservable('isUpdating', reader => this.state.read(reader) === MergeEditorModelState.upToDate);
+	public readonly isUpToDate = derivedObservable('isUpToDate', reader => this.state.read(reader) === MergeEditorModelState.upToDate);
 
 	public readonly onInitialized = waitForState(this.state, state => state === MergeEditorModelState.upToDate);
 
@@ -84,7 +84,7 @@ export class MergeEditorModel extends EditorModel {
 		return map.size - handledCount;
 	});
 
-	public readonly hasUnhandledConflicts = this.unhandledConflictsCount.map(value => value > 0);
+	public readonly hasUnhandledConflicts = this.unhandledConflictsCount.map(value => /** @description hasUnhandledConflicts */ value > 0);
 
 	public readonly input1ResultMapping = derivedObservable('input1ResultMapping', reader => {
 		const resultDiffs = this.resultDiffs.read(reader);
@@ -145,7 +145,7 @@ export class MergeEditorModel extends EditorModel {
 		let shouldResetHandlingState = true;
 		this._register(
 			autorunHandleChanges(
-				'Recompute State',
+				'Merge Editor Model: Recompute State',
 				{
 					handleChange: (ctx) => {
 						if (ctx.didChange(this.modifiedBaseRangeHandlingStateStores)) {
@@ -165,6 +165,7 @@ export class MergeEditorModel extends EditorModel {
 					const resultDiffs = this.resultTextModelDiffs.diffs.read(reader);
 					const stores = this.modifiedBaseRangeStateStores.read(reader);
 					transaction(tx => {
+						/** @description Merge Editor Model: Recompute State */
 						this.recomputeState(resultDiffs, stores, tx);
 						if (shouldResetHandlingState) {
 							shouldResetHandlingState = false;
@@ -202,12 +203,16 @@ export class MergeEditorModel extends EditorModel {
 		);
 
 		for (const row of baseRangeWithStoreAndTouchingDiffs) {
-			row.left[1].set(this.computeState(row.left[0], row.rights), tx);
+			const newState = this.computeState(row.left[0], row.rights);
+			if (!row.left[1].get().equals(newState)) {
+				row.left[1].set(newState, tx);
+			}
 		}
 	}
 
 	public resetUnknown(): void {
 		transaction(tx => {
+			/** @description Reset Unknown Base Range States */
 			for (const range of this.modifiedBaseRanges.get()) {
 				if (this.getState(range).get().conflicting) {
 					this.setState(range, ModifiedBaseRangeState.default, false, tx);
@@ -218,6 +223,7 @@ export class MergeEditorModel extends EditorModel {
 
 	public mergeNonConflictingDiffs(): void {
 		transaction((tx) => {
+			/** @description Merge None Conflicting Diffs */
 			for (const m of this.modifiedBaseRanges.get()) {
 				if (m.isConflicting) {
 					continue;
