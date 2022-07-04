@@ -1785,12 +1785,12 @@ export class Repository {
 		} catch (err) {
 			if (/^error: failed to push some refs to\b/m.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.PushRejected;
+			} else if (/Permission.*denied/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.PermissionDenied;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
 			} else if (/^fatal: The current branch .* has no upstream branch/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.NoUpstreamBranch;
-			} else if (/Permission.*denied/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.PermissionDenied;
 			}
 
 			throw err;
