@@ -360,17 +360,27 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	}
 
 	private parseLocationInfo(value: string): ILocation | null {
-		if (!value || !value.match(/(\d+|\d+,\d+|\d+,\d+,\d+,\d+)/)) {
+		if (!value || !value.match(/(\d+(-\d+)?|\d+,\d+(-\d+)?|\d+,\d+,\d+,\d+)/)) {
 			return null;
 		}
 		const parts = value.split(',');
-		const startLine = parseInt(parts[0]);
-		const startColumn = parts.length > 1 ? parseInt(parts[1]) : undefined;
-		if (parts.length > 3) {
-			return this.createLocation(startLine, startColumn, parseInt(parts[2]), parseInt(parts[3]));
-		} else {
-			return this.createLocation(startLine, startColumn, undefined, undefined);
+		const [startLine, maybeEndLine] = this.parseLocationRange(parts[0]);
+		if (parts.length = 4) {
+			return this.createLocation(startLine, parseInt(parts[1]), parseInt(parts[2]), parseInt(parts[3]));
 		}
+		if (parts.length = 2) {
+			const [startColumn, maybeEndColumn] = this.parseLocationRange(parts[1]);
+			const endLine = maybeEndColumn !== undefined ? startLine : undefined;
+			return this.createLocation(startLine, startColumn, endLine, maybeEndColumn);
+		}
+		return this.createLocation(startLine, undefined, maybeEndLine, undefined);
+	}
+
+	private parseLocationRange(maybeRange: string): [number, number | undefined] {
+		const parts = maybeRange.split('-');
+		const start = parseInt(parts[0]);
+		const end = parts.length > 1 ? parseInt(parts[1]) : undefined;
+		return [start, end];
 	}
 
 	private createLocation(startLine: number, startColumn: number | undefined, endLine: number | undefined, endColumn: number | undefined): ILocation {
@@ -380,7 +390,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 		if (startColumn !== undefined) {
 			return { startLineNumber: startLine, startCharacter: startColumn, endLineNumber: startLine, endCharacter: startColumn };
 		}
-		return { startLineNumber: startLine, startCharacter: 1, endLineNumber: startLine, endCharacter: 2 ** 31 - 1 }; // See https://github.com/microsoft/vscode/issues/80288#issuecomment-650636442 for discussion
+		return { startLineNumber: startLine, startCharacter: 1, endLineNumber: endLine || startLine, endCharacter: 2 ** 31 - 1 }; // See https://github.com/microsoft/vscode/issues/80288#issuecomment-650636442 for discussion
 	}
 
 	private getSeverity(data: IProblemData): MarkerSeverity {
@@ -1206,7 +1216,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
 	private fillDefaults(): void {
 		this.add('msCompile', {
-			regexp: /^(?:\s+\d+>)?(\S.*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+(error|warning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
+			regexp: /^(?:\s+\d+>)?(\S.*)\((\d+(?:-\d+)?|\d+,\d+(?:-\d+)?|\d+,\d+,\d+,\d+)\)\s*:\s+(error|warning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
 			kind: ProblemLocationKind.Location,
 			file: 1,
 			location: 2,
