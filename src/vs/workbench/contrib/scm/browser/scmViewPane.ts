@@ -2400,6 +2400,7 @@ export class SCMViewPane extends ViewPane {
 
 			if (widget) {
 				widget.focus();
+				this.tree.setFocus([], e.browserEvent);
 
 				const selection = this.tree.getSelection();
 
@@ -2416,6 +2417,7 @@ export class SCMViewPane extends ViewPane {
 			const target = e.browserEvent?.target as HTMLElement;
 			if (target.classList.contains('monaco-tl-row') || target.classList.contains('button-container')) {
 				this.actionButtonRenderer.focusActionButton(e.element);
+				this.tree.setFocus([], e.browserEvent);
 			}
 
 			return;
