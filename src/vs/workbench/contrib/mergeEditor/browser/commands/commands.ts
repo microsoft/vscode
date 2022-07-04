@@ -6,6 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -19,7 +20,7 @@ export class OpenMergeEditor extends Action2 {
 	constructor() {
 		super({
 			id: '_open.mergeEditor',
-			title: localize('title', "Open Merge Editor"),
+			title: { value: localize('title', "Open Merge Editor"), original: 'Open Merge Editor' },
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
@@ -111,14 +112,19 @@ export class SetMixedLayout extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.mixedLayout',
-			title: localize('layout.mixed', "Mixed Layout"),
+			title: {
+				value: localize('layout.mixed', 'Mixed Layout'),
+				original: 'Mixed Layout',
+			},
 			toggled: ctxMergeEditorLayout.isEqualTo('mixed'),
-			menu: [{
-				id: MenuId.EditorTitle,
-				when: ctxIsMergeEditor,
-				group: '1_merge',
-				order: 9,
-			}],
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: '1_merge',
+					order: 9,
+				},
+			],
 			precondition: ctxIsMergeEditor,
 		});
 	}
@@ -135,7 +141,7 @@ export class SetColumnLayout extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.columnLayout',
-			title: localize('layout.column', "Column Layout"),
+			title: { value: localize('layout.column', "Column Layout"), original: 'Column Layout' },
 			toggled: ctxMergeEditorLayout.isEqualTo('columns'),
 			menu: [{
 				id: MenuId.EditorTitle,
@@ -155,18 +161,28 @@ export class SetColumnLayout extends Action2 {
 	}
 }
 
+const mergeEditorCategory: ILocalizedString = {
+	value: localize('mergeEditor', 'Merge Editor'),
+	original: 'Merge Editor',
+};
+
 export class GoToNextConflict extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.goToNextConflict',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.goToNextConflict', "Go to Next Conflict"),
+			category: mergeEditorCategory,
+			title: {
+				value: localize('merge.goToNextConflict', 'Go to Next Conflict'),
+				original: 'Go to Next Conflict',
+			},
 			icon: Codicon.arrowDown,
-			menu: [{
-				id: MenuId.EditorTitle,
-				when: ctxIsMergeEditor,
-				group: 'navigation',
-			}],
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: 'navigation',
+				},
+			],
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
@@ -184,14 +200,22 @@ export class GoToPreviousConflict extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.goToPreviousConflict',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.goToPreviousConflict', "Go to Previous Conflict"),
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'merge.goToPreviousConflict',
+					'Go to Previous Conflict'
+				),
+				original: 'Go to Previous Conflict',
+			},
 			icon: Codicon.arrowUp,
-			menu: [{
-				id: MenuId.EditorTitle,
-				when: ctxIsMergeEditor,
-				group: 'navigation',
-			}],
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: 'navigation',
+				},
+			],
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
@@ -209,8 +233,14 @@ export class ToggleActiveConflictInput1 extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.toggleActiveConflictInput1',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.toggleCurrentConflictFromLeft', "Toggle Current Conflict from Left"),
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'merge.toggleCurrentConflictFromLeft',
+					'Toggle Current Conflict from Left'
+				),
+				original: 'Toggle Current Conflict from Left',
+			},
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
@@ -232,8 +262,14 @@ export class ToggleActiveConflictInput2 extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.toggleActiveConflictInput2',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.toggleCurrentConflictFromRight', "Toggle Current Conflict from Right"),
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'merge.toggleCurrentConflictFromRight',
+					'Toggle Current Conflict from Right'
+				),
+				original: 'Toggle Current Conflict from Right',
+			},
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
@@ -255,8 +291,14 @@ export class CompareInput1WithBaseCommand extends Action2 {
 	constructor() {
 		super({
 			id: 'mergeEditor.compareInput1WithBase',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('mergeEditor.compareInput1WithBase', "Compare Input 1 With Base"),
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'mergeEditor.compareInput1WithBase',
+					'Compare Input 1 With Base'
+				),
+				original: 'Compare Input 1 With Base',
+			},
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
@@ -272,8 +314,14 @@ export class CompareInput2WithBaseCommand extends Action2 {
 	constructor() {
 		super({
 			id: 'mergeEditor.compareInput2WithBase',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('mergeEditor.compareInput2WithBase', "Compare Input 2 With Base"),
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'mergeEditor.compareInput2WithBase',
+					'Compare Input 2 With Base'
+				),
+				original: 'Compare Input 2 With Base',
+			},
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
