@@ -28,9 +28,9 @@ export class ExtHostBulkEdits {
 		};
 	}
 
-	applyWorkspaceEdit(edit: vscode.WorkspaceEdit, extension: IExtensionDescription): Promise<boolean> {
+	applyWorkspaceEdit(edit: vscode.WorkspaceEdit, extension: IExtensionDescription, respectAutoSaveConfig?: boolean): Promise<boolean> {
 		const allowSnippetTextEdit = isProposedApiEnabled(extension, 'snippetWorkspaceEdit');
 		const dto = WorkspaceEdit.from(edit, this._versionInformationProvider, allowSnippetTextEdit);
-		return this._proxy.$tryApplyWorkspaceEdit(dto);
+		return this._proxy.$tryApplyWorkspaceEdit(dto, undefined, respectAutoSaveConfig);
 	}
 }

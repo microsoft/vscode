@@ -6,6 +6,7 @@
 // THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
 
 export const allApiProposals = Object.freeze({
+	applyEditAutoSave: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.applyEditAutoSave.d.ts',
 	authSession: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authSession.d.ts',
 	badges: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.badges.d.ts',
 	commentsResolvedState: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.commentsResolvedState.d.ts',
