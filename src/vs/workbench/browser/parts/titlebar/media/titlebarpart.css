@@ -101,8 +101,8 @@
 	color: var(--vscode-commandCenter-foreground);
 	background-color: var(--vscode-commandCenter-background);
 	border: 1px solid var(--vscode-commandCenter-border);
-	border-radius: 5px;
-	height: 20px;
+	border-radius: 6px;
+	height: 22px;
 	line-height: 18px;
 	width: 38vw;
 	max-width: 600px;
@@ -119,9 +119,9 @@
 	line-height: 18px;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center:HOVER .quickopen .action-label {
-	background-color: transparent !important;
-	outline-color: transparent !important;
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen>.action-label {
+	height: 16px;
+	line-height: 16px;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center .action-item.quickopen>.action-label.search {
