@@ -89,8 +89,8 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	ctor: DebugConsoleQuickAccess,
 	prefix: DEBUG_CONSOLE_QUICK_ACCESS_PREFIX,
 	contextKey: 'inDebugConsolePicker',
-	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a debug console to open."),
-	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Debug Consoles"), commandId: SELECT_DEBUG_CONSOLE_ID }]
+	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a debug session to open."),
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Debug Sessions"), commandId: SELECT_DEBUG_CONSOLE_ID }]
 });
 
 

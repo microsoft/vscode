@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { Codicon } from 'vs/base/common/codicons';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -25,15 +26,16 @@ export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQu
 
 	protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Picks<IPickerQuickAccessItem> | Promise<Picks<IPickerQuickAccessItem>> | FastAndSlowPicks<IPickerQuickAccessItem> | null {
 		const debugConsolePicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
-
+		let currHeader: string | undefined;
 		this._debugService.getModel().getSessions(false).forEach((session, index) => {
 
 
 
 			if (!session.parentSession) {
+				currHeader = session.name;
 				debugConsolePicks.push({ type: 'separator', label: session.name });
 			} else {
-				const pick = this._createPick(session, index, filter);
+				const pick = this._createPick(session, filter, currHeader);
 				if (pick) {
 					debugConsolePicks.push(pick);
 				}
@@ -69,11 +71,21 @@ export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQu
 		const parentTree = this._createParentTree(session);
 		const parentHierarchyStrings: String[] = [];
 		parentTree.slice(1).forEach((session) => parentHierarchyStrings.push(session.configuration.name));
-		return parentHierarchyStrings.join(' > ');
+		const iconId = Codicon.arrowSmallLeft.id;
+		return parentHierarchyStrings.length === 0 ? '' : `$(${iconId}) ` + parentHierarchyStrings.join(` $(${iconId}) `);
 	}
 
-	private _createPick(session: IDebugSession, sessionIndex: number, filter: string): IPickerQuickAccessItem | undefined {
-		const label = session.configuration.name;
+	private _createPick(session: IDebugSession, filter: string, header: string | undefined): IPickerQuickAccessItem | undefined {
+		let label = session.configuration.name;
+
+		if (label.length === 0) {
+			if (header) {
+				label = session.name.replace(`${header}: `, '');
+			} else {
+				label = session.name;
+			}
+		}
+
 		const highlights = matchesFuzzy(filter, label, true);
 		if (highlights) {
 			return {
