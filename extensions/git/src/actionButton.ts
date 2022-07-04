@@ -82,21 +82,21 @@ export class ActionButtonCommand {
 
 		switch (postCommitCommand) {
 			case 'push': {
-				title = localize('scm button commit and push title', "$(arrow-up) Commit & Push");
+				title = localize('scm button commit and push title', "{0} Commit & Push", '$(arrow-up)');
 				tooltip = this.state.isCommitInProgress ?
 					localize('scm button committing pushing tooltip', "Committing & Pushing Changes...") :
 					localize('scm button commit push tooltip', "Commit & Push Changes");
 				break;
 			}
 			case 'sync': {
-				title = localize('scm button commit and sync title', "$(sync) Commit & Sync");
+				title = localize('scm button commit and sync title', "{0} Commit & Sync", '$(sync)');
 				tooltip = this.state.isCommitInProgress ?
 					localize('scm button committing synching tooltip', "Committing & Synching Changes...") :
 					localize('scm button commit sync tooltip', "Commit & Sync Changes");
 				break;
 			}
 			default: {
-				title = localize('scm button commit title', "$(check) Commit");
+				title = localize('scm button commit title', "{0} Commit", '$(check)');
 				tooltip = this.state.isCommitInProgress ?
 					localize('scm button committing tooltip', "Committing Changes...") :
 					localize('scm button commit tooltip', "Commit Changes");
