@@ -96,6 +96,7 @@ export class AudioCueLineFeatureContribution
 		const curLineNumber = observableFromEvent(
 			editor.onDidChangeCursorPosition,
 			(args) => {
+				/** @description editor.onDidChangeCursorPosition (caused by user) */
 				if (
 					args &&
 					args.reason !== CursorChangeReason.Explicit &&
@@ -193,7 +194,7 @@ class MarkerLineFeature implements LineFeature {
 			Event.filter(this.markerService.onMarkerChanged, (changedUris) =>
 				changedUris.some((u) => u.toString() === model.uri.toString())
 			),
-			() => ({
+			() => /** @description this.markerService.onMarkerChanged */({
 				isPresent: (lineNumber) => {
 					const hasMarker = this.markerService
 						.read({ resource: model.uri })
@@ -245,7 +246,7 @@ class BreakpointLineFeature implements LineFeature {
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		return observableFromEvent<LineFeatureState>(
 			this.debugService.getModel().onDidChangeBreakpoints,
-			() => ({
+			() => /** @description debugService.getModel().onDidChangeBreakpoints */({
 				isPresent: (lineNumber) => {
 					const breakpoints = this.debugService
 						.getModel()
@@ -271,12 +272,12 @@ class InlineCompletionLineFeature implements LineFeature {
 
 		const activeGhostText = observableFromEvent(
 			ghostTextController.onActiveModelDidChange,
-			() => ghostTextController.activeModel
+			() => /** @description ghostTextController.onActiveModelDidChange */ ghostTextController.activeModel
 		).map((activeModel) => (
 			activeModel
 				? observableFromEvent(
 					activeModel.inlineCompletionsModel.onDidChange,
-					() => activeModel.inlineCompletionsModel.ghostText
+					() => /** @description activeModel.inlineCompletionsModel.onDidChange */ activeModel.inlineCompletionsModel.ghostText
 				)
 				: undefined
 		));

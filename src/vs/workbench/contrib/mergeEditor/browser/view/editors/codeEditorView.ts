@@ -14,14 +14,14 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { IObservable, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { IObservable, observableFromEvent, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export abstract class CodeEditorView extends Disposable {
 	private readonly _viewModel = new ObservableValue<undefined | MergeEditorViewModel>(undefined, 'viewModel');
 	readonly viewModel: IObservable<undefined | MergeEditorViewModel> = this._viewModel;
-	readonly model = this._viewModel.map(m => m?.model);
+	readonly model = this._viewModel.map(m => /** @description model */ m?.model);
 
 	protected readonly htmlElements = h('div.code-view', [
 		h('div.title', [
@@ -72,15 +72,15 @@ export abstract class CodeEditorView extends Disposable {
 
 	public readonly isFocused = observableFromEvent(
 		Event.any(this.editor.onDidBlurEditorWidget, this.editor.onDidFocusEditorWidget),
-		() => this.editor.hasWidgetFocus()
+		() => /** @description editor.hasWidgetFocus */ this.editor.hasWidgetFocus()
 	);
 
 	public readonly cursorPosition = observableFromEvent(
 		this.editor.onDidChangeCursorPosition,
-		() => this.editor.getPosition()
+		() => /** @description editor.getPosition */ this.editor.getPosition()
 	);
 
-	public readonly cursorLineNumber = this.cursorPosition.map(p => p?.lineNumber);
+	public readonly cursorLineNumber = this.cursorPosition.map(p => /** @description cursorPosition.lineNumber */ p?.lineNumber);
 
 	constructor(
 		@IInstantiationService
@@ -106,6 +106,9 @@ export abstract class CodeEditorView extends Disposable {
 		reset(this.htmlElements.description, ...(description ? renderLabelWithIcons(description) : []));
 		reset(this.htmlElements.detail, ...(detail ? renderLabelWithIcons(detail) : []));
 
-		this._viewModel.set(viewModel, undefined);
+		transaction(tx => {
+			/** @description CodeEditorView: Set Model */
+			this._viewModel.set(viewModel, tx);
+		});
 	}
 }
