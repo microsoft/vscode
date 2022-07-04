@@ -2411,7 +2411,12 @@ export class SCMViewPane extends ViewPane {
 			return;
 		} else if (isSCMActionButton(e.element)) {
 			this.scmViewService.focus(e.element.repository);
-			this.actionButtonRenderer.focusActionButton(e.element);
+
+			// Focus the action button
+			const target = e.browserEvent?.target as HTMLElement;
+			if (target.classList.contains('monaco-tl-row') || target.classList.contains('button-container')) {
+				this.actionButtonRenderer.focusActionButton(e.element);
+			}
 
 			return;
 		}
