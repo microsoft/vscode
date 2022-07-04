@@ -3,194 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Rectangle, WebContents } from 'electron';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { WebContents } from 'electron';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INativeWindowConfiguration, IOpenEmptyWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-
-export const enum LoadReason {
-
-	/**
-	 * The window is loaded for the first time.
-	 */
-	INITIAL = 1,
-
-	/**
-	 * The window is loaded into a different workspace context.
-	 */
-	LOAD,
-
-	/**
-	 * The window is reloaded.
-	 */
-	RELOAD
-}
-
-export const enum UnloadReason {
-
-	/**
-	 * The window is closed.
-	 */
-	CLOSE = 1,
-
-	/**
-	 * All windows unload because the application quits.
-	 */
-	QUIT,
-
-	/**
-	 * The window is reloaded.
-	 */
-	RELOAD,
-
-	/**
-	 * The window is loaded into a different workspace context.
-	 */
-	LOAD
-}
-
-export const enum OpenContext {
-
-	// opening when running from the command line
-	CLI,
-
-	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
-	DOCK,
-
-	// opening from the main application window
-	MENU,
-
-	// opening from a file or folder dialog
-	DIALOG,
-
-	// opening from the OS's UI
-	DESKTOP,
-
-	// opening through the API
-	API
-}
-
-export interface IWindowState {
-	width?: number;
-	height?: number;
-	x?: number;
-	y?: number;
-	mode?: WindowMode;
-	display?: number;
-}
-
-export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
-	return {
-		width: 1024,
-		height: 768,
-		mode
-	};
-};
-
-export const enum WindowMode {
-	Maximized,
-	Normal,
-	Minimized, // not used anymore, but also cannot remove due to existing stored UI state (needs migration)
-	Fullscreen
-}
-
-export interface ILoadEvent {
-	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
-	reason: LoadReason;
-}
-
-export interface ICodeWindow extends IDisposable {
-
-	readonly onWillLoad: Event<ILoadEvent>;
-	readonly onDidSignalReady: Event<void>;
-	readonly onDidClose: Event<void>;
-	readonly onDidDestroy: Event<void>;
-
-	readonly whenClosedOrLoaded: Promise<void>;
-
-	readonly id: number;
-	readonly win: BrowserWindow | null; /* `null` after being disposed */
-	readonly config: INativeWindowConfiguration | undefined;
-
-	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
-
-	readonly backupPath?: string;
-
-	readonly remoteAuthority?: string;
-
-	readonly isExtensionDevelopmentHost: boolean;
-	readonly isExtensionTestHost: boolean;
-
-	readonly lastFocusTime: number;
-
-	readonly isReady: boolean;
-	ready(): Promise<ICodeWindow>;
-	setReady(): void;
-
-	readonly hasHiddenTitleBarStyle: boolean;
-
-	addTabbedWindow(window: ICodeWindow): void;
-
-	load(config: INativeWindowConfiguration, options?: { isReload?: boolean }): void;
-	reload(cli?: NativeParsedArgs): void;
-
-	focus(options?: { force: boolean }): void;
-	close(): void;
-
-	getBounds(): Rectangle;
-
-	send(channel: string, ...args: any[]): void;
-	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
-
-	readonly isFullScreen: boolean;
-	toggleFullScreen(): void;
-
-	isMinimized(): boolean;
-
-	setRepresentedFilename(name: string): void;
-	getRepresentedFilename(): string | undefined;
-
-	setDocumentEdited(edited: boolean): void;
-	isDocumentEdited(): boolean;
-
-	handleTitleDoubleClick(): void;
-
-	updateTouchBar(items: ISerializableCommandAction[][]): void;
-
-	serializeWindowState(): IWindowState;
-}
-
-export const enum WindowError {
-
-	/**
-	 * Maps to the `unresponsive` event on a `BrowserWindow`.
-	 */
-	UNRESPONSIVE = 1,
-
-	/**
-	 * Maps to the `render-proces-gone` event on a `WebContents`.
-	 */
-	CRASHED = 2,
-
-	/**
-	 * Maps to the `did-fail-load` event on a `WebContents`.
-	 */
-	LOAD = 3
-}
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { IOpenEmptyWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
-
-export interface IWindowsCountChangedEvent {
-	readonly oldCount: number;
-	readonly newCount: number;
-}
 
 export interface IWindowsMainService {
 
@@ -218,6 +40,32 @@ export interface IWindowsMainService {
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
 	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
+}
+
+export interface IWindowsCountChangedEvent {
+	readonly oldCount: number;
+	readonly newCount: number;
+}
+
+export const enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
 }
 
 export interface IBaseOpenConfiguration {

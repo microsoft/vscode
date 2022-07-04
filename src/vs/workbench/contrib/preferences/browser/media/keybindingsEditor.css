@@ -43,7 +43,7 @@
 .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item {
 	margin-right: 4px;
 }
-.keybindings-editor .monaco-action-bar .action-item .monaco-custom-checkbox {
+.keybindings-editor .monaco-action-bar .action-item .monaco-custom-toggle {
 	margin: 0;
 	padding: 2px;
 }

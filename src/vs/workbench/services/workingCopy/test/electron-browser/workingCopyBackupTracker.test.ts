@@ -92,7 +92,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		private readonly _onDidSuspend = this._register(new Emitter<void>());
 		readonly onDidSuspend = this._onDidSuspend.event;
 
-		protected override suspendBackupOperations(): { resume: () => void; } {
+		protected override suspendBackupOperations(): { resume: () => void } {
 			const { resume } = super.suspendBackupOperations();
 
 			this._onDidSuspend.fire();
@@ -142,7 +142,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		return Promises.rm(testDir);
 	});
 
-	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: TestWorkingCopyBackupTracker, instantiationService: IInstantiationService, cleanup: () => Promise<void> }> {
+	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor; part: EditorPart; tracker: TestWorkingCopyBackupTracker; instantiationService: IInstantiationService; cleanup: () => Promise<void> }> {
 		const workingCopyBackupService = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService(disposables);
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);

@@ -100,9 +100,9 @@ export interface IQuickAccessProviderHelp {
 	description: string;
 
 	/**
-	 * Separation between provider for editors and global ones.
+	 * The command to bring up this quick access provider.
 	 */
-	needsEditor: boolean;
+	readonly commandId?: string;
 }
 
 export interface IQuickAccessProviderDescriptor {

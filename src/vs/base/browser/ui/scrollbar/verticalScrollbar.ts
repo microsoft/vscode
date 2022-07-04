@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import { AbstractScrollbar, ISimplifiedPointerEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
@@ -87,16 +87,16 @@ export class VerticalScrollbar extends AbstractScrollbar {
 		return this._shouldRender;
 	}
 
-	protected _mouseDownRelativePosition(offsetX: number, offsetY: number): number {
+	protected _pointerDownRelativePosition(offsetX: number, offsetY: number): number {
 		return offsetY;
 	}
 
-	protected _sliderMousePosition(e: ISimplifiedMouseEvent): number {
-		return e.posy;
+	protected _sliderPointerPosition(e: ISimplifiedPointerEvent): number {
+		return e.pageY;
 	}
 
-	protected _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number {
-		return e.posx;
+	protected _sliderOrthogonalPointerPosition(e: ISimplifiedPointerEvent): number {
+		return e.pageX;
 	}
 
 	protected _updateScrollbarSize(size: number): void {

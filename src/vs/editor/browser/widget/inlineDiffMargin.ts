@@ -167,7 +167,7 @@ export class InlineDiffMargin extends Disposable {
 
 		this._register(dom.addStandardDisposableListener(this._diffActions, 'mousedown', e => {
 			const { top, height } = dom.getDomNodePagePosition(this._diffActions);
-			let pad = Math.floor(lineHeight / 3);
+			const pad = Math.floor(lineHeight / 3);
 			e.preventDefault();
 
 			showContextMenu(e.posx, top + height + pad);

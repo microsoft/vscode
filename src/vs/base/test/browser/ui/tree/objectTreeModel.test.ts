@@ -172,7 +172,7 @@ suite('ObjectTreeModel', function () {
 	});
 
 	test('sorter', () => {
-		let compare: (a: string, b: string) => number = (a, b) => a < b ? -1 : 1;
+		const compare: (a: string, b: string) => number = (a, b) => a < b ? -1 : 1;
 
 		const list: ITreeNode<string>[] = [];
 		const model = new ObjectTreeModel<string>('test', toList(list), { sorter: { compare(a, b) { return compare(a, b); } } });

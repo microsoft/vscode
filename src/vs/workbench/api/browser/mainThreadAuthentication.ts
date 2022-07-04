@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IAuthenticationService, AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent, addAccountUsage, readAccountUsages, removeAccountUsage } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { ExtHostAuthenticationShape, ExtHostContext, IExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent, addAccountUsage, readAccountUsages, removeAccountUsage } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import Severity from 'vs/base/common/severity';
@@ -25,7 +25,7 @@ interface TrustedExtensionsQuickPickItem {
 	extension: AllowedExtension;
 }
 
-export class MainThreadAuthenticationProvider extends Disposable {
+export class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
 		public readonly id: string,
@@ -65,12 +65,12 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.items = items;
 		quickPick.selectedItems = items.filter(item => item.extension.allowed === undefined || item.extension.allowed);
 		quickPick.title = nls.localize('manageTrustedExtensions', "Manage Trusted Extensions");
-		quickPick.placeholder = nls.localize('manageExensions', "Choose which extensions can access this account");
+		quickPick.placeholder = nls.localize('manageExtensions', "Choose which extensions can access this account");
 
 		quickPick.onDidAccept(() => {
 			const updatedAllowedList = quickPick.items
 				.map(i => (i as TrustedExtensionsQuickPickItem).extension);
-			this.storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.APPLICATION, StorageTarget.USER);
 
 			quickPick.dispose();
 		});
@@ -96,13 +96,13 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.show();
 	}
 
-	async removeAccountSessions(accountName: string, sessions: modes.AuthenticationSession[]): Promise<void> {
+	async removeAccountSessions(accountName: string, sessions: AuthenticationSession[]): Promise<void> {
 		const accountUsages = readAccountUsages(this.storageService, this.id, accountName);
 
 		const result = await this.dialogService.show(
 			Severity.Info,
 			accountUsages.length
-				? nls.localize('signOutMessagve', "The account '{0}' has been used by: \n\n{1}\n\n Sign out from these extensions?", accountName, accountUsages.map(usage => usage.extensionName).join('\n'))
+				? nls.localize('signOutMessage', "The account '{0}' has been used by: \n\n{1}\n\n Sign out from these extensions?", accountName, accountUsages.map(usage => usage.extensionName).join('\n'))
 				: nls.localize('signOutMessageSimple', "Sign out of '{0}'?", accountName),
 			[
 				nls.localize('signOut', "Sign Out"),
@@ -116,7 +116,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			const removeSessionPromises = sessions.map(session => this.removeSession(session.id));
 			await Promise.all(removeSessionPromises);
 			removeAccountUsage(this.storageService, this.id, accountName);
-			this.storageService.remove(`${this.id}-${accountName}`, StorageScope.GLOBAL);
+			this.storageService.remove(`${this.id}-${accountName}`, StorageScope.APPLICATION);
 		}
 	}
 
@@ -124,7 +124,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		return this._proxy.$getSessions(this.id, scopes);
 	}
 
-	createSession(scopes: string[]): Promise<modes.AuthenticationSession> {
+	createSession(scopes: string[]): Promise<AuthenticationSession> {
 		return this._proxy.$createSession(this.id, scopes);
 	}
 
@@ -175,7 +175,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id), ActivationKind.Immediate);
 	}
 
-	$sendDidChangeSessions(id: string, event: modes.AuthenticationSessionsChangeEvent): void {
+	$sendDidChangeSessions(id: string, event: AuthenticationSessionsChangeEvent): void {
 		this.authenticationService.sessionsUpdate(id, event);
 	}
 
@@ -201,18 +201,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	private async setTrustedExtensionAndAccountPreference(providerId: string, accountName: string, extensionId: string, extensionName: string, sessionId: string): Promise<void> {
 		this.authenticationService.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
-		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 	}
 
-	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<modes.AuthenticationSession | undefined> {
+	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const sessions = await this.authenticationService.getSessions(providerId, scopes, true);
 		const supportsMultipleAccounts = this.authenticationService.supportsMultipleAccounts(providerId);
 
 		// Error cases
-		if (options.forceNewSession && !sessions.length) {
-			throw new Error('No existing sessions found.');
-		}
 		if (options.forceNewSession && options.createIfNone) {
 			throw new Error('Invalid combination of options. Please remove one of the following: forceNewSession, createIfNone');
 		}
@@ -227,9 +224,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (!options.forceNewSession && sessions.length) {
 			if (supportsMultipleAccounts) {
 				if (options.clearSessionPreference) {
-					this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
+					this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.APPLICATION);
 				} else {
-					const existingSessionPreference = this.storageService.get(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
+					const existingSessionPreference = this.storageService.get(`${extensionName}-${providerId}`, StorageScope.APPLICATION);
 					if (existingSessionPreference) {
 						const matchingSession = sessions.find(session => session.id === existingSessionPreference);
 						if (matchingSession && this.authenticationService.isAccessAllowed(providerId, matchingSession.account.label, extensionId)) {
@@ -247,7 +244,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (options.createIfNone || options.forceNewSession) {
 			const providerName = this.authenticationService.getLabel(providerId);
 			const detail = (typeof options.forceNewSession === 'object') ? options.forceNewSession!.detail : undefined;
-			const isAllowed = await this.loginPrompt(providerName, extensionName, !!options.forceNewSession, detail);
+
+			// We only want to show the "recreating session" prompt if we are using forceNewSession & there are sessions
+			// that we will be "forcing through".
+			const recreatingSession = !!(options.forceNewSession && sessions.length);
+			const isAllowed = await this.loginPrompt(providerName, extensionName, recreatingSession, detail);
 			if (!isAllowed) {
 				throw new Error('User did not consent to login.');
 			}
@@ -268,15 +269,17 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return validSession;
 	}
 
-	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<modes.AuthenticationSession | undefined> {
+	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const session = await this.doGetSession(providerId, scopes, extensionId, extensionName, options);
 
 		if (session) {
 			type AuthProviderUsageClassification = {
-				extensionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				providerId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				owner: 'TylerLeonhardt';
+				comment: 'Used to see which extensions are using which providers';
+				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
+				providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider id.' };
 			};
-			this.telemetryService.publicLog2<{ extensionId: string, providerId: string }, AuthProviderUsageClassification>('authentication.providerUsage', { providerId, extensionId });
+			this.telemetryService.publicLog2<{ extensionId: string; providerId: string }, AuthProviderUsageClassification>('authentication.providerUsage', { providerId, extensionId });
 
 			addAccountUsage(this.storageService, providerId, session.account.label, extensionId, extensionName);
 		}

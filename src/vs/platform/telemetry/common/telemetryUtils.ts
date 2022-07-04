@@ -5,7 +5,9 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
+import { staticObservableValue } from 'vs/base/common/observableValue';
 import { isObject } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -30,7 +32,7 @@ export class NullTelemetryServiceShape implements ITelemetryService {
 	}
 
 	setExperimentProperty() { }
-	telemetryLevel = TelemetryLevel.NONE;
+	telemetryLevel = staticObservableValue(TelemetryLevel.NONE);
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
@@ -82,8 +84,10 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
 			type UpdateConfigurationClassification = {
-				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				configurationKeys: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				owner: 'lramos15, sbatten';
+				comment: 'Event which fires when user updates telemetry configuration';
+				configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
+				configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
 			};
 			type UpdateConfigurationEvent = {
 				configurationSource: string;
@@ -98,17 +102,17 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 }
 
 /**
- * Determines how telemetry is handled based on the current running configuration.
- * To log telemetry locally, the client must not disable telemetry via the CLI
- * If client is a built product and telemetry is enabled via the product.json, telemetry is supported
- * This function is only used to determine if telemetry contructs should occur, but is not impacted by user configuration
- *
+ * Determines whether or not we support logging telemetry.
+ * This checks if the product is capable of collecting telemetry but not whether or not it can send it
+ * For checking the user setting and what telemetry you can send please check `getTelemetryLevel`.
+ * This returns true if `--disable-telemetry` wasn't used, the product.json allows for telemetry, and we're not testing an extension
+ * If false telemetry is disabled throughout the product
  * @param productService
  * @param environmentService
  * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
  */
 export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
-	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
+	return !(environmentService.disableTelemetry || !productService.enableTelemetry || environmentService.extensionTestsLocationURI);
 }
 
 /**
@@ -148,12 +152,12 @@ export interface Measurements {
 	[key: string]: number;
 }
 
-export function validateTelemetryData(data?: any): { properties: Properties, measurements: Measurements } {
+export function validateTelemetryData(data?: any): { properties: Properties; measurements: Measurements } {
 
-	const properties: Properties = Object.create(null);
-	const measurements: Measurements = Object.create(null);
+	const properties: Properties = {};
+	const measurements: Measurements = {};
 
-	const flat = Object.create(null);
+	const flat: Record<string, any> = {};
 	flatten(data, flat);
 
 	for (let prop in flat) {
@@ -186,20 +190,20 @@ export function validateTelemetryData(data?: any): { properties: Properties, mea
 	};
 }
 
+const telemetryAllowedAuthorities: readonly string[] = ['ssh-remote', 'dev-container', 'attached-container', 'wsl', 'tunneling'];
+
 export function cleanRemoteAuthority(remoteAuthority?: string): string {
 	if (!remoteAuthority) {
 		return 'none';
 	}
 
-	let ret = 'other';
-	const allowedAuthorities = ['ssh-remote', 'dev-container', 'attached-container', 'wsl'];
-	allowedAuthorities.forEach((res: string) => {
-		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
-			ret = res;
+	for (const authority of telemetryAllowedAuthorities) {
+		if (remoteAuthority.startsWith(`${authority}+`)) {
+			return authority;
 		}
-	});
+	}
 
-	return ret;
+	return 'other';
 }
 
 function flatten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
@@ -207,7 +211,7 @@ function flatten(obj: any, result: { [key: string]: any }, order: number = 0, pr
 		return;
 	}
 
-	for (let item of Object.getOwnPropertyNames(obj)) {
+	for (const item of Object.getOwnPropertyNames(obj)) {
 		const value = obj[item];
 		const index = prefix ? prefix + item : item;
 
@@ -246,4 +250,16 @@ function flatKeys(result: string[], prefix: string, value: { [key: string]: any 
 	} else {
 		result.push(prefix);
 	}
+}
+
+interface IPathEnvironment {
+	appRoot: string;
+	extensionsPath: string;
+	userDataPath: string;
+	userHome: URI;
+	tmpDir: URI;
+}
+
+export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
+	return [paths.appRoot, paths.extensionsPath, paths.userHome.fsPath, paths.tmpDir.fsPath, paths.userDataPath];
 }

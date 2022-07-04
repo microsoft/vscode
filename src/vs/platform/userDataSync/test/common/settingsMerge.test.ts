@@ -760,6 +760,26 @@ suite('SettingsMerge - Compute Remote Content', () => {
 		assert.strictEqual(actual, localContent);
 	});
 
+	test('when target content is empty', async () => {
+		const remoteContent = stringify({
+			'a': 3,
+		});
+		const actual = updateIgnoredSettings('', remoteContent, ['a'], formattingOptions);
+		assert.strictEqual(actual, '');
+	});
+
+	test('when source content is empty', async () => {
+		const localContent = stringify({
+			'a': 3,
+			'b': 3,
+		});
+		const expected = stringify({
+			'b': 3,
+		});
+		const actual = updateIgnoredSettings(localContent, '', ['a'], formattingOptions);
+		assert.strictEqual(actual, expected);
+	});
+
 	test('ignored settings are not updated from remote content', async () => {
 		const localContent = stringify({
 			'a': 1,

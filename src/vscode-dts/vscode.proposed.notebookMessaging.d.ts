@@ -43,7 +43,7 @@ declare module 'vscode' {
 		 * An event that fires when a {@link NotebookController.rendererScripts renderer script} has send a message to
 		 * the controller.
 		 */
-		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
+		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor; message: any }>;
 
 		/**
 		 * Send a message to the renderer of notebook editors.

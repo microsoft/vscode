@@ -68,7 +68,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 								extensionName: value.name,
 								configName: tip.configName,
 								important: !!value.important,
-								isExtensionPack: !!value.isExtensionPack
+								isExtensionPack: !!value.isExtensionPack,
+								whenNotInstalled: value.whenNotInstalled
 							});
 						}
 					} else {
@@ -77,7 +78,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							extensionName: value.name,
 							configName: tip.configName,
 							important: !!value.important,
-							isExtensionPack: !!value.isExtensionPack
+							isExtensionPack: !!value.isExtensionPack,
+							whenNotInstalled: value.whenNotInstalled
 						});
 					}
 				});

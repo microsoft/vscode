@@ -67,7 +67,7 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	 * Note: it is expected that the model fires a `onDidChangeContent` event
 	 * as part of the update.
 	 *
-	 * @param the contents to use for the model
+	 * @param contents the contents to use for the model
 	 * @param token support for cancellation
 	 */
 	update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void>;

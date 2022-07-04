@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
-import { FileChangeType, FileOpenOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileChange, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat } from 'vs/platform/files/common/files';
+import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -83,45 +83,6 @@ suite('File Service', () => {
 		service.dispose();
 	});
 
-	test('provider change events are throttled', async () => {
-		const service = new FileService(new NullLogService());
-
-		const provider = new NullFileSystemProvider();
-		service.registerProvider('test', provider);
-
-		await service.activateProvider('test');
-
-		let onDidFilesChangeFired = false;
-		service.onDidFilesChange(e => {
-			if (e.contains(URI.file('marker'))) {
-				onDidFilesChangeFired = true;
-			}
-		});
-
-		const throttledEvents: IFileChange[] = [];
-		for (let i = 0; i < 1000; i++) {
-			throttledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
-		}
-		throttledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
-
-		const nonThrottledEvents: IFileChange[] = [];
-		for (let i = 0; i < 100; i++) {
-			nonThrottledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
-		}
-		nonThrottledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
-
-		// 100 events are not throttled
-		provider.emitFileChangeEvents(nonThrottledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
-
-		// 1000 events are throttled
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, false);
-
-		service.dispose();
-	});
-
 	test('watch', async () => {
 		const service = new FileService(new NullLogService());
 
@@ -160,6 +121,7 @@ suite('File Service', () => {
 		const resource3 = URI.parse('test://foo/bar3');
 		const watcher3Disposable1 = service.watch(resource3);
 		const watcher3Disposable2 = service.watch(resource3, { recursive: true, excludes: [] });
+		const watcher3Disposable3 = service.watch(resource3, { recursive: false, excludes: [], includes: [] });
 
 		await timeout(0); // service.watch() is async
 		assert.strictEqual(disposeCounter, 0);
@@ -167,57 +129,8 @@ suite('File Service', () => {
 		assert.strictEqual(disposeCounter, 1);
 		watcher3Disposable2.dispose();
 		assert.strictEqual(disposeCounter, 2);
-
-		service.dispose();
-	});
-
-	test('watch: explicit watched resources have preference over implicit and do not get throttled', async () => {
-		const service = new FileService(new NullLogService());
-
-		const provider = new NullFileSystemProvider();
-		service.registerProvider('test', provider);
-
-		await service.activateProvider('test');
-
-		let onDidFilesChangeFired = false;
-		service.onDidFilesChange(e => {
-			if (e.contains(URI.file('marker'))) {
-				onDidFilesChangeFired = true;
-			}
-		});
-
-		const throttledEvents: IFileChange[] = [];
-		for (let i = 0; i < 1000; i++) {
-			throttledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
-		}
-		throttledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
-
-		// not throttled when explicitly watching
-		let disposable1 = service.watch(URI.file('marker'));
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
-
-		let disposable2 = service.watch(URI.file('marker'));
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
-
-		disposable1.dispose();
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
-
-		// throttled again after dispose
-		disposable2.dispose();
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, false);
-
-		// not throttled when watched again
-		service.watch(URI.file('marker'));
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
+		watcher3Disposable3.dispose();
+		assert.strictEqual(disposeCounter, 3);
 
 		service.dispose();
 	});
@@ -251,7 +164,7 @@ suite('File Service', () => {
 				throw new Error('failed');
 			}
 
-			override open(resource: URI, opts: FileOpenOptions): Promise<number> {
+			override open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 				if (async) {
 					return timeout(5).then(() => { throw new Error('failed'); });
 				}
@@ -259,7 +172,7 @@ suite('File Service', () => {
 				throw new Error('failed');
 			}
 
-			readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+			readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 				if (async) {
 					const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
 					timeout(5).then(() => stream.error(new Error('failed')));
@@ -316,7 +229,7 @@ suite('File Service', () => {
 				};
 			}
 
-			readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+			readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 				const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
 				token.onCancellationRequested(() => {
 					stream.error(new Error('Expected cancellation'));

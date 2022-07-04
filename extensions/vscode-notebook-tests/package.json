@@ -11,14 +11,10 @@
   "main": "./out/extension",
   "enabledApiProposals": [
     "notebookCellExecutionState",
-    "notebookConcatTextDocument",
     "notebookContentProvider",
     "notebookControllerKind",
     "notebookDebugOptions",
     "notebookDeprecated",
-    "notebookEditor",
-    "notebookEditorDecorationType",
-    "notebookEditorEdit",
     "notebookLiveShare",
     "notebookMessaging",
     "notebookMime"
@@ -33,7 +29,7 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "contributes": {
     "commands": [

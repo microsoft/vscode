@@ -135,8 +135,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 	 * [] flag to make sure it is appropriate to turn ON or OFF (if it is already inverted don't call
 	 */
 	function reverseForegroundAndBackgroundColors(): void {
-		let oldFgColor: RGBA | undefined;
-		oldFgColor = customFgColor;
+		const oldFgColor: RGBA | undefined = customFgColor;
 		changeColor('foreground', customBgColor);
 		changeColor('background', oldFgColor);
 	}
@@ -155,7 +154,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code#SGR }
 	 */
 	function setBasicFormatters(styleCodes: number[]): void {
-		for (let code of styleCodes) {
+		for (const code of styleCodes) {
 			switch (code) {
 				case 0: {  // reset (everything)
 					styleNames = [];

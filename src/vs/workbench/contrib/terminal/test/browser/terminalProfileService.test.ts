@@ -65,8 +65,8 @@ class MockTerminalProfileService implements Partial<ITerminalProfileService>{
 
 class MockQuickInputService implements Partial<IQuickInputService> {
 	_pick: IProfileQuickPickItem = powershellPick;
-	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: true; }, token?: CancellationToken): Promise<IProfileQuickPickItem[] | undefined>;
-	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: false; }, token?: CancellationToken): Promise<IProfileQuickPickItem | undefined>;
+	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: true }, token?: CancellationToken): Promise<IProfileQuickPickItem[] | undefined>;
+	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: false }, token?: CancellationToken): Promise<IProfileQuickPickItem | undefined>;
 	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: Omit<IPickOptions<IProfileQuickPickItem>, 'canPickMany'>, token?: CancellationToken): Promise<IProfileQuickPickItem | undefined>;
 	async pick(picks: any, options?: any, token?: any): Promise<IProfileQuickPickItem | IProfileQuickPickItem[] | undefined> {
 		Promise.resolve(picks);
@@ -140,8 +140,8 @@ let jsdebugProfile = {
 	id: 'extension.js-debug.debugTerminal',
 	title: 'JavaScript Debug Terminal'
 };
-let powershellPick = { label: 'Powershell', profile: powershellProfile, profileName: powershellProfile.profileName };
-let jsdebugPick = { label: 'Javascript Debug Terminal', profile: jsdebugProfile, profileName: jsdebugProfile.title };
+const powershellPick = { label: 'Powershell', profile: powershellProfile, profileName: powershellProfile.profileName };
+const jsdebugPick = { label: 'Javascript Debug Terminal', profile: jsdebugProfile, profileName: jsdebugProfile.title };
 
 suite('TerminalProfileService', () => {
 	let configurationService: TestConfigurationService;
@@ -157,12 +157,12 @@ suite('TerminalProfileService', () => {
 		remoteAgentService = new TestRemoteAgentService();
 		terminalInstanceService = new TestTerminalInstanceService();
 		extensionService = new TestTerminalExtensionService();
-		environmentService = { configuration: {}, remoteAuthority: undefined } as IWorkbenchEnvironmentService;
+		environmentService = { remoteAuthority: undefined } as IWorkbenchEnvironmentService;
 		instantiationService = new TestInstantiationService();
 
-		let themeService = new TestThemeService();
-		let terminalContributionService = new TestTerminalContributionService();
-		let contextKeyService = new MockContextKeyService();
+		const themeService = new TestThemeService();
+		const terminalContributionService = new TestTerminalContributionService();
+		const contextKeyService = new MockContextKeyService();
 
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IExtensionService, extensionService);
@@ -258,7 +258,7 @@ suite('TerminalProfileService', () => {
 	});
 
 	test('should get profiles from remoteTerminalService when there is a remote authority', async () => {
-		environmentService = { configuration: {}, remoteAuthority: 'fakeremote' } as IWorkbenchEnvironmentService;
+		environmentService = { remoteAuthority: 'fakeremote' } as IWorkbenchEnvironmentService;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
 		await terminalProfileService.hasRefreshedProfiles;

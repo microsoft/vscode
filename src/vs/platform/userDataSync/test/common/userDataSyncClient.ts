@@ -32,7 +32,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
+import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { ALL_SYNC_RESOURCES, getDefaultIgnoredSettings, IUserData, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration, ServerResource, SyncResource, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
@@ -41,6 +41,8 @@ import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/pl
 import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { NullPolicyService } from 'vs/platform/policy/common/policy';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -53,20 +55,17 @@ export class UserDataSyncClient extends Disposable {
 
 	async setUp(empty: boolean = false): Promise<void> {
 		registerConfiguration();
+
+		const logService = this.instantiationService.stub(ILogService, new NullLogService());
+
 		const userRoamingDataHome = URI.file('userdata').with({ scheme: Schemas.inMemory });
 		const userDataSyncHome = joinPath(userRoamingDataHome, '.sync');
 		const environmentService = this.instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{
 			userDataSyncHome,
 			userRoamingDataHome,
-			settingsResource: joinPath(userRoamingDataHome, 'settings.json'),
-			keybindingsResource: joinPath(userRoamingDataHome, 'keybindings.json'),
-			snippetsHome: joinPath(userRoamingDataHome, 'snippets'),
 			argvResource: joinPath(userRoamingDataHome, 'argv.json'),
 			sync: 'on',
 		});
-
-		const logService = new NullLogService();
-		this.instantiationService.stub(ILogService, logService);
 
 		this.instantiationService.stub(IProductService, {
 			_serviceBrand: undefined, ...product, ...{
@@ -84,9 +83,11 @@ export class UserDataSyncClient extends Disposable {
 		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
 		this.instantiationService.stub(IFileService, fileService);
 
+		const userDataProfilesService = this.instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, logService));
+
 		this.instantiationService.stub(IStorageService, this._register(new InMemoryStorageService()));
 
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
+		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
 		this.instantiationService.stub(IUriIdentityService, this.instantiationService.createInstance(UriIdentityService));
@@ -113,7 +114,7 @@ export class UserDataSyncClient extends Disposable {
 			onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
 		});
 		this.instantiationService.stub(IGlobalExtensionEnablementService, this._register(this.instantiationService.createInstance(GlobalExtensionEnablementService)));
-		this.instantiationService.stub(IExtensionsStorageSyncService, this._register(this.instantiationService.createInstance(ExtensionsStorageSyncService)));
+		this.instantiationService.stub(IExtensionStorageService, this._register(this.instantiationService.createInstance(ExtensionStorageService)));
 		this.instantiationService.stub(IIgnoredExtensionsManagementService, this.instantiationService.createInstance(IgnoredExtensionsManagementService));
 		this.instantiationService.stub(IExtensionGalleryService, <Partial<IExtensionGalleryService>>{
 			isEnabled() { return true; },
@@ -123,9 +124,10 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IUserDataSyncService, this._register(this.instantiationService.createInstance(UserDataSyncService)));
 
 		if (!empty) {
-			await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({})));
-			await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([])));
-			await fileService.writeFile(joinPath(environmentService.snippetsHome, 'c.json'), VSBuffer.fromString(`{}`));
+			await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({})));
+			await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([])));
+			await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'c.json'), VSBuffer.fromString(`{}`));
+			await fileService.writeFile(userDataProfilesService.defaultProfile.tasksResource, VSBuffer.fromString(`{}`));
 			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
 		}
 		await configurationService.reloadConfiguration();
@@ -159,11 +161,11 @@ export class UserDataSyncTestServer implements IRequestService {
 	private session: string | null = null;
 	private readonly data: Map<ServerResource, IUserData> = new Map<SyncResource, IUserData>();
 
-	private _requests: { url: string, type: string, headers?: IHeaders }[] = [];
-	get requests(): { url: string, type: string, headers?: IHeaders }[] { return this._requests; }
+	private _requests: { url: string; type: string; headers?: IHeaders }[] = [];
+	get requests(): { url: string; type: string; headers?: IHeaders }[] { return this._requests; }
 
-	private _requestsWithAllHeaders: { url: string, type: string, headers?: IHeaders }[] = [];
-	get requestsWithAllHeaders(): { url: string, type: string, headers?: IHeaders }[] { return this._requestsWithAllHeaders; }
+	private _requestsWithAllHeaders: { url: string; type: string; headers?: IHeaders }[] = [];
+	get requestsWithAllHeaders(): { url: string; type: string; headers?: IHeaders }[] { return this._requestsWithAllHeaders; }
 
 	private _responses: { status: number }[] = [];
 	get responses(): { status: number }[] { return this._responses; }

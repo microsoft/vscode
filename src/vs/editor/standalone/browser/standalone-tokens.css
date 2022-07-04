@@ -15,7 +15,8 @@
 }
 
 .monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
-.monaco-editor.hc-black .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
+.monaco-editor.hc-black .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
+.monaco-editor.hc-light .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
 	stroke-width: 1.2px;
 }
 
@@ -37,7 +38,8 @@
 }
 
 /* The hc-black theme is already high contrast optimized */
-.monaco-editor.hc-black {
+.monaco-editor.hc-black,
+.monaco-editor.hc-light {
 	-ms-high-contrast-adjust: none;
 }
 /* In case the browser goes into high contrast mode and the editor is not configured with the hc-black theme */

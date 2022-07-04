@@ -227,10 +227,10 @@ export class Range {
 		let resultStartColumn = a.startColumn;
 		let resultEndLineNumber = a.endLineNumber;
 		let resultEndColumn = a.endColumn;
-		let otherStartLineNumber = b.startLineNumber;
-		let otherStartColumn = b.startColumn;
-		let otherEndLineNumber = b.endLineNumber;
-		let otherEndColumn = b.endColumn;
+		const otherStartLineNumber = b.startLineNumber;
+		const otherStartColumn = b.startColumn;
+		const otherEndLineNumber = b.endLineNumber;
+		const otherEndColumn = b.endColumn;
 
 		if (resultStartLineNumber < otherStartLineNumber) {
 			resultStartLineNumber = otherStartLineNumber;
@@ -351,6 +351,7 @@ export class Range {
 	 */
 	public static lift(range: undefined | null): null;
 	public static lift(range: IRange): Range;
+	public static lift(range: IRange | undefined | null): Range | null;
 	public static lift(range: IRange | undefined | null): Range | null {
 		if (!range) {
 			return null;
@@ -462,5 +463,9 @@ export class Range {
 	 */
 	public static spansMultipleLines(range: IRange): boolean {
 		return range.endLineNumber > range.startLineNumber;
+	}
+
+	public toJSON(): IRange {
+		return this;
 	}
 }

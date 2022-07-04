@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { splitLines } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -392,7 +392,7 @@ class PositionOffsetTransformer {
 	}
 }
 
-function applyLineColumnEdits(text: string, edits: { range: IRange, text: string }[]): string {
+function applyLineColumnEdits(text: string, edits: { range: IRange; text: string }[]): string {
 	const transformer = new PositionOffsetTransformer(text);
 	const offsetEdits = edits.map(e => {
 		const range = Range.lift(e.range);

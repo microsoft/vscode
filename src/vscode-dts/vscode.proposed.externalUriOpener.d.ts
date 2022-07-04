@@ -116,7 +116,7 @@ declare module 'vscode' {
 		 *
 		 * Currently only `http` and `https` are supported.
 		 */
-		readonly schemes: readonly string[]
+		readonly schemes: readonly string[];
 
 		/**
 		 * Text displayed to the user that explains what the opener does.

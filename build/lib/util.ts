@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as es from 'event-stream';
 import _debounce = require('debounce');
 import * as _filter from 'gulp-filter';
@@ -13,10 +11,10 @@ import * as _ from 'underscore';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as _rimraf from 'rimraf';
-import * as git from './git';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
+import * as git from './git';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -306,7 +304,7 @@ function _rreaddir(dirPath: string, prepend: string, result: string[]): void {
 }
 
 export function rreddir(dirPath: string): string[] {
-	let result: string[] = [];
+	const result: string[] = [];
 	_rreaddir(dirPath, '', result);
 	return result;
 }
@@ -320,9 +318,9 @@ export function ensureDir(dirPath: string): void {
 }
 
 export function getVersion(root: string): string | undefined {
-	let version = process.env['BUILD_SOURCEVERSION'];
+	let version = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
 
-	if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
+	if (!version || !/^[0-9a-f]{40}$/i.test(version.trim())) {
 		version = git.getVersion(root);
 	}
 
@@ -384,23 +382,44 @@ export function acquireWebNodePaths() {
 	for (const key of Object.keys(webPackages)) {
 		const packageJSON = path.join(root, 'node_modules', key, 'package.json');
 		const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
-		let entryPoint = packageData.browser ?? packageData.main;
+		let entryPoint: string = packageData.browser ?? packageData.main;
+
 		// On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
 		if (!entryPoint) {
 			// TODO @lramos15 remove this when jschardet adds an entrypoint so we can warn on all packages w/out entrypoint
 			if (key !== 'jschardet') {
 				console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
 			}
+
 			entryPoint = `dist/${key}.min.js`;
 		}
+
 		// Remove any starting path information so it's all relative info
 		if (entryPoint.startsWith('./')) {
-			entryPoint = entryPoint.substr(2);
+			entryPoint = entryPoint.substring(2);
 		} else if (entryPoint.startsWith('/')) {
-			entryPoint = entryPoint.substr(1);
+			entryPoint = entryPoint.substring(1);
 		}
+
+		// Search for a minified entrypoint as well
+		if (/(?<!\.min)\.js$/i.test(entryPoint)) {
+			const minEntryPoint = entryPoint.replace(/\.js$/i, '.min.js');
+
+			if (fs.existsSync(path.join(root, 'node_modules', key, minEntryPoint))) {
+				entryPoint = minEntryPoint;
+			}
+		}
+
 		nodePaths[key] = entryPoint;
 	}
+
+	// @TODO lramos15 can we make this dynamic like the rest of the node paths
+	// Add these paths as well for 1DS SDK dependencies.
+	// Not sure why given the 1DS entrypoint then requires these modules
+	// they are not fetched from the right location and instead are fetched from out/
+	nodePaths['@microsoft/dynamicproto-js'] = 'lib/dist/umd/dynamicproto-js.min.js';
+	nodePaths['@microsoft/applicationinsights-shims'] = 'dist/umd/applicationinsights-shims.min.js';
+	nodePaths['@microsoft/applicationinsights-core-js'] = 'browser/applicationinsights-core-js.min.js';
 	return nodePaths;
 }
 
@@ -409,7 +428,7 @@ export function createExternalLoaderConfig(webEndpoint?: string, commit?: string
 		return undefined;
 	}
 	webEndpoint = webEndpoint + `/${quality}/${commit}`;
-	let nodePaths = acquireWebNodePaths();
+	const nodePaths = acquireWebNodePaths();
 	Object.keys(nodePaths).map(function (key, _) {
 		nodePaths[key] = `${webEndpoint}/node_modules/${key}/${nodePaths[key]}`;
 	});

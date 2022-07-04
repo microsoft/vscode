@@ -40,7 +40,7 @@ interface ExperimentSettings {
 	state?: ExperimentState;
 }
 
-let experimentData: { [i: string]: any; } = {
+let experimentData: { [i: string]: any } = {
 	experiments: []
 };
 
@@ -535,7 +535,7 @@ suite('Experiment Service', () => {
 				didGetCall = true;
 				assert.strictEqual(key, 'experimentEventRecord-my-event');
 				assert.deepStrictEqual(JSON.parse(value).count, [1, 0, 10, 0, 0, 0, 0]);
-				assert.strictEqual(scope, StorageScope.GLOBAL);
+				assert.strictEqual(scope, StorageScope.APPLICATION);
 			}
 		});
 

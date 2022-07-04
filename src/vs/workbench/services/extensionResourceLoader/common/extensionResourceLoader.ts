@@ -12,10 +12,14 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
+import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { RemoteAuthorities } from 'vs/base/common/network';
+import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
+
+export const WEB_EXTENSION_RESOURCE_END_POINT = 'web-extension-resource';
 
 export const IExtensionResourceLoaderService = createDecorator<IExtensionResourceLoaderService>('extensionResourceLoaderService');
 
@@ -38,7 +42,7 @@ export interface IExtensionResourceLoaderService {
 	/**
 	 * Computes the URL of a extension gallery resource. Returns `undefined` if gallery does not provide extension resources.
 	 */
-	getExtensionGalleryResourceURL(galleryExtension: { publisher: string, name: string, version: string }, path?: string): URI | undefined;
+	getExtensionGalleryResourceURL(galleryExtension: { publisher: string; name: string; version: string }, path?: string): URI | undefined;
 }
 
 
@@ -46,6 +50,7 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 
 	readonly _serviceBrand: undefined;
 
+	private readonly _webExtensionResourceEndPoint: string;
 	private readonly _extensionGalleryResourceUrlTemplate: string | undefined;
 	private readonly _extensionGalleryAuthority: string | undefined;
 
@@ -56,6 +61,7 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 		private readonly _environmentService: IEnvironmentService,
 		private readonly _configurationService: IConfigurationService,
 	) {
+		this._webExtensionResourceEndPoint = `${getRemoteServerRootPath(_productService)}/${WEB_EXTENSION_RESOURCE_END_POINT}/`;
 		if (_productService.extensionsGallery) {
 			this._extensionGalleryResourceUrlTemplate = _productService.extensionsGallery.resourceUrlTemplate;
 			this._extensionGalleryAuthority = this._extensionGalleryResourceUrlTemplate ? this._getExtensionGalleryAuthority(URI.parse(this._extensionGalleryResourceUrlTemplate)) : undefined;
@@ -66,9 +72,10 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 		return this._extensionGalleryResourceUrlTemplate !== undefined;
 	}
 
-	public getExtensionGalleryResourceURL(galleryExtension: { publisher: string, name: string, version: string }, path?: string): URI | undefined {
+	public getExtensionGalleryResourceURL(galleryExtension: { publisher: string; name: string; version: string }, path?: string): URI | undefined {
 		if (this._extensionGalleryResourceUrlTemplate) {
-			return URI.parse(format2(this._extensionGalleryResourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }));
+			const uri = URI.parse(format2(this._extensionGalleryResourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }));
+			return this._isWebExtensionResourceEndPoint(uri) ? uri.with({ scheme: RemoteAuthorities.getPreferredWebSchema() }) : uri;
 		}
 		return undefined;
 	}
@@ -103,8 +110,15 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 	}
 
 	private _getExtensionGalleryAuthority(uri: URI): string | undefined {
+		if (this._isWebExtensionResourceEndPoint(uri)) {
+			return uri.authority;
+		}
 		const index = uri.authority.indexOf('.');
 		return index !== -1 ? uri.authority.substring(index + 1) : undefined;
+	}
+
+	protected _isWebExtensionResourceEndPoint(uri: URI): boolean {
+		return uri.path.startsWith(this._webExtensionResourceEndPoint);
 	}
 
 }

@@ -7,7 +7,7 @@ import { $, addDisposableListener, clearNode, EventHelper, EventType, hide, isAn
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ButtonBar, ButtonWithDescription, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { ISimpleCheckboxStyles, SimpleCheckbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { ICheckboxStyles, Checkbox } from 'vs/base/browser/ui/toggle/toggle';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -46,7 +46,7 @@ export interface IDialogResult {
 	readonly values?: string[];
 }
 
-export interface IDialogStyles extends IButtonStyles, ISimpleCheckboxStyles {
+export interface IDialogStyles extends IButtonStyles, ICheckboxStyles {
 	readonly dialogForeground?: Color;
 	readonly dialogBackground?: Color;
 	readonly dialogShadow?: Color;
@@ -74,7 +74,7 @@ export class Dialog extends Disposable {
 	private readonly messageDetailElement: HTMLElement;
 	private readonly messageContainer: HTMLElement;
 	private readonly iconElement: HTMLElement;
-	private readonly checkbox: SimpleCheckbox | undefined;
+	private readonly checkbox: Checkbox | undefined;
 	private readonly toolbarContainer: HTMLElement;
 	private buttonBar: ButtonBar | undefined;
 	private styles: IDialogStyles | undefined;
@@ -151,7 +151,7 @@ export class Dialog extends Disposable {
 		if (this.options.checkboxLabel) {
 			const checkboxRowElement = this.messageContainer.appendChild($('.dialog-checkbox-row'));
 
-			const checkbox = this.checkbox = this._register(new SimpleCheckbox(this.options.checkboxLabel, !!this.options.checkboxChecked));
+			const checkbox = this.checkbox = this._register(new Checkbox(this.options.checkboxLabel, !!this.options.checkboxChecked));
 
 			checkboxRowElement.appendChild(checkbox.domNode);
 
@@ -165,7 +165,7 @@ export class Dialog extends Disposable {
 	}
 
 	private getIconAriaLabel(): string {
-		let typeLabel = nls.localize('dialogInfoMessage', 'Info');
+		const typeLabel = nls.localize('dialogInfoMessage', 'Info');
 		switch (this.options.type) {
 			case 'error':
 				nls.localize('dialogErrorMessage', 'Error');
@@ -427,13 +427,9 @@ export class Dialog extends Disposable {
 			this.element.style.backgroundColor = bgColor?.toString() ?? '';
 			this.element.style.border = border;
 
-			if (this.buttonBar) {
-				this.buttonBar.buttons.forEach(button => button.style(style));
-			}
+			this.buttonBar?.buttons.forEach(button => button.style(style));
 
-			if (this.checkbox) {
-				this.checkbox.style(style);
-			}
+			this.checkbox?.style(style);
 
 			if (fgColor && bgColor) {
 				const messageDetailColor = fgColor.transparent(.9);

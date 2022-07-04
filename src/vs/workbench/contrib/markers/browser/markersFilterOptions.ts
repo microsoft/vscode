@@ -14,15 +14,15 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 export class ResourceGlobMatcher {
 
 	private readonly globalExpression: ParsedExpression;
-	private readonly expressionsByRoot: TernarySearchTree<URI, { root: URI, expression: ParsedExpression }>;
+	private readonly expressionsByRoot: TernarySearchTree<URI, { root: URI; expression: ParsedExpression }>;
 
 	constructor(
 		globalExpression: IExpression,
-		rootExpressions: { root: URI, expression: IExpression }[],
+		rootExpressions: { root: URI; expression: IExpression }[],
 		uriIdentityService: IUriIdentityService
 	) {
 		this.globalExpression = parse(globalExpression);
-		this.expressionsByRoot = TernarySearchTree.forUris<{ root: URI, expression: ParsedExpression }>(uri => uriIdentityService.extUri.ignorePathCasing(uri));
+		this.expressionsByRoot = TernarySearchTree.forUris<{ root: URI; expression: ParsedExpression }>(uri => uriIdentityService.extUri.ignorePathCasing(uri));
 		for (const expression of rootExpressions) {
 			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression) });
 		}
@@ -48,7 +48,7 @@ export class FilterOptions {
 	readonly showWarnings: boolean = false;
 	readonly showErrors: boolean = false;
 	readonly showInfos: boolean = false;
-	readonly textFilter: { readonly text: string, readonly negate: boolean };
+	readonly textFilter: { readonly text: string; readonly negate: boolean };
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
 
@@ -56,7 +56,7 @@ export class FilterOptions {
 
 	constructor(
 		readonly filter: string,
-		filesExclude: { root: URI, expression: IExpression }[] | IExpression,
+		filesExclude: { root: URI; expression: IExpression }[] | IExpression,
 		showWarnings: boolean,
 		showErrors: boolean,
 		showInfos: boolean,

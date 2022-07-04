@@ -34,7 +34,7 @@ export interface SourceTargetPair {
 	/**
 	 * The target resource the event is about.
 	 */
-	readonly target: URI
+	readonly target: URI;
 }
 
 export interface IFileOperationUndoRedoInfo {
@@ -47,7 +47,7 @@ export interface IFileOperationUndoRedoInfo {
 	/**
 	 * Flag indicates if the operation is an undo.
 	 */
-	isUndoing?: boolean
+	isUndoing?: boolean;
 }
 
 export interface WorkingCopyFileEvent extends IWaitUntil {
@@ -104,7 +104,7 @@ export interface ICreateOperation {
 }
 
 export interface ICreateFileOperation extends ICreateOperation {
-	contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream,
+	contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream;
 }
 
 export interface IDeleteOperation {
@@ -191,7 +191,7 @@ export interface IWorkingCopyFileService {
 	/**
 	 * Runs all available save participants for stored file working copies.
 	 */
-	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>;
+	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, token: CancellationToken): Promise<void>;
 
 	//#endregion
 
@@ -492,7 +492,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
 		return this.saveParticipants.participate(workingCopy, context, token);
 	}
 

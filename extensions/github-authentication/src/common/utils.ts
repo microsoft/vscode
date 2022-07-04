@@ -49,9 +49,9 @@ const passthrough = (value: any, resolve: (value?: any) => void) => resolve(valu
  */
 export function promiseFromEvent<T, U>(
 	event: Event<T>,
-	adapter: PromiseAdapter<T, U> = passthrough): { promise: Promise<U>, cancel: EventEmitter<void> } {
+	adapter: PromiseAdapter<T, U> = passthrough): { promise: Promise<U>; cancel: EventEmitter<void> } {
 	let subscription: Disposable;
-	let cancel = new EventEmitter<void>();
+	const cancel = new EventEmitter<void>();
 	return {
 		promise: new Promise<U>((resolve, reject) => {
 			cancel.event(_ => reject('Cancelled'));

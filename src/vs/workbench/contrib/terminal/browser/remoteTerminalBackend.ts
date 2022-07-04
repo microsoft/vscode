@@ -14,8 +14,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
+import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IProcessDetails, ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
@@ -50,8 +50,10 @@ export class RemoteTerminalBackendContribution implements IWorkbenchContribution
 class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
 	private readonly _ptys: Map<number, RemotePty> = new Map();
 
-	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
+	private readonly _onRestoreCommands = this._register(new Emitter<{ id: number; commands: ISerializedCommand[] }>());
+	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	constructor(
 		readonly remoteAuthority: string | undefined,
@@ -70,7 +72,12 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		super(_remoteTerminalChannel, logService, notificationService, _historyService, configurationResolverService, workspaceContextService);
 
 		this._remoteTerminalChannel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-		this._remoteTerminalChannel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
+		this._remoteTerminalChannel.onProcessReplay(e => {
+			this._ptys.get(e.id)?.handleReplay(e.event);
+			if (e.event.commands.commands.length > 0) {
+				this._onRestoreCommands.fire({ id: e.id, commands: e.event.commands.commands });
+			}
+		});
 		this._remoteTerminalChannel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 		this._remoteTerminalChannel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
 		this._remoteTerminalChannel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
@@ -103,7 +110,11 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		// Listen for config changes
 		const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 		for (const match of Object.keys(initialConfig.autoReplies)) {
-			this._remoteTerminalChannel.installAutoReply(match, initialConfig.autoReplies[match]);
+			// Ensure the value is truthy
+			const reply = initialConfig.autoReplies[match];
+			if (reply) {
+				this._remoteTerminalChannel.installAutoReply(match, reply);
+			}
 		}
 		// TODO: Could simplify update to a single call
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
@@ -111,7 +122,11 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 				this._remoteTerminalChannel.uninstallAllAutoReplies();
 				const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 				for (const match of Object.keys(config.autoReplies)) {
-					await this._remoteTerminalChannel.installAutoReply(match, config.autoReplies[match]);
+					// Ensure the value is truthy
+					const reply = config.autoReplies[match];
+					if (reply) {
+						await this._remoteTerminalChannel.installAutoReply(match, reply);
+					}
 				}
 			}
 		}));
@@ -151,7 +166,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		rows: number,
 		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment, // TODO: This is ignored
-		windowsEnableConpty: boolean, // TODO: This is ignored
+		options: ITerminalProcessOptions,
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
@@ -197,6 +212,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			shellLaunchConfigDto,
 			configuration,
 			activeWorkspaceRootUri,
+			options,
 			shouldPersist,
 			cols,
 			rows,

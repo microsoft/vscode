@@ -24,15 +24,18 @@ import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalS
 import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
+import { TasksSynchroniser } from 'vs/platform/userDataSync/common/tasksSync';
 import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, IUserDataManifest, IUserDataSyncConfiguration, IUserDataSyncEnablementService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncErrorClassification = {
-	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	service: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	serverCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	url?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	executionId?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	owner: 'sandy081';
+	comment: 'Information about the error that occurred while syncing';
+	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
+	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync service for which this error has occurred' };
+	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync service error code' };
+	url?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync resource URL for which this error has occurred' };
+	resource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync resource for which this error has occurred' };
+	executionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync execution id for which this error has occurred' };
 };
 
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
@@ -82,7 +85,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	) {
 		super();
 		this.updateStatus([]);
-		this._lastSyncTime = this.storageService.getNumber(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL, undefined);
+		this._lastSyncTime = this.storageService.getNumber(LAST_SYNC_TIME_KEY, StorageScope.APPLICATION, undefined);
 	}
 
 	async createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<ISyncTask> {
@@ -101,7 +104,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			throw userDataSyncError;
 		}
 
-		let executed = false;
+		const executed = false;
 		const that = this;
 		const synchronizers = this.getEnabledSynchronizers();
 		let cancellablePromise: CancelablePromise<void> | undefined;
@@ -148,7 +151,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await this.resetLocal();
 
 		const enabledSynchronizers = this.getEnabledSynchronizers();
-		return new ManualSyncTask(executionId, manifest, syncHeaders, enabledSynchronizers, () => this.resetLocal(), this.configurationService, this.logService);
+		const onstop = async () => {
+			await this.stop(enabledSynchronizers);
+			await this.resetLocal();
+		};
+		return new ManualSyncTask(executionId, manifest, syncHeaders, enabledSynchronizers, onstop, this.configurationService, this.logService);
 	}
 
 	private async sync(synchronizers: IUserDataSynchroniser[], manifest: IUserDataManifest | null, executionId: string, token: CancellationToken): Promise<void> {
@@ -304,7 +311,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return result || [];
 	}
 
-	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
+	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
 		const result = await this.performSynchronizerAction(async synchronizer => {
 			if (synchronizer.resource === resource) {
 				return synchronizer.getAssociatedResources(syncResourceHandle);
@@ -365,7 +372,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async resetLocal(): Promise<void> {
 		this.checkEnablement();
-		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL);
+		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.APPLICATION);
 		if (this.synchronizers.value) {
 			for (const synchroniser of this.synchronizers.value.enabled) {
 				try {
@@ -444,13 +451,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private updateLastSyncTime(): void {
 		if (this.status === SyncStatus.Idle) {
 			this._lastSyncTime = new Date().getTime();
-			this.storageService.store(LAST_SYNC_TIME_KEY, this._lastSyncTime, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(LAST_SYNC_TIME_KEY, this._lastSyncTime, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			this._onDidChangeLastSyncTime.fire(this._lastSyncTime);
 		}
 	}
 
 	private reportUserDataSyncError(userDataSyncError: UserDataSyncError, executionId: string) {
-		this.telemetryService.publicLog2<{ code: string, service: string, serverCode?: string, url?: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error',
+		this.telemetryService.publicLog2<{ code: string; service: string; serverCode?: string; url?: string; resource?: string; executionId?: string }, SyncErrorClassification>('sync/error',
 			{
 				code: userDataSyncError.code,
 				serverCode: userDataSyncError instanceof UserDataSyncStoreError ? String(userDataSyncError.serverCode) : undefined,
@@ -773,8 +780,12 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 
 	private async getUserDataSyncConfiguration(): Promise<IUserDataSyncConfiguration> {
 		const local = this.configurationService.getValue<IUserDataSyncConfiguration>(USER_DATA_SYNC_CONFIGURATION_SCOPE);
-		const remote = await (<SettingsSynchroniser>this.synchronisers.find(synchronizer => synchronizer instanceof SettingsSynchroniser)).getRemoteUserDataSyncConfiguration(this.manifest);
-		return { ...local, ...remote };
+		const settingsSynchronizer = this.synchronisers.find(synchronizer => synchronizer instanceof SettingsSynchroniser);
+		if (settingsSynchronizer) {
+			const remote = await (<SettingsSynchroniser>settingsSynchronizer).getRemoteUserDataSyncConfiguration(this.manifest);
+			return { ...local, ...remote };
+		}
+		return local;
 	}
 
 	private toSyncResourcePreview(syncResource: SyncResource, preview: ISyncResourcePreview): [SyncResource, ISyncResourcePreview] {
@@ -877,6 +888,7 @@ class Synchronizers extends Disposable {
 			case SyncResource.Settings: return this.instantiationService.createInstance(SettingsSynchroniser);
 			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser);
 			case SyncResource.Snippets: return this.instantiationService.createInstance(SnippetsSynchroniser);
+			case SyncResource.Tasks: return this.instantiationService.createInstance(TasksSynchroniser);
 			case SyncResource.GlobalState: return this.instantiationService.createInstance(GlobalStateSynchroniser);
 			case SyncResource.Extensions: return this.instantiationService.createInstance(ExtensionsSynchroniser);
 		}
@@ -887,8 +899,9 @@ class Synchronizers extends Disposable {
 			case SyncResource.Settings: return 0;
 			case SyncResource.Keybindings: return 1;
 			case SyncResource.Snippets: return 2;
-			case SyncResource.GlobalState: return 3;
-			case SyncResource.Extensions: return 4;
+			case SyncResource.Tasks: return 3;
+			case SyncResource.GlobalState: return 4;
+			case SyncResource.Extensions: return 5;
 		}
 	}
 
@@ -896,6 +909,7 @@ class Synchronizers extends Disposable {
 
 function toStrictResourcePreview(resourcePreview: IResourcePreview): IResourcePreview {
 	return {
+		baseResource: resourcePreview.baseResource,
 		localResource: resourcePreview.localResource,
 		previewResource: resourcePreview.previewResource,
 		remoteResource: resourcePreview.remoteResource,

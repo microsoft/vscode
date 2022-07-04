@@ -29,11 +29,6 @@ export interface ISharedProcessWorkerEnvironment {
 	 * Full absolute path to our `bootstrap-fork.js` file.
 	 */
 	bootstrapPath: string;
-
-	/**
-	 * Extra environment to use for the process to fork.
-	 */
-	env: NodeJS.ProcessEnv;
 }
 
 interface IBaseMessage {

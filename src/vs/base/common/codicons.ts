@@ -39,12 +39,12 @@ export class Codicon implements CSSIcon {
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
 
 	// registry
-	private static _allCodicons : Codicon[] = [];
+	private static _allCodicons: Codicon[] = [];
 
 	/**
 	 * @returns Returns all default icons covered by the codicon font. Only to be used by the icon registry in platform.
 	 */
-	public static getAll() : readonly Codicon[] {
+	public static getAll(): readonly Codicon[] {
 		return Codicon._allCodicons;
 	}
 
@@ -428,7 +428,8 @@ export class Codicon implements CSSIcon {
 	public static readonly debugBreakpointFunction = new Codicon('debug-breakpoint-function', { fontCharacter: '\\eb88' });
 	public static readonly debugBreakpointFunctionDisabled = new Codicon('debug-breakpoint-function-disabled', { fontCharacter: '\\eb88' });
 	public static readonly debugStackframeActive = new Codicon('debug-stackframe-active', { fontCharacter: '\\eb89' });
-	public static readonly debugStackframeDot = new Codicon('debug-stackframe-dot', { fontCharacter: '\\eb8a' });
+	public static readonly circleSmallFilled = new Codicon('circle-small-filled', { fontCharacter: '\\eb8a' });
+	public static readonly debugStackframeDot = new Codicon('debug-stackframe-dot', Codicon.circleSmallFilled.definition);
 	public static readonly debugStackframe = new Codicon('debug-stackframe', { fontCharacter: '\\eb8b' });
 	public static readonly debugStackframeFocused = new Codicon('debug-stackframe-focused', { fontCharacter: '\\eb8b' });
 	public static readonly debugBreakpointUnsupported = new Codicon('debug-breakpoint-unsupported', { fontCharacter: '\\eb8c' });
@@ -529,6 +530,36 @@ export class Codicon implements CSSIcon {
 	public static readonly verifiedFilled = new Codicon('verified-filled', { fontCharacter: '\\ebe9' });
 	public static readonly newLine = new Codicon('newline', { fontCharacter: '\\ebea' });
 	public static readonly layout = new Codicon('layout', { fontCharacter: '\\ebeb' });
+	public static readonly layoutActivitybarLeft = new Codicon('layout-activitybar-left', { fontCharacter: '\\ebec' });
+	public static readonly layoutActivitybarRight = new Codicon('layout-activitybar-right', { fontCharacter: '\\ebed' });
+	public static readonly layoutPanelLeft = new Codicon('layout-panel-left', { fontCharacter: '\\ebee' });
+	public static readonly layoutPanelCenter = new Codicon('layout-panel-center', { fontCharacter: '\\ebef' });
+	public static readonly layoutPanelJustify = new Codicon('layout-panel-justify', { fontCharacter: '\\ebf0' });
+	public static readonly layoutPanelRight = new Codicon('layout-panel-right', { fontCharacter: '\\ebf1' });
+	public static readonly layoutPanel = new Codicon('layout-panel', { fontCharacter: '\\ebf2' });
+	public static readonly layoutSidebarLeft = new Codicon('layout-sidebar-left', { fontCharacter: '\\ebf3' });
+	public static readonly layoutSidebarRight = new Codicon('layout-sidebar-right', { fontCharacter: '\\ebf4' });
+	public static readonly layoutStatusbar = new Codicon('layout-statusbar', { fontCharacter: '\\ebf5' });
+	public static readonly layoutMenubar = new Codicon('layout-menubar', { fontCharacter: '\\ebf6' });
+	public static readonly layoutCentered = new Codicon('layout-centered', { fontCharacter: '\\ebf7' });
+	public static readonly layoutSidebarRightOff = new Codicon('layout-sidebar-right-off', { fontCharacter: '\\ec00' });
+	public static readonly layoutPanelOff = new Codicon('layout-panel-off', { fontCharacter: '\\ec01' });
+	public static readonly layoutSidebarLeftOff = new Codicon('layout-sidebar-left-off', { fontCharacter: '\\ec02' });
+	public static readonly target = new Codicon('target', { fontCharacter: '\\ebf8' });
+	public static readonly indent = new Codicon('indent', { fontCharacter: '\\ebf9' });
+	public static readonly recordSmall = new Codicon('record-small', { fontCharacter: '\\ebfa' });
+	public static readonly errorSmall = new Codicon('error-small', { fontCharacter: '\\ebfb' });
+	public static readonly arrowCircleDown = new Codicon('arrow-circle-down', { fontCharacter: '\\ebfc' });
+	public static readonly arrowCircleLeft = new Codicon('arrow-circle-left', { fontCharacter: '\\ebfd' });
+	public static readonly arrowCircleRight = new Codicon('arrow-circle-right', { fontCharacter: '\\ebfe' });
+	public static readonly arrowCircleUp = new Codicon('arrow-circle-up', { fontCharacter: '\\ebff' });
+	public static readonly heartFilled = new Codicon('heart-filled', { fontCharacter: '\\ec04' });
+	public static readonly map = new Codicon('map', { fontCharacter: '\\ec05' });
+	public static readonly mapFilled = new Codicon('map-filled', { fontCharacter: '\\ec06' });
+	public static readonly circleSmall = new Codicon('circle-small', { fontCharacter: '\\ec07' });
+	public static readonly bellSlash = new Codicon('bell-slash', { fontCharacter: '\\ec08' });
+	public static readonly bellSlashDot = new Codicon('bell-slash-dot', { fontCharacter: '\\f101' });
+
 
 	// derived icons, that could become separate icons
 
@@ -590,7 +621,7 @@ export namespace CSSIcon {
 		if (!match) {
 			return asClassNameArray(Codicon.error);
 		}
-		let [, id, modifier] = match;
+		const [, id, modifier] = match;
 		const classNames = ['codicon', 'codicon-' + id];
 		if (modifier) {
 			classNames.push('codicon-modifier-' + modifier.substr(1));

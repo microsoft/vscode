@@ -18,7 +18,7 @@ import { FileDialogService } from 'vs/workbench/services/dialogs/electron-sandbo
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { mock } from 'vs/base/test/common/mock';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -33,6 +33,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class TestFileDialogService extends FileDialogService {
 	constructor(
@@ -53,10 +54,11 @@ class TestFileDialogService extends FileDialogService {
 		@IPathService pathService: IPathService,
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ILogService logService: ILogService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService,
-			openerService, nativeHostService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
+			openerService, nativeHostService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService);
 	}
 
 	protected override getSimpleFileDialog() {
@@ -125,7 +127,7 @@ suite('FileDialogService', function () {
 		instantiationService.stub(IPathService, new class {
 			defaultUriScheme: string = 'vscode-virtual-test';
 			userHome = async () => URI.file('/user/home');
-		});
+		} as IPathService);
 		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
 		instantiationService.set(IFileDialogService, dialogService);
 		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
@@ -157,7 +159,7 @@ suite('FileDialogService', function () {
 		instantiationService.stub(IPathService, new class {
 			defaultUriScheme: string = Schemas.vscodeRemote;
 			userHome = async () => URI.file('/user/home');
-		});
+		} as IPathService);
 		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
 		instantiationService.set(IFileDialogService, dialogService);
 		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);

@@ -14,7 +14,7 @@
 			"patterns": [
 				{
 					"name": "comment.line.math.tex",
-					"match": "(%)(.+)$",
+					"match": "((?<!\\\\)%)(.+)$",
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.comment.math.tex"

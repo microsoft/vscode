@@ -59,8 +59,8 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand(openApiCommand, (url: vscode.Uri, showOptions?: {
-		preserveFocus?: boolean,
-		viewColumn: vscode.ViewColumn,
+		preserveFocus?: boolean;
+		viewColumn: vscode.ViewColumn;
 	}) => {
 		manager.show(url.toString(), showOptions);
 	}));

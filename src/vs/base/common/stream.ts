@@ -79,6 +79,15 @@ export interface Readable<T> {
 	read(): T | null;
 }
 
+export function isReadable<T>(obj: unknown): obj is Readable<T> {
+	const candidate = obj as Readable<T> | undefined;
+	if (!candidate) {
+		return false;
+	}
+
+	return typeof candidate.read === 'function';
+}
+
 /**
  * A interface that emulates the API shape of a node.js writeable
  * stream for use in native and web environments.
@@ -159,8 +168,8 @@ export function isReadableBufferedStream<T>(obj: unknown): obj is ReadableBuffer
 	return isReadableStream(candidate.stream) && Array.isArray(candidate.buffer) && typeof candidate.ended === 'boolean';
 }
 
-export interface IReducer<T> {
-	(data: T[]): T;
+export interface IReducer<T, R = T> {
+	(data: T[]): R;
 }
 
 export interface IDataTransformer<Original, Transformed> {
@@ -504,9 +513,9 @@ export function peekReadable<T>(readable: Readable<T>, reducer: IReducer<T>, max
  * a stream fully, awaiting all the events without caring
  * about the data.
  */
-export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer: IReducer<T>): Promise<T>;
+export function consumeStream<T, R = T>(stream: ReadableStreamEvents<T>, reducer: IReducer<T, R>): Promise<R>;
 export function consumeStream(stream: ReadableStreamEvents<unknown>): Promise<undefined>;
-export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer?: IReducer<T>): Promise<T | undefined> {
+export function consumeStream<T, R = T>(stream: ReadableStreamEvents<T>, reducer?: IReducer<T, R>): Promise<R | undefined> {
 	return new Promise((resolve, reject) => {
 		const chunks: T[] = [];
 

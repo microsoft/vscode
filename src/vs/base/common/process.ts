@@ -5,7 +5,7 @@
 
 import { globals, INodeProcess, isMacintosh, isWindows } from 'vs/base/common/platform';
 
-let safeProcess: Omit<INodeProcess, 'arch'> & { arch: string | undefined; };
+let safeProcess: Omit<INodeProcess, 'arch'> & { arch: string | undefined };
 declare const process: INodeProcess;
 
 // Native sandbox environment

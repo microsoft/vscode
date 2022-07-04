@@ -23,7 +23,7 @@ import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/serv
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { extname, joinPath } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { PLAINTEXT_EXTENSION, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_EXTENSION, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
@@ -171,13 +171,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[]>();
+	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI; target: URI; snapshot?: ITextSnapshot; languageId?: string; encoding?: string }[]>();
 
 	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
 		// Move / Copy: remember models to restore after the operation
 		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY) {
-			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[] = [];
+			const modelsToRestore: { source: URI; target: URI; snapshot?: ITextSnapshot; languageId?: string; encoding?: string }[] = [];
 
 			for (const { source, target } of e.files) {
 				if (source) {
@@ -213,7 +213,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 						modelsToRestore.push({
 							source: sourceModelResource,
 							target: targetModelResource,
-							mode: sourceModel.getMode(),
+							languageId: sourceModel.getLanguageId(),
 							encoding: sourceModel.getEncoding(),
 							snapshot: sourceModel.isDirty() ? sourceModel.createSnapshot() : undefined
 						});
@@ -281,16 +281,16 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 								encoding: modelToRestore.encoding
 							});
 
-							// restore previous mode only if the mode is now unspecified and it was specified
+							// restore previous language only if the language is now unspecified and it was specified
 							// but not when the file was explicitly stored with the plain text extension
 							// (https://github.com/microsoft/vscode/issues/125795)
 							if (
-								modelToRestore.mode &&
-								modelToRestore.mode !== PLAINTEXT_MODE_ID &&
-								restoredModel.getMode() === PLAINTEXT_MODE_ID &&
+								modelToRestore.languageId &&
+								modelToRestore.languageId !== PLAINTEXT_LANGUAGE_ID &&
+								restoredModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID &&
 								extname(modelToRestore.target) !== PLAINTEXT_EXTENSION
 							) {
-								restoredModel.updateTextEditorModel(undefined, modelToRestore.mode);
+								restoredModel.updateTextEditorModel(undefined, modelToRestore.languageId);
 							}
 						}));
 					}
@@ -389,7 +389,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		else {
 			didCreateModel = true;
 
-			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined, options ? options.mode : undefined);
+			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined, options ? options.languageId : undefined);
 			modelResolve = model.resolve(options);
 
 			this.registerModel(newModel);
@@ -430,9 +430,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			this.mapResourceToPendingModelResolvers.delete(resource);
 		}
 
-		// Apply mode if provided
-		if (options?.mode) {
-			model.setMode(options.mode);
+		// Apply language if provided
+		if (options?.languageId) {
+			model.setLanguageId(options.languageId);
 		}
 
 		// Model can be dirty if a backup was restored, so we make sure to
@@ -485,7 +485,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeReadonly.fire(model)));
 		modelListeners.add(model.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(model)));
 		modelListeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(model)));
-		modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model, reason })));
+		modelListeners.add(model.onDidSave(e => this._onDidSave.fire({ model, ...e })));
 		modelListeners.add(model.onDidRevert(() => this._onDidRevert.fire(model)));
 		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
 
@@ -538,7 +538,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
 		return this.saveParticipants.participate(model, context, token);
 	}
 

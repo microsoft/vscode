@@ -5,8 +5,8 @@
 
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { MainThreadDiagnosticsShape, MainContext, IExtHostContext, ExtHostDiagnosticsShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { MainThreadDiagnosticsShape, MainContext, ExtHostDiagnosticsShape, ExtHostContext } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
@@ -53,8 +53,8 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	}
 
 	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
-		for (let entry of entries) {
-			let [uri, markers] = entry;
+		for (const entry of entries) {
+			const [uri, markers] = entry;
 			if (markers) {
 				for (const marker of markers) {
 					if (marker.relatedInformation) {

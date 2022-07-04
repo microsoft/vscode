@@ -291,9 +291,7 @@ export function cancelSearch(accessor: ServicesAccessor) {
 export function refreshSearch(accessor: ServicesAccessor) {
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
-	if (searchView) {
-		searchView.triggerQueryChange({ preserveFocus: false });
-	}
+	searchView?.triggerQueryChange({ preserveFocus: false });
 }
 
 export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
@@ -667,7 +665,7 @@ function matchToString(match: Match, indent = 0): string {
 }
 
 const lineDelimiter = isWindows ? '\r\n' : '\n';
-function fileMatchToString(fileMatch: FileMatch, labelService: ILabelService): { text: string, count: number } {
+function fileMatchToString(fileMatch: FileMatch, labelService: ILabelService): { text: string; count: number } {
 	const matchTextRows = fileMatch.matches()
 		.sort(searchMatchComparer)
 		.map(match => matchToString(match, 2));
@@ -678,7 +676,7 @@ function fileMatchToString(fileMatch: FileMatch, labelService: ILabelService): {
 	};
 }
 
-function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch, labelService: ILabelService): { text: string, count: number } {
+function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch, labelService: ILabelService): { text: string; count: number } {
 	const fileResults: string[] = [];
 	let numMatches = 0;
 

@@ -13,10 +13,10 @@ import { CharCode } from 'vs/base/common/charCode';
 export function computeIndentLevel(line: string, tabSize: number): number {
 	let indent = 0;
 	let i = 0;
-	let len = line.length;
+	const len = line.length;
 
 	while (i < len) {
-		let chCode = line.charCodeAt(i);
+		const chCode = line.charCodeAt(i);
 		if (chCode === CharCode.Space) {
 			indent++;
 		} else if (chCode === CharCode.Tab) {

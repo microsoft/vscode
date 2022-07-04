@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { canceled, isCancellationError } from 'vs/base/common/errors';
 import { IPager, PagedModel } from 'vs/base/common/paging';
 
 function getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<number[]> {
@@ -110,7 +110,7 @@ suite('PagedModel', () => {
 			return assert(false);
 		}
 		catch (err) {
-			return assert(isPromiseCanceledError(err));
+			return assert(isCancellationError(err));
 		}
 	});
 
@@ -124,7 +124,7 @@ suite('PagedModel', () => {
 
 		const promise = model.resolve(5, tokenSource.token).then(
 			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+			err => assert(isCancellationError(err))
 		);
 
 		setTimeout(() => tokenSource.cancel(), 10);
@@ -153,7 +153,7 @@ suite('PagedModel', () => {
 		const tokenSource1 = new CancellationTokenSource();
 		const promise1 = model.resolve(5, tokenSource1.token).then(
 			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+			err => assert(isCancellationError(err))
 		);
 
 		assert.strictEqual(state, 'resolving');
@@ -161,7 +161,7 @@ suite('PagedModel', () => {
 		const tokenSource2 = new CancellationTokenSource();
 		const promise2 = model.resolve(6, tokenSource2.token).then(
 			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+			err => assert(isCancellationError(err))
 		);
 
 		assert.strictEqual(state, 'resolving');

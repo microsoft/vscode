@@ -199,106 +199,108 @@ export enum EditorOption {
 	disableMonospaceOptimizations = 29,
 	domReadOnly = 30,
 	dragAndDrop = 31,
-	emptySelectionClipboard = 32,
-	extraEditorClassName = 33,
-	fastScrollSensitivity = 34,
-	find = 35,
-	fixedOverflowWidgets = 36,
-	folding = 37,
-	foldingStrategy = 38,
-	foldingHighlight = 39,
-	foldingImportsByDefault = 40,
-	unfoldOnClickAfterEndOfLine = 41,
-	fontFamily = 42,
-	fontInfo = 43,
-	fontLigatures = 44,
-	fontSize = 45,
-	fontWeight = 46,
-	formatOnPaste = 47,
-	formatOnType = 48,
-	glyphMargin = 49,
-	gotoLocation = 50,
-	hideCursorInOverviewRuler = 51,
-	hover = 52,
-	inDiffEditor = 53,
-	inlineSuggest = 54,
-	letterSpacing = 55,
-	lightbulb = 56,
-	lineDecorationsWidth = 57,
-	lineHeight = 58,
-	lineNumbers = 59,
-	lineNumbersMinChars = 60,
-	linkedEditing = 61,
-	links = 62,
-	matchBrackets = 63,
-	minimap = 64,
-	mouseStyle = 65,
-	mouseWheelScrollSensitivity = 66,
-	mouseWheelZoom = 67,
-	multiCursorMergeOverlapping = 68,
-	multiCursorModifier = 69,
-	multiCursorPaste = 70,
-	occurrencesHighlight = 71,
-	overviewRulerBorder = 72,
-	overviewRulerLanes = 73,
-	padding = 74,
-	parameterHints = 75,
-	peekWidgetDefaultFocus = 76,
-	definitionLinkOpensInPeek = 77,
-	quickSuggestions = 78,
-	quickSuggestionsDelay = 79,
-	readOnly = 80,
-	renameOnType = 81,
-	renderControlCharacters = 82,
-	renderFinalNewline = 83,
-	renderLineHighlight = 84,
-	renderLineHighlightOnlyWhenFocus = 85,
-	renderValidationDecorations = 86,
-	renderWhitespace = 87,
-	revealHorizontalRightPadding = 88,
-	roundedSelection = 89,
-	rulers = 90,
-	scrollbar = 91,
-	scrollBeyondLastColumn = 92,
-	scrollBeyondLastLine = 93,
-	scrollPredominantAxis = 94,
-	selectionClipboard = 95,
-	selectionHighlight = 96,
-	selectOnLineNumbers = 97,
-	showFoldingControls = 98,
-	showUnused = 99,
-	snippetSuggestions = 100,
-	smartSelect = 101,
-	smoothScrolling = 102,
-	stickyTabStops = 103,
-	stopRenderingLineAfter = 104,
-	suggest = 105,
-	suggestFontSize = 106,
-	suggestLineHeight = 107,
-	suggestOnTriggerCharacters = 108,
-	suggestSelection = 109,
-	tabCompletion = 110,
-	tabIndex = 111,
-	unicodeHighlighting = 112,
-	unusualLineTerminators = 113,
-	useShadowDOM = 114,
-	useTabStops = 115,
-	wordSeparators = 116,
-	wordWrap = 117,
-	wordWrapBreakAfterCharacters = 118,
-	wordWrapBreakBeforeCharacters = 119,
-	wordWrapColumn = 120,
-	wordWrapOverride1 = 121,
-	wordWrapOverride2 = 122,
-	wrappingIndent = 123,
-	wrappingStrategy = 124,
-	showDeprecated = 125,
-	inlayHints = 126,
-	editorClassName = 127,
-	pixelRatio = 128,
-	tabFocusMode = 129,
-	layoutInfo = 130,
-	wrappingInfo = 131
+	enableDropIntoEditor = 32,
+	emptySelectionClipboard = 33,
+	extraEditorClassName = 34,
+	fastScrollSensitivity = 35,
+	find = 36,
+	fixedOverflowWidgets = 37,
+	folding = 38,
+	foldingStrategy = 39,
+	foldingHighlight = 40,
+	foldingImportsByDefault = 41,
+	foldingMaximumRegions = 42,
+	unfoldOnClickAfterEndOfLine = 43,
+	fontFamily = 44,
+	fontInfo = 45,
+	fontLigatures = 46,
+	fontSize = 47,
+	fontWeight = 48,
+	formatOnPaste = 49,
+	formatOnType = 50,
+	glyphMargin = 51,
+	gotoLocation = 52,
+	hideCursorInOverviewRuler = 53,
+	hover = 54,
+	inDiffEditor = 55,
+	inlineSuggest = 56,
+	letterSpacing = 57,
+	lightbulb = 58,
+	lineDecorationsWidth = 59,
+	lineHeight = 60,
+	lineNumbers = 61,
+	lineNumbersMinChars = 62,
+	linkedEditing = 63,
+	links = 64,
+	matchBrackets = 65,
+	minimap = 66,
+	mouseStyle = 67,
+	mouseWheelScrollSensitivity = 68,
+	mouseWheelZoom = 69,
+	multiCursorMergeOverlapping = 70,
+	multiCursorModifier = 71,
+	multiCursorPaste = 72,
+	occurrencesHighlight = 73,
+	overviewRulerBorder = 74,
+	overviewRulerLanes = 75,
+	padding = 76,
+	parameterHints = 77,
+	peekWidgetDefaultFocus = 78,
+	definitionLinkOpensInPeek = 79,
+	quickSuggestions = 80,
+	quickSuggestionsDelay = 81,
+	readOnly = 82,
+	renameOnType = 83,
+	renderControlCharacters = 84,
+	renderFinalNewline = 85,
+	renderLineHighlight = 86,
+	renderLineHighlightOnlyWhenFocus = 87,
+	renderValidationDecorations = 88,
+	renderWhitespace = 89,
+	revealHorizontalRightPadding = 90,
+	roundedSelection = 91,
+	rulers = 92,
+	scrollbar = 93,
+	scrollBeyondLastColumn = 94,
+	scrollBeyondLastLine = 95,
+	scrollPredominantAxis = 96,
+	selectionClipboard = 97,
+	selectionHighlight = 98,
+	selectOnLineNumbers = 99,
+	showFoldingControls = 100,
+	showUnused = 101,
+	snippetSuggestions = 102,
+	smartSelect = 103,
+	smoothScrolling = 104,
+	stickyTabStops = 105,
+	stopRenderingLineAfter = 106,
+	suggest = 107,
+	suggestFontSize = 108,
+	suggestLineHeight = 109,
+	suggestOnTriggerCharacters = 110,
+	suggestSelection = 111,
+	tabCompletion = 112,
+	tabIndex = 113,
+	unicodeHighlighting = 114,
+	unusualLineTerminators = 115,
+	useShadowDOM = 116,
+	useTabStops = 117,
+	wordSeparators = 118,
+	wordWrap = 119,
+	wordWrapBreakAfterCharacters = 120,
+	wordWrapBreakBeforeCharacters = 121,
+	wordWrapColumn = 122,
+	wordWrapOverride1 = 123,
+	wordWrapOverride2 = 124,
+	wrappingIndent = 125,
+	wrappingStrategy = 126,
+	showDeprecated = 127,
+	inlayHints = 128,
+	editorClassName = 129,
+	pixelRatio = 130,
+	tabFocusMode = 131,
+	layoutInfo = 132,
+	wrappingInfo = 133
 }
 
 /**
@@ -357,8 +359,14 @@ export enum IndentAction {
 	Outdent = 3
 }
 
+export enum InjectedTextCursorStops {
+	Both = 0,
+	Right = 1,
+	Left = 2,
+	None = 3
+}
+
 export enum InlayHintKind {
-	Other = 0,
 	Type = 1,
 	Parameter = 2
 }
@@ -568,10 +576,14 @@ export enum KeyCode {
 	LaunchMail = 124,
 	LaunchApp2 = 125,
 	/**
+	 * VK_CLEAR, 0x0C, CLEAR key
+	 */
+	Clear = 126,
+	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
-	MAX_VALUE = 126
+	MAX_VALUE = 127
 }
 
 export enum MarkerSeverity {
@@ -682,6 +694,29 @@ export enum OverviewRulerLane {
 	Center = 2,
 	Right = 4,
 	Full = 7
+}
+
+export enum PositionAffinity {
+	/**
+	 * Prefers the left most position.
+	*/
+	Left = 0,
+	/**
+	 * Prefers the right most position.
+	*/
+	Right = 1,
+	/**
+	 * No preference.
+	*/
+	None = 2,
+	/**
+	 * If the given position is on injected text, prefers the position left of it.
+	*/
+	LeftOfInjectedText = 3,
+	/**
+	 * If the given position is on injected text, prefers the position right of it.
+	*/
+	RightOfInjectedText = 4
 }
 
 export enum RenderLineNumbersType {

@@ -5,6 +5,9 @@
 		"experimentalDecorators": true,
 		"typeRoots": [
 			"./node_modules/@types"
+		],
+		"lib": [
+			"WebWorker"
 		]
 	},
 	"include": [

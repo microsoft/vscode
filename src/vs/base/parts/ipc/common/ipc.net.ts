@@ -108,7 +108,7 @@ export interface NodeSocketCloseEvent {
 	/**
 	 * Underlying error.
 	 */
-	readonly error: Error | undefined
+	readonly error: Error | undefined;
 }
 
 export interface WebSocketCloseEvent {
@@ -212,7 +212,7 @@ export class ChunkStream {
 			return result;
 		}
 
-		let result = VSBuffer.alloc(byteCount);
+		const result = VSBuffer.alloc(byteCount);
 		let resultOffset = 0;
 		let chunkIndex = 0;
 		while (byteCount > 0) {
@@ -675,7 +675,8 @@ class Queue<T> {
 	}
 
 	public toArray(): T[] {
-		let result: T[] = [], resultLen = 0;
+		const result: T[] = [];
+		let resultLen = 0;
 		let it = this._first;
 		while (it) {
 			result[resultLen++] = it.data;
@@ -1123,7 +1124,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 // 			? 'renderer'
 // 			: (process.argv.includes('--type=extensionHost')
 // 				? 'extensionHost'
-// 				: (process.argv.some(item => item.includes('server/main'))
+// 				: (process.argv.some(item => item.includes('server-main'))
 // 					? 'server'
 // 					: 'unknown'
 // 				)

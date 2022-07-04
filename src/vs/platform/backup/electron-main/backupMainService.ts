@@ -18,7 +18,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { HotExitConfiguration, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IFolderBackupInfo, isFolderBackupInfo, isWorkspaceIdentifier, IWorkspaceBackupInfo, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
+import { IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -221,7 +222,7 @@ export class BackupMainService implements IBackupMainService {
 		const result: IWorkspaceBackupInfo[] = [];
 
 		// Validate Workspaces
-		for (let workspaceInfo of rootWorkspaces) {
+		for (const workspaceInfo of rootWorkspaces) {
 			const workspace = workspaceInfo.workspace;
 			if (!isWorkspaceIdentifier(workspace)) {
 				return []; // wrong format, skip all entries
@@ -257,7 +258,7 @@ export class BackupMainService implements IBackupMainService {
 
 		const result: IFolderBackupInfo[] = [];
 		const seenIds: Set<string> = new Set();
-		for (let folderInfo of folderWorkspaces) {
+		for (const folderInfo of folderWorkspaces) {
 			const folderURI = folderInfo.folderUri;
 			const key = this.backupUriComparer.getComparisonKey(folderURI);
 			if (!seenIds.has(key)) {
@@ -292,7 +293,7 @@ export class BackupMainService implements IBackupMainService {
 		const seenIds: Set<string> = new Set();
 
 		// Validate Empty Windows
-		for (let backupInfo of emptyWorkspaces) {
+		for (const backupInfo of emptyWorkspaces) {
 			const backupFolder = backupInfo.backupFolder;
 			if (typeof backupFolder !== 'string') {
 				return [];

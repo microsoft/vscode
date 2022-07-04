@@ -8,6 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
@@ -20,7 +21,7 @@ suite('NotebookCellList', () => {
 	suiteSetup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
-		notebookDefaultOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
+		notebookDefaultOptions = new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService));
 		topInsertToolbarHeight = notebookDefaultOptions.computeTopInsertToolbarHeight();
 
 	});
@@ -314,6 +315,45 @@ suite('NotebookCellList', () => {
 
 				cellList.updateElementHeight2(viewModel.cellAt(0)!, 30);
 				assert.deepStrictEqual(cellList.scrollTop, 60);
+			});
+	});
+
+	test('visibleRanges should be exclusive of end', async function () {
+		await withTestNotebook(
+			[
+			],
+			async (editor, viewModel) => {
+				const cellList = createNotebookCellList(instantiationService);
+				cellList.attachViewModel(viewModel);
+
+				// render height 210, it can render 3 full cells and 1 partial cell
+				cellList.layout(100, 100);
+
+				assert.deepStrictEqual(cellList.visibleRanges, []);
+			});
+	});
+
+	test('visibleRanges should be exclusive of end 2', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+			],
+			async (editor, viewModel) => {
+				viewModel.restoreEditorViewState({
+					editingCells: [false],
+					editorViewStates: [null],
+					cellTotalHeights: [50],
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
+				});
+
+				const cellList = createNotebookCellList(instantiationService);
+				cellList.attachViewModel(viewModel);
+
+				// render height 210, it can render 3 full cells and 1 partial cell
+				cellList.layout(100, 100);
+
+				assert.deepStrictEqual(cellList.visibleRanges, [{ start: 0, end: 1 }]);
 			});
 	});
 });

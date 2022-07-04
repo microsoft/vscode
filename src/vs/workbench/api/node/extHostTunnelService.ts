@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainThreadTunnelServiceShape, MainContext, PortAttributesProviderSelector } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTunnelServiceShape, MainContext, PortAttributesProviderSelector, TunnelDto } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import type * as vscode from 'vscode';
 import * as nls from 'vs/nls';
@@ -15,32 +15,19 @@ import * as resources from 'vs/base/common/resources';
 import * as pfs from 'vs/base/node/pfs';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isLinux } from 'vs/base/common/platform';
-import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { TunnelOptions, TunnelCreationOptions, ProvidedPortAttributes, ProvidedOnAutoForward, isLocalhost, isAllInterfaces } from 'vs/platform/remote/common/tunnel';
+import { IExtHostTunnelService, TunnelDtoConverter } from 'vs/workbench/api/common/extHostTunnelService';
+import { Emitter } from 'vs/base/common/event';
+import { TunnelOptions, TunnelCreationOptions, ProvidedPortAttributes, ProvidedOnAutoForward, isLocalhost, isAllInterfaces, DisposableTunnel } from 'vs/platform/tunnel/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ILogService } from 'vs/platform/log/common/log';
 
-class ExtensionTunnel implements vscode.Tunnel {
-	private _onDispose: Emitter<void> = new Emitter();
-	onDidDispose: Event<void> = this._onDispose.event;
+class ExtensionTunnel extends DisposableTunnel implements vscode.Tunnel { }
 
-	constructor(
-		public readonly remoteAddress: { port: number, host: string },
-		public readonly localAddress: { port: number, host: string } | string,
-		private readonly _dispose: () => Promise<void>) { }
-
-	dispose(): Promise<void> {
-		this._onDispose.fire();
-		return this._dispose();
-	}
-}
-
-export function getSockets(stdout: string): Record<string, { pid: number; socket: number; }> {
+export function getSockets(stdout: string): Record<string, { pid: number; socket: number }> {
 	const lines = stdout.trim().split('\n');
-	const mapped: { pid: number, socket: number }[] = [];
+	const mapped: { pid: number; socket: number }[] = [];
 	lines.forEach(line => {
 		const match = /\/proc\/(\d+)\/fd\/\d+ -> socket:\[(\d+)\]/.exec(line)!;
 		if (match && match.length >= 3) {
@@ -57,7 +44,7 @@ export function getSockets(stdout: string): Record<string, { pid: number; socket
 	return socketMap;
 }
 
-export function loadListeningPorts(...stdouts: string[]): { socket: number, ip: string, port: number }[] {
+export function loadListeningPorts(...stdouts: string[]): { socket: number; ip: string; port: number }[] {
 	const table = ([] as Record<string, string>[]).concat(...stdouts.map(loadConnectionTable));
 	return [
 		...new Map(
@@ -107,13 +94,13 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 
 function knownExcludeCmdline(command: string): boolean {
 	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
-		|| (command.indexOf('out/vs/server/main.js') !== -1)
+		|| (command.indexOf('out/server-main.js') !== -1)
 		|| (command.indexOf('_productName=VSCode') !== -1);
 }
 
 export function getRootProcesses(stdout: string) {
 	const lines = stdout.trim().split('\n');
-	const mapped: { pid: number, cmd: string, ppid: number }[] = [];
+	const mapped: { pid: number; cmd: string; ppid: number }[] = [];
 	lines.forEach(line => {
 		const match = /^\d+\s+\D+\s+root\s+(\d+)\s+(\d+).+\d+\:\d+\:\d+\s+(.+)$/.exec(line)!;
 		if (match && match.length >= 4) {
@@ -127,7 +114,7 @@ export function getRootProcesses(stdout: string) {
 	return mapped;
 }
 
-export async function findPorts(connections: { socket: number, ip: string, port: number }[], socketMap: Record<string, { pid: number, socket: number }>, processes: { pid: number, cwd: string, cmd: string }[]): Promise<CandidatePort[]> {
+export async function findPorts(connections: { socket: number; ip: string; port: number }[], socketMap: Record<string, { pid: number; socket: number }>, processes: { pid: number; cwd: string; cmd: string }[]): Promise<CandidatePort[]> {
 	const processMap = processes.reduce((m, process) => {
 		m[process.pid] = process;
 		return m;
@@ -144,7 +131,7 @@ export async function findPorts(connections: { socket: number, ip: string, port:
 	return ports;
 }
 
-export function tryFindRootPorts(connections: { socket: number, ip: string, port: number }[], rootProcessesStdout: string, previousPorts: Map<number, CandidatePort & { ppid: number }>): Map<number, CandidatePort & { ppid: number }> {
+export function tryFindRootPorts(connections: { socket: number; ip: string; port: number }[], rootProcessesStdout: string, previousPorts: Map<number, CandidatePort & { ppid: number }>): Map<number, CandidatePort & { ppid: number }> {
 	const ports: Map<number, CandidatePort & { ppid: number }> = new Map();
 	const rootProcesses = getRootProcesses(rootProcessesStdout);
 
@@ -159,7 +146,7 @@ export function tryFindRootPorts(connections: { socket: number, ip: string, port
 			let bestMatch = rootProcessMatch;
 			// There are often several processes that "look" like they could match the port.
 			// The one we want is usually the child of the other. Find the most child process.
-			let mostChild: { pid: number, cmd: string, ppid: number } | undefined;
+			let mostChild: { pid: number; cmd: string; ppid: number } | undefined;
 			do {
 				mostChild = rootProcesses.find(value => value.ppid === bestMatch.pid);
 				if (mostChild) {
@@ -180,14 +167,14 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private readonly _proxy: MainThreadTunnelServiceShape;
 	private _forwardPortProvider: ((tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
 	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
-	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel, disposeListener: IDisposable }>> = new Map();
+	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel; disposeListener: IDisposable }>> = new Map();
 	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 	private _candidateFindingEnabled: boolean = false;
 	private _foundRootPorts: Map<number, CandidatePort & { ppid: number }> = new Map();
 
 	private _providerHandleCounter: number = 0;
-	private _portAttributesProviders: Map<number, { provider: vscode.PortAttributesProvider, selector: PortAttributesProviderSelector }> = new Map();
+	private _portAttributesProviders: Map<number, { provider: vscode.PortAttributesProvider; selector: PortAttributesProviderSelector }> = new Map();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -267,8 +254,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}
 		this._candidateFindingEnabled = enable;
 		// Regularly scan to see if the candidate ports have changed.
-		let movingAverage = new MovingAverage();
-		let oldPorts: { host: string, port: number, detail?: string }[] | undefined = undefined;
+		const movingAverage = new MovingAverage();
+		let oldPorts: { host: string; port: number; detail?: string }[] | undefined = undefined;
 		while (this._candidateFindingEnabled) {
 			const startTime = new Date().getTime();
 			const newPorts = (await this.findCandidatePorts()).filter(candidate => (isLocalhost(candidate.host) || isAllInterfaces(candidate.host)));
@@ -283,7 +270,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}
 	}
 
-	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
+	async setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
 		// Do not wait for any of the proxy promises here.
 		// It will delay startup and there is nothing that needs to be waited for.
 		if (provider) {
@@ -312,11 +299,13 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 					];
 				}
 
-				this._proxy.$setTunnelProvider({
+				const tunnelFeatures = provider.tunnelFeatures ? {
 					elevation: !!provider.tunnelFeatures?.elevation,
 					public: !!provider.tunnelFeatures?.public,
 					privacyOptions
-				});
+				} : undefined;
+
+				this._proxy.$setTunnelProvider(tunnelFeatures);
 			}
 		} else {
 			this._forwardPortProvider = undefined;
@@ -326,7 +315,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		});
 	}
 
-	async $closeTunnel(remote: { host: string, port: number }, silent?: boolean): Promise<void> {
+	async $closeTunnel(remote: { host: string; port: number }, silent?: boolean): Promise<void> {
 		if (this._extensionTunnels.has(remote.host)) {
 			const hostMap = this._extensionTunnels.get(remote.host)!;
 			if (hostMap.has(remote.port)) {
@@ -360,7 +349,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 						return this._proxy.$closeTunnel(tunnel.remoteAddress);
 					}));
 					this._extensionTunnels.get(tunnelOptions.remoteAddress.host)!.set(tunnelOptions.remoteAddress.port, { tunnel, disposeListener });
-					return TunnelDto.fromApiTunnel(tunnel);
+					return TunnelDtoConverter.fromApiTunnel(tunnel);
 				} else {
 					this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Tunnel is undefined');
 				}
@@ -387,7 +376,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		} catch (e) {
 			// File reading error. No additional handling needed.
 		}
-		const connections: { socket: number, ip: string, port: number }[] = loadListeningPorts(tcp, tcp6);
+		const connections: { socket: number; ip: string; port: number }[] = loadListeningPorts(tcp, tcp6);
 
 		const procSockets: string = await (new Promise(resolve => {
 			exec('ls -l /proc/[0-9]*/fd/[0-9]* | grep socket:', (error, stdout, stderr) => {
@@ -398,9 +387,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 		const procChildren = await pfs.Promises.readdir('/proc');
 		const processes: {
-			pid: number, cwd: string, cmd: string
+			pid: number; cwd: string; cmd: string;
 		}[] = [];
-		for (let childName of procChildren) {
+		for (const childName of procChildren) {
 			try {
 				const pid: number = Number(childName);
 				const childUri = resources.joinPath(URI.file('/proc'), childName);
@@ -415,7 +404,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			}
 		}
 
-		const unFoundConnections: { socket: number, ip: string, port: number }[] = [];
+		const unFoundConnections: { socket: number; ip: string; port: number }[] = [];
 		const filteredConnections = connections.filter((connection => {
 			const foundConnection = socketMap[connection.socket];
 			if (!foundConnection) {

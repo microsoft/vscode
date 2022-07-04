@@ -38,7 +38,7 @@ export class NativeExtHostSearch extends ExtHostSearch {
 		super(extHostRpc, _uriTransformer, _logService);
 
 		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
-		this.registerTextSearchProvider(Schemas.userData, new RipgrepSearchProvider(outputChannel));
+		this.registerTextSearchProvider(Schemas.vscodeUserData, new RipgrepSearchProvider(outputChannel));
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this._registerEHSearchProviders();
 		}
@@ -103,9 +103,7 @@ export class NativeExtHostSearch extends ExtHostSearch {
 	}
 
 	override $clearCache(cacheKey: string): Promise<void> {
-		if (this._internalFileSearchProvider) {
-			this._internalFileSearchProvider.clearCache(cacheKey);
-		}
+		this._internalFileSearchProvider?.clearCache(cacheKey);
 
 		return super.$clearCache(cacheKey);
 	}

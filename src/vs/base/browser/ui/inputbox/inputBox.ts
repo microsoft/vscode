@@ -159,9 +159,9 @@ export class InputBox extends Widget {
 
 		this.element = dom.append(container, $('.monaco-inputbox.idle'));
 
-		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
+		const tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
-		let wrapper = dom.append(this.element, $('.ibwrapper'));
+		const wrapper = dom.append(this.element, $('.ibwrapper'));
 		this.input = dom.append(wrapper, $(tagName + '.input.empty'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
@@ -233,14 +233,14 @@ export class InputBox extends Widget {
 		this.applyStyles();
 	}
 
-	private onBlur(): void {
+	protected onBlur(): void {
 		this._hideMessage();
 		if (this.options.showPlaceholderOnFocus) {
 			this.input.setAttribute('placeholder', '');
 		}
 	}
 
-	private onFocus(): void {
+	protected onFocus(): void {
 		this._showMessage();
 		if (this.options.showPlaceholderOnFocus) {
 			this.input.setAttribute('placeholder', this.placeholder || '');
@@ -458,7 +458,7 @@ export class InputBox extends Widget {
 		}
 
 		let div: HTMLElement;
-		let layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
+		const layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
 
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.element,
@@ -639,6 +639,12 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	private readonly history: HistoryNavigator<string>;
 	private observer: MutationObserver | undefined;
 
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocus.event;
+
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	readonly onDidBlur = this._onDidBlur.event;
+
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions) {
 		const NLS_PLACEHOLDER_HISTORY_HINT = nls.localize({ key: 'history.inputbox.hint', comment: ['Text will be prefixed with \u21C5 plus a single space, then used as a hint where input field keeps history'] }, "for history");
 		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` or \u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT}`;
@@ -746,6 +752,16 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 	public clearHistory(): void {
 		this.history.clear();
+	}
+
+	protected override onBlur(): void {
+		super.onBlur();
+		this._onDidBlur.fire();
+	}
+
+	protected override onFocus(): void {
+		super.onFocus();
+		this._onDidFocus.fire();
 	}
 
 	private getCurrentValue(): string | null {

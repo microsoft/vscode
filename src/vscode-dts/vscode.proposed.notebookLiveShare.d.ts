@@ -9,7 +9,7 @@ declare module 'vscode' {
 
 	export interface NotebookRegistrationData {
 		displayName: string;
-		filenamePattern: (GlobPattern | { include: GlobPattern; exclude: GlobPattern; })[];
+		filenamePattern: (GlobPattern | { include: GlobPattern; exclude: GlobPattern })[];
 		exclusive?: boolean;
 	}
 

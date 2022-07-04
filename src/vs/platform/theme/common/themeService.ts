@@ -48,7 +48,7 @@ export namespace ThemeIcon {
 		if (!match) {
 			return undefined;
 		}
-		let [, name] = match;
+		const [, name] = match;
 		return { id: name };
 	}
 
@@ -95,16 +95,18 @@ export const FolderThemeIcon = Codicon.folder;
 export function getThemeTypeSelector(type: ColorScheme): string {
 	switch (type) {
 		case ColorScheme.DARK: return 'vs-dark';
-		case ColorScheme.HIGH_CONTRAST: return 'hc-black';
+		case ColorScheme.HIGH_CONTRAST_DARK: return 'hc-black';
+		case ColorScheme.HIGH_CONTRAST_LIGHT: return 'hc-light';
 		default: return 'vs';
 	}
 }
 
 export interface ITokenStyle {
-	readonly foreground?: number;
-	readonly bold?: boolean;
-	readonly underline?: boolean;
-	readonly italic?: boolean;
+	readonly foreground: number | undefined;
+	readonly bold: boolean | undefined;
+	readonly underline: boolean | undefined;
+	readonly strikethrough: boolean | undefined;
+	readonly italic: boolean | undefined;
 }
 
 export interface IColorTheme {
@@ -228,7 +230,7 @@ class ThemingRegistry implements IThemingRegistry {
 	}
 }
 
-let themingRegistry = new ThemingRegistry();
+const themingRegistry = new ThemingRegistry();
 platform.Registry.add(Extensions.ThemingContribution, themingRegistry);
 
 export function registerThemingParticipant(participant: IThemingParticipant): IDisposable {
@@ -271,4 +273,29 @@ export class Themable extends Disposable {
 
 		return color ? color.toString() : null;
 	}
+}
+
+export interface IPartsSplash {
+	baseTheme: string;
+	colorInfo: {
+		background: string;
+		foreground: string | undefined;
+		editorBackground: string | undefined;
+		titleBarBackground: string | undefined;
+		activityBarBackground: string | undefined;
+		sideBarBackground: string | undefined;
+		statusBarBackground: string | undefined;
+		statusBarNoFolderBackground: string | undefined;
+		windowBorder: string | undefined;
+	};
+	layoutInfo: {
+		sideBarSide: string;
+		editorPartMinWidth: number;
+		titleBarHeight: number;
+		activityBarWidth: number;
+		sideBarWidth: number;
+		statusBarHeight: number;
+		windowBorder: boolean;
+		windowBorderRadius: string | undefined;
+	} | undefined;
 }

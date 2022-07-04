@@ -11,6 +11,7 @@ import { ncp } from 'ncp';
 import { promisify } from 'util';
 
 const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor textarea';
+const REFRESH_BUTTON = 'div.part.sidebar.left[id="workbench.parts.sidebar"] .codicon.codicon-extensions-refresh';
 
 export class Extensions extends Viewlet {
 
@@ -33,7 +34,17 @@ export class Extensions extends Viewlet {
 		await this.code.waitForActiveElement(SEARCH_BOX);
 		await this.code.waitForTypeInEditor(SEARCH_BOX, `@id:${id}`);
 		await this.code.waitForTextContent(`div.part.sidebar div.composite.title h2`, 'Extensions: Marketplace');
-		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"]`);
+
+		let retrials = 1;
+		while (retrials++ < 10) {
+			try {
+				return await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"]`, undefined, 100);
+			} catch (error) {
+				this.code.logger.log(`Extension '${id}' is not found. Retrying count: ${retrials}`);
+				await this.code.waitAndClick(REFRESH_BUTTON);
+			}
+		}
+		throw new Error(`Extension ${id} is not found`);
 	}
 
 	async openExtension(id: string): Promise<any> {

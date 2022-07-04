@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/e1bb99ae10eae344e7c72f5b17e81ff7377991c4",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/8f2c528619535333a2ff12e321fb6f6efcba38e4",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -465,7 +465,7 @@
 			"end": "(\\\\end\\{\\2\\}(?:\\s*\\n)?)"
 		},
 		{
-			"begin": "((?:\\s*)\\\\begin\\{((?:julia|jl)code(?:\\*)?)\\}(?:\\[.*\\])?)",
+			"begin": "((?:\\s*)\\\\begin\\{((?:julia|jl)(?:code|verbatim|block|concode|console|converbatim)(?:\\*)?)\\}(?:\\[.*\\])?)",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -1312,7 +1312,7 @@
 			"name": "meta.scope.item.latex"
 		},
 		{
-			"begin": "((\\\\)(?:[aA]uto|foot|full|no|short|[tT]ext|[pP]aren|[sS]mart)?[cC]ite(?:al)?(?:p|s|t|author|year(?:par)?|title)?[ANP]*\\*?)((?:(?:\\([^\\)]*\\)){0,2}(?:\\[[^\\]]*\\]){0,2}\\{[\\w:.]*\\})*)(?:(\\[)[^\\]]*(\\]))?(?:(\\[)[^\\]]*(\\]))?(\\{)",
+			"begin": "((\\\\)(?:[aA]uto|foot|full|no|short|[tT]ext|[pP]aren|[sS]mart)?[cC]ite(?:al)?(?:p|s|t|author|year(?:par)?|title)?[ANP]*\\*?)((?:(?:\\([^\\)]*\\)){0,2}(?:\\[[^\\]]*\\]){0,2}\\{[\\w:.]*\\})*)(?:([<\\[])[^\\]<>]*([>\\]]))?(?:(\\[)[^\\]]*(\\]))?(\\{)",
 			"captures": {
 				"1": {
 					"name": "keyword.control.cite.latex"
@@ -1908,7 +1908,7 @@
 			"match": "(?:\\s*)((\\\\)(?:begin|end))(\\{)([a-z]+(?:\\*)?)(\\})(?:(\\[).*(\\]))?"
 		},
 		"definition-label": {
-			"begin": "((\\\\)label)(\\{)",
+			"begin": "((\\\\)label)((?:\\[[^\\[]*?\\])*)(\\{)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.label.latex"
@@ -1917,6 +1917,13 @@
 					"name": "punctuation.definition.keyword.latex"
 				},
 				"3": {
+					"patterns": [
+						{
+							"include": "#optional-arg"
+						}
+					]
+				},
+				"4": {
 					"name": "punctuation.definition.arguments.begin.latex"
 				}
 			},

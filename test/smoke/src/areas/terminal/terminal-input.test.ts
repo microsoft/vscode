@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, Terminal, SettingsEditor } from '../../../../automation';
-import { itSkipOnFail } from '../../utils';
+import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
 	describe('Terminal Input', () => {
@@ -16,20 +16,26 @@ export function setup() {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
+			await setTerminalTestSettings(app);
 		});
 
-		describe('Auto replies', () => {
+		after(async function () {
+			await settingsEditor.clearUserSettings();
+		});
+
+		describe('Auto replies', function () {
+
+			// HACK: Retry this suite only on Windows because conpty can rarely lead to unexpected behavior which would
+			// cause flakiness. If this does happen, the feature is expected to fail.
+			if (process.platform === 'win32') {
+				this.retries(3);
+			}
+
 			async function writeTextForAutoReply(text: string): Promise<void> {
 				// Put the matching word in quotes to avoid powershell coloring the first word and
 				// on a new line to avoid cursor move/line switching sequences
 				await terminal.runCommandInTerminal(`"\r${text}`, true);
 			}
-
-			itSkipOnFail('should automatically reply to default "Terminate batch job (Y/N)"', async () => { // TODO@daniel https://github.com/microsoft/vscode/issues/139076
-				await terminal.createTerminal();
-				await writeTextForAutoReply('Terminate batch job (Y/N)?');
-				await terminal.waitForTerminalText(buffer => buffer.some(line => line.match(/\?.*Y/)));
-			});
 
 			it('should automatically reply to a custom entry', async () => {
 				await settingsEditor.addUserSetting('terminal.integrated.autoReplies', '{ "foo": "bar" }');

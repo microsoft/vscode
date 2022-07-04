@@ -5,12 +5,13 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import MarkdownSmartSelect from '../features/smartSelect';
+import { MdSmartSelect } from '../languageFeatures/smartSelect';
+import { MdTableOfContentsProvider } from '../tableOfContents';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
-import { joinLines } from './util';
-
-const CURSOR = '$$CURSOR$$';
+import { InMemoryMdWorkspace } from './inMemoryWorkspace';
+import { nulLogger } from './nulLogging';
+import { CURSOR, getCursorPositions, joinLines } from './util';
 
 const testFileName = vscode.Uri.file('test.md');
 
@@ -19,6 +20,7 @@ suite('markdown.SmartSelect', () => {
 		const ranges = await getSelectionRangesForDocument(`Hel${CURSOR}lo`);
 		assertNestedLineNumbersEqual(ranges![0], [0, 0]);
 	});
+
 	test('Smart select multi-line paragraph', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -28,11 +30,13 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedLineNumbersEqual(ranges![0], [0, 2]);
 	});
+
 	test('Smart select paragraph', async () => {
 		const ranges = await getSelectionRangesForDocument(`Many of the core components and extensions to ${CURSOR}VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) have their own repositories. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).`);
 
 		assertNestedLineNumbersEqual(ranges![0], [0, 0]);
 	});
+
 	test('Smart select html block', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -42,6 +46,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [0, 2]);
 	});
+
 	test('Smart select header on header line', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -51,6 +56,7 @@ suite('markdown.SmartSelect', () => {
 		assertNestedLineNumbersEqual(ranges![0], [0, 1]);
 
 	});
+
 	test('Smart select single word w grandparent header on text line', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -61,6 +67,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [2, 2], [1, 2]);
 	});
+
 	test('Smart select html block w parent header', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -71,6 +78,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [1, 1], [1, 3], [0, 3]);
 	});
+
 	test('Smart select fenced code block', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -80,6 +88,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [0, 2]);
 	});
+
 	test('Smart select list', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -89,6 +98,7 @@ suite('markdown.SmartSelect', () => {
 				`- item 4`));
 		assertNestedLineNumbersEqual(ranges![0], [1, 1], [0, 3]);
 	});
+
 	test('Smart select list with fenced code block', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -101,6 +111,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [1, 3], [0, 5]);
 	});
+
 	test('Smart select multi cursor', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -114,6 +125,7 @@ suite('markdown.SmartSelect', () => {
 		assertNestedLineNumbersEqual(ranges![0], [0, 0], [0, 5]);
 		assertNestedLineNumbersEqual(ranges![1], [4, 4], [0, 5]);
 	});
+
 	test('Smart select nested block quotes', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -123,6 +135,7 @@ suite('markdown.SmartSelect', () => {
 				`>> item 4`));
 		assertNestedLineNumbersEqual(ranges![0], [2, 2], [2, 3], [0, 3]);
 	});
+
 	test('Smart select multi nested block quotes', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -132,6 +145,7 @@ suite('markdown.SmartSelect', () => {
 				`>>>> item 4`));
 		assertNestedLineNumbersEqual(ranges![0], [2, 2], [2, 3], [1, 3], [0, 3]);
 	});
+
 	test('Smart select subheader content', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -143,6 +157,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [3, 3], [2, 3], [1, 3], [0, 3]);
 	});
+
 	test('Smart select subheader line', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -154,6 +169,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [2, 3], [1, 3], [0, 3]);
 	});
+
 	test('Smart select blank line', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -165,6 +181,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [1, 3], [0, 3]);
 	});
+
 	test('Smart select line between paragraphs', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -174,41 +191,46 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [0, 2]);
 	});
+
 	test('Smart select empty document', async () => {
 		const ranges = await getSelectionRangesForDocument(``, [new vscode.Position(0, 0)]);
 		assert.strictEqual(ranges!.length, 0);
 	});
+
 	test('Smart select fenced code block then list then subheader content then subheader then header content then header', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
-				`# main header 1`,
-				`content 1`,
-				`## sub header 1`,
-				`- item 1`,
-				`- ~~~`,
-				`  ${CURSOR}a`,
-				`  ~~~`,
-				`- item 3`,
-				`- item 4`,
-				``,
-				`more content`,
-				`# main header 2`));
+				/* 00 */ `# main header 1`,
+				/* 01 */ `content 1`,
+				/* 02 */ `## sub header 1`,
+				/* 03 */ `- item 1`,
+				/* 04 */ `- ~~~`,
+				/* 05 */ `  ${CURSOR}a`,
+				/* 06 */ `  ~~~`,
+				/* 07 */ `- item 3`,
+				/* 08 */ `- item 4`,
+				/* 09 */ ``,
+				/* 10 */ `more content`,
+				/* 11 */ `# main header 2`));
 
-		assertNestedLineNumbersEqual(ranges![0], [4, 6], [3, 9], [3, 10], [2, 10], [1, 10], [0, 10]);
+		assertNestedLineNumbersEqual(ranges![0], [4, 6], [3, 8], [3, 10], [2, 10], [1, 10], [0, 10]);
 	});
+
 	test('Smart select list with one element without selecting child subheader', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
-				`# main header 1`,
-				``,
-				`- list ${CURSOR}`,
-				``,
-				`## sub header`,
-				``,
-				`content 2`,
-				`# main header 2`));
-		assertNestedLineNumbersEqual(ranges![0], [2, 2], [2, 3], [1, 3], [1, 6], [0, 6]);
+				/* 00 */ `# main header 1`,
+				/* 01 */ ``,
+				/* 02 */ `- list ${CURSOR}`,
+				/* 03 */ ``,
+				/* 04 */ `## sub header`,
+				/* 05 */ ``,
+				/* 06 */ `content 2`,
+				/* 07 */ `# main header 2`));
+
+		assertNestedLineNumbersEqual(ranges![0], [2, 2], [1, 3], [1, 6], [0, 6]);
 	});
+
 	test('Smart select content under header then subheaders and their content', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -223,6 +245,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [0, 3], [0, 6]);
 	});
+
 	test('Smart select last blockquote element under header then subheaders and their content', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -241,6 +264,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [5, 5], [4, 5], [2, 5], [1, 7], [1, 10], [0, 10]);
 	});
+
 	test('Smart select content of subheader then subheader then content of main header then main header', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -265,6 +289,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [11, 11], [9, 12], [9, 17], [8, 17], [1, 17], [0, 17]);
 	});
+
 	test('Smart select last line content of subheader then subheader then content of main header then main header', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -289,6 +314,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [17, 17], [14, 17], [13, 17], [9, 17], [8, 17], [1, 17], [0, 17]);
 	});
+
 	test('Smart select last line content after content of subheader then subheader then content of main header then main header', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -313,6 +339,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [17, 17], [14, 17], [13, 17], [9, 17], [8, 17], [1, 17], [0, 17]);
 	});
+
 	test('Smart select fenced code block then list then rest of content', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -337,6 +364,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [9, 11], [8, 12], [8, 12], [7, 17], [1, 17], [0, 17]);
 	});
+
 	test('Smart select fenced code block then list then rest of content on fenced line', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -361,6 +389,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [8, 12], [7, 17], [1, 17], [0, 17]);
 	});
+
 	test('Smart select without multiple ranges', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -372,6 +401,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [3, 3], [3, 4], [1, 4], [0, 4]);
 	});
+
 	test('Smart select on second level of a list', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -385,6 +415,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [5, 5], [1, 5], [0, 5], [0, 6]);
 	});
+
 	test('Smart select on third level of a list', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -398,6 +429,7 @@ suite('markdown.SmartSelect', () => {
 				`* level 0`));
 		assertNestedLineNumbersEqual(ranges![0], [3, 3], [3, 4], [2, 4], [1, 6], [0, 6], [0, 7]);
 	});
+
 	test('Smart select level 2 then level 1', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -407,6 +439,7 @@ suite('markdown.SmartSelect', () => {
 				`* level 1`));
 		assertNestedLineNumbersEqual(ranges![0], [1, 1], [1, 2], [0, 2], [0, 3]);
 	});
+
 	test('Smart select last list item', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -416,6 +449,7 @@ suite('markdown.SmartSelect', () => {
 				`- level ${CURSOR}1`));
 		assertNestedLineNumbersEqual(ranges![0], [3, 3], [0, 3]);
 	});
+
 	test('Smart select without multiple ranges', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -427,6 +461,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [3, 3], [3, 4], [1, 4], [0, 4]);
 	});
+
 	test('Smart select on second level of a list', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -440,6 +475,7 @@ suite('markdown.SmartSelect', () => {
 
 		assertNestedLineNumbersEqual(ranges![0], [5, 5], [1, 5], [0, 5], [0, 6]);
 	});
+
 	test('Smart select on third level of a list', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -453,6 +489,7 @@ suite('markdown.SmartSelect', () => {
 				`* level 0`));
 		assertNestedLineNumbersEqual(ranges![0], [3, 3], [3, 4], [2, 4], [1, 6], [0, 6], [0, 7]);
 	});
+
 	test('Smart select level 2 then level 1', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -462,6 +499,7 @@ suite('markdown.SmartSelect', () => {
 				`* level 1`));
 		assertNestedLineNumbersEqual(ranges![0], [1, 1], [1, 2], [0, 2], [0, 3]);
 	});
+
 	test('Smart select bold', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -469,6 +507,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 13, 0, 30], [0, 11, 0, 32], [0, 0, 0, 41]);
 	});
+
 	test('Smart select link', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -476,6 +515,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 18, 0, 46], [0, 17, 0, 47], [0, 11, 0, 47], [0, 0, 0, 56]);
 	});
+
 	test('Smart select brackets', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -483,6 +523,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 12, 0, 26], [0, 11, 0, 27], [0, 11, 0, 47], [0, 0, 0, 56]);
 	});
+
 	test('Smart select brackets under header in list', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -497,6 +538,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [6, 14, 6, 28], [6, 13, 6, 29], [6, 13, 6, 49], [6, 0, 6, 58], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
+
 	test('Smart select link under header in list', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -511,6 +553,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [6, 20, 6, 48], [6, 19, 6, 49], [6, 13, 6, 49], [6, 0, 6, 58], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
+
 	test('Smart select bold within list where multiple bold elements exists', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -525,6 +568,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [6, 22, 6, 45], [6, 20, 6, 47], [6, 0, 6, 60], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
+
 	test('Smart select link in paragraph with multiple links', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -532,6 +576,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 123, 0, 140], [0, 122, 0, 141], [0, 122, 0, 191], [0, 0, 0, 283]);
 	});
+
 	test('Smart select bold link', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -539,6 +584,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 3, 0, 22], [0, 2, 0, 23], [0, 2, 0, 43], [0, 2, 0, 43], [0, 0, 0, 45], [0, 0, 0, 45]);
 	});
+
 	test('Smart select inline code block', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -546,6 +592,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 2, 0, 22], [0, 1, 0, 23], [0, 0, 0, 24]);
 	});
+
 	test('Smart select link with inline code block text', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -553,6 +600,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 2, 0, 22], [0, 1, 0, 23], [0, 1, 0, 23], [0, 0, 0, 24], [0, 0, 0, 44], [0, 0, 0, 44]);
 	});
+
 	test('Smart select italic', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -560,6 +608,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 1, 0, 25], [0, 0, 0, 26], [0, 0, 0, 26]);
 	});
+
 	test('Smart select italic link', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -567,6 +616,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 2, 0, 21], [0, 1, 0, 22], [0, 1, 0, 42], [0, 1, 0, 42], [0, 0, 0, 43], [0, 0, 0, 43]);
 	});
+
 	test('Smart select italic on end', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -574,6 +624,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 1, 0, 28], [0, 0, 0, 29], [0, 0, 0, 29]);
 	});
+
 	test('Smart select italic then bold', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -581,6 +632,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 25, 0, 48], [0, 24, 0, 49], [0, 13, 0, 60], [0, 11, 0, 62], [0, 0, 0, 73]);
 	});
+
 	test('Smart select bold then italic', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -588,6 +640,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 27, 0, 48], [0, 25, 0, 50], [0, 12, 0, 63], [0, 11, 0, 64], [0, 0, 0, 75]);
 	});
+
 	test('Third level header from release notes', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
@@ -625,7 +678,9 @@ suite('markdown.SmartSelect', () => {
 		);
 		assertNestedRangesEqual(ranges![0], [27, 0, 27, 201], [26, 0, 29, 70], [25, 0, 29, 70], [24, 0, 29, 70], [23, 0, 29, 70], [10, 0, 29, 70], [9, 0, 29, 70]);
 	});
+
 });
+
 
 function assertNestedLineNumbersEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number][]) {
 	const lineage = getLineage(range);
@@ -666,23 +721,11 @@ function assertLineNumbersEqual(selectionRange: vscode.SelectionRange, startLine
 	assert.strictEqual(selectionRange.range.end.line, endLine, `failed on end line ${message}`);
 }
 
-async function getSelectionRangesForDocument(contents: string, pos?: vscode.Position[]) {
+function getSelectionRangesForDocument(contents: string, pos?: vscode.Position[]): Promise<vscode.SelectionRange[] | undefined> {
 	const doc = new InMemoryDocument(testFileName, contents);
-	const provider = new MarkdownSmartSelect(createNewMarkdownEngine());
+	const workspace = new InMemoryMdWorkspace([doc]);
+	const engine = createNewMarkdownEngine();
+	const provider = new MdSmartSelect(engine, new MdTableOfContentsProvider(engine, workspace, nulLogger));
 	const positions = pos ? pos : getCursorPositions(contents, doc);
-	return await provider.provideSelectionRanges(doc, positions, new vscode.CancellationTokenSource().token);
+	return provider.provideSelectionRanges(doc, positions, new vscode.CancellationTokenSource().token);
 }
-
-let getCursorPositions = (contents: string, doc: InMemoryDocument): vscode.Position[] => {
-	let positions: vscode.Position[] = [];
-	let index = 0;
-	let wordLength = 0;
-	while (index !== -1) {
-		index = contents.indexOf(CURSOR, index + wordLength);
-		if (index !== -1) {
-			positions.push(doc.positionAt(index));
-		}
-		wordLength = CURSOR.length;
-	}
-	return positions;
-};

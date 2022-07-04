@@ -14,7 +14,7 @@
     "Other"
   ],
   "capabilities": {
-    "virtualWorkspaces": false,
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }
@@ -77,6 +77,7 @@
         "title": "%command.next%",
         "original": "Next Conflict",
         "command": "merge-conflict.next",
+        "enablement": "!isMergeEditor",
         "icon": "$(arrow-down)"
       },
       {
@@ -84,6 +85,7 @@
         "title": "%command.previous%",
         "original": "Previous Conflict",
         "command": "merge-conflict.previous",
+        "enablement": "!isMergeEditor",
         "icon": "$(arrow-up)"
       },
       {
@@ -110,12 +112,12 @@
         {
           "command": "merge-conflict.previous",
           "group": "navigation@1",
-          "when": "mergeConflictsCount && mergeConflictsCount != 0"
+          "when": "!isMergeEditor && mergeConflictsCount && mergeConflictsCount != 0"
         },
         {
           "command": "merge-conflict.next",
           "group": "navigation@2",
-          "when": "mergeConflictsCount && mergeConflictsCount != 0"
+          "when": "!isMergeEditor && mergeConflictsCount && mergeConflictsCount != 0"
         }
       ]
     },
@@ -159,7 +161,7 @@
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "repository": {
     "type": "git",

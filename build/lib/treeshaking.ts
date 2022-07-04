@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import type * as ts from 'typescript';
@@ -59,7 +57,7 @@ export interface ITreeShakingOptions {
 	 */
 	importIgnorePattern: RegExp;
 
-	redirects: { [module: string]: string; };
+	redirects: { [module: string]: string };
 }
 
 export interface ITreeShakingResult {
@@ -73,7 +71,7 @@ function printDiagnostics(options: ITreeShakingOptions, diagnostics: ReadonlyArr
 			result += `${path.join(options.sourcesRoot, diag.file.fileName)}`;
 		}
 		if (diag.file && diag.start) {
-			let location = diag.file.getLineAndCharacterOfPosition(diag.start);
+			const location = diag.file.getLineAndCharacterOfPosition(diag.start);
 			result += `:${location.line + 1}:${location.character}`;
 		}
 		result += ` - ` + JSON.stringify(diag.messageText);
@@ -140,7 +138,7 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
 function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): IFileMap {
 	const FILES: IFileMap = {};
 
-	const in_queue: { [module: string]: boolean; } = Object.create(null);
+	const in_queue: { [module: string]: boolean } = Object.create(null);
 	const queue: string[] = [];
 
 	const enqueue = (moduleId: string) => {
@@ -216,7 +214,7 @@ function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingO
 
 			// precess dependencies and "recurse"
 			const info = ts.preProcessFile(sourceText);
-			for (let ref of info.libReferenceDirectives) {
+			for (const ref of info.libReferenceDirectives) {
 				stack.push(ref.fileName);
 			}
 		}
@@ -225,8 +223,8 @@ function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingO
 	return result;
 }
 
-interface ILibMap { [libName: string]: string; }
-interface IFileMap { [fileName: string]: string; }
+interface ILibMap { [libName: string]: string }
+interface IFileMap { [fileName: string]: string }
 
 /**
  * A TypeScript language service host
@@ -284,6 +282,12 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	isDefaultLibFileName(fileName: string): boolean {
 		return fileName === this.getDefaultLibFileName(this._compilerOptions);
 	}
+	readFile(path: string, _encoding?: string): string | undefined {
+		return this._files[path] || this._libs[path];
+	}
+	fileExists(path: string): boolean {
+		return path in this._files || path in this._libs;
+	}
 }
 //#endregion
 
@@ -339,7 +343,7 @@ function isVariableStatementWithSideEffects(ts: typeof import('typescript'), nod
 		}
 		if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
 			// TODO: assuming `createDecorator` and `refineServiceDecorator` calls are side-effect free
-			const isSideEffectFree = /(createDecorator|refineServiceDecorator)/.test(node.getText());
+			const isSideEffectFree = /(createDecorator|refineServiceDecorator)/.test(node.expression.getText());
 			if (!isSideEffectFree) {
 				hasSideEffects = true;
 			}
@@ -623,7 +627,7 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 
 						// queue the heritage clauses
 						if (declaration.heritageClauses) {
-							for (let heritageClause of declaration.heritageClauses) {
+							for (const heritageClause of declaration.heritageClauses) {
 								enqueue_black(heritageClause);
 							}
 						}
@@ -676,7 +680,7 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 		throw new Error('Could not get program from language service');
 	}
 
-	let result: ITreeShakingResult = {};
+	const result: ITreeShakingResult = {};
 	const writeFile = (filePath: string, contents: string): void => {
 		result[filePath] = contents;
 	};
@@ -694,7 +698,7 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 			return;
 		}
 
-		let text = sourceFile.text;
+		const text = sourceFile.text;
 		let result = '';
 
 		function keep(node: ts.Node): void {
@@ -728,7 +732,7 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 							return keep(node);
 						}
 					} else {
-						let survivingImports: string[] = [];
+						const survivingImports: string[] = [];
 						for (const importNode of node.importClause.namedBindings.elements) {
 							if (getColor(importNode) === NodeColor.Black) {
 								survivingImports.push(importNode.getFullText(sourceFile));
@@ -756,7 +760,7 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 
 			if (ts.isExportDeclaration(node)) {
 				if (node.exportClause && node.moduleSpecifier && ts.isNamedExports(node.exportClause)) {
-					let survivingExports: string[] = [];
+					const survivingExports: string[] = [];
 					for (const exportSpecifier of node.exportClause.elements) {
 						if (getColor(exportSpecifier) === NodeColor.Black) {
 							survivingExports.push(exportSpecifier.getFullText(sourceFile));
@@ -779,8 +783,8 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 						continue;
 					}
 
-					let pos = member.pos - node.pos;
-					let end = member.end - node.pos;
+					const pos = member.pos - node.pos;
+					const end = member.end - node.pos;
 					toWrite = toWrite.substring(0, pos) + toWrite.substring(end);
 				}
 				return write(toWrite);

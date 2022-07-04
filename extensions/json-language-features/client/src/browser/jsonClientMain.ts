@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionContext, Uri } from 'vscode';
-import { LanguageClientOptions } from 'vscode-languageclient';
+import { BaseLanguageClient, LanguageClientOptions } from 'vscode-languageclient';
 import { startClient, LanguageClientConstructor, SchemaRequestService } from '../jsonClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
 
@@ -14,8 +14,10 @@ declare const Worker: {
 
 declare function fetch(uri: string, options: any): any;
 
+let client: BaseLanguageClient | undefined;
+
 // this method is called when vs code is activated
-export function activate(context: ExtensionContext) {
+export async function activate(context: ExtensionContext) {
 	const serverMain = Uri.joinPath(context.extensionUri, 'server/dist/browser/jsonServerMain.js');
 	try {
 		const worker = new Worker(serverMain.toString());
@@ -32,9 +34,16 @@ export function activate(context: ExtensionContext) {
 			}
 		};
 
-		startClient(context, newLanguageClient, { schemaRequests });
+		client = await startClient(context, newLanguageClient, { schemaRequests });
 
 	} catch (e) {
 		console.log(e);
+	}
+}
+
+export async function deactivate(): Promise<void> {
+	if (client) {
+		await client.stop();
+		client = undefined;
 	}
 }

@@ -10,14 +10,14 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export class ExtHostSecretState implements ExtHostSecretStateShape {
 	private _proxy: MainThreadSecretStateShape;
-	private _onDidChangePassword = new Emitter<{ extensionId: string, key: string }>();
+	private _onDidChangePassword = new Emitter<{ extensionId: string; key: string }>();
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	constructor(mainContext: IExtHostRpcService) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSecretState);
 	}
 
-	async $onDidChangePassword(e: { extensionId: string, key: string }): Promise<void> {
+	async $onDidChangePassword(e: { extensionId: string; key: string }): Promise<void> {
 		this._onDidChangePassword.fire(e);
 	}
 

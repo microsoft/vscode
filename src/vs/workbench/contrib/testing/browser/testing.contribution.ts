@@ -18,7 +18,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations, TestingDecorationService } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
@@ -27,11 +27,10 @@ import { ITestingOutputTerminalService, TestingOutputTerminalService } from 'vs/
 import { ITestingProgressUiService, TestingProgressTrigger, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { ITestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { ITestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingDecorationsService } from 'vs/workbench/contrib/testing/common/testingDecorations';
@@ -50,7 +49,6 @@ registerSingleton(ITestResultStorage, TestResultStorage, true);
 registerSingleton(ITestProfileService, TestProfileService, true);
 registerSingleton(ITestResultService, TestResultService, true);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, true);
-registerSingleton(ITestingAutoRun, TestingAutoRun, true);
 registerSingleton(ITestingOutputTerminalService, TestingOutputTerminalService, true);
 registerSingleton(ITestingPeekOpener, TestingPeekOpener, true);
 registerSingleton(ITestingProgressUiService, TestingProgressUiService, true);
@@ -80,14 +78,7 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 });
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
-	content: localize(
-		{
-			key: 'searchMarketplaceForTestExtensions',
-			comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'],
-		},
-		"[Find Test Extensions](command:{0})",
-		'testing.searchForTestExtension'
-	),
+	content: '[' + localize('searchForAdditionalTestExtensions', "Install Additional Test Extensions...") + `](command:${TestCommandId.SearchForTestExtension})`,
 	order: 10
 });
 
@@ -176,7 +167,7 @@ CommandsRegistry.registerCommand({
 
 		let isFile = true;
 		try {
-			if (!(await fileService.resolve(uri)).isFile) {
+			if (!(await fileService.stat(uri)).isFile) {
 				isFile = false;
 			}
 		} catch {

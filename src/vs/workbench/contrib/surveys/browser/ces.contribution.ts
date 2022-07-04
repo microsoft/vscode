@@ -48,7 +48,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const skipSurvey = storageService.get(SKIP_SURVEY_KEY, StorageScope.GLOBAL, '');
+		const skipSurvey = storageService.get(SKIP_SURVEY_KEY, StorageScope.APPLICATION, '');
 		if (skipSurvey) {
 			return;
 		}
@@ -57,9 +57,16 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async promptUser() {
+		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
+		if (!isCandidate) {
+			this.skipSurvey();
+			return;
+		}
+
 		const sendTelemetry = (userReaction: 'accept' | 'remindLater' | 'neverShowAgain' | 'cancelled') => {
 			/* __GDPR__
 			"cesSurvey:popup" : {
+				"owner": "digitarald",
 				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 			*/
@@ -82,7 +89,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 						const usedParams = this.productService.surveys
 							?.filter(surveyData => surveyData.surveyId && surveyData.languageId)
 							// Counts provided by contrib/surveys/browser/languageSurveys
-							.filter(surveyData => this.storageService.getNumber(`${surveyData.surveyId}.editedCount`, StorageScope.GLOBAL, 0) > 0)
+							.filter(surveyData => this.storageService.getNumber(`${surveyData.surveyId}.editedCount`, StorageScope.APPLICATION, 0) > 0)
 							.map(surveyData => `${encodeURIComponent(surveyData.languageId)}Lang=1`)
 							.join('&');
 						if (usedParams) {
@@ -96,7 +103,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 				label: nls.localize('remindLater', "Remind Me later"),
 				run: () => {
 					sendTelemetry('remindLater');
-					this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.USER);
+					this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.APPLICATION, StorageTarget.USER);
 					this.schedulePrompt();
 				}
 			}],
@@ -113,14 +120,8 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async schedulePrompt(): Promise<void> {
-		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
-		if (!isCandidate) {
-			this.skipSurvey();
-			return;
-		}
-
 		let waitTimeToShowSurvey = 0;
-		const remindLaterDate = this.storageService.get(REMIND_LATER_DATE_KEY, StorageScope.GLOBAL, '');
+		const remindLaterDate = this.storageService.get(REMIND_LATER_DATE_KEY, StorageScope.APPLICATION, '');
 		if (remindLaterDate) {
 			const timeToRemind = new Date(remindLaterDate).getTime() + REMIND_LATER_DELAY - Date.now();
 			if (timeToRemind > 0) {
@@ -141,7 +142,9 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 			}
 		}
 		/* __GDPR__
-		"cesSurvey:schedule" : { }
+		"cesSurvey:schedule" : {
+			"owner": "digitarald"
+		}
 		*/
 		this.telemetryService.publicLog('cesSurvey:schedule');
 
@@ -151,7 +154,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private skipSurvey(): void {
-		this.storageService.store(SKIP_SURVEY_KEY, this.productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(SKIP_SURVEY_KEY, this.productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 	}
 }
 

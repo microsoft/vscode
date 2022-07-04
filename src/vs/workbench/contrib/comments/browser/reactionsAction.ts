@@ -37,23 +37,23 @@ export class ReactionActionViewItem extends ActionViewItem {
 			return;
 		}
 
-		let action = this.getAction() as ReactionAction;
+		const action = this.getAction() as ReactionAction;
 		if (action.class) {
 			this.label.classList.add(action.class);
 		}
 
 		if (!action.icon) {
-			let reactionLabel = dom.append(this.label, dom.$('span.reaction-label'));
+			const reactionLabel = dom.append(this.label, dom.$('span.reaction-label'));
 			reactionLabel.innerText = action.label;
 		} else {
-			let reactionIcon = dom.append(this.label, dom.$('.reaction-icon'));
+			const reactionIcon = dom.append(this.label, dom.$('.reaction-icon'));
 			reactionIcon.style.display = '';
-			let uri = URI.revive(action.icon);
+			const uri = URI.revive(action.icon);
 			reactionIcon.style.backgroundImage = dom.asCSSUrl(uri);
 			reactionIcon.title = action.label;
 		}
 		if (action.count) {
-			let reactionCount = dom.append(this.label, dom.$('span.reaction-count'));
+			const reactionCount = dom.append(this.label, dom.$('span.reaction-count'));
 			reactionCount.innerText = `${action.count}`;
 		}
 	}

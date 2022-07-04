@@ -6,19 +6,29 @@
 import * as vscode from 'vscode';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
-import LinkProvider from './features/documentLinkProvider';
-import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import MarkdownFoldingProvider from './features/foldingProvider';
-import { MarkdownContentProvider } from './features/previewContentProvider';
-import { MarkdownPreviewManager } from './features/previewManager';
-import MarkdownSmartSelect from './features/smartSelect';
-import MarkdownWorkspaceSymbolProvider from './features/workspaceSymbolProvider';
-import { Logger } from './logger';
-import { MarkdownEngine } from './markdownEngine';
+import { registerPasteSupport } from './languageFeatures/copyPaste';
+import { registerDefinitionSupport } from './languageFeatures/definitions';
+import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
+import { MdLinkProvider, registerDocumentLinkSupport } from './languageFeatures/documentLinks';
+import { MdDocumentSymbolProvider, registerDocumentSymbolSupport } from './languageFeatures/documentSymbols';
+import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
+import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
+import { registerFoldingSupport } from './languageFeatures/folding';
+import { registerPathCompletionSupport } from './languageFeatures/pathCompletions';
+import { MdReferencesProvider, registerReferencesSupport } from './languageFeatures/references';
+import { registerRenameSupport } from './languageFeatures/rename';
+import { registerSmartSelectSupport } from './languageFeatures/smartSelect';
+import { registerWorkspaceSymbolSupport } from './languageFeatures/workspaceSymbols';
+import { ILogger, VsCodeOutputLogger } from './logging';
+import { IMdParser, MarkdownItEngine, MdParsingProvider } from './markdownEngine';
 import { getMarkdownExtensionContributions } from './markdownExtensions';
-import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
+import { MdDocumentRenderer } from './preview/documentRenderer';
+import { MarkdownPreviewManager } from './preview/previewManager';
+import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './preview/security';
 import { githubSlugifier } from './slugify';
+import { MdTableOfContentsProvider } from './tableOfContents';
 import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
+import { IMdWorkspace, VsCodeMdWorkspace } from './workspace';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -28,48 +38,74 @@ export function activate(context: vscode.ExtensionContext) {
 	const contributions = getMarkdownExtensionContributions(context);
 	context.subscriptions.push(contributions);
 
-	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
-	const engine = new MarkdownEngine(contributions, githubSlugifier);
-	const logger = new Logger();
+	const logger = new VsCodeOutputLogger();
+	context.subscriptions.push(logger);
 
-	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
-	const symbolProvider = new MDDocumentSymbolProvider(engine);
-	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, engine);
+	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
+	const commandManager = new CommandManager();
+
+	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
+	const workspace = new VsCodeMdWorkspace();
+	const parser = new MdParsingProvider(engine, workspace);
+	const tocProvider = new MdTableOfContentsProvider(parser, workspace, logger);
+	context.subscriptions.push(workspace, parser, tocProvider);
+
+	const contentProvider = new MdDocumentRenderer(engine, context, cspArbiter, contributions, logger);
+	const previewManager = new MarkdownPreviewManager(contentProvider, workspace, logger, contributions, tocProvider);
 	context.subscriptions.push(previewManager);
 
-	context.subscriptions.push(registerMarkdownLanguageFeatures(symbolProvider, engine));
-	context.subscriptions.push(registerMarkdownCommands(previewManager, telemetryReporter, cspArbiter, engine));
+	context.subscriptions.push(registerMarkdownLanguageFeatures(parser, workspace, commandManager, tocProvider, logger));
+	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine, tocProvider));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		logger.updateConfiguration();
 		previewManager.updateConfiguration();
 	}));
 }
 
 function registerMarkdownLanguageFeatures(
-	symbolProvider: MDDocumentSymbolProvider,
-	engine: MarkdownEngine
+	parser: IMdParser,
+	workspace: IMdWorkspace,
+	commandManager: CommandManager,
+	tocProvider: MdTableOfContentsProvider,
+	logger: ILogger,
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
+	const linkProvider = new MdLinkProvider(parser, workspace, logger);
+	const referencesProvider = new MdReferencesProvider(parser, workspace, tocProvider, logger);
+	const symbolProvider = new MdDocumentSymbolProvider(tocProvider, logger);
+
 	return vscode.Disposable.from(
-		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
-		vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()),
-		vscode.languages.registerFoldingRangeProvider(selector, new MarkdownFoldingProvider(engine)),
-		vscode.languages.registerSelectionRangeProvider(selector, new MarkdownSmartSelect(engine)),
-		vscode.languages.registerWorkspaceSymbolProvider(new MarkdownWorkspaceSymbolProvider(symbolProvider))
+		linkProvider,
+		referencesProvider,
+
+		// Language features
+		registerDefinitionSupport(selector, referencesProvider),
+		registerDiagnosticSupport(selector, workspace, linkProvider, commandManager, referencesProvider, tocProvider, logger),
+		registerDocumentLinkSupport(selector, linkProvider),
+		registerDocumentSymbolSupport(selector, tocProvider, logger),
+		registerDropIntoEditorSupport(selector),
+		registerFindFileReferenceSupport(commandManager, referencesProvider),
+		registerFoldingSupport(selector, parser, tocProvider),
+		registerPasteSupport(selector),
+		registerPathCompletionSupport(selector, workspace, parser, linkProvider),
+		registerReferencesSupport(selector, referencesProvider),
+		registerRenameSupport(selector, workspace, referencesProvider, parser.slugifier),
+		registerSmartSelectSupport(selector, parser, tocProvider),
+		registerWorkspaceSymbolSupport(workspace, symbolProvider),
 	);
 }
 
 function registerMarkdownCommands(
+	commandManager: CommandManager,
 	previewManager: MarkdownPreviewManager,
 	telemetryReporter: TelemetryReporter,
 	cspArbiter: ContentSecurityPolicyArbiter,
-	engine: MarkdownEngine
+	engine: MarkdownItEngine,
+	tocProvider: MdTableOfContentsProvider,
 ): vscode.Disposable {
 	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
 
-	const commandManager = new CommandManager();
 	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
@@ -77,10 +113,9 @@ function registerMarkdownCommands(
 	commandManager.register(new commands.RefreshPreviewCommand(previewManager, engine));
 	commandManager.register(new commands.MoveCursorToPositionCommand());
 	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
-	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
+	commandManager.register(new commands.OpenDocumentLinkCommand(tocProvider));
 	commandManager.register(new commands.ToggleLockCommand(previewManager));
 	commandManager.register(new commands.RenderDocument(engine));
 	commandManager.register(new commands.ReloadPlugins(previewManager, engine));
 	return commandManager;
 }
-

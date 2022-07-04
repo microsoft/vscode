@@ -10,6 +10,11 @@
     "value": "$inbox -label:\"needs more info\" sort:created-desc"
   },
   {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode label:triage-needed is:open"
+  },
+  {
     "kind": 1,
     "language": "markdown",
     "value": "##### `Config`: defines the inbox query"

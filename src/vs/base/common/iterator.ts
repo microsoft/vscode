@@ -92,6 +92,13 @@ export namespace Iterable {
 		return value;
 	}
 
+	export function forEach<T>(iterable: Iterable<T>, fn: (t: T, index: number) => any): void {
+		let index = 0;
+		for (const element of iterable) {
+			fn(element, index++);
+		}
+	}
+
 	/**
 	 * Returns an iterable slice of the array, with the same semantics as `array.slice()`.
 	 */
@@ -135,6 +142,14 @@ export namespace Iterable {
 		}
 
 		return [consumed, { [Symbol.iterator]() { return iterator; } }];
+	}
+
+	/**
+	 * Consumes `atMost` elements from iterable and returns the consumed elements,
+	 * and an iterable for the rest of the elements.
+	 */
+	export function collect<T>(iterable: Iterable<T>): T[] {
+		return consume(iterable)[0];
 	}
 
 	/**

@@ -79,8 +79,7 @@ export interface NativeParsedArgs {
 	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
-	'driver'?: string;
-	'driver-verbose'?: boolean;
+	'enable-smoke-test-driver'?: boolean;
 	'remote'?: string;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
@@ -89,6 +88,8 @@ export interface NativeParsedArgs {
 	'sync'?: 'on' | 'off';
 	'__sandbox'?: boolean;
 	'logsPath'?: string;
+	'__enable-file-policy'?: boolean;
+	editSessionId?: string;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
@@ -107,6 +108,7 @@ export interface NativeParsedArgs {
 	'allow-insecure-localhost'?: boolean;
 	'log-net-log'?: string;
 	'vmodule'?: string;
+	'disable-dev-shm-usage'?: boolean;
 
 	// MS Build command line arg
 	'ms-enable-electron-run-as-node'?: boolean;

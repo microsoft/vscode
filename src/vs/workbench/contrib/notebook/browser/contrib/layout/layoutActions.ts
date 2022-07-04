@@ -45,14 +45,14 @@ export class ToggleCellToolbarPositionAction extends Action2 {
 			if (['left', 'right', 'hidden'].indexOf(toolbarPosition) >= 0) {
 				// valid position
 				const newViewValue = toolbarPosition === 'right' ? 'left' : 'right';
-				let config: { [key: string]: string } = {
+				const config: { [key: string]: string } = {
 					default: toolbarPosition
 				};
 				config[viewType] = newViewValue;
 				return config;
 			} else {
 				// invalid position
-				let config: { [key: string]: string } = {
+				const config: { [key: string]: string } = {
 					default: 'right',
 				};
 				config[viewType] = 'left';
@@ -61,7 +61,7 @@ export class ToggleCellToolbarPositionAction extends Action2 {
 		} else {
 			const oldValue = toolbarPosition[viewType] ?? toolbarPosition['default'] ?? 'right';
 			const newViewValue = oldValue === 'right' ? 'left' : 'right';
-			let newConfig = {
+			const newConfig = {
 				...toolbarPosition
 			};
 			newConfig[viewType] = newViewValue;

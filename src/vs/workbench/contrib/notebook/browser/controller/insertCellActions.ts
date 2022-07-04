@@ -5,7 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -14,8 +14,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
@@ -54,7 +54,7 @@ abstract class InsertCellCommand extends NotebookAction {
 		}
 
 		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, this.focusEditor ? 'editor' : 'container');
+			await context.notebookEditor.focusNotebookCell(newCell, this.focusEditor ? 'editor' : 'container');
 		}
 	}
 }
@@ -189,7 +189,7 @@ registerAction2(class InsertCodeCellAtTopAction extends NotebookAction {
 		const newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
 
 		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+			await context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
 	}
 });
@@ -216,7 +216,7 @@ registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
 		const newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Markup, 'above', undefined, true);
 
 		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+			await context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
 	}
 });

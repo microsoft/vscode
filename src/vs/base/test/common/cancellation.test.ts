@@ -27,7 +27,7 @@ suite('CancellationToken', function () {
 
 	test('cancel happens only once', function () {
 
-		let source = new CancellationTokenSource();
+		const source = new CancellationTokenSource();
 		assert.strictEqual(source.token.isCancellationRequested, false);
 
 		let cancelCount = 0;
@@ -47,7 +47,7 @@ suite('CancellationToken', function () {
 
 		let count = 0;
 
-		let source = new CancellationTokenSource();
+		const source = new CancellationTokenSource();
 		source.token.onCancellationRequested(function () {
 			count += 1;
 		});
@@ -84,7 +84,7 @@ suite('CancellationToken', function () {
 
 		let count = 0;
 
-		let source = new CancellationTokenSource();
+		const source = new CancellationTokenSource();
 		source.token.onCancellationRequested(function () {
 			count += 1;
 		});
@@ -98,7 +98,7 @@ suite('CancellationToken', function () {
 
 		let count = 0;
 
-		let source = new CancellationTokenSource();
+		const source = new CancellationTokenSource();
 		source.token.onCancellationRequested(function () {
 			count += 1;
 		});
@@ -110,8 +110,8 @@ suite('CancellationToken', function () {
 
 	test('parent cancels child', function () {
 
-		let parent = new CancellationTokenSource();
-		let child = new CancellationTokenSource(parent.token);
+		const parent = new CancellationTokenSource();
+		const child = new CancellationTokenSource(parent.token);
 
 		let count = 0;
 		child.token.onCancellationRequested(() => count += 1);

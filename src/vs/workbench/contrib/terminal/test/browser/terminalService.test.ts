@@ -12,16 +12,16 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestLifecycleService, TestTerminalEditorService, TestTerminalGroupService, TestTerminalInstanceService, TestTerminalProfileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorService, TestLifecycleService, TestRemoteAgentService, TestTerminalEditorService, TestTerminalGroupService, TestTerminalInstanceService, TestTerminalProfileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
 
 suite('Workbench - TerminalService', () => {
 	let instantiationService: TestInstantiationService;
@@ -44,6 +44,7 @@ suite('Workbench - TerminalService', () => {
 		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IThemeService, new TestThemeService());
+		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(ITerminalEditorService, new TestTerminalEditorService());
 		instantiationService.stub(ITerminalGroupService, new TestTerminalGroupService());
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());

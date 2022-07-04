@@ -14,7 +14,7 @@ import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCS
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { hash } from 'vs/base/common/hash';
@@ -90,10 +90,10 @@ class DecorationRule {
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
 
 		// badge or icon
-		let letters: string[] = [];
+		const letters: string[] = [];
 		let icon: ThemeIcon | undefined;
 
-		for (let d of data) {
+		for (const d of data) {
 			if (ThemeIcon.isThemeIcon(d.letter)) {
 				icon = d.letter;
 				break;
@@ -174,7 +174,7 @@ class DecorationStyles {
 		// sort by weight
 		data.sort((a, b) => (b.weight || 0) - (a.weight || 0));
 
-		let key = DecorationRule.keyOf(data);
+		const key = DecorationRule.keyOf(data);
 		let rule = this._decorationRules.get(key);
 
 		if (!rule) {
@@ -186,11 +186,11 @@ class DecorationStyles {
 
 		rule.acquire();
 
-		let labelClassName = rule.itemColorClassName;
+		const labelClassName = rule.itemColorClassName;
 		let badgeClassName = rule.itemBadgeClassName;
-		let iconClassName = rule.iconBadgeClassName;
+		const iconClassName = rule.iconBadgeClassName;
 		let tooltip = distinct(data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip)).join(' • ');
-		let strikethrough = data.some(d => d.strikethrough);
+		const strikethrough = data.some(d => d.strikethrough);
 
 		if (onlyChildren) {
 			// show items from its children only
@@ -280,7 +280,7 @@ export class DecorationsService implements IDecorationsService {
 		// remove everything what came from this provider
 		const removeAll = () => {
 			const uris: URI[] = [];
-			for (let [uri, map] of this._data) {
+			for (const [uri, map] of this._data) {
 				if (map.delete(provider)) {
 					uris.push(uri);
 				}
@@ -323,7 +323,7 @@ export class DecorationsService implements IDecorationsService {
 
 	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined {
 
-		let all: IDecorationData[] = [];
+		const all: IDecorationData[] = [];
 		let containsChildren: boolean = false;
 
 		const map = this._ensureEntry(uri);
@@ -386,7 +386,7 @@ export class DecorationsService implements IDecorationsService {
 					this._keepItem(map, provider, uri, data);
 				}
 			}).catch(err => {
-				if (!isPromiseCanceledError(err) && map.get(provider) === request) {
+				if (!isCancellationError(err) && map.get(provider) === request) {
 					map.delete(provider);
 				}
 			}));
@@ -398,7 +398,8 @@ export class DecorationsService implements IDecorationsService {
 
 	private _keepItem(map: DecorationEntry, provider: IDecorationsProvider, uri: URI, data: IDecorationData | undefined): IDecorationData | null {
 		const deco = data ? data : null;
-		const old = map.set(provider, deco);
+		const old = map.get(provider);
+		map.set(provider, deco);
 		if (deco || old) {
 			// only fire event when something changed
 			this._onDidChangeDecorationsDelayed.fire(uri);
