@@ -31,7 +31,7 @@ export class NativeProfileAwareExtensionManagementService extends ExtensionManag
 	private readonly _onDidChangeProfileExtensions = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
 	readonly onDidChangeProfileExtensions = this._onDidChangeProfileExtensions.event;
 
-	constructor(channel: IChannel, private extensionsProfileResource: URI | undefined,
+	constructor(channel: IChannel, public extensionsProfileResource: URI | undefined,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(channel);
@@ -64,7 +64,7 @@ export class NativeProfileAwareExtensionManagementService extends ExtensionManag
 		const oldExtensions = await this.getInstalled(ExtensionType.User);
 		this.extensionsProfileResource = extensionsProfileResource;
 		const newExtensions = await this.getInstalled(ExtensionType.User);
-		const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(ExtensionIdentifier.toKey(a.identifier.id), ExtensionIdentifier.toKey(b.identifier.id)));
+		const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
 		if (added.length || removed.length) {
 			this._onDidChangeProfileExtensions.fire({ added, removed });
 		}

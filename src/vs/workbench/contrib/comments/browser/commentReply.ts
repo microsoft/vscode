@@ -191,7 +191,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 				}
 			}];
 
-			this.commentEditor.setDecorations('review-zone-widget', COMMENTEDITOR_DECORATION_KEY, decorations);
+			this.commentEditor.setDecorationsByType('review-zone-widget', COMMENTEDITOR_DECORATION_KEY, decorations);
 		}
 	}
 

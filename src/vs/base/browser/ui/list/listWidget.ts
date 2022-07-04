@@ -258,6 +258,22 @@ export function isMonacoEditor(e: HTMLElement): boolean {
 	return isMonacoEditor(e.parentElement);
 }
 
+export function isButton(e: HTMLElement): boolean {
+	if (e.tagName === 'A' && e.classList.contains('monaco-button')) {
+		return true;
+	}
+
+	if (e.classList.contains('monaco-list')) {
+		return false;
+	}
+
+	if (!e.parentElement) {
+		return false;
+	}
+
+	return isButton(e.parentElement);
+}
+
 class KeyboardController<T> implements IDisposable {
 
 	private readonly disposables = new DisposableStore();

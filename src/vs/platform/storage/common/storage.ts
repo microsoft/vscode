@@ -555,7 +555,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 			return false; // both profiles are same
 		}
 
-		if (isProfileUsingDefaultStorage(to) === isProfileUsingDefaultStorage(from)) {
+		if (isProfileUsingDefaultStorage(to) && isProfileUsingDefaultStorage(from)) {
 			return false; // both profiles are using default
 		}
 

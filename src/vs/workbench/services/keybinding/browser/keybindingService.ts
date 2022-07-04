@@ -740,7 +740,7 @@ class UserKeybindings extends Disposable {
 
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
 			this.watch();
-			e.join(this.reload().then(() => this.reloadConfigurationScheduler.schedule()));
+			this.reloadConfigurationScheduler.schedule();
 		}));
 	}
 

@@ -9,18 +9,20 @@ import * as vscode from 'vscode';
 import { MdReference, MdReferencesProvider } from '../languageFeatures/references';
 import { MdTableOfContentsProvider } from '../tableOfContents';
 import { noopToken } from '../util/cancellation';
+import { DisposableStore } from '../util/dispose';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { IMdWorkspace } from '../workspace';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryMdWorkspace } from './inMemoryWorkspace';
 import { nulLogger } from './nulLogging';
-import { joinLines, workspacePath } from './util';
+import { joinLines, withStore, workspacePath } from './util';
 
 
-function getFileReferences(resource: vscode.Uri, workspace: IMdWorkspace) {
+function getFileReferences(store: DisposableStore, resource: vscode.Uri, workspace: IMdWorkspace) {
 	const engine = createNewMarkdownEngine();
-	const computer = new MdReferencesProvider(engine, workspace, new MdTableOfContentsProvider(engine, workspace, nulLogger), nulLogger);
-	return computer.getAllReferencesToFile(resource, noopToken);
+	const tocProvider = store.add(new MdTableOfContentsProvider(engine, workspace, nulLogger));
+	const computer = store.add(new MdReferencesProvider(engine, workspace, tocProvider, nulLogger));
+	return computer.getReferencesToFileInWorkspace(resource, noopToken);
 }
 
 function assertReferencesEqual(actualRefs: readonly MdReference[], ...expectedRefs: { uri: vscode.Uri; line: number }[]) {
@@ -37,82 +39,82 @@ function assertReferencesEqual(actualRefs: readonly MdReference[], ...expectedRe
 
 suite('markdown: find file references', () => {
 
-	test('Should find basic references', async () => {
+	test('Should find basic references', withStore(async (store) => {
 		const docUri = workspacePath('doc.md');
 		const otherUri = workspacePath('other.md');
-
-		const refs = await getFileReferences(otherUri, new InMemoryMdWorkspace([
+		const workspace = store.add(new InMemoryMdWorkspace([
 			new InMemoryDocument(docUri, joinLines(
 				`# header`,
 				`[link 1](./other.md)`,
-				`[link 2](./other.md)`,
+				`[link 2](./other.md)`
 			)),
 			new InMemoryDocument(otherUri, joinLines(
 				`# header`,
 				`pre`,
 				`[link 3](./other.md)`,
-				`post`,
+				`post`
 			)),
 		]));
 
-		assertReferencesEqual(refs!,
+		const refs = await getFileReferences(store, otherUri, workspace);
+		assertReferencesEqual(refs,
 			{ uri: docUri, line: 1 },
 			{ uri: docUri, line: 2 },
 			{ uri: otherUri, line: 2 },
 		);
-	});
+	}));
 
-	test('Should find references with and without file extensions', async () => {
+	test('Should find references with and without file extensions', withStore(async (store) => {
 		const docUri = workspacePath('doc.md');
 		const otherUri = workspacePath('other.md');
-
-		const refs = await getFileReferences(otherUri, new InMemoryMdWorkspace([
+		const workspace = store.add(new InMemoryMdWorkspace([
 			new InMemoryDocument(docUri, joinLines(
 				`# header`,
 				`[link 1](./other.md)`,
-				`[link 2](./other)`,
+				`[link 2](./other)`
 			)),
 			new InMemoryDocument(otherUri, joinLines(
 				`# header`,
 				`pre`,
 				`[link 3](./other.md)`,
 				`[link 4](./other)`,
-				`post`,
+				`post`
 			)),
 		]));
 
-		assertReferencesEqual(refs!,
+		const refs = await getFileReferences(store, otherUri, workspace);
+		assertReferencesEqual(refs,
 			{ uri: docUri, line: 1 },
 			{ uri: docUri, line: 2 },
 			{ uri: otherUri, line: 2 },
 			{ uri: otherUri, line: 3 },
 		);
-	});
+	}));
 
-	test('Should find references with headers on links', async () => {
+	test('Should find references with headers on links', withStore(async (store) => {
 		const docUri = workspacePath('doc.md');
 		const otherUri = workspacePath('other.md');
-
-		const refs = await getFileReferences(otherUri, new InMemoryMdWorkspace([
+		const workspace = store.add(new InMemoryMdWorkspace([
 			new InMemoryDocument(docUri, joinLines(
 				`# header`,
 				`[link 1](./other.md#sub-bla)`,
-				`[link 2](./other#sub-bla)`,
+				`[link 2](./other#sub-bla)`
 			)),
 			new InMemoryDocument(otherUri, joinLines(
 				`# header`,
 				`pre`,
 				`[link 3](./other.md#sub-bla)`,
 				`[link 4](./other#sub-bla)`,
-				`post`,
+				`post`
 			)),
 		]));
 
-		assertReferencesEqual(refs!,
+		const refs = await getFileReferences(store, otherUri, workspace);
+		assertReferencesEqual(refs,
 			{ uri: docUri, line: 1 },
 			{ uri: docUri, line: 2 },
 			{ uri: otherUri, line: 2 },
 			{ uri: otherUri, line: 3 },
 		);
-	});
+	}));
 });

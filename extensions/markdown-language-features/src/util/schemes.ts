@@ -5,21 +5,21 @@
 
 import * as vscode from 'vscode';
 
-export const Schemes = {
-	http: 'http:',
-	https: 'https:',
-	file: 'file:',
+export const Schemes = Object.freeze({
+	http: 'http',
+	https: 'https',
+	file: 'file',
 	untitled: 'untitled',
-	mailto: 'mailto:',
-	data: 'data:',
-	vscode: 'vscode:',
-	'vscode-insiders': 'vscode-insiders:',
+	mailto: 'mailto',
+	data: 'data',
+	vscode: 'vscode',
+	'vscode-insiders': 'vscode-insiders',
 	notebookCell: 'vscode-notebook-cell',
-};
+});
 
 const knownSchemes = [
 	...Object.values(Schemes),
-	`${vscode.env.uriScheme}:`
+	`${vscode.env.uriScheme}`
 ];
 
 export function getUriForLinkWithKnownExternalScheme(link: string): vscode.Uri | undefined {
@@ -31,5 +31,5 @@ export function getUriForLinkWithKnownExternalScheme(link: string): vscode.Uri |
 }
 
 export function isOfScheme(scheme: string, link: string): boolean {
-	return link.toLowerCase().startsWith(scheme);
+	return link.toLowerCase().startsWith(scheme + ':');
 }

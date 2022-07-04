@@ -11,7 +11,7 @@ fi
 
 # This variable allows the shell to both detect that VS Code's shell integration is enabled as well
 # as disable it by unsetting the variable.
-export VSCODE_SHELL_INTEGRATION=1
+VSCODE_SHELL_INTEGRATION=1
 
 # Only fix up ZDOTDIR if shell integration was injected (not manually installed) and has not been called yet
 if [[ "$VSCODE_INJECTION" == "1" ]]; then

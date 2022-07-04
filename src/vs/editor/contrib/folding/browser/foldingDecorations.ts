@@ -5,7 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IDecorationProvider } from 'vs/editor/contrib/folding/browser/foldingModel';
 import { localize } from 'vs/nls';
@@ -72,11 +72,11 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		}
 	}
 
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
-		return this.editor.deltaDecorations(oldDecorations, newDecorations);
-	}
-
 	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T {
 		return this.editor.changeDecorations(callback);
+	}
+
+	removeDecorations(decorationIds: string[]): void {
+		this.editor.removeDecorations(decorationIds);
 	}
 }

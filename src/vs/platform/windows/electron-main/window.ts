@@ -542,7 +542,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private marketplaceHeadersPromise: Promise<object> | undefined;
 	private getMarketplaceHeaders(): Promise<object> {
 		if (!this.marketplaceHeadersPromise) {
-			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, this.applicationStorageMainService);
+			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(
+				this.productService.version,
+				this.productService,
+				this.environmentMainService,
+				this.configurationService,
+				this.fileService,
+				this.applicationStorageMainService,
+				this.telemetryService);
 		}
 
 		return this.marketplaceHeadersPromise;
@@ -906,7 +913,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.editSessionId = this.environmentMainService.editSessionId; // set latest edit session id
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			current: configuration.workspace ? this.userDataProfilesService.getProfile(configuration.workspace) : this.userDataProfilesService.defaultProfile,
+			current: this.userDataProfilesService.getProfile(configuration.workspace ?? 'empty-window'),
 		};
 
 		// Load config

@@ -55,7 +55,7 @@ export class OneSnippet {
 
 	dispose(): void {
 		if (this._placeholderDecorations) {
-			this._editor.deltaDecorations([...this._placeholderDecorations.values()], []);
+			this._editor.removeDecorations([...this._placeholderDecorations.values()]);
 		}
 		this._placeholderGroups.length = 0;
 	}

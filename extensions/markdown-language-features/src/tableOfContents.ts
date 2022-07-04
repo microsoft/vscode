@@ -77,19 +77,23 @@ export class TableOfContents {
 				.find(notebook => notebook.getCells().some(cell => cell.document === document));
 
 			if (notebook) {
-				const entries: TocEntry[] = [];
-
-				for (const cell of notebook.getCells()) {
-					if (cell.kind === vscode.NotebookCellKind.Markup && isMarkdownFile(cell.document)) {
-						entries.push(...(await this.buildToc(parser, cell.document)));
-					}
-				}
-
-				return new TableOfContents(entries, parser.slugifier);
+				return TableOfContents.createForNotebook(parser, notebook);
 			}
 		}
 
 		return this.create(parser, document);
+	}
+
+	public static async createForNotebook(parser: IMdParser, notebook: vscode.NotebookDocument): Promise<TableOfContents> {
+		const entries: TocEntry[] = [];
+
+		for (const cell of notebook.getCells()) {
+			if (cell.kind === vscode.NotebookCellKind.Markup && isMarkdownFile(cell.document)) {
+				entries.push(...(await this.buildToc(parser, cell.document)));
+			}
+		}
+
+		return new TableOfContents(entries, parser.slugifier);
 	}
 
 	private static async buildToc(parser: IMdParser, document: ITextDocument): Promise<TocEntry[]> {
@@ -184,7 +188,7 @@ export class MdTableOfContentsProvider extends Disposable {
 	private readonly _cache: MdDocumentInfoCache<TableOfContents>;
 
 	constructor(
-		parser: IMdParser,
+		private readonly parser: IMdParser,
 		workspace: IMdWorkspace,
 		private readonly logger: ILogger,
 	) {
@@ -201,5 +205,9 @@ export class MdTableOfContentsProvider extends Disposable {
 
 	public getForDocument(doc: ITextDocument): Promise<TableOfContents> {
 		return this._cache.getForDocument(doc);
+	}
+
+	public createForNotebook(notebook: vscode.NotebookDocument): Promise<TableOfContents> {
+		return TableOfContents.createForNotebook(this.parser, notebook);
 	}
 }

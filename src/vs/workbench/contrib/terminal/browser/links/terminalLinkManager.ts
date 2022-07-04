@@ -57,6 +57,8 @@ export class TerminalLinkManager extends DisposableStore {
 	// both local and remote terminals are present
 	private readonly _resolvedLinkCache = new LinkCache();
 
+	private _lastTopLine: number | undefined;
+
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processManager: ITerminalProcessManager,
@@ -141,12 +143,20 @@ export class TerminalLinkManager extends DisposableStore {
 		return links[0];
 	}
 
-	async getLinks(): Promise<IDetectedLinks> {
+	async getLinks(extended?: boolean): Promise<IDetectedLinks> {
 		const wordResults: ILink[] = [];
 		const webResults: ILink[] = [];
 		const fileResults: ILink[] = [];
-
-		for (let i = this._xterm.buffer.active.length - 1; i >= this._xterm.buffer.active.viewportY; i--) {
+		let noMoreResults: boolean = false;
+		let topLine = !extended ? this._xterm.buffer.active.viewportY - Math.min(this._xterm.rows, 50) : this._lastTopLine! - 1000;
+		if (topLine < 0 || topLine - Math.min(this._xterm.rows, 50) < 0) {
+			noMoreResults = true;
+		}
+		if (topLine < 0) {
+			topLine = 0;
+		}
+		this._lastTopLine = topLine;
+		for (let i = this._xterm.buffer.active.length - 1; i >= topLine; i--) {
 			const links = await this._getLinksForLine(i);
 			if (links) {
 				const { wordLinks, webLinks, fileLinks } = links;
@@ -161,7 +171,7 @@ export class TerminalLinkManager extends DisposableStore {
 				}
 			}
 		}
-		return { webLinks: webResults, fileLinks: fileResults, wordLinks: wordResults };
+		return { webLinks: webResults, fileLinks: fileResults, wordLinks: wordResults, noMoreResults };
 	}
 
 	private async _getLinksForLine(y: number): Promise<IDetectedLinks | undefined> {
@@ -469,6 +479,7 @@ export interface IDetectedLinks {
 	wordLinks?: ILink[];
 	webLinks?: ILink[];
 	fileLinks?: ILink[];
+	noMoreResults?: boolean;
 }
 
 const enum LinkCacheConstants {

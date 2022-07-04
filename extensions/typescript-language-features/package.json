@@ -38,6 +38,7 @@
     "jsonc-parser": "^2.2.1",
     "semver": "5.5.1",
     "vscode-nls": "^5.0.0",
+    "vscode-tas-client": "^0.1.47",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
@@ -981,6 +982,22 @@
           "default": "auto",
           "markdownDescription": "%typescript.preferences.includePackageJsonAutoImports%",
           "scope": "window"
+        },
+        "typescript.preferences.autoImportFileExcludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%typescript.preferences.autoImportFileExcludePatterns%",
+          "scope": "resource"
+        },
+        "javascript.preferences.autoImportFileExcludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%typescript.preferences.autoImportFileExcludePatterns%",
+          "scope": "resource"
         },
         "javascript.preferences.renameShorthandProperties": {
           "type": "boolean",

@@ -7,6 +7,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import * as uri from 'vscode-uri';
 import { MdTableOfContentsProvider } from '../tableOfContents';
+import { ITextDocument } from '../types/textDocument';
+import { IMdWorkspace } from '../workspace';
 import { isMarkdownFile } from './file';
 
 export interface OpenDocumentLinkArgs {
@@ -77,6 +79,13 @@ async function tryOpenMdFile(tocProvider: MdTableOfContentsProvider, resource: v
 }
 
 async function tryNavigateToFragmentInActiveEditor(tocProvider: MdTableOfContentsProvider, resource: vscode.Uri): Promise<boolean> {
+	const notebookEditor = vscode.window.activeNotebookEditor;
+	if (notebookEditor?.notebook.uri.fsPath === resource.fsPath) {
+		if (await tryRevealLineInNotebook(tocProvider, notebookEditor, resource.fragment)) {
+			return true;
+		}
+	}
+
 	const activeEditor = vscode.window.activeTextEditor;
 	if (activeEditor?.document.uri.fsPath === resource.fsPath) {
 		if (isMarkdownFile(activeEditor.document)) {
@@ -87,6 +96,7 @@ async function tryNavigateToFragmentInActiveEditor(tocProvider: MdTableOfContent
 		tryRevealLineUsingLineFragment(activeEditor, resource.fragment);
 		return true;
 	}
+
 	return false;
 }
 
@@ -100,6 +110,24 @@ function getViewColumn(resource: vscode.Uri): vscode.ViewColumn {
 		default:
 			return vscode.ViewColumn.Active;
 	}
+}
+
+async function tryRevealLineInNotebook(tocProvider: MdTableOfContentsProvider, editor: vscode.NotebookEditor, fragment: string): Promise<boolean> {
+	const toc = await tocProvider.createForNotebook(editor.notebook);
+	const entry = toc.lookup(fragment);
+	if (!entry) {
+		return false;
+	}
+
+	const cell = editor.notebook.getCells().find(cell => cell.document.uri.toString() === entry.sectionLocation.uri.toString());
+	if (!cell) {
+		return false;
+	}
+
+	const range = new vscode.NotebookRange(cell.index, cell.index);
+	editor.selection = range;
+	editor.revealRange(range);
+	return true;
 }
 
 async function tryRevealLineUsingTocFragment(tocProvider: MdTableOfContentsProvider, editor: vscode.TextEditor, fragment: string): Promise<boolean> {
@@ -128,9 +156,9 @@ function tryRevealLineUsingLineFragment(editor: vscode.TextEditor, fragment: str
 	return false;
 }
 
-export async function resolveUriToMarkdownFile(resource: vscode.Uri): Promise<vscode.TextDocument | undefined> {
+export async function resolveUriToMarkdownFile(workspace: IMdWorkspace, resource: vscode.Uri): Promise<ITextDocument | undefined> {
 	try {
-		const doc = await tryResolveUriToMarkdownFile(resource);
+		const doc = await workspace.getOrLoadMarkdownDocument(resource);
 		if (doc) {
 			return doc;
 		}
@@ -140,21 +168,8 @@ export async function resolveUriToMarkdownFile(resource: vscode.Uri): Promise<vs
 
 	// If no extension, try with `.md` extension
 	if (uri.Utils.extname(resource) === '') {
-		return tryResolveUriToMarkdownFile(resource.with({ path: resource.path + '.md' }));
+		return workspace.getOrLoadMarkdownDocument(resource.with({ path: resource.path + '.md' }));
 	}
 
-	return undefined;
-}
-
-async function tryResolveUriToMarkdownFile(resource: vscode.Uri): Promise<vscode.TextDocument | undefined> {
-	let document: vscode.TextDocument;
-	try {
-		document = await vscode.workspace.openTextDocument(resource);
-	} catch {
-		return undefined;
-	}
-	if (isMarkdownFile(document)) {
-		return document;
-	}
 	return undefined;
 }

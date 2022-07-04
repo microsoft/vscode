@@ -774,7 +774,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	private changeEmitter = new Emitter<vscode.TestsChangeEvent>();
 
 	/**
-	 * Change emitter that fires with the same sematics as `TestObserver.onDidChangeTests`.
+	 * Change emitter that fires with the same semantics as `TestObserver.onDidChangeTests`.
 	 */
 	public readonly onDidChangeTests = this.changeEmitter.event;
 
