@@ -147,7 +147,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			throw new Error(localize('cannot change enablement environment', "Cannot change enablement of {0} extension because it is enabled in environment", extension.manifest.displayName || extension.identifier.id));
 		}
 
-		switch (this.getEnablementState(extension)) {
+		this.throwErrorIfEnablementStateCannotBeChanged(extension, this.getEnablementState(extension), donotCheckDependencies);
+	}
+
+	private throwErrorIfEnablementStateCannotBeChanged(extension: IExtension, enablementStateOfExtension: EnablementState, donotCheckDependencies?: boolean): void {
+		switch (enablementStateOfExtension) {
 			case EnablementState.DisabledByEnvironment:
 				throw new Error(localize('cannot change disablement environment', "Cannot change enablement of {0} extension because it is disabled in environment", extension.manifest.displayName || extension.identifier.id));
 			case EnablementState.DisabledByVirtualWorkspace:
@@ -219,30 +223,60 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private getExtensionsToEnableRecursively(extensions: IExtension[], allExtensions: ReadonlyArray<IExtension>, enablementState: EnablementState, options: { dependencies: boolean; pack: boolean }, checked: IExtension[] = []): IExtension[] {
-		const toCheck = extensions.filter(e => checked.indexOf(e) === -1);
-		if (toCheck.length) {
-			for (const extension of toCheck) {
-				checked.push(extension);
-			}
-			const extensionsToDisable = allExtensions.filter(i => {
-				if (checked.indexOf(i) !== -1) {
-					return false;
-				}
-				if (this.getEnablementState(i) === enablementState) {
-					return false;
-				}
-				return (options.dependencies || options.pack)
-					&& extensions.some(extension =>
-						(options.dependencies && extension.manifest.extensionDependencies?.some(id => areSameExtensions({ id }, i.identifier)))
-						|| (options.pack && extension.manifest.extensionPack?.some(id => areSameExtensions({ id }, i.identifier)))
-					);
-			});
-			if (extensionsToDisable.length) {
-				extensionsToDisable.push(...this.getExtensionsToEnableRecursively(extensionsToDisable, allExtensions, enablementState, options, checked));
-			}
-			return extensionsToDisable;
+		if (!options.dependencies && !options.pack) {
+			return [];
 		}
-		return [];
+
+		const toCheck = extensions.filter(e => checked.indexOf(e) === -1);
+		if (!toCheck.length) {
+			return [];
+		}
+
+		for (const extension of toCheck) {
+			checked.push(extension);
+		}
+
+		const extensionsToDisable: IExtension[] = [];
+		for (const extension of allExtensions) {
+			// Extension is already checked
+			if (checked.some(e => areSameExtensions(e.identifier, extension.identifier))) {
+				continue;
+			}
+
+			const enablementStateOfExtension = this.getEnablementState(extension);
+			// Extension enablement state is same as the end enablement state
+			if (enablementStateOfExtension === enablementState) {
+				continue;
+			}
+
+			// Check if the extension is a dependency or in extension pack
+			if (extensions.some(e =>
+				(options.dependencies && e.manifest.extensionDependencies?.some(id => areSameExtensions({ id }, extension.identifier)))
+				|| (options.pack && e.manifest.extensionPack?.some(id => areSameExtensions({ id }, extension.identifier))))) {
+
+				const index = extensionsToDisable.findIndex(e => areSameExtensions(e.identifier, extension.identifier));
+
+				// Extension is not aded to the disablement list so add it
+				if (index === -1) {
+					extensionsToDisable.push(extension);
+				}
+
+				// Extension is there already in the disablement list.
+				else {
+					try {
+						// Replace only if the enablement state can be changed
+						this.throwErrorIfEnablementStateCannotBeChanged(extension, enablementStateOfExtension, true);
+						extensionsToDisable.splice(index, 1, extension);
+					} catch (error) { /*Do not add*/ }
+				}
+			}
+		}
+
+		if (extensionsToDisable.length) {
+			extensionsToDisable.push(...this.getExtensionsToEnableRecursively(extensionsToDisable, allExtensions, enablementState, options, checked));
+		}
+
+		return extensionsToDisable;
 	}
 
 	private _setUserEnablementState(extension: IExtension, newState: EnablementState): Promise<boolean> {

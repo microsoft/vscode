@@ -286,9 +286,6 @@ suite('vscode API - workspace', () => {
 		sub.dispose();
 	});
 
-	function assertEqualPath(a: string, b: string): void {
-		assert.ok(pathEquals(a, b), `${a} <-> ${b}`);
-	}
 
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', async () => {
 		const file = await createRandomFile();
@@ -296,23 +293,20 @@ suite('vscode API - workspace', () => {
 
 		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
 
-		const pendingAsserts: Function[] = [];
-		let onDidOpenTextDocument = false;
+		const onDidOpenTextDocument = new Set<vscode.TextDocument>();
+		const onDidChangeTextDocument = new Set<vscode.TextDocument>();
+		const onDidSaveTextDocument = new Set<vscode.TextDocument>();
+
 		disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
-			onDidOpenTextDocument = true;
+			onDidOpenTextDocument.add(e);
 		}));
 
-		let onDidChangeTextDocument = false;
 		disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.document.uri.fsPath, file.fsPath));
-			onDidChangeTextDocument = true;
+			onDidChangeTextDocument.add(e.document);
 		}));
 
-		let onDidSaveTextDocument = false;
 		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
-			onDidSaveTextDocument = true;
+			onDidSaveTextDocument.add(e);
 		}));
 
 		const doc = await vscode.workspace.openTextDocument(file);
@@ -323,10 +317,10 @@ suite('vscode API - workspace', () => {
 		});
 		await doc.save();
 
-		assert.ok(onDidOpenTextDocument);
-		assert.ok(onDidChangeTextDocument);
-		assert.ok(onDidSaveTextDocument);
-		pendingAsserts.forEach(assert => assert());
+		assert.ok(Array.from(onDidOpenTextDocument).find(e => e.uri.toString() === file.toString()), 'did Open: ' + file.toString());
+		assert.ok(Array.from(onDidChangeTextDocument).find(e => e.uri.toString() === file.toString()), 'did Change: ' + file.toString());
+		assert.ok(Array.from(onDidSaveTextDocument).find(e => e.uri.toString() === file.toString()), 'did Save: ' + file.toString());
+
 		disposeAll(disposables);
 		return deleteFile(file);
 	});
@@ -334,14 +328,13 @@ suite('vscode API - workspace', () => {
 	test('events: onDidSaveTextDocument fires even for non dirty file when saved', async () => {
 		const file = await createRandomFile();
 		const disposables: vscode.Disposable[] = [];
-		const pendingAsserts: Function[] = [];
 
 		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
 
-		let onDidSaveTextDocument = false;
+		const onDidSaveTextDocument = new Set<vscode.TextDocument>();
+
 		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
-			onDidSaveTextDocument = true;
+			onDidSaveTextDocument.add(e);
 		}));
 
 		const doc = await vscode.workspace.openTextDocument(file);
@@ -349,7 +342,7 @@ suite('vscode API - workspace', () => {
 		await vscode.commands.executeCommand('workbench.action.files.save');
 
 		assert.ok(onDidSaveTextDocument);
-		pendingAsserts.forEach(fn => fn());
+		assert.ok(Array.from(onDidSaveTextDocument).find(e => e.uri.toString() === file.toString()), 'did Save: ' + file.toString());
 		disposeAll(disposables);
 		return deleteFile(file);
 	});

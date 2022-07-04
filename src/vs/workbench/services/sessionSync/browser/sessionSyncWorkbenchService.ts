@@ -19,7 +19,7 @@ import { IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDat
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_TITLE, ISessionSyncWorkbenchService, EDIT_SESSIONS_SIGNED_IN_KEY } from 'vs/workbench/services/sessionSync/common/sessionSync';
+import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, ISessionSyncWorkbenchService, EDIT_SESSIONS_SIGNED_IN_KEY } from 'vs/workbench/services/sessionSync/common/sessionSync';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -120,6 +120,9 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	}
 
 	private async initialize() {
+		if (this.initialized) {
+			return;
+		}
 		this.initialized = await this.doInitialize();
 		this.signedInContext.set(this.initialized);
 	}
@@ -140,7 +143,10 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 
 		if (!this.storeClient) {
 			this.storeClient = new UserDataSyncStoreClient(URI.parse(this.serverConfiguration.url), this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
-			this._register(this.storeClient.onTokenFailed(() => this.clearAuthenticationPreference()));
+			this._register(this.storeClient.onTokenFailed(() => {
+				this.logService.info('Edit Sessions: clearing edit sessions authentication preference because of successive token failures.');
+				this.clearAuthenticationPreference();
+			}));
 		}
 
 		// If we already have an existing auth session in memory, use that
@@ -149,9 +155,12 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		}
 
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
-		if (this.existingSessionId) {
+		const existingSessionId = this.existingSessionId;
+		if (existingSessionId) {
+			this.logService.trace(`Edit Sessions: Searching for existing authentication session with ID ${existingSessionId}`);
 			const existing = await this.getExistingSession();
 			if (existing !== undefined) {
+				this.logService.trace(`Edit Sessions: Found existing authentication session with ID ${existingSessionId}`);
 				this.#authenticationInfo = { sessionId: existing.session.id, token: existing.session.accessToken, providerId: existing.session.providerId };
 				this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
 				return true;
@@ -164,6 +173,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 			this.#authenticationInfo = { sessionId: session.id, token: session.accessToken, providerId: session.providerId };
 			this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
 			this.existingSessionId = session.id;
+			this.logService.trace(`Edit Sessions: Saving authentication session preference for ID ${session.id}.`);
 			return true;
 		}
 
@@ -284,7 +294,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		if (sessionId === undefined) {
 			this.storageService.remove(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.APPLICATION);
 		} else {
-			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.APPLICATION, StorageTarget.USER);
+			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 	}
 
@@ -296,10 +306,15 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	private async onDidChangeStorage(e: IStorageValueChangeEvent): Promise<void> {
 		if (e.key === SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY
 			&& e.scope === StorageScope.APPLICATION
-			&& this.#authenticationInfo?.sessionId !== this.existingSessionId
 		) {
-			this.#authenticationInfo = undefined;
-			this.initialized = false;
+			const newSessionId = this.existingSessionId;
+			const previousSessionId = this.#authenticationInfo?.sessionId;
+
+			if (previousSessionId !== newSessionId) {
+				this.logService.trace(`Edit Sessions: resetting authentication state because authentication session ID preference changed from ${previousSessionId} to ${newSessionId}.`);
+				this.#authenticationInfo = undefined;
+				this.initialized = false;
+			}
 		}
 	}
 
@@ -322,7 +337,8 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 			constructor() {
 				super({
 					id: 'workbench.sessionSync.actions.resetAuth',
-					title: localize('reset auth', '{0}: Sign Out', EDIT_SESSION_SYNC_TITLE),
+					title: localize('reset auth', 'Sign Out'),
+					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true),
 					menu: [{
 						id: MenuId.CommandPalette,

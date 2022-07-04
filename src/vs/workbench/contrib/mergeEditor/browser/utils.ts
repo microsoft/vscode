@@ -5,11 +5,10 @@
 
 import { CompareResult, ArrayQueue } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IObservable, autorun } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { IObservable, autorun } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { IDisposable } from 'xterm';
 
 export class ReentrancyBarrier {
 	private isActive = false;
@@ -74,12 +73,12 @@ function toSize(value: number | string): string {
 export function applyObservableDecorations(editor: CodeEditorWidget, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
 	const d = new DisposableStore();
 	let decorationIds: string[] = [];
-	d.add(autorun(reader => {
+	d.add(autorun(`Apply decorations from ${decorations.debugName}`, reader => {
 		const d = decorations.read(reader);
 		editor.changeDecorations(a => {
 			decorationIds = a.deltaDecorations(decorationIds, d);
 		});
-	}, 'Update Decorations'));
+	}));
 	d.add({
 		dispose: () => {
 			editor.changeDecorations(a => {
@@ -142,4 +141,20 @@ export function thenIfNotDisposed<T>(promise: Promise<T>, then: () => void): IDi
 
 export function setFields<T extends {}>(obj: T, fields: Partial<T>): T {
 	return Object.assign(obj, fields);
+}
+
+export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
+	const result = {} as T;
+	for (const key in source1) {
+		result[key] = source1[key];
+	}
+	for (const key in source2) {
+		const source2Value = source2[key];
+		if (typeof result[key] === 'object' && source2Value && typeof source2Value === 'object') {
+			result[key] = deepMerge<any>(result[key], source2Value);
+		} else {
+			result[key] = source2Value as any;
+		}
+	}
+	return result;
 }

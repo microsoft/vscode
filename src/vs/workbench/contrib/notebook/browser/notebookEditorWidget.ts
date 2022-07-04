@@ -1153,22 +1153,25 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const endTime = Date.now() + deadline.timeRemaining();
 
 		const execute = () => {
-			this._backgroundMarkdownRenderRunning = false;
-			if (this._isDisposed) {
-				return;
-			}
+			try {
+				this._backgroundMarkdownRenderRunning = true;
+				if (this._isDisposed) {
+					return;
+				}
 
-			if (!this.viewModel) {
-				return;
-			}
+				if (!this.viewModel) {
+					return;
+				}
 
-			const firstMarkupCell = this.viewModel.viewCells.find(cell => cell.cellKind === CellKind.Markup && !this._webview?.markupPreviewMapping.has(cell.id)) as MarkupCellViewModel | undefined;
-			if (!firstMarkupCell) {
-				return;
-			}
+				const firstMarkupCell = this.viewModel.viewCells.find(cell => cell.cellKind === CellKind.Markup && !this._webview?.markupPreviewMapping.has(cell.id) && !this.cellIsHidden(cell)) as MarkupCellViewModel | undefined;
+				if (!firstMarkupCell) {
+					return;
+				}
 
-			this._backgroundMarkdownRenderRunning = true;
-			this.createMarkupPreview(firstMarkupCell);
+				this.createMarkupPreview(firstMarkupCell);
+			} finally {
+				this._backgroundMarkdownRenderRunning = false;
+			}
 
 			if (Date.now() < endTime) {
 				setTimeout0(execute);
@@ -2564,10 +2567,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
-		const modelIndex = this.viewModel.getCellIndex(cell);
-		const foldedRanges = this.viewModel.getHiddenRanges();
-		const isVisible = !foldedRanges.some(range => modelIndex >= range.start && modelIndex < range.end);
-		if (!isVisible) {
+		if (this.cellIsHidden(cell)) {
 			return;
 		}
 
@@ -2583,6 +2583,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			offset: cellTop + top,
 			visible: true,
 		});
+	}
+
+	private cellIsHidden(cell: ICellViewModel): boolean {
+		const modelIndex = this.viewModel!.getCellIndex(cell);
+		const foldedRanges = this.viewModel!.getHiddenRanges();
+		return foldedRanges.some(range => modelIndex >= range.start && modelIndex <= range.end);
 	}
 
 	async unhideMarkupPreviews(cells: readonly MarkupCellViewModel[]) {

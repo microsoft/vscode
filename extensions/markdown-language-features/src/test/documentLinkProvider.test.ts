@@ -15,7 +15,7 @@ import { nulLogger } from './nulLogging';
 import { assertRangeEqual, joinLines, workspacePath } from './util';
 
 
-suite('Markdown: MdLinkComputer', () => {
+suite.only('Markdown: MdLinkComputer', () => {
 
 	function getLinksForFile(fileContents: string): Promise<MdLink[]> {
 		const doc = new InMemoryDocument(workspacePath('x.md'), fileContents);
@@ -24,11 +24,17 @@ suite('Markdown: MdLinkComputer', () => {
 		return linkProvider.getAllLinks(doc, noopToken);
 	}
 
-	function assertLinksEqual(actualLinks: readonly MdLink[], expectedRanges: readonly vscode.Range[]) {
-		assert.strictEqual(actualLinks.length, expectedRanges.length);
+	function assertLinksEqual(actualLinks: readonly MdLink[], expected: ReadonlyArray<vscode.Range | { readonly range: vscode.Range; readonly sourceText: string }>) {
+		assert.strictEqual(actualLinks.length, expected.length);
 
 		for (let i = 0; i < actualLinks.length; ++i) {
-			assertRangeEqual(actualLinks[i].source.hrefRange, expectedRanges[i], `Range ${i} to be equal`);
+			const exp = expected[i];
+			if ('range' in exp) {
+				assertRangeEqual(actualLinks[i].source.hrefRange, exp.range, `Range ${i} to be equal`);
+				assert.strictEqual(actualLinks[i].source.hrefText, exp.sourceText, `Source text ${i} to be equal`);
+			} else {
+				assertRangeEqual(actualLinks[i].source.hrefRange, exp, `Range ${i} to be equal`);
+			}
 		}
 	}
 
@@ -103,17 +109,23 @@ suite('Markdown: MdLinkComputer', () => {
 		}
 	});
 
-	test('Should ignore texts in brackets inside link title (#150921)', async () => {
+	test('Should ignore bracketed text inside link title (#150921)', async () => {
 		{
-			const links = await getLinksForFile('[some [inner bracket pairs] in title](<link>)');
+			const links = await getLinksForFile('[some [inner] in title](link)');
 			assertLinksEqual(links, [
-				new vscode.Range(0, 39, 0, 43),
+				new vscode.Range(0, 24, 0, 28),
 			]);
 		}
 		{
-			const links = await getLinksForFile('[some [inner bracket pairs] in title](link)');
+			const links = await getLinksForFile('[some [inner] in title](<link>)');
 			assertLinksEqual(links, [
-				new vscode.Range(0, 38, 0, 42)
+				new vscode.Range(0, 25, 0, 29),
+			]);
+		}
+		{
+			const links = await getLinksForFile('[some [inner with space] in title](link)');
+			assertLinksEqual(links, [
+				new vscode.Range(0, 35, 0, 39),
 			]);
 		}
 	});
@@ -164,8 +176,8 @@ suite('Markdown: MdLinkComputer', () => {
 		));
 
 		assertLinksEqual(links, [
-			new vscode.Range(0, 6, 0, 9),
-			new vscode.Range(1, 6, 1, 8),
+			{ range: new vscode.Range(0, 6, 0, 9), sourceText: 'b c' },
+			{ range: new vscode.Range(1, 6, 1, 8), sourceText: 'cd' },
 		]);
 	});
 
@@ -175,7 +187,7 @@ suite('Markdown: MdLinkComputer', () => {
 		));
 
 		assertLinksEqual(links, [
-			new vscode.Range(0, 9, 0, 28),
+			{ range: new vscode.Range(0, 9, 0, 28), sourceText: 'https://example.com' },
 		]);
 	});
 
@@ -185,8 +197,8 @@ suite('Markdown: MdLinkComputer', () => {
 			'[ref]: https://example.com',
 		));
 		assertLinksEqual(links, [
-			new vscode.Range(0, 1, 0, 4),
-			new vscode.Range(1, 7, 1, 26),
+			{ range: new vscode.Range(0, 1, 0, 4), sourceText: 'ref' },
+			{ range: new vscode.Range(1, 7, 1, 26), sourceText: 'https://example.com' },
 		]);
 	});
 

@@ -70,7 +70,7 @@ class RemoteSourceProviderQuickPick {
 				}));
 			}
 		} catch (err) {
-			this.quickpick!.items = [{ label: localize('error', "$(error) Error: {0}", err.message), alwaysShow: true }];
+			this.quickpick!.items = [{ label: localize('error', "{0} Error: {1}", '$(error)', err.message), alwaysShow: true }];
 			console.error(err);
 		} finally {
 			this.quickpick!.busy = false;

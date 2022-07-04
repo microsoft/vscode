@@ -983,6 +983,22 @@
           "markdownDescription": "%typescript.preferences.includePackageJsonAutoImports%",
           "scope": "window"
         },
+        "typescript.preferences.autoImportFileExcludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%typescript.preferences.autoImportFileExcludePatterns%",
+          "scope": "resource"
+        },
+        "javascript.preferences.autoImportFileExcludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%typescript.preferences.autoImportFileExcludePatterns%",
+          "scope": "resource"
+        },
         "javascript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,

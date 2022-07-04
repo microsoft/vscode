@@ -5313,9 +5313,13 @@ declare namespace monaco.editor {
 		getDecorationsInRange(range: Range): IModelDecoration[] | null;
 		/**
 		 * All decorations added through this call will get the ownerId of this editor.
-		 * @see {@link ITextModel.deltaDecorations}
+		 * @deprecated
 		 */
 		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
+		/**
+		 * Remove previously added decorations.
+		 */
+		removeDecorations(decorationIds: string[]): void;
 		/**
 		 * Get the layout info for the editor.
 		 */

@@ -109,17 +109,33 @@ function getWorkspaceFolder(document: ITextDocument) {
 
 export interface MdLinkSource {
 	/**
+	 * The full range of the link.
+	 */
+	readonly range: vscode.Range;
+
+	/**
+	 * The file where the link is defined.
+	 */
+	readonly resource: vscode.Uri;
+
+	/**
 	 * The original text of the link destination in code.
 	 */
-	readonly text: string;
+	readonly hrefText: string;
 
 	/**
 	 * The original text of just the link's path in code.
 	 */
 	readonly pathText: string;
 
-	readonly resource: vscode.Uri;
+	/**
+	 * The range of the path.
+	 */
 	readonly hrefRange: vscode.Range;
+
+	/**
+	 * The range of the fragment within the path.
+	 */
 	readonly fragmentRange: vscode.Range | undefined;
 }
 
@@ -145,32 +161,37 @@ function extractDocumentLink(
 	document: ITextDocument,
 	pre: string,
 	rawLink: string,
-	matchIndex: number | undefined
+	matchIndex: number,
+	fullMatch: string,
 ): MdLink | undefined {
 	const isAngleBracketLink = rawLink.startsWith('<');
 	const link = stripAngleBrackets(rawLink);
 
-	const offset = (matchIndex || 0) + pre.length + (isAngleBracketLink ? 1 : 0);
-	const linkStart = document.positionAt(offset);
-	const linkEnd = document.positionAt(offset + link.length);
+	let linkTarget: ExternalHref | InternalHref | undefined;
 	try {
-		const linkTarget = resolveLink(document, link);
-		if (!linkTarget) {
-			return undefined;
-		}
-		return {
-			kind: 'link',
-			href: linkTarget,
-			source: {
-				text: link,
-				resource: document.uri,
-				hrefRange: new vscode.Range(linkStart, linkEnd),
-				...getLinkSourceFragmentInfo(document, link, linkStart, linkEnd),
-			}
-		};
+		linkTarget = resolveLink(document, link);
 	} catch {
 		return undefined;
 	}
+	if (!linkTarget) {
+		return undefined;
+	}
+
+	const linkStart = document.positionAt(matchIndex);
+	const linkEnd = linkStart.translate(0, fullMatch.length);
+	const hrefStart = linkStart.translate(0, pre.length + (isAngleBracketLink ? 1 : 0));
+	const hrefEnd = hrefStart.translate(0, link.length);
+	return {
+		kind: 'link',
+		href: linkTarget,
+		source: {
+			hrefText: link,
+			resource: document.uri,
+			range: new vscode.Range(linkStart, linkEnd),
+			hrefRange: new vscode.Range(hrefStart, hrefEnd),
+			...getLinkSourceFragmentInfo(document, link, hrefStart, hrefEnd),
+		}
+	};
 }
 
 function getFragmentRange(text: string, start: vscode.Position, end: vscode.Position): vscode.Range | undefined {
@@ -278,12 +299,27 @@ class NoLinkRanges {
 		/**
 		 * Inline code spans where links should not be detected
 		 */
-		public readonly inline: Map</* line number */ number, readonly vscode.Range[]>
+		public readonly inline: Map</* line number */ number, vscode.Range[]>
 	) { }
 
 	contains(position: vscode.Position): boolean {
 		return this.multiline.some(interval => position.line >= interval[0] && position.line < interval[1]) ||
 			!!this.inline.get(position.line)?.some(inlineRange => inlineRange.contains(position));
+	}
+
+	concatInline(inlineRanges: Iterable<vscode.Range>): NoLinkRanges {
+		const newInline = new Map(this.inline);
+		for (const range of inlineRanges) {
+			for (let line = range.start.line; line <= range.end.line; ++line) {
+				let entry = newInline.get(line);
+				if (!entry) {
+					entry = [];
+					newInline.set(line, entry);
+				}
+				entry.push(range);
+			}
+		}
+		return new NoLinkRanges(this.multiline, newInline);
 	}
 }
 
@@ -302,9 +338,10 @@ export class MdLinkComputer {
 			return [];
 		}
 
+		const inlineLinks = Array.from(this.getInlineLinks(document, noLinkRanges));
 		return Array.from([
-			...this.getInlineLinks(document, noLinkRanges),
-			...this.getReferenceLinks(document, noLinkRanges),
+			...inlineLinks,
+			...this.getReferenceLinks(document, noLinkRanges.concatInline(inlineLinks.map(x => x.source.range))),
 			...this.getLinkDefinitions(document, noLinkRanges),
 			...this.getAutoLinks(document, noLinkRanges),
 		]);
@@ -313,13 +350,13 @@ export class MdLinkComputer {
 	private *getInlineLinks(document: ITextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 		for (const match of text.matchAll(linkPattern)) {
-			const matchLinkData = extractDocumentLink(document, match[1], match[2], match.index);
+			const matchLinkData = extractDocumentLink(document, match[1], match[2], match.index ?? 0, match[0]);
 			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange.start)) {
 				yield matchLinkData;
 
 				// Also check link destination for links
 				for (const innerMatch of match[1].matchAll(linkPattern)) {
-					const innerData = extractDocumentLink(document, innerMatch[1], innerMatch[2], (match.index ?? 0) + (innerMatch.index ?? 0));
+					const innerData = extractDocumentLink(document, innerMatch[1], innerMatch[2], (match.index ?? 0) + (innerMatch.index ?? 0), innerMatch[0]);
 					if (innerData) {
 						yield innerData;
 					}
@@ -328,77 +365,83 @@ export class MdLinkComputer {
 		}
 	}
 
-	private * getAutoLinks(document: ITextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
+	private *getAutoLinks(document: ITextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
-
 		for (const match of text.matchAll(autoLinkPattern)) {
+			const linkOffset = (match.index ?? 0);
+			const linkStart = document.positionAt(linkOffset);
+			if (noLinkRanges.contains(linkStart)) {
+				continue;
+			}
+
 			const link = match[1];
 			const linkTarget = resolveLink(document, link);
-			if (linkTarget) {
-				const offset = (match.index ?? 0) + 1;
-				const linkStart = document.positionAt(offset);
-				const linkEnd = document.positionAt(offset + link.length);
-				const hrefRange = new vscode.Range(linkStart, linkEnd);
-				if (noLinkRanges.contains(hrefRange.start)) {
-					continue;
-				}
-				yield {
-					kind: 'link',
-					href: linkTarget,
-					source: {
-						text: link,
-						resource: document.uri,
-						hrefRange: new vscode.Range(linkStart, linkEnd),
-						...getLinkSourceFragmentInfo(document, link, linkStart, linkEnd),
-					}
-				};
+			if (!linkTarget) {
+				continue;
 			}
+
+			const linkEnd = linkStart.translate(0, match[0].length);
+			const hrefStart = linkStart.translate(0, 1);
+			const hrefEnd = hrefStart.translate(0, link.length);
+			yield {
+				kind: 'link',
+				href: linkTarget,
+				source: {
+					hrefText: link,
+					resource: document.uri,
+					hrefRange: new vscode.Range(hrefStart, hrefEnd),
+					range: new vscode.Range(linkStart, linkEnd),
+					...getLinkSourceFragmentInfo(document, link, hrefStart, hrefEnd),
+				}
+			};
 		}
 	}
 
 	private *getReferenceLinks(document: ITextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 		for (const match of text.matchAll(referenceLinkPattern)) {
-			let linkStart: vscode.Position;
-			let linkEnd: vscode.Position;
+			const linkStart = document.positionAt(match.index ?? 0);
+			if (noLinkRanges.contains(linkStart)) {
+				continue;
+			}
+
+			let hrefStart: vscode.Position;
+			let hrefEnd: vscode.Position;
 			let reference = match[4];
 			if (reference === '') { // [ref][],
 				reference = match[3];
 				const offset = ((match.index ?? 0) + match[1].length) + 1;
-				linkStart = document.positionAt(offset);
-				linkEnd = document.positionAt(offset + reference.length);
+				hrefStart = document.positionAt(offset);
+				hrefEnd = document.positionAt(offset + reference.length);
 			} else if (reference) { // [text][ref]
 				const pre = match[2];
 				const offset = ((match.index ?? 0) + match[1].length) + pre.length;
-				linkStart = document.positionAt(offset);
-				linkEnd = document.positionAt(offset + reference.length);
+				hrefStart = document.positionAt(offset);
+				hrefEnd = document.positionAt(offset + reference.length);
 			} else if (match[5]) { // [ref]
 				reference = match[5];
 				const offset = ((match.index ?? 0) + match[1].length) + 1;
-				linkStart = document.positionAt(offset);
-				const line = document.lineAt(linkStart.line);
+				hrefStart = document.positionAt(offset);
+				const line = document.lineAt(hrefStart.line);
 				// See if link looks like a checkbox
 				const checkboxMatch = line.text.match(/^\s*[\-\*]\s*\[x\]/i);
-				if (checkboxMatch && linkStart.character <= checkboxMatch[0].length) {
+				if (checkboxMatch && hrefStart.character <= checkboxMatch[0].length) {
 					continue;
 				}
-				linkEnd = document.positionAt(offset + reference.length);
+				hrefEnd = document.positionAt(offset + reference.length);
 			} else {
 				continue;
 			}
 
-			const hrefRange = new vscode.Range(linkStart, linkEnd);
-			if (noLinkRanges.contains(hrefRange.start)) {
-				continue;
-			}
-
+			const linkEnd = linkStart.translate(0, match[0].length);
 			yield {
 				kind: 'link',
 				source: {
-					text: reference,
+					hrefText: reference,
 					pathText: reference,
 					resource: document.uri,
-					hrefRange,
+					range: new vscode.Range(linkStart, linkEnd),
+					hrefRange: new vscode.Range(hrefStart, hrefEnd),
 					fragmentRange: undefined,
 				},
 				href: {
@@ -412,44 +455,41 @@ export class MdLinkComputer {
 	private *getLinkDefinitions(document: ITextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLinkDefinition> {
 		const text = document.getText();
 		for (const match of text.matchAll(definitionPattern)) {
-			const pre = match[1];
-			const reference = match[2];
-			const link = match[3].trim();
-			const offset = (match.index || 0) + pre.length;
-
-			const refStart = document.positionAt((match.index ?? 0) + 1);
-			const refRange = new vscode.Range(refStart, refStart.translate({ characterDelta: reference.length }));
-
-			let linkStart: vscode.Position;
-			let linkEnd: vscode.Position;
-			let text: string;
-			if (angleBracketLinkRe.test(link)) {
-				linkStart = document.positionAt(offset + 1);
-				linkEnd = document.positionAt(offset + link.length - 1);
-				text = link.substring(1, link.length - 1);
-			} else {
-				linkStart = document.positionAt(offset);
-				linkEnd = document.positionAt(offset + link.length);
-				text = link;
-			}
-			const hrefRange = new vscode.Range(linkStart, linkEnd);
-			if (noLinkRanges.contains(hrefRange.start)) {
+			const offset = (match.index ?? 0);
+			const linkStart = document.positionAt(offset);
+			if (noLinkRanges.contains(linkStart)) {
 				continue;
 			}
-			const target = resolveLink(document, text);
-			if (target) {
-				yield {
-					kind: 'definition',
-					source: {
-						text: link,
-						resource: document.uri,
-						hrefRange,
-						...getLinkSourceFragmentInfo(document, link, linkStart, linkEnd),
-					},
-					ref: { text: reference, range: refRange },
-					href: target,
-				};
+
+			const pre = match[1];
+			const reference = match[2];
+			const rawLinkText = match[3].trim();
+			const target = resolveLink(document, rawLinkText);
+			if (!target) {
+				continue;
 			}
+
+			const isAngleBracketLink = angleBracketLinkRe.test(rawLinkText);
+			const linkText = stripAngleBrackets(rawLinkText);
+			const hrefStart = linkStart.translate(0, pre.length + (isAngleBracketLink ? 1 : 0));
+			const hrefEnd = hrefStart.translate(0, linkText.length);
+			const hrefRange = new vscode.Range(hrefStart, hrefEnd);
+
+			const refStart = linkStart.translate(0, 1);
+			const refRange = new vscode.Range(refStart, refStart.translate({ characterDelta: reference.length }));
+			const linkEnd = linkStart.translate(0, match[0].length);
+			yield {
+				kind: 'definition',
+				source: {
+					hrefText: linkText,
+					resource: document.uri,
+					range: new vscode.Range(linkStart, linkEnd),
+					hrefRange,
+					...getLinkSourceFragmentInfo(document, rawLinkText, hrefStart, hrefEnd),
+				},
+				ref: { text: reference, range: refRange },
+				href: target,
+			};
 		}
 	}
 }

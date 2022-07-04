@@ -31,6 +31,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { contrastBorder, listInactiveSelectionBackground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -344,6 +345,7 @@ registerAction2(class extends Action2 {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const kernelService = accessor.get(INotebookKernelService);
+		const logService = accessor.get(ILogService);
 		const group = columnToEditorGroup(editorGroupService, typeof showOptions === 'number' ? showOptions : showOptions?.viewColumn);
 		const editorOptions = {
 			activation: EditorActivation.PRESERVE,
@@ -351,9 +353,11 @@ registerAction2(class extends Action2 {
 		};
 
 		if (resource && resource.scheme === Schemas.vscodeInteractive) {
+			logService.debug('Open interactive window from resource:', resource.toString());
 			const resourceUri = URI.revive(resource);
 			const editors = editorService.findEditors(resourceUri).filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
 			if (editors.length) {
+				logService.debug('Find existing interactive window:', resource.toString());
 				const editorInput = editors[0].editor as InteractiveEditorInput;
 				const currentGroup = editors[0].groupId;
 				const editor = await editorService.openEditor(editorInput, editorOptions, currentGroup);
@@ -384,6 +388,8 @@ registerAction2(class extends Action2 {
 			counter++;
 		} while (existingNotebookDocument.has(notebookUri.toString()));
 
+		logService.debug('Open new interactive window:', notebookUri.toString(), inputUri.toString());
+
 		if (id) {
 			const allKernels = kernelService.getMatchingKernel({ uri: notebookUri, viewType: 'interactive' }).all;
 			const preferredKernel = allKernels.find(kernel => kernel.id === id);
@@ -397,6 +403,7 @@ registerAction2(class extends Action2 {
 		const editorPane = await editorService.openEditor(editorInput, editorOptions, group);
 		const editorControl = editorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 		// Extensions must retain references to these URIs to manipulate the interactive editor
+		logService.debug('New interactive window opened. Notebook editor id', editorControl?.notebookEditor?.getId());
 		return { notebookUri, inputUri, notebookEditorId: editorControl?.notebookEditor?.getId() };
 	}
 });
