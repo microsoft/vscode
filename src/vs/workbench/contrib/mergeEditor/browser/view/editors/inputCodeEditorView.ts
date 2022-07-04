@@ -8,7 +8,7 @@ import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { derived, ISettableObservable } from 'vs/base/common/observable';
+import { autorun, derived, IObservable, ISettableObservable, ITransaction, transaction, observableValue } from 'vs/base/common/observable';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
@@ -19,7 +19,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachToggleStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { autorun, derivedObservable, IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { InputState, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
@@ -27,7 +26,7 @@ import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter'
 import { CodeEditorView } from './codeEditorView';
 
 export class InputCodeEditorView extends CodeEditorView {
-	private readonly decorations = derivedObservable(`input${this.inputNumber}.decorations`, reader => {
+	private readonly decorations = derived(`input${this.inputNumber}.decorations`, reader => {
 		const viewModel = this.viewModel.read(reader);
 		if (!viewModel) {
 			return [];
@@ -112,7 +111,7 @@ export class InputCodeEditorView extends CodeEditorView {
 				id: idx.toString(),
 				range: baseRange.getInputRange(this.inputNumber),
 				enabled: model.isUpToDate,
-				toggleState: derivedObservable('checkbox is checked', (reader) => {
+				toggleState: derived('checkbox is checked', (reader) => {
 					const input = model
 						.getState(baseRange)
 						.read(reader)
@@ -274,7 +273,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 	) {
 		super();
 
-		this.item = new ObservableValue(item, 'item');
+		this.item = observableValue('item', item);
 
 		target.classList.add('merge-accept-gutter-marker');
 
@@ -309,7 +308,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 		checkBox.domNode.classList.add('accept-conflict-group');
 
 		this._register(
-			autorun((reader) => {
+			autorun('Update Checkbox', (reader) => {
 				const item = this.item.read(reader)!;
 				const value = item.toggleState.read(reader);
 				const iconMap: Record<InputState, { icon: Codicon | undefined; checked: boolean }> = {
@@ -326,7 +325,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 				} else {
 					checkBox.enable();
 				}
-			}, 'Update Checkbox')
+			})
 		);
 
 		this._register(checkBox.onChange(() => {
