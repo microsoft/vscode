@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLast, lastOrDefault } from 'vs/base/common/arrays';
+import { findLast } from 'vs/base/common/arrays';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { derivedObservable, derivedObservableWithWritableCache, IReader, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { elementAtOrUndefined } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { CodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/codeEditorView';
 import { InputCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView';
 import { ResultCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/resultCodeEditorView';
@@ -78,7 +77,7 @@ export class MergeEditorViewModel {
 		this.model.setState(baseRange, state, true, tx);
 	}
 
-	public goToConflict(getModifiedBaseRange: (editor: CodeEditorView, curLineNumber: number) => ModifiedBaseRange | undefined): void {
+	private goToConflict(getModifiedBaseRange: (editor: CodeEditorView, curLineNumber: number) => ModifiedBaseRange | undefined): void {
 		const lastFocusedEditor = this.lastFocusedEditor.get();
 		if (!lastFocusedEditor) {
 			return;
@@ -98,23 +97,35 @@ export class MergeEditorViewModel {
 		}
 	}
 
-	public goToNextConflict(): void {
+	public goToNextModifiedBaseRange(onlyConflicting: boolean): void {
 		this.goToConflict(
 			(e, l) =>
 				this.model.modifiedBaseRanges
 					.get()
-					.find((r) => this.getRange(e, r, undefined).startLineNumber > l) ||
-				elementAtOrUndefined(this.model.modifiedBaseRanges.get(), 0)
+					.find(
+						(r) =>
+							(!onlyConflicting || r.isConflicting) &&
+							this.getRange(e, r, undefined).startLineNumber > l
+					) ||
+				this.model.modifiedBaseRanges
+					.get()
+					.find((r) => !onlyConflicting || r.isConflicting)
 		);
 	}
 
-	public goToPreviousConflict(): void {
+	public goToPreviousModifiedBaseRange(onlyConflicting: boolean): void {
 		this.goToConflict(
 			(e, l) =>
 				findLast(
 					this.model.modifiedBaseRanges.get(),
-					(r) => this.getRange(e, r, undefined).endLineNumberExclusive < l
-				) || lastOrDefault(this.model.modifiedBaseRanges.get())
+					(r) =>
+						(!onlyConflicting || r.isConflicting) &&
+						this.getRange(e, r, undefined).endLineNumberExclusive < l
+				) ||
+				findLast(
+					this.model.modifiedBaseRanges.get(),
+					(r) => !onlyConflicting || r.isConflicting
+				)
 		);
 	}
 

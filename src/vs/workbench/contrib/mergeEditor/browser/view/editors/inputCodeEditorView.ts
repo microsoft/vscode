@@ -140,6 +140,21 @@ export class InputCodeEditorView extends CodeEditorView {
 									.withInputValue(this.inputNumber, value),
 								tx
 							),
+							toggleBothSides() {
+								transaction(tx => {
+									const state = model
+										.getState(baseRange)
+										.get();
+									model.setState(
+										baseRange,
+										state
+											.toggle(inputNumber)
+											.toggle(inputNumber === 1 ? 2 : 1),
+										true,
+										tx
+									);
+								});
+							},
 							getContextMenuActions: () => {
 								const state = model.getState(baseRange).get();
 								const handled = model.isHandled(baseRange).get();
@@ -233,6 +248,7 @@ export interface ModifiedBaseRangeGutterItemInfo extends IGutterItemInfo {
 	enabled: IObservable<boolean>;
 	toggleState: IObservable<InputState>;
 	setState(value: boolean, tx: ITransaction): void;
+	toggleBothSides(): void;
 	getContextMenuActions(): readonly IAction[];
 }
 
@@ -257,12 +273,12 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 		this._register(
 			dom.addDisposableListener(checkBox.domNode, dom.EventType.MOUSE_DOWN, (e) => {
-				if (e.button === 2) {
-					const item = this.item.get();
-					if (!item) {
-						return;
-					}
+				const item = this.item.get();
+				if (!item) {
+					return;
+				}
 
+				if (e.button === /* Right */ 2) {
 					contextMenuService.showContextMenu({
 						getAnchor: () => checkBox.domNode,
 						getActions: item.getContextMenuActions,
@@ -270,9 +286,15 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 					e.stopPropagation();
 					e.preventDefault();
+				} else if (e.button === /* Middle */ 1) {
+					item.toggleBothSides();
+
+					e.stopPropagation();
+					e.preventDefault();
 				}
 			})
 		);
+
 		checkBox.domNode.classList.add('accept-conflict-group');
 
 		this._register(

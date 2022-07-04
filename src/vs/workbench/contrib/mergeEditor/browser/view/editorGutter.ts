@@ -6,7 +6,6 @@
 import { h } from 'vs/base/browser/dom';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 
@@ -68,14 +67,12 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 			const visibleRange2 = new LineRange(
 				visibleRange.startLineNumber,
 				visibleRange.endLineNumber - visibleRange.startLineNumber
-			);
+			).deltaEnd(1);
 
 			const gutterItems = this.itemProvider.getIntersectingGutterItems(
 				visibleRange2,
 				reader
 			);
-
-			const lineHeight = this._editor.getOptions().get(EditorOption.lineHeight);
 
 			for (const gutterItem of gutterItems) {
 				if (!gutterItem.range.touches(visibleRange2)) {
@@ -99,19 +96,10 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 				}
 
 				const top =
-					(gutterItem.range.startLineNumber === 1
-						? -lineHeight
-						: this._editor.getTopForLineNumber(
-							gutterItem.range.startLineNumber - 1
-						)) -
-					scrollTop +
-					lineHeight;
-
-				const bottom = (
-					gutterItem.range.endLineNumberExclusive <= this._editor.getModel()!.getLineCount()
-						? this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive)
-						: this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive - 1) + lineHeight
-				) - scrollTop;
+					gutterItem.range.startLineNumber <= this._editor.getModel()!.getLineCount()
+						? this._editor.getTopForLineNumber(gutterItem.range.startLineNumber, true) - scrollTop
+						: this._editor.getBottomForLineNumber(gutterItem.range.startLineNumber - 1, false) - scrollTop;
+				const bottom = this._editor.getBottomForLineNumber(gutterItem.range.endLineNumberExclusive - 1, true) - scrollTop;
 
 				const height = bottom - top;
 
