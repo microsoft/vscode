@@ -5,7 +5,7 @@
 		"preserveConstEnums": true,
 		"sourceMap": false,
 		"outDir": "../out/vs",
-		"target": "es2020",
+		"target": "es2021",
 		"types": [
 			"keytar",
 			"mocha",
