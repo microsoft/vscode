@@ -17,12 +17,12 @@ import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/edit
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
-import { autorun } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { assertType } from 'vs/base/common/types';
+import { Event } from 'vs/base/common/event';
 
 export class MergeEditorInputData {
 	constructor(
@@ -123,10 +123,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 			this._store.add(input2);
 			this._store.add(result);
 
-			this._store.add(autorun(reader => {
-				this._model?.hasUnhandledConflicts.read(reader);
-				this._onDidChangeDirty.fire(undefined);
-			}, 'drive::onDidChangeDirty'));
+			this._store.add(Event.fromObservable(this._model.hasUnhandledConflicts)(() => this._onDidChangeDirty.fire(undefined)));
 		}
 
 		this._ignoreUnhandledConflictsForDirtyState = undefined;
