@@ -10,6 +10,7 @@ import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -85,8 +86,6 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private readonly _sessionDisposables = new DisposableStore();
 
 	private _grid!: Grid<IView>;
-
-
 	private readonly input1View = this._register(this.instantiation.createInstance(InputCodeEditorView, 1));
 	private readonly input2View = this._register(this.instantiation.createInstance(InputCodeEditorView, 2));
 	private readonly inputResultView = this._register(this.instantiation.createInstance(ResultCodeEditorView));
@@ -208,6 +207,19 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._ctxIsMergeEditor.reset();
 		super.dispose();
 	}
+
+	// --- layout constraints
+
+	private readonly _onDidChangeSizeConstraints = new Emitter<void>();
+	override readonly onDidChangeSizeConstraints: Event<void> = this._onDidChangeSizeConstraints.event;
+
+	override get minimumWidth() {
+		return this._layoutMode.value === 'mixed'
+			? this.input1View.view.minimumWidth + this.input1View.view.minimumWidth
+			: this.input1View.view.minimumWidth + this.input1View.view.minimumWidth + this.inputResultView.view.minimumWidth;
+	}
+
+	// ---
 
 	override getTitle(): string {
 		if (this.input) {
@@ -454,6 +466,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		}
 		this._layoutMode.value = newValue;
 		this._ctxUsesColumnLayout.set(newValue);
+		this._onDidChangeSizeConstraints.fire();
 	}
 
 	private _applyViewState(state: IMergeEditorViewState | undefined) {
