@@ -9,7 +9,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint, Thread, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -87,10 +87,10 @@ export const DEBUG_RUN_LABEL = nls.localize('startWithoutDebugging', "Start With
 export const NEXT_DEBUG_CONSOLE_LABEL = nls.localize('nextDebugConsole', "Focus Next Debug Console");
 export const PREV_DEBUG_CONSOLE_LABEL = nls.localize('prevDebugConsole', "Focus Previous Debug Console");
 export const OPEN_LOADED_SCRIPTS_LABEL = nls.localize('openLoadedScript', "Open Loaded Script...");
-export const CALLSTACK_TOP_LABEL = nls.localize('callStackTop', "Go to Top of Call Stack");
-export const CALLSTACK_BOTTOM_LABEL = nls.localize('callStackBottom', "Go to Visible Bottom of Call Stack");
-export const CALLSTACK_UP_LABEL = nls.localize('callStackUp', "Go Up Call Stack");
-export const CALLSTACK_DOWN_LABEL = nls.localize('callStackDown', "Go Down Call Stack");
+export const CALLSTACK_TOP_LABEL = nls.localize('callStackTop', "Navigate to Top of Call Stack");
+export const CALLSTACK_BOTTOM_LABEL = nls.localize('callStackBottom', "Navigate to Bottom of Call Stack");
+export const CALLSTACK_UP_LABEL = nls.localize('callStackUp', "Navigate Up Call Stack");
+export const CALLSTACK_DOWN_LABEL = nls.localize('callStackDown', "Navigate Down Call Stack");
 
 export const SELECT_DEBUG_CONSOLE_LABEL = nls.localize('selectDebugConsole', "Select Debug Console");
 
@@ -189,53 +189,23 @@ async function changeDebugConsoleFocus(accessor: ServicesAccessor, next: boolean
 
 
 async function NavCallStack(debugService: IDebugService, down: boolean) {
-
 	const frame = debugService.getViewModel().focusedStackFrame;
 	if (frame) {
 
-		const callStack = frame.thread.getCallStack();
-
+		let callStack = frame.thread.getCallStack();
 		const index = callStack.findIndex(elem => elem.frameId === frame.frameId);
 
-		if (!down && index > 0) {
-			debugService.focusStackFrame(callStack[index - 1]);
-		} else if (down) {
-			let canGoLower = true;
+		if (down) {
 			if (index >= callStack.length - 1) {
-
 				if (!(<Thread>frame.thread).reachedEndOfCallStack) {
-					await loadMoreFrames((<Thread>frame.thread), 10);
-				} else {
-					canGoLower = false;
+					await (<DebugModel>debugService.getModel()).fetchAndRefreshCallStack((<Thread>frame.thread), 20);
+					callStack = frame.thread.getCallStack();
 				}
 			}
-			if (canGoLower) {
-
-				debugService.focusStackFrame(callStack[index + 1]);
-			}
+			debugService.focusStackFrame(callStack[index + 1]);
+		} else {
+			debugService.focusStackFrame(callStack[index - 1]);
 		}
-
-	}
-}
-
-function getNumRemainingFrames(thread: Thread) {
-	const totalFrames = thread.stoppedDetails?.totalFrames;
-	return (typeof totalFrames === 'number') ? (totalFrames - thread.getCallStack().length) : undefined;
-
-}
-async function loadMoreFrames(thread: Thread, levels?: number) {
-	if (thread.reachedEndOfCallStack) {
-		return;
-	}
-
-	const remainingFrames = getNumRemainingFrames(thread);
-
-	if (!levels || (remainingFrames && levels > remainingFrames)) {
-		levels = remainingFrames;
-	}
-
-	if (levels && levels > 0) {
-		await thread.fetchCallStack(levels);
 	}
 }
 
@@ -352,12 +322,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const debugService = accessor.get(IDebugService);
 		const thread = debugService.getViewModel().focusedThread;
 		if (thread) {
-			await loadMoreFrames((<Thread>thread));
-			// const promise = (<DebugModel>debugService.getModel()).fetchCallStack(<Thread>thread);
-
-			// await promise.topCallStack;
-			// await promise.wholeCallStack;
-
+			await (<DebugModel>debugService.getModel()).fetchAndRefreshCallStack((<Thread>thread));
 			const callStack = thread.getCallStack();
 			if (callStack.length > 0) {
 				debugService.focusStackFrame(callStack[callStack.length - 1]);

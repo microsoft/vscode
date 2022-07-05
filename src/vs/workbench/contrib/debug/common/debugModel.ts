@@ -1244,6 +1244,30 @@ export class DebugModel implements IDebugModel {
 		}
 	}
 
+	/**
+	 * Update the call stack and notify the call stack view that changes have occurred.
+	 */
+	async fetchAndRefreshCallStack(thread: Thread, levels?: number): Promise<void> {
+
+		if (thread.reachedEndOfCallStack) {
+			return;
+		}
+
+		const totalFrames = thread.stoppedDetails?.totalFrames;
+		const remainingFrames = (typeof totalFrames === 'number') ? (totalFrames - thread.getCallStack().length) : undefined;
+
+		if (!levels || (remainingFrames && levels > remainingFrames)) {
+			levels = remainingFrames;
+		}
+
+		if (levels && levels > 0) {
+			await thread.fetchCallStack(levels);
+			this._onDidChangeCallStack.fire();
+		}
+
+		return;
+	}
+
 	fetchCallStack(thread: Thread): { topCallStack: Promise<void>; wholeCallStack: Promise<void> } {
 		if (thread.session.capabilities.supportsDelayedStackTraceLoading) {
 			// For improved performance load the first stack frame and then load the rest async.
@@ -1270,6 +1294,7 @@ export class DebugModel implements IDebugModel {
 
 					this.schedulers.get(thread.getId())!.schedule();
 					this._onDidChangeCallStack.fire();
+
 				});
 			});
 
