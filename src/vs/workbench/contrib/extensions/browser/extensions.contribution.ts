@@ -77,6 +77,7 @@ import { UnsupportedExtensionsMigrationContrib } from 'vs/workbench/contrib/exte
 import { isWeb } from 'vs/base/common/platform';
 import { ExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import product from 'vs/platform/product/common/product';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -228,7 +229,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.experimental.useUtilityProcess': {
 				type: 'boolean',
 				description: localize('extensionsUseUtilityProcess', "When enabled, the extension host will be launched using the new UtilityProcess Electron API."),
-				default: false
+				default: product.quality === 'stable' ? false : true // disabled by default in stable for now
 			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',

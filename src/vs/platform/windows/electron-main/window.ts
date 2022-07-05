@@ -205,7 +205,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 					// Refs https://github.com/microsoft/vscode/issues/140098
 					enableBlinkFeatures: 'HighlightAPI',
-					...this.environmentMainService.sandbox ?
+					...windowSettings?.experimental?.useSandbox ?
 
 						// Sandbox
 						{
@@ -800,10 +800,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(this.environmentMainService.sandbox ?
-			'vs/code/electron-sandbox/workbench/workbench.html' :
-			'vs/code/electron-browser/workbench/workbench.html', require
-		).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri('vs/code/electron-sandbox/workbench/workbench.html', require).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
