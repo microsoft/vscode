@@ -19,7 +19,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { performSnippetEdits } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 type ValidationResult = { canApply: true } | { canApply: false; reason: URI };
@@ -144,9 +144,10 @@ class EditorEditTask extends ModelEditTask {
 		if (this._edits.length > 0) {
 
 			const insertAsSnippet = this._edits.every(edit => edit.insertAsSnippet);
-			if (insertAsSnippet) {
+			const snippetCtrl = SnippetController2.get(this._editor);
+			if (snippetCtrl && insertAsSnippet) {
 				// todo@jrieken what ABOUT EOL?
-				performSnippetEdits(this._editor, this._edits.map(edit => ({ range: Range.lift(edit.range!), snippet: edit.text! })));
+				snippetCtrl.apply(this._edits.map(edit => ({ range: Range.lift(edit.range!), template: edit.text! })));
 
 			} else {
 				this._edits = this._edits
