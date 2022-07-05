@@ -47,17 +47,21 @@ function getFileAndPosition(): IFilePosition | INotebookPosition | undefined {
 		uri = vscode.window.activeTextEditor.document.uri;
 
 		if (uri.scheme === 'vscode-notebook-cell' && vscode.window.activeNotebookEditor?.notebook.uri.fsPath === uri.fsPath) {
+			// if the active editor is a notebook editor and the focus is inside any a cell text editor
+			// generate deep link for text selection for the notebook cell.
 			const cell = vscode.window.activeNotebookEditor.notebook.getCells().find(cell => cell.document.uri.fragment === uri?.fragment);
 			const cellIndex = cell?.index ?? vscode.window.activeNotebookEditor.selection.start;
 			const range = cell !== undefined ? vscode.window.activeTextEditor.selection : undefined;
 			return { type: LinkType.Notebook, uri, cellIndex, range };
 		} else {
+			// the active editor is a text editor
 			range = vscode.window.activeTextEditor.selection;
 			return { type: LinkType.File, uri, range };
 		}
 	}
 
 	if (vscode.window.activeNotebookEditor) {
+		// if the active editor is a notebook editor but the focus is not inside any cell text editor, generate deep link for the cell selection in the notebook document.
 		return { type: LinkType.Notebook, uri: vscode.window.activeNotebookEditor.notebook.uri, cellIndex: vscode.window.activeNotebookEditor.selection.start, range: undefined };
 	}
 
