@@ -196,12 +196,12 @@ async function navigateCallStack(debugService: IDebugService, down: boolean) {
 		let nextVisibleFrame;
 		if (down) {
 			if (index >= callStack.length - 1) {
-				if (!(<Thread>frame.thread).reachedEndOfCallStack) {
-					await (<DebugModel>debugService.getModel()).fetchAndRefreshCallStack((<Thread>frame.thread), 20);
-					callStack = frame.thread.getCallStack();
-				} else {
+				if ((<Thread>frame.thread).reachedEndOfCallStack) {
 					goToTopOfCallStack(debugService);
 					return;
+				} else {
+					await (<DebugModel>debugService.getModel()).fetchAndRefreshCallStack((<Thread>frame.thread), 20);
+					callStack = frame.thread.getCallStack();
 				}
 			}
 			nextVisibleFrame = findNextVisibleFrame(true, callStack, index + 1);
