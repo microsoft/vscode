@@ -512,7 +512,9 @@ class ExtensionsScanner extends Disposable {
 				const extensionScannerInput = new ExtensionScannerInput(c.resource, input.mtime, input.applicationExtensionslocation, input.applicationExtensionslocationMtime, input.profile, input.type, input.excludeObsolete, input.validate, input.productVersion, input.productDate, input.productCommit, input.devMode, input.language, input.translations);
 				return this.scanExtension(extensionScannerInput);
 			}));
-		return coalesce(extensions);
+		return coalesce(extensions)
+			// Sort: Make sure extensions are in the same order always. Helps cache invalidation even if the order changes.
+			.sort((a, b) => a.location.path < b.location.path ? -1 : 1);
 	}
 
 	private async scanExtensionsFromProfile(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
