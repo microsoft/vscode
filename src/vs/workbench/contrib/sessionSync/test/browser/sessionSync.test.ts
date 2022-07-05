@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { mock } from 'vs/base/test/common/mock';
 import * as sinon from 'sinon';
 import * as assert from 'assert';
-import { ChangeType, FileType, ISessionSyncWorkbenchService } from 'vs/workbench/services/sessionSync/common/sessionSync';
+import { ChangeType, FileType, ISessionSyncWorkbenchService } from 'vs/workbench/contrib/sessionSync/common/sessionSync';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';

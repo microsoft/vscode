@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EditSessionSchemaVersion, IEditSessionsLogService } from 'vs/workbench/services/sessionSync/common/sessionSync';
+import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EditSessionSchemaVersion, IEditSessionsLogService } from 'vs/workbench/contrib/sessionSync/common/sessionSync';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -19,7 +19,7 @@ import { joinPath, relativePath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { SessionSyncWorkbenchService } from 'vs/workbench/services/sessionSync/browser/sessionSyncWorkbenchService';
+import { SessionSyncWorkbenchService } from 'vs/workbench/contrib/sessionSync/browser/sessionSyncWorkbenchService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -38,7 +38,9 @@ import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtua
 import { Schemas } from 'vs/base/common/network';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { EditSessionsLogService } from 'vs/workbench/contrib/sessionSync/common/editSessionsLogService';
 
+registerSingleton(IEditSessionsLogService, EditSessionsLogService);
 registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
 const resumeLatestCommand = {

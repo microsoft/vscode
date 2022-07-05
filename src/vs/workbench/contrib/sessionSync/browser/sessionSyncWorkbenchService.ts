@@ -18,7 +18,7 @@ import { IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDat
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, ISessionSyncWorkbenchService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService } from 'vs/workbench/services/sessionSync/common/sessionSync';
+import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, ISessionSyncWorkbenchService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService } from 'vs/workbench/contrib/sessionSync/common/sessionSync';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
