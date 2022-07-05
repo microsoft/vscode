@@ -7,11 +7,12 @@ import type { AppInsightsCore, IExtendedConfiguration } from '@microsoft/1ds-cor
 import type { IChannelConfiguration, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { mixin } from 'vs/base/common/objects';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
 
 const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
 
-async function getClient(instrumentationKey: string, xhrOverride?: IXHROverride): Promise<AppInsightsCore> {
+async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<AppInsightsCore> {
 	const oneDs = await import('@microsoft/1ds-core-js');
 	const postPlugin = await import('@microsoft/1ds-post-js');
 	const appInsightsCore = new oneDs.AppInsightsCore();
@@ -43,10 +44,12 @@ async function getClient(instrumentationKey: string, xhrOverride?: IXHROverride)
 	appInsightsCore.initialize(coreConfig, []);
 
 	appInsightsCore.addTelemetryInitializer((envelope) => {
-		envelope['ext'] = envelope['ext'] ?? {};
-		envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
-		// Sets it to be internal only based on Windows UTC flagging
-		envelope['ext']['utc']['flags'] = 0x0000811ECD;
+		if (addInternalFlag) {
+			envelope['ext'] = envelope['ext'] ?? {};
+			envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
+			// Sets it to be internal only based on Windows UTC flagging
+			envelope['ext']['utc']['flags'] = 0x0000811ECD;
+		}
 	});
 
 	return appInsightsCore;
@@ -60,6 +63,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	protected readonly endPointUrl = endpointUrl;
 
 	constructor(
+		private readonly _configurationService: IConfigurationService,
 		private _eventPrefix: string,
 		private _defaultData: { [key: string]: any } | null,
 		iKeyOrClientFactory: string | (() => AppInsightsCore), // allow factory function for testing
@@ -88,7 +92,8 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		}
 
 		if (!this._asyncAiCore) {
-			this._asyncAiCore = getClient(this._aiCoreOrKey, this._xhrOverride);
+			const isInternal = this._configurationService.getValue<boolean>('telemetry.internalTesting');
+			this._asyncAiCore = getClient(this._aiCoreOrKey, isInternal, this._xhrOverride);
 		}
 
 		this._asyncAiCore.then(
