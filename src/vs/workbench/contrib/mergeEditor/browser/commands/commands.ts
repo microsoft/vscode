@@ -10,6 +10,7 @@ import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
@@ -349,4 +350,31 @@ function mergeEditorCompare(editorService: IEditorService, commandService: IComm
 
 function openDiffEditor(commandService: ICommandService, left: URI, right: URI, label?: string) {
 	commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, left, right, label);
+}
+
+export class OpenBaseFile extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.openBaseEditor',
+			category: mergeEditorCategory,
+			title: {
+				value: localize('merge.openBaseEditor', 'Open Base File'),
+				original: 'Open Base File',
+			},
+			f1: true,
+			precondition: ctxIsMergeEditor,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const openerService = accessor.get(IOpenerService);
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			const vm = activeEditorPane.viewModel.get();
+			if (!vm) {
+				return;
+			}
+			openerService.open(vm.model.base.uri);
+		}
+	}
 }

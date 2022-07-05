@@ -134,6 +134,7 @@ export class MergeEditorModel extends EditorModel {
 		readonly input2Description: string | undefined,
 		readonly result: ITextModel,
 		private readonly diffComputer: IDiffComputer,
+		options: { resetUnknownOnInitialization: boolean },
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
@@ -183,9 +184,11 @@ export class MergeEditorModel extends EditorModel {
 			)
 		);
 
-		this.onInitialized.then(() => {
-			this.resetUnknown();
-		});
+		if (options.resetUnknownOnInitialization) {
+			this.onInitialized.then(() => {
+				this.resetUnknown();
+			});
+		}
 	}
 
 	public getRangeInResult(baseRange: LineRange, reader?: IReader): LineRange {
