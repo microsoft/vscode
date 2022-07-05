@@ -187,7 +187,6 @@ async function changeDebugConsoleFocus(accessor: ServicesAccessor, next: boolean
 	}
 }
 
-
 async function NavCallStack(debugService: IDebugService, down: boolean) {
 	const frame = debugService.getViewModel().focusedStackFrame;
 	if (frame) {
@@ -208,7 +207,6 @@ async function NavCallStack(debugService: IDebugService, down: boolean) {
 		}
 	}
 }
-
 
 // These commands are used in call stack context menu, call stack inline actions, command palette, debug toolbar, mac native touch bar
 // When the command is exectued in the context of a thread(context menu on a thread, inline call stack action) we pass the thread id
@@ -305,6 +303,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CALLSTACK_TOP_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
+	// todo: add keybinding
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const debugService = accessor.get(IDebugService);
 		const thread = debugService.getViewModel().focusedThread;
@@ -318,6 +317,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CALLSTACK_BOTTOM_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
+	// todo: add keybinding
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const debugService = accessor.get(IDebugService);
 		const thread = debugService.getViewModel().focusedThread;
@@ -334,6 +334,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CALLSTACK_UP_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
+	// todo: add keybinding
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const debugService = accessor.get(IDebugService);
 		NavCallStack(debugService, false);
@@ -343,6 +344,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CALLSTACK_DOWN_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
+	// todo: add keybinding
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const debugService = accessor.get(IDebugService);
 		NavCallStack(debugService, true);
