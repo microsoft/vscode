@@ -16,18 +16,19 @@ import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/commo
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 
-const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
+const HAS_PROMPTED_FOR_AUTOMATIC_TASKS = 'tasks.hasPromptedForAutomaticTasks';
+const ALLOW_AUTOMATIC_TASKS = 'task.allowAutomaticTasks';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@ITaskService private readonly _taskService: ITaskService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly _logService: ILogService) {
 		super();
@@ -43,7 +44,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		}
 
 		this._logService.trace('RunAutomaticTasks: Checking if automatic tasks should run.');
-		const isFolderAutomaticAllowed = this._storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
+		const isFolderAutomaticAllowed = this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS);
 		await this._workspaceTrustManagementService.workspaceTrustInitialized;
 		const isWorkspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
 		// Only run if allowed. Prompting for permission occurs when a user first tries to run a task.
@@ -129,13 +130,13 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	}
 
 	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		openerService: IOpenerService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>) {
+		openerService: IOpenerService, configurationService: IConfigurationService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>) {
 		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkspaceTrusted;
 		if (!isWorkspaceTrusted) {
 			return;
 		}
 
-		const isFolderAutomaticAllowed = storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
+		const isFolderAutomaticAllowed = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, undefined);
 		if (isFolderAutomaticAllowed !== undefined) {
 			return;
 		}
@@ -143,7 +144,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		const { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
 		if (taskNames.length > 0) {
 			// We have automatic tasks, prompt to allow.
-			this._showPrompt(notificationService, storageService, taskService, openerService, taskNames, locations).then(allow => {
+			this._showPrompt(notificationService, storageService, taskService, openerService, configurationService, taskNames, locations).then(allow => {
 				if (allow) {
 					RunAutomaticTasks._runTasks(taskService, tasks);
 				}
@@ -152,7 +153,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	}
 
 	private static _showPrompt(notificationService: INotificationService, storageService: IStorageService, taskService: ITaskService,
-		openerService: IOpenerService, taskNames: Array<string>, locations: Map<string, URI>): Promise<boolean> {
+		openerService: IOpenerService, configurationService: IConfigurationService, taskNames: Array<string>, locations: Map<string, URI>): Promise<boolean> {
 		return new Promise<boolean>(resolve => {
 			notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic',
 				"This workspace has tasks ({0}) defined ({1}) that run automatically when you open this workspace. Do you allow automatic tasks to run when you open this workspace?",
@@ -163,14 +164,16 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					label: nls.localize('allow', "Allow and run"),
 					run: () => {
 						resolve(true);
-						storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+						storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, true, ConfigurationTarget.WORKSPACE);
 					}
 				},
 				{
 					label: nls.localize('disallow', "Disallow"),
 					run: () => {
 						resolve(false);
-						storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, false, ConfigurationTarget.WORKSPACE);
+
 					}
 				},
 				{
@@ -203,14 +206,13 @@ export class ManageAutomaticTaskRunning extends Action2 {
 
 	public async run(accessor: ServicesAccessor): Promise<any> {
 		const quickInputService = accessor.get(IQuickInputService);
-		const storageService = accessor.get(IStorageService);
+		const configurationService = accessor.get(IConfigurationService);
 		const allowItem: IQuickPickItem = { label: nls.localize('workbench.action.tasks.allowAutomaticTasks', "Allow Automatic Tasks in Folder") };
 		const disallowItem: IQuickPickItem = { label: nls.localize('workbench.action.tasks.disallowAutomaticTasks', "Disallow Automatic Tasks in Folder") };
 		const value = await quickInputService.pick([allowItem, disallowItem], { canPickMany: false });
 		if (!value) {
 			return;
 		}
-
-		storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, value === allowItem, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, value === allowItem, ConfigurationTarget.WORKSPACE);
 	}
 }
