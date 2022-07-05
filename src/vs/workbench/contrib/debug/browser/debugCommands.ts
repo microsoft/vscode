@@ -347,7 +347,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	// todo: add keybinding
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const debugService = accessor.get(IDebugService);
-		NavCallStack(debugService, true);
+		navigateCallStack(debugService, true);
 	}
 });
 
