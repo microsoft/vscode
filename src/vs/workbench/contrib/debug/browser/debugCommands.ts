@@ -187,7 +187,7 @@ async function changeDebugConsoleFocus(accessor: ServicesAccessor, next: boolean
 	}
 }
 
-async function NavCallStack(debugService: IDebugService, down: boolean) {
+async function navigateCallStack(debugService: IDebugService, down: boolean) {
 	const frame = debugService.getViewModel().focusedStackFrame;
 	if (frame) {
 
@@ -337,7 +337,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	// todo: add keybinding
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const debugService = accessor.get(IDebugService);
-		NavCallStack(debugService, false);
+		navigateCallStack(debugService, false);
 	}
 });
 
