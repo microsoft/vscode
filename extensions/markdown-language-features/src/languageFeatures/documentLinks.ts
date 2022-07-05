@@ -9,7 +9,7 @@ import * as uri from 'vscode-uri';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { ILogger } from '../logging';
 import { IMdParser } from '../markdownEngine';
-import { ITextDocument } from '../types/textDocument';
+import { getLine, ITextDocument } from '../types/textDocument';
 import { coalesce } from '../util/arrays';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
@@ -422,9 +422,9 @@ export class MdLinkComputer {
 				reference = match[5];
 				const offset = ((match.index ?? 0) + match[1].length) + 1;
 				hrefStart = document.positionAt(offset);
-				const line = document.lineAt(hrefStart.line);
+				const line = getLine(document, hrefStart.line);
 				// See if link looks like a checkbox
-				const checkboxMatch = line.text.match(/^\s*[\-\*]\s*\[x\]/i);
+				const checkboxMatch = line.match(/^\s*[\-\*]\s*\[x\]/i);
 				if (checkboxMatch && hrefStart.character <= checkboxMatch[0].length) {
 					continue;
 				}
