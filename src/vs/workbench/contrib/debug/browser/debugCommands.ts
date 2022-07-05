@@ -193,19 +193,84 @@ async function navigateCallStack(debugService: IDebugService, down: boolean) {
 
 		let callStack = frame.thread.getCallStack();
 		const index = callStack.findIndex(elem => elem.frameId === frame.frameId);
-
+		let nextVisibleFrame;
 		if (down) {
 			if (index >= callStack.length - 1) {
 				if (!(<Thread>frame.thread).reachedEndOfCallStack) {
 					await (<DebugModel>debugService.getModel()).fetchAndRefreshCallStack((<Thread>frame.thread), 20);
 					callStack = frame.thread.getCallStack();
+				} else {
+					goToTopOfCallStack(debugService);
+					return;
 				}
 			}
-			debugService.focusStackFrame(callStack[index + 1]);
+			nextVisibleFrame = findNextVisibleFrame(true, callStack, index + 1);
 		} else {
-			debugService.focusStackFrame(callStack[index - 1]);
+			if (index <= 0) {
+				goToBottomOfCallStack(debugService);
+				return;
+			}
+			// goes to bottom of visible panes to reduce performance overhead
+			nextVisibleFrame = findNextVisibleFrame(false, callStack, index - 1);
+		}
+
+		if (nextVisibleFrame) {
+			debugService.focusStackFrame(nextVisibleFrame);
 		}
 	}
+}
+
+async function goToBottomOfCallStack(debugService: IDebugService) {
+	const thread = debugService.getViewModel().focusedThread;
+	if (thread) {
+		await (<DebugModel>debugService.getModel()).fetchAndRefreshCallStack((<Thread>thread));
+		const callStack = thread.getCallStack();
+		if (callStack.length > 0) {
+			const nextVisibleFrame = findNextVisibleFrame(false, callStack, callStack.length - 1);
+			if (nextVisibleFrame) {
+				debugService.focusStackFrame(nextVisibleFrame);
+			}
+		}
+	}
+}
+
+function goToTopOfCallStack(debugService: IDebugService) {
+	const thread = debugService.getViewModel().focusedThread;
+
+	if (thread) {
+		debugService.focusStackFrame(thread.getTopStackFrame());
+	}
+}
+
+/**
+ * Finds next frame that is not skipped by SkipFiles
+ * @param down specifies whether to search downwards if the current file is skipped.
+ * @param callStack the call stack to search
+ * @param initialIndex the index to start the search at
+ */
+function findNextVisibleFrame(down: boolean, callStack: readonly IStackFrame[], initialIndex: number) {
+	let index = initialIndex;
+	let currFrame;
+	do {
+		currFrame = callStack[index];
+		if (!(currFrame.source.presentationHint === 'deemphasize' || currFrame.presentationHint === 'deemphasize')) {
+			return currFrame;
+		}
+
+		if (down) {
+			index++;
+			if (index === callStack.length) {
+				index = 0;
+			}
+		} else {
+			index--;
+			if (index === -1) {
+				index = callStack.length - 1;
+			}
+		}
+	} while (index !== initialIndex);
+
+	return undefined;
 }
 
 // These commands are used in call stack context menu, call stack inline actions, command palette, debug toolbar, mac native touch bar
@@ -289,6 +354,39 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+
+CommandsRegistry.registerCommand({
+	id: CALLSTACK_TOP_ID,
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		const debugService = accessor.get(IDebugService);
+		goToTopOfCallStack(debugService);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: CALLSTACK_BOTTOM_ID,
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		const debugService = accessor.get(IDebugService);
+		await goToBottomOfCallStack(debugService);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: CALLSTACK_UP_ID,
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		const debugService = accessor.get(IDebugService);
+		navigateCallStack(debugService, false);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: CALLSTACK_DOWN_ID,
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		const debugService = accessor.get(IDebugService);
+		navigateCallStack(debugService, true);
+	}
+});
+
 MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	command: {
 		id: JUMP_TO_CURSOR_ID,
@@ -298,57 +396,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED, EditorContextKeys.editorTextFocus),
 	group: 'debug',
 	order: 3
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CALLSTACK_TOP_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	// todo: add keybinding
-	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const debugService = accessor.get(IDebugService);
-		const thread = debugService.getViewModel().focusedThread;
-
-		if (thread) {
-			debugService.focusStackFrame(thread.getTopStackFrame());
-		}
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CALLSTACK_BOTTOM_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	// todo: add keybinding
-	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const debugService = accessor.get(IDebugService);
-		const thread = debugService.getViewModel().focusedThread;
-		if (thread) {
-			await (<DebugModel>debugService.getModel()).fetchAndRefreshCallStack((<Thread>thread));
-			const callStack = thread.getCallStack();
-			if (callStack.length > 0) {
-				debugService.focusStackFrame(callStack[callStack.length - 1]);
-			}
-		}
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CALLSTACK_UP_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	// todo: add keybinding
-	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const debugService = accessor.get(IDebugService);
-		navigateCallStack(debugService, false);
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CALLSTACK_DOWN_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	// todo: add keybinding
-	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const debugService = accessor.get(IDebugService);
-		navigateCallStack(debugService, true);
-	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
