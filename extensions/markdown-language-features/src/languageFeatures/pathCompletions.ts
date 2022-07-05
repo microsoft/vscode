@@ -7,7 +7,7 @@ import { dirname, resolve } from 'path';
 import * as vscode from 'vscode';
 import { IMdParser } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
-import { ITextDocument } from '../types/textDocument';
+import { getLine, ITextDocument } from '../types/textDocument';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import { Schemes } from '../util/schemes';
 import { IMdWorkspace } from '../workspace';
@@ -167,7 +167,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 	private readonly definitionPattern = /^\s*\[[\w\-]+\]:\s*([^\s]*)$/m;
 
 	private getPathCompletionContext(document: ITextDocument, position: vscode.Position): CompletionContext | undefined {
-		const line = document.lineAt(position.line).text;
+		const line = getLine(document, position.line);
 
 		const linePrefixText = line.slice(0, position.character);
 		const lineSuffixText = line.slice(position.character);
