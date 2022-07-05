@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, Command } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
@@ -13,12 +13,13 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher } from './api/git';
+import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, CommitSecondaryCommandsProvider } from './api/git';
 import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { OutputChannelLogger } from './log';
+import { ICommitSecondaryCommandsProviderRegistry } from './commitCommands';
 
 const localize = nls.loadMessageBundle();
 
@@ -50,7 +51,7 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
-export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerRegistry {
+export class Model implements ICommitSecondaryCommandsProviderRegistry, IRemoteSourcePublisherRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -104,6 +105,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 	private _onDidRemoveRemoteSourcePublisher = new EventEmitter<RemoteSourcePublisher>();
 	readonly onDidRemoveRemoteSourcePublisher = this._onDidRemoveRemoteSourcePublisher.event;
+
+	private commitSecondaryCommandProviders = new Set<CommitSecondaryCommandsProvider>();
 
 	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
@@ -369,7 +372,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannelLogger, this.telemetryReporter);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this, this.globalState, this.outputChannelLogger, this.telemetryReporter);
 
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap
@@ -580,6 +583,22 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 	getRemoteSourcePublishers(): RemoteSourcePublisher[] {
 		return [...this.remoteSourcePublishers.values()];
+	}
+
+	registerCommitSecondaryCommandsProvider(provider: CommitSecondaryCommandsProvider): Disposable {
+		this.commitSecondaryCommandProviders.add(provider);
+
+		return toDisposable(() => this.commitSecondaryCommandProviders.delete(provider));
+	}
+
+	getCommitSecondaryCommands(): Command[][] {
+		const commandGroups: Command[][] = [];
+
+		for (const provider of this.commitSecondaryCommandProviders.values()) {
+			commandGroups.push(provider.getCommands() as Command[]);
+		}
+
+		return commandGroups;
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace } from 'vscode';
+import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace } from 'vscode';
 import * as nls from 'vscode-nls';
+import { ICommitSecondaryCommandsProviderRegistry } from './commitCommands';
 import { Repository, Operation } from './repository';
 import { dispose } from './util';
 import { Branch } from './api/git';
@@ -34,7 +35,9 @@ export class ActionButtonCommand {
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly repository: Repository) {
+	constructor(
+		readonly repository: Repository,
+		readonly commitSecondaryCommandsProviderRegistry: ICommitSecondaryCommandsProviderRegistry) {
 		this._state = {
 			HEAD: undefined,
 			isCommitInProgress: false,
@@ -141,25 +144,7 @@ export class ActionButtonCommand {
 				tooltip: tooltip,
 				arguments: [this.repository.sourceControl],
 			},
-			secondaryCommands: [
-				[
-					{
-						command: 'git.commit',
-						title: localize('scm secondary button commit', "Commit"),
-						arguments: [this.repository.sourceControl, ''],
-					},
-					{
-						command: 'git.commit',
-						title: localize('scm secondary button commit and push', "Commit & Push"),
-						arguments: [this.repository.sourceControl, 'push'],
-					},
-					{
-						command: 'git.commit',
-						title: localize('scm secondary button commit and sync', "Commit & Sync"),
-						arguments: [this.repository.sourceControl, 'sync'],
-					},
-				]
-			],
+			secondaryCommands: this.commitSecondaryCommandsProviderRegistry.getCommitSecondaryCommands(),
 			enabled: this.state.repositoryHasChanges && !this.state.isCommitInProgress && !this.state.isMergeInProgress
 		};
 	}

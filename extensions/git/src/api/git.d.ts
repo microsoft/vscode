@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult, Command } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -256,6 +256,10 @@ export interface CredentialsProvider {
 	getCredentials(host: Uri): ProviderResult<Credentials>;
 }
 
+export interface CommitSecondaryCommandsProvider {
+	getCommands(): ProviderResult<Command[]>;
+}
+
 export interface PushErrorHandler {
 	handlePushError(repository: Repository, remote: Remote, refspec: string, error: Error & { gitErrorCode: GitErrorCodes }): Promise<boolean>;
 }
@@ -284,6 +288,7 @@ export interface API {
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
+	registerCommitSecondaryCommandsProvider(provider: CommitSecondaryCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 }
 
