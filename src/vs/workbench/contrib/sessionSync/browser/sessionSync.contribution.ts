@@ -62,6 +62,7 @@ const openLocalFolderCommand = {
 	title: { value: localize('continue edit session in local folder', "Open In Local Folder"), original: 'Open In Local Folder' },
 };
 const queryParamName = 'editSessionId';
+const experimentalSettingName = 'workbench.experimental.editSessions.enabled';
 
 export class SessionSyncContribution extends Disposable implements IWorkbenchContribution {
 
@@ -94,7 +95,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		}
 
 		this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('workbench.experimental.editSessions.enabled')) {
+			if (e.affectsConfiguration(experimentalSettingName)) {
 				this.registerActions();
 			}
 		});
@@ -130,7 +131,8 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private registerActions() {
-		if (this.registered || this.configurationService.getValue('workbench.experimental.editSessions.enabled') !== true) {
+		if (this.registered || this.configurationService.getValue(experimentalSettingName) !== true) {
+			this.logService.info(`Skipping registering edit sessions actions as edit sessions are currently disabled. Set ${experimentalSettingName} to enable edit sessions.`);
 			return;
 		}
 
@@ -168,11 +170,11 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 						query: uri.query.length > 0 ? (uri + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
 					});
 				} else {
-					that.logService.warn(`Edit Sessions: Failed to store edit session when invoking ${continueEditSessionCommand.id}.`);
+					that.logService.warn(`Failed to store edit session when invoking ${continueEditSessionCommand.id}.`);
 				}
 
 				// Open the URI
-				that.logService.info(`Edit Sessions: opening ${uri.toString()}`);
+				that.logService.info(`Opening ${uri.toString()}`);
 				await that.openerService.open(uri, { openExternal: true });
 			}
 		}));
@@ -222,7 +224,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 
 	async applyEditSession(ref?: string): Promise<void> {
 		if (ref !== undefined) {
-			this.logService.info(`Edit Sessions: Applying edit session with ref ${ref}.`);
+			this.logService.info(`Applying edit session with ref ${ref}.`);
 		}
 
 		const data = await this.sessionSyncWorkbenchService.read(ref);
@@ -232,7 +234,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			} else {
 				this.notificationService.warn(localize('no edit session content for ref', 'Could not apply edit session contents for ID {0}.', ref));
 			}
-			this.logService.info(`Edit Sessions: Aborting applying edit session as no edit session content is available to be applied from ref ${ref}.`);
+			this.logService.info(`Aborting applying edit session as no edit session content is available to be applied from ref ${ref}.`);
 			return;
 		}
 		const editSession = data.editSession;
@@ -250,7 +252,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			for (const folder of editSession.folders) {
 				const folderRoot = this.contextService.getWorkspace().folders.find((f) => f.name === folder.name);
 				if (!folderRoot) {
-					this.logService.info(`Edit Sessions: Skipping applying ${folder.workingChanges.length} changes from edit session with ref ${ref} as no corresponding workspace folder named ${folder.name} is currently open.`);
+					this.logService.info(`Skipping applying ${folder.workingChanges.length} changes from edit session with ref ${ref} as no corresponding workspace folder named ${folder.name} is currently open.`);
 					continue;
 				}
 
@@ -290,11 +292,11 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				}
 			}
 
-			this.logService.info(`Edit Sessions: Deleting edit session with ref ${ref} after successfully applying it to current workspace...`);
+			this.logService.info(`Deleting edit session with ref ${ref} after successfully applying it to current workspace...`);
 			await this.sessionSyncWorkbenchService.delete(ref);
-			this.logService.info(`Edit Sessions: Deleted edit session with ref ${ref}.`);
+			this.logService.info(`Deleted edit session with ref ${ref}.`);
 		} catch (ex) {
-			this.logService.error('Edit Sessions: Failed to apply edit session, reason: ', (ex as Error).toString());
+			this.logService.error('Failed to apply edit session, reason: ', (ex as Error).toString());
 			this.notificationService.error(localize('apply failed', "Failed to apply your edit session."));
 		}
 	}
@@ -313,7 +315,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			for (const uri of trackedUris) {
 				const workspaceFolder = this.contextService.getWorkspaceFolder(uri);
 				if (!workspaceFolder) {
-					this.logService.info(`Edit Sessions: Skipping working change ${uri.toString()} as no associated workspace folder was found.`);
+					this.logService.info(`Skipping working change ${uri.toString()} as no associated workspace folder was found.`);
 
 					continue;
 				}
@@ -342,7 +344,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		}
 
 		if (!hasEdits) {
-			this.logService.info('Edit Sessions: Skipping storing edit session as there are no edits to store.');
+			this.logService.info('Skipping storing edit session as there are no edits to store.');
 			if (fromStoreCommand) {
 				this.notificationService.info(localize('no edits to store', 'Skipped storing edit session as there are no edits to store.'));
 			}
@@ -352,12 +354,12 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		const data: EditSession = { folders, version: 1 };
 
 		try {
-			this.logService.info(`Edit Sessions: Storing edit session...`);
+			this.logService.info(`Storing edit session...`);
 			const ref = await this.sessionSyncWorkbenchService.write(data);
-			this.logService.info(`Edit Sessions: Stored edit session with ref ${ref}.`);
+			this.logService.info(`Stored edit session with ref ${ref}.`);
 			return ref;
 		} catch (ex) {
-			this.logService.error(`Edit Sessions: Failed to store edit session, reason: `, (ex as Error).toString());
+			this.logService.error(`Failed to store edit session, reason: `, (ex as Error).toString());
 
 			type UploadFailedEvent = { reason: string };
 			type UploadFailedClassification = {
