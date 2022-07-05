@@ -14,8 +14,12 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { delta } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { EXTENSIONS_RESOURCE_NAME } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { joinPath } from 'vs/base/common/resources';
+import { IFileService } from 'vs/platform/files/common/files';
 
-export class NativeProfileAwareExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
+export class NativeExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
 	private readonly disposables = this._register(new DisposableStore());
 
@@ -31,42 +35,47 @@ export class NativeProfileAwareExtensionManagementService extends ExtensionManag
 	private readonly _onDidChangeProfileExtensions = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
 	readonly onDidChangeProfileExtensions = this._onDidChangeProfileExtensions.event;
 
-	constructor(channel: IChannel, public extensionsProfileResource: URI | undefined,
+	constructor(
+		channel: IChannel,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(channel);
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenProfileChanged(e))));
 	}
 
 	private filterEvent({ profileLocation, applicationScoped }: { profileLocation?: URI; applicationScoped?: boolean }): boolean {
-		return applicationScoped || this.uriIdentityService.extUri.isEqual(this.extensionsProfileResource, profileLocation);
+		return applicationScoped || this.uriIdentityService.extUri.isEqual(this.userDataProfileService.currentProfile.extensionsResource, profileLocation);
 	}
 
 	override install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
-		return super.install(vsix, { ...options, profileLocation: this.extensionsProfileResource });
+		return super.install(vsix, { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
 	}
 
 	override installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		return super.installFromGallery(extension, { ...installOptions, profileLocation: this.extensionsProfileResource });
+		return super.installFromGallery(extension, { ...installOptions, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
 	}
 
 	override uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		return super.uninstall(extension, { ...options, profileLocation: this.extensionsProfileResource });
+		return super.uninstall(extension, { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
 	}
 
 	override getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
-		return super.getInstalled(type, this.extensionsProfileResource);
+		return super.getInstalled(type, this.userDataProfileService.currentProfile.extensionsResource);
 	}
 
-	async switchExtensionsProfile(extensionsProfileResource: URI | undefined): Promise<void> {
-		if (this.uriIdentityService.extUri.isEqual(extensionsProfileResource, this.extensionsProfileResource)) {
-			return;
-		}
-		const oldExtensions = await this.getInstalled(ExtensionType.User);
-		this.extensionsProfileResource = extensionsProfileResource;
-		const newExtensions = await this.getInstalled(ExtensionType.User);
-		const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
-		if (added.length || removed.length) {
-			this._onDidChangeProfileExtensions.fire({ added, removed });
+	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
+		const previousExtensionsResource = e.previous.extensionsResource ?? joinPath(e.previous.location, EXTENSIONS_RESOURCE_NAME);
+		if (e.preserveData) {
+			await this.fileService.copy(previousExtensionsResource, e.profile.extensionsResource!);
+		} else {
+			const oldExtensions = await super.getInstalled(ExtensionType.User, previousExtensionsResource);
+			const newExtensions = await this.getInstalled(ExtensionType.User);
+			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
+			if (added.length || removed.length) {
+				this._onDidChangeProfileExtensions.fire({ added, removed });
+			}
 		}
 	}
 
