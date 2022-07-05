@@ -18,5 +18,5 @@ export interface ITextDocument {
 }
 
 export function getLine(doc: ITextDocument, line: number): string {
-	return doc.getText(new vscode.Range(line, 0, line, Number.MAX_VALUE));
+	return doc.getText(new vscode.Range(line, 0, line, Number.MAX_VALUE)).replace(/\r?\n$/, '');
 }
