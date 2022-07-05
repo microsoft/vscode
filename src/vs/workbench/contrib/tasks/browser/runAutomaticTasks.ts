@@ -164,7 +164,6 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					label: nls.localize('allow', "Allow and run"),
 					run: () => {
 						resolve(true);
-						storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, true, ConfigurationTarget.WORKSPACE);
 					}
 				},
@@ -186,6 +185,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					}
 				}]
 			);
+			storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		});
 	}
 
