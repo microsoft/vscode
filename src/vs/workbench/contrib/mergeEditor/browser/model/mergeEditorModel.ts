@@ -62,7 +62,7 @@ export class MergeEditorModel extends EditorModel {
 	private readonly modifiedBaseRangeStateStores =
 		derived('modifiedBaseRangeStateStores', reader => {
 			const map = new Map(
-				this.modifiedBaseRanges.read(reader).map(s => ([s, observableValue('State', ModifiedBaseRangeState.default)]))
+				this.modifiedBaseRanges.read(reader).map(s => ([s, observableValue(`BaseRangeState${s.baseRange}`, ModifiedBaseRangeState.default)]))
 			);
 			return map;
 		});
@@ -70,7 +70,7 @@ export class MergeEditorModel extends EditorModel {
 	private readonly modifiedBaseRangeHandlingStateStores =
 		derived('modifiedBaseRangeHandlingStateStores', reader => {
 			const map = new Map(
-				this.modifiedBaseRanges.read(reader).map(s => ([s, observableValue('State', false)]))
+				this.modifiedBaseRanges.read(reader).map(s => ([s, observableValue(`BaseRangeHandledState${s.baseRange}`, false)]))
 			);
 			return map;
 		});
