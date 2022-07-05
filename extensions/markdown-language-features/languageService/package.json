@@ -1,0 +1,26 @@
+{
+  "name": "vscode-markdown-languageservice",
+  "description": "Markdown language service",
+  "version": "1.0.0",
+  "author": "Microsoft Corporation",
+  "license": "MIT",
+  "engines": {
+    "node": "*"
+  },
+  "main": "./out/index.js",
+  "dependencies": {
+    "vscode-languageserver-types": "^3.17.1",
+    "vscode-uri": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/mocha": "^9.1.1",
+    "@types/node": "16.x",
+    "markdown-it": "^13.0.1",
+    "vscode-languageserver": "^8.0.1"
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:markdown-language-features-languageService",
+    "watch": "gulp watch-extension:markdown-language-features-languageService",
+    "test": "mocha out/test/*.test.js --ui=tdd --timeout=2000 --exit"
+  }
+}

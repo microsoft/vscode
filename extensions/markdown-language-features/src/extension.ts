@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { startClient } from './client';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
 import { registerPasteSupport } from './languageFeatures/copyPaste';
 import { registerDefinitionSupport } from './languageFeatures/definitions';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
 import { MdLinkProvider, registerDocumentLinkSupport } from './languageFeatures/documentLinks';
-import { MdDocumentSymbolProvider, registerDocumentSymbolSupport } from './languageFeatures/documentSymbols';
+import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbols';
 import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
 import { registerFoldingSupport } from './languageFeatures/folding';
@@ -60,6 +62,8 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		previewManager.updateConfiguration();
 	}));
+
+	startServer(context, workspace, engine);
 }
 
 function registerMarkdownLanguageFeatures(
@@ -83,7 +87,7 @@ function registerMarkdownLanguageFeatures(
 		registerDefinitionSupport(selector, referencesProvider),
 		registerDiagnosticSupport(selector, workspace, linkProvider, commandManager, referencesProvider, tocProvider, logger),
 		registerDocumentLinkSupport(selector, linkProvider),
-		registerDocumentSymbolSupport(selector, tocProvider, logger),
+		// registerDocumentSymbolSupport(selector, tocProvider, logger),
 		registerDropIntoEditorSupport(selector),
 		registerFindFileReferenceSupport(commandManager, referencesProvider),
 		registerFoldingSupport(selector, parser, tocProvider),
@@ -118,4 +122,22 @@ function registerMarkdownCommands(
 	commandManager.register(new commands.RenderDocument(engine));
 	commandManager.register(new commands.ReloadPlugins(previewManager, engine));
 	return commandManager;
+}
+
+async function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, parser: IMdParser): Promise<void> {
+	const clientMain = vscode.extensions.getExtension('vscode.css-language-features')?.packageJSON?.main || '';
+
+	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/main`;
+	const serverModule = context.asAbsolutePath(serverMain);
+
+	// The debug options for the server
+	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (7000 + Math.round(Math.random() * 999))] };
+
+	// If the extension is launch in debug mode the debug server options are use
+	// Otherwise the run options are used
+	const serverOptions: ServerOptions = {
+		run: { module: serverModule, transport: TransportKind.ipc },
+		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
+	};
+	await startClient(serverOptions, workspace, parser);
 }
