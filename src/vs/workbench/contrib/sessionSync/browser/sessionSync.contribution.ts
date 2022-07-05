@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EditSessionSchemaVersion, IEditSessionsLogService } from 'vs/workbench/contrib/sessionSync/common/sessionSync';
@@ -43,23 +43,17 @@ import { EditSessionsLogService } from 'vs/workbench/contrib/sessionSync/common/
 registerSingleton(IEditSessionsLogService, EditSessionsLogService);
 registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
 
-const resumeLatestCommand = {
-	id: 'workbench.experimental.editSessions.actions.resumeLatest',
-	title: { value: localize('resume latest', "Resume Latest Edit Session"), original: 'Resume Latest Edit Session' },
-	category: EDIT_SESSION_SYNC_CATEGORY,
-};
-const storeCurrentCommand = {
-	id: 'workbench.experimental.editSessions.actions.storeCurrent',
-	title: { value: localize('store current', "Store Current Edit Session"), original: 'Store Current Edit Session' },
-	category: EDIT_SESSION_SYNC_CATEGORY,
-};
-const continueEditSessionCommand = {
+const continueEditSessionCommand: IAction2Options = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession',
 	title: { value: localize('continue edit session', "Continue Edit Session..."), original: 'Continue Edit Session...' },
+	category: EDIT_SESSION_SYNC_CATEGORY,
+	f1: true
 };
-const openLocalFolderCommand = {
+const openLocalFolderCommand: IAction2Options = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession.openLocalFolder',
 	title: { value: localize('continue edit session in local folder', "Open In Local Folder"), original: 'Open In Local Folder' },
+	category: EDIT_SESSION_SYNC_CATEGORY,
+	precondition: IsWebContext
 };
 const queryParamName = 'editSessionId';
 const experimentalSettingName = 'workbench.experimental.editSessions.enabled';
@@ -150,10 +144,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		const that = this;
 		this._register(registerAction2(class ContinueEditSessionAction extends Action2 {
 			constructor() {
-				super({
-					...continueEditSessionCommand,
-					f1: true
-				});
+				super(continueEditSessionCommand);
 			}
 
 			async run(accessor: ServicesAccessor, workspaceUri: URI | undefined): Promise<void> {
@@ -185,10 +176,10 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class ApplyLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					...resumeLatestCommand,
-					menu: {
-						id: MenuId.CommandPalette,
-					}
+					id: 'workbench.experimental.editSessions.actions.resumeLatest',
+					title: { value: localize('resume latest.v2', "Resume Latest Edit Session"), original: 'Resume Latest Edit Session' },
+					category: EDIT_SESSION_SYNC_CATEGORY,
+					f1: true,
 				});
 			}
 
@@ -206,10 +197,10 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class StoreLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					...storeCurrentCommand,
-					menu: {
-						id: MenuId.CommandPalette,
-					}
+					id: 'workbench.experimental.editSessions.actions.storeCurrent',
+					title: { value: localize('store current.v2', "Store Current Edit Session"), original: 'Store Current Edit Session' },
+					category: EDIT_SESSION_SYNC_CATEGORY,
+					f1: true,
 				});
 			}
 
@@ -400,10 +391,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 		const that = this;
 		this._register(registerAction2(class ContinueInLocalFolderAction extends Action2 {
 			constructor() {
-				super({
-					...openLocalFolderCommand,
-					precondition: IsWebContext
-				});
+				super(openLocalFolderCommand);
 			}
 
 			async run(accessor: ServicesAccessor): Promise<URI | undefined> {
