@@ -5,11 +5,11 @@
 
 import { CompareResult, equals } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { ISettableObservable, derived, waitForState, observableValue, keepAlive, autorunHandleChanges, transaction, IReader, ITransaction, IObservable } from 'vs/base/common/observable';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { autorunHandleChanges, derivedObservable, IObservable, IReader, ITransaction, keepAlive, ObservableValue, transaction, waitForState } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { IDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { DetailedLineRangeMapping, DocumentMapping, LineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
@@ -28,7 +28,7 @@ export class MergeEditorModel extends EditorModel {
 	private readonly input2TextModelDiffs = this._register(new TextModelDiffs(this.base, this.input2, this.diffComputer));
 	private readonly resultTextModelDiffs = this._register(new TextModelDiffs(this.base, this.result, this.diffComputer));
 
-	public readonly state = derivedObservable('state', reader => {
+	public readonly state = derived('state', reader => {
 		const states = [
 			this.input1TextModelDiffs,
 			this.input2TextModelDiffs,
@@ -44,11 +44,11 @@ export class MergeEditorModel extends EditorModel {
 		return MergeEditorModelState.upToDate;
 	});
 
-	public readonly isUpToDate = derivedObservable('isUpdating', reader => this.state.read(reader) === MergeEditorModelState.upToDate);
+	public readonly isUpToDate = derived('isUpToDate', reader => this.state.read(reader) === MergeEditorModelState.upToDate);
 
 	public readonly onInitialized = waitForState(this.state, state => state === MergeEditorModelState.upToDate);
 
-	public readonly modifiedBaseRanges = derivedObservable<ModifiedBaseRange[]>('modifiedBaseRanges', (reader) => {
+	public readonly modifiedBaseRanges = derived<ModifiedBaseRange[]>('modifiedBaseRanges', (reader) => {
 		const input1Diffs = this.input1TextModelDiffs.diffs.read(reader);
 		const input2Diffs = this.input2TextModelDiffs.diffs.read(reader);
 
@@ -60,22 +60,22 @@ export class MergeEditorModel extends EditorModel {
 	public readonly resultDiffs = this.resultTextModelDiffs.diffs;
 
 	private readonly modifiedBaseRangeStateStores =
-		derivedObservable('modifiedBaseRangeStateStores', reader => {
+		derived('modifiedBaseRangeStateStores', reader => {
 			const map = new Map(
-				this.modifiedBaseRanges.read(reader).map(s => ([s, new ObservableValue(ModifiedBaseRangeState.default, 'State')]))
+				this.modifiedBaseRanges.read(reader).map(s => ([s, observableValue('State', ModifiedBaseRangeState.default)]))
 			);
 			return map;
 		});
 
 	private readonly modifiedBaseRangeHandlingStateStores =
-		derivedObservable('modifiedBaseRangeHandlingStateStores', reader => {
+		derived('modifiedBaseRangeHandlingStateStores', reader => {
 			const map = new Map(
-				this.modifiedBaseRanges.read(reader).map(s => ([s, new ObservableValue(false, 'State')]))
+				this.modifiedBaseRanges.read(reader).map(s => ([s, observableValue('State', false)]))
 			);
 			return map;
 		});
 
-	public readonly unhandledConflictsCount = derivedObservable('unhandledConflictsCount', reader => {
+	public readonly unhandledConflictsCount = derived('unhandledConflictsCount', reader => {
 		const map = this.modifiedBaseRangeHandlingStateStores.read(reader);
 		let handledCount = 0;
 		for (const [_key, value] of map) {
@@ -84,9 +84,9 @@ export class MergeEditorModel extends EditorModel {
 		return map.size - handledCount;
 	});
 
-	public readonly hasUnhandledConflicts = this.unhandledConflictsCount.map(value => value > 0);
+	public readonly hasUnhandledConflicts = this.unhandledConflictsCount.map(value => /** @description hasUnhandledConflicts */ value > 0);
 
-	public readonly input1ResultMapping = derivedObservable('input1ResultMapping', reader => {
+	public readonly input1ResultMapping = derived('input1ResultMapping', reader => {
 		const resultDiffs = this.resultDiffs.read(reader);
 		const modifiedBaseRanges = DocumentMapping.betweenOutputs(this.input1LinesDiffs.read(reader), resultDiffs, this.input1.getLineCount());
 
@@ -103,7 +103,7 @@ export class MergeEditorModel extends EditorModel {
 		);
 	});
 
-	public readonly input2ResultMapping = derivedObservable('input2ResultMapping', reader => {
+	public readonly input2ResultMapping = derived('input2ResultMapping', reader => {
 		const resultDiffs = this.resultDiffs.read(reader);
 		const modifiedBaseRanges = DocumentMapping.betweenOutputs(this.input2LinesDiffs.read(reader), resultDiffs, this.input2.getLineCount());
 
@@ -119,6 +119,8 @@ export class MergeEditorModel extends EditorModel {
 			modifiedBaseRanges.inputLineCount
 		);
 	});
+
+	readonly resultSnapshot: ITextSnapshot;
 
 	constructor(
 		readonly base: ITextModel,
@@ -137,6 +139,7 @@ export class MergeEditorModel extends EditorModel {
 	) {
 		super();
 
+		this.resultSnapshot = result.createSnapshot();
 		this._register(keepAlive(this.modifiedBaseRangeStateStores));
 		this._register(keepAlive(this.modifiedBaseRangeHandlingStateStores));
 		this._register(keepAlive(this.input1ResultMapping));
@@ -145,7 +148,7 @@ export class MergeEditorModel extends EditorModel {
 		let shouldResetHandlingState = true;
 		this._register(
 			autorunHandleChanges(
-				'Recompute State',
+				'Merge Editor Model: Recompute State',
 				{
 					handleChange: (ctx) => {
 						if (ctx.didChange(this.modifiedBaseRangeHandlingStateStores)) {
@@ -165,6 +168,7 @@ export class MergeEditorModel extends EditorModel {
 					const resultDiffs = this.resultTextModelDiffs.diffs.read(reader);
 					const stores = this.modifiedBaseRangeStateStores.read(reader);
 					transaction(tx => {
+						/** @description Merge Editor Model: Recompute State */
 						this.recomputeState(resultDiffs, stores, tx);
 						if (shouldResetHandlingState) {
 							shouldResetHandlingState = false;
@@ -188,7 +192,7 @@ export class MergeEditorModel extends EditorModel {
 		return this.resultTextModelDiffs.getResultRange(baseRange, reader);
 	}
 
-	private recomputeState(resultDiffs: DetailedLineRangeMapping[], stores: Map<ModifiedBaseRange, ObservableValue<ModifiedBaseRangeState>>, tx: ITransaction): void {
+	private recomputeState(resultDiffs: DetailedLineRangeMapping[], stores: Map<ModifiedBaseRange, ISettableObservable<ModifiedBaseRangeState>>, tx: ITransaction): void {
 		const baseRangeWithStoreAndTouchingDiffs = leftJoin(
 			stores,
 			resultDiffs,
@@ -202,12 +206,16 @@ export class MergeEditorModel extends EditorModel {
 		);
 
 		for (const row of baseRangeWithStoreAndTouchingDiffs) {
-			row.left[1].set(this.computeState(row.left[0], row.rights), tx);
+			const newState = this.computeState(row.left[0], row.rights);
+			if (!row.left[1].get().equals(newState)) {
+				row.left[1].set(newState, tx);
+			}
 		}
 	}
 
 	public resetUnknown(): void {
 		transaction(tx => {
+			/** @description Reset Unknown Base Range States */
 			for (const range of this.modifiedBaseRanges.get()) {
 				if (this.getState(range).get().conflicting) {
 					this.setState(range, ModifiedBaseRangeState.default, false, tx);
@@ -218,6 +226,7 @@ export class MergeEditorModel extends EditorModel {
 
 	public mergeNonConflictingDiffs(): void {
 		transaction((tx) => {
+			/** @description Merge None Conflicting Diffs */
 			for (const m of this.modifiedBaseRanges.get()) {
 				if (m.isConflicting) {
 					continue;

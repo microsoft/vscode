@@ -48,7 +48,9 @@ export class ActionButtonCommand {
 
 		const root = Uri.file(repository.root);
 		this.disposables.push(workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('git.postCommitCommand', root) ||
+			if (e.affectsConfiguration('git.branchProtection', root) ||
+				e.affectsConfiguration('git.branchProtectionPrompt', root) ||
+				e.affectsConfiguration('git.postCommitCommand', root) ||
 				e.affectsConfiguration('git.showActionButton', root)
 			) {
 				this._onDidChange.fire();
@@ -80,26 +82,54 @@ export class ActionButtonCommand {
 		let title: string, tooltip: string;
 		const postCommitCommand = config.get<string>('postCommitCommand');
 
+		// Branch protection
+		const isBranchProtected = this.repository.isBranchProtected();
+		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
+		const alwaysPrompt = isBranchProtected && branchProtectionPrompt === 'alwaysPrompt';
+		const alwaysCommitToNewBranch = isBranchProtected && branchProtectionPrompt === 'alwaysCommitToNewBranch';
+
+		// Icon
+		const icon = alwaysPrompt ? '$(lock)' : alwaysCommitToNewBranch ? '$(git-branch)' : undefined;
+
+		// Title, tooltip
 		switch (postCommitCommand) {
 			case 'push': {
-				title = localize('scm button commit and push title', "$(arrow-up) Commit & Push");
-				tooltip = this.state.isCommitInProgress ?
-					localize('scm button committing pushing tooltip', "Committing & Pushing Changes...") :
-					localize('scm button commit push tooltip', "Commit & Push Changes");
+				title = localize('scm button commit and push title', "{0} Commit & Push", icon ?? '$(arrow-up)');
+				if (alwaysCommitToNewBranch) {
+					tooltip = this.state.isCommitInProgress ?
+						localize('scm button committing to new branch and pushing tooltip', "Committing to New Branch & Pushing Changes...") :
+						localize('scm button commit to new branch and push tooltip', "Commit to New Branch & Push Changes");
+				} else {
+					tooltip = this.state.isCommitInProgress ?
+						localize('scm button committing and pushing tooltip', "Committing & Pushing Changes...") :
+						localize('scm button commit and push tooltip', "Commit & Push Changes");
+				}
 				break;
 			}
 			case 'sync': {
-				title = localize('scm button commit and sync title', "$(sync) Commit & Sync");
-				tooltip = this.state.isCommitInProgress ?
-					localize('scm button committing synching tooltip', "Committing & Synching Changes...") :
-					localize('scm button commit sync tooltip', "Commit & Sync Changes");
+				title = localize('scm button commit and sync title', "{0} Commit & Sync", icon ?? '$(sync)');
+				if (alwaysCommitToNewBranch) {
+					tooltip = this.state.isCommitInProgress ?
+						localize('scm button committing to new branch and synching tooltip', "Committing to New Branch & Synching Changes...") :
+						localize('scm button commit to new branch and sync tooltip', "Commit to New Branch & Sync Changes");
+				} else {
+					tooltip = this.state.isCommitInProgress ?
+						localize('scm button committing and synching tooltip', "Committing & Synching Changes...") :
+						localize('scm button commit and sync tooltip', "Commit & Sync Changes");
+				}
 				break;
 			}
 			default: {
-				title = localize('scm button commit title', "$(check) Commit");
-				tooltip = this.state.isCommitInProgress ?
-					localize('scm button committing tooltip', "Committing Changes...") :
-					localize('scm button commit tooltip', "Commit Changes");
+				title = localize('scm button commit title', "{0} Commit", icon ?? '$(check)');
+				if (alwaysCommitToNewBranch) {
+					tooltip = this.state.isCommitInProgress ?
+						localize('scm button committing to new branch tooltip', "Committing Changes to New Branch...") :
+						localize('scm button commit to new branch tooltip', "Commit Changes to New Branch");
+				} else {
+					tooltip = this.state.isCommitInProgress ?
+						localize('scm button committing tooltip', "Committing Changes...") :
+						localize('scm button commit tooltip', "Commit Changes");
+				}
 				break;
 			}
 		}

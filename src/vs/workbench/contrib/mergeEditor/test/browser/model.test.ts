@@ -5,13 +5,13 @@
 
 import assert = require('assert');
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { transaction } from 'vs/base/common/observable';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 

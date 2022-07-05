@@ -293,6 +293,10 @@ export class ModifiedBaseRangeState {
 		}
 		return arr.join(',');
 	}
+
+	equals(newState: ModifiedBaseRangeState): boolean {
+		return this.input1 === newState.input1 && this.input2 === newState.input2 && this.input2First === newState.input2First;
+	}
 }
 
 export const enum InputState {

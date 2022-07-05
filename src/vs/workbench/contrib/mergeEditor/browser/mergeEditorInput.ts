@@ -17,11 +17,12 @@ import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/edit
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
-import { autorun } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { assertType } from 'vs/base/common/types';
+import { Event } from 'vs/base/common/event';
 
 export class MergeEditorInputData {
 	constructor(
@@ -122,10 +123,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 			this._store.add(input2);
 			this._store.add(result);
 
-			this._store.add(autorun(reader => {
-				this._model?.hasUnhandledConflicts.read(reader);
-				this._onDidChangeDirty.fire(undefined);
-			}, 'drive::onDidChangeDirty'));
+			this._store.add(Event.fromObservable(this._model.hasUnhandledConflicts)(() => this._onDidChangeDirty.fire(undefined)));
 		}
 
 		this._ignoreUnhandledConflictsForDirtyState = undefined;
@@ -190,13 +188,15 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 			// manual-save: FYI and discard
 			actions.push(
 				localize('unhandledConflicts.manualSaveIgnore', "Save and Continue with Conflicts"), // 0
-				localize('unhandledConflicts.manualSaveNoSave', "Don't Save") // 1
+				localize('unhandledConflicts.discard', "Discard Merge Changes"), // 1
+				localize('unhandledConflicts.manualSaveNoSave', "Don't Save"), // 2
 			);
 
 		} else {
 			// auto-save: only FYI
 			actions.push(
 				localize('unhandledConflicts.ignore', "Continue with Conflicts"), // 0
+				localize('unhandledConflicts.discard', "Discard Merge Changes"), // 1
 			);
 		}
 
@@ -224,10 +224,32 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		if (choice === 0) {
 			// conflicts: continue with remaining conflicts
 			return ConfirmResult.SAVE;
-		}
 
-		// don't save
-		return ConfirmResult.DONT_SAVE;
+		} else if (choice === 1) {
+			// discard: undo all changes and save original (pre-merge) state
+			for (const input of inputs) {
+				input._discardMergeChanges();
+			}
+			return ConfirmResult.SAVE;
+
+		} else {
+			// don't save
+			return ConfirmResult.DONT_SAVE;
+		}
+	}
+
+	private _discardMergeChanges(): void {
+		assertType(this._model !== undefined);
+
+		const chunks: string[] = [];
+		while (true) {
+			const chunk = this._model.resultSnapshot.read();
+			if (chunk === null) {
+				break;
+			}
+			chunks.push(chunk);
+		}
+		this._model.result.setValue(chunks.join());
 	}
 
 	setLanguageId(languageId: string, _setExplicitly?: boolean): void {
