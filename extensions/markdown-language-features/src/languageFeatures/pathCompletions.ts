@@ -193,7 +193,8 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 
 		const definitionLinkPrefixMatch = linePrefixText.match(this.definitionPattern);
 		if (definitionLinkPrefixMatch) {
-			const prefix = definitionLinkPrefixMatch[1];
+			const isAngleBracketLink = definitionLinkPrefixMatch[1].startsWith('<');
+			const prefix = definitionLinkPrefixMatch[1].slice(isAngleBracketLink ? 1 : 0);
 			if (this.refLooksLikeUrl(prefix)) {
 				return undefined;
 			}
@@ -205,6 +206,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
 				linkSuffix: suffix ? suffix[0] : '',
 				anchorInfo: this.getAnchorContext(prefix),
+				skipEncoding: isAngleBracketLink,
 			};
 		}
 
