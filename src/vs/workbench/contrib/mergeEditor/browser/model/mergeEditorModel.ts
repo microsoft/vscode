@@ -62,7 +62,7 @@ export class MergeEditorModel extends EditorModel {
 	private readonly modifiedBaseRangeStateStores =
 		derived('modifiedBaseRangeStateStores', reader => {
 			const map = new Map(
-				this.modifiedBaseRanges.read(reader).map(s => ([s, observableValue('State', ModifiedBaseRangeState.default)]))
+				this.modifiedBaseRanges.read(reader).map(s => ([s, observableValue(`BaseRangeState${s.baseRange}`, ModifiedBaseRangeState.default)]))
 			);
 			return map;
 		});
@@ -70,7 +70,7 @@ export class MergeEditorModel extends EditorModel {
 	private readonly modifiedBaseRangeHandlingStateStores =
 		derived('modifiedBaseRangeHandlingStateStores', reader => {
 			const map = new Map(
-				this.modifiedBaseRanges.read(reader).map(s => ([s, observableValue('State', false)]))
+				this.modifiedBaseRanges.read(reader).map(s => ([s, observableValue(`BaseRangeHandledState${s.baseRange}`, false)]))
 			);
 			return map;
 		});
@@ -134,6 +134,7 @@ export class MergeEditorModel extends EditorModel {
 		readonly input2Description: string | undefined,
 		readonly result: ITextModel,
 		private readonly diffComputer: IDiffComputer,
+		options: { resetUnknownOnInitialization: boolean },
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
@@ -183,9 +184,11 @@ export class MergeEditorModel extends EditorModel {
 			)
 		);
 
-		this.onInitialized.then(() => {
-			this.resetUnknown();
-		});
+		if (options.resetUnknownOnInitialization) {
+			this.onInitialized.then(() => {
+				this.resetUnknown();
+			});
+		}
 	}
 
 	public getRangeInResult(baseRange: LineRange, reader?: IReader): LineRange {

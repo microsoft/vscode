@@ -281,21 +281,29 @@ export class ModifiedBaseRangeState {
 	}
 
 	public toString(): string {
-		const arr: ('1' | '2')[] = [];
+		const arr: string[] = [];
 		if (this.input1) {
-			arr.push('1');
+			arr.push('1✓');
 		}
 		if (this.input2) {
-			arr.push('2');
+			arr.push('2✓');
 		}
 		if (this.input2First) {
 			arr.reverse();
 		}
+		if (this.conflicting) {
+			arr.push('conflicting');
+		}
 		return arr.join(',');
 	}
 
-	equals(newState: ModifiedBaseRangeState): boolean {
-		return this.input1 === newState.input1 && this.input2 === newState.input2 && this.input2First === newState.input2First;
+	equals(other: ModifiedBaseRangeState): boolean {
+		return (
+			this.input1 === other.input1 &&
+			this.input2 === other.input2 &&
+			this.input2First === other.input2First &&
+			this.conflicting === other.conflicting
+		);
 	}
 }
 

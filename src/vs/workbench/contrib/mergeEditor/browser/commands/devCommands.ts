@@ -29,7 +29,6 @@ interface MergeEditorContents {
 }
 
 export class MergeEditorCopyContentsToJSON extends Action2 {
-
 	constructor() {
 		super({
 			id: 'merge.dev.copyContents',
@@ -81,7 +80,6 @@ export class MergeEditorCopyContentsToJSON extends Action2 {
 }
 
 export class MergeEditorOpenContents extends Action2 {
-
 	constructor() {
 		super({
 			id: 'merge.dev.openContents',
@@ -110,11 +108,14 @@ export class MergeEditorOpenContents extends Action2 {
 			prompt: localize('mergeEditor.enterJSON', 'Enter JSON'),
 			value: await clipboardService.readText(),
 		});
-		if (!result) {
+		if (result === undefined) {
 			return;
 		}
 
-		const content: MergeEditorContents = JSON.parse(result);
+		const content: MergeEditorContents =
+			result !== ''
+				? JSON.parse(result)
+				: { base: '', input1: '', input2: '', result: '', languageId: 'plaintext' };
 
 		const scheme = 'merge-editor-dev';
 
