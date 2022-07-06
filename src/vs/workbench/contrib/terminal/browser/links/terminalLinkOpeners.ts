@@ -218,7 +218,13 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	private async _tryOpenExactLink(text: string, link: ITerminalSimpleLink): Promise<boolean> {
 		const sanitizedLink = text.replace(/:\d+(:\d+)?$/, '');
-		if (!osPathModule(this._os).isAbsolute(sanitizedLink)) {
+		// For only file links disallow exact link matching, for example searching for `foo.txt`
+		// when no cwd information is available should search when only the initial cwd is available
+		// as it's ambiguous if there are multiple matches.
+		//
+		// However, for `src/foo.txt`, if there's an exact match for `src/foo.txt` in any folder we
+		// want to take it, even if there are partial matches like `src2/foo.txt` available.
+		if (!sanitizedLink.match(/[\\/]/)) {
 			return false;
 		}
 		try {
