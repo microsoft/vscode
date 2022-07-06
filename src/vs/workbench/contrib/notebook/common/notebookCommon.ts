@@ -17,7 +17,7 @@ import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Command } from 'vs/editor/common/languages';
+import { Command, WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -25,8 +25,7 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -76,7 +75,7 @@ export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<str
 
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
-export type NotebookRendererEntrypoint = string | { extends: string; path: string };
+export type NotebookRendererEntrypoint = string | { readonly extends: string; readonly path: string };
 
 export enum NotebookRunState {
 	Running = 1,
@@ -498,6 +497,14 @@ export interface ICellMoveEdit {
 export type IImmediateCellEditOperation = ICellOutputEditByHandle | ICellPartialMetadataEditByHandle | ICellOutputItemEdit | ICellPartialInternalMetadataEdit | ICellPartialInternalMetadataEditByHandle | ICellPartialMetadataEdit;
 export type ICellEditOperation = IImmediateCellEditOperation | ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellPartialMetadataEdit | ICellPartialInternalMetadataEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit | ICellLanguageEdit;
 
+
+export interface IWorkspaceNotebookCellEdit {
+	metadata?: WorkspaceEditMetadata;
+	resource: URI;
+	notebookVersionId: number | undefined;
+	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
+}
+
 export interface NotebookData {
 	readonly cells: ICellDto2[];
 	readonly metadata: NotebookDocumentMetadata;
@@ -780,7 +787,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	hasAssociatedFilePath(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
-	saveAs(target: URI): Promise<EditorInput | undefined>;
+	saveAs(target: URI): Promise<IUntypedEditorInput | undefined>;
 	revert(options?: IRevertOptions): Promise<void>;
 }
 
@@ -913,18 +920,16 @@ export const NotebookSetting = {
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
-	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode'
+	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
+	outputLineHeight: 'notebook.outputLineHeight',
+	outputFontSize: 'notebook.outputFontSize',
+	outputFontFamily: 'notebook.outputFontFamily',
+	interactiveWindowAlwaysScrollOnNewCell: 'interactiveWindow.alwaysScrollOnNewCell'
 } as const;
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
 	Right = 2
-}
-
-export interface INotebookDecorationRenderOptions {
-	backgroundColor?: string | ThemeColor;
-	borderColor?: string | ThemeColor;
-	top?: editorCommon.IContentDecorationRenderOptions;
 }
 
 export class NotebookWorkingCopyTypeIdentifier {

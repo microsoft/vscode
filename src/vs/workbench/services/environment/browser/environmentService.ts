@@ -17,6 +17,7 @@ import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { LogLevelToString } from 'vs/platform/log/common/log';
 import { isUndefined } from 'vs/base/common/types';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const IBrowserWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IBrowserWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -55,25 +56,19 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.vscodeUserData }); }
 
 	@memoize
-	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
-
-	@memoize
 	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
 
 	@memoize
-	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
-
-	@memoize
 	get cacheHome(): URI { return joinPath(this.userRoamingDataHome, 'caches'); }
-
-	@memoize
-	get globalStorageHome(): URI { return joinPath(this.userRoamingDataHome, 'globalStorage'); }
 
 	@memoize
 	get workspaceStorageHome(): URI { return joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
 
 	@memoize
 	get localHistoryHome(): URI { return joinPath(this.userRoamingDataHome, 'History'); }
+
+	@memoize
+	get stateResource(): URI { return joinPath(this.userRoamingDataHome, 'State', 'storage.json'); }
 
 	/**
 	 * In Web every workspace can potentially have scoped user-data
@@ -89,10 +84,10 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get userDataSyncLogResource(): URI { return joinPath(this.logsHome, 'userDataSync.log'); }
 
 	@memoize
-	get sync(): 'on' | 'off' | undefined { return undefined; }
+	get editSessionsLogResource(): URI { return joinPath(this.logsHome, 'editSessions.log'); }
 
 	@memoize
-	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
+	get sync(): 'on' | 'off' | undefined { return undefined; }
 
 	@memoize
 	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
@@ -188,7 +183,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 		const webviewExternalEndpointCommit = this.payload?.get('webviewExternalEndpointCommit');
 		return endpoint
-			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? '181b43c0e2949e36ecb623d8cc6de29d4fa2bae8')
+			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? '3c8520fab514b9f56070214496b26ff68d1b1cb5')
 			.replace('{{quality}}', (webviewExternalEndpointCommit ? 'insider' : this.productService.quality) ?? 'insider');
 	}
 
@@ -212,6 +207,8 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
+
+	editSessionId: string | undefined = this.options.editSessionId;
 
 	private payload: Map<string, string> | undefined;
 
@@ -295,7 +292,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
-	get filesToOpenOrCreate(): IPath[] | undefined {
+	get filesToOpenOrCreate(): IPath<ITextEditorOptions>[] | undefined {
 		if (this.payload) {
 			const fileToOpen = this.payload.get('openFile');
 			if (fileToOpen) {
@@ -307,7 +304,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 					return [{
 						fileUri: fileUri.with({ path: pathColumnAware.path }),
-						selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+						options: {
+							selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+						}
 					}];
 				}
 

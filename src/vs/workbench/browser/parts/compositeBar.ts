@@ -79,9 +79,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 				}
 
 				this.openComposite(newContainer.id, true).then(composite => {
-					if (composite) {
-						composite.openView(viewToMove.id, true);
-					}
+					composite?.openView(viewToMove.id, true);
 				});
 			}
 		}
@@ -301,9 +299,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	focus(index?: number): void {
-		if (this.compositeSwitcherBar) {
-			this.compositeSwitcherBar.focus(index);
-		}
+		this.compositeSwitcherBar?.focus(index);
 	}
 
 	recomputeSizes(): void {
@@ -427,12 +423,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.options.openComposite(defaultCompositeId, true);
 		}
 
-		// Case: we closed the last visible composite
-		// Solv: we hide the part
-		else if (this.visibleComposites.length <= 1) {
-			this.options.hidePart();
-		}
-
 		// Case: we closed the default composite
 		// Solv: we open the next visible composite from top
 		else {
@@ -513,7 +503,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Ensure we are not showing more composites than we have height for
 		let maxVisible = compositesToShow.length;
-		let totalComposites = compositesToShow.length;
+		const totalComposites = compositesToShow.length;
 		let size = 0;
 		const limit = this.options.orientation === ActionsOrientation.VERTICAL ? this.dimension.height : this.dimension.width;
 

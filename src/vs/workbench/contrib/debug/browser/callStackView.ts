@@ -21,7 +21,7 @@ import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle'
 import { posix } from 'vs/base/common/path';
 import { commonSuffixLength } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
-import { Icon } from 'vs/platform/action/common/action';
+import { ICommandActionTitle, Icon } from 'vs/platform/action/common/action';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -47,7 +47,6 @@ import { createDisconnectMenuItemAction } from 'vs/workbench/contrib/debug/brows
 import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, IStackFrame, IThread, State } from 'vs/workbench/contrib/debug/common/debug';
 import { StackFrame, Thread, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
 
@@ -150,7 +149,6 @@ export class CallStackView extends ViewPane {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
@@ -287,10 +285,10 @@ export class CallStackView extends ViewPane {
 				return;
 			}
 
-			const focusStackFrame = (stackFrame: IStackFrame | undefined, thread: IThread | undefined, session: IDebugSession) => {
+			const focusStackFrame = (stackFrame: IStackFrame | undefined, thread: IThread | undefined, session: IDebugSession, options: { explicit?: boolean; preserveFocus?: boolean; sideBySide?: boolean; pinned?: boolean } = {}) => {
 				this.ignoreFocusStackFrameEvent = true;
 				try {
-					this.debugService.focusStackFrame(stackFrame, thread, session, true);
+					this.debugService.focusStackFrame(stackFrame, thread, session, { ...options, ...{ explicit: true } });
 				} finally {
 					this.ignoreFocusStackFrameEvent = false;
 				}
@@ -298,8 +296,12 @@ export class CallStackView extends ViewPane {
 
 			const element = e.element;
 			if (element instanceof StackFrame) {
-				focusStackFrame(element, element.thread, element.thread.session);
-				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
+				const opts = {
+					preserveFocus: e.editorOptions.preserveFocus,
+					sideBySide: e.sideBySide,
+					pinned: e.editorOptions.pinned
+				};
+				focusStackFrame(element, element.thread, element.thread.session, opts);
 			}
 			if (element instanceof Thread) {
 				focusStackFrame(undefined, element, element.session);
@@ -1041,6 +1043,15 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 		return localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack");
 	}
 
+	getWidgetRole(): string {
+		// Use treegrid as a role since each element can have additional actions inside #146210
+		return 'treegrid';
+	}
+
+	getRole(_element: CallStackItem): string | undefined {
+		return 'row';
+	}
+
 	getAriaLabel(element: CallStackItem): string {
 		if (element instanceof Thread) {
 			return localize({ key: 'threadAriaLabel', comment: ['Placeholders stand for the thread name and the thread state.For example "Thread 1" and "Stopped'] }, "Thread {0} {1}", element.name, element.stateLabel);
@@ -1109,7 +1120,7 @@ registerAction2(class Collapse extends ViewAction<CallStackView> {
 	}
 });
 
-function registerCallStackInlineMenuItem(id: string, title: string, icon: Icon, when: ContextKeyExpression, order: number, precondition?: ContextKeyExpression): void {
+function registerCallStackInlineMenuItem(id: string, title: string | ICommandActionTitle, icon: Icon, when: ContextKeyExpression, order: number, precondition?: ContextKeyExpression): void {
 	MenuRegistry.appendMenuItem(MenuId.DebugCallStackContext, {
 		group: 'inline',
 		order,

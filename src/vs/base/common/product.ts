@@ -41,6 +41,7 @@ export interface IProductConfiguration {
 
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
+	readonly win32RegValueName?: string;
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
 
@@ -70,9 +71,11 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly itemUrl: string;
+		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
 		readonly controlUrl: string;
 		readonly recommendationsUrl: string;
+		readonly nlsBaseUrl: string;
 	};
 
 	readonly extensionTips?: { [id: string]: string };
@@ -97,6 +100,8 @@ export interface IProductConfiguration {
 	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {
 		readonly asimovKey: string;
+		readonly ariaKey: string;
+		readonly preferAria: boolean;
 	};
 
 	readonly sendASmile?: {
@@ -149,6 +154,8 @@ export interface IProductConfiguration {
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
+
+	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 
 	readonly darwinUniversalAssetId?: string;
 }

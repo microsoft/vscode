@@ -272,14 +272,15 @@ class ResourceLabelWidget extends IconLabel {
 	private readonly _onDidRender = this._register(new Emitter<void>());
 	readonly onDidRender = this._onDidRender.event;
 
-	private label?: IResourceLabelProps;
+	private label: IResourceLabelProps | undefined = undefined;
 	private decoration = this._register(new MutableDisposable<IDecoration>());
-	private options?: IResourceLabelOptions;
-	private computedIconClasses?: string[];
-	private lastKnownDetectedLanguageId?: string;
-	private computedPathLabel?: string;
+	private options: IResourceLabelOptions | undefined = undefined;
 
-	private needsRedraw?: Redraw;
+	private computedIconClasses: string[] | undefined = undefined;
+	private computedLanguageId: string | undefined = undefined;
+	private computedPathLabel: string | undefined = undefined;
+
+	private needsRedraw: Redraw | undefined = undefined;
 	private isHidden: boolean = false;
 
 	constructor(
@@ -325,8 +326,8 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (isEqual(model.uri, resource)) {
-			if (this.lastKnownDetectedLanguageId !== model.getLanguageId()) {
-				this.lastKnownDetectedLanguageId = model.getLanguageId();
+			if (this.computedLanguageId !== model.getLanguageId()) {
+				this.computedLanguageId = model.getLanguageId();
 				this.render({ updateIcon: true, updateDecoration: false }); // update if the language id of the model has changed from our last known state
 			}
 		}
@@ -420,7 +421,7 @@ class ResourceLabelWidget extends IconLabel {
 				}
 
 				if (typeof label.description === 'string') {
-					let untitledDescription = untitledModel.resource.path;
+					const untitledDescription = untitledModel.resource.path;
 					if (label.name !== untitledDescription) {
 						label.description = untitledDescription;
 					} else {
@@ -428,7 +429,7 @@ class ResourceLabelWidget extends IconLabel {
 					}
 				}
 
-				let untitledTitle = untitledModel.resource.path;
+				const untitledTitle = untitledModel.resource.path;
 				if (untitledModel.name !== untitledTitle) {
 					options.title = `${untitledModel.name} • ${untitledTitle}`;
 				} else {
@@ -444,8 +445,12 @@ class ResourceLabelWidget extends IconLabel {
 		this.label = label;
 		this.options = options;
 
+		if (hasResourceChanged) {
+			this.computedLanguageId = undefined; // reset computed language since resource changed
+		}
+
 		if (hasPathLabelChanged) {
-			this.computedPathLabel = undefined; // reset path label due to resource change
+			this.computedPathLabel = undefined; // reset path label due to resource/path-label change
 		}
 
 		this.render({
@@ -485,7 +490,7 @@ class ResourceLabelWidget extends IconLabel {
 	clear(): void {
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedLanguageId = undefined;
+		this.computedLanguageId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 
@@ -594,7 +599,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedLanguageId = undefined;
+		this.computedLanguageId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 	}

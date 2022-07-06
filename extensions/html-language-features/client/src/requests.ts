@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri, workspace, Disposable } from 'vscode';
-import { RequestType, CommonLanguageClient } from 'vscode-languageclient';
+import { RequestType, BaseLanguageClient } from 'vscode-languageclient';
 import { Runtime } from './htmlClient';
 
 export namespace FsStatRequest {
@@ -15,7 +15,7 @@ export namespace FsReadDirRequest {
 	export const type: RequestType<string, [string, FileType][], any> = new RequestType('fs/readDir');
 }
 
-export function serveFileSystemRequests(client: CommonLanguageClient, runtime: Runtime): Disposable {
+export function serveFileSystemRequests(client: BaseLanguageClient, runtime: Runtime): Disposable {
 	const disposables = [];
 	disposables.push(client.onRequest(FsReadDirRequest.type, (uriString: string) => {
 		const uri = Uri.parse(uriString);

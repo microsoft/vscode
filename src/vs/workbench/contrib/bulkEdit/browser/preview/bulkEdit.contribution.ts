@@ -62,11 +62,11 @@ class UXState {
 
 		// (2) close preview editors
 		if (editors) {
-			for (let group of this._editorGroupsService.groups) {
-				let previewEditors: EditorInput[] = [];
-				for (let input of group.editors) {
+			for (const group of this._editorGroupsService.groups) {
+				const previewEditors: EditorInput[] = [];
+				for (const input of group.editors) {
 
-					let resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
+					const resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
 					if (resource?.scheme === BulkEditPreviewProvider.Schema) {
 						previewEditors.push(input);
 					}

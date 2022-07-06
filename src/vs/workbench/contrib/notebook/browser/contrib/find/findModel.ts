@@ -88,7 +88,7 @@ export class FindModel extends Disposable {
 		};
 	}
 
-	find(previous: boolean) {
+	find(option: { previous: boolean } | { index: number }) {
 		if (!this.findMatches.length) {
 			return;
 		}
@@ -96,14 +96,20 @@ export class FindModel extends Disposable {
 		// let currCell;
 		if (!this._findMatchesStarts) {
 			this.set(this._findMatches, true);
+			if ('index' in option) {
+				this._currentMatch = option.index;
+			}
 		} else {
 			// const currIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 			// currCell = this._findMatches[currIndex.index].cell;
 			const totalVal = this._findMatchesStarts.getTotalSum();
-			if (this._currentMatch === -1) {
-				this._currentMatch = previous ? totalVal - 1 : 0;
+			if ('index' in option) {
+				this._currentMatch = option.index;
+			}
+			else if (this._currentMatch === -1) {
+				this._currentMatch = option.previous ? totalVal - 1 : 0;
 			} else {
-				const nextVal = (this._currentMatch + (previous ? -1 : 1) + totalVal) % totalVal;
+				const nextVal = (this._currentMatch + (option.previous ? -1 : 1) + totalVal) % totalVal;
 				this._currentMatch = nextVal;
 			}
 		}
@@ -157,8 +163,8 @@ export class FindModel extends Disposable {
 	}
 
 	async research() {
-		this._throttledDelayer.trigger(() => {
-			this._research();
+		return this._throttledDelayer.trigger(() => {
+			return this._research();
 		});
 	}
 

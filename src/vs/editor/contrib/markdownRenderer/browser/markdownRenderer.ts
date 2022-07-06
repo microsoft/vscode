@@ -10,7 +10,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Emitter } from 'vs/base/common/event';
+import { DebounceEmitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
@@ -23,6 +23,7 @@ export interface IMarkdownRenderResult extends IDisposable {
 export interface IMarkdownRendererOptions {
 	editor?: ICodeEditor;
 	codeBlockFontFamily?: string;
+	codeBlockFontSize?: string;
 }
 
 /**
@@ -37,7 +38,10 @@ export class MarkdownRenderer {
 		}
 	});
 
-	private readonly _onDidRenderAsync = new Emitter<void>();
+	private readonly _onDidRenderAsync = new DebounceEmitter<void>({
+		delay: 50,
+		merge: arr => { }
+	});
 	readonly onDidRenderAsync = this._onDidRenderAsync.event;
 
 	constructor(
@@ -91,6 +95,10 @@ export class MarkdownRenderer {
 					applyFontInfo(element, fontInfo);
 				} else if (this._options.codeBlockFontFamily) {
 					element.style.fontFamily = this._options.codeBlockFontFamily;
+				}
+
+				if (this._options.codeBlockFontSize !== undefined) {
+					element.style.fontSize = this._options.codeBlockFontSize;
 				}
 
 				return element;

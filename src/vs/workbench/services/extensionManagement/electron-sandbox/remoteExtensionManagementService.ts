@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions, ExtensionManagementError, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { Event } from 'vs/base/common/event';
+import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions, ExtensionManagementError, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -17,13 +18,15 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { generateUuid } from 'vs/base/common/uuid';
 import { joinPath } from 'vs/base/common/resources';
-import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 
-export class NativeRemoteExtensionManagementService extends ExtensionManagementChannelClient implements IExtensionManagementService {
+export class NativeRemoteExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
+
+	readonly onDidChangeProfileExtensions = Event.None;
 
 	constructor(
 		channel: IChannel,
@@ -101,16 +104,34 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 	}
 
 	private async checkAndGetCompatible(extension: IGalleryExtension, includePreRelease: boolean): Promise<IGalleryExtension> {
-		const compatible = await this.galleryService.getCompatibleExtension(extension, includePreRelease, await this.getTargetPlatform());
-		if (compatible) {
-			if (includePreRelease && !compatible.properties.isPreReleaseVersion && extension.hasPreReleaseVersion) {
+		const targetPlatform = await this.getTargetPlatform();
+		let compatibleExtension: IGalleryExtension | null = null;
+
+		if (extension.hasPreReleaseVersion && extension.properties.isPreReleaseVersion !== includePreRelease) {
+			compatibleExtension = (await this.galleryService.getExtensions([{ ...extension.identifier, preRelease: includePreRelease }], { targetPlatform, compatible: true }, CancellationToken.None))[0] || null;
+		}
+
+		if (!compatibleExtension && await this.galleryService.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {
+			compatibleExtension = extension;
+		}
+
+		if (!compatibleExtension) {
+			compatibleExtension = await this.galleryService.getCompatibleExtension(extension, includePreRelease, targetPlatform);
+		}
+
+		if (compatibleExtension) {
+			if (includePreRelease && !compatibleExtension.properties.isPreReleaseVersion && extension.hasPreReleaseVersion) {
 				throw new ExtensionManagementError(localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.IncompatiblePreRelease);
 			}
 		} else {
+			/** If no compatible release version is found, check if the extension has a release version or not and throw relevant error */
+			if (!includePreRelease && extension.properties.isPreReleaseVersion && (await this.galleryService.getExtensions([extension.identifier], CancellationToken.None))[0]) {
+				throw new ExtensionManagementError(localize('notFoundReleaseExtension', "Can't install release version of '{0}' extension because it has no release version.", extension.identifier.id), ExtensionManagementErrorCode.ReleaseVersionNotFound);
+			}
 			throw new ExtensionManagementError(localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);
 		}
 
-		return compatible;
+		return compatibleExtension;
 	}
 
 	private async installUIDependenciesAndPackedExtensions(local: ILocalExtension): Promise<void> {

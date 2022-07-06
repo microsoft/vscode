@@ -6,18 +6,18 @@
 import { Workbench } from './workbench';
 import { Code, launch, LaunchOptions } from './code';
 import { Logger, measureAndLog } from './logger';
-import { PlaywrightDriver } from './playwrightDriver';
 
 export const enum Quality {
 	Dev,
 	Insiders,
-	Stable
+	Stable,
+	Exploration,
+	OSS
 }
 
 export interface ApplicationOptions extends LaunchOptions {
 	quality: Quality;
-	workspacePath: string;
-	waitTime: number;
+	readonly workspacePath: string;
 }
 
 export class Application {
@@ -49,10 +49,6 @@ export class Application {
 		return !!this.options.web;
 	}
 
-	get legacy(): boolean {
-		return !!this.options.legacy;
-	}
-
 	private _workspacePathOrFolder: string;
 	get workspacePathOrFolder(): string {
 		return this._workspacePathOrFolder;
@@ -73,8 +69,10 @@ export class Application {
 	}
 
 	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<void> {
-		await this.stop();
-		await this._start(options?.workspaceOrFolder, options?.extraArgs);
+		await measureAndLog((async () => {
+			await this.stop();
+			await this._start(options?.workspaceOrFolder, options?.extraArgs);
+		})(), 'Application#restart()', this.logger);
 	}
 
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<void> {
@@ -111,18 +109,15 @@ export class Application {
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 
-		this._workbench = new Workbench(this._code, this.userDataPath);
+		this._workbench = new Workbench(this._code);
 
 		return code;
 	}
 
 	private async checkWindowReady(code: Code): Promise<void> {
 
-		// This is legacy and will be removed when our old driver removes
-		await code.waitForWindowIds(ids => ids.length > 0);
-
 		// We need a rendered workbench
-		await this.checkWorkbenchReady(code);
+		await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 
 		// Remote but not web: wait for a remote connection state change
 		if (this.remote) {
@@ -139,30 +134,6 @@ export class Application {
 				// we return.
 				return !statusHostLabel.includes('Opening Remote');
 			}, 300 /* = 30s of retry */), 'Application#checkWindowReady: wait for remote indicator', this.logger);
-		}
-	}
-
-	private async checkWorkbenchReady(code: Code): Promise<void> {
-		const driver = code.driver;
-
-		// Web / Legacy: just poll for workbench element
-		if (this.web || !(driver instanceof PlaywrightDriver)) {
-			await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
-		}
-
-		// Desktop (playwright): we see hangs, where IPC messages
-		// are not delivered (https://github.com/microsoft/vscode/issues/146785)
-		// Workaround is to try to reload the window when that happens
-		else {
-			try {
-				await measureAndLog(code.waitForElement('.monaco-workbench', undefined, 100 /* 10s of retry */), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
-			} catch (error) {
-				this.logger.log(`checkWindowReady: giving up after 10s, reloading window and trying again...`);
-
-				await driver.reload();
-
-				return this.checkWorkbenchReady(code);
-			}
 		}
 	}
 }

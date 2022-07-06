@@ -628,13 +628,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		args: [
 			{
 				isOptional: true,
-				name: 'viewType',
-				description: 'The editor view type',
+				name: 'New Untitled File args',
+				description: 'The editor view type and language ID if known',
 				schema: {
 					'type': 'object',
-					'required': ['viewType'],
 					'properties': {
 						'viewType': {
+							'type': 'string'
+						},
+						'languageId': {
 							'type': 'string'
 						}
 					}
@@ -642,7 +644,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			}
 		]
 	},
-	handler: async (accessor, args?: { viewType: string }) => {
+	handler: async (accessor, args?: { languageId?: string; viewType?: string }) => {
 		const editorService = accessor.get(IEditorService);
 
 		await editorService.openEditor({
@@ -650,7 +652,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			options: {
 				override: args?.viewType,
 				pinned: true
-			}
+			},
+			languageId: args?.languageId,
 		});
 	}
 });

@@ -35,9 +35,16 @@ declare module 'vscode' {
 		/**
 		 * Provides inline completion items for the given position and document.
 		 * If inline completions are enabled, this method will be called whenever the user stopped typing.
-		 * It will also be called when the user explicitly triggers inline completions or asks for the next or previous inline completion.
+		 * It will also be called when the user explicitly triggers inline completions or explicitly asks for the next or previous inline completion.
+		 * In that case, all available inline completions should be returned.
 		 * `context.triggerKind` can be used to distinguish between these scenarios.
-		*/
+		 *
+		 * @param document The document inline completions are requested for.
+		 * @param position The position inline completions are requested for.
+		 * @param context A context object with additional information.
+		 * @param token A cancellation token.
+		 * @return An array of completion items or a thenable that resolves to an array of completion items.
+		 */
 		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContextNew, token: CancellationToken): ProviderResult<InlineCompletionListNew | InlineCompletionItemNew[]>;
 	}
 
@@ -59,7 +66,7 @@ declare module 'vscode' {
 		 * the inline completion must also replace `.` and start with `.log`, for example `.log()`.
 		 *
 		 * Inline completion providers are requested again whenever the selected item changes.
-		*/
+		 */
 		readonly selectedCompletionInfo: SelectedCompletionInfoNew | undefined;
 	}
 
@@ -69,13 +76,13 @@ declare module 'vscode' {
 	export interface SelectedCompletionInfoNew {
 		/**
 		 * The range that will be replaced if this completion item is accepted.
-		*/
-		range: Range;
+		 */
+		readonly range: Range;
 
 		/**
 		 * The text the range will be replaced with if this completion is accepted.
-		*/
-		text: string;
+		 */
+		readonly text: string;
 	}
 
 	/**
@@ -110,6 +117,9 @@ declare module 'vscode' {
 		 */
 		commands?: Command[];
 
+		/**
+		 * Creates a new list of inline completion items with optionally given commands.
+		*/
 		constructor(items: InlineCompletionItemNew[], commands?: Command[]);
 	}
 
@@ -122,17 +132,13 @@ declare module 'vscode' {
 		/**
 		 * The text to replace the range with. Must be set.
 		 * Is used both for the preview and the accept operation.
-		 *
-		 * The text the range refers to must be a subword of this value (`AB` and `BEF` are subwords of `ABCDEF`, but `Ab` is not).
-		 * Additionally, if possible, it should be a prefix of this value for a better user-experience.
-		 *
-		 * However, any indentation of the text to replace does not matter for the subword constraint.
-		 * Thus, `  B` can be replaced with ` ABC`, effectively removing a whitespace and inserting `A` and `C`.
-		*/
+		 */
 		insertText: string | SnippetString;
 
 		/**
-		 * A text that is used to decide if this inline completion should be shown.
+		 * A text that is used to decide if this inline completion should be shown. When `falsy`
+		 * the {@link InlineCompletionItemNew.insertText} is used.
+		 *
 		 * An inline completion is shown if the text to replace is a prefix of the filter text.
 		 */
 		filterText?: string;
@@ -141,11 +147,8 @@ declare module 'vscode' {
 		 * The range to replace.
 		 * Must begin and end on the same line.
 		 *
-		 * Prefer replacements over insertions to avoid cache invalidation:
-		 * Instead of reporting a completion that inserts an extension at the end of a word,
-		 * the whole word (or even the whole line) should be replaced with the extended word (or extended line) to improve the UX.
-		 * That way, when the user presses backspace, the cache can be reused and there is no flickering.
-		*/
+		 * Prefer replacements over insertions to provide a better experience when the user deletes typed text.
+		 */
 		range?: Range;
 
 		/**

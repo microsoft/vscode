@@ -45,6 +45,10 @@ export class ServerTelemetryChannel extends Disposable implements IServerChannel
 
 				return Promise.resolve();
 			}
+
+			case 'ping': {
+				return;
+			}
 		}
 		// Command we cannot handle so we throw an error
 		throw new Error(`IPC Command ${command} not found`);

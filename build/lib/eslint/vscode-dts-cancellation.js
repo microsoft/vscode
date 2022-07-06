@@ -16,7 +16,7 @@ module.exports = new class ApiProviderNaming {
         return {
             ['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature[key.name=/^(provide|resolve).+/]']: (node) => {
                 let found = false;
-                for (let param of node.params) {
+                for (const param of node.params) {
                     if (param.type === experimental_utils_1.AST_NODE_TYPES.Identifier) {
                         found = found || param.name === 'token';
                     }

@@ -62,6 +62,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorContextCopyAs', "'Copy as' submenu in the editor context menu")
 	},
 	{
+		key: 'editor/context/share',
+		id: MenuId.EditorContextShare,
+		description: localize('menus.editorContextShare', "'Share' submenu in the editor context menu"),
+		proposed: 'contribShareMenu'
+	},
+	{
 		key: 'explorer/context',
 		id: MenuId.ExplorerContext,
 		description: localize('menus.explorerContext', "The file explorer context menu")
@@ -172,6 +178,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
 	},
 	{
+		key: 'notebook/kernelSource',
+		id: MenuId.NotebookKernelSource,
+		description: localize('notebook.kernelSource', "The contributed notebook kernel sources menu"),
+		proposed: 'notebookKernelSource'
+	},
+	{
 		key: 'notebook/cell/title',
 		id: MenuId.NotebookCellTitle,
 		description: localize('notebook.cell.title', "The contributed notebook cell title menu")
@@ -191,13 +203,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'interactive/toolbar',
 		id: MenuId.InteractiveToolbar,
 		description: localize('interactive.toolbar', "The contributed interactive toolbar menu"),
-		proposed: 'notebookEditor'
 	},
 	{
 		key: 'interactive/cell/title',
 		id: MenuId.InteractiveCellTitle,
 		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
-		proposed: 'notebookEditor'
 	},
 	{
 		key: 'testing/item/context',
@@ -246,12 +256,24 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 	},
 	{
+		key: 'file/share',
+		id: MenuId.MenubarShare,
+		description: localize('menus.share', "Share submenu shown in the top level File menu."),
+		proposed: 'contribShareMenu'
+	},
+	{
 		key: 'editor/inlineCompletions/actions',
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
 		supportsSubmenus: false,
-		proposed: 'inlineCompletions'
+		proposed: 'inlineCompletionsAdditions'
 	},
+	{
+		key: 'merge/toolbar',
+		id: MenuId.MergeToolbar,
+		description: localize('merge.toolbar', "The prominent botton in the merge editor"),
+		proposed: 'contribMergeEditorToolbar'
+	}
 ];
 
 namespace schema {
@@ -325,7 +347,7 @@ namespace schema {
 			return false;
 		}
 
-		for (let item of items) {
+		for (const item of items) {
 			if (isMenuItem(item)) {
 				if (!isValidMenuItem(item, collector)) {
 					return false;
@@ -661,47 +683,48 @@ submenusExtensionPoint.setHandler(extensions => {
 
 	_submenus.clear();
 
-	for (let extension of extensions) {
+	for (const extension of extensions) {
 		const { value, collector } = extension;
 
-		forEach(value, entry => {
-			if (!schema.isValidSubmenu(entry.value, collector)) {
+		for (const [, submenuInfo] of Object.entries(value)) {
+
+			if (!schema.isValidSubmenu(submenuInfo, collector)) {
 				return;
 			}
 
-			if (!entry.value.id) {
-				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", entry.value.id));
+			if (!submenuInfo.id) {
+				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", submenuInfo.id));
 				return;
 			}
-			if (_submenus.has(entry.value.id)) {
-				collector.warn(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
+			if (_submenus.has(submenuInfo.id)) {
+				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", submenuInfo.id));
 				return;
 			}
-			if (!entry.value.label) {
-				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", entry.value.label));
+			if (!submenuInfo.label) {
+				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", submenuInfo.label));
 				return;
 			}
 
 			let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;
-			if (entry.value.icon) {
-				if (typeof entry.value.icon === 'string') {
-					absoluteIcon = ThemeIcon.fromString(entry.value.icon) || { dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon) };
+			if (submenuInfo.icon) {
+				if (typeof submenuInfo.icon === 'string') {
+					absoluteIcon = ThemeIcon.fromString(submenuInfo.icon) || { dark: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon) };
 				} else {
 					absoluteIcon = {
-						dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon.dark),
-						light: resources.joinPath(extension.description.extensionLocation, entry.value.icon.light)
+						dark: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon.dark),
+						light: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon.light)
 					};
 				}
 			}
 
 			const item: IRegisteredSubmenu = {
-				id: new MenuId(`api:${entry.value.id}`),
-				label: entry.value.label,
+				id: new MenuId(`api:${submenuInfo.id}`),
+				label: submenuInfo.label,
 				icon: absoluteIcon
 			};
 
-			_submenus.set(entry.value.id, item);
-		});
+			_submenus.set(submenuInfo.id, item);
+		}
 	}
 });
 
@@ -723,7 +746,7 @@ menusExtensionPoint.setHandler(extensions => {
 
 	const items: { id: MenuId; item: IMenuItem | ISubmenuItem }[] = [];
 
-	for (let extension of extensions) {
+	for (const extension of extensions) {
 		const { value, collector } = extension;
 
 		forEach(value, entry => {

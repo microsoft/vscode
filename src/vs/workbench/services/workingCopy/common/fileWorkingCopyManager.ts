@@ -126,7 +126,7 @@ export interface IFileWorkingCopySaveAsOptions extends ISaveOptions {
 
 	/**
 	 * Optional target resource to suggest to the user in case
-	 * no taget resource is provided to save to.
+	 * no target resource is provided to save to.
 	 */
 	suggestedTarget?: URI;
 }

@@ -34,8 +34,8 @@ class DownloadUpdateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'update.downloadUpdate',
-			title: localize('downloadUpdate', "Download Update"),
-			category: product.nameShort,
+			title: { value: localize('downloadUpdate', "Download Update"), original: 'Download Update' },
+			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
 		});
@@ -50,8 +50,8 @@ class InstallUpdateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'update.installUpdate',
-			title: localize('installUpdate', "Install Update"),
-			category: product.nameShort,
+			title: { value: localize('installUpdate', "Install Update"), original: 'Install Update' },
+			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
 		});
@@ -66,8 +66,8 @@ class RestartToUpdateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'update.restartToUpdate',
-			title: localize('restartToUpdate', "Restart to Update"),
-			category: product.nameShort,
+			title: { value: localize('restartToUpdate', "Restart to Update"), original: 'Restart to Update' },
+			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
 		});

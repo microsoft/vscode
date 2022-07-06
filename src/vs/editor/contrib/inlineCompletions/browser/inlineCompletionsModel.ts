@@ -47,7 +47,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	private readonly debounceValue = this.debounceService.for(
 		this.languageFeaturesService.inlineCompletionsProvider,
 		'InlineCompletionsDebounce',
-		{ min: 50, max: 200 }
+		{ min: 50, max: 50 }
 	);
 
 	constructor(
@@ -217,7 +217,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 
 	private readonly updateSoon = this._register(new RunOnceScheduler(() => {
-		let triggerKind = this.initialTriggerKind;
+		const triggerKind = this.initialTriggerKind;
 		// All subsequent triggers are automatic.
 		this.initialTriggerKind = InlineCompletionTriggerKind.Automatic;
 		return this.update(triggerKind);
@@ -243,9 +243,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				lastCompletionItem = currentCompletion.sourceInlineCompletion;
 
 				const provider = currentCompletion.sourceProvider;
-				if (provider.handleItemDidShow) {
-					provider.handleItemDidShow(currentCompletion.sourceInlineCompletions, lastCompletionItem);
-				}
+				provider.handleItemDidShow?.(currentCompletion.sourceInlineCompletions, lastCompletionItem);
 			}
 		}));
 
@@ -403,10 +401,14 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		if (!currentCompletion) {
 			return undefined;
 		}
+		const cursorPosition = this.editor.getPosition();
+		if (currentCompletion.range.getEndPosition().isBefore(cursorPosition)) {
+			return undefined;
+		}
 
 		const mode = this.editor.getOptions().get(EditorOption.inlineSuggest).mode;
 
-		const ghostText = inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getPosition());
+		const ghostText = inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, cursorPosition);
 		if (ghostText) {
 			if (ghostText.isEmpty()) {
 				return undefined;
@@ -565,6 +567,7 @@ export class UpdateOperation implements IDisposable {
 */
 export class SynchronizedInlineCompletionsCache extends Disposable {
 	public readonly completions: readonly CachedInlineCompletion[];
+	private isDisposing = false;
 
 	constructor(
 		completionsSource: TrackedInlineCompletions,
@@ -574,17 +577,21 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 	) {
 		super();
 
-		const decorationIds = editor.deltaDecorations(
-			[],
-			completionsSource.items.map(i => ({
-				range: i.range,
-				options: {
-					description: 'inline-completion-tracking-range'
-				},
-			}))
-		);
+		const decorationIds = editor.changeDecorations((changeAccessor) => {
+			return changeAccessor.deltaDecorations(
+				[],
+				completionsSource.items.map(i => ({
+					range: i.range,
+					options: {
+						description: 'inline-completion-tracking-range'
+					},
+				}))
+			);
+		});
+
 		this._register(toDisposable(() => {
-			editor.deltaDecorations(decorationIds, []);
+			this.isDisposing = true;
+			editor.removeDecorations(decorationIds);
 		}));
 
 		this.completions = completionsSource.items.map((c, idx) => new CachedInlineCompletion(c, decorationIds[idx]));
@@ -596,7 +603,11 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 		this._register(completionsSource);
 	}
 
-	public updateRanges() {
+	public updateRanges(): void {
+		if (this.isDisposing) {
+			return;
+		}
+
 		let hasChanged = false;
 		const model = this.editor.getModel();
 		for (const c of this.completions) {

@@ -13,7 +13,7 @@ import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapabil
 import { DocumentSelector } from '../../utils/documentSelector';
 import { LanguageDescription } from '../../utils/languageDescription';
 import * as typeConverters from '../../utils/typeConverters';
-import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
+import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -66,26 +66,21 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	}
 
 	protected extractSymbol(
+		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
 		_parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined {
-		if (!item.nameSpan) {
-			return undefined;
-		}
-
-		const itemSpan = typeConverters.Range.fromTextSpan(item.nameSpan);
-
 		switch (item.kind) {
 			case PConst.Kind.interface:
-				return itemSpan;
+				return getSymbolRange(document, item);
 
 			case PConst.Kind.class:
 			case PConst.Kind.method:
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
-				if (/\babstract\b/g.test(item.kindModifiers)) {
-					return itemSpan;
+				if (item.kindModifiers.match(/\babstract\b/g)) {
+					return getSymbolRange(document, item);
 				}
 				break;
 		}

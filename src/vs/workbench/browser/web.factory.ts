@@ -13,6 +13,9 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
+import { IObservableValue } from 'vs/base/common/observableValue';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -92,6 +95,16 @@ export namespace commands {
 	}
 }
 
+export namespace logger {
+
+	/**
+	 * {@linkcode IWorkbench.logger IWorkbench.logger.log}
+	 */
+	export function log(level: LogLevel, message: string) {
+		workbenchPromise.p.then(workbench => workbench.logger.log(level, message));
+	}
+}
+
 export namespace env {
 
 	/**
@@ -109,7 +122,7 @@ export namespace env {
 	export async function getUriScheme(): Promise<string> {
 		const workbench = await workbenchPromise.p;
 
-		return workbench.env.uriScheme;
+		return workbench.env.getUriScheme();
 	}
 
 	/**
@@ -120,6 +133,9 @@ export namespace env {
 
 		return workbench.env.openUri(target);
 	}
+
+	export const telemetryLevel: Promise<IObservableValue<TelemetryLevel>> =
+		workbenchPromise.p.then(workbench => workbench.env.telemetryLevel);
 }
 
 export namespace window {

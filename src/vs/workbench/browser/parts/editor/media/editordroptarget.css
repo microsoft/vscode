@@ -28,9 +28,20 @@
 
 #monaco-workbench-editor-drop-overlay .editor-group-overlay-drop-into-prompt {
 	text-align: center;
-	padding: 1em;
+	padding: 0.6em;
+	margin: 0.2em;
+	line-height: normal;
 	opacity: 0; /* hidden initially */
 	transition: opacity 150ms ease-out;
+}
+
+#monaco-workbench-editor-drop-overlay .editor-group-overlay-drop-into-prompt i /* Style keybinding */ {
+	padding: 0 8px;
+	border: 1px solid hsla(0,0%,80%,.4);
+	margin: 0 1px;
+	border-radius: 5px;
+	background-color: rgba(255, 255, 255, 0.05);
+	font-style: normal;
 }
 
 #monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator.overlay-move-transition {

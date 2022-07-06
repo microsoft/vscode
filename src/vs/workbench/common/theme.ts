@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -278,6 +278,27 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBa
 	hcDark: null,
 	hcLight: Color.fromHex('#0F4A85').transparent(0.50)
 }, localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
+
+export const EDITOR_DROP_INTO_PROMPT_FOREGROUND = registerColor('editorGroup.dropIntoPromptForeground', {
+	dark: editorWidgetForeground,
+	light: editorWidgetForeground,
+	hcDark: editorWidgetForeground,
+	hcLight: editorWidgetForeground
+}, localize('editorDropIntoPromptForeground', "Foreground color of text shown over editors when dragging files. This text informs the user that they can hold shift to drop into the editor."));
+
+export const EDITOR_DROP_INTO_PROMPT_BACKGROUND = registerColor('editorGroup.dropIntoPromptBackground', {
+	dark: editorWidgetBackground,
+	light: editorWidgetBackground,
+	hcDark: editorWidgetBackground,
+	hcLight: editorWidgetBackground
+}, localize('editorDropIntoPromptBackground', "Background color of text shown over editors when dragging files. This text informs the user that they can hold shift to drop into the editor."));
+
+export const EDITOR_DROP_INTO_PROMPT_BORDER = registerColor('editorGroup.dropIntoPromptBorder', {
+	dark: null,
+	light: null,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('editorDropIntoPromptBorder', "Border color of text shown over editors when dragging files. This text informs the user that they can hold shift to drop into the editor."));
 
 export const SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER = registerColor('sideBySideEditor.horizontalBorder', {
 	dark: EDITOR_GROUP_BORDER,
@@ -594,7 +615,7 @@ export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.bac
 	dark: '#007ACC',
 	light: '#007ACC',
 	hcDark: '#000000',
-	hcLight: '#007ACC'
+	hcLight: '#0F4A85'
 }, localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', {
@@ -742,8 +763,8 @@ export const MENUBAR_SELECTION_FOREGROUND = registerColor('menubar.selectionFore
 }, localize('menubarSelectionForeground', "Foreground color of the selected menu item in the menubar."));
 
 export const MENUBAR_SELECTION_BACKGROUND = registerColor('menubar.selectionBackground', {
-	dark: transparent(Color.white, 0.1),
-	light: transparent(Color.black, 0.1),
+	dark: toolbarHoverBackground,
+	light: toolbarHoverBackground,
 	hcDark: null,
 	hcLight: null,
 }, localize('menubarSelectionBackground', "Background color of the selected menu item in the menubar."));

@@ -72,9 +72,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {
-		if (this.gridWidget) {
-			this.gridWidget.layout(width, height, top, left);
-		}
+		this.gridWidget?.layout(width, height, top, left);
 	}
 
 	dispose(): void {
@@ -120,13 +118,16 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private readonly _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number } | undefined>());
 	readonly onDidChangeSizeConstraints = Event.any(this.onDidSetGridWidget.event, this._onDidChangeSizeConstraints.event);
 
+	private readonly _onDidScroll = this._register(new Relay<void>());
+	readonly onDidScroll = Event.any(this.onDidSetGridWidget.event, this._onDidScroll.event);
+
 	private readonly _onDidChangeEditorPartOptions = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
 	readonly onDidChangeEditorPartOptions = this._onDidChangeEditorPartOptions.event;
 
 	//#endregion
 
 	private readonly workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
-	private readonly globalMemento = this.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+	private readonly profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 
 	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
@@ -592,9 +593,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doUpdateMostRecentActive(group, true);
 
 		// Mark previous one as inactive
-		if (previousActiveGroup) {
-			previousActiveGroup.setActive(false);
-		}
+		previousActiveGroup?.setActive(false);
 
 		// Mark group as new active
 		group.setActive(true);
@@ -863,7 +862,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doCreateGridControl(options);
 
 		// Centered layout widget
-		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
+		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
 
 		// Drag & Drop support
 		this.setupDragAndDropSupport(parent, this.container);
@@ -1100,6 +1099,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.gridWidgetView.gridWidget = gridWidget;
 
 		this._onDidChangeSizeConstraints.input = gridWidget.onDidChange;
+		this._onDidScroll.input = gridWidget.onDidScroll;
 
 		this.onDidSetGridWidget.fire(undefined);
 	}
@@ -1162,9 +1162,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		if (this.centeredLayoutWidget) {
 			const centeredLayoutState = this.centeredLayoutWidget.state;
 			if (this.centeredLayoutWidget.isDefault(centeredLayoutState)) {
-				delete this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY];
+				delete this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY];
 			} else {
-				this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = centeredLayoutState;
+				this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = centeredLayoutState;
 			}
 		}
 

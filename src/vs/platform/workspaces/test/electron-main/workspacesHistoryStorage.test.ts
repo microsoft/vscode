@@ -41,8 +41,8 @@ suite('History Storage', () => {
 		}
 		assert.strictEqual(actual.workspaces.length, expected.workspaces.length, message);
 		for (let i = 0; i < actual.workspaces.length; i++) {
-			let expectedRecent = expected.workspaces[i];
-			let actualRecent = actual.workspaces[i];
+			const expectedRecent = expected.workspaces[i];
+			const actualRecent = actual.workspaces[i];
 			if (isRecentFolder(actualRecent)) {
 				assertEqualURI(actualRecent.folderUri, (<IRecentFolder>expectedRecent).folderUri, message);
 			} else {
@@ -131,8 +131,8 @@ suite('History Storage', () => {
 			]
 		}`;
 
-		let windowsState = restoreRecentlyOpened(JSON.parse(v1_55), new NullLogService());
-		let expected: IRecentlyOpened = {
+		const windowsState = restoreRecentlyOpened(JSON.parse(v1_55), new NullLogService());
+		const expected: IRecentlyOpened = {
 			files: [{ label: 'def', fileUri: URI.parse('file:///home/user/.config/code-oss-dev/storage.json') }],
 			workspaces: [
 				{ folderUri: URI.parse('foo://bar/23/43'), remoteAuthority: 'test+test' },

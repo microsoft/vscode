@@ -60,7 +60,7 @@ export class ExtensionsWatcher extends Disposable {
 			return true;
 		}
 
-		// Ingore changes to files starting with `.`
+		// Ignore changes to files starting with `.`
 		if (this.uriIdentityService.extUri.basename(change.resource).startsWith('.')) {
 			return false;
 		}

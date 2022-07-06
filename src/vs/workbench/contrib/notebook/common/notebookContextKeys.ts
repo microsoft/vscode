@@ -23,6 +23,7 @@ export const NOTEBOOK_HAS_RUNNING_CELL = new RawContextKey<boolean>('notebookHas
 export const NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON = new RawContextKey<boolean>('notebookUseConsolidatedOutputButton', false);
 export const NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE = new RawContextKey<boolean>('notebookBreakpointMargin', false);
 export const NOTEBOOK_CELL_TOOLBAR_LOCATION = new RawContextKey<'left' | 'right' | 'hidden'>('notebookCellToolbarLocation', 'left');
+export const NOTEBOOK_CURSOR_NAVIGATION_MODE = new RawContextKey<boolean>('notebookCursorNavigationMode', false);
 
 // Cell keys
 export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookType', undefined);
@@ -38,9 +39,12 @@ export const NOTEBOOK_CELL_EXECUTING = new RawContextKey<boolean>('notebookCellE
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false);
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false);
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false);
+export const NOTEBOOK_CELL_RESOURCE = new RawContextKey<string>('notebookCellResource', '');
+
 // Kernels
 export const NOTEBOOK_KERNEL = new RawContextKey<string>('notebookKernel', undefined);
 export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
+export const NOTEBOOK_KERNEL_SOURCE_COUNT = new RawContextKey<number>('notebookKernelSourceCount', 0);
 export const NOTEBOOK_KERNEL_SELECTED = new RawContextKey<boolean>('notebookKernelSelected', false);
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
 export const NOTEBOOK_MISSING_KERNEL_EXTENSION = new RawContextKey<boolean>('notebookMissingKernelExtension', false);

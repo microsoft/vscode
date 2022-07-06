@@ -22,7 +22,7 @@ jobs:
           key: ${{ runner.os }}-dependencies-${{ hashfiles('yarn.lock') }}
           restore-keys: ${{ runner.os }}-dependencies-
 
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
         with:
           node-version: 16
 

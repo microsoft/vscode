@@ -172,6 +172,11 @@ export class DebugSession implements IDebugSession {
 		return this._options.debugUI?.simple ?? false;
 	}
 
+	get autoExpandLazyVariables(): boolean {
+		// This tiny helper avoids converting the entire debug model to use service injection
+		return this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+	}
+
 	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig | undefined }) {
 		this._configuration = configuration;
 	}
@@ -920,9 +925,7 @@ export class DebugSession implements IDebugSession {
 					} catch (e) {
 						// Disconnect the debug session on configuration done error #10596
 						this.notificationService.error(e);
-						if (this.raw) {
-							this.raw.disconnect({});
-						}
+						this.raw?.disconnect({});
 					}
 				}
 
@@ -958,7 +961,8 @@ export class DebugSession implements IDebugSession {
 						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 						if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
 							// Only take focus if nothing is focused, or if the focus is already on the current session
-							await this.debugService.focusStackFrame(undefined, thread);
+							const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
+							await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
 						}
 
 						if (thread.stoppedDetails) {
@@ -1004,7 +1008,7 @@ export class DebugSession implements IDebugSession {
 				this.passFocusScheduler.cancel();
 				if (focusedThread && event.body.threadId === focusedThread.threadId) {
 					// De-focus the thread in case it was focused
-					this.debugService.focusStackFrame(undefined, undefined, viewModel.focusedSession, false);
+					this.debugService.focusStackFrame(undefined, undefined, viewModel.focusedSession, { explicit: false });
 				}
 			}
 		}));
@@ -1024,9 +1028,7 @@ export class DebugSession implements IDebugSession {
 				this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
 				const tokens = this.cancellationMap.get(threadId);
 				this.cancellationMap.delete(threadId);
-				if (tokens) {
-					tokens.forEach(t => t.cancel());
-				}
+				tokens?.forEach(t => t.cancel());
 			} else {
 				this.stoppedDetails = [];
 				this.cancelAllRequests();
@@ -1071,7 +1073,7 @@ export class DebugSession implements IDebugSession {
 					// only log telemetry events from debug adapter if the debug extension provided the telemetry key
 					// and the user opted in telemetry
 					const telemetryEndpoint = this.raw.dbgr.getCustomTelemetryEndpoint();
-					if (telemetryEndpoint && this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
+					if (telemetryEndpoint && this.telemetryService.telemetryLevel.value !== TelemetryLevel.NONE) {
 						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
 						let data = event.body.data;
 						if (!telemetryEndpoint.sendErrorTelemetry && event.body.data) {

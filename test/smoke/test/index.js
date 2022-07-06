@@ -12,11 +12,11 @@ const minimist = require('minimist');
 
 const [, , ...args] = process.argv;
 const opts = minimist(args, {
-	boolean: ['web', 'legacy'],
+	boolean: ['web'],
 	string: ['f', 'g']
 });
 
-const suite = opts['web'] ? 'Browser Smoke Tests' : opts['legacy'] ? 'Desktop Smoke Tests (Legacy)' : 'Desktop Smoke Tests';
+const suite = opts['web'] ? 'Browser Smoke Tests' : 'Desktop Smoke Tests';
 
 const options = {
 	color: true,

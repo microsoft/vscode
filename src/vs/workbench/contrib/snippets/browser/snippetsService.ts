@@ -30,6 +30,7 @@ import { isStringArray } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 namespace snippetExt {
 
@@ -138,7 +139,7 @@ class SnippetEnablement {
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 
-		const raw = _storageService.get(SnippetEnablement._key, StorageScope.GLOBAL, '');
+		const raw = _storageService.get(SnippetEnablement._key, StorageScope.PROFILE, '');
 		let data: string[] | undefined;
 		try {
 			data = JSON.parse(raw);
@@ -161,7 +162,7 @@ class SnippetEnablement {
 			changed = true;
 		}
 		if (changed) {
-			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 }
@@ -177,6 +178,7 @@ class SnippetsService implements ISnippetsService {
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILogService private readonly _logService: ILogService,
@@ -318,8 +320,8 @@ class SnippetsService implements ISnippetsService {
 
 	private _initWorkspaceSnippets(): void {
 		// workspace stuff
-		let disposables = new DisposableStore();
-		let updateWorkspaceSnippets = () => {
+		const disposables = new DisposableStore();
+		const updateWorkspaceSnippets = () => {
 			disposables.clear();
 			this._pendingWork.push(this._initWorkspaceFolderSnippets(this._contextService.getWorkspace(), disposables));
 		};
@@ -348,9 +350,21 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private async _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = this._environmentService.snippetsHome;
-		await this._fileService.createFolder(userSnippetsFolder);
-		return await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables);
+		const disposables = new DisposableStore();
+		const updateUserSnippets = async () => {
+			disposables.clear();
+			const userSnippetsFolder = this._userDataProfileService.currentProfile.snippetsHome;
+			await this._fileService.createFolder(userSnippetsFolder);
+			await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, disposables);
+		};
+		this._disposables.add(disposables);
+		this._disposables.add(this._userDataProfileService.onDidChangeCurrentProfile(e => e.join((async () => {
+			if (e.preserveData) {
+				await this._fileService.copy(e.previous.snippetsHome, e.profile.snippetsHome);
+			}
+			this._pendingWork.push(updateUserSnippets());
+		})())));
+		await updateUserSnippets();
 	}
 
 	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: DisposableStore): Promise<any> {
@@ -406,11 +420,11 @@ export function getNonWhitespacePrefix(model: ISimpleModel, position: Position):
 	 */
 	const MAX_PREFIX_LENGTH = 100;
 
-	let line = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+	const line = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 
-	let minChIndex = Math.max(0, line.length - MAX_PREFIX_LENGTH);
+	const minChIndex = Math.max(0, line.length - MAX_PREFIX_LENGTH);
 	for (let chIndex = line.length - 1; chIndex >= minChIndex; chIndex--) {
-		let ch = line.charAt(chIndex);
+		const ch = line.charAt(chIndex);
 
 		if (/\s/.test(ch)) {
 			return line.substr(chIndex + 1);

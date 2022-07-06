@@ -7,6 +7,7 @@ import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ResourceSet } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -19,6 +20,7 @@ import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
+import * as encodedTokenAttributes from 'vs/editor/common/encodedTokenAttributes';
 import * as languageSelector from 'vs/editor/common/languageSelector';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -37,6 +39,8 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { once } from 'vs/base/common/functional';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 
 export namespace Command {
 
@@ -110,12 +114,12 @@ export namespace Range {
 }
 
 export namespace TokenType {
-	export function to(type: languages.StandardTokenType): types.StandardTokenType {
+	export function to(type: encodedTokenAttributes.StandardTokenType): types.StandardTokenType {
 		switch (type) {
-			case languages.StandardTokenType.Comment: return types.StandardTokenType.Comment;
-			case languages.StandardTokenType.Other: return types.StandardTokenType.Other;
-			case languages.StandardTokenType.RegEx: return types.StandardTokenType.RegEx;
-			case languages.StandardTokenType.String: return types.StandardTokenType.String;
+			case encodedTokenAttributes.StandardTokenType.Comment: return types.StandardTokenType.Comment;
+			case encodedTokenAttributes.StandardTokenType.Other: return types.StandardTokenType.Other;
+			case encodedTokenAttributes.StandardTokenType.RegEx: return types.StandardTokenType.RegEx;
+			case encodedTokenAttributes.StandardTokenType.String: return types.StandardTokenType.String;
 		}
 	}
 }
@@ -558,15 +562,6 @@ export namespace TextEdit {
 	}
 }
 
-export namespace SnippetTextEdit {
-	export function from(edit: vscode.SnippetTextEdit): languages.SnippetTextEdit {
-		return {
-			range: Range.from(edit.range),
-			snippet: edit.snippet.value
-		};
-	}
-}
-
 export namespace WorkspaceEdit {
 
 	export interface IVersionInformationProvider {
@@ -574,50 +569,64 @@ export namespace WorkspaceEdit {
 		getNotebookDocumentVersion(uri: URI): number | undefined;
 	}
 
-	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider, allowSnippetTextEdit?: boolean): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
 
 		if (value instanceof types.WorkspaceEdit) {
-			for (let entry of value._allEntries()) {
+
+			// collect all files that are to be created so that their version
+			// information (in case they exist as text model already) can be ignored
+			const toCreate = new ResourceSet();
+			for (const entry of value._allEntries()) {
+				if (entry._type === types.FileEditType.File && URI.isUri(entry.to) && entry.from === undefined) {
+					toCreate.add(entry.to);
+				}
+			}
+
+			for (const entry of value._allEntries()) {
 
 				if (entry._type === types.FileEditType.File) {
 					// file operation
-					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.File,
-						oldUri: entry.from,
-						newUri: entry.to,
+					result.edits.push(<languages.IWorkspaceFileEdit>{
+						oldResource: entry.from,
+						newResource: entry.to,
 						options: entry.options,
 						metadata: entry.metadata
 					});
 
 				} else if (entry._type === types.FileEditType.Text) {
 					// text edits
-					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.Text,
+					const edit = <languages.IWorkspaceTextEdit>{
 						resource: entry.uri,
-						edit: TextEdit.from(entry.edit),
-						modelVersionId: versionInfo?.getTextDocumentVersion(entry.uri),
+						textEdit: TextEdit.from(entry.edit),
+						versionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
 						metadata: entry.metadata
-					});
+					};
+					if (allowSnippetTextEdit && entry.edit.newText2 instanceof types.SnippetString) {
+						edit.textEdit.insertAsSnippet = true;
+						edit.textEdit.text = entry.edit.newText2.value;
+					}
+					result.edits.push(edit);
+
 				} else if (entry._type === types.FileEditType.Cell) {
-					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.Cell,
+					// cell edit
+					result.edits.push(<notebooks.IWorkspaceNotebookCellEdit>{
 						metadata: entry.metadata,
 						resource: entry.uri,
-						edit: entry.edit,
+						cellEdit: entry.edit,
 						notebookMetadata: entry.notebookMetadata,
 						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri)
 					});
 
 				} else if (entry._type === types.FileEditType.CellReplace) {
-					result.edits.push({
-						_type: extHostProtocol.WorkspaceEditType.Cell,
+					// cell replace
+					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
 						metadata: entry.metadata,
 						resource: entry.uri,
 						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri),
-						edit: {
+						cellEdit: {
 							editType: notebooks.CellEditType.Replace,
 							index: entry.index,
 							count: entry.count,
@@ -633,16 +642,16 @@ export namespace WorkspaceEdit {
 	export function to(value: extHostProtocol.IWorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {
-			if ((<extHostProtocol.IWorkspaceTextEditDto>edit).edit) {
+			if ((<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit) {
 				result.replace(
 					URI.revive((<extHostProtocol.IWorkspaceTextEditDto>edit).resource),
-					Range.to((<extHostProtocol.IWorkspaceTextEditDto>edit).edit.range),
-					(<extHostProtocol.IWorkspaceTextEditDto>edit).edit.text
+					Range.to((<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit.range),
+					(<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit.text
 				);
 			} else {
 				result.renameFile(
-					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).oldUri!),
-					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).newUri!),
+					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).oldResource!),
+					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).newResource!),
 					(<extHostProtocol.IWorkspaceFileEditDto>edit).options
 				);
 			}
@@ -1480,7 +1489,8 @@ export namespace LanguageSelector {
 				language: filter.language,
 				scheme: filter.scheme,
 				pattern: GlobPattern.from(filter.pattern),
-				exclusive: filter.exclusive
+				exclusive: filter.exclusive,
+				notebookType: filter.notebookType
 			};
 		}
 	}
@@ -1559,7 +1569,7 @@ export namespace NotebookData {
 			metadata: data.metadata ?? Object.create(null),
 			cells: [],
 		};
-		for (let cell of data.cells) {
+		for (const cell of data.cells) {
 			types.NotebookCellData.validate(cell);
 			res.cells.push(NotebookCellData.from(cell));
 		}
@@ -1669,16 +1679,6 @@ export namespace NotebookExclusiveDocumentPattern {
 	}
 }
 
-export namespace NotebookDecorationRenderOptions {
-	export function from(options: vscode.NotebookDecorationRenderOptions): notebooks.INotebookDecorationRenderOptions {
-		return {
-			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
-			borderColor: <string | types.ThemeColor>options.borderColor,
-			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
-		};
-	}
-}
-
 export namespace NotebookStatusBarItem {
 	export function from(item: vscode.NotebookCellStatusBarItem, commandsConverter: Command.ICommandsConverter, disposables: DisposableStore): notebooks.INotebookCellStatusBarItem {
 		const command = typeof item.command === 'string' ? { title: '', command: item.command } : item.command;
@@ -1774,6 +1774,7 @@ export namespace TestItem {
 				add: () => { },
 				delete: () => { },
 				forEach: () => { },
+				*[Symbol.iterator]() { },
 				get: () => undefined,
 				replace: () => { },
 				size: 0,
@@ -1942,5 +1943,53 @@ export namespace ViewBadge {
 			value: badge.value,
 			tooltip: badge.tooltip
 		};
+	}
+}
+
+export namespace DataTransferItem {
+	export function toDataTransferItem(item: extHostProtocol.DataTransferItemDTO, resolveFileData: () => Promise<Uint8Array>): types.DataTransferItem {
+		const file = item.fileData;
+		if (file) {
+			return new class extends types.DataTransferItem {
+				override asFile(): vscode.DataTransferFile {
+					return {
+						name: file.name,
+						uri: URI.revive(file.uri),
+						data: once(() => resolveFileData()),
+					};
+				}
+			}('');
+		} else {
+			return new types.DataTransferItem(item.asString);
+		}
+	}
+}
+
+export namespace DataTransfer {
+	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (dataItemIndex: number) => Promise<Uint8Array>): types.DataTransfer {
+		const init = value.items.map(([type, item], index) => {
+			return [type, DataTransferItem.toDataTransferItem(item, () => resolveFileData(index))] as const;
+		});
+		return new types.DataTransfer(init);
+	}
+
+	export async function toDataTransferDTO(value: vscode.DataTransfer | VSDataTransfer): Promise<extHostProtocol.DataTransferDTO> {
+		const newDTO: extHostProtocol.DataTransferDTO = { items: [] };
+
+		const promises: Promise<any>[] = [];
+		value.forEach((value, key) => {
+			promises.push((async () => {
+				const stringValue = await value.asString();
+				const fileValue = value.asFile();
+				newDTO.items.push([key, {
+					asString: stringValue,
+					fileData: fileValue ? { name: fileValue.name, uri: fileValue.uri } : undefined,
+				}]);
+			})());
+		});
+
+		await Promise.all(promises);
+
+		return newDTO;
 	}
 }

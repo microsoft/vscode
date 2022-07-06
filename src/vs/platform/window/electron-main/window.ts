@@ -9,6 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
@@ -27,6 +28,8 @@ export interface ICodeWindow extends IDisposable {
 
 	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
+	readonly profile?: IUserDataProfile;
+
 	readonly backupPath?: string;
 
 	readonly remoteAuthority?: string;
@@ -39,8 +42,6 @@ export interface ICodeWindow extends IDisposable {
 	readonly isReady: boolean;
 	ready(): Promise<ICodeWindow>;
 	setReady(): void;
-
-	readonly hasHiddenTitleBarStyle: boolean;
 
 	addTabbedWindow(window: ICodeWindow): void;
 

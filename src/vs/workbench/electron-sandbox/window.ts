@@ -10,7 +10,7 @@ import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/window/common/window';
@@ -44,8 +44,7 @@ import { assertIsDefined, isArray } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { posix, dirname } from 'vs/base/common/path';
-import { getBaseLabel } from 'vs/base/common/labels';
+import { posix } from 'vs/base/common/path';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -63,11 +62,11 @@ import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { registerLegacyWindowDriver, registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
+import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from 'vs/base/common/resources';
 
 export class NativeWindow extends Disposable {
-
-	private static REMEMBER_PROXY_CREDENTIALS_KEY = 'window.rememberProxyCredentials';
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
@@ -115,7 +114,8 @@ export class NativeWindow extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -132,11 +132,11 @@ export class NativeWindow extends Disposable {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// prevent opening a real URL inside the window
-		[EventType.DRAG_OVER, EventType.DROP].forEach(event => {
+		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
 				EventHelper.stop(e);
 			});
-		});
+		}
 
 		// Support runAction event
 		ipcRenderer.on('vscode:runAction', async (event: unknown, request: INativeRunActionInWindowRequest) => {
@@ -213,7 +213,8 @@ export class NativeWindow extends Disposable {
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
-			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+			const rememberCredentialsKey = 'window.rememberProxyCredentials';
+			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
 			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
 				[
 					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
@@ -243,9 +244,9 @@ export class NativeWindow extends Disposable {
 
 				// Update state based on checkbox
 				if (result.checkboxChecked) {
-					this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
+					this.storageService.store(rememberCredentialsKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				} else {
-					this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+					this.storageService.remove(rememberCredentialsKey, StorageScope.APPLICATION);
 				}
 
 				// Reply back to main side with credentials
@@ -284,7 +285,7 @@ export class NativeWindow extends Disposable {
 				const file = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
 
 				// Represented Filename
-				this.updateRepresentedFilename(file?.fsPath);
+				this.nativeHostService.setRepresentedFilename(file?.fsPath ?? '');
 
 				// Custom title menu
 				this.provideCustomTitleContextMenu(file?.fsPath);
@@ -359,7 +360,7 @@ export class NativeWindow extends Disposable {
 
 					// Progress for long running shutdown
 					if (confirmed) {
-						this.progressOnShutdown(reason);
+						this.progressOnBeforeShutdown(reason);
 					}
 
 					return !confirmed;
@@ -368,10 +369,10 @@ export class NativeWindow extends Disposable {
 		}
 
 		// Progress for long running shutdown
-		this.progressOnShutdown(reason);
+		this.progressOnBeforeShutdown(reason);
 	}
 
-	private progressOnShutdown(reason: ShutdownReason): void {
+	private progressOnBeforeShutdown(reason: ShutdownReason): void {
 		this.progressService.withProgress({
 			location: ProgressLocation.Window, 	// use window progress to not be too annoying about this operation
 			delay: 800,							// delay so that it only appears when operation takes a long time
@@ -419,19 +420,29 @@ export class NativeWindow extends Disposable {
 		});
 	}
 
-	private onWillShutdown({ reason, force }: WillShutdownEvent): void {
-		this.progressService.withProgress({
-			location: ProgressLocation.Dialog, 				// use a dialog to prevent the user from making any more interactions now
-			buttons: [this.toForceShutdownLabel(reason)],	// allow to force shutdown anyway
-			delay: 800,										// delay so that it only appears when operation takes a long time
-			cancellable: false,								// do not allow to cancel
-			sticky: true,									// do not allow to dismiss
-			title: this.toShutdownLabel(reason, false)
-		}, () => {
-			return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
-		}, () => {
-			force();
-		});
+	private onWillShutdown({ reason, force, joiners }: WillShutdownEvent): void {
+
+		// Delay so that the dialog only appears after timeout
+		const shutdownDialogScheduler = new RunOnceScheduler(() => {
+			const pendingJoiners = joiners();
+
+			this.progressService.withProgress({
+				location: ProgressLocation.Dialog, 				// use a dialog to prevent the user from making any more interactions now
+				buttons: [this.toForceShutdownLabel(reason)],	// allow to force shutdown anyway
+				cancellable: false,								// do not allow to cancel
+				sticky: true,									// do not allow to dismiss
+				title: this.toShutdownLabel(reason, false),
+				detail: pendingJoiners.length > 0 ? localize('willShutdownDetail', "The following operations are still running: \n{0}", pendingJoiners.map(joiner => `- ${joiner.label}`).join('\n')) : undefined
+			}, () => {
+				return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
+			}, () => {
+				force();
+			});
+		}, 1200);
+		shutdownDialogScheduler.schedule();
+
+		// Dispose scheduler when we actually shutdown
+		Event.once(this.lifecycleService.onDidShutdown)(() => shutdownDialogScheduler.dispose());
 	}
 
 	private toShutdownLabel(reason: ShutdownReason, isError: boolean): string {
@@ -561,10 +572,6 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private updateRepresentedFilename(filePath: string | undefined): void {
-		this.nativeHostService.setRepresentedFilename(filePath ? filePath : '');
-	}
-
 	private provideCustomTitleContextMenu(filePath: string | undefined): void {
 
 		// Clear old menu
@@ -585,17 +592,17 @@ export class NativeWindow extends Disposable {
 				pathOffset++; // for segments which are not the file name we want to open the folder
 			}
 
-			const path = segments.slice(0, pathOffset).join(posix.sep);
+			const path = URI.file(segments.slice(0, pathOffset).join(posix.sep));
 
 			let label: string;
 			if (!isFile) {
-				label = getBaseLabel(dirname(path));
+				label = this.labelService.getUriBasenameLabel(dirname(path));
 			} else {
-				label = getBaseLabel(path);
+				label = this.labelService.getUriBasenameLabel(path);
 			}
 
 			const commandId = `workbench.action.revealPathInFinder${i}`;
-			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path)));
+			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path.fsPath)));
 			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
 		}
 	}
@@ -640,27 +647,18 @@ export class NativeWindow extends Disposable {
 		}
 
 		// Smoke Test Driver
-		this.setupDriver();
+		if (this.environmentService.enableSmokeTestDriver) {
+			this.setupDriver();
+		}
 	}
 
 	private setupDriver(): void {
-
-		// Modern Driver
-		if (this.environmentService.enableSmokeTestDriver) {
-			const that = this;
-			registerWindowDriver({
-				async exitApplication(): Promise<number> {
-					that.nativeHostService.quit();
-
-					return that.environmentService.mainPid;
-				}
-			});
-		}
-
-		// Legacy Driver (TODO@bpasero remove me eventually)
-		else if (this.environmentService.args.driver) {
-			this.instantiationService.invokeFunction(async accessor => this._register(await registerLegacyWindowDriver(accessor, this.nativeHostService.windowId)));
-		}
+		const that = this;
+		registerWindowDriver({
+			async exitApplication(): Promise<void> {
+				return that.nativeHostService.quit();
+			}
+		});
 	}
 
 	private setupOpenHandlers(): void {
@@ -811,9 +809,9 @@ export class NativeWindow extends Disposable {
 	private doAddFolders(): void {
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
-		this.pendingFoldersToAdd.forEach(folder => {
+		for (const folder of this.pendingFoldersToAdd) {
 			foldersToAdd.push(({ uri: folder }));
-		});
+		}
 
 		this.pendingFoldersToAdd = [];
 
@@ -833,14 +831,23 @@ export class NativeWindow extends Disposable {
 		}
 
 		if (inputs.length) {
-			this.openResources(inputs, diffMode);
-		}
+			const openedEditorPanes = await this.openResources(inputs, diffMode);
 
-		if (request.filesToWait && inputs.length) {
-			// In wait mode, listen to changes to the editors and wait until the files
-			// are closed that the user wants to wait for. When this happens we delete
-			// the wait marker file to signal to the outside that editing is done.
-			this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(path => URI.revive(path.fileUri))));
+			if (request.filesToWait) {
+
+				// In wait mode, listen to changes to the editors and wait until the files
+				// are closed that the user wants to wait for. When this happens we delete
+				// the wait marker file to signal to the outside that editing is done.
+				// However, it is possible that opening of the editors failed, as such we
+				// check for whether editor panes got opened and otherwise delete the marker
+				// right away.
+
+				if (openedEditorPanes.length) {
+					return this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(path => URI.revive(path.fileUri))));
+				} else {
+					return this.fileService.del(URI.revive(request.filesToWait.waitMarkerFileUri));
+				}
+			}
 		}
 	}
 
@@ -853,7 +860,7 @@ export class NativeWindow extends Disposable {
 		await this.fileService.del(waitMarkerFile);
 	}
 
-	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
+	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<readonly IEditorPane[]> {
 		const editors: IUntypedEditorInput[] = [];
 
 		// In diffMode we open 2 resources as diff

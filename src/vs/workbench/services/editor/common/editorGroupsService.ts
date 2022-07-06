@@ -183,6 +183,11 @@ export interface IEditorGroupsService {
 	readonly onDidLayout: Event<IDimension>;
 
 	/**
+	 * An event for when the group container is scrolled.
+	 */
+	readonly onDidScroll: Event<void>;
+
+	/**
 	 * An event for when the index of a group changes.
 	 */
 	readonly onDidChangeGroupIndex: Event<IEditorGroup>;

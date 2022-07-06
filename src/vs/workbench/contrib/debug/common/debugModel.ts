@@ -7,6 +7,7 @@ import { distinct, lastIndex } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { stringHash } from 'vs/base/common/hash';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
@@ -152,7 +153,7 @@ export class ExpressionContainer implements IExpressionContainer {
 			}
 
 			const nameCount = new Map<string, number>();
-			return response.body.variables.filter(v => !!v).map((v: IDebugProtocolVariableWithContext) => {
+			const vars = response.body.variables.filter(v => !!v).map((v: IDebugProtocolVariableWithContext) => {
 				if (isString(v.value) && isString(v.name) && typeof v.variablesReference === 'number') {
 					const count = nameCount.get(v.name) || 0;
 					const idDuplicationIndex = count > 0 ? count.toString() : '';
@@ -161,6 +162,12 @@ export class ExpressionContainer implements IExpressionContainer {
 				}
 				return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, undefined, { kind: 'virtual' }, undefined, undefined, false);
 			});
+
+			if (this.session!.autoExpandLazyVariables) {
+				await Promise.all(vars.map(v => v.presentationHint?.lazy && v.evaluateLazy()));
+			}
+
+			return vars;
 		} catch (e) {
 			return [new Variable(this.session, this.threadId, this, 0, '', undefined, e.message, 0, 0, undefined, { kind: 'virtual' }, undefined, undefined, false)];
 		}
@@ -345,7 +352,7 @@ export class Scope extends ExpressionContainer implements IScope {
 
 	constructor(
 		stackFrame: IStackFrame,
-		index: number,
+		id: number,
 		public readonly name: string,
 		reference: number,
 		public expensive: boolean,
@@ -353,7 +360,7 @@ export class Scope extends ExpressionContainer implements IScope {
 		indexedVariables?: number,
 		public readonly range?: IRange
 	) {
-		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${index}`, namedVariables, indexedVariables);
+		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${id}`, namedVariables, indexedVariables);
 	}
 
 	override toString(): string {
@@ -411,12 +418,17 @@ export class StackFrame implements IStackFrame {
 					return [];
 				}
 
-				const scopeNameIndexes = new Map<string, number>();
+				const usedIds = new Set<number>();
 				return response.body.scopes.map(rs => {
-					const previousIndex = scopeNameIndexes.get(rs.name);
-					const index = typeof previousIndex === 'number' ? previousIndex + 1 : 0;
-					scopeNameIndexes.set(rs.name, index);
-					return new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
+					// form the id based on the name and location so that it's the
+					// same across multiple pauses to retain expansion state
+					let id = 0;
+					do {
+						id = stringHash(`${rs.name}:${rs.line}:${rs.column}`, id);
+					} while (usedIds.has(id));
+
+					usedIds.add(id);
+					return new Scope(this, id, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
 						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : undefined);
 
 				});
