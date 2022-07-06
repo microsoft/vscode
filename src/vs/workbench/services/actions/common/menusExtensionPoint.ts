@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
@@ -749,19 +748,19 @@ menusExtensionPoint.setHandler(extensions => {
 	for (const extension of extensions) {
 		const { value, collector } = extension;
 
-		forEach(value, entry => {
-			if (!schema.isValidItems(entry.value, collector)) {
-				return;
+		for (const entry of Object.entries(value)) {
+			if (!schema.isValidItems(entry[1], collector)) {
+				continue;
 			}
 
-			let menu = _apiMenusByKey.get(entry.key);
+			let menu = _apiMenusByKey.get(entry[0]);
 
 			if (!menu) {
-				const submenu = _submenus.get(entry.key);
+				const submenu = _submenus.get(entry[0]);
 
 				if (submenu) {
 					menu = {
-						key: entry.key,
+						key: entry[0],
 						id: submenu.id,
 						description: ''
 					};
@@ -769,16 +768,16 @@ menusExtensionPoint.setHandler(extensions => {
 			}
 
 			if (!menu) {
-				collector.info(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
-				return;
+				collector.info(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry[0]));
+				continue;
 			}
 
 			if (menu.proposed && !isProposedApiEnabled(extension.description, menu.proposed)) {
-				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier. It requires 'package.json#enabledApiProposals: [\"{1}\"]' and is only available when running out of dev or with the following command line switch: --enable-proposed-api {2}", entry.key, menu.proposed, extension.description.identifier.value));
-				return;
+				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier. It requires 'package.json#enabledApiProposals: [\"{1}\"]' and is only available when running out of dev or with the following command line switch: --enable-proposed-api {2}", entry[0], menu.proposed, extension.description.identifier.value));
+				continue;
 			}
 
-			for (const menuItem of entry.value) {
+			for (const menuItem of entry[1]) {
 				let item: IMenuItem | ISubmenuItem;
 
 				if (schema.isMenuItem(menuItem)) {
@@ -818,7 +817,7 @@ menusExtensionPoint.setHandler(extensions => {
 					}
 
 					if (submenuRegistrations.has(submenu.id.id)) {
-						collector.warn(localize('submenuItem.duplicate', "The `{0}` submenu was already contributed to the `{1}` menu.", menuItem.submenu, entry.key));
+						collector.warn(localize('submenuItem.duplicate', "The `{0}` submenu was already contributed to the `{1}` menu.", menuItem.submenu, entry[0]));
 						continue;
 					}
 
@@ -840,7 +839,7 @@ menusExtensionPoint.setHandler(extensions => {
 				item.when = ContextKeyExpr.deserialize(menuItem.when);
 				items.push({ id: menu.id, item });
 			}
-		});
+		}
 	}
 
 	_menuRegistrations.add(MenuRegistry.appendMenuItems(items));
