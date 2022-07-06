@@ -67,12 +67,27 @@ export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQu
 		return parentTree;
 	}
 
-	private getSessionHierarchyString(session: IDebugSession) {
+	private getSessionHierarchyString(session: IDebugSession): { description: string; ariaLabel: string } {
 		const parentTree = this._createParentTree(session);
-		const parentHierarchyStrings: String[] = [];
-		parentTree.slice(1).forEach((session) => parentHierarchyStrings.push(session.configuration.name));
+		const allHierarchyStrings: String[] = [];
+		parentTree.forEach((session) => allHierarchyStrings.push(session.configuration.name));
 		const iconId = Codicon.arrowSmallLeft.id;
-		return parentHierarchyStrings.length === 0 ? '' : `$(${iconId}) ` + parentHierarchyStrings.join(` $(${iconId}) `);
+		let desc;
+		let ariaLabel;
+		const separatorAriaString = localize("workbench.action.debug.spawnFrom", "which was spawn from");
+
+		if (allHierarchyStrings.length === 0) {
+			return { description: '', ariaLabel: '' };
+		}
+		else if (allHierarchyStrings.length === 1) {
+			desc = '';
+			ariaLabel = '';
+		} else {
+			ariaLabel = allHierarchyStrings.join(` ${separatorAriaString} `);
+			desc = `$(${iconId}) ` + allHierarchyStrings.splice(1).join(` $(${iconId}) `);
+		}
+
+		return { description: desc, ariaLabel: ariaLabel };
 	}
 
 	private _createPick(session: IDebugSession, filter: string, header: string | undefined): IPickerQuickAccessItem | undefined {
@@ -85,12 +100,13 @@ export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQu
 				label = session.name;
 			}
 		}
-
+		const labels = this.getSessionHierarchyString(session);
 		const highlights = matchesFuzzy(filter, label, true);
 		if (highlights) {
 			return {
 				label,
-				description: this.getSessionHierarchyString(session),
+				description: labels.description,
+				ariaLabel: labels.ariaLabel,
 				highlights: { label: highlights },
 				accept: (keyMod, event) => {
 					this._debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
