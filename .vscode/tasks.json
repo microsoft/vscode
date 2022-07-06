@@ -103,6 +103,16 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Restart VS Code - Build",
+			"dependsOn": [
+				"Kill VS Code - Build",
+				"VS Code - Build"
+			],
+			"group": "build",
+			"dependsOrder": "sequence",
+			"problemMatcher": []
+		},
+		{
 			"type": "npm",
 			"script": "watch-webd",
 			"label": "Web Ext - Build",
