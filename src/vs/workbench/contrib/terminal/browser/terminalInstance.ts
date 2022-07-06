@@ -818,7 +818,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._linkManager.openRecentLink(type);
 	}
 
-	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous'): Promise<void> {
+	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous', value?: string): Promise<void> {
 		if (!this.xterm) {
 			return;
 		}
@@ -969,14 +969,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		quickPick.items = [...originalItems];
 		quickPick.sortByLabel = false;
 		quickPick.placeholder = placeholder;
-		quickPick.title = 'Run Recent Command';
 		quickPick.customButton = true;
 		quickPick.matchOnLabel = filterMode === 'fuzzy';
 		if (filterMode === 'fuzzy') {
 			quickPick.customLabel = nls.localize('terminal.contiguousSearch', 'Use Contiguous Search');
 			quickPick.onDidCustom(() => {
 				quickPick.hide();
-				this.runRecent(type, 'contiguous');
+				this.runRecent(type, 'contiguous', quickPick.value);
 			});
 		} else {
 			// contiguous is the default for command
@@ -999,7 +998,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			quickPick.customLabel = nls.localize('terminal.fuzzySearch', 'Use Fuzzy Search');
 			quickPick.onDidCustom(() => {
 				quickPick.hide();
-				this.runRecent(type, 'fuzzy');
+				this.runRecent(type, 'fuzzy', quickPick.value);
 			});
 		}
 		quickPick.onDidTriggerItemButton(async e => {
@@ -1034,6 +1033,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, !quickPick.keyMods.alt);
 			quickPick.hide();
 		});
+		if (value) {
+			quickPick.value = value;
+		}
 		return new Promise<void>(r => {
 			quickPick.show();
 			quickPick.onDidHide(() => r());
