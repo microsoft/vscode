@@ -112,7 +112,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 			this._availableProfiles = profiles;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			if (!this._profilesReadyBarrier.isOpen()) {
-				this._logService.debug('Took 20 seconds to get available terminal profiles');
+				this._logService.debug('Took over 20 seconds to get available terminal profiles');
 				this._profilesReadyBarrier.open();
 			}
 			this._updateWebContextKey();
