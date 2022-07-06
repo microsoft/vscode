@@ -715,7 +715,7 @@ export class IssueReporter extends Disposable {
 		hide(problemSource);
 		hide(extensionSelector);
 
-		const requestCheckInsiders = this.configuration.product.nameShort.toLowerCase().includes('insiders') ?
+		const requestCheckInsiders = !this.configuration.product.nameShort.toLowerCase().includes('insiders') ?
 			'Please ensure that this issue hasn\'t already been resolved on an insiders build before submitting.'
 			: '';
 
