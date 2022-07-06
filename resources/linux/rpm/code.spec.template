@@ -69,10 +69,10 @@ update-mime-database %{_datadir}/mime &> /dev/null || :
 %attr(4755, root, root) %{_datadir}/%{name}/chrome-sandbox
 
 %{_bindir}/%{name}
-%{_datadir}%{name}/
-%{_datadir}applications/%{name}.desktop
-%{_datadir}applications/%{name}-url-handler.desktop
-%{_datadir}mime/packages/%{name}-workspace.xml
-%{_datadir}pixmaps/@@ICON@@.png
-%{_datadir}bash-completion/completions/%{name}
-%{_datadir}zsh/site-functions/_%{name}
+%{_datadir}/%{name}/
+%{_datadir}/applications/%{name}.desktop
+%{_datadir}/applications/%{name}-url-handler.desktop
+%{_datadir}/mime/packages/%{name}-workspace.xml
+%{_datadir}/pixmaps/@@ICON@@.png
+%{_datadir}/bash-completion/completions/%{name}
+%{_datadir}/zsh/site-functions/_%{name}
