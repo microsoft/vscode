@@ -38,6 +38,10 @@
 	cursor: pointer;
 }
 
+.monaco-button-dropdown > .monaco-button:focus {
+	outline-offset: -1px !important;
+}
+
 .monaco-button-dropdown > .monaco-dropdown-button {
 	margin-left: 1px;
 }

@@ -3,15 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-
-/**
- * Minimal version of {@link vscode.TextLine}.
- */
-export interface ITextLine {
-	readonly text: string;
-	readonly isEmptyOrWhitespace: boolean;
-}
+import * as vscode from 'vscode';
 
 /**
  * Minimal version of {@link vscode.TextDocument}.
@@ -22,6 +14,9 @@ export interface ITextDocument {
 	readonly lineCount: number;
 
 	getText(range?: vscode.Range): string;
-	lineAt(line: number): ITextLine;
 	positionAt(offset: number): vscode.Position;
+}
+
+export function getLine(doc: ITextDocument, line: number): string {
+	return doc.getText(new vscode.Range(line, 0, line, Number.MAX_VALUE)).replace(/\r?\n$/, '');
 }

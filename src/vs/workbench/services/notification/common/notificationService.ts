@@ -24,11 +24,15 @@ export class NotificationService extends Disposable implements INotificationServ
 	private readonly _onDidRemoveNotification = this._register(new Emitter<INotification>());
 	readonly onDidRemoveNotification = this._onDidRemoveNotification.event;
 
+	private readonly _onDidChangeDoNotDisturbMode = this._register(new Emitter<void>());
+	readonly onDidChangeDoNotDisturbMode = this._onDidChangeDoNotDisturbMode.event;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
+		this.updateDoNotDisturbFilters();
 		this.registerListeners();
 	}
 
@@ -58,9 +62,43 @@ export class NotificationService extends Disposable implements INotificationServ
 		}));
 	}
 
-	setFilter(filter: NotificationsFilter): void {
+	//#region Do not disturb mode
+
+	static readonly DND_SETTINGS_KEY = 'notifications.doNotDisturbMode';
+
+	private _doNotDisturbMode = this.storageService.getBoolean(NotificationService.DND_SETTINGS_KEY, StorageScope.APPLICATION, false);
+
+	get doNotDisturbMode() {
+		return this._doNotDisturbMode;
+	}
+
+	set doNotDisturbMode(enabled: boolean) {
+		if (this._doNotDisturbMode === enabled) {
+			return; // no change
+		}
+
+		this.storageService.store(NotificationService.DND_SETTINGS_KEY, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this._doNotDisturbMode = enabled;
+
+		// Toggle via filter
+		this.updateDoNotDisturbFilters();
+
+		// Events
+		this._onDidChangeDoNotDisturbMode.fire();
+	}
+
+	private updateDoNotDisturbFilters(): void {
+		let filter: NotificationsFilter;
+		if (this._doNotDisturbMode) {
+			filter = NotificationsFilter.ERROR;
+		} else {
+			filter = NotificationsFilter.OFF;
+		}
+
 		this.model.setFilter(filter);
 	}
+
+	//#endregion
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {

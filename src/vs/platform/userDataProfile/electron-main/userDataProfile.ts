@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UseDefaultProfileFlags, IUserDataProfile, IUserDataProfilesService, reviveProfile, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IUserDataProfile, IUserDataProfilesService, reviveProfile, PROFILES_ENABLEMENT_CONFIG, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { Promises } from 'vs/base/common/async';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
+import { StoredProfileAssociations, StoredUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export type WillCreateProfileEvent = {
 	profile: IUserDataProfile;
@@ -28,20 +28,10 @@ export type WillRemoveProfileEvent = {
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
+	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier): Promise<void>;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
 }
-
-type StoredUserDataProfile = {
-	name: string;
-	location: URI;
-	useDefaultFlags?: UseDefaultProfileFlags;
-};
-
-type StoredWorkspaceInfo = {
-	workspace: URI;
-	profile: URI;
-};
 
 export class UserDataProfilesMainService extends UserDataProfilesService implements IUserDataProfilesMainService {
 
@@ -61,7 +51,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		super(stateMainService, uriIdentityService, environmentService, fileService, logService);
 	}
 
-	override async createProfile(profile: IUserDataProfile, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
+	override async createProfile(profile: IUserDataProfile, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
@@ -83,27 +73,32 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		});
 		await Promises.settled(joiners);
 
-		const storedProfile: StoredUserDataProfile = { name: profile.name, location: profile.location, useDefaultFlags: profile.useDefaultFlags };
-		const storedProfiles = [...this.getStoredProfiles(), storedProfile];
-		this.setStoredProfiles(storedProfiles, [profile], []);
+		this.updateProfiles([profile], []);
+
 		if (workspaceIdentifier) {
 			await this.setProfileForWorkspace(profile, workspaceIdentifier);
 		}
-		return this.profilesObject.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+
+		return this.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
 	}
 
-	override async setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
+	override async setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile> {
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
+
 		profile = reviveProfile(profile, this.profilesHome.scheme);
-		const workspace = this.getWorkspace(workspaceIdentifier);
-		const storedWorkspaceInfos = this.getStoredWorskpaceInfos().filter(info => !this.uriIdentityService.extUri.isEqual(info.workspace, workspace));
-		if (!profile.isDefault) {
-			storedWorkspaceInfos.push({ workspace, profile: profile.location });
+		this.updateWorkspaceAssociation(workspaceIdentifier, profile);
+
+		return this.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+	}
+
+	async unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier): Promise<void> {
+		if (!this.enabled) {
+			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
-		this.setStoredWorskpaceInfos(storedWorkspaceInfos);
-		return this.profilesObject.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+
+		this.updateWorkspaceAssociation(workspaceIdentifier);
 	}
 
 	override async removeProfile(profile: IUserDataProfile): Promise<void> {
@@ -127,8 +122,17 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		});
 		await Promises.settled(joiners);
 
-		this.setStoredWorskpaceInfos(this.getStoredWorskpaceInfos().filter(p => !this.uriIdentityService.extUri.isEqual(p.profile, profile.location)));
-		this.setStoredProfiles(this.getStoredProfiles().filter(p => !this.uriIdentityService.extUri.isEqual(p.location, profile.location)), [], [profile]);
+		if (profile.id === this.profilesObject.emptyWindow?.id) {
+			this.profilesObject.emptyWindow = undefined;
+		}
+		for (const workspace of [...this.profilesObject.workspaces.keys()]) {
+			if (profile.id === this.profilesObject.workspaces.get(workspace)?.id) {
+				this.profilesObject.workspaces.delete(workspace);
+			}
+		}
+		this.saveStoredProfileAssociations();
+
+		this.updateProfiles([], [profile]);
 
 		try {
 			if (this.profiles.length === 2) {
@@ -141,15 +145,62 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 	}
 
-	private setStoredProfiles(storedProfiles: StoredUserDataProfile[], added: IUserDataProfile[], removed: IUserDataProfile[]): void {
+	private updateProfiles(added: IUserDataProfile[], removed: IUserDataProfile[]) {
+		const storedProfiles: StoredUserDataProfile[] = [];
+		for (const profile of [...this.profilesObject.profiles, ...added]) {
+			if (profile.isDefault) {
+				continue;
+			}
+			if (removed.some(p => profile.id === p.id)) {
+				continue;
+			}
+			storedProfiles.push({ location: profile.location, name: profile.name, useDefaultFlags: profile.useDefaultFlags });
+		}
 		this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles);
 		this._profilesObject = undefined;
 		this._onDidChangeProfiles.fire({ added, removed, all: this.profiles });
 	}
 
-	private setStoredWorskpaceInfos(storedWorkspaceInfos: StoredWorkspaceInfo[]) {
-		this.stateMainService.setItem(UserDataProfilesMainService.WORKSPACE_PROFILE_INFO_KEY, storedWorkspaceInfos);
+	private updateWorkspaceAssociation(workspaceIdentifier: WorkspaceIdentifier, newProfile?: IUserDataProfile) {
+		const workspace = this.getWorkspace(workspaceIdentifier);
+
+		// Folder or Multiroot workspace
+		if (URI.isUri(workspace)) {
+			this.profilesObject.workspaces.delete(workspace);
+			if (newProfile && !newProfile.isDefault) {
+				this.profilesObject.workspaces.set(workspace, newProfile);
+			}
+		}
+		// Empty Window
+		else {
+			this.profilesObject.emptyWindow = !newProfile?.isDefault ? newProfile : undefined;
+		}
+
+		this.saveStoredProfileAssociations();
+	}
+
+	private saveStoredProfileAssociations() {
+		const workspaces: IStringDictionary<string> = {};
+		for (const [workspace, profile] of this.profilesObject.workspaces.entries()) {
+			workspaces[workspace.toString()] = profile.location.toString();
+		}
+		const emptyWindow = this.profilesObject.emptyWindow?.location.toString();
+		this.stateMainService.setItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY, { workspaces, emptyWindow });
 		this._profilesObject = undefined;
+	}
+
+	protected override getStoredProfileAssociations(): StoredProfileAssociations {
+		const oldKey = 'workspaceAndProfileInfo';
+		const storedWorkspaceInfos = this.stateMainService.getItem<{ workspace: UriComponents; profile: UriComponents }[]>(oldKey, undefined);
+		if (storedWorkspaceInfos) {
+			this.stateMainService.removeItem(oldKey);
+			const workspaces = storedWorkspaceInfos.reduce<IStringDictionary<string>>((result, { workspace, profile }) => {
+				result[URI.revive(workspace).toString()] = URI.revive(profile).toString();
+				return result;
+			}, {});
+			this.stateMainService.setItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY, <StoredProfileAssociations>{ workspaces });
+		}
+		return super.getStoredProfileAssociations();
 	}
 
 }

@@ -64,7 +64,7 @@ export class TaskQuickPick extends Disposable {
 
 	private _guessTaskLabel(task: Task | ConfiguringTask): string {
 		if (task._label) {
-			return TaskQuickPick.getTaskLabelWithIcon(task);
+			return task._label;
 		}
 		if (ConfiguringTask.is(task)) {
 			let label: string = task.configures.type;
@@ -77,12 +77,13 @@ export class TaskQuickPick extends Disposable {
 		return '';
 	}
 
-	public static getTaskLabelWithIcon(task: Task | ConfiguringTask): string {
+	public static getTaskLabelWithIcon(task: Task | ConfiguringTask, labelGuess?: string): string {
+		const label = labelGuess || task._label;
 		const icon = task.configurationProperties.icon;
 		if (!icon) {
-			return `${task._label}`;
+			return `${label}`;
 		}
-		return icon.id ? `$(${icon.id}) ${task._label}` : `$(${Codicon.tools.id}) ${task._label}`;
+		return icon.id ? `$(${icon.id}) ${label}` : `$(${Codicon.tools.id}) ${label}`;
 	}
 
 	public static applyColorStyles(task: Task | ConfiguringTask, entry: TaskQuickPickEntryType | ITaskTwoLevelQuickPickEntry, themeService: IThemeService): void {
@@ -95,7 +96,7 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	private _createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): ITaskTwoLevelQuickPickEntry {
-		const entry: ITaskTwoLevelQuickPickEntry = { label: this._guessTaskLabel(task), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined };
+		const entry: ITaskTwoLevelQuickPickEntry = { label: TaskQuickPick.getTaskLabelWithIcon(task, this._guessTaskLabel(task)), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined };
 		entry.buttons = [];
 		entry.buttons.push({ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") });
 		entry.buttons.push(...extraButtons);

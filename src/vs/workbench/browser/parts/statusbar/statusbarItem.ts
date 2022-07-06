@@ -12,7 +12,7 @@ import { IStatusbarEntry, ShowTooltipCommand } from 'vs/workbench/services/statu
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
-import { addDisposableListener, EventType, hide, show, append } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, hide, show, append, EventHelper } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { assertIsDefined } from 'vs/base/common/types';
 import { Command } from 'vs/editor/common/languages';
@@ -129,6 +129,8 @@ export class StatusbarEntryItem extends Disposable {
 				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e);
 					if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+						EventHelper.stop(e);
+
 						this.executeCommand(command);
 					}
 				});

@@ -215,6 +215,10 @@ export class CommentsPanel extends ViewPane {
 			return false;
 		}
 
+		if (!this.commentService.isCommentingEnabled) {
+			this.commentService.enableCommenting(true);
+		}
+
 		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
 
 		const activeEditor = this.editorService.activeTextEditorControl;

@@ -616,7 +616,7 @@ class ResourceCommandResolver {
 
 		if (!resource.leftUri) {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
-			if (resource.rightUri && bothModified && workspace.getConfiguration('git').get<boolean>('experimental.mergeEditor', false)) {
+			if (resource.rightUri && bothModified && workspace.getConfiguration('git').get<boolean>('mergeEditor', false)) {
 				return {
 					command: '_git.openMergeEditor',
 					title: localize('open.merge', "Open Merge"),
@@ -935,7 +935,7 @@ export class Repository implements Disposable {
 		updateIndexGroupVisibility();
 
 		workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('git.experimental.mergeEditor')) {
+			if (e.affectsConfiguration('git.mergeEditor')) {
 				this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
 			}
 		}, undefined, this.disposables);

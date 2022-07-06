@@ -15,6 +15,7 @@ import { Emitter, Event as BaseEvent } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
+import { localize } from 'vs/nls';
 import 'vs/css!./button';
 
 export interface IButtonOptions extends IButtonStyles {
@@ -263,6 +264,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.action = this._register(new Action('primaryAction', this.button.label, undefined, true, async () => this._onDidClick.fire(undefined)));
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
+		this.dropdownButton.element.title = localize("button dropdown more actions", 'More Actions...');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
 		this.dropdownButton.icon = Codicon.dropDownButton;
 		this._register(this.dropdownButton.onDidClick(e => {

@@ -129,7 +129,7 @@
         },
         "emmet.useInlineCompletions": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "%emmetUseInlineCompletions%"
         },
         "emmet.preferences": {

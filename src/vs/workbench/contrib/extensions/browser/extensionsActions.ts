@@ -1623,38 +1623,38 @@ export class SetColorThemeAction extends ExtensionAction {
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${SetColorThemeAction.EnabledClass} disabled`;
 
-	private colorThemes: IWorkbenchColorTheme[] = [];
-
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 	) {
 		super(SetColorThemeAction.ID, SetColorThemeAction.TITLE.value, SetColorThemeAction.DisabledClass, false);
 		this._register(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidColorThemeChange)(() => this.update(), this));
-		workbenchThemeService.getColorThemes().then(colorThemes => {
-			this.colorThemes = colorThemes;
-			this.update();
-		});
 		this.update();
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && (this.extension.state === ExtensionState.Installed) && this.colorThemes.some(th => isThemeFromExtension(th, this.extension));
-		this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
+		this.workbenchThemeService.getColorThemes().then(colorThemes => {
+			this.enabled = this.computeEnablement(colorThemes);
+			this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
+		});
+	}
+
+	private computeEnablement(colorThemes: IWorkbenchColorTheme[]): boolean {
+		return !!this.extension && this.extension.state === ExtensionState.Installed && this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState) && colorThemes.some(th => isThemeFromExtension(th, this.extension));
 	}
 
 	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
-		this.colorThemes = await this.workbenchThemeService.getColorThemes();
+		const colorThemes = await this.workbenchThemeService.getColorThemes();
 
-		this.update();
-		if (!this.enabled) {
+		if (!this.computeEnablement(colorThemes)) {
 			return;
 		}
 		const currentTheme = this.workbenchThemeService.getColorTheme();
 
 		const delayer = new Delayer<any>(100);
-		const picks = getQuickPickEntries(this.colorThemes, currentTheme, this.extension, showCurrentTheme);
+		const picks = getQuickPickEntries(colorThemes, currentTheme, this.extension, showCurrentTheme);
 		const pickedTheme = await this.quickInputService.pick(
 			picks,
 			{
@@ -1674,37 +1674,37 @@ export class SetFileIconThemeAction extends ExtensionAction {
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${SetFileIconThemeAction.EnabledClass} disabled`;
 
-	private fileIconThemes: IWorkbenchFileIconTheme[] = [];
-
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 	) {
 		super(SetFileIconThemeAction.ID, SetFileIconThemeAction.TITLE.value, SetFileIconThemeAction.DisabledClass, false);
 		this._register(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidFileIconThemeChange)(() => this.update(), this));
-		workbenchThemeService.getFileIconThemes().then(fileIconThemes => {
-			this.fileIconThemes = fileIconThemes;
-			this.update();
-		});
 		this.update();
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && (this.extension.state === ExtensionState.Installed) && this.fileIconThemes.some(th => isThemeFromExtension(th, this.extension));
-		this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
+		this.workbenchThemeService.getFileIconThemes().then(fileIconThemes => {
+			this.enabled = this.computeEnablement(fileIconThemes);
+			this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
+		});
+	}
+
+	private computeEnablement(colorThemfileIconThemess: IWorkbenchFileIconTheme[]): boolean {
+		return !!this.extension && this.extension.state === ExtensionState.Installed && this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState) && colorThemfileIconThemess.some(th => isThemeFromExtension(th, this.extension));
 	}
 
 	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
-		this.fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
-		this.update();
-		if (!this.enabled) {
+		const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
+		if (!this.computeEnablement(fileIconThemes)) {
 			return;
 		}
 		const currentTheme = this.workbenchThemeService.getFileIconTheme();
 
 		const delayer = new Delayer<any>(100);
-		const picks = getQuickPickEntries(this.fileIconThemes, currentTheme, this.extension, showCurrentTheme);
+		const picks = getQuickPickEntries(fileIconThemes, currentTheme, this.extension, showCurrentTheme);
 		const pickedTheme = await this.quickInputService.pick(
 			picks,
 			{
@@ -1724,38 +1724,38 @@ export class SetProductIconThemeAction extends ExtensionAction {
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${SetProductIconThemeAction.EnabledClass} disabled`;
 
-	private productIconThemes: IWorkbenchProductIconTheme[] = [];
-
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 	) {
 		super(SetProductIconThemeAction.ID, SetProductIconThemeAction.TITLE.value, SetProductIconThemeAction.DisabledClass, false);
 		this._register(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidProductIconThemeChange)(() => this.update(), this));
-		workbenchThemeService.getProductIconThemes().then(productIconThemes => {
-			this.productIconThemes = productIconThemes;
-			this.update();
-		});
 		this.update();
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && (this.extension.state === ExtensionState.Installed) && this.productIconThemes.some(th => isThemeFromExtension(th, this.extension));
-		this.class = this.enabled ? SetProductIconThemeAction.EnabledClass : SetProductIconThemeAction.DisabledClass;
+		this.workbenchThemeService.getProductIconThemes().then(productIconThemes => {
+			this.enabled = this.computeEnablement(productIconThemes);
+			this.class = this.enabled ? SetProductIconThemeAction.EnabledClass : SetProductIconThemeAction.DisabledClass;
+		});
+	}
+
+	private computeEnablement(productIconThemes: IWorkbenchProductIconTheme[]): boolean {
+		return !!this.extension && this.extension.state === ExtensionState.Installed && this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState) && productIconThemes.some(th => isThemeFromExtension(th, this.extension));
 	}
 
 	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
-		this.productIconThemes = await this.workbenchThemeService.getProductIconThemes();
-		this.update();
-		if (!this.enabled) {
+		const productIconThemes = await this.workbenchThemeService.getProductIconThemes();
+		if (!this.computeEnablement(productIconThemes)) {
 			return;
 		}
 
 		const currentTheme = this.workbenchThemeService.getProductIconTheme();
 
 		const delayer = new Delayer<any>(100);
-		const picks = getQuickPickEntries(this.productIconThemes, currentTheme, this.extension, showCurrentTheme);
+		const picks = getQuickPickEntries(productIconThemes, currentTheme, this.extension, showCurrentTheme);
 		const pickedTheme = await this.quickInputService.pick(
 			picks,
 			{

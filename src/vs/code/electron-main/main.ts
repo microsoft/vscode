@@ -256,7 +256,7 @@ class CodeMain {
 			configurationService.initialize()
 		]);
 
-		userDataProfilesMainService.setEnablement(configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		userDataProfilesMainService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {

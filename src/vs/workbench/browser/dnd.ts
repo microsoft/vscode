@@ -189,7 +189,7 @@ export class ResourcesDropHandler {
 			await this.workspaceEditingService.addFolders(folderURIs);
 		}
 
-		// Finaly, enter untitled workspace when dropping >1 folders
+		// Finally, enter untitled workspace when dropping >1 folders
 		else {
 			await this.workspaceEditingService.createAndEnterWorkspace(folderURIs);
 		}

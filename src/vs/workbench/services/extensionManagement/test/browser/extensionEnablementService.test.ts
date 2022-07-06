@@ -5,10 +5,10 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileExtensionsEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
@@ -64,6 +64,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onDidInstallExtensions: new Emitter<readonly InstallExtensionResult[]>().event,
 					onUninstallExtension: new Emitter<UninstallExtensionEvent>().event,
 					onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
+					onDidChangeProfileExtensions: new Emitter<DidChangeProfileExtensionsEvent>().event,
 				},
 			}, null, null));
 		const extensionManagementService = instantiationService.createInstance(ExtensionManagementService);
@@ -116,6 +117,7 @@ suite('ExtensionEnablementService Test', () => {
 
 	const didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
 	const didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
+	const didChangeProfileExtensionsEvent = new Emitter<DidChangeProfileExtensionsEvent>();
 	const installed: ILocalExtension[] = [];
 
 	setup(() => {
@@ -128,7 +130,7 @@ suite('ExtensionEnablementService Test', () => {
 			extensionManagementService: <IProfileAwareExtensionManagementService>{
 				onDidInstallExtensions: didInstallEvent.event,
 				onDidUninstallExtension: didUninstallEvent.event,
-				onDidChangeProfileExtensions: Event.None,
+				onDidChangeProfileExtensions: didChangeProfileExtensionsEvent.event,
 				getInstalled: () => Promise.resolve(installed)
 			},
 		}, null, null));
@@ -622,6 +624,38 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByVirtualWorkspace);
 	});
 
+	test('test enable a remote workspace extension and local ui extension that is a dependency of remote', async () => {
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), null));
+		const localUIExtension = aLocalExtension2('pub.a', { main: 'main.js', extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const remoteUIExtension = aLocalExtension2('pub.a', { main: 'main.js', extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: 'vscode-remote' }) });
+		const target = aLocalExtension2('pub.b', { main: 'main.js', extensionDependencies: ['pub.a'] }, { location: URI.file(`pub.b`).with({ scheme: 'vscode-remote' }) });
+		testObject = new TestExtensionEnablementService(instantiationService);
+
+		installed.push(localUIExtension, remoteUIExtension, target);
+		await testObject.setEnablement([target, localUIExtension], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([target, localUIExtension], EnablementState.EnabledGlobally);
+		assert.ok(testObject.isEnabled(target));
+		assert.ok(testObject.isEnabled(localUIExtension));
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+		assert.strictEqual(testObject.getEnablementState(localUIExtension), EnablementState.EnabledGlobally);
+	});
+
+	test('test enable a remote workspace extension also enables its dependency in local', async () => {
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), null));
+		const localUIExtension = aLocalExtension2('pub.a', { main: 'main.js', extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const remoteUIExtension = aLocalExtension2('pub.a', { main: 'main.js', extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: 'vscode-remote' }) });
+		const target = aLocalExtension2('pub.b', { main: 'main.js', extensionDependencies: ['pub.a'] }, { location: URI.file(`pub.b`).with({ scheme: 'vscode-remote' }) });
+		testObject = new TestExtensionEnablementService(instantiationService);
+
+		installed.push(localUIExtension, remoteUIExtension, target);
+		await testObject.setEnablement([target, localUIExtension], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([target], EnablementState.EnabledGlobally);
+		assert.ok(testObject.isEnabled(target));
+		assert.ok(testObject.isEnabled(localUIExtension));
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+		assert.strictEqual(testObject.getEnablementState(localUIExtension), EnablementState.EnabledGlobally);
+	});
+
 	test('test canChangeEnablement return false when extension is disabled in virtual workspace', () => {
 		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false } });
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
@@ -948,6 +982,22 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(target.args[0][0].length, 2);
 		assert.deepStrictEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.a' });
 		assert.deepStrictEqual((<IExtension>target.args[0][0][1]).identifier, { id: 'pub.c' });
+	});
+
+	test('test adding an extension that was disabled', async () => {
+		const extension = aLocalExtension('pub.a');
+		installed.push(extension);
+		testObject = new TestExtensionEnablementService(instantiationService);
+		await testObject.setEnablement([extension], EnablementState.DisabledGlobally);
+
+		const target = sinon.spy();
+		testObject.onEnablementChanged(target);
+		didChangeProfileExtensionsEvent.fire({ added: [extension], removed: [] });
+
+		assert.ok(!testObject.isEnabled(extension));
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.DisabledGlobally);
+		assert.strictEqual(target.args[0][0].length, 1);
+		assert.deepStrictEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.a' });
 	});
 
 });

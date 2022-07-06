@@ -342,7 +342,7 @@ namespace TaskDTO {
 		return result;
 	}
 
-	export function to(task: ITaskDTO | undefined, workspace: IWorkspaceContextService, executeOnly: boolean, icon?: { id: string; color?: string }): ContributedTask | undefined {
+	export function to(task: ITaskDTO | undefined, workspace: IWorkspaceContextService, executeOnly: boolean, icon?: { id?: string; color?: string }): ContributedTask | undefined {
 		if (!task || (typeof task.name !== 'string')) {
 			return undefined;
 		}

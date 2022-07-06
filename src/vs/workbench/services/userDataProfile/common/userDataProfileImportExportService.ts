@@ -10,10 +10,11 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ExtensionsProfile } from 'vs/workbench/services/userDataProfile/common/extensionsProfile';
 import { GlobalStateProfile } from 'vs/workbench/services/userDataProfile/common/globalStateProfile';
-import { IUserDataProfileTemplate, IUserDataProfileWorkbenchService, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileTemplate, IUserDataProfileImportExportService, PROFILES_CATEGORY, IUserDataProfileManagementService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { SettingsProfile } from 'vs/workbench/services/userDataProfile/common/settingsProfile';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
-export class UserDataProfileWorkbenchService implements IUserDataProfileWorkbenchService {
+export class UserDataProfileImportExportService implements IUserDataProfileImportExportService {
 
 	readonly _serviceBrand: undefined;
 
@@ -24,14 +25,16 @@ export class UserDataProfileWorkbenchService implements IUserDataProfileWorkbenc
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProgressService private readonly progressService: IProgressService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		this.settingsProfile = instantiationService.createInstance(SettingsProfile);
 		this.globalStateProfile = instantiationService.createInstance(GlobalStateProfile);
 		this.extensionsProfile = instantiationService.createInstance(ExtensionsProfile);
 	}
 
-	async createProfile(options?: { skipComments: boolean }): Promise<IUserDataProfileTemplate> {
+	async exportProfile(options?: { skipComments: boolean }): Promise<IUserDataProfileTemplate> {
 		const settings = await this.settingsProfile.getProfileContent(options);
 		const globalState = await this.globalStateProfile.getProfileContent();
 		const extensions = await this.extensionsProfile.getProfileContent();
@@ -40,6 +43,34 @@ export class UserDataProfileWorkbenchService implements IUserDataProfileWorkbenc
 			globalState,
 			extensions
 		};
+	}
+
+	async importProfile(profileTemplate: IUserDataProfileTemplate): Promise<void> {
+		const name = await this.quickInputService.input({
+			placeHolder: localize('name', "Profile name"),
+			title: localize('save profile as', "Create from Current Profile..."),
+		});
+		if (!name) {
+			return undefined;
+		}
+
+		await this.progressService.withProgress({
+			location: ProgressLocation.Notification,
+			title: localize('profiles.importing', "{0}: Importing...", PROFILES_CATEGORY),
+		}, async progress => {
+			await this.userDataProfileManagementService.createAndEnterProfile(name);
+			if (profileTemplate.settings) {
+				await this.settingsProfile.applyProfile(profileTemplate.settings);
+			}
+			if (profileTemplate.globalState) {
+				await this.globalStateProfile.applyProfile(profileTemplate.globalState);
+			}
+			if (profileTemplate.extensions) {
+				await this.extensionsProfile.applyProfile(profileTemplate.extensions);
+			}
+		});
+
+		this.notificationService.info(localize('imported profile', "{0}: Imported successfully.", PROFILES_CATEGORY));
 	}
 
 	async setProfile(profile: IUserDataProfileTemplate): Promise<void> {
@@ -62,4 +93,4 @@ export class UserDataProfileWorkbenchService implements IUserDataProfileWorkbenc
 
 }
 
-registerSingleton(IUserDataProfileWorkbenchService, UserDataProfileWorkbenchService);
+registerSingleton(IUserDataProfileImportExportService, UserDataProfileImportExportService);
