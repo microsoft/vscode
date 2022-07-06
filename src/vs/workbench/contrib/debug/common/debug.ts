@@ -604,7 +604,7 @@ export interface IDebugModel extends ITreeElement {
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
 
-	fetchCallstack(thread: Thread, levels?: number): Promise<void>;
+	fetchCallstack(thread: IThread, levels?: number): Promise<void>;
 }
 
 /**

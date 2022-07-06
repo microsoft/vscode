@@ -1247,9 +1247,9 @@ export class DebugModel implements IDebugModel {
 	/**
 	 * Update the call stack and notify the call stack view that changes have occurred.
 	 */
-	async fetchCallstack(thread: Thread, levels?: number): Promise<void> {
+	async fetchCallstack(thread: IThread, levels?: number): Promise<void> {
 
-		if (thread.reachedEndOfCallStack) {
+		if ((<Thread>thread).reachedEndOfCallStack) {
 			return;
 		}
 
@@ -1261,7 +1261,7 @@ export class DebugModel implements IDebugModel {
 		}
 
 		if (levels && levels > 0) {
-			await thread.fetchCallStack(levels);
+			await (<Thread>thread).fetchCallStack(levels);
 			this._onDidChangeCallStack.fire();
 		}
 
