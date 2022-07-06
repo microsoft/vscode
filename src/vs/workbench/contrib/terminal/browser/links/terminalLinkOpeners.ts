@@ -218,6 +218,9 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	private async _tryOpenExactLink(text: string, link: ITerminalSimpleLink): Promise<boolean> {
 		const sanitizedLink = text.replace(/:\d+(:\d+)?$/, '');
+		if (!osPathModule(this._os).isAbsolute(sanitizedLink)) {
+			return false;
+		}
 		try {
 			const result = await this._getExactMatch(sanitizedLink);
 			if (result) {
