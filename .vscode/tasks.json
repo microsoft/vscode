@@ -233,11 +233,4 @@
 			"label": "npm: tsec-compile-check",
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		}
-	],
-	"inputs": [{
-		"id": "type",
-		"options": ["npm", "shell"],
-		"type": "pickString",
-		"description": "the type of script to trun"
-	}]
 }
