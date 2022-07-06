@@ -67,7 +67,6 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 	) {
 		super(fileService, productService, requestService, logService);
 		if (productService.exeBasedExtensionTips) {
-
 			Object.entries(productService.exeBasedExtensionTips).forEach(([key, exeBasedExtensionTip]) => {
 				const highImportanceRecommendations: { extensionId: string; extensionName: string; isExtensionPack: boolean }[] = [];
 				const mediumImportanceRecommendations: { extensionId: string; extensionName: string; isExtensionPack: boolean }[] = [];
