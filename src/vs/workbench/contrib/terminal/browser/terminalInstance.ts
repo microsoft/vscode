@@ -818,7 +818,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._linkManager.openRecentLink(type);
 	}
 
-	async runRecent(type: 'command' | 'cwd'): Promise<void> {
+	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous'): Promise<void> {
 		if (!this.xterm) {
 			return;
 		}
@@ -968,25 +968,40 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const originalItems = items;
 		quickPick.items = [...originalItems];
 		quickPick.sortByLabel = false;
-		quickPick.matchOnLabel = false;
 		quickPick.placeholder = placeholder;
 		quickPick.title = 'Run Recent Command';
-		quickPick.onDidChangeValue(value => {
-			quickPick.items = originalItems.filter(item => {
-				if (item.type === 'separator') {
-					return true;
-				}
-				item.highlights = undefined;
-				const matchIndex = item.label.indexOf(value);
-				if (matchIndex !== -1) {
-					item.highlights = {
-						label: [{ start: matchIndex, end: matchIndex + value.length }]
-					};
-					return true;
-				}
-				return false;
+		quickPick.customButton = true;
+		quickPick.matchOnLabel = filterMode === 'fuzzy';
+		if (filterMode === 'fuzzy') {
+			quickPick.customLabel = nls.localize('terminal.contiguousSearch', 'Use Contiguous Search');
+			quickPick.onDidCustom(() => {
+				quickPick.hide();
+				this.runRecent(type, 'contiguous');
 			});
-		});
+		} else {
+			// contiguous is the default for command
+			quickPick.onDidChangeValue(value => {
+				quickPick.items = originalItems.filter(item => {
+					if (item.type === 'separator') {
+						return true;
+					}
+					item.highlights = undefined;
+					const matchIndex = item.label.indexOf(value);
+					if (matchIndex !== -1) {
+						item.highlights = {
+							label: [{ start: matchIndex, end: matchIndex + value.length }]
+						};
+						return true;
+					}
+					return false;
+				});
+			});
+			quickPick.customLabel = nls.localize('terminal.fuzzySearch', 'Use Fuzzy Search');
+			quickPick.onDidCustom(() => {
+				quickPick.hide();
+				this.runRecent(type, 'fuzzy');
+			});
+		}
 		quickPick.onDidTriggerItemButton(async e => {
 			if (e.button === removeFromCommandHistoryButton) {
 				if (type === 'command') {
