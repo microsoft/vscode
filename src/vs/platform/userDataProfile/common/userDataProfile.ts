@@ -78,8 +78,7 @@ export interface IUserDataProfilesService {
 	readonly onDidChangeProfiles: Event<DidChangeProfilesEvent>;
 	readonly profiles: IUserDataProfile[];
 
-	newProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags): CustomUserDataProfile;
-	createProfile(profile: IUserDataProfile, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
+	createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
 	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile>;
 	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
@@ -139,16 +138,12 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		this.profilesHome = joinPath(this.environmentService.userRoamingDataHome, 'profiles');
 	}
 
-	newProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags): CustomUserDataProfile {
-		return toUserDataProfile(name, joinPath(this.profilesHome, hash(name).toString(16)), useDefaultFlags);
-	}
-
 	protected createDefaultUserDataProfile(extensions: boolean): IUserDataProfile {
 		const profile = toUserDataProfile(localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
 		return { ...profile, isDefault: true, extensionsResource: extensions ? profile.extensionsResource : undefined };
 	}
 
-	createProfile(profile: IUserDataProfile, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
+	createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
 	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
 	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile { throw new Error('Not implemented'); }
 	removeProfile(profile: IUserDataProfile): Promise<void> { throw new Error('Not implemented'); }

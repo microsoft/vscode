@@ -38,11 +38,9 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	}
 
 	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile> {
-		const workspaceIdentifier = this.getWorkspaceIdentifier();
-		const newProfile = this.userDataProfilesService.newProfile(name, useDefaultFlags);
-		const createdProfile = await this.userDataProfilesService.createProfile(newProfile, workspaceIdentifier);
-		await this.enterProfile(createdProfile, !!fromExisting);
-		return createdProfile;
+		const profile = await this.userDataProfilesService.createProfile(name, useDefaultFlags, this.getWorkspaceIdentifier());
+		await this.enterProfile(profile, !!fromExisting);
+		return profile;
 	}
 
 	async removeProfile(profile: IUserDataProfile): Promise<void> {
