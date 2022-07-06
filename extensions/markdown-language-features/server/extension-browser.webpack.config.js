@@ -7,14 +7,18 @@
 
 'use strict';
 
-const withDefaults = require('../shared.webpack.config');
+const withBrowserDefaults = require('../../shared.webpack.config').browser;
+const path = require('path');
 
-module.exports = withDefaults({
+module.exports = withBrowserDefaults({
 	context: __dirname,
-	resolve: {
-		mainFields: ['module', 'main']
-	},
 	entry: {
-		extension: './src/extension.node.ts',
+		extension: './src/browser/main.ts',
+	},
+	output: {
+		filename: 'main.js',
+		path: path.join(__dirname, 'dist', 'browser'),
+		libraryTarget: 'var',
+		library: 'serverExportVar'
 	}
 });
