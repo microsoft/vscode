@@ -970,7 +970,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		quickPick.sortByLabel = false;
 		quickPick.placeholder = placeholder;
 		quickPick.customButton = true;
-		quickPick.matchOnLabel = filterMode === 'fuzzy';
+		quickPick.matchOnLabelMode = filterMode || 'contiguous';
 		if (filterMode === 'fuzzy') {
 			quickPick.customLabel = nls.localize('terminal.contiguousSearch', 'Use Contiguous Search');
 			quickPick.onDidCustom(() => {
@@ -978,23 +978,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.runRecent(type, 'contiguous', quickPick.value);
 			});
 		} else {
-			// contiguous is the default for command
-			quickPick.onDidChangeValue(value => {
-				quickPick.items = originalItems.filter(item => {
-					if (item.type === 'separator') {
-						return true;
-					}
-					item.highlights = undefined;
-					const matchIndex = item.label.indexOf(value);
-					if (matchIndex !== -1) {
-						item.highlights = {
-							label: [{ start: matchIndex, end: matchIndex + value.length }]
-						};
-						return true;
-					}
-					return false;
-				});
-			});
 			quickPick.customLabel = nls.localize('terminal.fuzzySearch', 'Use Fuzzy Search');
 			quickPick.onDidCustom(() => {
 				quickPick.hide();
