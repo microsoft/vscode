@@ -10,7 +10,7 @@ import { Schemas } from 'vs/base/common/network';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { SessionSyncContribution } from 'vs/workbench/contrib/sessionSync/browser/sessionSync.contribution';
+import { EditSessionsContribution } from 'vs/workbench/contrib/editSessions/browser/editSessions.contribution';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ISCMService } from 'vs/workbench/contrib/scm/common/scm';
@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { mock } from 'vs/base/test/common/mock';
 import * as sinon from 'sinon';
 import * as assert from 'assert';
-import { ChangeType, FileType, IEditSessionsLogService, ISessionSyncWorkbenchService } from 'vs/workbench/contrib/sessionSync/common/sessionSync';
+import { ChangeType, FileType, IEditSessionsLogService, IEditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -34,7 +34,7 @@ const folderUri = URI.file(`/${folderName}`);
 
 suite('Edit session sync', () => {
 	let instantiationService: TestInstantiationService;
-	let sessionSyncContribution: SessionSyncContribution;
+	let editSessionsContribution: EditSessionsContribution;
 	let fileService: FileService;
 	let sandbox: sinon.SinonSandbox;
 
@@ -55,11 +55,11 @@ suite('Edit session sync', () => {
 		instantiationService.stub(IEditSessionsLogService, logService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(ISessionSyncWorkbenchService, new class extends mock<ISessionSyncWorkbenchService>() { });
+		instantiationService.stub(IEditSessionsWorkbenchService, new class extends mock<IEditSessionsWorkbenchService>() { });
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(ISCMService, SCMService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ workbench: { experimental: { sessionSync: { enabled: true } } } }));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ workbench: { experimental: { editSessions: { enabled: true } } } }));
 		instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
 				return {
@@ -77,7 +77,7 @@ suite('Edit session sync', () => {
 		// Stub repositories
 		instantiationService.stub(ISCMService, '_repositories', new Map());
 
-		sessionSyncContribution = instantiationService.createInstance(SessionSyncContribution);
+		editSessionsContribution = instantiationService.createInstance(EditSessionsContribution);
 	});
 
 	teardown(() => {
@@ -107,13 +107,13 @@ suite('Edit session sync', () => {
 
 		// Stub sync service to return edit session data
 		const readStub = sandbox.stub().returns({ editSession, ref: '0' });
-		instantiationService.stub(ISessionSyncWorkbenchService, 'read', readStub);
+		instantiationService.stub(IEditSessionsWorkbenchService, 'read', readStub);
 
 		// Create root folder
 		await fileService.createFolder(folderUri);
 
 		// Apply edit session
-		await sessionSyncContribution.applyEditSession();
+		await editSessionsContribution.applyEditSession();
 
 		// Verify edit session was correctly applied
 		assert.equal((await fileService.readFile(fileUri)).value.toString(), fileContents);
@@ -121,12 +121,12 @@ suite('Edit session sync', () => {
 
 	test('Edit session not stored if there are no edits', async function () {
 		const writeStub = sandbox.stub();
-		instantiationService.stub(ISessionSyncWorkbenchService, 'write', writeStub);
+		instantiationService.stub(IEditSessionsWorkbenchService, 'write', writeStub);
 
 		// Create root folder
 		await fileService.createFolder(folderUri);
 
-		await sessionSyncContribution.storeEditSession(true);
+		await editSessionsContribution.storeEditSession(true);
 
 		// Verify that we did not attempt to write the edit session
 		assert.equal(writeStub.called, false);

@@ -14,8 +14,8 @@ export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
 	value: localize('session sync', 'Edit Sessions')
 };
 
-export const ISessionSyncWorkbenchService = createDecorator<ISessionSyncWorkbenchService>('ISessionSyncWorkbenchService');
-export interface ISessionSyncWorkbenchService {
+export const IEditSessionsWorkbenchService = createDecorator<IEditSessionsWorkbenchService>('IEditSessionsWorkbenchService');
+export interface IEditSessionsWorkbenchService {
 	_serviceBrand: undefined;
 
 	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;

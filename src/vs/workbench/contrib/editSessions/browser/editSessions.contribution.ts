@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { ISessionSyncWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EditSessionSchemaVersion, IEditSessionsLogService } from 'vs/workbench/contrib/sessionSync/common/sessionSync';
+import { IEditSessionsWorkbenchService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EditSessionSchemaVersion, IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -19,7 +19,7 @@ import { joinPath, relativePath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { SessionSyncWorkbenchService } from 'vs/workbench/contrib/sessionSync/browser/sessionSyncWorkbenchService';
+import { EditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/browser/editSessionsWorkbenchService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -38,10 +38,10 @@ import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtua
 import { Schemas } from 'vs/base/common/network';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { EditSessionsLogService } from 'vs/workbench/contrib/sessionSync/common/editSessionsLogService';
+import { EditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessionsLogService';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService);
-registerSingleton(ISessionSyncWorkbenchService, SessionSyncWorkbenchService);
+registerSingleton(IEditSessionsWorkbenchService, EditSessionsWorkbenchService);
 
 const continueEditSessionCommand: IAction2Options = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession',
@@ -58,13 +58,13 @@ const openLocalFolderCommand: IAction2Options = {
 const queryParamName = 'editSessionId';
 const experimentalSettingName = 'workbench.experimental.editSessions.enabled';
 
-export class SessionSyncContribution extends Disposable implements IWorkbenchContribution {
+export class EditSessionsContribution extends Disposable implements IWorkbenchContribution {
 
 	private registered = false;
 	private continueEditSessionOptions: ContinueEditSessionItem[] = [];
 
 	constructor(
-		@ISessionSyncWorkbenchService private readonly sessionSyncWorkbenchService: ISessionSyncWorkbenchService,
+		@IEditSessionsWorkbenchService private readonly editSessionsWorkbenchService: IEditSessionsWorkbenchService,
 		@IFileService private readonly fileService: IFileService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -218,7 +218,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			this.logService.info(`Applying edit session with ref ${ref}.`);
 		}
 
-		const data = await this.sessionSyncWorkbenchService.read(ref);
+		const data = await this.editSessionsWorkbenchService.read(ref);
 		if (!data) {
 			if (ref === undefined) {
 				this.notificationService.info(localize('no edit session', 'There are no edit sessions to apply.'));
@@ -284,7 +284,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 			}
 
 			this.logService.info(`Deleting edit session with ref ${ref} after successfully applying it to current workspace...`);
-			await this.sessionSyncWorkbenchService.delete(ref);
+			await this.editSessionsWorkbenchService.delete(ref);
 			this.logService.info(`Deleted edit session with ref ${ref}.`);
 		} catch (ex) {
 			this.logService.error('Failed to apply edit session, reason: ', (ex as Error).toString());
@@ -346,7 +346,7 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 
 		try {
 			this.logService.info(`Storing edit session...`);
-			const ref = await this.sessionSyncWorkbenchService.write(data);
+			const ref = await this.editSessionsWorkbenchService.write(data);
 			this.logService.info(`Stored edit session with ref ${ref}.`);
 			return ref;
 		} catch (ex) {
@@ -362,11 +362,11 @@ export class SessionSyncContribution extends Disposable implements IWorkbenchCon
 				switch (ex.code) {
 					case UserDataSyncErrorCode.TooLarge:
 						// Uploading a payload can fail due to server size limits
-						this.telemetryService.publicLog2<UploadFailedEvent, UploadFailedClassification>('sessionSync.upload.failed', { reason: 'TooLarge' });
+						this.telemetryService.publicLog2<UploadFailedEvent, UploadFailedClassification>('editSessions.upload.failed', { reason: 'TooLarge' });
 						this.notificationService.error(localize('payload too large', 'Your edit session exceeds the size limit and cannot be stored.'));
 						break;
 					default:
-						this.telemetryService.publicLog2<UploadFailedEvent, UploadFailedClassification>('sessionSync.upload.failed', { reason: 'unknown' });
+						this.telemetryService.publicLog2<UploadFailedEvent, UploadFailedClassification>('editSessions.upload.failed', { reason: 'unknown' });
 						this.notificationService.error(localize('payload failed', 'Your edit session cannot be stored.'));
 						break;
 				}
@@ -502,7 +502,7 @@ const continueEditSessionExtPoint = ExtensionsRegistry.registerExtensionPoint<IC
 //#endregion
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SessionSyncContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(EditSessionsContribution, LifecyclePhase.Restored);
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
