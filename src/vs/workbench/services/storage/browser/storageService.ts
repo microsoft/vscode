@@ -114,18 +114,20 @@ export class BrowserStorageService extends AbstractStorageService {
 
 			this.profileStorageDatabase = applicationStorageIndexedDB;
 			this.profileStorage = applicationStorage;
+
+			this.profileStorageDisposables.add(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
 		} else {
 			const profileStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.PROFILE), broadcastChanges: true }, this.logService);
 
 			this.profileStorageDatabase = this.profileStorageDisposables.add(profileStorageIndexedDB);
 			this.profileStorage = this.profileStorageDisposables.add(new Storage(this.profileStorageDatabase));
+
+			this.profileStorageDisposables.add(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
+
+			await this.profileStorage.init();
+
+			this.updateIsNew(this.profileStorage);
 		}
-
-		this.profileStorageDisposables.add(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
-
-		await this.profileStorage.init();
-
-		this.updateIsNew(this.profileStorage);
 	}
 
 	private async createWorkspaceStorage(): Promise<void> {
