@@ -221,7 +221,7 @@
 			}
 		},
 		{
-		"type": "npm",
+		        "type": "npm",
 			"script": "tsec-compile-check",
 			"problemMatcher": [
 				{
