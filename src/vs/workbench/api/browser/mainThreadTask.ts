@@ -433,7 +433,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 				let resolvedDefinition: ITaskDefinitionDTO = execution.task!.definition;
 				if (execution.task?.execution && CustomExecutionDTO.is(execution.task.execution) && event.resolvedVariables) {
 					const dictionary: IStringDictionary<string> = {};
-					Array.from(event.resolvedVariables.entries()).forEach(entry => dictionary[entry[0]] = entry[1]);
+					for (const entry of Object.entries(event.resolvedVariables)) {
+						dictionary[entry[0]] = entry[1];
+					}
 					resolvedDefinition = await this._configurationResolverService.resolveAnyAsync(task.getWorkspaceFolder(),
 						execution.task.definition, dictionary);
 				}
@@ -449,9 +451,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 	}
 
 	public dispose(): void {
-		this._providers.forEach((value) => {
-			value.disposable.dispose();
-		});
+		for (const value of Object.entries(this._providers)) {
+			value[1].disposable.dispose();
+		}
 		this._providers.clear();
 	}
 
