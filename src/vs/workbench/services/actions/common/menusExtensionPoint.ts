@@ -750,7 +750,7 @@ menusExtensionPoint.setHandler(extensions => {
 
 		for (const entry of Object.entries(value)) {
 			if (!schema.isValidItems(entry[1], collector)) {
-				return;
+				continue;
 			}
 
 			let menu = _apiMenusByKey.get(entry[0]);
@@ -769,12 +769,12 @@ menusExtensionPoint.setHandler(extensions => {
 
 			if (!menu) {
 				collector.info(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry[0]));
-				return;
+				continue;
 			}
 
 			if (menu.proposed && !isProposedApiEnabled(extension.description, menu.proposed)) {
 				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier. It requires 'package.json#enabledApiProposals: [\"{1}\"]' and is only available when running out of dev or with the following command line switch: --enable-proposed-api {2}", entry[0], menu.proposed, extension.description.identifier.value));
-				return;
+				continue;
 			}
 
 			for (const menuItem of entry[1]) {
