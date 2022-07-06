@@ -5,7 +5,7 @@
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AbstractLogger, ILogger, ILoggerService } from 'vs/platform/log/common/log';
-import { IEditSessionsLogService } from 'vs/workbench/contrib/sessionSync/common/sessionSync';
+import { IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 
 export class EditSessionsLogService extends AbstractLogger implements IEditSessionsLogService {
 

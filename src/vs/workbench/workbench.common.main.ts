@@ -329,7 +329,7 @@ import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 import 'vs/workbench/contrib/userDataProfile/browser/userDataProfile.contribution';
 
 // Continue Edit Session
-import 'vs/workbench/contrib/sessionSync/browser/sessionSync.contribution';
+import 'vs/workbench/contrib/editSessions/browser/editSessions.contribution';
 
 // Code Actions
 import 'vs/workbench/contrib/codeActions/browser/codeActions.contribution';
