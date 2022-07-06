@@ -7,7 +7,7 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { URI } from 'vs/base/common/uri';
-import { IGalleryExtension, ILocalExtension, InstallOptions, InstallVSIXOptions, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, ILocalExtension, InstallOptions, InstallVSIXOptions, Metadata, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -17,7 +17,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { EXTENSIONS_RESOURCE_NAME } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { joinPath } from 'vs/base/common/resources';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
 export class NativeExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
@@ -38,7 +38,7 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 	constructor(
 		channel: IChannel,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@IFileService private readonly fileService: IFileService,
+		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(channel);
@@ -67,10 +67,13 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		const previousExtensionsResource = e.previous.extensionsResource ?? joinPath(e.previous.location, EXTENSIONS_RESOURCE_NAME);
+		const oldExtensions = await super.getInstalled(ExtensionType.User, previousExtensionsResource);
 		if (e.preserveData) {
-			await this.fileService.copy(previousExtensionsResource, previousExtensionsResource);
+			const extensions: [ILocalExtension, Metadata | undefined][] = await Promise.all(oldExtensions
+				.filter(e => !e.isApplicationScoped) /* remove application scoped extensions */
+				.map(async e => ([e, await this.getMetadata(e)])));
+			await this.extensionsProfileScannerService.addExtensionsToProfile(extensions, e.profile.extensionsResource!);
 		} else {
-			const oldExtensions = await super.getInstalled(ExtensionType.User, previousExtensionsResource);
 			const newExtensions = await this.getInstalled(ExtensionType.User);
 			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
 			if (added.length || removed.length) {
