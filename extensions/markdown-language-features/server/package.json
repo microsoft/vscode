@@ -21,7 +21,7 @@
     "@types/node": "16.x"
   },
   "scripts": {
-    "postinstall": "cd node_modules/vscode-markdown-languageservice && yarn run compile",
+    "postinstall": "cd node_modules/vscode-markdown-languageservice && yarn run compile-ext",
     "compile": "gulp compile-extension:markdown-language-features-server",
     "watch": "gulp watch-extension:markdown-language-features-server",
     "test": "node ./test/index.js"
