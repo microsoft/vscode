@@ -33,7 +33,7 @@ import { ltrim } from 'vs/base/common/strings';
 				return { path, excludes, recursive: true };
 			});
 
-			return this.normalizeRequests(requests).map(request => request.path);
+			return this.normalizeRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
 		}
 
 		override async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
@@ -155,7 +155,7 @@ import { ltrim } from 'vs/base/common/strings';
 	}
 
 	test('basics', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]); //
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
 
 		// New file
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
@@ -428,6 +428,16 @@ import { ltrim } from 'vs/base/common/strings';
 		changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
+	});
+
+	test('invalid path does not crash watcher', async function () {
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: true },
+			{ path: join(testDir, 'invalid-folder'), excludes: [], recursive: true },
+			{ path: __filename, excludes: [], recursive: true }
+		]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
 
 	test('subsequent watch updates watchers (excludes)', async function () {
