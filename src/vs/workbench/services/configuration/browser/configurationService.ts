@@ -711,15 +711,21 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private onUserDataProfileChanged(e: DidChangeUserDataProfileEvent): void {
-		const promises: Promise<ConfigurationModel>[] = [];
-		promises.push(this.localUserConfiguration.reset(e.profile.settingsResource, e.profile.tasksResource, getLocalUserConfigurationScopes(e.profile, !!this.remoteUserConfiguration)));
-		if (e.previous.isDefault !== e.profile.isDefault) {
-			this.createApplicationConfiguration();
-			if (this.applicationConfiguration) {
-				promises.push(this.reloadApplicationConfiguration(true));
-			}
-		}
 		e.join((async () => {
+			if (e.preserveData) {
+				await Promise.all([
+					this.fileService.copy(e.previous.settingsResource, e.profile.settingsResource),
+					this.fileService.copy(e.previous.tasksResource, e.profile.tasksResource)
+				]);
+			}
+			const promises: Promise<ConfigurationModel>[] = [];
+			promises.push(this.localUserConfiguration.reset(e.profile.settingsResource, e.profile.tasksResource, getLocalUserConfigurationScopes(e.profile, !!this.remoteUserConfiguration)));
+			if (e.previous.isDefault !== e.profile.isDefault) {
+				this.createApplicationConfiguration();
+				if (this.applicationConfiguration) {
+					promises.push(this.reloadApplicationConfiguration(true));
+				}
+			}
 			const [localUser, application] = await Promise.all(promises);
 			await this.loadConfiguration(application ?? this._configuration.applicationConfiguration, localUser, this._configuration.remoteUserConfiguration);
 		})());

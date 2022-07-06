@@ -41,17 +41,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		this._register(userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e)));
 	}
 
-	private async checkAndCreateExtensionsProfileResource(): Promise<URI> {
-		if (this.userDataProfileService.currentProfile.extensionsResource) {
-			return this.userDataProfileService.currentProfile.extensionsResource;
-		}
-		if (!this.userDataProfilesService.defaultProfile.extensionsResource) {
-			// Extensions profile is not yet created for default profile, create it now
-			return this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, EXTENSIONS_RESOURCE_NAME));
-		}
-		throw new Error('Invalid Profile');
-	}
-
 	private onDidChangeProfiles(e: DidChangeProfilesEvent): void {
 		if (e.removed.some(profile => profile.id === this.userDataProfileService.currentProfile.id)) {
 			this.enterProfile(this.userDataProfilesService.defaultProfile, false, localize('reload message when removed', "The current profile has been removed. Please reload to switch back to default profile"));
@@ -65,20 +54,12 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 
 	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile> {
 		const workspaceIdentifier = this.getWorkspaceIdentifier();
-		const promises: Promise<any>[] = [];
 		const newProfile = this.userDataProfilesService.newProfile(name, useDefaultFlags);
 		await this.fileService.createFolder(newProfile.location);
-		const extensionsProfileResourcePromise = this.checkAndCreateExtensionsProfileResource();
-		promises.push(extensionsProfileResourcePromise);
-		if (fromExisting) {
-			// Storage copy is handled by storage service while entering profile
-			promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.settingsResource, newProfile.settingsResource));
-			promises.push((async () => this.fileService.copy(await extensionsProfileResourcePromise, newProfile.extensionsResource))());
-			promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.keybindingsResource, newProfile.keybindingsResource));
-			promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.tasksResource, newProfile.tasksResource));
-			promises.push(this.fileService.copy(this.userDataProfileService.currentProfile.snippetsHome, newProfile.snippetsHome));
+		if (!this.userDataProfilesService.defaultProfile.extensionsResource) {
+			// Extensions profile is not yet created for default profile, create it now
+			await this.createDefaultExtensionsProfile(joinPath(this.userDataProfilesService.defaultProfile.location, EXTENSIONS_RESOURCE_NAME));
 		}
-		await Promise.allSettled(promises);
 		const createdProfile = await this.userDataProfilesService.createProfile(newProfile, workspaceIdentifier);
 		await this.enterProfile(createdProfile, !!fromExisting);
 		return createdProfile;

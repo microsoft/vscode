@@ -50,7 +50,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { dirname } from 'vs/base/common/resources';
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -738,10 +738,15 @@ class UserKeybindings extends Disposable {
 			}
 		}));
 
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
-			this.watch();
-			this.reloadConfigurationScheduler.schedule();
-		}));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenCurrentProfieChanged(e))));
+	}
+
+	private async whenCurrentProfieChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
+		if (e.preserveData) {
+			await this.fileService.copy(e.previous.keybindingsResource, e.profile.keybindingsResource);
+		}
+		this.watch();
+		this.reloadConfigurationScheduler.schedule();
 	}
 
 	private watch(): void {

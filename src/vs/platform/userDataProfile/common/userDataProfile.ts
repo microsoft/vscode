@@ -104,7 +104,7 @@ export const EXTENSIONS_RESOURCE_NAME = 'extensions.json';
 
 export function toUserDataProfile(name: string, location: URI, useDefaultFlags?: UseDefaultProfileFlags): CustomUserDataProfile {
 	return {
-		id: hash(location.toString()).toString(16),
+		id: hash(location.path).toString(16),
 		name: name,
 		location: location,
 		isDefault: false,

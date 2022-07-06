@@ -6,12 +6,14 @@
 import type { AppInsightsCore } from '@microsoft/1ds-core-js';
 import type { IPayloadData, IXHROverride } from '@microsoft/1ds-post-js';
 import * as https from 'https';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AbstractOneDataSystemAppender } from 'vs/platform/telemetry/common/1dsAppender';
 
 
 export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 
 	constructor(
+		configurationService: IConfigurationService,
 		eventPrefix: string,
 		defaultData: { [key: string]: any } | null,
 		iKeyOrClientFactory: string | (() => AppInsightsCore), // allow factory function for testing
@@ -46,6 +48,6 @@ export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 			}
 		};
 
-		super(eventPrefix, defaultData, iKeyOrClientFactory, customHttpXHROverride);
+		super(configurationService, eventPrefix, defaultData, iKeyOrClientFactory, customHttpXHROverride);
 	}
 }

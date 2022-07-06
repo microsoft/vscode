@@ -292,4 +292,22 @@ suite('Markdown: Path completions', () => {
 			{ label: 'file.md', insertText: 'file.md' },
 		]);
 	});
+
+	test('Should support definition path with angle brackets', async () => {
+		const workspace = new InMemoryMdWorkspace([
+			new InMemoryDocument(workspacePath('a.md'), ''),
+			new InMemoryDocument(workspacePath('b.md'), ''),
+			new InMemoryDocument(workspacePath('sub with space/file.md'), ''),
+		]);
+
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
+			`[def]: <./${CURSOR}>`
+		), workspace);
+
+		assertCompletionsEqual(completions, [
+			{ label: 'a.md', insertText: 'a.md' },
+			{ label: 'b.md', insertText: 'b.md' },
+			{ label: 'sub with space/', insertText: 'sub with space/' },
+		]);
+	});
 });

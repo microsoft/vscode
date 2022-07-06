@@ -7,6 +7,7 @@ import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
 	original: 'Edit Sessions',
@@ -21,6 +22,9 @@ export interface ISessionSyncWorkbenchService {
 	write(editSession: EditSession): Promise<string>;
 	delete(ref: string): Promise<void>;
 }
+
+export const IEditSessionsLogService = createDecorator<IEditSessionsLogService>('IEditSessionsLogService');
+export interface IEditSessionsLogService extends ILogService { }
 
 export enum ChangeType {
 	Addition = 1,
