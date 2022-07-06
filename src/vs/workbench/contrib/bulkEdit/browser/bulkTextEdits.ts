@@ -116,7 +116,7 @@ class ModelEditTask implements IDisposable {
 		if (!edit.text) {
 			return edit;
 		}
-		const text = new SnippetParser().parse(edit.text, false, false).toString();
+		const text = new SnippetParser().text(edit.text);
 		return { ...edit, insertAsSnippet: false, text };
 	}
 }
@@ -233,13 +233,13 @@ export class BulkTextEdits {
 				let makeMinimal = false;
 				if (this._editor?.getModel()?.uri.toString() === ref.object.textEditorModel.uri.toString()) {
 					task = new EditorEditTask(ref, this._editor);
-					makeMinimal = true && false; // todo@jrieken HACK
+					makeMinimal = true;
 				} else {
 					task = new ModelEditTask(ref);
 				}
 
 				for (const edit of value) {
-					if (makeMinimal) {
+					if (makeMinimal && !edit.textEdit.insertAsSnippet) {
 						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, [edit.textEdit]);
 						if (!newEdits) {
 							task.addEdit(edit);
