@@ -31,6 +31,8 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 // import { Emitter } from 'vs/base/common/event';
 
+// const $ = dom.$;
+
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
 }
@@ -60,7 +62,7 @@ export interface CodeActionShowOptions {
 }
 export interface ICodeActionMenuItem {
 	title: string;
-	detail?: string;
+	detail: string;
 	action: IAction;
 	decoratorRight?: string;
 	isDisabled?: boolean;
@@ -96,11 +98,14 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		data.disposables = [];
 		data.root = container;
 		data.text = document.createElement('span');
+		// data.detail = document.createElement('');
+		// data.decoratorRight = document.createElement('');
 		container.append(data.text);
+		// container.append(data.detail);
 
-		// data.text = dom.append(container, $('.option-text'));
-		// data.detail = dom.append(container, $('.option-detail'));
-		// data.decoratorRight = dom.append(container, $('.option-decorator-right'));
+		// data.text = dom.append(container, $('span'));
+		// data.detail = dom.append(container, $('span'));
+		// data.decoratorRight = dom.append(container, $('span'));
 
 		return data;
 	}
@@ -108,11 +113,12 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		const data: ICodeActionMenuTemplateData = templateData;
 
 		const text = element.title;
+		const detail = element.detail;
 
 		const isDisabled = element.isDisabled;
 
 		data.text.textContent = text;
-		data.detail.textContent = '';
+		data.detail.textContent = detail;
 		data.decoratorRight.innerText = '';
 
 		if (isDisabled) {
@@ -129,8 +135,6 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 
 }
 
-
-
 interface ISelectedCodeAction {
 	action: CodeActionAction;
 	index: number;
@@ -146,6 +150,8 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
 	private readonly _disposables = new DisposableStore();
 	private readonly _onDidSelect = new Emitter<ISelectedCodeAction>();
+	private readonly _onDidHideContextMenu = new Emitter<void>();
+	readonly onDidHideContextMenu = this._onDidHideContextMenu.event;
 	private parent!: HTMLElement;
 	private listTrigger!: CodeActionTrigger;
 	private selected!: CodeActionItem;
@@ -175,27 +181,6 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 		this._keybindingResolver = new CodeActionKeybindingResolver({
 			getKeybindings: () => keybindingService.getKeybindings()
 		});
-
-
-		// this._onDidSelect = new Emitter<ICodeMenuData>();
-		// this._register(this._onDidSelect);
-
-		// this.registerListeners();
-
-
-		// this.selected = 0;
-
-		// const codeOption = <ICodeActionMenuItem>{ text: 'test', detail: 'test detail' };
-		// const codeOption2 = <ICodeActionMenuItem>{ text: 'test2', detail: 'test2 detail' };
-		// const codeOption3 = <ICodeActionMenuItem>{ text: 'test3', detail: 'test3 detail' };
-		// const codeOption4 = <ICodeActionMenuItem>{ text: 'test4', detail: 'test4 detail' };
-		// const codeOption5 = <ICodeActionMenuItem>{ text: 'test5', detail: 'test5 detail' };
-		// const codeOption6 = <ICodeActionMenuItem>{ text: 'test6', detail: 'test6 detail' };
-		// this.options = [codeOption, codeOption2, codeOption3, codeOption4, codeOption5, codeOption6];
-
-		// if (this.options) {
-		// 	this.setOptions(this.options, this.selected);
-		// }
 
 	}
 	allowEditorOverflow?: boolean | undefined;
@@ -249,25 +234,24 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 		return option;
 	}
 
-	// override dispose(): void {
-	// 	this.codeActionList.dispose();
-	// 	this._disposables.dispose();
-	// }
-
-
 	private createCodeActionMenuList(element: HTMLElement, inputArray: IAction[], anchor: any): void {
 		// if (this.codeActionList) {
 		// 	return;
 		// }
 
 		this.parent = document.createElement('div');
-		this.parent.style.backgroundColor = 'red';
-		this.parent.style.border = '3px solid red';
-		this.parent.style.width = '300px';
-		this.parent.style.height = '500px';
+		this.parent.style.backgroundColor = 'rgb(48, 48, 49)';
+		this.parent.style.border = '1px black';
+		this.parent.style.borderRadius = '5px';
+		this.parent.style.color = 'rgb(204, 204, 204)';
+		this.parent.style.boxShadow = 'rgb(0,0,0,0.36) 0px 2px 8px';
+		this.parent.style.width = '350px';
+		this.parent.style.height = '200px';
 		this.parent.id = 'testRedSquare';
-		this.parent.style.position = 'absolute';
-		this.parent.style.top = '0';
+		this.parent.style.position = 'fixed';
+		this.parent.style.left = this.loc.x + 'px';
+		this.parent.style.top = this.loc.y + 'px';
+
 
 
 		this.listRenderer = new CodeMenuRenderer();
@@ -293,6 +277,7 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 
 
 		inputArray.forEach((item, index) => {
+			// const tooltip = item.tooltip ? item.tooltip : '';
 			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index] });
 		});
 
@@ -323,7 +308,6 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 
 		this.listTrigger = trigger;
 
-		// cycle through menuActions and build menu options from there
 
 		const menuActions = this.getMenuActions(trigger, actionsToShow, codeActions.documentation);
 
@@ -376,6 +360,22 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 		// 	getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
 		// });
 	}
+
+	/**
+	 *
+	 * Comments about menu:
+	 *
+	 * flyout might be too big, not used anywhere else
+	 *
+	 * making the editor editable
+	 *
+	 * better view in the refactor preview pane
+	 *
+	 * should we be showing all the refactor options? should we only show options that are valid, like in the
+	 * lightbulb action
+	 *
+	 *
+	 */
 
 	private getMenuActions(
 		trigger: CodeActionTrigger,
