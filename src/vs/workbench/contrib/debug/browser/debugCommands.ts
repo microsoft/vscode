@@ -9,7 +9,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint, Thread, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -200,18 +200,17 @@ async function navigateCallStack(debugService: IDebugService, down: boolean) {
 					goToTopOfCallStack(debugService);
 					return;
 				} else {
-					await (<DebugModel>debugService.getModel()).fetchAndRefreshCallStack((<Thread>frame.thread), 20);
+					await debugService.getModel().fetchAndRefreshCallStack((<Thread>frame.thread), 20);
 					callStack = frame.thread.getCallStack();
 				}
 			}
-			nextVisibleFrame = findNextVisibleFrame(true, callStack, index + 1);
+			nextVisibleFrame = findNextVisibleFrame(true, callStack, index);
 		} else {
 			if (index <= 0) {
 				goToBottomOfCallStack(debugService);
 				return;
 			}
-			// goes to bottom of visible panes to reduce performance overhead
-			nextVisibleFrame = findNextVisibleFrame(false, callStack, index - 1);
+			nextVisibleFrame = findNextVisibleFrame(false, callStack, index);
 		}
 
 		if (nextVisibleFrame) {
@@ -223,10 +222,10 @@ async function navigateCallStack(debugService: IDebugService, down: boolean) {
 async function goToBottomOfCallStack(debugService: IDebugService) {
 	const thread = debugService.getViewModel().focusedThread;
 	if (thread) {
-		await (<DebugModel>debugService.getModel()).fetchAndRefreshCallStack((<Thread>thread));
+		await debugService.getModel().fetchAndRefreshCallStack((<Thread>thread));
 		const callStack = thread.getCallStack();
 		if (callStack.length > 0) {
-			const nextVisibleFrame = findNextVisibleFrame(false, callStack, callStack.length - 1);
+			const nextVisibleFrame = findNextVisibleFrame(false, callStack, 0); // must consider the next frame up first, which will be the last frame
 			if (nextVisibleFrame) {
 				debugService.focusStackFrame(nextVisibleFrame);
 			}
@@ -243,32 +242,42 @@ function goToTopOfCallStack(debugService: IDebugService) {
 }
 
 /**
- * Finds next frame that is not skipped by SkipFiles
+ * Finds next frame that is not skipped by SkipFiles. Skips frame at index and starts searching at next.
  * @param down specifies whether to search downwards if the current file is skipped.
  * @param callStack the call stack to search
- * @param initialIndex the index to start the search at
+ * @param startIndex the index to start the search at
  */
-function findNextVisibleFrame(down: boolean, callStack: readonly IStackFrame[], initialIndex: number) {
-	let index = initialIndex;
+function findNextVisibleFrame(down: boolean, callStack: readonly IStackFrame[], startIndex: number) {
+
+	if (startIndex === callStack.length) {
+		startIndex = 0;
+	} else if (startIndex === -1) {
+		startIndex = callStack.length - 1;
+	}
+
+	let index = startIndex;
+
 	let currFrame;
 	do {
+		if (down) {
+			if (index === callStack.length - 1) {
+				index = 0;
+			} else {
+				index++;
+			}
+		} else {
+			if (index === 0) {
+				index = callStack.length - 1;
+			} else {
+				index--;
+			}
+		}
+
 		currFrame = callStack[index];
 		if (!(currFrame.source.presentationHint === 'deemphasize' || currFrame.presentationHint === 'deemphasize')) {
 			return currFrame;
 		}
-
-		if (down) {
-			index++;
-			if (index === callStack.length) {
-				index = 0;
-			}
-		} else {
-			index--;
-			if (index === -1) {
-				index = callStack.length - 1;
-			}
-		}
-	} while (index !== initialIndex);
+	} while (index !== startIndex); // end loop when we've just checked the start index, since that should be the last one checked
 
 	return undefined;
 }
