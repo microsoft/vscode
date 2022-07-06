@@ -185,7 +185,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					}
 				}]
 			);
-			storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		});
 	}
 }
