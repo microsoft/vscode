@@ -965,42 +965,61 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
 		const quickPick = this._quickInputService.createQuickPick();
-		quickPick.items = items;
+		const originalItems = items;
+		quickPick.items = [...originalItems];
 		quickPick.sortByLabel = false;
+		quickPick.matchOnLabel = false;
 		quickPick.placeholder = placeholder;
-		return new Promise<void>(r => {
-			quickPick.onDidTriggerItemButton(async e => {
-				if (e.button === removeFromCommandHistoryButton) {
-					if (type === 'command') {
-						this._instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
-					} else {
-						this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
-					}
+		quickPick.title = 'Run Recent Command';
+		quickPick.onDidChangeValue(value => {
+			quickPick.items = originalItems.filter(item => {
+				if (item.type === 'separator') {
+					return true;
+				}
+				item.highlights = undefined;
+				const matchIndex = item.label.indexOf(value);
+				if (matchIndex !== -1) {
+					item.highlights = {
+						label: [{ start: matchIndex, end: matchIndex + value.length }]
+					};
+					return true;
+				}
+				return false;
+			});
+		});
+		quickPick.onDidTriggerItemButton(async e => {
+			if (e.button === removeFromCommandHistoryButton) {
+				if (type === 'command') {
+					this._instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
 				} else {
-					const selectedCommand = (e.item as Item).command;
-					const output = selectedCommand?.getOutput();
-					if (output && selectedCommand?.command) {
-						const textContent = await outputProvider.provideTextContent(URI.from(
-							{
-								scheme: TerminalOutputProvider.scheme,
-								path: `${selectedCommand.command}... ${fromNow(selectedCommand.timestamp, true)}`,
-								fragment: output,
-								query: `terminal-output-${selectedCommand.timestamp}-${this.instanceId}`
-							}));
-						if (textContent) {
-							await this._editorService.openEditor({
-								resource: textContent.uri
-							});
-						}
+					this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
+				}
+			} else {
+				const selectedCommand = (e.item as Item).command;
+				const output = selectedCommand?.getOutput();
+				if (output && selectedCommand?.command) {
+					const textContent = await outputProvider.provideTextContent(URI.from(
+						{
+							scheme: TerminalOutputProvider.scheme,
+							path: `${selectedCommand.command}... ${fromNow(selectedCommand.timestamp, true)}`,
+							fragment: output,
+							query: `terminal-output-${selectedCommand.timestamp}-${this.instanceId}`
+						}));
+					if (textContent) {
+						await this._editorService.openEditor({
+							resource: textContent.uri
+						});
 					}
 				}
-				quickPick.hide();
-			});
-			quickPick.onDidAccept(() => {
-				const result = quickPick.activeItems[0];
-				this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, !quickPick.keyMods.alt);
-				quickPick.hide();
-			});
+			}
+			quickPick.hide();
+		});
+		quickPick.onDidAccept(() => {
+			const result = quickPick.activeItems[0];
+			this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, !quickPick.keyMods.alt);
+			quickPick.hide();
+		});
+		return new Promise<void>(r => {
 			quickPick.show();
 			quickPick.onDidHide(() => r());
 		});
