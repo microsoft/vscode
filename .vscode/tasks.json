@@ -2,13 +2,6 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "test input",
-		"type": "shell",
-		"command": "echo",
-		"icon": {"id": "account"},
-		"hide": true
-	},
-		{
 			"type": "npm",
 			"script": "watch-clientd",
 			"label": "Core - Build",
