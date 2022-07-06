@@ -103,16 +103,6 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Restart VS Code - Build",
-			"dependsOn": [
-				"Kill VS Code - Build",
-				"VS Code - Build"
-			],
-			"group": "build",
-			"dependsOrder": "sequence",
-			"problemMatcher": []
-		},
-		{
 			"type": "npm",
 			"script": "watch-webd",
 			"label": "Web Ext - Build",
@@ -221,7 +211,7 @@
 			}
 		},
 		{
-		    "type": "npm",
+			"type": "npm",
 			"script": "tsec-compile-check",
 			"problemMatcher": [
 				{
@@ -234,5 +224,5 @@
 			"label": "npm: tsec-compile-check",
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		}
-    ]
+	]
 }
