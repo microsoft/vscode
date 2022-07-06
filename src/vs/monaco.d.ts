@@ -7015,22 +7015,24 @@ declare namespace monaco.languages {
 		maxSize?: number;
 	}
 
-	export interface WorkspaceFileEdit {
-		oldUri?: Uri;
-		newUri?: Uri;
+	export interface IWorkspaceFileEdit {
+		oldResource?: Uri;
+		newResource?: Uri;
 		options?: WorkspaceFileEditOptions;
 		metadata?: WorkspaceEditMetadata;
 	}
 
-	export interface WorkspaceTextEdit {
+	export interface IWorkspaceTextEdit {
 		resource: Uri;
-		edit: TextEdit;
-		modelVersionId?: number;
+		textEdit: TextEdit & {
+			insertAsSnippet?: boolean;
+		};
+		versionId: number | undefined;
 		metadata?: WorkspaceEditMetadata;
 	}
 
 	export interface WorkspaceEdit {
-		edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
+		edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
 	}
 
 	export interface Rejection {
