@@ -2,6 +2,13 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "test input",
+		"type": "shell",
+		"command": "echo",
+		"icon": {"id": "account"},
+		"hide": true
+	},
+		{
 			"type": "npm",
 			"script": "watch-clientd",
 			"label": "Core - Build",
@@ -67,7 +74,8 @@
 				"kind": "build",
 				"isDefault": true
 			},
-			"problemMatcher": []
+			"problemMatcher": [],
+			"hide": true
 		},
 		{
 			"type": "npm",
@@ -221,7 +229,7 @@
 			}
 		},
 		{
-			"type": "npm",
+			"type": "${input:type}",
 			"script": "tsec-compile-check",
 			"problemMatcher": [
 				{
@@ -234,5 +242,11 @@
 			"label": "npm: tsec-compile-check",
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		}
-	]
+	],
+	"inputs": [{
+		"id": "type",
+		"options": ["npm", "shell"],
+		"type": "pickString",
+		"description": "the type of script to trun"
+	}]
 }
