@@ -42,8 +42,6 @@ export interface IUserDataProfile {
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 }
 
-export type CustomUserDataProfile = IUserDataProfile & { readonly extensionsResource: URI; readonly isDefault: false };
-
 export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 	const candidate = thing as IUserDataProfile | undefined;
 
@@ -78,9 +76,8 @@ export interface IUserDataProfilesService {
 	readonly onDidChangeProfiles: Event<DidChangeProfilesEvent>;
 	readonly profiles: IUserDataProfile[];
 
-	newProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags): CustomUserDataProfile;
-	createProfile(profile: IUserDataProfile, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
-	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile>;
+	createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
+	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<void>;
 	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 }
@@ -102,7 +99,7 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 
 export const EXTENSIONS_RESOURCE_NAME = 'extensions.json';
 
-export function toUserDataProfile(name: string, location: URI, useDefaultFlags?: UseDefaultProfileFlags): CustomUserDataProfile {
+export function toUserDataProfile(name: string, location: URI, useDefaultFlags?: UseDefaultProfileFlags): IUserDataProfile {
 	return {
 		id: hash(location.path).toString(16),
 		name: name,
@@ -123,9 +120,9 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	readonly profilesHome: URI;
 
-	private readonly _defaultProfile = this.createDefaultUserDataProfile(false);
-	get defaultProfile(): IUserDataProfile { return this.profiles[0] ?? this._defaultProfile; }
-	get profiles(): IUserDataProfile[] { return []; }
+	get defaultProfile(): IUserDataProfile { return this.profiles[0]; }
+	protected _profiles: IUserDataProfile[] = [this.createDefaultUserDataProfile(false)];
+	get profiles(): IUserDataProfile[] { return this._profiles; }
 
 	protected readonly _onDidChangeProfiles = this._register(new Emitter<DidChangeProfilesEvent>());
 	readonly onDidChangeProfiles = this._onDidChangeProfiles.event;
@@ -139,17 +136,13 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		this.profilesHome = joinPath(this.environmentService.userRoamingDataHome, 'profiles');
 	}
 
-	newProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags): CustomUserDataProfile {
-		return toUserDataProfile(name, joinPath(this.profilesHome, hash(name).toString(16)), useDefaultFlags);
-	}
-
 	protected createDefaultUserDataProfile(extensions: boolean): IUserDataProfile {
 		const profile = toUserDataProfile(localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
 		return { ...profile, isDefault: true, extensionsResource: extensions ? profile.extensionsResource : undefined };
 	}
 
-	createProfile(profile: IUserDataProfile, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
-	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
+	createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
+	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<void> { throw new Error('Not implemented'); }
 	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile { throw new Error('Not implemented'); }
 	removeProfile(profile: IUserDataProfile): Promise<void> { throw new Error('Not implemented'); }
 }

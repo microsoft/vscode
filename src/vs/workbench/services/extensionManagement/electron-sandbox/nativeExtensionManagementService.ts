@@ -68,7 +68,7 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		const previousExtensionsResource = e.previous.extensionsResource ?? joinPath(e.previous.location, EXTENSIONS_RESOURCE_NAME);
 		if (e.preserveData) {
-			await this.fileService.copy(previousExtensionsResource, e.profile.extensionsResource!);
+			await this.fileService.copy(previousExtensionsResource, previousExtensionsResource);
 		} else {
 			const oldExtensions = await super.getInstalled(ExtensionType.User, previousExtensionsResource);
 			const newExtensions = await this.getInstalled(ExtensionType.User);
