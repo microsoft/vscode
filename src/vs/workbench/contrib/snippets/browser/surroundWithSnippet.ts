@@ -104,7 +104,7 @@ registerAction2(SurroundWithSnippetEditorAction);
 
 export class SurroundWithSnippetCodeActionProvider extends Disposable implements CodeActionProvider {
 	private static readonly codeAction: CodeAction = {
-		kind: CodeActionKind.QuickFix.value,
+		kind: CodeActionKind.Refactor.value,
 		title: options.title.value,
 		command: {
 			id: options.id,
