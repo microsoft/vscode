@@ -48,7 +48,7 @@ const shellCommand: IJSONSchema = {
 
 const hide: IJSONSchema = {
 	type: 'boolean',
-	description: nls.localize('JsonSchema.hide', 'Hide this task from the run task quickpick'),
+	description: nls.localize('JsonSchema.hide', 'Hide this task from the run task quick pick'),
 	default: true
 };
 
