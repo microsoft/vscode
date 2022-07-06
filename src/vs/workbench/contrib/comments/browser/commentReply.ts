@@ -17,6 +17,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import * as nls from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
@@ -58,11 +59,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		@ILanguageService private languageService: ILanguageService,
 		@IModelService private modelService: IModelService,
 		@IThemeService private themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
 		this.form = dom.append(container, dom.$('.comment-form'));
-		this.commentEditor = this._register(this._scopedInstatiationService.createInstance(SimpleCommentEditor, this.form, SimpleCommentEditor.getEditorOptions(), this._parentThread));
+		this.commentEditor = this._register(this._scopedInstatiationService.createInstance(SimpleCommentEditor, this.form, SimpleCommentEditor.getEditorOptions(configurationService), this._parentThread));
 		this.commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this.commentEditorIsEmpty.set(!this._pendingComment);
 

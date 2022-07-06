@@ -4,21 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { reset } from 'vs/base/browser/dom';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { Action, IAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { Action2, IMenuService, MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
@@ -57,7 +56,7 @@ export class CommandCenterControl {
 
 						override render(container: HTMLElement): void {
 							super.render(container);
-							container.classList.add('quickopen');
+							container.classList.add('quickopen', 'left');
 
 							assertType(this.label);
 							this.label.classList.add('search');
@@ -68,7 +67,7 @@ export class CommandCenterControl {
 							this.workspaceTitle.classList.add('search-label');
 							this._updateFromWindowTitle();
 							reset(this.label, searchIcon, this.workspaceTitle);
-							this._renderAllQuickPickItem(container);
+							// this._renderAllQuickPickItem(container);
 
 							this._store.add(windowTitle.onDidChange(this._updateFromWindowTitle, this));
 						}
@@ -96,24 +95,23 @@ export class CommandCenterControl {
 								: localize('title2', "Search {0} \u2014 {1}", windowTitle.workspaceName, windowTitle.value);
 							this._applyUpdateTooltip(title);
 						}
-
-						private _renderAllQuickPickItem(parent: HTMLElement): void {
-							const container = document.createElement('span');
-							container.classList.add('all-options');
-							parent.appendChild(container);
-							const action = new Action('all', localize('all', "Show Search Modes..."), Codicon.chevronDown.classNames, true, () => {
-								quickInputService.quickAccess.show('?');
-							});
-							const dropdown = new ActionViewItem(undefined, action, { icon: true, label: false, hoverDelegate });
-							dropdown.render(container);
-							this._store.add(dropdown);
-							this._store.add(action);
-						}
 					}
 					return instantiationService.createInstance(InputLikeViewItem, action, { hoverDelegate });
-				}
 
-				return createActionViewItem(instantiationService, action, { hoverDelegate });
+				} else if (action instanceof MenuItemAction && action.id === 'commandCenter.help') {
+
+					class ExtraClass extends MenuEntryActionViewItem {
+						override render(container: HTMLElement): void {
+							super.render(container);
+							container.classList.add('quickopen', 'right');
+						}
+					}
+
+					return instantiationService.createInstance(ExtraClass, action, { hoverDelegate });
+
+				} else {
+					return createActionViewItem(instantiationService, action, { hoverDelegate });
+				}
 			}
 		});
 		const menu = this._disposables.add(menuService.createMenu(MenuId.CommandCenter, contextKeyService));
@@ -142,6 +140,21 @@ export class CommandCenterControl {
 		this._disposables.dispose();
 	}
 }
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'commandCenter.help',
+			title: localize('all', "Show Search Modes..."),
+			icon: Codicon.chevronDown,
+			menu: { id: MenuId.CommandCenter, order: 100 }
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IQuickInputService).quickAccess.show('?');
+	}
+});
 
 // --- theme colors
 

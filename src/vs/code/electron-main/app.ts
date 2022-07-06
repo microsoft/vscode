@@ -102,6 +102,8 @@ import { CredentialsNativeMainService } from 'vs/platform/credentials/electron-m
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { IDefaultExtensionsProfileInitService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { DefaultExtensionsProfileInitHandler } from 'vs/platform/extensionManagement/electron-main/defaultExtensionsProfileInit';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -525,8 +527,8 @@ export class CodeApplication extends Disposable {
 		// Services
 		const appInstantiationService = await this.initServices(machineId, sharedProcess, sharedProcessReady);
 
-		// Setup Auth Handler
-		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
+		// Setup Handlers
+		this.setUpHandlers(appInstantiationService);
 
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
@@ -541,6 +543,14 @@ export class CodeApplication extends Disposable {
 		if (this.environmentMainService.args.trace) {
 			appInstantiationService.invokeFunction(accessor => this.stopTracingEventually(accessor, windows));
 		}
+	}
+
+	private setUpHandlers(instantiationService: IInstantiationService): void {
+		// Auth Handler
+		this._register(instantiationService.createInstance(ProxyAuthHandler));
+
+		// Default Extensions Profile Init Handler
+		this._register(instantiationService.createInstance(DefaultExtensionsProfileInitHandler));
 	}
 
 	private async resolveMachineId(): Promise<string> {
@@ -678,6 +688,9 @@ export class CodeApplication extends Disposable {
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
+
+		// Default Extensions Profile Init
+		services.set(IDefaultExtensionsProfileInitService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('IDefaultExtensionsProfileInitService')))));
 
 		// Init services that require it
 		await backupMainService.initialize();

@@ -84,6 +84,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get userDataSyncLogResource(): URI { return joinPath(this.logsHome, 'userDataSync.log'); }
 
 	@memoize
+	get editSessionsLogResource(): URI { return joinPath(this.logsHome, 'editSessions.log'); }
+
+	@memoize
 	get sync(): 'on' | 'off' | undefined { return undefined; }
 
 	@memoize

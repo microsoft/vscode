@@ -18,7 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -122,9 +122,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private _config: INativeWindowConfiguration | undefined;
 	get config(): INativeWindowConfiguration | undefined { return this._config; }
 
-	private hiddenTitleBarStyle: boolean | undefined;
-	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
-
 	get isExtensionDevelopmentHost(): boolean { return !!(this._config?.extensionDevelopmentPath); }
 
 	get isExtensionTestHost(): boolean { return !!(this._config?.extensionTestsPath); }
@@ -139,6 +136,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private representedFilename: string | undefined;
 	private documentEdited: boolean | undefined;
+
+	private customTrafficLightPosition: boolean | undefined;
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
@@ -206,7 +205,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 					// Refs https://github.com/microsoft/vscode/issues/140098
 					enableBlinkFeatures: 'HighlightAPI',
-					...this.environmentMainService.sandbox ?
+					...windowSettings?.experimental?.useSandbox ?
 
 						// Sandbox
 						{
@@ -251,19 +250,21 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
 			if (useCustomTitleStyle) {
 				options.titleBarStyle = 'hidden';
-				this.hiddenTitleBarStyle = true;
 				if (!isMacintosh) {
 					options.frame = false;
 				}
 
 				if (useWindowControlsOverlay(this.configurationService, this.environmentMainService)) {
-					// This logic will not perfectly guess the right colors to use on initialization,
-					// but prefer to keep things simple as it is temporary and not noticeable
+
+					// This logic will not perfectly guess the right colors
+					// to use on initialization, but prefer to keep things
+					// simple as it is temporary and not noticeable
+
 					const titleBarColor = this.themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? this.themeMainService.getBackgroundColor();
 					const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
 					options.titleBarOverlay = {
-						height: 29, // The smallest size of the title bar on windows accounting for the border on windows 11
+						height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
 						color: titleBarColor,
 						symbolColor
 					};
@@ -277,29 +278,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			this._id = this._win.id;
 
-			// re-position traffic light if command center is visible
-			if (useCustomTitleStyle && isMacintosh) {
-				const ccConfigKey = 'window.commandCenter';
-				const trafficLightUpdater = () => {
-					// temporarily disabled because of https://github.com/microsoft/vscode/pull/150272#issuecomment-1152218493
-					// const on = this.configurationService.getValue<boolean>(ccConfigKey);
-					// if (on) {
-					// 	this._win.setTrafficLightPosition({ x: 7, y: 9 });
-					// } else {
-					// 	this._win.setTrafficLightPosition({ x: 7, y: 6 });
-					// }
-				};
-				trafficLightUpdater();
-				this.configurationService.onDidChangeConfiguration(e => {
-					if (e.affectsConfiguration(ccConfigKey)) {
-						trafficLightUpdater();
-					}
-				}, undefined, this._store);
-			}
-
-			// Open devtools if instructed from command line args
-			if (this.environmentMainService.args['open-devtools'] === true) {
-				this._win.webContents.openDevTools();
+			if (isMacintosh && useCustomTitleStyle) {
+				this.updateTrafficLightPosition(); // adjust traffic light position depending on command center
 			}
 
 			if (isMacintosh && useCustomTitleStyle) {
@@ -348,6 +328,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 		//#endregion
 
+		// Open devtools if instructed from command line args
+		if (this.environmentMainService.args['open-devtools'] === true) {
+			this._win.webContents.openDevTools();
+		}
+
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
 
@@ -359,7 +344,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	setRepresentedFilename(filename: string): void {
-		if (isMacintosh) {
+		if (isMacintosh && !this.customTrafficLightPosition) { // TODO@electron https://github.com/electron/electron/issues/34822
 			this._win.setRepresentedFilename(filename);
 		} else {
 			this.representedFilename = filename;
@@ -367,7 +352,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	getRepresentedFilename(): string | undefined {
-		if (isMacintosh) {
+		if (isMacintosh && !this.customTrafficLightPosition) { // TODO@electron https://github.com/electron/electron/issues/34822
 			return this._win.getRepresentedFilename();
 		}
 
@@ -525,7 +510,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Handle configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.onConfigurationUpdated()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		// Handle Workspace events
 		this._register(this.workspacesManagementMainService.onDidDeleteUntitledWorkspace(e => this.onDidDeleteUntitledWorkspace(e)));
@@ -735,7 +720,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	private onConfigurationUpdated(): void {
+	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
 		// Menubar
 		const newMenuBarVisibility = this.getMenuBarVisibility();
@@ -743,6 +728,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
 		}
+
+		// Traffic Lights
+		this.updateTrafficLightPosition(e);
 
 		// Proxy
 		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
@@ -812,10 +800,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(this.environmentMainService.sandbox ?
-			'vs/code/electron-sandbox/workbench/workbench.html' :
-			'vs/code/electron-browser/workbench/workbench.html', require
-		).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri('vs/code/electron-sandbox/workbench/workbench.html', require).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
@@ -1301,6 +1286,31 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this._win.autoHideMenuBar = false;
 				break;
 		}
+	}
+
+	private updateTrafficLightPosition(e?: IConfigurationChangeEvent): void {
+		if (!isMacintosh) {
+			return; // only applies to macOS
+		}
+
+		const commandCenterSettingKey = 'window.commandCenter';
+		if (e && !e.affectsConfiguration(commandCenterSettingKey)) {
+			return;
+		}
+
+		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
+		if (!useCustomTitleStyle) {
+			return; // only applies with custom title bar
+		}
+
+		const useCustomTrafficLightPosition = this.configurationService.getValue<boolean>(commandCenterSettingKey);
+		if (useCustomTrafficLightPosition) {
+			this._win.setTrafficLightPosition({ x: 7, y: 9 });
+		} else {
+			this._win.setTrafficLightPosition({ x: 7, y: 6 });
+		}
+
+		this.customTrafficLightPosition = useCustomTrafficLightPosition;
 	}
 
 	handleTitleDoubleClick(): void {

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createServer, Server } from 'net';
+/* eslint-disable code-import-patterns */
+/* eslint-disable code-layering */
+
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -15,11 +17,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IPCExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 import { createMessageOfType, MessageType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionHostProcess, ExtHostMessagePortCommunication, IExtHostCommunication, SandboxLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export class NativeLocalProcessExtensionHost extends SandboxLocalProcessExtensionHost {
 	protected override async _start(): Promise<IMessagePassingProtocol> {
 		const canUseUtilityProcess = await this._extensionHostStarter.canUseUtilityProcess();
-		if (canUseUtilityProcess && this._configurationService.getValue<boolean | undefined>('extensions.experimental.useUtilityProcess')) {
+		if (canUseUtilityProcess && (this._configurationService.getValue<boolean | undefined>('extensions.experimental.useUtilityProcess') || process.sandboxed)) {
 			const communication = this._toDispose.add(new ExtHostMessagePortCommunication(this._logService));
 			return this._startWithCommunication(communication);
 		} else {
@@ -31,7 +34,7 @@ export class NativeLocalProcessExtensionHost extends SandboxLocalProcessExtensio
 
 interface INamedPipePreparedData {
 	pipeName: string;
-	namedPipeServer: Server;
+	namedPipeServer: import('net').Server;
 }
 
 class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommunication<INamedPipePreparedData> {
@@ -44,8 +47,9 @@ class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommun
 		super();
 	}
 
-	prepare(): Promise<INamedPipePreparedData> {
-		return new Promise<{ pipeName: string; namedPipeServer: Server }>((resolve, reject) => {
+	async prepare(): Promise<INamedPipePreparedData> {
+		const { createServer } = await import('net');
+		return new Promise<{ pipeName: string; namedPipeServer: import('net').Server }>((resolve, reject) => {
 			const pipeName = createRandomIPCHandle();
 
 			const namedPipeServer = createServer();

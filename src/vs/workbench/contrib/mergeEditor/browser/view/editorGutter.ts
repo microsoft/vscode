@@ -5,22 +5,23 @@
 
 import { h } from 'vs/base/browser/dom';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { autorun, IReader, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
 	private readonly scrollTop = observableFromEvent(
 		this._editor.onDidScrollChange,
-		(e) => this._editor.getScrollTop()
+		(e) => /** @description editor.onDidScrollChange */ this._editor.getScrollTop()
 	);
+	private readonly isScrollTopZero = this.scrollTop.map((scrollTop) => /** @description isScrollTopZero */ scrollTop === 0);
 	private readonly modelAttached = observableFromEvent(
 		this._editor.onDidChangeModel,
-		(e) => this._editor.hasModel()
+		(e) => /** @description editor.onDidChangeModel */ this._editor.hasModel()
 	);
 
-	private readonly changeCounter = new ObservableValue(0, 'counter');
+	private readonly editorOnDidChangeViewZones = observableSignalFromEvent('onDidChangeViewZones', this._editor.onDidChangeViewZones);
+	private readonly editorOnDidContentSizeChange = observableSignalFromEvent('onDidContentSizeChange', this._editor.onDidContentSizeChange);
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -34,20 +35,11 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 				.root
 		);
 
-		this._register(autorun((reader) => {
-			scrollDecoration.className = this.scrollTop.read(reader) === 0 ? '' : 'scroll-decoration';
-		}, 'update scroll decoration'));
+		this._register(autorun('update scroll decoration', (reader) => {
+			scrollDecoration.className = this.isScrollTopZero.read(reader) ? '' : 'scroll-decoration';
+		}));
 
-
-		this._register(autorun((reader) => this.render(reader), 'Render'));
-
-		this._editor.onDidChangeViewZones(e => {
-			this.changeCounter.set(this.changeCounter.get() + 1, undefined);
-		});
-
-		this._editor.onDidContentSizeChange(e => {
-			this.changeCounter.set(this.changeCounter.get() + 1, undefined);
-		});
+		this._register(autorun('EditorGutter.Render', (reader) => this.render(reader)));
 	}
 
 	private readonly views = new Map<string, ManagedGutterItemView>();
@@ -56,7 +48,10 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		if (!this.modelAttached.read(reader)) {
 			return;
 		}
-		this.changeCounter.read(reader);
+
+		this.editorOnDidChangeViewZones.read(reader);
+		this.editorOnDidContentSizeChange.read(reader);
+
 		const scrollTop = this.scrollTop.read(reader);
 
 		const visibleRanges = this._editor.getVisibleRanges();
@@ -68,14 +63,12 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 			const visibleRange2 = new LineRange(
 				visibleRange.startLineNumber,
 				visibleRange.endLineNumber - visibleRange.startLineNumber
-			);
+			).deltaEnd(1);
 
 			const gutterItems = this.itemProvider.getIntersectingGutterItems(
 				visibleRange2,
 				reader
 			);
-
-			const lineHeight = this._editor.getOptions().get(EditorOption.lineHeight);
 
 			for (const gutterItem of gutterItems) {
 				if (!gutterItem.range.touches(visibleRange2)) {
@@ -99,19 +92,10 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 				}
 
 				const top =
-					(gutterItem.range.startLineNumber === 1
-						? -lineHeight
-						: this._editor.getTopForLineNumber(
-							gutterItem.range.startLineNumber - 1
-						)) -
-					scrollTop +
-					lineHeight;
-
-				const bottom = (
-					gutterItem.range.endLineNumberExclusive <= this._editor.getModel()!.getLineCount()
-						? this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive)
-						: this._editor.getTopForLineNumber(gutterItem.range.endLineNumberExclusive - 1) + lineHeight
-				) - scrollTop;
+					gutterItem.range.startLineNumber <= this._editor.getModel()!.getLineCount()
+						? this._editor.getTopForLineNumber(gutterItem.range.startLineNumber, true) - scrollTop
+						: this._editor.getBottomForLineNumber(gutterItem.range.startLineNumber - 1, false) - scrollTop;
+				const bottom = this._editor.getBottomForLineNumber(gutterItem.range.endLineNumberExclusive - 1, true) - scrollTop;
 
 				const height = bottom - top;
 

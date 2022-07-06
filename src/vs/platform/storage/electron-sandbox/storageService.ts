@@ -16,30 +16,24 @@ import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorksp
 
 export class NativeStorageService extends AbstractStorageService {
 
-	private readonly applicationStorage: IStorage;
-	private readonly applicationStorageProfile: IUserDataProfile;
+	private readonly applicationStorageProfile = this.initialProfiles.defaultProfile;
+	private readonly applicationStorage = this.createApplicationStorage();
 
-	private profileStorage: IStorage;
-	private profileStorageProfile: IUserDataProfile | undefined = undefined;
+	private profileStorageProfile = this.initialProfiles.currentProfile;
 	private readonly profileStorageDisposables = this._register(new DisposableStore());
+	private profileStorage = this.createProfileStorage(this.profileStorageProfile);
 
-	private workspaceStorage: IStorage | undefined = undefined;
-	private workspaceStorageId: string | undefined = undefined;
+	private workspaceStorageId = this.initialWorkspace?.id;
 	private readonly workspaceStorageDisposables = this._register(new DisposableStore());
+	private workspaceStorage = this.createWorkspaceStorage(this.initialWorkspace);
 
 	constructor(
-		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
-		{ defaultProfile, currentProfile }: { defaultProfile: IUserDataProfile; currentProfile: IUserDataProfile },
+		private readonly initialWorkspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
+		private readonly initialProfiles: { defaultProfile: IUserDataProfile; currentProfile: IUserDataProfile },
 		private readonly mainProcessService: IMainProcessService,
 		private readonly environmentService: IEnvironmentService
 	) {
 		super();
-
-		this.applicationStorageProfile = defaultProfile;
-
-		this.applicationStorage = this.createApplicationStorage();
-		this.profileStorage = this.createProfileStorage(currentProfile);
-		this.workspaceStorage = this.createWorkspaceStorage(workspace);
 	}
 
 	private createApplicationStorage(): IStorage {
@@ -148,7 +142,7 @@ export class NativeStorageService extends AbstractStorageService {
 	}
 
 	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
-		if (this.profileStorageProfile && !this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
+		if (!this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
 			return;
 		}
 
