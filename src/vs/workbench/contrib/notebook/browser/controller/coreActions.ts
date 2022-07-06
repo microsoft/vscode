@@ -431,6 +431,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 
 MenuRegistry.appendMenuItem(MenuId.NotebookCellTitle, {
 	title: localize('miShare', "Share"),
-	submenu: MenuId.MenubarShare,
+	submenu: MenuId.EditorContextShare,
 	group: CellOverflowToolbarGroups.Share
 });

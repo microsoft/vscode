@@ -127,7 +127,7 @@ export function getPermalink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?:
 
 	const commitHash = gitRepo.state.HEAD?.commit;
 	const fileSegments = fileAndPosition.type === LinkType.File
-		? ((useSelection && uri) ? `${uri.path.substring(gitRepo.rootUri.path.length)}${rangeString(fileAndPosition.range)}` : '')
+		? (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${rangeString(fileAndPosition.range)}` : '')
 		: (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range)}` : '');
 
 	return `${hostPrefix}/${repo.owner}/${repo.repo}/blob/${commitHash
