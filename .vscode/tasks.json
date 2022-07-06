@@ -68,7 +68,6 @@
 				"isDefault": true
 			},
 			"problemMatcher": [],
-			"hide": true
 		},
 		{
 			"type": "npm",
