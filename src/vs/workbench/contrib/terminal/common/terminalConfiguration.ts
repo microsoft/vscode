@@ -58,6 +58,7 @@ const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.tabs.defaultIcon', "Controls the terminal tab's default icon."),
 			type: 'string',
 			enum: Codicon.getAll().map(icon => icon.id),
+			markdownEnumDescriptions: Array.from(Codicon.getAll(), icon => `$(${icon.id})`),
 			default: undefined,
 		},
 		[TerminalSettingId.TabsEnabled]: {
