@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Token = require('markdown-it/lib/token');
-import { BaseLanguageClient, LanguageClientOptions, RequestType } from 'vscode-languageclient';
-import { LanguageClient, ServerOptions } from 'vscode-languageclient/node';
-import * as nls from 'vscode-nls';
 import * as vscode from 'vscode';
+import { BaseLanguageClient, LanguageClientOptions, RequestType } from 'vscode-languageclient';
+import * as nls from 'vscode-nls';
 import { IMdParser } from './markdownEngine';
 import { IMdWorkspace } from './workspace';
 
@@ -15,8 +14,10 @@ const localize = nls.loadMessageBundle();
 
 const parseRequestType: RequestType<{ uri: string }, Token[], any> = new RequestType('markdown/parse');
 
+export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
-export async function startClient(serverOptions: ServerOptions, workspace: IMdWorkspace, parser: IMdParser): Promise<BaseLanguageClient> {
+
+export async function startClient(factory: LanguageClientConstructor, workspace: IMdWorkspace, parser: IMdParser): Promise<BaseLanguageClient> {
 
 	const documentSelector = ['markdown'];
 
@@ -25,13 +26,10 @@ export async function startClient(serverOptions: ServerOptions, workspace: IMdWo
 		synchronize: {
 			configurationSection: ['markdown']
 		},
-		initializationOptions: {
-			handledSchemas: ['file'],
-			provideFormatter: false, // tell the server to not provide formatting capability
-		}
+		initializationOptions: {}
 	};
 
-	const client = new LanguageClient('markdown', localize('markdownServer.name', 'Markdown Language Server'), serverOptions, clientOptions);
+	const client = factory('markdown', localize('markdownServer.name', 'Markdown Language Server'), clientOptions);
 
 	client.registerProposedFeatures();
 

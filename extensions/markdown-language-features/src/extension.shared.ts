@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ServerOptions, TransportKind } from 'vscode-languageclient/node';
-import { startClient } from './client';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
 import { registerPasteSupport } from './languageFeatures/copyPaste';
@@ -21,36 +19,32 @@ import { MdReferencesProvider, registerReferencesSupport } from './languageFeatu
 import { registerRenameSupport } from './languageFeatures/rename';
 import { registerSmartSelectSupport } from './languageFeatures/smartSelect';
 import { registerWorkspaceSymbolSupport } from './languageFeatures/workspaceSymbols';
-import { ILogger, VsCodeOutputLogger } from './logging';
+import { ILogger } from './logging';
 import { IMdParser, MarkdownItEngine, MdParsingProvider } from './markdownEngine';
-import { getMarkdownExtensionContributions } from './markdownExtensions';
+import { MarkdownContributionProvider } from './markdownExtensions';
 import { MdDocumentRenderer } from './preview/documentRenderer';
 import { MarkdownPreviewManager } from './preview/previewManager';
 import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './preview/security';
-import { githubSlugifier } from './slugify';
 import { MdTableOfContentsProvider } from './tableOfContents';
 import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
-import { IMdWorkspace, VsCodeMdWorkspace } from './workspace';
+import { IMdWorkspace } from './workspace';
 
-
-export function activate(context: vscode.ExtensionContext) {
+export function activateShared(
+	context: vscode.ExtensionContext,
+	workspace: IMdWorkspace,
+	engine: MarkdownItEngine,
+	logger: ILogger,
+	contributions: MarkdownContributionProvider,
+) {
 	const telemetryReporter = loadDefaultTelemetryReporter();
 	context.subscriptions.push(telemetryReporter);
-
-	const contributions = getMarkdownExtensionContributions(context);
-	context.subscriptions.push(contributions);
-
-	const logger = new VsCodeOutputLogger();
-	context.subscriptions.push(logger);
 
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
 	const commandManager = new CommandManager();
 
-	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
-	const workspace = new VsCodeMdWorkspace();
 	const parser = new MdParsingProvider(engine, workspace);
 	const tocProvider = new MdTableOfContentsProvider(parser, workspace, logger);
-	context.subscriptions.push(workspace, parser, tocProvider);
+	context.subscriptions.push(parser, tocProvider);
 
 	const contentProvider = new MdDocumentRenderer(engine, context, cspArbiter, contributions, logger);
 	const previewManager = new MarkdownPreviewManager(contentProvider, workspace, logger, contributions, tocProvider);
@@ -62,8 +56,6 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		previewManager.updateConfiguration();
 	}));
-
-	startServer(context, workspace, engine);
 }
 
 function registerMarkdownLanguageFeatures(
@@ -87,7 +79,6 @@ function registerMarkdownLanguageFeatures(
 		registerDefinitionSupport(selector, referencesProvider),
 		registerDiagnosticSupport(selector, workspace, linkProvider, commandManager, referencesProvider, tocProvider, logger),
 		registerDocumentLinkSupport(selector, linkProvider),
-		// registerDocumentSymbolSupport(selector, tocProvider, logger),
 		registerDropIntoEditorSupport(selector),
 		registerFindFileReferenceSupport(commandManager, referencesProvider),
 		registerFoldingSupport(selector, parser, tocProvider),
@@ -122,22 +113,4 @@ function registerMarkdownCommands(
 	commandManager.register(new commands.RenderDocument(engine));
 	commandManager.register(new commands.ReloadPlugins(previewManager, engine));
 	return commandManager;
-}
-
-async function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, parser: IMdParser): Promise<void> {
-	const clientMain = vscode.extensions.getExtension('vscode.css-language-features')?.packageJSON?.main || '';
-
-	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/main`;
-	const serverModule = context.asAbsolutePath(serverMain);
-
-	// The debug options for the server
-	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (7000 + Math.round(Math.random() * 999))] };
-
-	// If the extension is launch in debug mode the debug server options are use
-	// Otherwise the run options are used
-	const serverOptions: ServerOptions = {
-		run: { module: serverModule, transport: TransportKind.ipc },
-		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
-	};
-	await startClient(serverOptions, workspace, parser);
 }
