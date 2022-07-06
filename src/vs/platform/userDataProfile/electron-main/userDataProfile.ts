@@ -11,7 +11,7 @@ import { refineServiceDecorator } from 'vs/platform/instantiation/common/instant
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile, IUserDataProfilesService, reviveProfile, PROFILES_ENABLEMENT_CONFIG, WorkspaceIdentifier, UseDefaultProfileFlags, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG, WorkspaceIdentifier, UseDefaultProfileFlags, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { Promises } from 'vs/base/common/async';
 import { StoredProfileAssociations, StoredUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -79,38 +79,40 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 			await this.setProfileForWorkspace(profile, workspaceIdentifier);
 		}
 
-		return this.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+		return profile;
 	}
 
-	override async setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile> {
+	override async setProfileForWorkspace(profileToSet: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile> {
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
 
-		profile = reviveProfile(profile, this.profilesHome.scheme);
-		this.updateWorkspaceAssociation(workspaceIdentifier, profile);
+		const profile = this.profiles.find(p => p.id === profileToSet.id);
+		if (!profile) {
+			throw new Error(`Profile '${profileToSet.name}' does not exist`);
+		}
 
-		return this.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))!;
+		this.updateWorkspaceAssociation(workspaceIdentifier, profile);
+		return profile;
 	}
 
 	async unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier): Promise<void> {
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
-
 		this.updateWorkspaceAssociation(workspaceIdentifier);
 	}
 
-	override async removeProfile(profile: IUserDataProfile): Promise<void> {
+	override async removeProfile(profileToRemove: IUserDataProfile): Promise<void> {
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
-		if (profile.isDefault) {
+		if (profileToRemove.isDefault) {
 			throw new Error('Cannot remove default profile');
 		}
-		profile = reviveProfile(profile, this.profilesHome.scheme);
-		if (!this.getStoredProfiles().some(p => this.uriIdentityService.extUri.isEqual(p.location, profile.location))) {
-			throw new Error(`Profile with name ${profile.name} does not exist`);
+		const profile = this.profiles.find(p => p.id === profileToRemove.id);
+		if (!profile) {
+			throw new Error(`Profile '${profileToRemove.name}' does not exist`);
 		}
 
 		const joiners: Promise<void>[] = [];
@@ -135,7 +137,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		this.updateProfiles([], [profile]);
 
 		try {
-			if (this.profiles.length === 2) {
+			if (this.profiles.length === 1) {
 				await this.fileService.del(this.profilesHome, { recursive: true });
 			} else {
 				await this.fileService.del(profile.location, { recursive: true });

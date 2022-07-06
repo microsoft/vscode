@@ -133,7 +133,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private profileStatusAccessor: IStatusbarEntryAccessor | undefined;
 	private updateStatus(): void {
-		if (this.userDataProfilesService.profiles.length) {
+		if (this.userDataProfilesService.profiles.length > 1) {
 			const statusBarEntry: IStatusbarEntry = {
 				name: PROFILES_CATEGORY,
 				command: 'workbench.profiles.actions.switchProfile',

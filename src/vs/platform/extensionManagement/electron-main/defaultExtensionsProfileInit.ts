@@ -14,12 +14,12 @@ export class DefaultExtensionsProfileInitHandler extends Disposable {
 	) {
 		super();
 		this._register(userDataProfilesService.onWillCreateProfile(e => {
-			if (userDataProfilesService.profiles.length === 0) {
+			if (userDataProfilesService.profiles.length === 1) {
 				e.join(this.defaultExtensionsProfileInitService.initialize());
 			}
 		}));
 		this._register(userDataProfilesService.onDidChangeProfiles(e => {
-			if (userDataProfilesService.profiles.length === 0) {
+			if (userDataProfilesService.profiles.length === 1) {
 				this.defaultExtensionsProfileInitService.uninitialize();
 			}
 		}));
