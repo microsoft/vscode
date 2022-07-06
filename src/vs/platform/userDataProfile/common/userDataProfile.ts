@@ -121,7 +121,8 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	readonly profilesHome: URI;
 
 	get defaultProfile(): IUserDataProfile { return this.profiles[0]; }
-	get profiles(): IUserDataProfile[] { return [this.createDefaultUserDataProfile(false)]; }
+	protected _profiles: IUserDataProfile[] = [this.createDefaultUserDataProfile(false)];
+	get profiles(): IUserDataProfile[] { return this._profiles; }
 
 	protected readonly _onDidChangeProfiles = this._register(new Emitter<DidChangeProfilesEvent>());
 	readonly onDidChangeProfiles = this._onDidChangeProfiles.event;
