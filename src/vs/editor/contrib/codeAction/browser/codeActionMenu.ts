@@ -271,7 +271,7 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 
 		this.codeActionList = new List('test', this.parent, {
 			getHeight(element) {
-				return 20;
+				return 23;
 			},
 			getTemplateId(element) {
 				return 'test';
@@ -339,40 +339,40 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 		this.setCodeActionMenuList();
 		this.codeActionList.layout(180);
 
-		// this._contextMenuService.showContextMenu({
-		// 	domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
-		// 	getAnchor: () => anchor,
-		// 	getActions: () => menuActions,
-		// 	onHide: (didCancel) => {
-		// 		const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
+		this._contextMenuService.showContextMenu({
+			domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
+			getAnchor: () => anchor,
+			getActions: () => menuActions,
+			onHide: (didCancel) => {
+				const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
 
-		// 		type ApplyCodeActionEvent = {
-		// 			codeActionFrom: CodeActionTriggerSource;
-		// 			validCodeActions: number;
-		// 			cancelled: boolean;
-		// 		};
+				type ApplyCodeActionEvent = {
+					codeActionFrom: CodeActionTriggerSource;
+					validCodeActions: number;
+					cancelled: boolean;
+				};
 
-		// 		type ApplyCodeEventClassification = {
-		// 			codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-		// 			validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-		// 			cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-		// 			owner: 'mjbvz';
-		// 			comment: 'Event used to gain insights into how code actions are being triggered';
-		// 		};
+				type ApplyCodeEventClassification = {
+					codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
+					validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
+					cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
+					owner: 'mjbvz';
+					comment: 'Event used to gain insights into how code actions are being triggered';
+				};
 
-		// 		this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-		// 			codeActionFrom: openedFromString,
-		// 			validCodeActions: codeActions.validActions.length,
-		// 			cancelled: didCancel,
+				this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+					codeActionFrom: openedFromString,
+					validCodeActions: codeActions.validActions.length,
+					cancelled: didCancel,
 
-		// 		});
+				});
 
-		// 		this._visible = false;
-		// 		this._editor.focus();
-		// 	},
-		// 	autoSelectFirstItem: true,
-		// 	getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
-		// });
+				this._visible = false;
+				this._editor.focus();
+			},
+			autoSelectFirstItem: true,
+			getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
+		});
 	}
 
 	/**
