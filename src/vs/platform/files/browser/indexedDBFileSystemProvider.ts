@@ -253,7 +253,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 	private readonly _onReportError = this._register(new Emitter<IndexedDBFileSystemProviderErrorData>());
 	readonly onReportError = this._onReportError.event;
 
-	private readonly versions = new Map<string, number>();
+	private readonly mtimes = new Map<string, number>();
 
 	private cachedFiletree: Promise<IndexedDBFileSystemNode> | undefined;
 	private writeManyThrottler: Throttler;
@@ -289,7 +289,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 			return {
 				type: FileType.File,
 				ctime: 0,
-				mtime: this.versions.get(resource.toString()) || 0,
+				mtime: this.mtimes.get(resource.toString()) || 0,
 				size: entry.size ?? (await this.readFile(resource)).byteLength
 			};
 		}
@@ -434,7 +434,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		}
 		await this.deleteKeys(toDelete);
 		(await this.getFiletree()).delete(resource.path);
-		toDelete.forEach(key => this.versions.delete(key));
+		toDelete.forEach(key => this.mtimes.delete(key));
 		this.triggerChanges(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
 	}
 
@@ -487,7 +487,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		const fileTree = await this.getFiletree();
 		for (const [resource, content] of files) {
 			fileTree.add(resource.path, { type: 'file', size: content.byteLength });
-			this.versions.set(resource.toString(), (this.versions.get(resource.toString()) || 0) + 1);
+			this.mtimes.set(resource.toString(), Date.now());
 		}
 
 		this.triggerChanges(files.map(([resource]) => ({ resource, type: FileChangeType.UPDATED })));

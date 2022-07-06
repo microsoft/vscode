@@ -101,6 +101,7 @@ export interface IProductConfiguration {
 	readonly aiConfig?: {
 		readonly asimovKey: string;
 		readonly ariaKey: string;
+		readonly preferAria: boolean;
 	};
 
 	readonly sendASmile?: {

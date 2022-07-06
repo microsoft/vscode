@@ -313,8 +313,7 @@ export class MenuBar extends Disposable {
 
 	createOverflowMenu(): void {
 		const label = this.isCompact ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', 'More');
-		const title = this.isCompact ? label : undefined;
-		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': this.isCompact ? 0 : -1, 'aria-label': label, 'title': title, 'aria-haspopup': true });
+		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': this.isCompact ? 0 : -1, 'aria-label': label, 'aria-haspopup': true });
 		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more' + Codicon.menuBarMore.cssSelector, { 'role': 'none', 'aria-hidden': true });
 
 		buttonElement.appendChild(titleElement);
@@ -330,7 +329,14 @@ export class MenuBar extends Disposable {
 				triggerKeys.push(KeyCode.DownArrow);
 			} else {
 				triggerKeys.push(KeyCode.Space);
-				triggerKeys.push(this.options.compactMode === Direction.Right ? KeyCode.RightArrow : KeyCode.LeftArrow);
+
+				if (this.options.compactMode === Direction.Right) {
+					triggerKeys.push(KeyCode.RightArrow);
+				} else if (this.options.compactMode === Direction.Left) {
+					triggerKeys.push(KeyCode.LeftArrow);
+				} else if (this.options.compactMode === Direction.Down) {
+					triggerKeys.push(KeyCode.DownArrow);
+				}
 			}
 
 			if ((triggerKeys.some(k => event.equals(k)) && !this.isOpen)) {
@@ -740,7 +746,7 @@ export class MenuBar extends Disposable {
 		this._onFocusStateChange.fire(this.focusState >= MenubarState.FOCUSED);
 	}
 
-	private get isVisible(): boolean {
+	get isVisible(): boolean {
 		return this.focusState >= MenubarState.VISIBLE;
 	}
 
@@ -973,7 +979,7 @@ export class MenuBar extends Disposable {
 		const actualMenuIndex = menuIndex >= this.numMenusShown ? MenuBar.OVERFLOW_INDEX : menuIndex;
 		const customMenu = actualMenuIndex === MenuBar.OVERFLOW_INDEX ? this.overflowMenu : this.menus[actualMenuIndex];
 
-		if (!customMenu.actions || !customMenu.buttonElement) {
+		if (!customMenu.actions || !customMenu.buttonElement || !customMenu.titleElement) {
 			return;
 		}
 
@@ -981,18 +987,19 @@ export class MenuBar extends Disposable {
 
 		customMenu.buttonElement.classList.add('open');
 
-		const buttonBoundingRect = customMenu.buttonElement.getBoundingClientRect();
+		const titleBoundingRect = customMenu.titleElement.getBoundingClientRect();
+		const titleBoundingRectZoom = DOM.getDomNodeZoomLevel(customMenu.titleElement);
 
 		if (this.options.compactMode === Direction.Right) {
-			menuHolder.style.top = `${buttonBoundingRect.top}px`;
-			menuHolder.style.left = `${buttonBoundingRect.left + this.container.clientWidth}px`;
+			menuHolder.style.top = `${titleBoundingRect.top}px`;
+			menuHolder.style.left = `${titleBoundingRect.left + this.container.clientWidth}px`;
 		} else if (this.options.compactMode === Direction.Left) {
-			menuHolder.style.top = `${buttonBoundingRect.top}px`;
+			menuHolder.style.top = `${titleBoundingRect.top}px`;
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.top = `${buttonBoundingRect.bottom}px`;
-			menuHolder.style.left = `${buttonBoundingRect.left}px`;
+			menuHolder.style.top = `${titleBoundingRect.bottom * titleBoundingRectZoom}px`;
+			menuHolder.style.left = `${titleBoundingRect.left * titleBoundingRectZoom}px`;
 		}
 
 		customMenu.buttonElement.appendChild(menuHolder);

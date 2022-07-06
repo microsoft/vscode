@@ -1103,7 +1103,7 @@ flakySuite('Disk File Service', function () {
 		}
 	});
 
-	test('copy - MIX CASE different taget - overwrite', async () => {
+	test('copy - MIX CASE different target - overwrite', async () => {
 		const source1 = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
 		assert.ok(source1.size > 0);
 

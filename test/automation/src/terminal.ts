@@ -37,7 +37,8 @@ export enum TerminalCommandIdWithValue {
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
-	AttachToSession = 'workbench.action.terminal.attachToSession'
+	AttachToSession = 'workbench.action.terminal.attachToSession',
+	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal'
 }
 
 /**
@@ -112,6 +113,9 @@ export class Terminal {
 		}
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
+		if (commandId === TerminalCommandIdWithValue.NewWithProfile) {
+			await this._waitForTerminal();
+		}
 	}
 
 	async runCommandInTerminal(commandText: string, skipEnter?: boolean): Promise<void> {

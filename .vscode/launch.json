@@ -202,24 +202,6 @@
 			}
 		},
 		{
-			"type": "extensionHost",
-			"request": "launch",
-			"name": "VS Code Custom Editor Tests",
-			"runtimeExecutable": "${execPath}",
-			"args": [
-				"${workspaceFolder}/extensions/vscode-custom-editor-tests/test-workspace",
-				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-custom-editor-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-custom-editor-tests/out/test"
-			],
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			],
-			"presentation": {
-				"group": "5_tests",
-				"order": 6
-			}
-		},
-		{
 			"type": "pwa-chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",

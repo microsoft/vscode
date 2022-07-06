@@ -51,8 +51,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
 	) {
 		super(
@@ -69,11 +69,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensionManifestPropertiesService,
 			webExtensionsScannerService,
 			logService,
-			remoteAgentService
+			remoteAgentService,
+			lifecycleService
 		);
 
 		// Initialize installed extensions first and do it only after workbench is ready
-		this._lifecycleService.when(LifecyclePhase.Ready).then(async () => {
+		lifecycleService.when(LifecyclePhase.Ready).then(async () => {
 			await this._userDataInitializationService.initializeInstalledExtensions(this._instantiationService);
 			this._initialize();
 		});

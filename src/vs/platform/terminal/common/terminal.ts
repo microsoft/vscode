@@ -181,11 +181,6 @@ export enum TitleEventSource {
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
 export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
 
-export interface IRawTerminalInstanceLayoutInfo<T> {
-	relativeSize: number;
-	terminal: T;
-}
-
 export enum TerminalIpcChannels {
 	/**
 	 * Communicates between the renderer process and shared process.
@@ -216,7 +211,8 @@ export const enum ProcessPropertyType {
 	HasChildProcesses = 'hasChildProcesses',
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
 	OverrideDimensions = 'overrideDimensions',
-	FailedShellIntegrationActivation = 'failedShellIntegrationActivation'
+	FailedShellIntegrationActivation = 'failedShellIntegrationActivation',
+	UsedShellIntegrationInjection = 'usedShellIntegrationInjection'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -234,6 +230,7 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig;
 	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
 	[ProcessPropertyType.FailedShellIntegrationActivation]: boolean | undefined;
+	[ProcessPropertyType.UsedShellIntegrationInjection]: boolean | undefined;
 }
 
 export interface IFixedTerminalDimensions {
@@ -529,6 +526,11 @@ export interface IShellLaunchConfig {
 	 * Opt-out of the default terminal persistence on restart and reload
 	 */
 	isTransient?: boolean;
+
+	/**
+	 * Create a terminal without shell integration even when it's enabled
+	 */
+	ignoreShellIntegration?: boolean;
 }
 
 export interface ICreateContributedTerminalProfileOptions {
