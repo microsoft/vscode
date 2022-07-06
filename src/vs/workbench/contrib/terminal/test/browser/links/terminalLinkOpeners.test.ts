@@ -110,7 +110,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				marker: {
 					line: 0
 				} as Partial<IXtermMarker> as any,
-				hasOutput: true
+				hasOutput() { return true; }
 			}]);
 			fileService.setFiles([
 				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.txt' }),
