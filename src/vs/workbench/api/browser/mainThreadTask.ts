@@ -342,7 +342,7 @@ namespace TaskDTO {
 		return result;
 	}
 
-	export function to(task: ITaskDTO | undefined, workspace: IWorkspaceContextService, executeOnly: boolean, icon?: { id?: string; color?: string }): ContributedTask | undefined {
+	export function to(task: ITaskDTO | undefined, workspace: IWorkspaceContextService, executeOnly: boolean, icon?: { id?: string; color?: string }, hide?: boolean): ContributedTask | undefined {
 		if (!task || (typeof task.name !== 'string')) {
 			return undefined;
 		}
@@ -383,7 +383,8 @@ namespace TaskDTO {
 				isBackground: !!task.isBackground,
 				problemMatchers: task.problemMatchers.slice(),
 				detail: task.detail,
-				icon
+				icon,
+				hide
 			}
 		);
 		return result;
@@ -492,7 +493,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 					dto.name = ((dto.name === undefined) ? '' : dto.name); // Using an empty name causes the name to default to the one given by the provider.
 					return Promise.resolve(this._proxy.$resolveTask(handle, dto)).then(resolvedTask => {
 						if (resolvedTask) {
-							return TaskDTO.to(resolvedTask, this._workspaceContextServer, true, task.configurationProperties.icon);
+							return TaskDTO.to(resolvedTask, this._workspaceContextServer, true, task.configurationProperties.icon, task.configurationProperties.hide);
 						}
 
 						return undefined;
