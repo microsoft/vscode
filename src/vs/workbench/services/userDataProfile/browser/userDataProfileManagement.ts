@@ -46,10 +46,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			this.enterProfile(this.userDataProfilesService.defaultProfile, false, localize('reload message when removed', "The current profile has been removed. Please reload to switch back to default profile"));
 			return;
 		}
-		if (this.userDataProfileService.currentProfile.isDefault) {
-			this.userDataProfileService.updateCurrentProfile(this.userDataProfilesService.defaultProfile, false);
-			return;
-		}
 	}
 
 	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile> {
