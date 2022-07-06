@@ -589,47 +589,44 @@ export namespace WorkspaceEdit {
 
 				if (entry._type === types.FileEditType.File) {
 					// file operation
-					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.File,
-						oldUri: entry.from,
-						newUri: entry.to,
+					result.edits.push(<languages.IWorkspaceFileEdit>{
+						oldResource: entry.from,
+						newResource: entry.to,
 						options: entry.options,
 						metadata: entry.metadata
 					});
 
 				} else if (entry._type === types.FileEditType.Text) {
-
 					// text edits
-					const dto = <extHostProtocol.IWorkspaceTextEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.Text,
+					const edit = <languages.IWorkspaceTextEdit>{
 						resource: entry.uri,
-						edit: TextEdit.from(entry.edit),
-						modelVersionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
+						textEdit: TextEdit.from(entry.edit),
+						versionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
 						metadata: entry.metadata
 					};
 					if (allowSnippetTextEdit && entry.edit.newText2 instanceof types.SnippetString) {
-						dto.edit.insertAsSnippet = true;
-						dto.edit.text = entry.edit.newText2.value;
+						edit.textEdit.insertAsSnippet = true;
+						edit.textEdit.text = entry.edit.newText2.value;
 					}
-					result.edits.push(dto);
+					result.edits.push(edit);
 
 				} else if (entry._type === types.FileEditType.Cell) {
-					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.Cell,
+					// cell edit
+					result.edits.push(<notebooks.IWorkspaceNotebookCellEdit>{
 						metadata: entry.metadata,
 						resource: entry.uri,
-						edit: entry.edit,
+						cellEdit: entry.edit,
 						notebookMetadata: entry.notebookMetadata,
 						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri)
 					});
 
 				} else if (entry._type === types.FileEditType.CellReplace) {
-					result.edits.push({
-						_type: extHostProtocol.WorkspaceEditType.Cell,
+					// cell replace
+					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
 						metadata: entry.metadata,
 						resource: entry.uri,
 						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri),
-						edit: {
+						cellEdit: {
 							editType: notebooks.CellEditType.Replace,
 							index: entry.index,
 							count: entry.count,
@@ -645,16 +642,16 @@ export namespace WorkspaceEdit {
 	export function to(value: extHostProtocol.IWorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {
-			if ((<extHostProtocol.IWorkspaceTextEditDto>edit).edit) {
+			if ((<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit) {
 				result.replace(
 					URI.revive((<extHostProtocol.IWorkspaceTextEditDto>edit).resource),
-					Range.to((<extHostProtocol.IWorkspaceTextEditDto>edit).edit.range),
-					(<extHostProtocol.IWorkspaceTextEditDto>edit).edit.text
+					Range.to((<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit.range),
+					(<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit.text
 				);
 			} else {
 				result.renameFile(
-					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).oldUri!),
-					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).newUri!),
+					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).oldResource!),
+					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).newResource!),
 					(<extHostProtocol.IWorkspaceFileEditDto>edit).options
 				);
 			}

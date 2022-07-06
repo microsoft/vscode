@@ -258,7 +258,7 @@ export class InstantiationService implements IInstantiationService {
 
 	private _throwIfStrict(msg: string, printWarning: boolean): void {
 		if (printWarning) {
-			console.warn(printWarning);
+			console.warn(msg);
 		}
 		if (this._strict) {
 			throw new Error(msg);

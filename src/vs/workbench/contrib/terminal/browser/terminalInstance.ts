@@ -155,6 +155,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private readonly _processManager: ITerminalProcessManager;
 	private readonly _resource: URI;
+	private _shutdownPersistentProcessId: number | undefined;
 
 	// Enables disposal of the xterm onKey
 	// event when the CwdDetection capability
@@ -664,8 +665,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
-	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId; }
-	get shouldPersist(): boolean { return this._processManager.shouldPersist && !this.shellLaunchConfig.isTransient; }
+	set shutdownPersistentProcessId(shutdownPersistentProcessId: number | undefined) {
+		this._shutdownPersistentProcessId = shutdownPersistentProcessId;
+	}
+	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId ?? this._shutdownPersistentProcessId; }
+	get shouldPersist(): boolean { return (this._processManager.shouldPersist || this._shutdownPersistentProcessId !== undefined) && !this.shellLaunchConfig.isTransient; }
 
 	/**
 	 * Create xterm.js instance and attach data listeners.

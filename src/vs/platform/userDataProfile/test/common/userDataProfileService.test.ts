@@ -54,8 +54,10 @@ suite('UserDataProfileService (Common)', () => {
 		assert.strictEqual(testObject.defaultProfile.extensionsResource, undefined);
 	});
 
-	test('profiles are empty', () => {
-		assert.deepStrictEqual(testObject.profiles, []);
+	test('profiles always include default profile', () => {
+		assert.deepStrictEqual(testObject.profiles.length, 1);
+		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
+		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);
 	});
 
 

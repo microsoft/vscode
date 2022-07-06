@@ -7,7 +7,8 @@ import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { IMdParser } from '../markdownEngine';
 import { MdTableOfContentsProvider } from '../tableOfContents';
-import { ITextDocument } from '../types/textDocument';
+import { getLine, ITextDocument } from '../types/textDocument';
+import { isEmptyOrWhitespace } from '../util/string';
 
 const rangeLimit = 5000;
 
@@ -59,7 +60,7 @@ export class MdFoldingProvider implements vscode.FoldingRangeProvider {
 		const toc = await this.tocProvide.getForDocument(document);
 		return toc.entries.map(entry => {
 			let endLine = entry.sectionLocation.range.end.line;
-			if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= entry.line + 1) {
+			if (isEmptyOrWhitespace(getLine(document, endLine)) && endLine >= entry.line + 1) {
 				endLine = endLine - 1;
 			}
 			return new vscode.FoldingRange(entry.line, endLine);
@@ -72,7 +73,7 @@ export class MdFoldingProvider implements vscode.FoldingRangeProvider {
 		return multiLineListItems.map(listItem => {
 			const start = listItem.map[0];
 			let end = listItem.map[1] - 1;
-			if (document.lineAt(end).isEmptyOrWhitespace && end >= start + 1) {
+			if (isEmptyOrWhitespace(getLine(document, end)) && end >= start + 1) {
 				end = end - 1;
 			}
 			return new vscode.FoldingRange(start, end, this.getFoldingRangeKind(listItem));

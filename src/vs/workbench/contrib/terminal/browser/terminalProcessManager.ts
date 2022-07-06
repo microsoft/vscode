@@ -292,7 +292,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				}
 			} else {
 				if (shellLaunchConfig.attachPersistentProcess) {
-					const result = await backend.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
+					const result = shellLaunchConfig.attachPersistentProcess.findRevivedId ? await backend.attachToRevivedProcess(shellLaunchConfig.attachPersistentProcess.id) : await backend.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
 						newProcess = result;
 					} else {
