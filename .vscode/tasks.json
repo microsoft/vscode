@@ -234,5 +234,5 @@
 			"label": "npm: tsec-compile-check",
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		}
-]
+        ]
 }
