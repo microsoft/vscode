@@ -354,10 +354,15 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private async _getCommandActions(command: ITerminalCommand): Promise<IAction[]> {
 		const actions: IAction[] = [];
 		if (command.command !== '') {
-			const label = localize("terminal.rerunCommand", 'Rerun Command');
+			const labelRun = localize("terminal.rerunCommand", 'Rerun Command');
 			actions.push({
-				class: undefined, tooltip: label, dispose: () => { }, id: 'terminal.rerunCommand', label, enabled: true,
+				class: undefined, tooltip: labelRun, dispose: () => { }, id: 'terminal.rerunCommand', label: labelRun, enabled: true,
 				run: () => this._onDidRequestRunCommand.fire({ command })
+			});
+			const labelCopy = localize("terminal.copyCommand", 'Copy Command');
+			actions.push({
+				class: undefined, tooltip: labelCopy, dispose: () => { }, id: 'terminal.copyCommand', label: labelCopy, enabled: true,
+				run: () => this._clipboardService.writeText(command.command)
 			});
 		}
 		if (command.hasOutput) {
