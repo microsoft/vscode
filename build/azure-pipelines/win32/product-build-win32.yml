@@ -173,7 +173,7 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        $env:VSCODE_EXPLORER_APPX_DIR=$(Join-Path $pwd.Path "resources/win32/appx")
+        $env:VSCODE_EXPLORER_APPX_DIR=$(Join-Path $pwd.Path ".build/win32/appx")
         exec { node build/win32/explorer-appx-fetcher }
       env:
         VSCODE_ARCH: "$(VSCODE_ARCH)"

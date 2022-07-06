@@ -29,12 +29,12 @@ export async function downloadExplorerAppx(outDir: string, quality: string = 'st
 	d(`downloading ${fileName}`);
 	const artifact = await downloadArtifact({
 		isGeneric: true,
-		version: '3.0.1',
+		version: '3.0.2',
 		artifactName: fileName,
 		unsafelyDisableChecksums: true,
 		mirrorOptions: {
 			mirror: 'https://github.com/microsoft/vscode-explorer-command/releases/download/',
-			customDir: '3.0.1',
+			customDir: '3.0.2',
 			customFilename: fileName
 		}
 	});

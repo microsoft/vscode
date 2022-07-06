@@ -370,16 +370,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
 
-			if (quality) {
-				const appxPackagePrefix = quality === 'insider' ? 'code_insiders' : 'code';
-				const appxDLL = `${appxPackagePrefix}_explorer_command.dll`;
-				let appxPackage = `${appxPackagePrefix}_explorer_${arch}.appx`;
-				if (arch === 'ia32') {
-					appxPackage = `${appxPackagePrefix}_explorer_x86.appx`;
-				}
-				result = es.merge(result, gulp.src(`resources/win32/appx/${appxPackage}`, { base: 'resources/win32/appx' }));
-				result = es.merge(result, gulp.src(`resources/win32/appx/${appxDLL}`, { base: 'resources/win32/appx' }));
-			}
+			result = es.merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@PRODNAME@@', product.nameLong))

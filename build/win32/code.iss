@@ -99,7 +99,7 @@ Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}"; File
 [Run]
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Flags: nowait postinstall; Check: WizardNotSilent
-Filename: "powershell.exe"; Parameters: "Invoke-Command -ScriptBlock {{Add-AppxPackage -Path """"""{app}\{#AppxPackage}"""""" -ExternalLocation """"""{app}""""""}"; Tasks: addcontextmenufiles; Check: IsWindows11OrLater; Flags: shellexec waituntilterminated runhidden
+Filename: "powershell.exe"; Parameters: "Invoke-Command -ScriptBlock {{Add-AppxPackage -Path """"""{app}\appx\{#AppxPackage}"""""" -ExternalLocation """"""{app}\appx""""""}"; Tasks: addcontextmenufiles; Check: IsWindows11OrLater; Flags: shellexec waituntilterminated runhidden
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "Invoke-Command -ScriptBlock {{Remove-AppxPackage -Package ""{#AppxPackageFullname}""}"; Check: IsWindows11OrLater; Flags: shellexec waituntilterminated runhidden
