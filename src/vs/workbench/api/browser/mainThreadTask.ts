@@ -451,7 +451,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	}
 
 	public dispose(): void {
-		for (const value of Object.entries(this._providers)) {
+		for (const value of this._providers.entries()) {
 			value[1].disposable.dispose();
 		}
 		this._providers.clear();
