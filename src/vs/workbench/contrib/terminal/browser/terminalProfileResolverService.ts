@@ -97,11 +97,11 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void {
 		if (shellLaunchConfig.icon) {
-			shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || Codicon.terminal;
+			shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || this.getDefaultIcon();
 			return;
 		}
 		if (shellLaunchConfig.customPtyImplementation) {
-			shellLaunchConfig.icon = Codicon.terminal;
+			shellLaunchConfig.icon = this.getDefaultIcon();
 			return;
 		}
 		if (shellLaunchConfig.executable) {
@@ -111,6 +111,13 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		if (defaultProfile) {
 			shellLaunchConfig.icon = defaultProfile.icon;
 		}
+		if (!shellLaunchConfig.icon) {
+			shellLaunchConfig.icon = this.getDefaultIcon();
+		}
+	}
+
+	getDefaultIcon(): TerminalIcon & ThemeIcon {
+		return this._iconRegistry.getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon)) || Codicon.terminal;
 	}
 
 	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
@@ -138,10 +145,11 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
+		console.log('icon', this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon));
 		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon)
 			|| this._getCustomIcon(resolvedProfile.icon)
-			|| this._iconRegistry.getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon))
-			|| Codicon.terminal;
+			|| this.getDefaultIcon();
+		console.log('icon2', shellLaunchConfig.icon);
 
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
@@ -240,6 +248,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
 			return this._terminalProfileService.availableProfiles.find(e => e.profileName === defaultProfileName);
 		}
+
 		return undefined;
 	}
 
