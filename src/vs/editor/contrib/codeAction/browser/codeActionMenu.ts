@@ -33,6 +33,19 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 // const $ = dom.$;
 
+
+/**
+ * Was work from home or work from cafe yesterday
+ * Some widget working stuff - demo rq, ask about some list widget stuff
+ * Weekend update - gasworks, climbing for 6 hours,
+ * got microsoft merch that i ordered from the company store stolen, and UPS couldnt find it,
+ *  so also if anyone knows if i can get the order reordered or who i can go annoy about this lmk
+ *
+ *
+ *
+ */
+
+
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
 }
@@ -118,8 +131,8 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		const isDisabled = element.isDisabled;
 
 		data.text.textContent = text;
-		data.detail.textContent = detail;
-		data.decoratorRight.innerText = '';
+		// data.detail.textContent = detail;
+		// data.decoratorRight.innerText = '';
 
 		if (isDisabled) {
 			data.root.classList.add('option-disabled');
@@ -324,6 +337,7 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 
 		this.createCodeActionMenuList(this.parent, this.menuAction, anchor);
 		this.setCodeActionMenuList();
+		this.codeActionList.layout(180);
 
 		// this._contextMenuService.showContextMenu({
 		// 	domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
