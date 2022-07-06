@@ -499,7 +499,8 @@ configurationRegistry.registerConfiguration({
 		'task.allowAutomaticTasks': {
 			type: 'boolean',
 			description: nls.localize('task.allowAutomaticTasks', "Allow Automatic Tasks in the folder"),
-			default: false
+			default: false,
+			restricted: true
 		},
 		'task.showDecorations': {
 			type: 'boolean',

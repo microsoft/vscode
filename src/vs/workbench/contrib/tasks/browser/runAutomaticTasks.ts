@@ -136,7 +136,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			return;
 		}
 
-		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, undefined);
+		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.APPLICATION, undefined);
 		if (hasShownPromptForAutomaticTasks !== undefined) {
 			return;
 		}
@@ -164,14 +164,14 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					label: nls.localize('allow', "Allow and run"),
 					run: () => {
 						resolve(true);
-						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, true, ConfigurationTarget.WORKSPACE);
+						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, true, ConfigurationTarget.USER);
 					}
 				},
 				{
 					label: nls.localize('disallow', "Disallow"),
 					run: () => {
 						resolve(false);
-						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, false, ConfigurationTarget.WORKSPACE);
+						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, false, ConfigurationTarget.USER);
 
 					}
 				},
@@ -185,10 +185,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					}
 				}]
 			);
-			storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		});
 	}
-
 }
 
 export class ManageAutomaticTaskRunning extends Action2 {
