@@ -192,7 +192,7 @@ async function navigateCallStack(debugService: IDebugService, down: boolean) {
 	if (frame) {
 
 		let callStack = frame.thread.getCallStack();
-		const index = callStack.findIndex(elem => elem.frameId === frame.frameId);
+		let index = callStack.findIndex(elem => elem.frameId === frame.frameId);
 		let nextVisibleFrame;
 		if (down) {
 			if (index >= callStack.length - 1) {
@@ -202,6 +202,7 @@ async function navigateCallStack(debugService: IDebugService, down: boolean) {
 				} else {
 					await debugService.getModel().fetchCallstack((<Thread>frame.thread), 20);
 					callStack = frame.thread.getCallStack();
+					index = callStack.findIndex(elem => elem.frameId === frame.frameId);
 				}
 			}
 			nextVisibleFrame = findNextVisibleFrame(true, callStack, index);
@@ -243,17 +244,12 @@ function goToTopOfCallStack(debugService: IDebugService) {
 
 /**
  * Finds next frame that is not skipped by SkipFiles. Skips frame at index and starts searching at next.
+ * Must satisfy `0 <= startIndex <= callStack - 1`
  * @param down specifies whether to search downwards if the current file is skipped.
  * @param callStack the call stack to search
  * @param startIndex the index to start the search at
  */
 function findNextVisibleFrame(down: boolean, callStack: readonly IStackFrame[], startIndex: number) {
-
-	if (startIndex === callStack.length) {
-		startIndex = 0;
-	} else if (startIndex === -1) {
-		startIndex = callStack.length - 1;
-	}
 
 	let index = startIndex;
 
