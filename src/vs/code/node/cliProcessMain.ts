@@ -189,7 +189,7 @@ class CliMain extends Disposable {
 		const appenders: OneDataSystemAppender[] = [];
 		if (supportsTelemetry(productService, environmentService)) {
 			if (productService.aiConfig && productService.aiConfig.ariaKey) {
-				appenders.push(new OneDataSystemAppender(configurationService, 'monacoworkbench', null, productService.aiConfig.asimovKey));
+				appenders.push(new OneDataSystemAppender(configurationService, 'monacoworkbench', null, productService.aiConfig.ariaKey));
 			}
 
 			const { installSourcePath } = environmentService;

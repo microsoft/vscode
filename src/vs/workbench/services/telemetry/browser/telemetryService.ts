@@ -37,7 +37,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (supportsTelemetry(productService, environmentService) && productService.aiConfig?.asimovKey && productService.aiConfig?.ariaKey) {
+		if (supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey) {
 			// If remote server is present send telemetry through that, else use the client side appender
 			const appenders = [];
 			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new OneDataSystemWebAppender(configurationService, 'monacoworkbench', null, productService.aiConfig?.ariaKey);

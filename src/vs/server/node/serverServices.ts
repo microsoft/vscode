@@ -132,7 +132,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const machineId = await getMachineId();
 	if (supportsTelemetry(productService, environmentService)) {
 		if (productService.aiConfig && productService.aiConfig.ariaKey) {
-			oneDsAppender = new OneDataSystemAppender(configurationService, eventPrefix, null, productService.aiConfig.asimovKey);
+			oneDsAppender = new OneDataSystemAppender(configurationService, eventPrefix, null, productService.aiConfig.ariaKey);
 			disposables.add(toDisposable(() => oneDsAppender?.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 		}
 
