@@ -189,9 +189,23 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		// Try open as an absolute link
 		let resourceMatch: IResourceMatch | undefined;
 		if (absolutePath) {
-			const slashNormalizedPath = this._os === OperatingSystem.Windows ? absolutePath.replace(/\\/g, '/') : absolutePath;
-			const scheme = this._workbenchEnvironmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
-			const uri = URI.from({ scheme, path: slashNormalizedPath });
+			let normalizedAbsolutePath: string = absolutePath;
+			if (this._os === OperatingSystem.Windows) {
+				normalizedAbsolutePath = absolutePath.replace(/\\/g, '/');
+				if (normalizedAbsolutePath.match(/[a-z]:/i)) {
+					normalizedAbsolutePath = `/${normalizedAbsolutePath}`;
+				}
+			}
+			let uri: URI;
+			if (this._workbenchEnvironmentService.remoteAuthority) {
+				uri = URI.from({
+					scheme: Schemas.vscodeRemote,
+					authority: this._workbenchEnvironmentService.remoteAuthority,
+					path: normalizedAbsolutePath
+				});
+			} else {
+				uri = URI.file(normalizedAbsolutePath);
+			}
 			try {
 				const fileStat = await this._fileService.stat(uri);
 				resourceMatch = { uri, isDirectory: fileStat.isDirectory };
