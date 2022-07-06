@@ -551,7 +551,7 @@ export interface IConfigurationProperties {
 	icon?: { id?: string; color?: string };
 
 	/**
-	 * Does not show this task in the run task quickpick
+	 * Do not show this task in the run task quickpick
 	 */
 	hide?: boolean;
 }
