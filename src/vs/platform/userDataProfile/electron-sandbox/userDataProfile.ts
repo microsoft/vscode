@@ -42,9 +42,8 @@ export class UserDataProfilesNativeService extends UserDataProfilesService imple
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
-	override async setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
-		const result = await this.channel.call<UriDto<IUserDataProfile>>('setProfileForWorkspace', [profile, workspaceIdentifier]);
-		return reviveProfile(result, this.profilesHome.scheme);
+	override async setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<void> {
+		await this.channel.call<UriDto<IUserDataProfile>>('setProfileForWorkspace', [profile, workspaceIdentifier]);
 	}
 
 	override removeProfile(profile: IUserDataProfile): Promise<void> {

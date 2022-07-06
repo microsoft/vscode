@@ -82,7 +82,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		return profile;
 	}
 
-	override async setProfileForWorkspace(profileToSet: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile> {
+	override async setProfileForWorkspace(profileToSet: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<void> {
 		if (!this.enabled) {
 			throw new Error(`Settings Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
 		}
@@ -93,7 +93,6 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 
 		this.updateWorkspaceAssociation(workspaceIdentifier, profile);
-		return profile;
 	}
 
 	async unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier): Promise<void> {

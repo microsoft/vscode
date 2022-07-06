@@ -79,7 +79,7 @@ export interface IUserDataProfilesService {
 	readonly profiles: IUserDataProfile[];
 
 	createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
-	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile>;
+	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<void>;
 	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 }
@@ -143,7 +143,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
-	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<IUserDataProfile> { throw new Error('Not implemented'); }
+	setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: WorkspaceIdentifier): Promise<void> { throw new Error('Not implemented'); }
 	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile { throw new Error('Not implemented'); }
 	removeProfile(profile: IUserDataProfile): Promise<void> { throw new Error('Not implemented'); }
 }
