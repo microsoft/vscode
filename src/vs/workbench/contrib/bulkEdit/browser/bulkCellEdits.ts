@@ -35,7 +35,7 @@ export class ResourceNotebookCellEdit extends ResourceEdit implements IWorkspace
 	constructor(
 		readonly resource: URI,
 		readonly cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit,
-		readonly notebookVersionId: number | undefined,
+		readonly notebookVersionId: number | undefined = undefined,
 		metadata?: WorkspaceEditMetadata
 	) {
 		super(metadata);
