@@ -69,7 +69,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
 		// default terminal before launching the first terminal. This isn't expected to ever take
 		// this long.
-		this._profilesReadyBarrier = new AutoOpenBarrier(15000);
+		this._profilesReadyBarrier = new AutoOpenBarrier(20000);
 		this.refreshAvailableProfiles();
 		this._setupConfigListener();
 	}
