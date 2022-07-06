@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IStringDictionary, forEach } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { IConfigurationService, IConfigurationOverrides, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -157,9 +157,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		if (!newMapping) {
 			return false;
 		}
-		forEach(newMapping, (entry) => {
-			fullMapping.set(entry.key, entry.value);
-		});
+		for (const [key, value] of Object.entries(newMapping)) {
+			fullMapping.set(key, value);
+		}
 		return true;
 	}
 
@@ -256,20 +256,21 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					}
 				}
 			}
-			this._contributedVariables.forEach((value, contributed: string) => {
+			for (const contributed of this._contributedVariables.keys()) {
 				if ((variables.indexOf(contributed) < 0) && (object.indexOf('${' + contributed + '}') >= 0)) {
 					variables.push(contributed);
 				}
-			});
+			}
 		} else if (Types.isArray(object)) {
-			object.forEach(value => {
+			for (const value of object) {
 				this.findVariables(value, variables);
-			});
+
+			}
 		} else if (object) {
-			Object.keys(object).forEach(key => {
-				const value = object[key];
+			for (const value of Object.values(object)) {
 				this.findVariables(value, variables);
-			});
+
+			}
 		}
 	}
 
@@ -315,11 +316,11 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						missingAttribute('description');
 					}
 					if (Types.isArray(info.options)) {
-						info.options.forEach(pickOption => {
+						for (const pickOption of info.options) {
 							if (!Types.isString(pickOption) && !Types.isString(pickOption.value)) {
 								missingAttribute('value');
 							}
-						});
+						}
 					} else {
 						missingAttribute('options');
 					}
@@ -327,7 +328,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						value: string;
 					}
 					const picks = new Array<PickStringItem>();
-					info.options.forEach(pickOption => {
+					for (const pickOption of info.options) {
 						const value = Types.isString(pickOption) ? pickOption : pickOption.value;
 						const label = Types.isString(pickOption) ? undefined : pickOption.label;
 
@@ -343,7 +344,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						} else {
 							picks.push(item);
 						}
-					});
+					}
 					const pickOptions: IPickOptions<PickStringItem> = { placeHolder: info.description, matchOnDetail: true, ignoreFocusLost: true };
 					return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
 						if (resolvedInput) {
