@@ -206,6 +206,7 @@ export interface IDebugSessionOptions {
 		simple?: boolean;
 	};
 	startedByUser?: boolean;
+	saveBeforeStart?: boolean;
 }
 
 export interface IDataBreakpointInfoResponse {
@@ -1086,7 +1087,7 @@ export interface IDebugService {
 	 * Returns true if the start debugging was successful. For compound launches, all configurations have to start successfully for it to return success.
 	 * On errors the startDebugging will throw an error, however some error and cancelations are handled and in that case will simply return false.
 	 */
-	startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions, saveBeforeStart?: boolean): Promise<boolean>;
+	startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean>;
 
 	/**
 	 * Restarts a session or creates a new one if there is no active session.
