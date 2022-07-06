@@ -136,7 +136,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			return;
 		}
 
-		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.APPLICATION, undefined);
+		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, undefined);
 		if (hasShownPromptForAutomaticTasks !== undefined) {
 			return;
 		}
