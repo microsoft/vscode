@@ -23,7 +23,6 @@ import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
