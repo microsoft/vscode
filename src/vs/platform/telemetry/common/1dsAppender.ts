@@ -63,7 +63,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	protected readonly endPointUrl = endpointUrl;
 
 	constructor(
-		private readonly _configurationService: IConfigurationService,
+		private readonly _configurationService: IConfigurationService | undefined,
 		private _eventPrefix: string,
 		private _defaultData: { [key: string]: any } | null,
 		iKeyOrClientFactory: string | (() => AppInsightsCore), // allow factory function for testing
@@ -92,7 +92,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		}
 
 		if (!this._asyncAiCore) {
-			const isInternal = this._configurationService.getValue<boolean>('telemetry.internalTesting');
+			const isInternal = this._configurationService?.getValue<boolean>('telemetry.internalTesting');
 			this._asyncAiCore = getClient(this._aiCoreOrKey, isInternal, this._xhrOverride);
 		}
 

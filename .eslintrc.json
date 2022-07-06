@@ -210,8 +210,7 @@
 						// - electron-browser
 						"when": "hasBrowser",
 						"allow": [
-							"vs/css!./**/*",
-							"@microsoft/applicationinsights-web"
+							"vs/css!./**/*"
 						]
 					},
 					{
@@ -226,7 +225,6 @@
 							"@vscode/vscode-languagedetection",
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
-							"applicationinsights",
 							"assert",
 							"child_process",
 							"console",
