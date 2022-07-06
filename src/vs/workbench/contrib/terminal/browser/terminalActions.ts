@@ -330,18 +330,15 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.CopyLastOutput,
-				title: { value: localize('workbench.action.terminal.CopyLastOutput', 'Copy output of the last command'), original: 'Copy the output of the last command' },
+				id: TerminalCommandId.CopyLastCommand,
+				title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command'), original: 'Copy Last Command' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
-			const instance = accessor.get(ITerminalService).activeInstance;
-			if (instance) {
-				instance.copyLastOutput();
-			}
+			await accessor.get(ITerminalService).activeInstance?.copyLastCommandOutput();
 		}
 	});
 	registerAction2(class extends Action2 {

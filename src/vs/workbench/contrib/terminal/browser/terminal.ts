@@ -677,7 +677,7 @@ export interface ITerminalInstance {
 	/**
 	 * Copies the ouput of the last command
 	 */
-	copyLastOutput(): Promise<void>;
+	copyLastCommandOutput(): Promise<void>;
 
 	/**
 	 * Current selection in the terminal.
