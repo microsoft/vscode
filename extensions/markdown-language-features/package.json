@@ -11,7 +11,7 @@
     "vscode": "^1.20.0"
   },
   "main": "./out/extension.node",
-  "browser": "./dist/browser/extension.browser",
+  "browser": "./dist/browser/extension",
   "categories": [
     "Programming Languages"
   ],

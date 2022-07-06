@@ -5,7 +5,7 @@
 
 import { Connection, Emitter, Event, InitializeParams, InitializeResult, RequestType, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { DocumentSymbol } from 'vscode-languageserver-types';
+import { DocumentSymbol, Position, Range } from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
 import { URI } from 'vscode-uri';
 import { consoleLogger } from './logging';
@@ -91,7 +91,9 @@ export function startServer(connection: Connection) {
 		try {
 			const document = documents.get(documentSymbolParams.textDocument.uri) as TextDocument | undefined;
 			if (document) {
-				return await provider.provideDocumentSymbols(new TextDocumentToITextDocumentAdapter(document));
+				const response = await provider.provideDocumentSymbols(new TextDocumentToITextDocumentAdapter(document));
+				// TODO: only required because extra methods returned on positions/ranges
+				return response.map(symbol => convertDocumentSymbol(symbol));
 			}
 		} catch (e) {
 			console.error(e.stack);
@@ -100,4 +102,31 @@ export function startServer(connection: Connection) {
 	});
 
 	connection.listen();
+}
+
+
+function convertDocumentSymbol(sym: DocumentSymbol): DocumentSymbol {
+	return {
+		kind: sym.kind,
+		name: sym.name,
+		range: convertRange(sym.range),
+		selectionRange: convertRange(sym.selectionRange),
+		children: sym.children?.map(convertDocumentSymbol),
+		detail: sym.detail,
+		tags: sym.tags,
+	};
+}
+
+function convertRange(range: Range): Range {
+	return {
+		start: convertPosition(range.start),
+		end: convertPosition(range.end),
+	};
+}
+
+function convertPosition(start: Position): Position {
+	return {
+		character: start.character,
+		line: start.line,
+	};
 }

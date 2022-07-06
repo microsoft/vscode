@@ -30,7 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 async function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, parser: IMdParser): Promise<void> {
-	const serverMain = vscode.Uri.joinPath(context.extensionUri, 'server/out/browser/main.js');
+	const serverMain = vscode.Uri.joinPath(context.extensionUri, 'server/dist/browser/main.js');
 	const worker = new Worker(serverMain.toString());
 
 	await startClient((id: string, name: string, clientOptions: LanguageClientOptions) => {

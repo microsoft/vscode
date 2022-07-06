@@ -17,13 +17,11 @@
     "vscode-markdown-languageservice": "mjbvz/vscode-markdown-languageservice"
   },
   "devDependencies": {
-    "@types/mocha": "^9.1.1",
     "@types/node": "16.x"
   },
   "scripts": {
     "postinstall": "cd node_modules/vscode-markdown-languageservice && yarn run compile-ext",
     "compile": "gulp compile-extension:markdown-language-features-server",
-    "watch": "gulp watch-extension:markdown-language-features-server",
-    "test": "node ./test/index.js"
+    "watch": "gulp watch-extension:markdown-language-features-server"
   }
 }
