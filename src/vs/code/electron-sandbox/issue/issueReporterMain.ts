@@ -715,6 +715,10 @@ export class IssueReporter extends Disposable {
 		hide(problemSource);
 		hide(extensionSelector);
 
+		const requestCheckInsiders = this.configuration.product.nameShort.toLowerCase().includes('insiders') ?
+			'Please ensure that this issue hasn\'t already been resolved on an insiders build before submitting.'
+			: '';
+
 		if (issueType === IssueType.Bug) {
 			show(problemSource);
 
@@ -730,7 +734,7 @@ export class IssueReporter extends Disposable {
 				show(extensionsBlock);
 			}
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
-			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
+			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub. {0}", requestCheckInsiders));
 		} else if (issueType === IssueType.PerformanceIssue) {
 			show(problemSource);
 
@@ -749,7 +753,7 @@ export class IssueReporter extends Disposable {
 			}
 
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
-			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
+			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub. {0}", requestCheckInsiders));
 		} else if (issueType === IssueType.FeatureRequest) {
 			reset(descriptionTitle, localize('description', "Description"), $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
