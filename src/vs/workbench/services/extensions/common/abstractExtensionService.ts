@@ -34,7 +34,6 @@ import { URI } from 'vs/base/common/uri';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
-import { forEach } from 'vs/base/common/collections';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionHostExitInfo, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -1479,9 +1478,9 @@ class ProposedApiController {
 
 		// NEW world - product.json spells out what proposals each extension can use
 		if (productService.extensionEnabledApiProposals) {
-			forEach(productService.extensionEnabledApiProposals, entry => {
-				const key = ExtensionIdentifier.toKey(entry.key);
-				const proposalNames = entry.value.filter(name => {
+			for (const [k, value] of Object.entries(productService.extensionEnabledApiProposals)) {
+				const key = ExtensionIdentifier.toKey(k);
+				const proposalNames = value.filter(name => {
 					if (!allApiProposals[<ApiProposalName>name]) {
 						_logService.warn(`Via 'product.json#extensionEnabledApiProposals' extension '${key}' wants API proposal '${name}' but that proposal DOES NOT EXIST. Likely, the proposal has been finalized (check 'vscode.d.ts') or was abandoned.`);
 						return false;
@@ -1489,7 +1488,7 @@ class ProposedApiController {
 					return true;
 				});
 				this._productEnabledExtensions.set(key, proposalNames);
-			});
+			}
 		}
 	}
 
