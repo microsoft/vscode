@@ -516,12 +516,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			for (const dependency of task.configurationProperties.dependsOn) {
 				const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 				if (dependencyTask) {
-					if (dependencyTask.configurationProperties.icon) {
-						dependencyTask.configurationProperties.icon.id ||= task.configurationProperties.icon?.id;
-						dependencyTask.configurationProperties.icon.color ||= task.configurationProperties.icon?.color;
-					} else {
-						dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
-					}
+					this._adoptConfigurationForDependencyTask(dependencyTask, task);
 					const key = dependencyTask.getMapKey();
 					let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
 					if (!promise) {
@@ -588,6 +583,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 			});
 		});
+	}
+
+	private _adoptConfigurationForDependencyTask(dependencyTask: Task, task: Task): void {
+		if (dependencyTask.configurationProperties.icon) {
+			dependencyTask.configurationProperties.icon.id ||= task.configurationProperties.icon?.id;
+			dependencyTask.configurationProperties.icon.color ||= task.configurationProperties.icon?.color;
+		} else {
+			dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
+		}
+
+		if (dependencyTask.configurationProperties.hide) {
+			dependencyTask.configurationProperties.hide ||= task.configurationProperties.hide;
+		} else {
+			dependencyTask.configurationProperties.hide = task.configurationProperties.hide;
+		}
 	}
 
 	private async _getDependencyPromise(task: IActiveTerminalData): Promise<ITaskSummary> {

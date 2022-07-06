@@ -39,7 +39,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IProductService } from 'vs/platform/product/common/productService';
 import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
 import Severity from 'vs/base/common/severity';
-import { IStringDictionary, forEach } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrateStorageFrom?: string };
 type ExtensionInfo = { readonly id: string; preRelease: boolean };
@@ -737,7 +737,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					let packageNLSUris: Map<string, URI> | undefined;
 					if (e.packageNLSUris) {
 						packageNLSUris = new Map<string, URI>();
-						forEach<UriComponents>(e.packageNLSUris, (entry) => packageNLSUris!.set(entry.key, URI.revive(entry.value)));
+						Object.entries(e.packageNLSUris).forEach(([key, value]) => packageNLSUris!.set(key, URI.revive(value)));
 					}
 
 					webExtensions.push({

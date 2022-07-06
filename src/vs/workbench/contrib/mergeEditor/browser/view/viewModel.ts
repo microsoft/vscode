@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { findLast } from 'vs/base/common/arrays';
+import { derived, derivedObservableWithWritableCache, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { derivedObservable, derivedObservableWithWritableCache, IReader, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
@@ -25,9 +25,9 @@ export class MergeEditorViewModel {
 		return editors.find((e) => e.isFocused.read(reader)) || lastValue;
 	});
 
-	private readonly manuallySetActiveModifiedBaseRange = new ObservableValue<
+	private readonly manuallySetActiveModifiedBaseRange = observableValue<
 		ModifiedBaseRange | undefined
-	>(undefined, 'manuallySetActiveModifiedBaseRange');
+	>('manuallySetActiveModifiedBaseRange', undefined);
 
 	private getRange(editor: CodeEditorView, modifiedBaseRange: ModifiedBaseRange, reader: IReader | undefined): LineRange {
 		if (editor === this.resultCodeEditorView) {
@@ -38,7 +38,7 @@ export class MergeEditorViewModel {
 		}
 	}
 
-	public readonly activeModifiedBaseRange = derivedObservable(
+	public readonly activeModifiedBaseRange = derived(
 		'activeModifiedBaseRange',
 		(reader) => {
 			const focusedEditor = this.lastFocusedEditor.read(reader);

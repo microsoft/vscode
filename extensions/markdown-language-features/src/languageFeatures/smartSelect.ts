@@ -6,7 +6,8 @@ import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { IMdParser } from '../markdownEngine';
 import { MdTableOfContentsProvider, TocEntry } from '../tableOfContents';
-import { ITextDocument } from '../types/textDocument';
+import { getLine, ITextDocument } from '../types/textDocument';
+import { isEmptyOrWhitespace } from '../util/string';
 
 interface MarkdownItTokenWithMap extends Token {
 	map: [number, number];
@@ -111,14 +112,14 @@ function createBlockRange(block: MarkdownItTokenWithMap, document: ITextDocument
 	if (block.type === 'fence') {
 		return createFencedRange(block, cursorLine, document, parent);
 	} else {
-		let startLine = document.lineAt(block.map[0]).isEmptyOrWhitespace ? block.map[0] + 1 : block.map[0];
+		let startLine = isEmptyOrWhitespace(getLine(document, block.map[0])) ? block.map[0] + 1 : block.map[0];
 		let endLine = startLine === block.map[1] ? block.map[1] : block.map[1] - 1;
 		if (block.type === 'paragraph_open' && block.map[1] - block.map[0] === 2) {
 			startLine = endLine = cursorLine;
-		} else if (isList(block) && document.lineAt(endLine).isEmptyOrWhitespace) {
+		} else if (isList(block) && isEmptyOrWhitespace(getLine(document, endLine))) {
 			endLine = endLine - 1;
 		}
-		const range = new vscode.Range(startLine, 0, endLine, document.lineAt(endLine).text?.length ?? 0);
+		const range = new vscode.Range(startLine, 0, endLine, getLine(document, endLine).length);
 		if (parent?.range.contains(range) && !parent.range.isEqual(range)) {
 			return new vscode.SelectionRange(range, parent);
 		} else if (parent?.range.isEqual(range)) {
@@ -130,7 +131,7 @@ function createBlockRange(block: MarkdownItTokenWithMap, document: ITextDocument
 }
 
 function createInlineRange(document: ITextDocument, cursorPosition: vscode.Position, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	const lineText = document.lineAt(cursorPosition.line).text;
+	const lineText = getLine(document, cursorPosition.line);
 	const boldSelection = createBoldRange(lineText, cursorPosition.character, cursorPosition.line, parent);
 	const italicSelection = createOtherInlineRange(lineText, cursorPosition.character, cursorPosition.line, true, parent);
 	let comboSelection: vscode.SelectionRange | undefined;
@@ -150,8 +151,8 @@ function createFencedRange(token: MarkdownItTokenWithMap, cursorLine: number, do
 	const startLine = token.map[0];
 	const endLine = token.map[1] - 1;
 	const onFenceLine = cursorLine === startLine || cursorLine === endLine;
-	const fenceRange = new vscode.Range(startLine, 0, endLine, document.lineAt(endLine).text.length);
-	const contentRange = endLine - startLine > 2 && !onFenceLine ? new vscode.Range(startLine + 1, 0, endLine - 1, document.lineAt(endLine - 1).text.length) : undefined;
+	const fenceRange = new vscode.Range(startLine, 0, endLine, getLine(document, endLine).length);
+	const contentRange = endLine - startLine > 2 && !onFenceLine ? new vscode.Range(startLine + 1, 0, endLine - 1, getLine(document, endLine - 1).length) : undefined;
 	if (contentRange) {
 		return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(fenceRange, parent));
 	} else {
@@ -242,7 +243,7 @@ function getFirstChildHeader(document: ITextDocument, header?: TocEntry, toc?: r
 		const children = toc.filter(t => header.sectionLocation.range.contains(t.sectionLocation.range) && t.sectionLocation.range.start.line > header.sectionLocation.range.start.line).sort((t1, t2) => t1.line - t2.line);
 		if (children.length > 0) {
 			childRange = children[0].sectionLocation.range.start;
-			const lineText = document.lineAt(childRange.line - 1).text;
+			const lineText = getLine(document, childRange.line - 1);
 			return childRange ? childRange.translate(-1, lineText.length) : undefined;
 		}
 	}

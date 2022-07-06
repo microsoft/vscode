@@ -537,7 +537,7 @@
 						]
 					},
 					{
-						"target": "src/vs/workbench/{workbench.sandbox.main.ts,workbench.desktop.sandbox.main.ts}",
+						"target": "src/vs/workbench/workbench.desktop.main.ts",
 						"layer": "electron-sandbox",
 						"restrictions": [
 							"vs/base/*/~",
@@ -550,26 +550,7 @@
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main",
-							"vs/workbench/workbench.sandbox.main"
-						]
-					},
-					{
-						"target": "src/vs/workbench/workbench.desktop.main.ts",
-						"layer": "electron-browser",
-						"restrictions": [
-							"vs/base/*/~",
-							"vs/base/parts/*/~",
-							"vs/platform/*/~",
-							"vs/editor/~",
-							"vs/editor/contrib/*/~",
-							"vs/editor/editor.all",
-							"vs/workbench/~",
-							"vs/workbench/api/~",
-							"vs/workbench/services/*/~",
-							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main",
-							"vs/workbench/workbench.sandbox.main"
+							"vs/workbench/workbench.common.main"
 						]
 					},
 					{

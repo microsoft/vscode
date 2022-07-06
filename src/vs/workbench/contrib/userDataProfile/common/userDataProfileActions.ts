@@ -117,12 +117,17 @@ registerAction2(class RemoveProfileAction extends Action2 {
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const notificationService = accessor.get(INotificationService);
 
 		const profiles = userDataProfilesService.profiles.filter(p => p.id !== userDataProfileService.currentProfile.id && !p.isDefault);
 		if (profiles.length) {
 			const pick = await quickInputService.pick(profiles.map(profile => ({ label: profile.name, profile })), { placeHolder: localize('pick profile', "Select Settings Profile") });
 			if (pick) {
-				await userDataProfileManagementService.removeProfile(pick.profile);
+				try {
+					await userDataProfileManagementService.removeProfile(pick.profile);
+				} catch (error) {
+					notificationService.error(error);
+				}
 			}
 		}
 	}

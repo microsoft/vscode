@@ -8,18 +8,18 @@ import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IObservable, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { IObservable, observableFromEvent, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export abstract class CodeEditorView extends Disposable {
-	private readonly _viewModel = new ObservableValue<undefined | MergeEditorViewModel>(undefined, 'viewModel');
+	private readonly _viewModel = observableValue<undefined | MergeEditorViewModel>('viewModel', undefined);
 	readonly viewModel: IObservable<undefined | MergeEditorViewModel> = this._viewModel;
 	readonly model = this._viewModel.map(m => /** @description model */ m?.model);
 

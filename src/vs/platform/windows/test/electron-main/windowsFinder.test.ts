@@ -49,7 +49,6 @@ suite('WindowsFinder', () => {
 			lastFocusTime = options.lastFocusTime;
 			isFullScreen = false;
 			isReady = true;
-			hasHiddenTitleBarStyle = false;
 
 			ready(): Promise<ICodeWindow> { throw new Error('Method not implemented.'); }
 			setReady(): void { throw new Error('Method not implemented.'); }

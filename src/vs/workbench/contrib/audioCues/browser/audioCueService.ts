@@ -9,9 +9,9 @@ import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { observableFromEvent, IObservable, derivedObservable } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
+import { IObservable, observableFromEvent, derived } from 'vs/base/common/observable';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
@@ -95,7 +95,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			),
 			() => this.configurationService.getValue<'on' | 'off' | 'auto'>(cue.settingsKey)
 		);
-		return derivedObservable('audio cue enabled', reader => {
+		return derived('audio cue enabled', reader => {
 			const setting = settingObservable.read(reader);
 			if (
 				setting === 'on' ||

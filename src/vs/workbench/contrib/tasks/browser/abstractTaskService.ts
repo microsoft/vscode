@@ -1588,7 +1588,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				{
 					identifier: id,
 					dependsOn: extensionTasks.map((extensionTask) => { return { uri: extensionTask.getWorkspaceFolder()!.uri, task: extensionTask._id }; }),
-					name: id,
+					name: id
 				}
 			);
 			return { task, resolver };

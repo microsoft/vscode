@@ -166,7 +166,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
-		if (this.profileStorageProfile && !this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
+		if (!this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
 			return;
 		}
 

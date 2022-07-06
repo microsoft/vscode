@@ -337,6 +337,15 @@ export class PtyService extends Disposable implements IPtyService {
 		});
 	}
 
+	async getRevivedPtyNewId(id: number): Promise<number | undefined> {
+		try {
+			return this._revivedPtyIdMap.get(id)?.newId;
+		} catch (e) {
+			this._logService.trace(`Couldn't find terminal ID ${id}`, e.message);
+		}
+		return undefined;
+	}
+
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}

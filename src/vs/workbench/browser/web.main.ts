@@ -263,7 +263,7 @@ export class BrowserMain extends Disposable {
 		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 
-		const userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile);
+		const userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// URI Identity

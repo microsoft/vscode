@@ -5,9 +5,8 @@
 
 import { h } from 'vs/base/browser/dom';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { observableSignalFromEvent } from 'vs/base/common/observable';
+import { autorun, IReader, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
@@ -36,11 +35,11 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 				.root
 		);
 
-		this._register(autorun((reader) => {
+		this._register(autorun('update scroll decoration', (reader) => {
 			scrollDecoration.className = this.isScrollTopZero.read(reader) ? '' : 'scroll-decoration';
-		}, 'update scroll decoration'));
+		}));
 
-		this._register(autorun((reader) => this.render(reader), 'EditorGutter.Render'));
+		this._register(autorun('EditorGutter.Render', (reader) => this.render(reader)));
 	}
 
 	private readonly views = new Map<string, ManagedGutterItemView>();

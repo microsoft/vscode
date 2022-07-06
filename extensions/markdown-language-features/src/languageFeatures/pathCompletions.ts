@@ -7,7 +7,7 @@ import { dirname, resolve } from 'path';
 import * as vscode from 'vscode';
 import { IMdParser } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
-import { ITextDocument } from '../types/textDocument';
+import { getLine, ITextDocument } from '../types/textDocument';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import { Schemes } from '../util/schemes';
 import { IMdWorkspace } from '../workspace';
@@ -167,7 +167,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 	private readonly definitionPattern = /^\s*\[[\w\-]+\]:\s*([^\s]*)$/m;
 
 	private getPathCompletionContext(document: ITextDocument, position: vscode.Position): CompletionContext | undefined {
-		const line = document.lineAt(position.line).text;
+		const line = getLine(document, position.line);
 
 		const linePrefixText = line.slice(0, position.character);
 		const lineSuffixText = line.slice(position.character);
@@ -193,7 +193,8 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 
 		const definitionLinkPrefixMatch = linePrefixText.match(this.definitionPattern);
 		if (definitionLinkPrefixMatch) {
-			const prefix = definitionLinkPrefixMatch[1];
+			const isAngleBracketLink = definitionLinkPrefixMatch[1].startsWith('<');
+			const prefix = definitionLinkPrefixMatch[1].slice(isAngleBracketLink ? 1 : 0);
 			if (this.refLooksLikeUrl(prefix)) {
 				return undefined;
 			}
@@ -205,6 +206,7 @@ export class MdVsCodePathCompletionProvider implements vscode.CompletionItemProv
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
 				linkSuffix: suffix ? suffix[0] : '',
 				anchorInfo: this.getAnchorContext(prefix),
+				skipEncoding: isAngleBracketLink,
 			};
 		}
 

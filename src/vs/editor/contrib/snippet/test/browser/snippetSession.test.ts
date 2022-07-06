@@ -743,4 +743,36 @@ suite('SnippetSession', function () {
 			'}',
 		].join('\n'));
 	});
+
+
+	suite('createEditsAndSnippetsFromEdits', function () {
+
+		test('empty', function () {
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(editor, [], true, true, undefined, undefined, languageConfigurationService);
+
+			assert.deepStrictEqual(result.edits, []);
+			assert.deepStrictEqual(result.snippets, []);
+		});
+
+		test('basic', function () {
+
+			editor.getModel().setValue('foo("bar")');
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[{ range: new Range(1, 5, 1, 9), template: '$1' }, { range: new Range(1, 1, 1, 1), template: 'const ${1:new_const} = "bar"' }],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 2);
+			assert.deepStrictEqual(result.edits[0].range, new Range(1, 1, 1, 1));
+			assert.deepStrictEqual(result.edits[0].text, 'const new_const = "bar"');
+			assert.deepStrictEqual(result.edits[1].range, new Range(1, 5, 1, 9));
+			assert.deepStrictEqual(result.edits[1].text, 'new_const');
+
+			assert.strictEqual(result.snippets.length, 1);
+			assert.strictEqual(result.snippets[0].isTrivialSnippet, false);
+		});
+	});
 });
