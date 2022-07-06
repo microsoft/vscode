@@ -375,7 +375,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(new MenuItemAction(
