@@ -315,15 +315,6 @@ export function pathEquals(a: string, b: string): boolean {
  */
 export function relativePath(from: string, to: string): string {
 	if (isDescendant(from, to) && from.length < to.length) {
-		/**
-		 * On Windows, there are cases in which the `repository.root` contains a trailing `\`
-		 * character (ex: C:\, \\server\folder\) due to the implementation of `path.normalize()`.
-		 * This behaviour is by design based on https://github.com/nodejs/node/issues/1765.
-		 * Before using the string length we remove any trailing `\` characters.
-		 */
-		if (isWindows) {
-			from = from.replace(/\\$/, '');
-		}
 		return to.substring(from.length + 1);
 	}
 
