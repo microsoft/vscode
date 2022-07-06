@@ -30,7 +30,7 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CompletionModel } from './completionModel';
-import { ResizableHTMLElement } from './resizable';
+import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { CompletionItem, Context as SuggestContext } from './suggest';
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails';
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
