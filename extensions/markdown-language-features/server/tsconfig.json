@@ -5,5 +5,5 @@
 	},
 	"include": [
 		"src/**/*"
-, "../languageService/src/tableOfContents.ts", "../languageService/src/workspaceCache.ts"	]
+	]
 }
