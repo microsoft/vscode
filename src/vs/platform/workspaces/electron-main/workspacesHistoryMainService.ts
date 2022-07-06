@@ -377,7 +377,10 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		});
 
 		try {
-			app.setJumpList(jumpList);
+			const res = app.setJumpList(jumpList);
+			if (res && res !== 'ok') {
+				this.logService.warn(`updateWindowsJumpList#setJumpList unexpected result: ${res}`);
+			}
 		} catch (error) {
 			this.logService.warn('updateWindowsJumpList#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 		}
