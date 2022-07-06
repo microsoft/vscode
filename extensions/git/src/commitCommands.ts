@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, Disposable } from 'vscode';
+import { Disposable } from 'vscode';
 import { CommitSecondaryCommandsProvider } from './api/git';
 
 export interface ICommitSecondaryCommandsProviderRegistry {
-	getCommitSecondaryCommands(): Command[][];
+	getCommitSecondaryCommandsProviders(): CommitSecondaryCommandsProvider[];
 	registerCommitSecondaryCommandsProvider(provider: CommitSecondaryCommandsProvider): Disposable;
 }

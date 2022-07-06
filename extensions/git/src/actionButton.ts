@@ -8,6 +8,7 @@ import * as nls from 'vscode-nls';
 import { ICommitSecondaryCommandsProviderRegistry } from './commitCommands';
 import { Repository, Operation } from './repository';
 import { dispose } from './util';
+import { ApiRepository } from './api/api1';
 import { Branch } from './api/git';
 
 const localize = nls.loadMessageBundle();
@@ -82,7 +83,7 @@ export class ActionButtonCommand {
 		// The button is disabled
 		if (!showActionButton.commit) { return undefined; }
 
-		let title: string, tooltip: string;
+		let title: string, tooltip: string, commandArg: string;
 		const postCommitCommand = config.get<string>('postCommitCommand');
 
 		// Branch protection
@@ -97,6 +98,7 @@ export class ActionButtonCommand {
 		// Title, tooltip
 		switch (postCommitCommand) {
 			case 'push': {
+				commandArg = 'git.push';
 				title = localize('scm button commit and push title', "{0} Commit & Push", icon ?? '$(arrow-up)');
 				if (alwaysCommitToNewBranch) {
 					tooltip = this.state.isCommitInProgress ?
@@ -110,6 +112,7 @@ export class ActionButtonCommand {
 				break;
 			}
 			case 'sync': {
+				commandArg = 'git.sync';
 				title = localize('scm button commit and sync title', "{0} Commit & Sync", icon ?? '$(sync)');
 				if (alwaysCommitToNewBranch) {
 					tooltip = this.state.isCommitInProgress ?
@@ -123,6 +126,7 @@ export class ActionButtonCommand {
 				break;
 			}
 			default: {
+				commandArg = '';
 				title = localize('scm button commit title', "{0} Commit", icon ?? '$(check)');
 				if (alwaysCommitToNewBranch) {
 					tooltip = this.state.isCommitInProgress ?
@@ -142,11 +146,32 @@ export class ActionButtonCommand {
 				command: 'git.commit',
 				title: title,
 				tooltip: tooltip,
-				arguments: [this.repository.sourceControl],
+				arguments: [this.repository.sourceControl, commandArg],
 			},
-			secondaryCommands: this.commitSecondaryCommandsProviderRegistry.getCommitSecondaryCommands(),
+			secondaryCommands: this.getCommitActionButtonSecondaryCommands(),
 			enabled: this.state.repositoryHasChanges && !this.state.isCommitInProgress && !this.state.isMergeInProgress
 		};
+	}
+
+	private getCommitActionButtonSecondaryCommands(): Command[][] {
+		const commandGroups: Command[][] = [];
+
+		for (const provider of this.commitSecondaryCommandsProviderRegistry.getCommitSecondaryCommandsProviders()) {
+			const commands = provider.getCommands(new ApiRepository(this.repository)) as Command[];
+			commandGroups.push(commands.map(c => {
+				const originalCommand = c.command;
+				return {
+					command: 'git.commit',
+					title: c.title,
+					arguments: [
+						this.repository.sourceControl,
+						originalCommand !== 'git.commit' ? originalCommand : ''
+					]
+				};
+			}));
+		}
+
+		return commandGroups;
 	}
 
 	private getPublishBranchActionButton(): SourceControlActionButton | undefined {

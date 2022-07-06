@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, Command } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
@@ -591,14 +591,8 @@ export class Model implements ICommitSecondaryCommandsProviderRegistry, IRemoteS
 		return toDisposable(() => this.commitSecondaryCommandProviders.delete(provider));
 	}
 
-	getCommitSecondaryCommands(): Command[][] {
-		const commandGroups: Command[][] = [];
-
-		for (const provider of this.commitSecondaryCommandProviders.values()) {
-			commandGroups.push(provider.getCommands() as Command[]);
-		}
-
-		return commandGroups;
+	getCommitSecondaryCommandsProviders(): CommitSecondaryCommandsProvider[] {
+		return [...this.commitSecondaryCommandProviders.values()];
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
