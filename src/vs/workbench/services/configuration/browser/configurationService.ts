@@ -35,7 +35,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { delta, distinct } from 'vs/base/common/arrays';
-import { forEach, IStringDictionary } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { isUndefined } from 'vs/base/common/types';
@@ -1218,7 +1218,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		}
 
 		const result: IStringDictionary<IConfigurationPropertySchema> = {};
-		forEach(properties, ({ key, value }) => {
+		Object.entries(properties).forEach(([key, value]) => {
 			if (!value.restricted) {
 				result[key] = value;
 			}
