@@ -14,7 +14,7 @@
     "vscode-uri": "^3.0.3",
     "vscode-languageserver-textdocument": "^1.0.5",
     "vscode-languageserver-types": "^3.17.1",
-    "vscode-markdown-languageservice": "file:../languageService"
+    "vscode-markdown-languageservice": "link:../languageService"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
