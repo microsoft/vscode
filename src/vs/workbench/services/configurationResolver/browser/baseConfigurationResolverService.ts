@@ -267,7 +267,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 			}
 		} else if (object) {
-			for (const value of object.values()) {
+			for (const value of Object.values(object)) {
 				this.findVariables(value, variables);
 
 			}
