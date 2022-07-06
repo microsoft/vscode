@@ -42,8 +42,6 @@ export interface IUserDataProfile {
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 }
 
-export type CustomUserDataProfile = IUserDataProfile & { readonly extensionsResource: URI; readonly isDefault: false };
-
 export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 	const candidate = thing as IUserDataProfile | undefined;
 
@@ -101,7 +99,7 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 
 export const EXTENSIONS_RESOURCE_NAME = 'extensions.json';
 
-export function toUserDataProfile(name: string, location: URI, useDefaultFlags?: UseDefaultProfileFlags): CustomUserDataProfile {
+export function toUserDataProfile(name: string, location: URI, useDefaultFlags?: UseDefaultProfileFlags): IUserDataProfile {
 	return {
 		id: hash(location.path).toString(16),
 		name: name,
