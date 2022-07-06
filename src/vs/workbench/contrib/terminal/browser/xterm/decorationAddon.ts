@@ -353,7 +353,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private async _getCommandActions(command: ITerminalCommand): Promise<IAction[]> {
 		const actions: IAction[] = [];
-		if (command.hasOutput) {
+		if (command.hasOutput()) {
 			actions.push({
 				class: 'copy-output', tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: localize("terminal.copyOutput", 'Copy Output'), enabled: true,
 				run: () => this._clipboardService.writeText(command.getOutput()!)
