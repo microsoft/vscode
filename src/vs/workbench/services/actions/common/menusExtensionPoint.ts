@@ -686,44 +686,45 @@ submenusExtensionPoint.setHandler(extensions => {
 	for (const extension of extensions) {
 		const { value, collector } = extension;
 
-		forEach(value, entry => {
-			if (!schema.isValidSubmenu(entry.value, collector)) {
+		for (const [, submenuInfo] of Object.entries(value)) {
+
+			if (!schema.isValidSubmenu(submenuInfo, collector)) {
 				return;
 			}
 
-			if (!entry.value.id) {
-				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", entry.value.id));
+			if (!submenuInfo.id) {
+				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", submenuInfo.id));
 				return;
 			}
-			if (_submenus.has(entry.value.id)) {
-				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
+			if (_submenus.has(submenuInfo.id)) {
+				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", submenuInfo.id));
 				return;
 			}
-			if (!entry.value.label) {
-				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", entry.value.label));
+			if (!submenuInfo.label) {
+				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", submenuInfo.label));
 				return;
 			}
 
 			let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;
-			if (entry.value.icon) {
-				if (typeof entry.value.icon === 'string') {
-					absoluteIcon = ThemeIcon.fromString(entry.value.icon) || { dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon) };
+			if (submenuInfo.icon) {
+				if (typeof submenuInfo.icon === 'string') {
+					absoluteIcon = ThemeIcon.fromString(submenuInfo.icon) || { dark: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon) };
 				} else {
 					absoluteIcon = {
-						dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon.dark),
-						light: resources.joinPath(extension.description.extensionLocation, entry.value.icon.light)
+						dark: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon.dark),
+						light: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon.light)
 					};
 				}
 			}
 
 			const item: IRegisteredSubmenu = {
-				id: new MenuId(`api:${entry.value.id}`),
-				label: entry.value.label,
+				id: new MenuId(`api:${submenuInfo.id}`),
+				label: submenuInfo.label,
 				icon: absoluteIcon
 			};
 
-			_submenus.set(entry.value.id, item);
-		});
+			_submenus.set(submenuInfo.id, item);
+		}
 	}
 });
 
