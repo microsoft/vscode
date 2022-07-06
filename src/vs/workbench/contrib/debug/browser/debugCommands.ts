@@ -200,7 +200,7 @@ async function navigateCallStack(debugService: IDebugService, down: boolean) {
 					goToTopOfCallStack(debugService);
 					return;
 				} else {
-					await debugService.getModel().fetchAndRefreshCallStack((<Thread>frame.thread), 20);
+					await debugService.getModel().fetchCallstack((<Thread>frame.thread), 20);
 					callStack = frame.thread.getCallStack();
 				}
 			}
@@ -222,7 +222,7 @@ async function navigateCallStack(debugService: IDebugService, down: boolean) {
 async function goToBottomOfCallStack(debugService: IDebugService) {
 	const thread = debugService.getViewModel().focusedThread;
 	if (thread) {
-		await debugService.getModel().fetchAndRefreshCallStack((<Thread>thread));
+		await debugService.getModel().fetchCallstack((<Thread>thread));
 		const callStack = thread.getCallStack();
 		if (callStack.length > 0) {
 			const nextVisibleFrame = findNextVisibleFrame(false, callStack, 0); // must consider the next frame up first, which will be the last frame
