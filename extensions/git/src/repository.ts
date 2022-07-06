@@ -1001,8 +1001,7 @@ export class Repository implements Disposable {
 
 		const actionButton = new ActionButtonCommand(this, commitSecondaryCommandsProviderRegistry);
 		this.disposables.push(actionButton);
-		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
-		this._sourceControl.actionButton = actionButton.button;
+		actionButton.onDidChange(async () => this._sourceControl.actionButton = await actionButton.getActionButton());
 
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);

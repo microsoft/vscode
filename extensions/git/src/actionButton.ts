@@ -62,21 +62,21 @@ export class ActionButtonCommand {
 		}));
 	}
 
-	get button(): SourceControlActionButton | undefined {
+	async getActionButton(): Promise<SourceControlActionButton | undefined> {
 		if (!this.state.HEAD || !this.state.HEAD.name) { return undefined; }
 
 		let actionButton: SourceControlActionButton | undefined;
 
 		if (this.state.repositoryHasChanges) {
 			// Commit Changes (enabled)
-			actionButton = this.getCommitActionButton();
+			actionButton = await this.getCommitActionButton();
 		}
 
 		// Commit Changes (enabled) -> Publish Branch -> Sync Changes -> Commit Changes (disabled)
-		return actionButton ?? this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton() ?? this.getCommitActionButton();
+		return actionButton ?? this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton() ?? await this.getCommitActionButton();
 	}
 
-	private getCommitActionButton(): SourceControlActionButton | undefined {
+	private async getCommitActionButton(): Promise<SourceControlActionButton | undefined> {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ commit: boolean }>('showActionButton', { commit: true });
 
@@ -148,17 +148,17 @@ export class ActionButtonCommand {
 				tooltip: tooltip,
 				arguments: [this.repository.sourceControl, commandArg],
 			},
-			secondaryCommands: this.getCommitActionButtonSecondaryCommands(),
+			secondaryCommands: await this.getCommitActionButtonSecondaryCommands(),
 			enabled: this.state.repositoryHasChanges && !this.state.isCommitInProgress && !this.state.isMergeInProgress
 		};
 	}
 
-	private getCommitActionButtonSecondaryCommands(): Command[][] {
+	private async getCommitActionButtonSecondaryCommands(): Promise<Command[][]> {
 		const commandGroups: Command[][] = [];
 
 		for (const provider of this.commitSecondaryCommandsProviderRegistry.getCommitSecondaryCommandsProviders()) {
-			const commands = provider.getCommands(new ApiRepository(this.repository)) as Command[];
-			commandGroups.push(commands.map(c => {
+			const commands = await provider.getCommands(new ApiRepository(this.repository));
+			commandGroups.push((commands ?? []).map(c => {
 				const originalCommand = c.command;
 				return {
 					command: 'git.commit',
