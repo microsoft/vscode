@@ -105,17 +105,17 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					});
 				}
 				if (resultElement.configurations) {
-					for (const configuredTask of Object.entries(resultElement.configurations.byIdentifier)) {
-						if (configuredTask[1].runOptions.runOn === RunOnOptions.folderOpen) {
+					for (const configuredTask of Object.values(resultElement.configurations.byIdentifier)) {
+						if (configuredTask.runOptions.runOn === RunOnOptions.folderOpen) {
 							tasks.push(new Promise<Task | undefined>(resolve => {
-								taskService.getTask(resultElement.workspaceFolder, configuredTask[1]._id, true).then(task => resolve(task));
+								taskService.getTask(resultElement.workspaceFolder, configuredTask._id, true).then(task => resolve(task));
 							}));
-							if (configuredTask[1]._label) {
-								taskNames.push(configuredTask[1]._label);
+							if (configuredTask._label) {
+								taskNames.push(configuredTask._label);
 							} else {
-								taskNames.push(configuredTask[1].configures.task);
+								taskNames.push(configuredTask.configures.task);
 							}
-							const location = RunAutomaticTasks._getTaskSource(configuredTask[1]._source);
+							const location = RunAutomaticTasks._getTaskSource(configuredTask._source);
 							if (location) {
 								locations.set(location.fsPath, location);
 							}
