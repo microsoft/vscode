@@ -297,6 +297,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly subId: string | undefined;
 	readonly compact: boolean;
 	readonly compoundRoot: DebugCompoundRoot | undefined;
+	readonly saveBeforeStart: boolean;
 	readonly name: string;
 	readonly isSimpleUI: boolean;
 	readonly autoExpandLazyVariables: boolean;

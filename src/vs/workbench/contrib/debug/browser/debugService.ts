@@ -704,7 +704,7 @@ export class DebugService implements IDebugService {
 	}
 
 	async restartSession(session: IDebugSession, restartData?: any): Promise<any> {
-		if ((<DebugSession>session).saveBeforeStart) {
+		if (session.saveBeforeStart) {
 			await saveAllBeforeDebugStart(this.configurationService, this.editorService);
 		}
 
