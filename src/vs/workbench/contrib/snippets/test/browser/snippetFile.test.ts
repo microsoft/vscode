@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { SnippetFile, Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { URI } from 'vs/base/common/uri';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 suite('Snippets', function () {
 
@@ -55,12 +55,12 @@ suite('Snippets', function () {
 
 	test('SnippetFile#select - any scope', function () {
 
-		let file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
+		const file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
 			new Snippet([], 'AnySnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
 			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
 		]);
 
-		let bucket: Snippet[] = [];
+		const bucket: Snippet[] = [];
 		file.select('foo', bucket);
 		assert.strictEqual(bucket.length, 2);
 
@@ -69,7 +69,7 @@ suite('Snippets', function () {
 	test('Snippet#needsClipboard', function () {
 
 		function assertNeedsClipboard(body: string, expected: boolean): void {
-			let snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
+			const snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
 			assert.strictEqual(snippet.needsClipboard, expected);
 
 			assert.strictEqual(SnippetParser.guessNeedsClipboard(body), expected);
@@ -81,6 +81,21 @@ suite('Snippets', function () {
 		assertNeedsClipboard('foo$clipboard', false);
 		assertNeedsClipboard('foo${clipboard}', false);
 		assertNeedsClipboard('baba', false);
+	});
+
+	test('Snippet#isTrivial', function () {
+
+		function assertIsTrivial(body: string, expected: boolean): void {
+			const snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
+			assert.strictEqual(snippet.isTrivial, expected);
+		}
+
+		assertIsTrivial('foo', true);
+		assertIsTrivial('foo$0', true);
+		assertIsTrivial('foo$0bar', false);
+		assertIsTrivial('foo$1', false);
+		assertIsTrivial('foo$1$0', false);
+		assertIsTrivial('${1:foo}', false);
 	});
 
 });

@@ -8,12 +8,12 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DiffElementViewModelBase, getFormatedMetadataJSON, getFormatedOutputJSON, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { DiffElementViewModelBase, getFormattedMetadataJSON, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CellEditType, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -27,9 +27,9 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/diffElementOutputs';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { AccessibilityHelpController } from 'vs/workbench/contrib/codeEditor/browser/accessibility/accessibility';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
@@ -39,6 +39,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const fixedEditorPadding = {
 	top: 12,
@@ -122,13 +123,14 @@ class PropertyHeader extends Disposable {
 		@IKeybindingService readonly keybindingService: IKeybindingService,
 		@INotificationService readonly notificationService: INotificationService,
 		@IMenuService readonly menuService: IMenuService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IThemeService readonly themeService: IThemeService,
 	) {
 		super();
 	}
 
 	buildHeader(): void {
-		let metadataChanged = this.accessor.checkIfModified(this.cell);
+		const metadataChanged = this.accessor.checkIfModified(this.cell);
 		this._foldingIndicator = DOM.append(this.propertyHeaderContainer, DOM.$('.property-folding-indicator'));
 		this._foldingIndicator.classList.add(this.accessor.prefix);
 		this._updateFoldingIcon();
@@ -154,7 +156,7 @@ class PropertyHeader extends Disposable {
 		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService);
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService);
 					return item;
 				}
 
@@ -227,7 +229,7 @@ class PropertyHeader extends Disposable {
 	}
 
 	refresh() {
-		let metadataChanged = this.accessor.checkIfModified(this.cell);
+		const metadataChanged = this.accessor.checkIfModified(this.cell);
 		if (metadataChanged) {
 			this._statusSpan.textContent = this.accessor.changedLabel;
 			this._statusSpan.style.fontWeight = 'bold';
@@ -286,12 +288,13 @@ abstract class AbstractElementRenderer extends Disposable {
 	protected _outputViewContainer?: HTMLElement;
 	protected _outputLeftContainer?: HTMLElement;
 	protected _outputRightContainer?: HTMLElement;
+	protected _outputMetadataContainer?: HTMLElement;
 	protected _outputEmptyElement?: HTMLElement;
 	protected _outputLeftView?: OutputContainer;
 	protected _outputRightView?: OutputContainer;
 	protected _outputEditorDisposeStore!: DisposableStore;
 	protected _outputEditor?: CodeEditorWidget | DiffEditorWidget;
-
+	protected _outputMetadataEditor?: DiffEditorWidget;
 
 	protected _diffEditorContainer!: HTMLElement;
 	protected _diagonalFill?: HTMLElement;
@@ -303,7 +306,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		readonly templateData: CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate,
 		readonly style: 'left' | 'right' | 'full',
 		protected readonly instantiationService: IInstantiationService,
-		protected readonly modeService: IModeService,
+		protected readonly languageService: ILanguageService,
 		protected readonly modelService: IModelService,
 		protected readonly textModelService: ITextModelService,
 		protected readonly contextMenuService: IContextMenuService,
@@ -486,11 +489,11 @@ abstract class AbstractElementRenderer extends Disposable {
 	abstract _showOutputsRenderer(): void;
 
 	private _applySanitizedMetadataChanges(currentMetadata: NotebookCellMetadata, newMetadata: any) {
-		let result: { [key: string]: any } = {};
+		const result: { [key: string]: any } = {};
 		try {
 			const newMetadataObj = JSON.parse(newMetadata);
 			const keys = new Set([...Object.keys(newMetadataObj)]);
-			for (let key of keys) {
+			for (const key of keys) {
 				switch (key as keyof NotebookCellMetadata) {
 					case 'inputCollapsed':
 					case 'outputCollapsed':
@@ -516,7 +519,7 @@ abstract class AbstractElementRenderer extends Disposable {
 
 			this.notebookEditor.textModel!.applyEdits([
 				{ editType: CellEditType.Metadata, index, metadata: result }
-			], true, undefined, () => undefined, undefined);
+			], true, undefined, () => undefined, undefined, true);
 		} catch {
 		}
 	}
@@ -578,7 +581,7 @@ abstract class AbstractElementRenderer extends Disposable {
 					return;
 				}
 
-				const modifiedMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!, this.cell.modified?.metadata || {}, this.cell.modified?.language);
+				const modifiedMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel!, this.cell.modified?.metadata || {}, this.cell.modified?.language);
 				modifiedMetadataModel.object.textEditorModel.setValue(modifiedMetadataSource);
 			}));
 
@@ -596,8 +599,8 @@ abstract class AbstractElementRenderer extends Disposable {
 			this.layout({ metadataHeight: true });
 			this._metadataEditorDisposeStore.add(this._metadataEditor);
 
-			const mode = this.modeService.create('jsonc');
-			const originalMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!,
+			const mode = this.languageService.createById('jsonc');
+			const originalMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel!,
 				this.cell.type === 'insert'
 					? this.cell.modified!.metadata || {}
 					: this.cell.original!.metadata || {});
@@ -627,10 +630,10 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._outputEditorDisposeStore.clear();
 
 		if ((this.cell.type === 'modified' || this.cell.type === 'unchanged') && !this.notebookEditor.textModel!.transientOptions.transientOutputs) {
-			const originalOutputsSource = getFormatedOutputJSON(this.cell.original?.outputs || []);
-			const modifiedOutputsSource = getFormatedOutputJSON(this.cell.modified?.outputs || []);
+			const originalOutputsSource = getFormattedOutputJSON(this.cell.original?.outputs || []);
+			const modifiedOutputsSource = getFormattedOutputJSON(this.cell.modified?.outputs || []);
 			if (originalOutputsSource !== modifiedOutputsSource) {
-				const mode = this.modeService.create('json');
+				const mode = this.languageService.createById('json');
 				const originalModel = this.modelService.createModel(originalOutputsSource, mode, undefined, true);
 				const modifiedModel = this.modelService.createModel(modifiedOutputsSource, mode, undefined, true);
 				this._outputEditorDisposeStore.add(originalModel);
@@ -671,7 +674,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				}));
 
 				this._outputEditorDisposeStore.add(this.cell.modified!.textModel.onDidChangeOutputs(() => {
-					const modifiedOutputsSource = getFormatedOutputJSON(this.cell.modified?.outputs || []);
+					const modifiedOutputsSource = getFormattedOutputJSON(this.cell.modified?.outputs || []);
 					modifiedModel.setValue(modifiedOutputsSource);
 					this._outputHeader.refresh();
 				}));
@@ -690,8 +693,8 @@ abstract class AbstractElementRenderer extends Disposable {
 		}, {});
 		this._outputEditorDisposeStore.add(this._outputEditor);
 
-		const mode = this.modeService.create('json');
-		const originaloutputSource = getFormatedOutputJSON(
+		const mode = this.languageService.createById('json');
+		const originaloutputSource = getFormattedOutputJSON(
 			this.notebookEditor.textModel!.transientOptions.transientOutputs
 				? []
 				: this.cell.type === 'insert'
@@ -755,7 +758,7 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		templateData: CellDiffSingleSideRenderTemplate,
 		style: 'left' | 'right' | 'full',
 		instantiationService: IInstantiationService,
-		modeService: IModeService,
+		languageService: ILanguageService,
 		modelService: IModelService,
 		textModelService: ITextModelService,
 		contextMenuService: IContextMenuService,
@@ -771,7 +774,7 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			templateData,
 			style,
 			instantiationService,
-			modeService,
+			languageService,
 			modelService,
 			textModelService,
 			contextMenuService,
@@ -946,7 +949,7 @@ export class DeletedElement extends SingleSideDiffElement {
 		notebookEditor: INotebookTextDiffEditor,
 		cell: SingleSideDiffElementViewModel,
 		templateData: CellDiffSingleSideRenderTemplate,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -958,7 +961,7 @@ export class DeletedElement extends SingleSideDiffElement {
 		@IConfigurationService configurationService: IConfigurationService,
 
 	) {
-		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		super(notebookEditor, cell, templateData, 'left', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 	}
 
 	styleContainer(container: HTMLElement) {
@@ -1099,7 +1102,7 @@ export class InsertElement extends SingleSideDiffElement {
 		cell: SingleSideDiffElementViewModel,
 		templateData: CellDiffSingleSideRenderTemplate,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -1109,7 +1112,7 @@ export class InsertElement extends SingleSideDiffElement {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		super(notebookEditor, cell, templateData, 'right', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 	}
 
 	styleContainer(container: HTMLElement): void {
@@ -1257,7 +1260,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		cell: SideBySideDiffElementViewModel,
 		templateData: CellDiffSideBySideRenderTemplate,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -1267,7 +1270,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		super(notebookEditor, cell, templateData, 'full', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 		this.cell = cell;
 		this.templateData = templateData;
 	}
@@ -1398,8 +1401,16 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 			this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
 			this._outputRightContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-right'));
+			this._outputMetadataContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-metadata'));
 
-			if (this.cell.checkIfOutputsModified()) {
+			const outputModified = this.cell.checkIfOutputsModified();
+			const outputMetadataChangeOnly = outputModified
+				&& outputModified.kind === OutputComparison.Metadata
+				&& this.cell.original!.outputs.length === 1
+				&& this.cell.modified!.outputs.length === 1
+				&& outputEqual(this.cell.original!.outputs[0], this.cell.modified!.outputs[0]) === OutputComparison.Metadata;
+
+			if (outputModified && !outputMetadataChangeOnly) {
 				const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
 					if (e.cell.uri.toString() === this.cell.original.uri.toString()) {
 						this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
@@ -1425,7 +1436,48 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputRightContainer!);
 			this._outputRightView.render();
 			this._register(this._outputRightView);
-			this._decorate();
+
+			if (outputModified && !outputMetadataChangeOnly) {
+				this._decorate();
+			}
+
+			if (outputMetadataChangeOnly) {
+
+				this._outputMetadataContainer.style.top = `${this.cell.layoutInfo.rawOutputHeight}px`;
+				// single output, metadata change, let's render a diff editor for metadata
+				this._outputMetadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._outputMetadataContainer!, {
+					...fixedDiffEditorOptions,
+					overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
+					readOnly: true,
+					ignoreTrimWhitespace: false,
+					automaticLayout: false,
+					dimension: {
+						height: OUTPUT_EDITOR_HEIGHT_MAGIC,
+						width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true)
+					}
+				}, {
+					originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
+					modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
+				});
+				this._register(this._outputMetadataEditor);
+				const originalOutputMetadataSource = JSON.stringify(this.cell.original!.outputs[0].metadata ?? {}, undefined, '\t');
+				const modifiedOutputMetadataSource = JSON.stringify(this.cell.modified!.outputs[0].metadata ?? {}, undefined, '\t');
+
+				const mode = this.languageService.createById('json');
+				const originalModel = this.modelService.createModel(originalOutputMetadataSource, mode, undefined, true);
+				const modifiedModel = this.modelService.createModel(modifiedOutputMetadataSource, mode, undefined, true);
+
+				this._outputMetadataEditor.setModel({
+					original: originalModel,
+					modified: modifiedModel
+				});
+
+				this.cell.outputMetadataHeight = this._outputMetadataEditor.getContentHeight();
+
+				this._register(this._outputMetadataEditor.onDidContentSizeChange((e) => {
+					this.cell.outputMetadataHeight = e.contentHeight;
+				}));
+			}
 		}
 
 		this._outputViewContainer.style.display = 'block';
@@ -1444,6 +1496,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 			this._outputLeftView?.showOutputs();
 			this._outputRightView?.showOutputs();
+			this._outputMetadataEditor?.layout();
 			this._decorate();
 		}
 	}
@@ -1571,6 +1624,12 @@ export class ModifiedElement extends AbstractElementRenderer {
 				if (this._outputEditorContainer) {
 					this._outputEditorContainer.style.height = `${this.cell.layoutInfo.outputTotalHeight}px`;
 					this._outputEditor?.layout();
+				}
+
+				if (this._outputMetadataContainer) {
+					this._outputMetadataContainer.style.height = `${this.cell.layoutInfo.outputMetadataHeight}px`;
+					this._outputMetadataContainer.style.top = `${this.cell.layoutInfo.outputTotalHeight - this.cell.layoutInfo.outputMetadataHeight}px`;
+					this._outputMetadataEditor?.layout();
 				}
 			}
 

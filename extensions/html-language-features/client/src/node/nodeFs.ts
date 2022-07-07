@@ -5,28 +5,15 @@
 
 import * as fs from 'fs';
 import { Uri } from 'vscode';
-import { getScheme, RequestService, FileType } from '../requests';
+import { FileSystemProvider, FileType } from '../requests';
 
-export function getNodeFSRequestService(): RequestService {
+export function getNodeFileFS(): FileSystemProvider {
 	function ensureFileUri(location: string) {
-		if (getScheme(location) !== 'file') {
+		if (!location.startsWith('file:')) {
 			throw new Error('fileRequestService can only handle file URLs');
 		}
 	}
 	return {
-		getContent(location: string, encoding?: string) {
-			ensureFileUri(location);
-			return new Promise((c, e) => {
-				const uri = Uri.parse(location);
-				fs.readFile(uri.fsPath, encoding, (err, buf) => {
-					if (err) {
-						return e(err);
-					}
-					c(buf.toString());
-
-				});
-			});
-		},
 		stat(location: string) {
 			ensureFileUri(location);
 			return new Promise((c, e) => {

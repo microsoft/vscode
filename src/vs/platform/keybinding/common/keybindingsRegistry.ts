@@ -90,7 +90,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	/**
 	 * Take current platform into account and reduce to primary & secondary.
 	 */
-	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[]; } {
+	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[] } {
 		if (OS === OperatingSystem.Windows) {
 			if (kb && kb.win) {
 				return kb.win;
@@ -130,7 +130,8 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	}
 
 	public setExtensionKeybindings(rules: IExtensionKeybindingRule[]): void {
-		let result: IKeybindingItem[] = [], keybindingsLen = 0;
+		const result: IKeybindingItem[] = [];
+		let keybindingsLen = 0;
 		for (const rule of rules) {
 			if (rule.keybinding.length > 0) {
 				result[keybindingsLen++] = {

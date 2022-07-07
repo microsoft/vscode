@@ -16,7 +16,8 @@
       {
         "id": "razor",
         "extensions": [
-          ".cshtml"
+          ".cshtml",
+          ".razor"
         ],
         "aliases": [
           "Razor",

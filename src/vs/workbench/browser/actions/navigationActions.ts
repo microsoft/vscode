@@ -35,6 +35,7 @@ abstract class BaseNavigationAction extends Action {
 		const isEditorFocus = this.layoutService.hasFocus(Parts.EDITOR_PART);
 		const isPanelFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
 		const isSidebarFocus = this.layoutService.hasFocus(Parts.SIDEBAR_PART);
+		const isAuxiliaryBarFocus = this.layoutService.hasFocus(Parts.AUXILIARYBAR_PART);
 
 		let neighborPart: Parts | undefined;
 		if (isEditorFocus) {
@@ -54,6 +55,10 @@ abstract class BaseNavigationAction extends Action {
 			neighborPart = this.layoutService.getVisibleNeighborPart(Parts.SIDEBAR_PART, this.direction);
 		}
 
+		if (isAuxiliaryBarFocus) {
+			neighborPart = neighborPart = this.layoutService.getVisibleNeighborPart(Parts.AUXILIARYBAR_PART, this.direction);
+		}
+
 		if (neighborPart === Parts.EDITOR_PART) {
 			if (!this.navigateBackToEditorGroup(this.toGroupDirection(this.direction))) {
 				this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST);
@@ -62,6 +67,8 @@ abstract class BaseNavigationAction extends Action {
 			this.navigateToSidebar();
 		} else if (neighborPart === Parts.PANEL_PART) {
 			this.navigateToPanel();
+		} else if (neighborPart === Parts.AUXILIARYBAR_PART) {
+			this.navigateToAuxiliaryBar();
 		}
 	}
 
@@ -98,6 +105,26 @@ abstract class BaseNavigationAction extends Action {
 
 		const viewlet = await this.paneCompositeService.openPaneComposite(activeViewletId, ViewContainerLocation.Sidebar, true);
 		return !!viewlet;
+	}
+
+	private async navigateToAuxiliaryBar(): Promise<IComposite | boolean> {
+		if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			return false;
+		}
+
+		const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+		if (!activePanel) {
+			return false;
+		}
+
+		const activePanelId = activePanel.getId();
+
+		const res = await this.paneCompositeService.openPaneComposite(activePanelId, ViewContainerLocation.AuxiliaryBar, true);
+		if (!res) {
+			return false;
+		}
+
+		return res;
 	}
 
 	private navigateAcrossEditorGroup(direction: GroupDirection): boolean {

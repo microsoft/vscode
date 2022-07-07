@@ -24,7 +24,7 @@ class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 		this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
 		this._mru = this._keymapInfos;
 		this._initialized = true;
-		this.onKeyboardLayoutChanged();
+		this.setLayoutFromBrowserAPI();
 		const usLayout = this.getUSStandardLayout();
 		if (usLayout) {
 			this.setActiveKeyMapping(usLayout.mapping);
@@ -33,12 +33,12 @@ class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 }
 
 suite('keyboard layout loader', () => {
-	let instantiationService: TestInstantiationService = new TestInstantiationService();
-	let notitifcationService = instantiationService.stub(INotificationService, new TestNotificationService());
-	let storageService = instantiationService.stub(IStorageService, new TestStorageService());
+	const instantiationService: TestInstantiationService = new TestInstantiationService();
+	const notitifcationService = instantiationService.stub(INotificationService, new TestNotificationService());
+	const storageService = instantiationService.stub(IStorageService, new TestStorageService());
 
-	let commandService = instantiationService.stub(ICommandService, {});
-	let instance = new TestKeyboardMapperFactory(notitifcationService, storageService, commandService);
+	const commandService = instantiationService.stub(ICommandService, {});
+	const instance = new TestKeyboardMapperFactory(notitifcationService, storageService, commandService);
 
 	test('load default US keyboard layout', () => {
 		assert.notStrictEqual(instance.activeKeyboardLayout, null);

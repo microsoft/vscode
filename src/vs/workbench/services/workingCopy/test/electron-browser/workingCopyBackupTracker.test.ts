@@ -43,6 +43,7 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { Event, Emitter } from 'vs/base/common/event';
 
 flakySuite('WorkingCopyBackupTracker (native)', function () {
 
@@ -75,12 +76,34 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 			return super.whenReady;
 		}
 
+		get pendingBackupOperationCount(): number { return this.pendingBackupOperations.size; }
+
 		override dispose() {
 			super.dispose();
 
-			for (const [_, disposable] of this.pendingBackups) {
+			for (const [_, disposable] of this.pendingBackupOperations) {
 				disposable.dispose();
 			}
+		}
+
+		private readonly _onDidResume = this._register(new Emitter<void>());
+		readonly onDidResume = this._onDidResume.event;
+
+		private readonly _onDidSuspend = this._register(new Emitter<void>());
+		readonly onDidSuspend = this._onDidSuspend.event;
+
+		protected override suspendBackupOperations(): { resume: () => void } {
+			const { resume } = super.suspendBackupOperations();
+
+			this._onDidSuspend.fire();
+
+			return {
+				resume: () => {
+					resume();
+
+					this._onDidResume.fire();
+				}
+			};
 		}
 	}
 
@@ -119,7 +142,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		return Promises.rm(testDir);
 	});
 
-	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: TestWorkingCopyBackupTracker, instantiationService: IInstantiationService, cleanup: () => Promise<void> }> {
+	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor; part: EditorPart; tracker: TestWorkingCopyBackupTracker; instantiationService: IInstantiationService; cleanup: () => Promise<void> }> {
 		const workingCopyBackupService = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService(disposables);
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
@@ -352,6 +375,48 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		const veto = await event.value;
 		assert.ok(veto);
 
+		const finalVeto = await event.finalValue?.();
+		assert.ok(finalVeto); // assert the tracker uses the internal finalVeto API
+
+		await cleanup();
+	});
+
+	test('onWillShutdown - pending backup operations canceled and tracker suspended/resumsed', async function () {
+		const { accessor, tracker, cleanup } = await createTracker();
+
+		const resource = toResource.call(this, '/path/index.txt');
+		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+
+		const model = accessor.textFileService.files.get(resource);
+
+		await model?.resolve();
+		model?.textEditorModel?.setValue('foo');
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
+
+		const onSuspend = Event.toPromise(tracker.onDidSuspend);
+
+		const event = new TestBeforeShutdownEvent();
+		event.reason = ShutdownReason.QUIT;
+		accessor.lifecycleService.fireBeforeShutdown(event);
+
+		await onSuspend;
+
+		assert.strictEqual(tracker.pendingBackupOperationCount, 0);
+
+		// Ops are suspended during shutdown!
+		model?.textEditorModel?.setValue('bar');
+		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		assert.strictEqual(tracker.pendingBackupOperationCount, 0);
+
+		const onResume = Event.toPromise(tracker.onDidResume);
+		await event.value;
+
+		// Ops are resumed after shutdown!
+		model?.textEditorModel?.setValue('foo');
+		await onResume;
+		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
+
 		await cleanup();
 	});
 
@@ -491,6 +556,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 			accessor.lifecycleService.fireBeforeShutdown(event);
 
 			const veto = await event.value;
+			assert.ok(typeof event.finalValue === 'function'); // assert the tracker uses the internal finalVeto API
 			assert.strictEqual(accessor.workingCopyBackupService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
 			assert.strictEqual(veto, shouldVeto);
 

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { CellEditType, CellKind, ICellEditOperation, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -16,12 +16,12 @@ import { setupInstantiationService, TestCell, valueBytesFromString, withTestNote
 suite('NotebookTextModel', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
-	let modeService: IModeService;
+	let languageService: ILanguageService;
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
-		modeService = instantiationService.get(IModeService);
+		languageService = instantiationService.get(ILanguageService);
 		instantiationService.spy(IUndoRedoService, 'pushElement');
 	});
 
@@ -38,9 +38,9 @@ suite('NotebookTextModel', () => {
 			(editor) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => undefined, undefined);
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService)] },
+				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 6);
 
@@ -61,9 +61,9 @@ suite('NotebookTextModel', () => {
 			(editor) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => undefined, undefined);
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService)] },
+				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 6);
 
@@ -86,7 +86,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 3, count: 1, cells: [] },
-				], true, undefined, () => undefined, undefined);
+				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
 				assert.strictEqual(textModel.cells[1].getValue(), 'var c = 3;');
@@ -106,8 +106,8 @@ suite('NotebookTextModel', () => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => undefined, undefined);
+					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+				], true, undefined, () => undefined, undefined, true);
 				assert.strictEqual(textModel.cells.length, 4);
 
 				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
@@ -128,8 +128,8 @@ suite('NotebookTextModel', () => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => undefined, undefined);
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 4);
 				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
@@ -150,8 +150,8 @@ suite('NotebookTextModel', () => {
 			(editor) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => undefined, undefined);
+					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 4);
 				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
@@ -175,7 +175,7 @@ suite('NotebookTextModel', () => {
 						index: Number.MAX_VALUE,
 						editType: CellEditType.Output,
 						outputs: []
-					}], true, undefined, () => undefined, undefined);
+					}], true, undefined, () => undefined, undefined, true);
 				});
 
 				// invalid index 2
@@ -184,7 +184,7 @@ suite('NotebookTextModel', () => {
 						index: -1,
 						editType: CellEditType.Output,
 						outputs: []
-					}], true, undefined, () => undefined, undefined);
+					}], true, undefined, () => undefined, undefined, true);
 				});
 
 				textModel.applyEdits([{
@@ -194,7 +194,7 @@ suite('NotebookTextModel', () => {
 						outputId: 'someId',
 						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_Hello_') }]
 					}]
-				}], true, undefined, () => undefined, undefined);
+				}], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 1);
 				assert.strictEqual(textModel.cells[0].outputs.length, 1);
@@ -208,7 +208,7 @@ suite('NotebookTextModel', () => {
 						outputId: 'someId2',
 						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_Hello2_') }]
 					}]
-				}], true, undefined, () => undefined, undefined);
+				}], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 1);
 				assert.strictEqual(textModel.cells[0].outputs.length, 2);
@@ -224,7 +224,7 @@ suite('NotebookTextModel', () => {
 						outputId: 'someId3',
 						outputs: [{ mime: Mimes.text, data: valueBytesFromString('Last, replaced output') }]
 					}]
-				}], true, undefined, () => undefined, undefined);
+				}], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 1);
 				assert.strictEqual(textModel.cells[0].outputs.length, 1);
@@ -262,7 +262,7 @@ suite('NotebookTextModel', () => {
 							outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('append 2') }]
 						}]
 					}
-				], true, undefined, () => undefined, undefined);
+				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 1);
 				assert.strictEqual(textModel.cells[0].outputs.length, 2);
@@ -299,7 +299,7 @@ suite('NotebookTextModel', () => {
 							mime: Mimes.markdown, data: valueBytesFromString('append 2')
 						}]
 					}
-				], true, undefined, () => undefined, undefined);
+				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 1);
 				assert.strictEqual(textModel.cells[0].outputs.length, 1, 'has 1 output');
@@ -324,7 +324,7 @@ suite('NotebookTextModel', () => {
 						index: Number.MAX_VALUE,
 						editType: CellEditType.Metadata,
 						metadata: {}
-					}], true, undefined, () => undefined, undefined);
+					}], true, undefined, () => undefined, undefined, true);
 				});
 
 				// invalid index 2
@@ -333,20 +333,20 @@ suite('NotebookTextModel', () => {
 						index: -1,
 						editType: CellEditType.Metadata,
 						metadata: {}
-					}], true, undefined, () => undefined, undefined);
+					}], true, undefined, () => undefined, undefined, true);
 				});
 
 				textModel.applyEdits([{
 					index: 0,
 					editType: CellEditType.Metadata,
 					metadata: { customProperty: 15 },
-				}], true, undefined, () => undefined, undefined);
+				}], true, undefined, () => undefined, undefined, true);
 
 				textModel.applyEdits([{
 					index: 0,
 					editType: CellEditType.Metadata,
 					metadata: {},
-				}], true, undefined, () => undefined, undefined);
+				}], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 1);
 				assert.strictEqual(textModel.cells[0].metadata.customProperty, undefined);
@@ -366,13 +366,13 @@ suite('NotebookTextModel', () => {
 					index: 0,
 					editType: CellEditType.PartialMetadata,
 					metadata: { customProperty: 15 },
-				}], true, undefined, () => undefined, undefined);
+				}], true, undefined, () => undefined, undefined, true);
 
 				textModel.applyEdits([{
 					index: 0,
 					editType: CellEditType.PartialMetadata,
 					metadata: {},
-				}], true, undefined, () => undefined, undefined);
+				}], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 1);
 				assert.strictEqual(textModel.cells[0].metadata.customProperty, 15);
@@ -402,8 +402,8 @@ suite('NotebookTextModel', () => {
 
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 4);
 				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
@@ -449,7 +449,7 @@ suite('NotebookTextModel', () => {
 						editType: CellEditType.Metadata,
 						metadata: {},
 					}
-				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
+				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined, true);
 
 				assert.notStrictEqual(changeEvent, undefined);
 				assert.strictEqual(changeEvent!.rawEvents.length, 2);
@@ -641,7 +641,7 @@ suite('NotebookTextModel', () => {
 				}
 			];
 
-			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
+			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined, true);
 
 			assert.strictEqual(notebook.cells[0].outputs.length, 1);
 			assert.strictEqual(notebook.cells[0].outputs[0].outputs.length, 2);
@@ -671,7 +671,7 @@ suite('NotebookTextModel', () => {
 				}
 			];
 
-			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
+			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined, true);
 
 			assert.strictEqual(notebook.cells.length, 2);
 			assert.strictEqual(notebook.cells[0].outputs.length, 0);
@@ -707,7 +707,7 @@ suite('NotebookTextModel', () => {
 				}
 			];
 
-			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
+			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined, true);
 
 			assert.strictEqual(notebook.cells.length, 2);
 			assert.strictEqual(notebook.cells[0].outputs.length, 1);

@@ -9,8 +9,8 @@ import * as resources from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
@@ -21,7 +21,7 @@ import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/comm
 import { ISnippetGetOptions, ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
 import { SnippetCompletionProvider } from './snippetCompletionProvider';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { ResourceMap } from 'vs/base/common/map';
@@ -29,6 +29,8 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { isStringArray } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 namespace snippetExt {
 
@@ -42,7 +44,7 @@ namespace snippetExt {
 		location: URI;
 	}
 
-	export function toValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): IValidSnippetsExtensionPoint | null {
+	export function toValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, languageService: ILanguageService): IValidSnippetsExtensionPoint | null {
 
 		if (isFalsyOrWhitespace(snippet.path)) {
 			extension.collector.error(localize(
@@ -62,7 +64,7 @@ namespace snippetExt {
 			return null;
 		}
 
-		if (!isFalsyOrWhitespace(snippet.language) && !modeService.isRegisteredMode(snippet.language)) {
+		if (!isFalsyOrWhitespace(snippet.language) && !languageService.isRegisteredLanguageId(snippet.language)) {
 			extension.collector.error(localize(
 				'invalid.language',
 				"Unknown language in `contributes.{0}.language`. Provided value: {1}",
@@ -137,7 +139,7 @@ class SnippetEnablement {
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 
-		const raw = _storageService.get(SnippetEnablement._key, StorageScope.GLOBAL, '');
+		const raw = _storageService.get(SnippetEnablement._key, StorageScope.PROFILE, '');
 		let data: string[] | undefined;
 		try {
 			data = JSON.parse(raw);
@@ -160,7 +162,7 @@ class SnippetEnablement {
 			changed = true;
 		}
 		if (changed) {
-			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 }
@@ -176,14 +178,16 @@ class SnippetsService implements ISnippetsService {
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textfileService: ITextFileService,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 	) {
 		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			this._initExtensionSnippets();
@@ -191,7 +195,7 @@ class SnippetsService implements ISnippetsService {
 			this._initWorkspaceSnippets();
 		})));
 
-		setSnippetSuggestSupport(new SnippetCompletionProvider(this._modeService, this));
+		setSnippetSuggestSupport(new SnippetCompletionProvider(this._languageService, this, languageConfigurationService));
 
 		this._enablement = instantiationService.createInstance(SnippetEnablement);
 	}
@@ -227,11 +231,10 @@ class SnippetsService implements ISnippetsService {
 		const result: Snippet[] = [];
 		const promises: Promise<any>[] = [];
 
-		const langName = this._modeService.validateLanguageId(languageId);
-		if (langName) {
+		if (this._languageService.isRegisteredLanguageId(languageId)) {
 			for (const file of this._files.values()) {
 				promises.push(file.load()
-					.then(file => file.select(langName, result))
+					.then(file => file.select(languageId, result))
 					.catch(err => this._logService.error(err, file.location.toString()))
 				);
 			}
@@ -242,13 +245,12 @@ class SnippetsService implements ISnippetsService {
 
 	getSnippetsSync(languageId: string, opts?: ISnippetGetOptions): Snippet[] {
 		const result: Snippet[] = [];
-		const langName = this._modeService.validateLanguageId(languageId);
-		if (langName) {
+		if (this._languageService.isRegisteredLanguageId(languageId)) {
 			for (const file of this._files.values()) {
 				// kick off loading (which is a noop in case it's already loaded)
 				// and optimistically collect snippets
 				file.load().catch(_err => { /*ignore*/ });
-				file.select(langName, result);
+				file.select(languageId, result);
 			}
 		}
 		return this._filterSnippets(result, opts);
@@ -274,7 +276,7 @@ class SnippetsService implements ISnippetsService {
 
 			for (const extension of extensions) {
 				for (const contribution of extension.value) {
-					const validContribution = snippetExt.toValidSnippet(extension, contribution, this._modeService);
+					const validContribution = snippetExt.toValidSnippet(extension, contribution, this._languageService);
 					if (!validContribution) {
 						continue;
 					}
@@ -318,8 +320,8 @@ class SnippetsService implements ISnippetsService {
 
 	private _initWorkspaceSnippets(): void {
 		// workspace stuff
-		let disposables = new DisposableStore();
-		let updateWorkspaceSnippets = () => {
+		const disposables = new DisposableStore();
+		const updateWorkspaceSnippets = () => {
 			disposables.clear();
 			this._pendingWork.push(this._initWorkspaceFolderSnippets(this._contextService.getWorkspace(), disposables));
 		};
@@ -348,9 +350,21 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private async _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = this._environmentService.snippetsHome;
-		await this._fileService.createFolder(userSnippetsFolder);
-		return await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables);
+		const disposables = new DisposableStore();
+		const updateUserSnippets = async () => {
+			disposables.clear();
+			const userSnippetsFolder = this._userDataProfileService.currentProfile.snippetsHome;
+			await this._fileService.createFolder(userSnippetsFolder);
+			await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, disposables);
+		};
+		this._disposables.add(disposables);
+		this._disposables.add(this._userDataProfileService.onDidChangeCurrentProfile(e => e.join((async () => {
+			if (e.preserveData) {
+				await this._fileService.copy(e.previous.snippetsHome, e.profile.snippetsHome);
+			}
+			this._pendingWork.push(updateUserSnippets());
+		})())));
+		await updateUserSnippets();
 	}
 
 	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: DisposableStore): Promise<any> {
@@ -406,11 +420,11 @@ export function getNonWhitespacePrefix(model: ISimpleModel, position: Position):
 	 */
 	const MAX_PREFIX_LENGTH = 100;
 
-	let line = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+	const line = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 
-	let minChIndex = Math.max(0, line.length - MAX_PREFIX_LENGTH);
+	const minChIndex = Math.max(0, line.length - MAX_PREFIX_LENGTH);
 	for (let chIndex = line.length - 1; chIndex >= minChIndex; chIndex--) {
-		let ch = line.charAt(chIndex);
+		const ch = line.charAt(chIndex);
 
 		if (/\s/.test(ch)) {
 			return line.substr(chIndex + 1);

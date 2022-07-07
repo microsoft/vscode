@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Viewlet } from './viewlet';
-import { Editors } from './editors';
 import { Code } from './code';
 
 export class Explorer extends Viewlet {
@@ -12,7 +11,7 @@ export class Explorer extends Viewlet {
 	private static readonly EXPLORER_VIEWLET = 'div[id="workbench.view.explorer"]';
 	private static readonly OPEN_EDITORS_VIEW = `${Explorer.EXPLORER_VIEWLET} .split-view-view:nth-child(1) .title`;
 
-	constructor(code: Code, private editors: Editors) {
+	constructor(code: Code) {
 		super(code);
 	}
 
@@ -26,11 +25,6 @@ export class Explorer extends Viewlet {
 
 	async waitForOpenEditorsViewTitle(fn: (title: string) => boolean): Promise<void> {
 		await this.code.waitForTextContent(Explorer.OPEN_EDITORS_VIEW, undefined, fn);
-	}
-
-	async openFile(fileName: string): Promise<any> {
-		await this.code.waitAndDoubleClick(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.getExtensionSelector(fileName)} explorer-item"]`);
-		await this.editors.waitForEditorFocus(fileName);
 	}
 
 	getExtensionSelector(fileName: string): string {

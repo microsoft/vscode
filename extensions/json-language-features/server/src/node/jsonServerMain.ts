@@ -36,7 +36,7 @@ function getHTTPRequestService(): RequestService {
 
 function getFileRequestService(): RequestService {
 	return {
-		getContent(location: string, encoding?: string) {
+		getContent(location: string, encoding?: BufferEncoding) {
 			return new Promise((c, e) => {
 				const uri = Uri.parse(location);
 				fs.readFile(uri.fsPath, encoding, (err, buf) => {

@@ -8,7 +8,7 @@ import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
-import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
+import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -21,7 +21,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ActiveEditorContext, IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchNewEditorIcon, searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
@@ -100,7 +101,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContrib
 //#endregion
 
 //#region Input Serializer
-type SerializedSearchEditor = { modelUri: string | undefined, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
+type SerializedSearchEditor = { modelUri: string | undefined; dirty: boolean; config: SearchConfiguration; name: string; matchRanges: Range[]; backingUri: string };
 
 class SearchEditorInputSerializer implements IEditorSerializer {
 
@@ -120,7 +121,7 @@ class SearchEditorInputSerializer implements IEditorSerializer {
 
 		const config = input.tryReadConfigSync();
 		const dirty = input.isDirty();
-		const matchRanges = input.getMatchRanges();
+		const matchRanges = dirty ? input.getMatchRanges() : [];
 		const backingUri = input.backingUri;
 
 		return JSON.stringify({ modelUri, dirty, config, name: input.getName(), matchRanges, backingUri: backingUri?.toString() } as SerializedSearchEditor);
@@ -169,18 +170,18 @@ CommandsRegistry.registerCommand(
 const category = { value: localize('search', "Search Editor"), original: 'Search Editor' };
 
 export type LegacySearchEditorArgs = Partial<{
-	query: string,
-	includes: string,
-	excludes: string,
-	contextLines: number,
-	wholeWord: boolean,
-	caseSensitive: boolean,
-	regexp: boolean,
-	useIgnores: boolean,
-	showIncludesExcludes: boolean,
-	triggerSearch: boolean,
-	focusResults: boolean,
-	location: 'reuse' | 'new'
+	query: string;
+	includes: string;
+	excludes: string;
+	contextLines: number;
+	wholeWord: boolean;
+	caseSensitive: boolean;
+	regexp: boolean;
+	useIgnores: boolean;
+	showIncludesExcludes: boolean;
+	triggerSearch: boolean;
+	focusResults: boolean;
+	location: 'reuse' | 'new';
 }>;
 
 const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearchEditorArgs = {}): OpenSearchEditorArgs => {
@@ -199,7 +200,7 @@ const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearch
 	return config;
 };
 
-export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean, location: 'reuse' | 'new' }>;
+export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean; focusResults: boolean; location: 'reuse' | 'new' }>;
 const openArgDescription = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{

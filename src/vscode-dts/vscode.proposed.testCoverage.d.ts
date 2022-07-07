@@ -12,7 +12,7 @@ declare module 'vscode' {
 		 * Test coverage provider for this result. An extension can defer setting
 		 * this until after a run is complete and coverage is available.
 		 */
-		coverageProvider?: TestCoverageProvider
+		coverageProvider?: TestCoverageProvider;
 		// ...
 	}
 
@@ -30,7 +30,7 @@ declare module 'vscode' {
 
 		/**
 		 * Give a FileCoverage to fill in more data, namely {@link FileCoverage.detailedCoverage}.
-		 * The editor will only resolve a FileCoverage once, and onyl if detailedCoverage
+		 * The editor will only resolve a FileCoverage once, and only if detailedCoverage
 		 * is undefined.
 		 *
 		 * @param coverage A coverage object obtained from {@link provideFileCoverage}

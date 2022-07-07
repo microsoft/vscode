@@ -18,7 +18,7 @@ suite('RequestStore', () => {
 
 	test('should resolve requests', async () => {
 		const store: RequestStore<{ data: string }, { arg: string }> = instantiationService.createInstance(RequestStore, undefined);
-		let eventArgs: { requestId: number, arg: string } | undefined;
+		let eventArgs: { requestId: number; arg: string } | undefined;
 		store.onCreateRequest(e => eventArgs = e);
 		const request = store.createRequest({ arg: 'foo' });
 		strictEqual(typeof eventArgs?.requestId, 'number');

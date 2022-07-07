@@ -49,17 +49,30 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			} else {
 				formatSettings.contentUnformatted = 'script';
 			}
+			if (formatParams.insertFinalNewline) {
+				formatSettings.endWithNewline = true;
+			}
 			merge(formatParams, formatSettings);
 			return htmlLanguageService.format(document, range, formatSettings);
 		},
 		async getFoldingRanges(document: TextDocument): Promise<FoldingRange[]> {
 			return htmlLanguageService.getFoldingRanges(document);
 		},
-		async doAutoClose(document: TextDocument, position: Position) {
+		async doAutoInsert(document: TextDocument, position: Position, kind: 'autoQuote' | 'autoClose', settings = workspace.settings) {
 			const offset = document.offsetAt(position);
 			const text = document.getText();
-			if (offset > 0 && text.charAt(offset - 1).match(/[>\/]/g)) {
-				return htmlLanguageService.doTagComplete(document, position, htmlDocuments.get(document));
+			if (kind === 'autoQuote') {
+				if (offset > 0 && text.charAt(offset - 1) === '=') {
+					const htmlSettings = settings?.html;
+					const options = merge(htmlSettings?.suggest, {});
+					options.attributeDefaultValue = htmlSettings?.completion?.attributeDefaultValue ?? 'doublequotes';
+
+					return htmlLanguageService.doQuoteComplete(document, position, htmlDocuments.get(document), options);
+				}
+			} else if (kind === 'autoClose') {
+				if (offset > 0 && text.charAt(offset - 1).match(/[>\/]/g)) {
+					return htmlLanguageService.doTagComplete(document, position, htmlDocuments.get(document));
+				}
 			}
 			return null;
 		},

@@ -31,9 +31,11 @@ import { localize } from 'vs/nls';
 const $ = dom.$;
 
 interface IListElement {
+	readonly hasCheckbox: boolean;
 	readonly index: number;
 	readonly item: IQuickPickItem;
 	readonly saneLabel: string;
+	readonly saneSortLabel: string;
 	readonly saneMeta?: string;
 	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
@@ -47,9 +49,11 @@ interface IListElement {
 }
 
 class ListElement implements IListElement, IDisposable {
+	hasCheckbox!: boolean;
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
+	saneSortLabel!: string;
 	saneMeta!: string;
 	saneAriaLabel!: string;
 	saneDescription?: string;
@@ -303,18 +307,20 @@ export class QuickInputList {
 						this.list.setFocus(range(this.list.length));
 					}
 					break;
-				case KeyCode.UpArrow:
+				case KeyCode.UpArrow: {
 					const focus1 = this.list.getFocus();
 					if (focus1.length === 1 && focus1[0] === 0) {
 						this._onLeave.fire();
 					}
 					break;
-				case KeyCode.DownArrow:
+				}
+				case KeyCode.DownArrow: {
 					const focus2 = this.list.getFocus();
 					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
 						this._onLeave.fire();
 					}
 					break;
+				}
 			}
 
 			this._onKeyDown.fire(event);
@@ -436,6 +442,7 @@ export class QuickInputList {
 			if (item.type !== 'separator') {
 				const previous = index && inputElements[index - 1];
 				const saneLabel = item.label && item.label.replace(/\r?\n/g, ' ');
+				const saneSortLabel = parseLabelWithIcons(saneLabel).text.trim();
 				const saneMeta = item.meta && item.meta.replace(/\r?\n/g, ' ');
 				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
 				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
@@ -444,10 +451,13 @@ export class QuickInputList {
 					.filter(s => !!s)
 					.join(', ');
 
+				const hasCheckbox = this.parent.classList.contains('show-checkboxes');
 				result.push(new ListElement({
+					hasCheckbox,
 					index,
 					item,
 					saneLabel,
+					saneSortLabel,
 					saneMeta,
 					saneAriaLabel,
 					saneDescription,
@@ -732,7 +742,7 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 		return 0;
 	}
 
-	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
+	return compareAnything(elementA.saneSortLabel, elementB.saneSortLabel, lookFor);
 }
 
 class QuickInputAccessibilityProvider implements IListAccessibilityProvider<ListElement> {
@@ -742,14 +752,27 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<List
 	}
 
 	getAriaLabel(element: ListElement): string | null {
-		return element.saneAriaLabel;
+		return element.separator?.label
+			? `${element.saneAriaLabel}, ${element.separator.label}`
+			: element.saneAriaLabel;
 	}
 
 	getWidgetRole() {
 		return 'listbox';
 	}
 
-	getRole() {
-		return 'option';
+	getRole(element: ListElement) {
+		return element.hasCheckbox ? 'checkbox' : 'option';
+	}
+
+	isChecked(element: ListElement) {
+		if (!element.hasCheckbox) {
+			return undefined;
+		}
+
+		return {
+			value: element.checked,
+			onDidChange: element.onChecked
+		};
 	}
 }

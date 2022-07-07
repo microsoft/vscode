@@ -129,6 +129,8 @@ export interface LogOptions {
 	readonly path?: string;
 }
 
+export type PostCommitCommand = 'push' | 'sync' | string;
+
 export interface CommitOptions {
 	all?: boolean | 'tracked';
 	amend?: boolean;
@@ -137,6 +139,9 @@ export interface CommitOptions {
 	empty?: boolean;
 	noVerify?: boolean;
 	requireUserConfig?: boolean;
+	useEditor?: boolean;
+	verbose?: boolean;
+	postCommitCommand?: PostCommitCommand;
 }
 
 export interface FetchOptions {
@@ -172,6 +177,8 @@ export interface Repository {
 	show(ref: string, path: string): Promise<string>;
 	getCommit(ref: string): Promise<Commit>;
 
+	add(paths: string[]): Promise<void>;
+	revert(paths: string[]): Promise<void>;
 	clean(paths: string[]): Promise<void>;
 
 	apply(patch: string, reverse?: boolean): Promise<void>;
@@ -197,6 +204,9 @@ export interface Repository {
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
 	getMergeBase(ref1: string, ref2: string): Promise<string>;
+
+	tag(name: string, upstream: string): Promise<void>;
+	deleteTag(name: string): Promise<void>;
 
 	status(): Promise<void>;
 	checkout(treeish: string): Promise<void>;
@@ -285,7 +295,7 @@ export interface GitExtension {
 	/**
 	 * Returns a specific API version.
 	 *
-	 * Throws error if git extension is disabled. You can listed to the
+	 * Throws error if git extension is disabled. You can listen to the
 	 * [GitExtension.onDidChangeEnablement](#GitExtension.onDidChangeEnablement) event
 	 * to know when the extension becomes enabled/disabled.
 	 *
@@ -331,4 +341,5 @@ export const enum GitErrorCodes {
 	PatchDoesNotApply = 'PatchDoesNotApply',
 	NoPathFound = 'NoPathFound',
 	UnknownPath = 'UnknownPath',
+	EmptyCommitMessage = 'EmptyCommitMessage'
 }

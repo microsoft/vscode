@@ -5,16 +5,17 @@
 
 import { ExtensionContext, OutputChannel, window, workspace } from 'vscode';
 import { startClient, LanguageClientConstructor, SchemaRequestService, languageServerDescription } from '../jsonClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
+import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { xhr, XHRResponse, getErrorStatusDescription, Headers } from 'request-light';
 
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { JSONSchemaCache } from './schemaCache';
 
 let telemetry: TelemetryReporter | undefined;
+let client: BaseLanguageClient | undefined;
 
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
@@ -45,11 +46,15 @@ export async function activate(context: ExtensionContext) {
 
 	const schemaRequests = await getSchemaRequestService(context, log);
 
-	startClient(context, newLanguageClient, { schemaRequests, telemetry });
+	client = await startClient(context, newLanguageClient, { schemaRequests, telemetry });
 }
 
-export function deactivate(): Promise<any> {
-	return telemetry ? telemetry.dispose() : Promise.resolve(null);
+export async function deactivate(): Promise<any> {
+	if (client) {
+		await client.stop();
+		client = undefined;
+	}
+	telemetry?.dispose();
 }
 
 interface IPackageInfo {
@@ -71,6 +76,7 @@ async function getPackageInfo(context: ExtensionContext): Promise<IPackageInfo> 
 
 interface Log {
 	trace(message: string): void;
+	isTrace(): boolean;
 	dispose(): void;
 }
 
@@ -88,23 +94,34 @@ function getLog(outputChannel: OutputChannel): Log {
 				outputChannel.appendLine(message);
 			}
 		},
+		isTrace() {
+			return trace;
+		},
 		dispose: () => configListener.dispose()
 	};
 }
 
-const retryTimeoutInDays = 2; // 2 days
-const retryTimeoutInMs = retryTimeoutInDays * 24 * 60 * 60 * 1000;
+const retryTimeoutInHours = 2 * 24; // 2 days
 
 async function getSchemaRequestService(context: ExtensionContext, log: Log): Promise<SchemaRequestService> {
 	let cache: JSONSchemaCache | undefined = undefined;
 	const globalStorage = context.globalStorageUri;
+
+	let clearCache: (() => Promise<string[]>) | undefined;
 	if (globalStorage.scheme === 'file') {
 		const schemaCacheLocation = path.join(globalStorage.fsPath, 'json-schema-cache');
 		await fs.mkdir(schemaCacheLocation, { recursive: true });
 
-		cache = new JSONSchemaCache(schemaCacheLocation, context.globalState);
-		log.trace(`[json schema cache] initial state: ${JSON.stringify(cache.getCacheInfo(), null, ' ')}`);
+		const schemaCache = new JSONSchemaCache(schemaCacheLocation, context.globalState);
+		log.trace(`[json schema cache] initial state: ${JSON.stringify(schemaCache.getCacheInfo(), null, ' ')}`);
+		cache = schemaCache;
+		clearCache = async () => {
+			const cachedSchemas = await schemaCache.clearCache();
+			log.trace(`[json schema cache] cache cleared. Previously cached schemas: ${cachedSchemas.join(', ')}`);
+			return cachedSchemas;
+		};
 	}
+
 
 	const isXHRResponse = (error: any): error is XHRResponse => typeof error?.status === 'number';
 
@@ -133,7 +150,7 @@ async function getSchemaRequestService(context: ExtensionContext, log: Log): Pro
 
 					log.trace(`[json schema cache] Response: schema ${uri} unchanged etag ${etag}`);
 
-					const content = await cache.getSchema(uri, etag);
+					const content = await cache.getSchema(uri, etag, true);
 					if (content) {
 						log.trace(`[json schema cache] Get schema ${uri} etag ${etag} from cache`);
 						return content;
@@ -159,13 +176,17 @@ async function getSchemaRequestService(context: ExtensionContext, log: Log): Pro
 	return {
 		getContent: async (uri: string) => {
 			if (cache && /^https?:\/\/json\.schemastore\.org\//.test(uri)) {
-				const content = await cache.getSchemaIfAccessedSince(uri, retryTimeoutInMs);
+				const content = await cache.getSchemaIfUpdatedSince(uri, retryTimeoutInHours);
 				if (content) {
-					log.trace(`[json schema cache] Schema ${uri} from cache without request (last accessed less than ${retryTimeoutInDays} days ago)`);
+					if (log.isTrace()) {
+						log.trace(`[json schema cache] Schema ${uri} from cache without request (last accessed ${cache.getLastUpdatedInHours(uri)} hours ago)`);
+					}
+
 					return content;
 				}
 			}
 			return request(uri, cache?.getETag(uri));
-		}
+		},
+		clearCache
 	};
 }

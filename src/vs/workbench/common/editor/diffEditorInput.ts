@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceDiffEditorInput, IDiffEditorInput, IResourceSideBySideEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IUntypedEditorInput, isResourceDiffEditorInput, IDiffEditorInput, IResourceSideBySideEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -43,7 +43,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 	}
 
 	override get editorId(): string | undefined {
-		return DEFAULT_EDITOR_ASSOCIATION.id;
+		return this.modified.editorId === this.original.editorId ? this.modified.editorId : undefined;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -105,7 +105,10 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 			// a label that resembles the difference between the two
 			const originalMediumDescription = this.original.getDescription(Verbosity.MEDIUM);
 			const modifiedMediumDescription = this.modified.getDescription(Verbosity.MEDIUM);
-			if (originalMediumDescription && modifiedMediumDescription) {
+			if (
+				(typeof originalMediumDescription === 'string' && typeof modifiedMediumDescription === 'string') && // we can only `shorten` when both sides are strings...
+				(originalMediumDescription || modifiedMediumDescription) 											// ...however never when both sides are empty strings
+			) {
 				const [shortenedOriginalMediumDescription, shortenedModifiedMediumDescription] = shorten([originalMediumDescription, modifiedMediumDescription]);
 				mediumDescription = this.computeLabel(shortenedOriginalMediumDescription, shortenedModifiedMediumDescription);
 			}

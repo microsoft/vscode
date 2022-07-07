@@ -9,7 +9,7 @@ import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollable
 import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import * as types from 'vs/base/common/types';
@@ -231,9 +231,7 @@ abstract class ViewItem<TLayoutContext> {
 
 		this.container.classList.toggle('visible', visible);
 
-		if (this.view.setVisible) {
-			this.view.setVisible(visible);
-		}
+		this.view.setVisible?.(visible);
 	}
 
 	get minimumSize(): number { return this.visible ? this.view.minimumSize : 0; }
@@ -324,21 +322,21 @@ enum State {
 }
 
 /**
- * When adding or removing views, distribute the delta space among
- * all other views.
+ * When adding or removing views, uniformly distribute the entire split view space among
+ * all views.
  */
 export type DistributeSizing = { type: 'distribute' };
 
 /**
- * When adding or removing views, split the delta space with another
- * specific view, indexed by the provided `index`.
+ * When adding a view, make space for it by reducing the size of another view,
+ * indexed by the provided `index`.
  */
-export type SplitSizing = { type: 'split', index: number };
+export type SplitSizing = { type: 'split'; index: number };
 
 /**
  * When adding or removing views, assume the view is invisible.
  */
-export type InvisibleSizing = { type: 'invisible', cachedVisibleSize: number };
+export type InvisibleSizing = { type: 'invisible'; cachedVisibleSize: number };
 
 /**
  * When adding or removing views, the sizing provides fine grained
@@ -546,7 +544,11 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		this.sashContainer = append(this.el, $('.sash-container'));
 		this.viewContainer = $('.split-view-container');
 
-		this.scrollable = new Scrollable(125, scheduleAtNextAnimationFrame);
+		this.scrollable = new Scrollable({
+			forceIntegerValues: true,
+			smoothScrollDuration: 125,
+			scheduleAtNextAnimationFrame
+		});
 		this.scrollableElement = this._register(new SmoothScrollableElement(this.viewContainer, {
 			vertical: this.orientation === Orientation.VERTICAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden,
 			horizontal: this.orientation === Orientation.HORIZONTAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden
@@ -1026,7 +1028,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		// Add sash
 		if (this.viewItems.length > 1) {
-			let opts = { orthogonalStartSash: this.orthogonalStartSash, orthogonalEndSash: this.orthogonalEndSash };
+			const opts = { orthogonalStartSash: this.orthogonalStartSash, orthogonalEndSash: this.orthogonalEndSash };
 
 			const sash = this.orientation === Orientation.VERTICAL
 				? new Sash(this.sashContainer, { getHorizontalSashTop: s => this.getSashPosition(s), getHorizontalSashWidth: this.getSashOrthogonalSize }, { ...opts, orientation: Orientation.HORIZONTAL })
@@ -1344,7 +1346,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	override dispose(): void {
 		super.dispose();
 
-		this.viewItems.forEach(i => i.dispose());
+		dispose(this.viewItems);
 		this.viewItems = [];
 
 		this.sashItems.forEach(i => i.disposable.dispose());

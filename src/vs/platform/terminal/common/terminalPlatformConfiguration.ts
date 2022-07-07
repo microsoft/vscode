@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { iconRegistry } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
@@ -27,8 +27,8 @@ const terminalProfileBaseProperties: IJSONSchemaMap = {
 	icon: {
 		description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
 		type: 'string',
-		enum: Array.from(iconRegistry.all, icon => icon.id),
-		markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
+		enum: Array.from(Codicon.getAll(), icon => icon.id),
+		markdownEnumDescriptions: Array.from(Codicon.getAll(), icon => `$(${icon.id})`),
 	},
 	color: {
 		description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
@@ -62,6 +62,21 @@ const terminalProfileSchema: IJSONSchema = {
 		path: {
 			description: localize('terminalProfile.path', 'A single path to a shell executable or an array of paths that will be used as fallbacks when one fails.'),
 			type: ['string', 'array'],
+			items: {
+				type: 'string'
+			}
+		},
+		...terminalProfileBaseProperties
+	}
+};
+
+const terminalAutomationProfileSchema: IJSONSchema = {
+	type: 'object',
+	required: ['path'],
+	properties: {
+		path: {
+			description: localize('terminalAutomationProfile.path', 'A single path to a shell executable.'),
+			type: ['string'],
 			items: {
 				type: 'string'
 			}
@@ -115,32 +130,56 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.AutomationProfileLinux]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.automationProfile.linux', "The terminal profile to use on Linux for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.linux#'),
+			markdownDescription: localize('terminal.integrated.automationProfile.linux', "The terminal profile to use on Linux for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '`#terminal.integrated.automationShell.linux#`'),
 			type: ['object', 'null'],
 			default: null,
 			'anyOf': [
 				{ type: 'null' },
-				terminalProfileSchema
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.AutomationProfileMacOs]: {
 			restricted: true,
-			description: localize('terminal.integrated.automationProfile.osx', "The terminal profile to use on macOS for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.osx#'),
+			markdownDescription: localize('terminal.integrated.automationProfile.osx', "The terminal profile to use on macOS for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '`#terminal.integrated.automationShell.osx#`'),
 			type: ['object', 'null'],
 			default: null,
 			'anyOf': [
 				{ type: 'null' },
-				terminalProfileSchema
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.AutomationProfileWindows]: {
 			restricted: true,
-			description: localize('terminal.integrated.automationProfile.windows', "The terminal profile to use for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.windows#'),
+			markdownDescription: localize('terminal.integrated.automationProfile.windows', "The terminal profile to use for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '`#terminal.integrated.automationShell.windows#`'),
 			type: ['object', 'null'],
 			default: null,
 			'anyOf': [
 				{ type: 'null' },
-				terminalProfileSchema
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
 			]
 		},
 		[TerminalSettingId.ShellLinux]: {
@@ -409,7 +448,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.IgnoreProcessNames]: {
-			description: localize('terminal.integrated.confirmIgnoreProcesses', "Configurable to provide a custom setting to ignore processes"),
+			description: localize('terminal.integrated.confirmIgnoreProcesses', "A set of process names to ignore when using the {0} setting.", '`terminal.integrated.confirmOnKill`'),
 			type: 'array',
 			items: {
 				type: 'string',
@@ -436,7 +475,7 @@ export function registerTerminalPlatformConfiguration() {
 }
 
 let defaultProfilesConfiguration: IConfigurationNode | undefined;
-export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: { os: OperatingSystem, profiles: ITerminalProfile[] }, extensionContributedProfiles?: readonly IExtensionTerminalProfile[]) {
+export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: { os: OperatingSystem; profiles: ITerminalProfile[] }, extensionContributedProfiles?: readonly IExtensionTerminalProfile[]) {
 	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	let profileEnum;
 	if (detectedProfiles) {

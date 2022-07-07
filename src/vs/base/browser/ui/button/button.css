@@ -38,6 +38,10 @@
 	cursor: pointer;
 }
 
+.monaco-button-dropdown > .monaco-button:focus {
+	outline-offset: -1px !important;
+}
+
 .monaco-button-dropdown > .monaco-dropdown-button {
 	margin-left: 1px;
 }
@@ -52,4 +56,19 @@
 
 .monaco-description-button .monaco-button-description {
 	font-style: italic;
+}
+
+.monaco-description-button .monaco-button-label,
+.monaco-description-button .monaco-button-description
+{
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.monaco-description-button .monaco-button-label > .codicon,
+.monaco-description-button .monaco-button-description > .codicon
+{
+	margin: 0 0.2em;
+	color: inherit !important;
 }

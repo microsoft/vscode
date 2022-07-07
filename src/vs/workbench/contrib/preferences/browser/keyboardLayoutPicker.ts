@@ -34,9 +34,9 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 
 		const name = nls.localize('status.workbench.keyboardLayout', "Keyboard Layout");
 
-		let layout = this.keyboardLayoutService.getCurrentKeyboardLayout();
+		const layout = this.keyboardLayoutService.getCurrentKeyboardLayout();
 		if (layout) {
-			let layoutInfo = parseKeyboardLayoutDescription(layout);
+			const layoutInfo = parseKeyboardLayoutDescription(layout);
 			const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
 
 			this.pickerElement.value = this.statusbarService.addEntry(
@@ -51,9 +51,9 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 			);
 		}
 
-		this._register(keyboardLayoutService.onDidChangeKeyboardLayout(() => {
-			let layout = this.keyboardLayoutService.getCurrentKeyboardLayout();
-			let layoutInfo = parseKeyboardLayoutDescription(layout);
+		this._register(this.keyboardLayoutService.onDidChangeKeyboardLayout(() => {
+			const layout = this.keyboardLayoutService.getCurrentKeyboardLayout();
+			const layoutInfo = parseKeyboardLayoutDescription(layout);
 
 			if (this.pickerElement.value) {
 				const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
@@ -119,10 +119,10 @@ export class KeyboardLayoutPickerAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		let layouts = this.keyboardLayoutService.getAllKeyboardLayouts();
-		let currentLayout = this.keyboardLayoutService.getCurrentKeyboardLayout();
-		let layoutConfig = this.configurationService.getValue('keyboard.layout');
-		let isAutoDetect = layoutConfig === 'autodetect';
+		const layouts = this.keyboardLayoutService.getAllKeyboardLayouts();
+		const currentLayout = this.keyboardLayoutService.getCurrentKeyboardLayout();
+		const layoutConfig = this.configurationService.getValue('keyboard.layout');
+		const isAutoDetect = layoutConfig === 'autodetect';
 
 		const picks: QuickPickInput[] = layouts.map(layout => {
 			const picked = !isAutoDetect && areKeyboardLayoutsEqual(currentLayout, layout);
@@ -143,7 +143,7 @@ export class KeyboardLayoutPickerAction extends Action {
 			picks.unshift({ type: 'separator', label: nls.localize('layoutPicks', "Keyboard Layouts ({0})", platform) });
 		}
 
-		let configureKeyboardLayout: IQuickPickItem = { label: nls.localize('configureKeyboardLayout', "Configure Keyboard Layout") };
+		const configureKeyboardLayout: IQuickPickItem = { label: nls.localize('configureKeyboardLayout', "Configure Keyboard Layout") };
 
 		picks.unshift(configureKeyboardLayout);
 
@@ -170,7 +170,7 @@ export class KeyboardLayoutPickerAction extends Action {
 		if (pick === configureKeyboardLayout) {
 			const file = this.environmentService.keyboardLayoutResource;
 
-			await this.fileService.resolve(file).then(undefined, (error) => {
+			await this.fileService.stat(file).then(undefined, () => {
 				return this.fileService.createFile(file, VSBuffer.fromString(KeyboardLayoutPickerAction.DEFAULT_CONTENT));
 			}).then((stat): Promise<IEditorPane | undefined> | undefined => {
 				if (!stat) {
@@ -178,7 +178,7 @@ export class KeyboardLayoutPickerAction extends Action {
 				}
 				return this.editorService.openEditor({
 					resource: stat.resource,
-					mode: 'jsonc',
+					languageId: 'jsonc',
 					options: { pinned: true }
 				});
 			}, (error) => {

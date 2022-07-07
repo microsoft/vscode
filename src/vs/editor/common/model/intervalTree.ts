@@ -180,7 +180,7 @@ export class IntervalNode {
 
 	public setOptions(options: ModelDecorationOptions) {
 		this.options = options;
-		let className = this.options.className;
+		const className = this.options.className;
 		setNodeIsForValidation(this, (
 			className === ClassName.EditorErrorDecoration
 			|| className === ClassName.EditorWarningDecoration
@@ -473,7 +473,7 @@ function searchForEditing(T: IntervalTree, start: number, end: number): Interval
 	let nodeMaxEnd = 0;
 	let nodeStart = 0;
 	let nodeEnd = 0;
-	let result: IntervalNode[] = [];
+	const result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
 		if (getNodeIsVisited(node)) {
@@ -609,7 +609,7 @@ function noOverlapReplace(T: IntervalTree, start: number, end: number, textLengt
 
 function collectNodesFromOwner(T: IntervalTree, ownerId: number): IntervalNode[] {
 	let node = T.root;
-	let result: IntervalNode[] = [];
+	const result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
 		if (getNodeIsVisited(node)) {
@@ -647,7 +647,7 @@ function collectNodesFromOwner(T: IntervalTree, ownerId: number): IntervalNode[]
 
 function collectNodesPostOrder(T: IntervalTree): IntervalNode[] {
 	let node = T.root;
-	let result: IntervalNode[] = [];
+	const result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
 		if (getNodeIsVisited(node)) {
@@ -685,7 +685,7 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 	let delta = 0;
 	let nodeStart = 0;
 	let nodeEnd = 0;
-	let result: IntervalNode[] = [];
+	const result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
 		if (getNodeIsVisited(node)) {
@@ -750,7 +750,7 @@ function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: num
 	let nodeMaxEnd = 0;
 	let nodeStart = 0;
 	let nodeEnd = 0;
-	let result: IntervalNode[] = [];
+	const result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
 		if (getNodeIsVisited(node)) {
@@ -986,7 +986,7 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 		return;
 	}
 
-	let yWasRed = (getNodeColor(y) === NodeColor.Red);
+	const yWasRed = (getNodeColor(y) === NodeColor.Red);
 
 	if (y === y.parent.left) {
 		y.parent.left = x;

@@ -156,7 +156,7 @@ suite('Workbench - Terminal Link Helpers', () => {
 const TEST_WIDE_CHAR = '文';
 const TEST_NULL_CHAR = 'C';
 
-function createBufferLineArray(lines: { text: string, width: number }[]): IBufferLine[] {
+function createBufferLineArray(lines: { text: string; width: number }[]): IBufferLine[] {
 	const result: IBufferLine[] = [];
 	lines.forEach((l, i) => {
 		result.push(new TestBufferLine(

@@ -200,12 +200,12 @@ export interface JSONVisitor {
  */
 export function createScanner(text: string, ignoreTrivia: boolean = false): JSONScanner {
 
-	let pos = 0,
-		len = text.length,
-		value: string = '',
-		tokenOffset = 0,
-		token: SyntaxKind = SyntaxKind.Unknown,
-		scanError: ScanError = ScanError.None;
+	let pos = 0;
+	const len = text.length;
+	let value: string = '';
+	let tokenOffset = 0;
+	let token: SyntaxKind = SyntaxKind.Unknown;
+	let scanError: ScanError = ScanError.None;
 
 	function scanHexDigits(count: number): number {
 		let digits = 0;
@@ -332,7 +332,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 					case CharacterCodes.t:
 						result += '\t';
 						break;
-					case CharacterCodes.u:
+					case CharacterCodes.u: {
 						const ch3 = scanHexDigits(4);
 						if (ch3 >= 0) {
 							result += String.fromCharCode(ch3);
@@ -340,6 +340,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 							scanError = ScanError.InvalidUnicode;
 						}
 						break;
+					}
 					default:
 						scanError = ScanError.InvalidEscapeCharacter;
 				}
@@ -425,7 +426,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 				return token = SyntaxKind.StringLiteral;
 
 			// comments
-			case CharacterCodes.slash:
+			case CharacterCodes.slash: {
 				const start = pos - 1;
 				// Single-line comment
 				if (text.charCodeAt(pos + 1) === CharacterCodes.slash) {
@@ -471,7 +472,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 				value += String.fromCharCode(code);
 				pos++;
 				return token = SyntaxKind.Unknown;
-
+			}
 			// numbers
 			case CharacterCodes.minus:
 				value += String.fromCharCode(code);
@@ -962,7 +963,7 @@ export function findNodeAtLocation(root: Node, path: JSONPath): Node | undefined
 		return undefined;
 	}
 	let node = root;
-	for (let segment of path) {
+	for (const segment of path) {
 		if (typeof segment === 'string') {
 			if (node.type !== 'object' || !Array.isArray(node.children)) {
 				return undefined;
@@ -1016,15 +1017,16 @@ export function getNodeValue(node: Node): any {
 	switch (node.type) {
 		case 'array':
 			return node.children!.map(getNodeValue);
-		case 'object':
+		case 'object': {
 			const obj = Object.create(null);
-			for (let prop of node.children!) {
+			for (const prop of node.children!) {
 				const valueNode = prop.children![1];
 				if (valueNode) {
 					obj[prop.children![0].value] = getNodeValue(valueNode);
 				}
 			}
 			return obj;
+		}
 		case 'null':
 		case 'string':
 		case 'number':
@@ -1162,7 +1164,7 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
 
 	function parseLiteral(): boolean {
 		switch (_scanner.getToken()) {
-			case SyntaxKind.NumericLiteral:
+			case SyntaxKind.NumericLiteral: {
 				let value = 0;
 				try {
 					value = JSON.parse(_scanner.getTokenValue());
@@ -1175,6 +1177,7 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
 				}
 				onLiteralValue(value);
 				break;
+			}
 			case SyntaxKind.NullKeyword:
 				onLiteralValue(null);
 				break;
@@ -1312,11 +1315,11 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
  */
 export function stripComments(text: string, replaceCh?: string): string {
 
-	let _scanner = createScanner(text),
-		parts: string[] = [],
-		kind: SyntaxKind,
-		offset = 0,
-		pos: number;
+	const _scanner = createScanner(text);
+	const parts: string[] = [];
+	let kind: SyntaxKind;
+	let offset = 0;
+	let pos: number;
 
 	do {
 		pos = _scanner.getPosition();

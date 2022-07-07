@@ -6,9 +6,9 @@
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ICheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
+import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { CaseSensitiveCheckbox, RegexCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
 import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
@@ -53,26 +53,27 @@ export class FindInput extends Widget {
 	private fixFocusOnOptionClickEnabled = true;
 	private imeSessionInProgress = false;
 
-	private inputActiveOptionBorder?: Color;
-	private inputActiveOptionForeground?: Color;
-	private inputActiveOptionBackground?: Color;
-	private inputBackground?: Color;
-	private inputForeground?: Color;
-	private inputBorder?: Color;
+	protected inputActiveOptionBorder?: Color;
+	protected inputActiveOptionForeground?: Color;
+	protected inputActiveOptionBackground?: Color;
+	protected inputBackground?: Color;
+	protected inputForeground?: Color;
+	protected inputBorder?: Color;
 
-	private inputValidationInfoBorder?: Color;
-	private inputValidationInfoBackground?: Color;
-	private inputValidationInfoForeground?: Color;
-	private inputValidationWarningBorder?: Color;
-	private inputValidationWarningBackground?: Color;
-	private inputValidationWarningForeground?: Color;
-	private inputValidationErrorBorder?: Color;
-	private inputValidationErrorBackground?: Color;
-	private inputValidationErrorForeground?: Color;
+	protected inputValidationInfoBorder?: Color;
+	protected inputValidationInfoBackground?: Color;
+	protected inputValidationInfoForeground?: Color;
+	protected inputValidationWarningBorder?: Color;
+	protected inputValidationWarningBackground?: Color;
+	protected inputValidationWarningForeground?: Color;
+	protected inputValidationErrorBorder?: Color;
+	protected inputValidationErrorBackground?: Color;
+	protected inputValidationErrorForeground?: Color;
 
-	private regex: RegexCheckbox;
-	private wholeWords: WholeWordsCheckbox;
-	private caseSensitive: CaseSensitiveCheckbox;
+	protected controls: HTMLDivElement;
+	protected regex: RegexToggle;
+	protected wholeWords: WholeWordsToggle;
+	protected caseSensitive: CaseSensitiveToggle;
 	public domNode: HTMLElement;
 	public inputBox: HistoryInputBox;
 
@@ -157,7 +158,7 @@ export class FindInput extends Widget {
 			flexibleMaxHeight
 		}));
 
-		this.regex = this._register(new RegexCheckbox({
+		this.regex = this._register(new RegexToggle({
 			appendTitle: appendRegexLabel,
 			isChecked: false,
 			inputActiveOptionBorder: this.inputActiveOptionBorder,
@@ -175,7 +176,7 @@ export class FindInput extends Widget {
 			this._onRegexKeyDown.fire(e);
 		}));
 
-		this.wholeWords = this._register(new WholeWordsCheckbox({
+		this.wholeWords = this._register(new WholeWordsToggle({
 			appendTitle: appendWholeWordsLabel,
 			isChecked: false,
 			inputActiveOptionBorder: this.inputActiveOptionBorder,
@@ -190,7 +191,7 @@ export class FindInput extends Widget {
 			this.validate();
 		}));
 
-		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
+		this.caseSensitive = this._register(new CaseSensitiveToggle({
 			appendTitle: appendCaseSensitiveLabel,
 			isChecked: false,
 			inputActiveOptionBorder: this.inputActiveOptionBorder,
@@ -213,10 +214,10 @@ export class FindInput extends Widget {
 		}
 
 		// Arrow-Key support to navigate between options
-		let indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
+		const indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
-				let index = indexes.indexOf(<HTMLElement>document.activeElement);
+				const index = indexes.indexOf(<HTMLElement>document.activeElement);
 				if (index >= 0) {
 					let newIndex: number = -1;
 					if (event.equals(KeyCode.RightArrow)) {
@@ -242,18 +243,16 @@ export class FindInput extends Widget {
 		});
 
 
-		let controls = document.createElement('div');
-		controls.className = 'controls';
-		controls.style.display = this._showOptionButtons ? 'block' : 'none';
-		controls.appendChild(this.caseSensitive.domNode);
-		controls.appendChild(this.wholeWords.domNode);
-		controls.appendChild(this.regex.domNode);
+		this.controls = document.createElement('div');
+		this.controls.className = 'controls';
+		this.controls.style.display = this._showOptionButtons ? 'block' : 'none';
+		this.controls.appendChild(this.caseSensitive.domNode);
+		this.controls.appendChild(this.wholeWords.domNode);
+		this.controls.appendChild(this.regex.domNode);
 
-		this.domNode.appendChild(controls);
+		this.domNode.appendChild(this.controls);
 
-		if (parent) {
-			parent.appendChild(this.domNode);
-		}
+		parent?.appendChild(this.domNode);
 
 		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionstart', (e: CompositionEvent) => {
 			this.imeSessionInProgress = true;
@@ -348,14 +347,14 @@ export class FindInput extends Widget {
 
 	protected applyStyles(): void {
 		if (this.domNode) {
-			const checkBoxStyles: ICheckboxStyles = {
+			const toggleStyles: IToggleStyles = {
 				inputActiveOptionBorder: this.inputActiveOptionBorder,
 				inputActiveOptionForeground: this.inputActiveOptionForeground,
 				inputActiveOptionBackground: this.inputActiveOptionBackground,
 			};
-			this.regex.style(checkBoxStyles);
-			this.wholeWords.style(checkBoxStyles);
-			this.caseSensitive.style(checkBoxStyles);
+			this.regex.style(toggleStyles);
+			this.wholeWords.style(toggleStyles);
+			this.caseSensitive.style(toggleStyles);
 
 			const inputBoxStyles: IInputBoxStyles = {
 				inputBackground: this.inputBackground,

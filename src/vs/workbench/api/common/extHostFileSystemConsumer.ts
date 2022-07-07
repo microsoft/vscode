@@ -95,7 +95,7 @@ export class ExtHostConsumerFileSystem {
 					return ExtHostConsumerFileSystem._handleError(err);
 				}
 			},
-			async delete(uri: vscode.Uri, options?: { recursive?: boolean; useTrash?: boolean; }): Promise<void> {
+			async delete(uri: vscode.Uri, options?: { recursive?: boolean; useTrash?: boolean }): Promise<void> {
 				try {
 					const provider = that._fileSystemProvider.get(uri.scheme);
 					if (provider) {
@@ -109,7 +109,7 @@ export class ExtHostConsumerFileSystem {
 					return ExtHostConsumerFileSystem._handleError(err);
 				}
 			},
-			async rename(oldUri: vscode.Uri, newUri: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
+			async rename(oldUri: vscode.Uri, newUri: vscode.Uri, options?: { overwrite?: boolean }): Promise<void> {
 				try {
 					// no shortcut: potentially involves different schemes, does mkdirp
 					return await that._proxy.$rename(oldUri, newUri, { ...{ overwrite: false }, ...options });
@@ -117,7 +117,7 @@ export class ExtHostConsumerFileSystem {
 					return ExtHostConsumerFileSystem._handleError(err);
 				}
 			},
-			async copy(source: vscode.Uri, destination: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
+			async copy(source: vscode.Uri, destination: vscode.Uri, options?: { overwrite?: boolean }): Promise<void> {
 				try {
 					// no shortcut: potentially involves different schemes, does mkdirp
 					return await that._proxy.$copy(source, destination, { ...{ overwrite: false }, ...options });

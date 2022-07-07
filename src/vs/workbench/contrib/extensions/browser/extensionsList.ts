@@ -13,9 +13,9 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { UpdateAction, ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { UpdateAction, ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, PreReleaseIndicatorWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -57,8 +57,8 @@ export class Delegate implements IListVirtualDelegate<IExtension> {
 
 export type ExtensionListRendererOptions = {
 	hoverOptions: {
-		position: () => HoverPosition
-	}
+		position: () => HoverPosition;
+	};
 };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
@@ -90,7 +90,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const name = append(header, $('span.name'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
-		const preRelease = append(header, $('span.pre-release'));
 		const syncIgnore = append(header, $('span.sync-ignored'));
 		const activationStatus = append(header, $('span.activation-status'));
 		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
@@ -119,6 +118,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const actions = [
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
+			this.instantiationService.createInstance(MigrateDeprecatedExtensionAction, true),
 			this.instantiationService.createInstance(UpdateAction),
 			reloadAction,
 			this.instantiationService.createInstance(InstallDropdownAction),
@@ -127,6 +127,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(LocalInstallAction),
 			this.instantiationService.createInstance(WebInstallAction),
 			extensionStatusIconAction,
+			this.instantiationService.createInstance(SwitchToReleasedVersionAction, true),
+			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, true),
 			this.instantiationService.createInstance(ManageExtensionAction)
 		];
 		const extensionHoverWidget = this.instantiationService.createInstance(ExtensionHoverWidget, { target: root, position: this.options.hoverOptions.position }, extensionStatusIconAction, reloadAction);
@@ -138,7 +140,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			extensionPackBadgeWidget,
 			headerRemoteBadgeWidget,
 			extensionHoverWidget,
-			this.instantiationService.createInstance(PreReleaseIndicatorWidget, preRelease, { icon: true, label: false }),
 			this.instantiationService.createInstance(SyncIgnoredWidget, syncIgnore),
 			this.instantiationService.createInstance(ExtensionActivationStatusWidget, activationStatus, true),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
@@ -186,15 +187,17 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.extensionDisposables = dispose(data.extensionDisposables);
 
 		const updateEnablement = async () => {
-			let isDisabled = false;
+			let disabled = false;
+			const deprecated = !!extension.deprecationInfo;
 			if (extension.state === ExtensionState.Uninstalled) {
-				isDisabled = !(await this.extensionsWorkbenchService.canInstall(extension));
+				disabled = deprecated || !(await this.extensionsWorkbenchService.canInstall(extension));
 			} else if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
 				const runningExtensions = await this.extensionService.getExtensions();
 				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier))[0];
-				isDisabled = !(runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
+				disabled = !(runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
 			}
-			data.root.classList.toggle('disabled', isDisabled);
+			data.element.classList.toggle('deprecated', deprecated);
+			data.root.classList.toggle('disabled', disabled);
 		};
 		updateEnablement();
 		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
@@ -211,8 +214,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.name.textContent = extension.displayName;
 		data.description.textContent = extension.description;
-		data.publisherDisplayName.textContent = extension.publisherDisplayName;
-		data.verifiedPublisherIcon.style.display = extension.publisherDomain?.verified ? 'inherit' : 'none';
+
+		const updatePublisher = () => {
+			data.publisherDisplayName.textContent = extension.publisherDisplayName;
+			data.verifiedPublisherIcon.style.display = extension.publisherDomain?.verified ? 'inherit' : 'none';
+		};
+		updatePublisher();
+		Event.filter(this.extensionsWorkbenchService.onChange, e => !!e && areSameExtensions(e.identifier, extension.identifier))(() => updatePublisher(), this, data.extensionDisposables);
 
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';
@@ -290,6 +298,12 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row:hover:not(.disabled):not(.selected):.not(.focused) .author { color: ${authorForeground}; }`);
 		const disabledExtensionForeground = listHoverForegroundColor.transparent(.5).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled:hover:not(.selected):.not(.focused) { color: ${disabledExtensionForeground}; }`);
+	}
+
+	const verifiedPublisherIconColor = theme.getColor(extensionVerifiedPublisherIconColor);
+	if (verifiedPublisherIconColor) {
+		const disabledVerifiedPublisherIconColor = verifiedPublisherIconColor.transparent(.5).makeOpaque(WORKBENCH_BACKGROUND(theme));
+		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled .author .publisher-verified${ThemeIcon.asCSSSelector(verifiedPublisherThemeIcon)} { color: ${disabledVerifiedPublisherIconColor}; }`);
 	}
 });
 

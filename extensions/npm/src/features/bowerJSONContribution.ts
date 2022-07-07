@@ -69,7 +69,7 @@ export class BowerJSONContribution implements IJSONContribution {
 						try {
 							const obj = JSON.parse(success.responseText);
 							if (Array.isArray(obj)) {
-								const results = <{ name: string; description: string; }[]>obj;
+								const results = <{ name: string; description: string }[]>obj;
 								for (const result of results) {
 									const name = result.name;
 									const description = result.description || '';

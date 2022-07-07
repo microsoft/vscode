@@ -68,7 +68,7 @@ export class ApiRepository implements Repository {
 		return this._repository.apply(patch, reverse);
 	}
 
-	getConfigs(): Promise<{ key: string; value: string; }[]> {
+	getConfigs(): Promise<{ key: string; value: string }[]> {
 		return this._repository.getConfigs();
 	}
 
@@ -84,11 +84,11 @@ export class ApiRepository implements Repository {
 		return this._repository.getGlobalConfig(key);
 	}
 
-	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number; }> {
+	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number }> {
 		return this._repository.getObjectDetails(treeish, path);
 	}
 
-	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
 		return this._repository.detectObjectType(object);
 	}
 
@@ -102,6 +102,14 @@ export class ApiRepository implements Repository {
 
 	getCommit(ref: string): Promise<Commit> {
 		return this._repository.getCommit(ref);
+	}
+
+	add(paths: string[]) {
+		return this._repository.add(paths.map(p => Uri.file(p)));
+	}
+
+	revert(paths: string[]) {
+		return this._repository.revert(paths.map(p => Uri.file(p)));
 	}
 
 	clean(paths: string[]) {
@@ -172,6 +180,14 @@ export class ApiRepository implements Repository {
 
 	getMergeBase(ref1: string, ref2: string): Promise<string> {
 		return this._repository.getMergeBase(ref1, ref2);
+	}
+
+	tag(name: string, upstream: string): Promise<void> {
+		return this._repository.tag(name, upstream);
+	}
+
+	deleteTag(name: string): Promise<void> {
+		return this._repository.deleteTag(name);
 	}
 
 	status(): Promise<void> {

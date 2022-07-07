@@ -167,3 +167,7 @@ $12.45
 $12.45 x
 
 x $12.45
+
+<!-- Should not interpret text for skipped percent (\%) -->
+
+$$ \% Should not be highlighted $$

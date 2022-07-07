@@ -31,7 +31,7 @@ module.exports = function () {
 		queue.push(name);
 	};
 
-	enqueue('es6');
+	enqueue('es2020.full');
 
 	var result = [];
 	while (queue.length > 0) {

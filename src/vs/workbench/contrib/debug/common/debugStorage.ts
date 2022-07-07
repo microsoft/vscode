@@ -80,7 +80,7 @@ export class DebugStorage {
 	loadWatchExpressions(): Expression[] {
 		let result: Expression[] | undefined;
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string }) => {
+			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string; id: string }) => {
 				return new Expression(watchStoredData.name, watchStoredData.id);
 			});
 		} catch (e) { }

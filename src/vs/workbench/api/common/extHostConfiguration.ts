@@ -37,8 +37,8 @@ type ConfigurationInspect<T> = {
 
 	defaultValue?: T;
 	globalValue?: T;
-	workspaceValue?: T,
-	workspaceFolderValue?: T,
+	workspaceValue?: T;
+	workspaceFolderValue?: T;
 
 	defaultLanguageValue?: T;
 	globalLanguageValue?: T;
@@ -52,7 +52,7 @@ function isUri(thing: any): thing is vscode.Uri {
 	return thing instanceof URI;
 }
 
-function isResourceLanguage(thing: any): thing is { uri: URI, languageId: string } {
+function isResourceLanguage(thing: any): thing is { uri: URI; languageId: string } {
 	return thing
 		&& thing.uri instanceof URI
 		&& (thing.languageId && typeof thing.languageId === 'string');
@@ -256,13 +256,13 @@ export class ExtHostConfigProvider {
 					return {
 						key,
 
-						defaultValue: config.default?.value,
-						globalValue: config.user?.value,
+						defaultValue: config.policy?.value ?? config.default?.value,
+						globalValue: config.user?.value ?? config.application?.value,
 						workspaceValue: config.workspace?.value,
 						workspaceFolderValue: config.workspaceFolder?.value,
 
 						defaultLanguageValue: config.default?.override,
-						globalLanguageValue: config.user?.override,
+						globalLanguageValue: config.user?.override ?? config.application?.override,
 						workspaceLanguageValue: config.workspace?.override,
 						workspaceFolderLanguageValue: config.workspaceFolder?.override,
 
@@ -277,7 +277,7 @@ export class ExtHostConfigProvider {
 			mixin(result, config, false);
 		}
 
-		return <vscode.WorkspaceConfiguration>Object.freeze(result);
+		return Object.freeze(result);
 	}
 
 	private _toReadonlyValue(result: any): any {
@@ -313,7 +313,7 @@ export class ExtHostConfigProvider {
 		}
 	}
 
-	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData, workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
+	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData; workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
 		const event = new ConfigurationChangeEvent(change, previous, this._configuration, this._extHostWorkspace.workspace);
 		return Object.freeze({
 			affectsConfiguration: (section: string, scope?: vscode.ConfigurationScope) => event.affectsConfiguration(section, scopeToOverrides(scope))

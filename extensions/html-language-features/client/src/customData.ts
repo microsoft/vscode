@@ -4,44 +4,76 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, extensions, Uri, EventEmitter, Disposable } from 'vscode';
-import { resolvePath, joinPath } from './requests';
+import { Runtime } from './htmlClient';
+import { Utils } from 'vscode-uri';
 
 
-export function getCustomDataSource(toDispose: Disposable[]) {
-	let pathsInWorkspace = getCustomDataPathsInAllWorkspaces();
-	let pathsInExtensions = getCustomDataPathsFromAllExtensions();
+export function getCustomDataSource(runtime: Runtime, toDispose: Disposable[]) {
+	let localExtensionUris = new Set<string>();
+	let externalExtensionUris = new Set<string>();
+	const workspaceUris = new Set<string>();
+
+	collectInWorkspaces(workspaceUris);
+	collectInExtensions(localExtensionUris, externalExtensionUris);
 
 	const onChange = new EventEmitter<void>();
 
 	toDispose.push(extensions.onDidChange(_ => {
-		const newPathsInExtensions = getCustomDataPathsFromAllExtensions();
-		if (pathsInExtensions.size !== newPathsInExtensions.size || ![...pathsInExtensions].every(path => newPathsInExtensions.has(path))) {
-			pathsInExtensions = newPathsInExtensions;
+		const newLocalExtensionUris = new Set<string>();
+		const newExternalExtensionUris = new Set<string>();
+		collectInExtensions(newLocalExtensionUris, newExternalExtensionUris);
+		if (hasChanges(newLocalExtensionUris, localExtensionUris) || hasChanges(newExternalExtensionUris, externalExtensionUris)) {
+			localExtensionUris = newLocalExtensionUris;
+			externalExtensionUris = newExternalExtensionUris;
 			onChange.fire();
 		}
 	}));
 	toDispose.push(workspace.onDidChangeConfiguration(e => {
 		if (e.affectsConfiguration('html.customData')) {
-			pathsInWorkspace = getCustomDataPathsInAllWorkspaces();
+			workspaceUris.clear();
+			collectInWorkspaces(workspaceUris);
 			onChange.fire();
 		}
 	}));
 
 	toDispose.push(workspace.onDidChangeTextDocument(e => {
 		const path = e.document.uri.toString();
-		if (pathsInExtensions.has(path) || pathsInWorkspace.has(path)) {
+		if (externalExtensionUris.has(path) || workspaceUris.has(path)) {
 			onChange.fire();
 		}
 	}));
 
 	return {
 		get uris() {
-			return [...pathsInWorkspace].concat([...pathsInExtensions]);
+			return [...localExtensionUris].concat([...externalExtensionUris], [...workspaceUris]);
 		},
 		get onDidChange() {
 			return onChange.event;
+		},
+		getContent(uriString: string): Thenable<string> {
+			const uri = Uri.parse(uriString);
+			if (localExtensionUris.has(uriString)) {
+				return workspace.fs.readFile(uri).then(buffer => {
+					return new runtime.TextDecoder().decode(buffer);
+				});
+			}
+			return workspace.openTextDocument(uri).then(doc => {
+				return doc.getText();
+			});
 		}
 	};
+}
+
+function hasChanges(s1: Set<string>, s2: Set<string>) {
+	if (s1.size !== s2.size) {
+		return true;
+	}
+	for (const uri of s1) {
+		if (!s2.has(uri)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function isURI(uriOrPath: string) {
@@ -49,7 +81,7 @@ function isURI(uriOrPath: string) {
 }
 
 
-function getCustomDataPathsInAllWorkspaces(): Set<string> {
+function collectInWorkspaces(workspaceUris: Set<string>): Set<string> {
 	const workspaceFolders = workspace.workspaceFolders;
 
 	const dataPaths = new Set<string>();
@@ -64,10 +96,10 @@ function getCustomDataPathsInAllWorkspaces(): Set<string> {
 				if (typeof uriOrPath === 'string') {
 					if (!isURI(uriOrPath)) {
 						// path in the workspace
-						dataPaths.add(resolvePath(rootFolder, uriOrPath).toString());
+						workspaceUris.add(Utils.resolvePath(rootFolder, uriOrPath).toString());
 					} else {
 						// external uri
-						dataPaths.add(uriOrPath);
+						workspaceUris.add(uriOrPath);
 					}
 				}
 			}
@@ -92,22 +124,20 @@ function getCustomDataPathsInAllWorkspaces(): Set<string> {
 	return dataPaths;
 }
 
-function getCustomDataPathsFromAllExtensions(): Set<string> {
-	const dataPaths = new Set<string>();
+function collectInExtensions(localExtensionUris: Set<string>, externalUris: Set<string>): void {
 	for (const extension of extensions.all) {
 		const customData = extension.packageJSON?.contributes?.html?.customData;
 		if (Array.isArray(customData)) {
 			for (const uriOrPath of customData) {
 				if (!isURI(uriOrPath)) {
 					// relative path in an extension
-					dataPaths.add(joinPath(extension.extensionUri, uriOrPath).toString());
+					localExtensionUris.add(Uri.joinPath(extension.extensionUri, uriOrPath).toString());
 				} else {
 					// external uri
-					dataPaths.add(uriOrPath);
+					externalUris.add(uriOrPath);
 				}
 
 			}
 		}
 	}
-	return dataPaths;
 }

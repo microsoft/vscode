@@ -62,6 +62,6 @@ export namespace ToggleHighContrastNLS {
 	export const toggleHighContrast = nls.localize('toggleHighContrast', "Toggle High Contrast Theme");
 }
 
-export namespace SimpleServicesNLS {
+export namespace StandaloneServicesNLS {
 	export const bulkEditServiceSummary = nls.localize('bulkEditServiceSummary', "Made {0} edits in {1} files");
 }

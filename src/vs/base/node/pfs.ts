@@ -7,13 +7,12 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { ResourceQueue } from 'vs/base/common/async';
-import { isEqualOrParent, isRootOrDriveLetter } from 'vs/base/common/extpath';
+import { isEqualOrParent, isRootOrDriveLetter, randomPath } from 'vs/base/common/extpath';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 
 //#region rimraf
 
@@ -44,7 +43,7 @@ async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	// delete: via rmDir
+	// delete: via rm
 	if (mode === RimRafMode.UNLINK) {
 		return rimrafUnlink(path);
 	}
@@ -55,9 +54,17 @@ async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 
 async function rimrafMove(path: string): Promise<void> {
 	try {
-		const pathInTemp = join(tmpdir(), generateUuid());
+		const pathInTemp = randomPath(tmpdir());
 		try {
-			await Promises.rename(path, pathInTemp);
+			// Intentionally using `fs.promises` here to skip
+			// the patched graceful-fs method that can result
+			// in very long running `rename` calls when the
+			// folder is locked by a file watcher. We do not
+			// really want to slow down this operation more
+			// than necessary and we have a fallback to delete
+			// via unlink.
+			// https://github.com/microsoft/vscode/issues/139908
+			await fs.promises.rename(path, pathInTemp);
 		} catch (error) {
 			return rimrafUnlink(path); // if rename fails, delete without tmp dir
 		}
@@ -72,7 +79,7 @@ async function rimrafMove(path: string): Promise<void> {
 }
 
 async function rimrafUnlink(path: string): Promise<void> {
-	return Promises.rmdir(path, { recursive: true, maxRetries: 3 });
+	return promisify(fs.rm)(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 export function rimrafSync(path: string): void {
@@ -80,7 +87,7 @@ export function rimrafSync(path: string): void {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	fs.rmdirSync(path, { recursive: true });
+	fs.rmSync(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 //#endregion
@@ -348,7 +355,7 @@ export namespace SymlinkSupport {
 
 //#region Write File
 
-// According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
+// According to node.js docs (https://nodejs.org/docs/v14.16.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
 // it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
 // Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
 const writeQueues = new ResourceQueue();
@@ -472,7 +479,6 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 
 /**
  * A drop-in replacement for `fs.rename` that:
- * - updates the `mtime` of the `source` after the operation
  * - allows to move across multiple disks
  */
 async function move(source: string, target: string): Promise<void> {
@@ -480,30 +486,8 @@ async function move(source: string, target: string): Promise<void> {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
 
-	// We have been updating `mtime` for move operations for files since the
-	// beginning for reasons that are no longer quite clear, but changing
-	// this could be risky as well. As such, trying to reason about it:
-	// It is very common as developer to have file watchers enabled that watch
-	// the current workspace for changes. Updating the `mtime` might make it
-	// easier for these watchers to recognize an actual change. Since changing
-	// a source code file also updates the `mtime`, moving a file should do so
-	// as well because conceptually it is a change of a similar category.
-	async function updateMtime(path: string): Promise<void> {
-		try {
-			const stat = await Promises.lstat(path);
-			if (stat.isDirectory() || stat.isSymbolicLink()) {
-				return; // only for files
-			}
-
-			await Promises.utimes(path, stat.atime, new Date());
-		} catch (error) {
-			// Ignore any error
-		}
-	}
-
 	try {
 		await Promises.rename(source, target);
-		await updateMtime(target);
 	} catch (error) {
 
 		// In two cases we fallback to classic copy and delete:
@@ -517,7 +501,6 @@ async function move(source: string, target: string): Promise<void> {
 		if (source.toLowerCase() !== target.toLowerCase() && error.code === 'EXDEV' || source.endsWith('.')) {
 			await copy(source, target, { preserveSymlinks: false /* copying to another device */ });
 			await rimraf(source, RimRafMode.MOVE);
-			await updateMtime(target);
 		} else {
 			throw error;
 		}
@@ -525,7 +508,7 @@ async function move(source: string, target: string): Promise<void> {
 }
 
 interface ICopyPayload {
-	readonly root: { source: string, target: string };
+	readonly root: { source: string; target: string };
 	readonly options: { preserveSymlinks: boolean };
 	readonly handledSourcePaths: Set<string>;
 }
@@ -656,10 +639,44 @@ export const Promises = new class {
 	get lstat() { return promisify(fs.lstat); }
 	get utimes() { return promisify(fs.utimes); }
 
-	get read() { return promisify(fs.read); }
+	get read() {
+
+		// Not using `promisify` here for a reason: the return
+		// type is not an object as indicated by TypeScript but
+		// just the bytes read, so we create our own wrapper.
+
+		return (fd: number, buffer: Uint8Array, offset: number, length: number, position: number | null) => {
+			return new Promise<{ bytesRead: number; buffer: Uint8Array }>((resolve, reject) => {
+				fs.read(fd, buffer, offset, length, position, (err, bytesRead, buffer) => {
+					if (err) {
+						return reject(err);
+					}
+
+					return resolve({ bytesRead, buffer });
+				});
+			});
+		};
+	}
 	get readFile() { return promisify(fs.readFile); }
 
-	get write() { return promisify(fs.write); }
+	get write() {
+
+		// Not using `promisify` here for a reason: the return
+		// type is not an object as indicated by TypeScript but
+		// just the bytes written, so we create our own wrapper.
+
+		return (fd: number, buffer: Uint8Array, offset: number | undefined | null, length: number | undefined | null, position: number | undefined | null) => {
+			return new Promise<{ bytesWritten: number; buffer: Uint8Array }>((resolve, reject) => {
+				fs.write(fd, buffer, offset, length, position, (err, bytesWritten, buffer) => {
+					if (err) {
+						return reject(err);
+					}
+
+					return resolve({ bytesWritten, buffer });
+				});
+			});
+		};
+	}
 
 	get appendFile() { return promisify(fs.appendFile); }
 

@@ -9,14 +9,15 @@
 
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
 
-const VERSION = 2;
+const VERSION = 4;
 
 const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
 const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
 
-
 const searchParams = new URL(location.toString()).searchParams;
+
+const remoteAuthority = searchParams.get('remoteAuthority');
 
 /**
  * Origin used for resources
@@ -99,10 +100,15 @@ class RequestStore {
 }
 
 /**
+ * @typedef {{ readonly status: 200; id: number; path: string; mime: string; data: Uint8Array; etag: string | undefined; mtime: number | undefined; }
+ * 		| { readonly status: 304; id: number; path: string; mime: string; mtime: number | undefined }
+ *		| { readonly status: 401; id: number; path: string }
+ *		| { readonly status: 404; id: number; path: string }} ResourceResponse
+ */
+
+/**
  * Map of requested paths to responses.
- * @typedef {{ type: 'response', body: Uint8Array, mime: string, etag: string | undefined, mtime: number | undefined } |
- *           { type: 'not-modified', mime: string, mtime: number | undefined } |
- *           undefined} ResourceResponse
+ *
  * @type {RequestStore<ResourceResponse>}
  */
 const resourceRequestStore = new RequestStore();
@@ -113,6 +119,9 @@ const resourceRequestStore = new RequestStore();
  * @type {RequestStore<string | undefined>}
  */
 const localhostRequestStore = new RequestStore();
+
+const unauthorized = () =>
+	new Response('Unauthorized', { status: 401, });
 
 const notFound = () =>
 	new Response('Not Found', { status: 404, });
@@ -138,24 +147,9 @@ sw.addEventListener('message', async (event) => {
 		case 'did-load-resource':
 			{
 				/** @type {ResourceResponse} */
-				let response = undefined;
-
-				const data = event.data.data;
-				switch (data.status) {
-					case 200:
-						{
-							response = { type: 'response', body: data.data, mime: data.mime, etag: data.etag, mtime: data.mtime };
-							break;
-						}
-					case 304:
-						{
-							response = { type: 'not-modified', mime: data.mime, mtime: data.mtime };
-							break;
-						}
-				}
-
-				if (!resourceRequestStore.resolve(data.id, response)) {
-					console.log('Could not resolve unknown resource', data.path);
+				const response = event.data.data;
+				if (!resourceRequestStore.resolve(response.id, response)) {
+					console.log('Could not resolve unknown resource', response.path);
 				}
 				return;
 			}
@@ -167,9 +161,10 @@ sw.addEventListener('message', async (event) => {
 				}
 				return;
 			}
+		default:
+			console.log('Unknown message');
+			return;
 	}
-
-	console.log('Unknown message');
 });
 
 sw.addEventListener('fetch', (event) => {
@@ -177,8 +172,36 @@ sw.addEventListener('fetch', (event) => {
 	if (requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
 		switch (event.request.method) {
 			case 'GET':
+			case 'HEAD': {
+				const firstHostSegment = requestUrl.hostname.slice(0, requestUrl.hostname.length - (resourceBaseAuthority.length + 1));
+				const scheme = firstHostSegment.split('+', 1)[0];
+				const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
+				return event.respondWith(processResourceRequest(event, {
+					scheme,
+					authority,
+					path: requestUrl.pathname,
+					query: requestUrl.search.replace(/^\?/, ''),
+				}));
+			}
+			default:
+				return event.respondWith(methodNotAllowed());
+		}
+	}
+
+	// If we're making a request against the remote authority, we want to go
+	// through VS Code itself so that we are authenticated properly.  If the
+	// service worker is hosted on the same origin we will have cookies and
+	// authentication will not be an issue.
+	if (requestUrl.origin !== sw.origin && requestUrl.host === remoteAuthority) {
+		switch (event.request.method) {
+			case 'GET':
 			case 'HEAD':
-				return event.respondWith(processResourceRequest(event, requestUrl));
+				return event.respondWith(processResourceRequest(event, {
+					path: requestUrl.pathname,
+					scheme: requestUrl.protocol.slice(0, requestUrl.protocol.length - 1),
+					authority: requestUrl.host,
+					query: requestUrl.search.replace(/^\?/, ''),
+				}));
 
 			default:
 				return event.respondWith(methodNotAllowed());
@@ -201,9 +224,14 @@ sw.addEventListener('activate', (event) => {
 
 /**
  * @param {FetchEvent} event
- * @param {URL} requestUrl
+ * @param {{
+ * 		scheme: string;
+ * 		authority: string;
+ * 		path: string;
+ * 		query: string;
+ * }} requestUrlComponents
  */
-async function processResourceRequest(event, requestUrl) {
+async function processResourceRequest(event, requestUrlComponents) {
 	const client = await sw.clients.get(event.clientId);
 	if (!client) {
 		console.error('Could not find inner client for request');
@@ -222,12 +250,8 @@ async function processResourceRequest(event, requestUrl) {
 	 * @param {ResourceResponse} entry
 	 * @param {Response | undefined} cachedResponse
 	 */
-	async function resolveResourceEntry(entry, cachedResponse) {
-		if (!entry) {
-			return notFound();
-		}
-
-		if (entry.type === 'not-modified') {
+	const resolveResourceEntry = (entry, cachedResponse) => {
+		if (entry.status === 304) { // Not modified
 			if (cachedResponse) {
 				return cachedResponse.clone();
 			} else {
@@ -235,10 +259,18 @@ async function processResourceRequest(event, requestUrl) {
 			}
 		}
 
+		if (entry.status === 401) {
+			return unauthorized();
+		}
+
+		if (entry.status !== 200) {
+			return notFound();
+		}
+
 		/** @type {Record<string, string>} */
 		const headers = {
 			'Content-Type': entry.mime,
-			'Content-Length': entry.body.byteLength.toString(),
+			'Content-Length': entry.data.byteLength.toString(),
 			'Access-Control-Allow-Origin': '*',
 		};
 		if (entry.etag) {
@@ -248,7 +280,7 @@ async function processResourceRequest(event, requestUrl) {
 		if (entry.mtime) {
 			headers['Last-Modified'] = new Date(entry.mtime).toUTCString();
 		}
-		const response = new Response(entry.body, {
+		const response = new Response(entry.data, {
 			status: 200,
 			headers
 		});
@@ -259,7 +291,7 @@ async function processResourceRequest(event, requestUrl) {
 			});
 		}
 		return response.clone();
-	}
+	};
 
 	const parentClients = await getOuterIframeClient(webviewId);
 	if (!parentClients.length) {
@@ -276,18 +308,14 @@ async function processResourceRequest(event, requestUrl) {
 
 	const { requestId, promise } = resourceRequestStore.create();
 
-	const firstHostSegment = requestUrl.hostname.slice(0, requestUrl.hostname.length - (resourceBaseAuthority.length + 1));
-	const scheme = firstHostSegment.split('+', 1)[0];
-	const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
-
 	for (const parentClient of parentClients) {
 		parentClient.postMessage({
 			channel: 'load-resource',
 			id: requestId,
-			path: requestUrl.pathname,
-			scheme,
-			authority,
-			query: requestUrl.search.replace(/^\?/, ''),
+			scheme: requestUrlComponents.scheme,
+			authority: requestUrlComponents.authority,
+			path: requestUrlComponents.path,
+			query: requestUrlComponents.query,
 			ifNoneMatch: cached?.headers.get('ETag'),
 		});
 	}
@@ -367,7 +395,7 @@ async function getOuterIframeClient(webviewId) {
 	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
 	return allClients.filter(client => {
 		const clientUrl = new URL(client.url);
-		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html`);
+		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html` || clientUrl.pathname === `${rootPath}/index-no-csp.html`);
 		return hasExpectedPathName && clientUrl.searchParams.get('id') === webviewId;
 	});
 }

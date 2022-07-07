@@ -3,47 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export interface IIconRegistry {
 	readonly all: IterableIterator<Codicon>;
 	readonly onDidRegister: Event<Codicon>;
 	get(id: string): Codicon | undefined;
 }
-
-class Registry implements IIconRegistry {
-
-	private readonly _icons = new Map<string, Codicon>();
-	private readonly _onDidRegister = new Emitter<Codicon>();
-
-	public add(icon: Codicon) {
-		const existing = this._icons.get(icon.id);
-		if (!existing) {
-			this._icons.set(icon.id, icon);
-			this._onDidRegister.fire(icon);
-		} else if (icon.description) {
-			existing.description = icon.description;
-		} else {
-			console.error(`Duplicate registration of codicon ${icon.id}`);
-		}
-	}
-
-	public get(id: string): Codicon | undefined {
-		return this._icons.get(id);
-	}
-
-	public get all(): IterableIterator<Codicon> {
-		return this._icons.values();
-	}
-
-	public get onDidRegister(): Event<Codicon> {
-		return this._onDidRegister.event;
-	}
-}
-
-const _registry = new Registry();
-
-export const iconRegistry: IIconRegistry = _registry;
 
 // Selects all codicon names encapsulated in the `$()` syntax and wraps the
 // results with spaces so that screen readers can read the text better.
@@ -59,18 +25,28 @@ export function getCodiconAriaLabel(text: string | undefined) {
  * The Codicon library is a set of default icons that are built-in in VS Code.
  *
  * In the product (outside of base) Codicons should only be used as defaults. In order to have all icons in VS Code
- * themeable, component should ise define new, component specific icons using `iconRegistry.registerIcon`.
- * In that call a Codicon can be names as default.
+ * themeable, component should define new, UI component specific icons using `iconRegistry.registerIcon`.
+ * In that call a Codicon can be named as default.
  */
 export class Codicon implements CSSIcon {
+
 	private constructor(public readonly id: string, public readonly definition: IconDefinition, public description?: string) {
-		_registry.add(this);
+		Codicon._allCodicons.push(this);
 	}
 	public get classNames() { return 'codicon codicon-' + this.id; }
 	// classNamesArray is useful for migrating to ES6 classlist
 	public get classNamesArray() { return ['codicon', 'codicon-' + this.id]; }
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
 
+	// registry
+	private static _allCodicons: Codicon[] = [];
+
+	/**
+	 * @returns Returns all default icons covered by the codicon font. Only to be used by the icon registry in platform.
+	 */
+	public static getAll(): readonly Codicon[] {
+		return Codicon._allCodicons;
+	}
 
 	// built-in icons, with image name
 	public static readonly add = new Codicon('add', { fontCharacter: '\\ea60' });
@@ -402,6 +378,7 @@ export class Codicon implements CSSIcon {
 	public static readonly starHalf = new Codicon('star-half', { fontCharacter: '\\eb5a' });
 	public static readonly symbolClass = new Codicon('symbol-class', { fontCharacter: '\\eb5b' });
 	public static readonly symbolColor = new Codicon('symbol-color', { fontCharacter: '\\eb5c' });
+	public static readonly symbolCustomColor = new Codicon('symbol-customcolor', { fontCharacter: '\\eb5c' });
 	public static readonly symbolConstant = new Codicon('symbol-constant', { fontCharacter: '\\eb5d' });
 	public static readonly symbolEnumMember = new Codicon('symbol-enum-member', { fontCharacter: '\\eb5e' });
 	public static readonly symbolField = new Codicon('symbol-field', { fontCharacter: '\\eb5f' });
@@ -451,7 +428,8 @@ export class Codicon implements CSSIcon {
 	public static readonly debugBreakpointFunction = new Codicon('debug-breakpoint-function', { fontCharacter: '\\eb88' });
 	public static readonly debugBreakpointFunctionDisabled = new Codicon('debug-breakpoint-function-disabled', { fontCharacter: '\\eb88' });
 	public static readonly debugStackframeActive = new Codicon('debug-stackframe-active', { fontCharacter: '\\eb89' });
-	public static readonly debugStackframeDot = new Codicon('debug-stackframe-dot', { fontCharacter: '\\eb8a' });
+	public static readonly circleSmallFilled = new Codicon('circle-small-filled', { fontCharacter: '\\eb8a' });
+	public static readonly debugStackframeDot = new Codicon('debug-stackframe-dot', Codicon.circleSmallFilled.definition);
 	public static readonly debugStackframe = new Codicon('debug-stackframe', { fontCharacter: '\\eb8b' });
 	public static readonly debugStackframeFocused = new Codicon('debug-stackframe-focused', { fontCharacter: '\\eb8b' });
 	public static readonly debugBreakpointUnsupported = new Codicon('debug-breakpoint-unsupported', { fontCharacter: '\\eb8c' });
@@ -551,6 +529,37 @@ export class Codicon implements CSSIcon {
 	public static readonly azureDevops = new Codicon('azure-devops', { fontCharacter: '\\ebe8' });
 	public static readonly verifiedFilled = new Codicon('verified-filled', { fontCharacter: '\\ebe9' });
 	public static readonly newLine = new Codicon('newline', { fontCharacter: '\\ebea' });
+	public static readonly layout = new Codicon('layout', { fontCharacter: '\\ebeb' });
+	public static readonly layoutActivitybarLeft = new Codicon('layout-activitybar-left', { fontCharacter: '\\ebec' });
+	public static readonly layoutActivitybarRight = new Codicon('layout-activitybar-right', { fontCharacter: '\\ebed' });
+	public static readonly layoutPanelLeft = new Codicon('layout-panel-left', { fontCharacter: '\\ebee' });
+	public static readonly layoutPanelCenter = new Codicon('layout-panel-center', { fontCharacter: '\\ebef' });
+	public static readonly layoutPanelJustify = new Codicon('layout-panel-justify', { fontCharacter: '\\ebf0' });
+	public static readonly layoutPanelRight = new Codicon('layout-panel-right', { fontCharacter: '\\ebf1' });
+	public static readonly layoutPanel = new Codicon('layout-panel', { fontCharacter: '\\ebf2' });
+	public static readonly layoutSidebarLeft = new Codicon('layout-sidebar-left', { fontCharacter: '\\ebf3' });
+	public static readonly layoutSidebarRight = new Codicon('layout-sidebar-right', { fontCharacter: '\\ebf4' });
+	public static readonly layoutStatusbar = new Codicon('layout-statusbar', { fontCharacter: '\\ebf5' });
+	public static readonly layoutMenubar = new Codicon('layout-menubar', { fontCharacter: '\\ebf6' });
+	public static readonly layoutCentered = new Codicon('layout-centered', { fontCharacter: '\\ebf7' });
+	public static readonly layoutSidebarRightOff = new Codicon('layout-sidebar-right-off', { fontCharacter: '\\ec00' });
+	public static readonly layoutPanelOff = new Codicon('layout-panel-off', { fontCharacter: '\\ec01' });
+	public static readonly layoutSidebarLeftOff = new Codicon('layout-sidebar-left-off', { fontCharacter: '\\ec02' });
+	public static readonly target = new Codicon('target', { fontCharacter: '\\ebf8' });
+	public static readonly indent = new Codicon('indent', { fontCharacter: '\\ebf9' });
+	public static readonly recordSmall = new Codicon('record-small', { fontCharacter: '\\ebfa' });
+	public static readonly errorSmall = new Codicon('error-small', { fontCharacter: '\\ebfb' });
+	public static readonly arrowCircleDown = new Codicon('arrow-circle-down', { fontCharacter: '\\ebfc' });
+	public static readonly arrowCircleLeft = new Codicon('arrow-circle-left', { fontCharacter: '\\ebfd' });
+	public static readonly arrowCircleRight = new Codicon('arrow-circle-right', { fontCharacter: '\\ebfe' });
+	public static readonly arrowCircleUp = new Codicon('arrow-circle-up', { fontCharacter: '\\ebff' });
+	public static readonly heartFilled = new Codicon('heart-filled', { fontCharacter: '\\ec04' });
+	public static readonly map = new Codicon('map', { fontCharacter: '\\ec05' });
+	public static readonly mapFilled = new Codicon('map-filled', { fontCharacter: '\\ec06' });
+	public static readonly circleSmall = new Codicon('circle-small', { fontCharacter: '\\ec07' });
+	public static readonly bellSlash = new Codicon('bell-slash', { fontCharacter: '\\ec08' });
+	public static readonly bellSlashDot = new Codicon('bell-slash-dot', { fontCharacter: '\\f101' });
+
 
 	// derived icons, that could become separate icons
 
@@ -612,7 +621,7 @@ export namespace CSSIcon {
 		if (!match) {
 			return asClassNameArray(Codicon.error);
 		}
-		let [, id, modifier] = match;
+		const [, id, modifier] = match;
 		const classNames = ['codicon', 'codicon-' + id];
 		if (modifier) {
 			classNames.push('codicon-modifier-' + modifier.substr(1));

@@ -9,12 +9,12 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostDocumentContentProvidersShape, IExtHostContext, MainContext, MainThreadDocumentContentProvidersShape } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostDocumentContentProvidersShape, MainContext, MainThreadDocumentContentProvidersShape } from '../common/extHost.protocol';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 @extHostNamedCustomer(MainContext.MainThreadDocumentContentProviders)
@@ -27,7 +27,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService
 	) {
@@ -45,7 +45,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
-						const languageSelection = this._modeService.createByFilepathOrFirstLine(uri, firstLineText);
+						const languageSelection = this._languageService.createByFilepathOrFirstLine(uri, firstLineText);
 						return this._modelService.createModel(value, languageSelection, uri);
 					}
 					return null;

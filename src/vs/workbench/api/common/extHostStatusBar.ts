@@ -45,8 +45,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _backgroundColor?: ThemeColor;
 	private readonly _internalCommandRegistration = new DisposableStore();
 	private _command?: {
-		readonly fromApi: string | vscode.Command,
-		readonly internal: ICommandDto,
+		readonly fromApi: string | vscode.Command;
+		readonly internal: ICommandDto;
 	};
 
 	private _timeoutHandle: any;
@@ -234,7 +234,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 				color = ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.get(this._backgroundColor.id);
 			}
 
-			const tooltip = this._tooltip ? MarkdownString.fromStrict(this._tooltip) : undefined;
+			const tooltip = MarkdownString.fromStrict(this._tooltip);
 
 			// Set to status bar
 			this.#proxy.$setEntry(this._entryId, id, name, this._text, tooltip, this._command?.internal, color,

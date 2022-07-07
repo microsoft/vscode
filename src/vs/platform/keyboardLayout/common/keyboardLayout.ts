@@ -49,28 +49,12 @@ export type IMacLinuxKeyMapping = IMacKeyMapping | ILinuxKeyMapping;
 export type IMacLinuxKeyboardMapping = IMacKeyboardMapping | ILinuxKeyboardMapping;
 export type IKeyboardMapping = IWindowsKeyboardMapping | ILinuxKeyboardMapping | IMacKeyboardMapping;
 
-/* __GDPR__FRAGMENT__
-	"IKeyboardLayoutInfo" : {
-		"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	}
-*/
 export interface IWindowsKeyboardLayoutInfo {
 	name: string;
 	id: string;
 	text: string;
 }
 
-/* __GDPR__FRAGMENT__
-	"IKeyboardLayoutInfo" : {
-		"model" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"layout": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"variant": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"options": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"rules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	}
-*/
 export interface ILinuxKeyboardLayoutInfo {
 	model: string;
 	group: number;
@@ -80,13 +64,6 @@ export interface ILinuxKeyboardLayoutInfo {
 	rules: string;
 }
 
-/* __GDPR__FRAGMENT__
-	"IKeyboardLayoutInfo" : {
-		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"localizedName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	}
-*/
 export interface IMacKeyboardLayoutInfo {
 	id: string;
 	lang: string;
@@ -131,14 +108,14 @@ export function areKeyboardLayoutsEqual(a: IKeyboardLayoutInfo | null, b: IKeybo
 	return false;
 }
 
-export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | null): { label: string, description: string } {
+export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | null): { label: string; description: string } {
 	if (!layout) {
 		return { label: '', description: '' };
 	}
 
 	if ((<IWindowsKeyboardLayoutInfo>layout).name) {
 		// windows
-		let windowsLayout = <IWindowsKeyboardLayoutInfo>layout;
+		const windowsLayout = <IWindowsKeyboardLayoutInfo>layout;
 		return {
 			label: windowsLayout.text,
 			description: ''
@@ -146,7 +123,7 @@ export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | nul
 	}
 
 	if ((<IMacKeyboardLayoutInfo>layout).id) {
-		let macLayout = <IMacKeyboardLayoutInfo>layout;
+		const macLayout = <IMacKeyboardLayoutInfo>layout;
 		if (macLayout.localizedName) {
 			return {
 				label: macLayout.localizedName,
@@ -173,7 +150,7 @@ export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | nul
 		};
 	}
 
-	let linuxLayout = <ILinuxKeyboardLayoutInfo>layout;
+	const linuxLayout = <ILinuxKeyboardLayoutInfo>layout;
 
 	return {
 		label: linuxLayout.layout,

@@ -13,8 +13,8 @@ import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableServ
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 
 interface ISerializableExtensionEnvironmentVariableCollection {
-	extensionIdentifier: string,
-	collection: ISerializableEnvironmentVariableCollection
+	extensionIdentifier: string;
+	collection: ISerializableEnvironmentVariableCollection;
 }
 
 /**

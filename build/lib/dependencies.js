@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getProductionDependencies = void 0;
 const path = require("path");
@@ -36,7 +36,7 @@ function asYarnDependency(prefix, tree) {
     return { name, version, path: dependencyPath, children };
 }
 function getYarnProductionDependencies(cwd) {
-    const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: Object.assign(Object.assign({}, process.env), { NODE_ENV: 'production' }), stdio: [null, null, 'inherit'] });
+    const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
     const match = /^{"type":"tree".*$/m.exec(raw);
     if (!match || match.length !== 1) {
         throw new Error('Could not parse result of `yarn list --json`');

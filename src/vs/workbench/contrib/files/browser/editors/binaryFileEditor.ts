@@ -81,7 +81,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 				for (const editor of resolvedEditor.editor instanceof DiffEditorInput ? [resolvedEditor.editor.original, resolvedEditor.editor.modified] : [resolvedEditor.editor]) {
 					if (editor instanceof FileEditorInput) {
 						editor.setForceOpenAsText();
-						editor.setPreferredMode(BINARY_TEXT_FILE_MODE); // https://github.com/microsoft/vscode/issues/131076
+						editor.setPreferredLanguageId(BINARY_TEXT_FILE_MODE); // https://github.com/microsoft/vscode/issues/131076
 					}
 				}
 			}

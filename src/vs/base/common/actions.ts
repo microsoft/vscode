@@ -14,8 +14,9 @@ export interface ITelemetryData {
 }
 
 export type WorkbenchActionExecutedClassification = {
-	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	from: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	owner: 'bpasero';
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export type WorkbenchActionExecutedEvent = {
@@ -228,7 +229,7 @@ export class SubmenuAction implements IAction {
 	readonly class: string | undefined;
 	readonly tooltip: string = '';
 	readonly enabled: boolean = true;
-	readonly checked: boolean = false;
+	readonly checked: undefined = undefined;
 
 	private readonly _actions: readonly IAction[];
 	get actions(): readonly IAction[] { return this._actions; }
@@ -258,7 +259,7 @@ export class EmptySubmenuAction extends Action {
 	}
 }
 
-export function toAction(props: { id: string, label: string, enabled?: boolean, checked?: boolean, run: Function; }): IAction {
+export function toAction(props: { id: string; label: string; enabled?: boolean; checked?: boolean; run: Function }): IAction {
 	return {
 		id: props.id,
 		label: props.label,

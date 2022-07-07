@@ -46,32 +46,43 @@ export class CommandService extends Disposable implements ICommandService {
 		return this._starActivation;
 	}
 
-	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+	async executeCommand<T>(id: string, ...args: any[]): Promise<T> {
 		this._logService.trace('CommandService#executeCommand', id);
 
-		// we always send an activation event, but
-		// we don't wait for it when the extension
-		// host didn't yet start and the command is already registered
-
-		const activation: Promise<any> = this._extensionService.activateByEvent(`onCommand:${id}`);
+		const activationEvent = `onCommand:${id}`;
 		const commandIsRegistered = !!CommandsRegistry.getCommand(id);
 
-		if (!this._extensionHostIsReady && commandIsRegistered) {
-			return this._tryExecuteCommand(id, args);
-		} else {
-			let waitFor = activation;
-			if (!commandIsRegistered) {
-				waitFor = Promise.all([
-					activation,
-					Promise.race<any>([
-						// race * activation against command registration
-						this._activateStar(),
-						Event.toPromise(Event.filter(CommandsRegistry.onDidRegisterCommand, e => e === id))
-					]),
-				]);
+		if (commandIsRegistered) {
+
+			// if the activation event has already resolved (i.e. subsequent call),
+			// we will execute the registered command immediately
+			if (this._extensionService.activationEventIsDone(activationEvent)) {
+				return this._tryExecuteCommand(id, args);
 			}
-			return waitFor.then(_ => this._tryExecuteCommand(id, args));
+
+			// if the extension host didn't start yet, we will execute the registered
+			// command immediately and send an activation event, but not wait for it
+			if (!this._extensionHostIsReady) {
+				this._extensionService.activateByEvent(activationEvent); // intentionally not awaited
+				return this._tryExecuteCommand(id, args);
+			}
+
+			// we will wait for a simple activation event (e.g. in case an extension wants to overwrite it)
+			await this._extensionService.activateByEvent(activationEvent);
+			return this._tryExecuteCommand(id, args);
 		}
+
+		// finally, if the command is not registered we will send a simple activation event
+		// as well as a * activation event raced against registration and against 30s
+		await Promise.all([
+			this._extensionService.activateByEvent(activationEvent),
+			Promise.race<any>([
+				// race * activation against command registration
+				this._activateStar(),
+				Event.toPromise(Event.filter(CommandsRegistry.onDidRegisterCommand, e => e === id))
+			]),
+		]);
+		return this._tryExecuteCommand(id, args);
 	}
 
 	private _tryExecuteCommand(id: string, args: any[]): Promise<any> {

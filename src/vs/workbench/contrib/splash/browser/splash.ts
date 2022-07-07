@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IPartsSplash } from 'vs/platform/windows/common/windows';
+import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 
 export const ISplashStorageService = createDecorator<ISplashStorageService>('ISplashStorageService');
 

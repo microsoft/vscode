@@ -9,7 +9,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 
 class ToggleKeybindingsLogAction extends Action2 {
 

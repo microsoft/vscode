@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/483d25bfa2b96474b55d2e9e4d1ca2acbd542034",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/16612717ccd557383c0c821d7b6ae6662492ffde",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -997,7 +997,7 @@
 					"name": "keyword.other.where.cs"
 				},
 				"2": {
-					"name": "storage.type.cs"
+					"name": "entity.name.type.type-parameter.cs"
 				},
 				"3": {
 					"name": "punctuation.separator.colon.cs"
@@ -4120,7 +4120,7 @@
 					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(\\.)",
 					"captures": {
 						"1": {
-							"name": "storage.type.cs"
+							"name": "entity.name.type.cs"
 						},
 						"2": {
 							"name": "punctuation.accessor.cs"
@@ -4134,12 +4134,12 @@
 							"name": "punctuation.accessor.cs"
 						},
 						"2": {
-							"name": "storage.type.cs"
+							"name": "entity.name.type.cs"
 						}
 					}
 				},
 				{
-					"name": "storage.type.cs",
+					"name": "entity.name.type.cs",
 					"match": "@?[_[:alpha:]][_[:alnum:]]*"
 				}
 			]

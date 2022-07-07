@@ -24,9 +24,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
 
-function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; italic?: boolean; } | undefined): TokenStyle {
+function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; strikethrough?: boolean; italic?: boolean } | undefined): TokenStyle {
 	const foregroundColor = isString(foreground) ? Color.fromHex(foreground) : undefined;
-	return new TokenStyle(foregroundColor, styleFlags && styleFlags.bold, styleFlags && styleFlags.underline, styleFlags && styleFlags.italic);
+	return new TokenStyle(foregroundColor, styleFlags?.bold, styleFlags?.underline, styleFlags?.strikethrough, styleFlags?.italic);
 }
 
 function tokenStyleAsString(ts: TokenStyle | undefined | null) {
@@ -68,10 +68,10 @@ function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | un
 }
 
 
-function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClassifier: string]: TokenStyle; }, language = 'typescript') {
+function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClassifier: string]: TokenStyle }, language = 'typescript') {
 	const colorIndex = themeData.tokenColorMap;
 
-	for (let qualifiedClassifier in expected) {
+	for (const qualifiedClassifier in expected) {
 		const [type, ...modifiers] = qualifiedClassifier.split('.');
 
 		const expectedTokenStyle = expected[qualifiedClassifier];
@@ -160,7 +160,7 @@ suite('Themes - TokenStyleResolving', () => {
 		themeData.setCustomTokenColors(customTokenColors);
 
 		let tokenStyle;
-		let defaultTokenStyle = undefined;
+		const defaultTokenStyle = undefined;
 
 		tokenStyle = themeData.resolveScopes([['variable']]);
 		assertTokenStyle(tokenStyle, ts('#F8F8F2', unsetStyle), 'variable');

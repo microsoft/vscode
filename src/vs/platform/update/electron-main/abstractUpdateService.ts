@@ -19,7 +19,8 @@ export function createUpdateURL(platform: string, quality: string, productServic
 }
 
 export type UpdateNotAvailableClassification = {
-	explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	owner: 'joaomoreno';
+	explicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
 export abstract class AbstractUpdateService implements IUpdateService {
@@ -104,7 +105,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 	}
 
-	private getUpdateMode(): 'none' | 'manual' | 'start' | 'default' {
+	protected getUpdateMode(): 'none' | 'manual' | 'start' | 'default' {
 		return getMigratedSettingValue<'none' | 'manual' | 'start' | 'default'>(this.configurationService, 'update.mode', 'update.channel');
 	}
 
@@ -184,7 +185,11 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	async isLatestVersion(): Promise<boolean | undefined> {
 		if (!this.url) {
 			return undefined;
-		} else if (this.getUpdateMode() === 'none') {
+		}
+
+		const mode = await this.getUpdateMode();
+
+		if (mode === 'none') {
 			return false;
 		}
 

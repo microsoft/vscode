@@ -143,7 +143,7 @@ class Preview extends Disposable {
 			this._previewState = PreviewState.Disposed;
 		}));
 
-		const watcher = this._register(vscode.workspace.createFileSystemWatcher(resource.fsPath));
+		const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
 		this._register(watcher.onDidChange(e => {
 			if (e.toString() === this.resource.toString()) {
 				this.render();

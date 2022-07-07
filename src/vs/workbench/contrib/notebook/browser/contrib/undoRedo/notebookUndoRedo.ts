@@ -11,6 +11,7 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CellEditState, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 
 class NotebookUndoRedoContribution extends Disposable {
 
@@ -20,7 +21,7 @@ class NotebookUndoRedoContribution extends Disposable {
 		const PRIORITY = 105;
 		this._register(UndoCommand.addImplementation(PRIORITY, 'notebook-undo-redo', () => {
 			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-			const viewModel = editor?._getViewModel();
+			const viewModel = editor?._getViewModel() as NotebookViewModel | undefined;
 			if (editor && editor.hasModel() && viewModel) {
 				return viewModel.undo().then(cellResources => {
 					if (cellResources?.length) {
@@ -41,7 +42,7 @@ class NotebookUndoRedoContribution extends Disposable {
 
 		this._register(RedoCommand.addImplementation(PRIORITY, 'notebook-undo-redo', () => {
 			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-			const viewModel = editor?._getViewModel();
+			const viewModel = editor?._getViewModel() as NotebookViewModel | undefined;
 
 			if (editor && editor.hasModel() && viewModel) {
 				return viewModel.redo().then(cellResources => {

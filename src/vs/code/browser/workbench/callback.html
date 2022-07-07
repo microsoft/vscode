@@ -7,19 +7,62 @@
 		<!-- Disable pinch zooming -->
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 
-		<!-- Content Security Policy -->
-		<meta
-			http-equiv="Content-Security-Policy"
-			content="
-				default-src 'self';
-				img-src 'self' https: data: blob:;
-				media-src 'none';
-				script-src 'self';
-				style-src 'self' 'unsafe-inline';
-				font-src 'self' blob:;
-		">
-
 		<title>Visual Studio Code</title>
+
+		<!-- Scripts -->
+		<script>
+
+			function decode(value) {
+				return value === null ? null : decodeURIComponent(value);
+			}
+
+			const url = new URL(window.location.href);
+			const params = url.searchParams;
+			const id = decode(params.get('vscode-reqid'));
+			const scheme = decode(params.get('vscode-scheme'));
+			const authority = decode(params.get('vscode-authority'));
+
+			if (!id) {
+				throw new Error('Missing id');
+			} else if (!scheme) {
+				throw new Error('Missing scheme');
+			} else if (!authority) {
+				throw new Error('Missing authority');
+			}
+
+			const path = decode(params.get('vscode-path'));
+			const query = decode(params.get('vscode-query'));
+			const fragment = decode(params.get('vscode-fragment'));
+
+			params.delete('vscode-reqid');
+			params.delete('vscode-scheme');
+			params.delete('vscode-authority');
+			params.delete('vscode-path');
+			params.delete('vscode-query');
+			params.delete('vscode-fragment');
+
+			let uri = { scheme, authority };
+
+			if (path) {
+				uri.path = path;
+			}
+
+			if (query) {
+				const originalParams = new URLSearchParams(query);
+				originalParams.forEach((value, key) => params.set(key, value));
+			}
+
+			const resultQuery = params.toString();
+			if (resultQuery) {
+				uri.query = resultQuery;
+			}
+
+			if (fragment) {
+				uri.fragment = fragment;
+			}
+
+			window.localStorage.setItem(`vscode-web.url-callbacks[${id}]`, JSON.stringify(uri));
+		</script>
 
 		<!-- Styling -->
 		<style type="text/css">

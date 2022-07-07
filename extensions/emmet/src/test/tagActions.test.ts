@@ -27,7 +27,23 @@ suite('Tests for Emmet actions on html tags', () => {
 	</div>
 	`;
 
-	let contentsWithTemplate = `
+	const spacedContents = `
+	<div class="hello">
+		<ul>
+
+			<li><span>Hello</span></li>
+
+			<li><span>There</span></li>
+
+			<div><li><span>Bye</span></li></div>
+
+
+		</ul>
+		<span/>
+	</div>
+	`;
+
+	const contentsWithTemplate = `
 	<script type="text/template">
 		<ul>
 			<li><span>Hello</span></li>
@@ -168,15 +184,36 @@ suite('Tests for Emmet actions on html tags', () => {
 	test('remove tag with template', () => {
 		const expectedContents = `
 	<script type="text/template">
-\t\t
 		<li><span>Hello</span></li>
 		<li><span>There</span></li>
 		<div><li><span>Bye</span></li></div>
-\t\t
 		<span/>
 	</script>
 	`;
 		return withRandomFileEditor(contentsWithTemplate, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 4, 2, 4), // cursor inside ul tag
+			];
+
+			return removeTag()!.then(() => {
+				assert.strictEqual(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('remove tag with extra trim', () => {
+		const expectedContents = `
+	<div class="hello">
+		<li><span>Hello</span></li>
+
+		<li><span>There</span></li>
+
+		<div><li><span>Bye</span></li></div>
+		<span/>
+	</div>
+	`;
+		return withRandomFileEditor(spacedContents, 'html', (editor, doc) => {
 			editor.selections = [
 				new Selection(2, 4, 2, 4), // cursor inside ul tag
 			];
@@ -316,7 +353,7 @@ suite('Tests for Emmet actions on html tags', () => {
 	});
 
 	test('match tag with template scripts', () => {
-		let templateScript = `
+		const templateScript = `
 	<script type="text/template">
 		<div>
 			Hello

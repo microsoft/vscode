@@ -4,10 +4,20 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/2bf736a814e1a58aa63470c1a29590bd02e924e7",
+	"version": "https://github.com/atom/language-php/commit/ff64523c94c014d68f5dec189b05557649c5872a",
 	"name": "PHP",
 	"scopeName": "text.html.php",
 	"injections": {
+		"L:meta.embedded.php.blade": {
+			"patterns": [
+				{
+					"include": "text.html.basic"
+				},
+				{
+					"include": "text.html.php.blade#blade"
+				}
+			]
+		},
 		"text.html.php - (meta.embedded | meta.tag), L:((text.html.php meta.tag) - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.js - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.css - (meta.embedded.block.php | meta.embedded.line.php))": {
 			"patterns": [
 				{

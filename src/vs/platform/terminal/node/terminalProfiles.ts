@@ -154,7 +154,7 @@ async function transformToTerminalProfiles(
 		if (profile === null) { continue; }
 		let originalPaths: string[];
 		let args: string[] | string | undefined;
-		let icon: ThemeIcon | URI | { light: URI, dark: URI } | undefined = undefined;
+		let icon: ThemeIcon | URI | { light: URI; dark: URI } | undefined = undefined;
 		if ('source' in profile) {
 			const source = profileSources?.get(profile.source);
 			if (!source) {
@@ -172,7 +172,7 @@ async function transformToTerminalProfiles(
 		} else {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
 			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
-			icon = validateIcon(profile.icon) || undefined;
+			icon = validateIcon(profile.icon);
 		}
 
 		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();
@@ -183,9 +183,10 @@ async function transformToTerminalProfiles(
 			validatedProfile.color = profile.color;
 			resultProfiles.push(validatedProfile);
 		} else {
-			logService?.trace('profile not validated', profileName, originalPaths);
+			logService?.debug('Terminal profile not validated', profileName, originalPaths);
 		}
 	}
+	logService?.debug('Validated terminal profiles', resultProfiles);
 	return resultProfiles;
 }
 
@@ -267,7 +268,8 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 			path: wslPath,
 			args: [`-d`, `${distroName}`],
 			isDefault: profileName === defaultProfileName,
-			icon: getWslIcon(distroName)
+			icon: getWslIcon(distroName),
+			isAutoDetected: false
 		};
 		// Add the profile
 		profiles.push(profile);
@@ -327,6 +329,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTe
 		if (value === null || (!('path' in value) && !('source' in value))) {
 			profilesMap.delete(profileName);
 		} else {
+			value.icon = value.icon || profilesMap.get(profileName)?.icon;
 			profilesMap.set(profileName, value);
 		}
 	}
@@ -351,6 +354,8 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 		if (!executable) {
 			return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, shellEnv, args);
 		}
+		profile.path = executable;
+		profile.isFromPath = true;
 		return profile;
 	}
 
@@ -363,7 +368,7 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 }
 
 export interface IFsProvider {
-	existsFile(path: string): Promise<boolean>,
+	existsFile(path: string): Promise<boolean>;
 	readFile(path: string): Promise<Buffer>;
 }
 
@@ -375,7 +380,7 @@ interface IPotentialTerminalProfile {
 	profileName: string;
 	paths: string[];
 	args?: string[];
-	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: ThemeIcon | URI | { light: URI; dark: URI };
 }
 
 export type IUnresolvedTerminalProfile = ITerminalExecutable | ITerminalProfileSource | null;

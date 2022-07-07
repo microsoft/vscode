@@ -7,7 +7,7 @@ import { $, addDisposableListener, clearNode, EventHelper, EventType, hide, isAn
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ButtonBar, ButtonWithDescription, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { ISimpleCheckboxStyles, SimpleCheckbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { ICheckboxStyles, Checkbox } from 'vs/base/browser/ui/toggle/toggle';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -37,6 +37,7 @@ export interface IDialogOptions {
 	readonly icon?: Codicon;
 	readonly buttonDetails?: string[];
 	readonly disableCloseAction?: boolean;
+	readonly disableDefaultAction?: boolean;
 }
 
 export interface IDialogResult {
@@ -45,7 +46,7 @@ export interface IDialogResult {
 	readonly values?: string[];
 }
 
-export interface IDialogStyles extends IButtonStyles, ISimpleCheckboxStyles {
+export interface IDialogStyles extends IButtonStyles, ICheckboxStyles {
 	readonly dialogForeground?: Color;
 	readonly dialogBackground?: Color;
 	readonly dialogShadow?: Color;
@@ -73,7 +74,7 @@ export class Dialog extends Disposable {
 	private readonly messageDetailElement: HTMLElement;
 	private readonly messageContainer: HTMLElement;
 	private readonly iconElement: HTMLElement;
-	private readonly checkbox: SimpleCheckbox | undefined;
+	private readonly checkbox: Checkbox | undefined;
 	private readonly toolbarContainer: HTMLElement;
 	private buttonBar: ButtonBar | undefined;
 	private styles: IDialogStyles | undefined;
@@ -91,7 +92,13 @@ export class Dialog extends Disposable {
 		this.element.tabIndex = -1;
 		hide(this.element);
 
-		this.buttons = Array.isArray(buttons) && buttons.length ? buttons : [nls.localize('ok', "OK")]; // If no button is provided, default to OK
+		if (Array.isArray(buttons) && buttons.length > 0) {
+			this.buttons = buttons;
+		} else if (!this.options.disableDefaultAction) {
+			this.buttons = [nls.localize('ok', "OK")];
+		} else {
+			this.buttons = [];
+		}
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
 		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
 
@@ -144,7 +151,7 @@ export class Dialog extends Disposable {
 		if (this.options.checkboxLabel) {
 			const checkboxRowElement = this.messageContainer.appendChild($('.dialog-checkbox-row'));
 
-			const checkbox = this.checkbox = this._register(new SimpleCheckbox(this.options.checkboxLabel, !!this.options.checkboxChecked));
+			const checkbox = this.checkbox = this._register(new Checkbox(this.options.checkboxLabel, !!this.options.checkboxChecked));
 
 			checkboxRowElement.appendChild(checkbox.domNode);
 
@@ -158,7 +165,7 @@ export class Dialog extends Disposable {
 	}
 
 	private getIconAriaLabel(): string {
-		let typeLabel = nls.localize('dialogInfoMessage', 'Info');
+		const typeLabel = nls.localize('dialogInfoMessage', 'Info');
 		switch (this.options.type) {
 			case 'error':
 				nls.localize('dialogErrorMessage', 'Error');
@@ -420,13 +427,9 @@ export class Dialog extends Disposable {
 			this.element.style.backgroundColor = bgColor?.toString() ?? '';
 			this.element.style.border = border;
 
-			if (this.buttonBar) {
-				this.buttonBar.buttons.forEach(button => button.style(style));
-			}
+			this.buttonBar?.buttons.forEach(button => button.style(style));
 
-			if (this.checkbox) {
-				this.checkbox.style(style);
-			}
+			this.checkbox?.style(style);
 
 			if (fgColor && bgColor) {
 				const messageDetailColor = fgColor.transparent(.9);
@@ -483,6 +486,9 @@ export class Dialog extends Disposable {
 
 	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
 		const buttonMap: ButtonMapEntry[] = [];
+		if (buttons.length === 0) {
+			return buttonMap;
+		}
 
 		// Maps each button to its current label and old index so that when we move them around it's not a problem
 		buttons.forEach((button, index) => {

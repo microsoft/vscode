@@ -8,7 +8,8 @@
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never",
-				"group": "buildWatchers"
+				"group": "buildWatchers",
+				"close": false
 			},
 			"problemMatcher": {
 				"owner": "typescript",
@@ -23,8 +24,8 @@
 					"message": 3
 				},
 				"background": {
-					"beginsPattern": "Starting compilation",
-					"endsPattern": "Finished compilation"
+					"beginsPattern": "Starting compilation...",
+					"endsPattern": "Finished compilation with"
 				}
 			}
 		},
@@ -35,7 +36,8 @@
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never",
-				"group": "buildWatchers"
+				"group": "buildWatchers",
+				"close": false
 			},
 			"problemMatcher": {
 				"owner": "typescript",
@@ -98,6 +100,16 @@
 				"Kill Ext - Build"
 			],
 			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "Restart VS Code - Build",
+			"dependsOn": [
+				"Kill VS Code - Build",
+				"VS Code - Build"
+			],
+			"group": "build",
+			"dependsOrder": "sequence",
 			"problemMatcher": []
 		},
 		{
@@ -171,8 +183,12 @@
 		},
 		{
 			"type": "shell",
-			"command": "yarn web --no-launch",
-			"label": "Run web",
+			"command": "./scripts/code-server.sh",
+			"windows": {
+				"command": ".\\scripts\\code-server.bat"
+			},
+			"args": ["--no-launch", "--connection-token", "dev-token", "--port", "8080"],
+			"label": "Run code server",
 			"isBackground": true,
 			"problemMatcher": {
 				"pattern": {

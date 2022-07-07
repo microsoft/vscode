@@ -9,10 +9,10 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const ILogService = createServiceDecorator<ILogService>('logService');
-export const ILoggerService = createServiceDecorator<ILoggerService>('loggerService');
+export const ILogService = createDecorator<ILogService>('logService');
+export const ILoggerService = createDecorator<ILoggerService>('loggerService');
 
 function now(): string {
 	return new Date().toISOString();

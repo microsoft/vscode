@@ -12,9 +12,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { INativeWindowConfiguration, IWindowSettings } from 'vs/platform/windows/common/windows';
-import { defaultWindowState, ICodeWindow, IWindowsMainService, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { INativeWindowConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/window/electron-main/window';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export interface IWindowState {
 	workspace?: IWorkspaceIdentifier;

@@ -9,9 +9,9 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { localize } from 'vs/nls';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { inputPlaceholderForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ChangeModeAction } from 'vs/workbench/browser/parts/editor/editorStatus';
+import { ChangeLanguageAction } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -19,6 +19,7 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const $ = dom.$;
 
@@ -32,6 +33,7 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 
 	constructor(
 		private editor: ICodeEditor,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -52,8 +54,8 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 		const configValue = this.configurationService.getValue(untitledTextEditorHintSetting);
 		const model = this.editor.getModel();
 
-		if (model && model.uri.scheme === Schemas.untitled && model.getLanguageId() === PLAINTEXT_MODE_ID && configValue === 'text') {
-			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.commandService, this.configurationService, this.keybindingService);
+		if (model && model.uri.scheme === Schemas.untitled && model.getLanguageId() === PLAINTEXT_LANGUAGE_ID && configValue === 'text') {
+			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.editorGroupsService, this.commandService, this.configurationService, this.keybindingService);
 		}
 	}
 
@@ -72,6 +74,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly editorGroupsService: IEditorGroupsService,
 		private readonly commandService: ICommandService,
 		private readonly configurationService: IConfigurationService,
 		private readonly keybindingService: IKeybindingService,
@@ -103,18 +106,40 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		if (!this.domNode) {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
+
 			const language = $('a.language-mode');
 			language.style.cursor = 'pointer';
 			language.innerText = localize('selectAlanguage2', "Select a language");
-			const languageKeyBinding = this.keybindingService.lookupKeybinding(ChangeModeAction.ID);
+			const languageKeyBinding = this.keybindingService.lookupKeybinding(ChangeLanguageAction.ID);
 			const languageKeybindingLabel = languageKeyBinding?.getLabel();
 			if (languageKeybindingLabel) {
 				language.title = localize('keyboardBindingTooltip', "{0}", languageKeybindingLabel);
 			}
 			this.domNode.appendChild(language);
+
+			const or = $('span');
+			or.innerText = localize('or', " or ",);
+			this.domNode.appendChild(or);
+
+			const editorType = $('a.editor-type');
+			editorType.style.cursor = 'pointer';
+			editorType.innerText = localize('openADifferentEditor', "open a different editor");
+			const selectEditorTypeKeyBinding = this.keybindingService.lookupKeybinding('welcome.showNewFileEntries');
+			const selectEditorTypeKeybindingLabel = selectEditorTypeKeyBinding?.getLabel();
+			if (selectEditorTypeKeybindingLabel) {
+				editorType.title = localize('keyboardBindingTooltip', "{0}", selectEditorTypeKeybindingLabel);
+			}
+			this.domNode.appendChild(editorType);
+
 			const toGetStarted = $('span');
-			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
+			toGetStarted.innerText = localize('toGetStarted', " to get started.");
 			this.domNode.appendChild(toGetStarted);
+
+			this.domNode.appendChild($('br'));
+
+			const startTyping = $('span');
+			startTyping.innerText = localize('startTyping', "Start typing to dismiss or ");
+			this.domNode.appendChild(startTyping);
 
 			const dontShow = $('a');
 			dontShow.style.cursor = 'pointer';
@@ -129,12 +154,27 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				e.stopPropagation();
 				// Need to focus editor before so current editor becomes active and the command is properly executed
 				this.editor.focus();
-				await this.commandService.executeCommand(ChangeModeAction.ID, { from: 'hint' });
+				await this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
 				this.editor.focus();
 			};
 			this.toDispose.push(dom.addDisposableListener(language, 'click', languageOnClickOrTap));
 			this.toDispose.push(dom.addDisposableListener(language, GestureEventType.Tap, languageOnClickOrTap));
 			this.toDispose.push(Gesture.addTarget(language));
+
+			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {
+				e.stopPropagation();
+
+				const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
+				const newEditorSelected = await this.commandService.executeCommand('welcome.showNewFileEntries', { from: 'hint' });
+
+				// Close the active editor as long as it is untitled (swap the editors out)
+				if (newEditorSelected && activeEditorInput !== null && activeEditorInput.resource?.scheme === Schemas.untitled) {
+					this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
+				}
+			};
+			this.toDispose.push(dom.addDisposableListener(editorType, 'click', chooseEditorOnClickOrTap));
+			this.toDispose.push(dom.addDisposableListener(editorType, GestureEventType.Tap, chooseEditorOnClickOrTap));
+			this.toDispose.push(Gesture.addTarget(editorType));
 
 			const dontShowOnClickOrTap = () => {
 				this.configurationService.updateValue(untitledTextEditorHintSetting, 'hidden');

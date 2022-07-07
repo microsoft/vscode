@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
 
 suite('Editor ViewModel - LineBreakData', () => {
 	test('Basic', () => {

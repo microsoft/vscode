@@ -10,7 +10,7 @@ COMMIT="@@COMMIT@@"
 APP_NAME="@@APPNAME@@"
 QUALITY="@@QUALITY@@"
 NAME="@@NAME@@"
-DATAFOLDER="@@DATAFOLDER@@"
+SERVERDATAFOLDER="@@SERVERDATAFOLDER@@"
 VSCODE_PATH="$(dirname "$(dirname "$(realpath "$0")")")"
 ELECTRON="$VSCODE_PATH/$NAME.exe"
 
@@ -49,7 +49,7 @@ if [ $IN_WSL = true ]; then
 	if [ -n "$WSL_EXT_WLOC" ]; then
 		# replace \r\n with \n in WSL_EXT_WLOC
 		WSL_CODE=$(wslpath -u "${WSL_EXT_WLOC%%[[:cntrl:]]}")/scripts/wslCode.sh
-		"$WSL_CODE" "$COMMIT" "$QUALITY" "$ELECTRON" "$APP_NAME" "$DATAFOLDER" "$@"
+		"$WSL_CODE" "$COMMIT" "$QUALITY" "$ELECTRON" "$APP_NAME" "$SERVERDATAFOLDER" "$@"
 		exit $?
 	fi
 

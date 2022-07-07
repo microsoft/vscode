@@ -1,5 +1,5 @@
-FROM ubuntu
-MAINTAINER Kimbro Staken
+FROM mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode
+MAINTAINER Microsoft
 
 RUN apt-get install -y software-properties-common python
 RUN add-apt-repository ppa:chris-lea/node.js
@@ -11,4 +11,4 @@ RUN mkdir /var/www
 
 ADD app.js /var/www/app.js
 
-CMD ["/usr/bin/node", "/var/www/app.js"] 
+CMD ["/usr/bin/node", "/var/www/app.js"]

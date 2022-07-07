@@ -24,7 +24,7 @@ export function workspaceTrustToString(trustState: boolean) {
 
 export interface WorkspaceTrustRequestButton {
 	readonly label: string;
-	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
+	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel';
 }
 
 export interface WorkspaceTrustRequestOptions {
@@ -83,6 +83,7 @@ export interface IWorkspaceTrustRequestService {
 
 	readonly onDidInitiateOpenFilesTrustRequest: Event<void>;
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
+	readonly onDidInitiateWorkspaceTrustRequestOnStartup: Event<void>;
 
 	completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse?: boolean): Promise<void>;
 	requestOpenFilesTrust(openFiles: URI[]): Promise<WorkspaceTrustUriResponse>;
@@ -90,6 +91,7 @@ export interface IWorkspaceTrustRequestService {
 	cancelWorkspaceTrustRequest(): void;
 	completeWorkspaceTrustRequest(trusted?: boolean): Promise<void>;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
+	requestWorkspaceTrustOnStartup(): void;
 }
 
 export interface IWorkspaceTrustTransitionParticipant {
@@ -97,10 +99,10 @@ export interface IWorkspaceTrustTransitionParticipant {
 }
 
 export interface IWorkspaceTrustUriInfo {
-	uri: URI,
-	trusted: boolean
+	uri: URI;
+	trusted: boolean;
 }
 
 export interface IWorkspaceTrustInfo {
-	uriTrustInfo: IWorkspaceTrustUriInfo[]
+	uriTrustInfo: IWorkspaceTrustUriInfo[];
 }

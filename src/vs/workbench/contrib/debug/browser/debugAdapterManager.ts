@@ -10,8 +10,8 @@ import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorModel } from 'vs/editor/common/editorCommon';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,6 +22,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Breakpoints } from 'vs/workbench/contrib/debug/common/breakpoints';
 import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { breakpointsExtPoint, debuggersExtPoint, launchSchema, presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
@@ -33,6 +34,10 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
+export interface IAdapterManagerDelegate {
+	onDidNewSession: Event<IDebugSession>;
+}
+
 export class AdapterManager extends Disposable implements IAdapterManager {
 
 	private debuggers: Debugger[];
@@ -42,10 +47,16 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private debugExtensionsAvailable: IContextKey<boolean>;
 	private readonly _onDidRegisterDebugger = new Emitter<void>();
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
-	private breakpointModeIdsSet = new Set<string>();
+	private breakpointContributions: Breakpoints[] = [];
 	private debuggerWhenKeys = new Set<string>();
 
+	/** Extensions that were already active before any debugger activation events */
+	private earlyActivatedExtensions: Set<string> | undefined;
+
+	private usedDebugTypes = new Set<string>();
+
 	constructor(
+		delegate: IAdapterManagerDelegate,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -53,9 +64,9 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
 		this.adapterDescriptorFactories = [];
@@ -75,6 +86,10 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		}));
 		this.lifecycleService.when(LifecyclePhase.Eventually)
 			.then(() => this.debugExtensionsAvailable.set(this.debuggers.length > 0)); // If no extensions with a debugger contribution are loaded
+
+		this._register(delegate.onDidNewSession(s => {
+			this.usedDebugTypes.add(s.configuration.type);
+		}));
 	}
 
 	private registerListeners(): void {
@@ -116,13 +131,8 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			this._onDidDebuggersExtPointRead.fire();
 		});
 
-		breakpointsExtPoint.setHandler((extensions, delta) => {
-			delta.removed.forEach(removed => {
-				removed.value.forEach(breakpoints => this.breakpointModeIdsSet.delete(breakpoints.language));
-			});
-			delta.added.forEach(added => {
-				added.value.forEach(breakpoints => this.breakpointModeIdsSet.add(breakpoints.language));
-			});
+		breakpointsExtPoint.setHandler(extensions => {
+			this.breakpointContributions = extensions.flatMap(ext => ext.value.map(breakpoint => this.instantiationService.createInstance(Breakpoints, breakpoint)));
 		});
 	}
 
@@ -193,7 +203,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	hasEnabledDebuggers(): boolean {
-		for (let [type] of this.debugAdapterFactories) {
+		for (const [type] of this.debugAdapterFactories) {
 			const dbg = this.getDebugger(type);
 			if (dbg && dbg.enabled) {
 				return true;
@@ -204,7 +214,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined {
-		let factory = this.debugAdapterFactories.get(session.configuration.type);
+		const factory = this.debugAdapterFactories.get(session.configuration.type);
 		if (factory) {
 			return factory.createDebugAdapter(session);
 		}
@@ -212,7 +222,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		let factory = this.debugAdapterFactories.get(debugType);
+		const factory = this.debugAdapterFactories.get(debugType);
 		if (factory) {
 			return factory.substituteVariables(folder, config);
 		}
@@ -220,7 +230,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
-		let factory = this.debugAdapterFactories.get(debugType);
+		const factory = this.debugAdapterFactories.get(debugType);
 		if (factory) {
 			return factory.runInTerminal(args, sessionId);
 		}
@@ -281,25 +291,25 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			return true;
 		}
 
-		return this.breakpointModeIdsSet.has(languageId);
+		return this.breakpointContributions.some(breakpoints => breakpoints.language === languageId && breakpoints.enabled);
 	}
 
 	getDebugger(type: string): Debugger | undefined {
 		return this.debuggers.find(dbg => strings.equalsIgnoreCase(dbg.type, type));
 	}
 
-	isDebuggerInterestedInLanguage(language: string): boolean {
-		return !!this.debuggers
-			.filter(d => d.enabled)
-			.find(a => language && a.languages && a.languages.indexOf(language) >= 0);
+	getEnabledDebugger(type: string): Debugger | undefined {
+		const adapter = this.getDebugger(type);
+		return adapter && adapter.enabled ? adapter : undefined;
 	}
 
-	async guessDebugger(gettingConfigurations: boolean, type?: string): Promise<Debugger | undefined> {
-		if (type) {
-			const adapter = this.getDebugger(type);
-			return adapter && adapter.enabled ? adapter : undefined;
-		}
+	someDebuggerInterestedInLanguage(languageId: string): boolean {
+		return !!this.debuggers
+			.filter(d => d.enabled)
+			.find(a => a.interestedInLanguage(languageId));
+	}
 
+	async guessDebugger(gettingConfigurations: boolean): Promise<Debugger | undefined> {
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;
 		let candidates: Debugger[] = [];
 		let languageLabel: string | null = null;
@@ -308,11 +318,11 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			model = activeTextEditorControl.getModel();
 			const language = model ? model.getLanguageId() : undefined;
 			if (language) {
-				languageLabel = this.modeService.getLanguageName(language);
+				languageLabel = this.languageService.getLanguageName(language);
 			}
 			const adapters = this.debuggers
 				.filter(a => a.enabled)
-				.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
+				.filter(a => language && a.interestedInLanguage(language));
 			if (adapters.length === 1) {
 				return adapters[0];
 			}
@@ -330,10 +340,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 				.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
 		}
 
-		candidates.sort((first, second) => first.label.localeCompare(second.label));
-		const picks: { label: string, debugger?: Debugger, type?: string }[] = candidates.map(c => ({ label: c.label, debugger: c }));
-
-		if (picks.length === 0 && languageLabel) {
+		if (candidates.length === 0 && languageLabel) {
 			if (languageLabel.indexOf(' ') >= 0) {
 				languageLabel = `'${languageLabel}'`;
 			}
@@ -346,11 +353,46 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			return undefined;
 		}
 
-		picks.push({ type: 'separator', label: '' });
-		const placeHolder = nls.localize('selectDebug', "Select environment");
+		this.initExtensionActivationsIfNeeded();
 
-		picks.push({ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
-		return this.quickInputService.pick<{ label: string, debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
+		candidates.sort((first, second) => first.label.localeCompare(second.label));
+
+		const suggestedCandidates: Debugger[] = [];
+		const otherCandidates: Debugger[] = [];
+		candidates.forEach(d => {
+			const descriptor = d.getMainExtensionDescriptor();
+			if (descriptor.id && !!this.earlyActivatedExtensions?.has(descriptor.id)) {
+				// Was activated early
+				suggestedCandidates.push(d);
+			} else if (this.usedDebugTypes.has(d.type)) {
+				// Was used already
+				suggestedCandidates.push(d);
+			} else {
+				otherCandidates.push(d);
+			}
+		});
+
+		const picks: { label: string; debugger?: Debugger; type?: string }[] = [];
+		if (suggestedCandidates.length > 0) {
+			picks.push(
+				{ type: 'separator', label: nls.localize('suggestedDebuggers', "Suggested") },
+				...suggestedCandidates.map(c => ({ label: c.label, debugger: c })));
+		}
+
+		if (otherCandidates.length > 0) {
+			if (picks.length > 0) {
+				picks.push({ type: 'separator', label: '' });
+			}
+
+			picks.push(...otherCandidates.map(c => ({ label: c.label, debugger: c })));
+		}
+
+		picks.push(
+			{ type: 'separator', label: '' },
+			{ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
+
+		const placeHolder = nls.localize('selectDebug', "Select debugger");
+		return this.quickInputService.pick<{ label: string; debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
 			.then(picked => {
 				if (picked && picked.debugger) {
 					return picked.debugger;
@@ -362,7 +404,22 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			});
 	}
 
+	private initExtensionActivationsIfNeeded(): void {
+		if (!this.earlyActivatedExtensions) {
+			this.earlyActivatedExtensions = new Set<string>();
+
+			const status = this.extensionService.getExtensionsStatus();
+			for (const id in status) {
+				if (!!status[id].activationTimes) {
+					this.earlyActivatedExtensions.add(id);
+				}
+			}
+		}
+	}
+
 	async activateDebuggers(activationEvent: string, debugType?: string): Promise<void> {
+		this.initExtensionActivationsIfNeeded();
+
 		const promises: Promise<any>[] = [
 			this.extensionService.activateByEvent(activationEvent),
 			this.extensionService.activateByEvent('onDebug')

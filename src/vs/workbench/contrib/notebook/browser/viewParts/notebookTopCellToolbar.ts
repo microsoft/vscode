@@ -83,7 +83,7 @@ export class ListTopCellToolbar extends Disposable {
 		}
 	}
 
-	private getCellToolbarActions(menu: IMenu, alwaysFillSecondaryActions: boolean): { primary: IAction[], secondary: IAction[]; } {
+	private getCellToolbarActions(menu: IMenu, alwaysFillSecondaryActions: boolean): { primary: IAction[]; secondary: IAction[] } {
 		type NewType = IAction;
 
 		const primary: NewType[] = [];

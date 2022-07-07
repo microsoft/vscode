@@ -15,7 +15,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDebugService, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -30,10 +30,10 @@ import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { coalesce } from 'vs/base/common/arrays';
 import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { EvaluatableExpressionProviderRegistry } from 'vs/editor/common/modes';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isMacintosh } from 'vs/base/common/platform';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 
@@ -77,7 +77,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private tree!: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position | null;
 	private positionPreference: ContentWidgetPositionPreference[];
-	private highlightDecorations: string[];
+	private readonly highlightDecorations = this.editor.createDecorationsCollection();
 	private complexValueContainer!: HTMLElement;
 	private complexValueTitle!: HTMLElement;
 	private valueContainer!: HTMLElement;
@@ -89,13 +89,13 @@ export class DebugHoverWidget implements IContentWidget {
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this.toDispose = [];
 
 		this._isVisible = false;
 		this.showAtPosition = null;
-		this.highlightDecorations = [];
 		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}
 
@@ -166,6 +166,13 @@ export class DebugHoverWidget implements IContentWidget {
 				this.editor.applyFontInfo(this.domNode);
 			}
 		}));
+
+		this.toDispose.push(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
+			if (e instanceof Variable && this.tree.hasNode(e)) {
+				await this.tree.updateChildren(e, false, true);
+				await this.tree.expand(e);
+			}
+		}));
 	}
 
 	isHovered(): boolean {
@@ -203,8 +210,8 @@ export class DebugHoverWidget implements IContentWidget {
 		let rng: IRange | undefined = undefined;
 		let matchingExpression: string | undefined;
 
-		if (EvaluatableExpressionProviderRegistry.has(model)) {
-			const supports = EvaluatableExpressionProviderRegistry.ordered(model);
+		if (this.languageFeaturesService.evaluatableExpressionProvider.has(model)) {
+			const supports = this.languageFeaturesService.evaluatableExpressionProvider.ordered(model);
 
 			const promises = supports.map(support => {
 				return Promise.resolve(support.provideEvaluatableExpression(model, pos, cancellationSource.token)).then(expression => {
@@ -256,7 +263,7 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		if (rng) {
-			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
+			this.highlightDecorations.set([{
 				range: rng,
 				options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
 			}]);
@@ -343,8 +350,7 @@ export class DebugHoverWidget implements IContentWidget {
 			this.editor.focus();
 		}
 		this._isVisible = false;
-		this.editor.deltaDecorations(this.highlightDecorations, []);
-		this.highlightDecorations = [];
+		this.highlightDecorations.clear();
 		this.editor.layoutContentWidget(this);
 		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}

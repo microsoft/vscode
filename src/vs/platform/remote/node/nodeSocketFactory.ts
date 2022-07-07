@@ -8,7 +8,7 @@ import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export const nodeSocketFactory = new class implements ISocketFactory {
-	connect(host: string, port: number, query: string, debugLabel: string, callback: IConnectCallback): void {
+	connect(host: string, port: number, path: string, query: string, debugLabel: string, callback: IConnectCallback): void {
 		const errorListener = (err: any) => callback(err, undefined);
 
 		const socket = net.createConnection({ host: host, port: port }, () => {
@@ -21,8 +21,8 @@ export const nodeSocketFactory = new class implements ISocketFactory {
 			}
 			const nonce = buffer.toString('base64');
 
-			let headers = [
-				`GET ws://${/:/.test(host) ? `[${host}]` : host}:${port}/?${query}&skipWebSocketFrames=true HTTP/1.1`,
+			const headers = [
+				`GET ws://${/:/.test(host) ? `[${host}]` : host}:${port}${path}?${query}&skipWebSocketFrames=true HTTP/1.1`,
 				`Connection: Upgrade`,
 				`Upgrade: websocket`,
 				`Sec-WebSocket-Key: ${nonce}`
@@ -39,6 +39,8 @@ export const nodeSocketFactory = new class implements ISocketFactory {
 			};
 			socket.on('data', onData);
 		});
+		// Disable Nagle's algorithm.
+		socket.setNoDelay(true);
 		socket.once('error', errorListener);
 	}
 };
