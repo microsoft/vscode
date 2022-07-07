@@ -109,6 +109,12 @@ steps:
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
+      - script: |
+          set -e
+          ./scripts/test-web-integration.sh --browser chromium
+        displayName: Run integration tests (Browser, Chromium)
+        timeoutInMinutes: 20
+
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: |
           # Figure out the full absolute path of the product we just built
@@ -163,6 +169,12 @@ steps:
           yarn smoketest-no-compile --tracing
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
+
+      - script: |
+          set -e
+          yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+        timeoutInMinutes: 20
+        displayName: Run smoke tests (Browser, Chromium)
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: |
