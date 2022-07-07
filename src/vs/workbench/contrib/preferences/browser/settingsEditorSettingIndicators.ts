@@ -51,12 +51,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.indicatorsContainerElement = DOM.append(container, $('.misc-label'));
 		this.indicatorsContainerElement.style.display = 'inline';
 
-		const scopeOverridesIndicator = this.createScopeOverridesIndicator();
-		this.scopeOverridesElement = scopeOverridesIndicator.element;
-		this.scopeOverridesLabel = scopeOverridesIndicator.label;
-		this.syncIgnoredElement = this.createSyncIgnoredElement();
-		this.defaultOverrideIndicatorElement = this.createDefaultOverrideIndicator();
-
 		this.hoverDelegate = {
 			showHover: (options: IHoverDelegateOptions, focus?: boolean) => {
 				return hoverService.showHover(options, focus);
@@ -65,6 +59,12 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			delay: configurationService.getValue<number>('workbench.hover.delay'),
 			placement: 'element'
 		};
+
+		const scopeOverridesIndicator = this.createScopeOverridesIndicator();
+		this.scopeOverridesElement = scopeOverridesIndicator.element;
+		this.scopeOverridesLabel = scopeOverridesIndicator.label;
+		this.syncIgnoredElement = this.createSyncIgnoredElement();
+		this.defaultOverrideIndicatorElement = this.createDefaultOverrideIndicator();
 	}
 
 	private createScopeOverridesIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
