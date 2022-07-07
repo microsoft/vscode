@@ -143,7 +143,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		const { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
 		if (taskNames.length > 0) {
 			// We have automatic tasks, prompt to allow.
-			this._showPrompt(notificationService, storageService, taskService, openerService, configurationService, taskNames, locations).then(allow => {
+			this._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations).then(allow => {
 				if (allow) {
 					RunAutomaticTasks._runTasks(taskService, tasks);
 				}
@@ -151,7 +151,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		}
 	}
 
-	private static _showPrompt(notificationService: INotificationService, storageService: IStorageService, taskService: ITaskService,
+	private static _showPrompt(notificationService: INotificationService, storageService: IStorageService,
 		openerService: IOpenerService, configurationService: IConfigurationService, taskNames: Array<string>, locations: Map<string, URI>): Promise<boolean> {
 		return new Promise<boolean>(resolve => {
 			notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic',
