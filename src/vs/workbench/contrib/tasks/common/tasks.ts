@@ -1199,7 +1199,8 @@ export const enum TaskSettingId {
 	QuickOpenHistory = 'task.quickOpen.history',
 	QuickOpenDetail = 'task.quickOpen.detail',
 	QuickOpenSkip = 'task.quickOpen.skip',
-	QuickOpenShowAll = 'task.quickOpen.showAll'
+	QuickOpenShowAll = 'task.quickOpen.showAll',
+	AllowAutomaticTasks = 'task.allowAutomaticTasks'
 }
 
 export const enum TasksSchemaProperties {
