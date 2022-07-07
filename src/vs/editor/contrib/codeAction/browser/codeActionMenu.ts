@@ -5,7 +5,7 @@
 
 // import * as dom from 'vs/base/browser/dom';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { IAnchor, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IListEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
@@ -23,7 +23,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionModel } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -32,18 +32,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 // import { Emitter } from 'vs/base/common/event';
 
 // const $ = dom.$;
-
-
-/**
- * Was work from home or work from cafe yesterday
- * Some widget working stuff - demo rq, ask about some list widget stuff
- * Weekend update - gasworks, climbing for 6 hours,
- * got microsoft merch that i ordered from the company store stolen, and UPS couldnt find it,
- *  so also if anyone knows if i can get the order reordered or who i can go annoy about this lmk
- *
- *
- *
- */
 
 
 interface CodeActionWidgetDelegate {
@@ -134,9 +122,11 @@ class CodeMenuRenderer implements IListRenderer<ICodeActionMenuItem, ICodeAction
 		// data.detail.textContent = detail;
 		// data.decoratorRight.innerText = '';
 
-		if (isDisabled) {
+		if (!isDisabled) {
 			data.root.classList.add('option-disabled');
-
+			data.root.style.backgroundColor = 'transparent !important';
+			data.root.style.color = 'rgb(204, 204, 204, 0.5)';
+			data.root.style.cursor = 'default';
 		} else {
 			data.root.classList.remove('option-disabled');
 		}
@@ -175,6 +165,8 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 	readonly onDidSelect: Event<ISelectedCodeAction> = this._onDidSelect.event;
 
 
+
+
 	private readonly _keybindingResolver: CodeActionKeybindingResolver;
 	listRenderer: any;
 	// selected: any;
@@ -184,6 +176,7 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 		private readonly _editor: ICodeEditor,
 		private readonly _delegate: CodeActionWidgetDelegate,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -216,15 +209,17 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 	private _onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
 		if (e.elements.length) {
 			e.elements.forEach(element => {
-				const itemAction = element;
-				console.log(itemAction);
-				element.action.run();
+				if (element.isDisabled) {
+					const itemAction = element;
+					console.log(itemAction);
+					element.action.run();
+				}
 				// const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(itemAction, () => this._delegate.onSelectCodeAction(item, this.listTrigger));
 				// console.log(toCodeActionAction);
 			});
 			// this.codeActionList.dispose();
 			// this._editor.removeContentWidget(this);
-			this._editor.getDomNode()?.removeChild(this.parent);
+			// this._editor.getDomNode()?.removeChild(this.parent);
 			this.codeActionList.dispose();
 			this.menuAction = [];
 			this.options = [];
@@ -247,29 +242,33 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 		return option;
 	}
 
-	private createCodeActionMenuList(element: HTMLElement, inputArray: IAction[], anchor: any): void {
+	private renderCodeActionMenuList(element: HTMLElement, inputArray: IAction[]): IDisposable {
 		// if (this.codeActionList) {
 		// 	return;
 		// }
 
-		this.parent = document.createElement('div');
-		this.parent.style.backgroundColor = 'rgb(48, 48, 49)';
-		this.parent.style.border = '1px black';
-		this.parent.style.borderRadius = '5px';
-		this.parent.style.color = 'rgb(204, 204, 204)';
-		this.parent.style.boxShadow = 'rgb(0,0,0,0.36) 0px 2px 8px';
-		this.parent.style.width = '350px';
-		this.parent.style.height = '200px';
-		this.parent.id = 'testRedSquare';
-		this.parent.style.position = 'fixed';
-		this.parent.style.left = this.loc.x + 'px';
-		this.parent.style.top = this.loc.y + 'px';
+		const renderDisposables = new DisposableStore();
+
+		const renderMenu = document.createElement('div');
+		renderMenu.style.backgroundColor = 'rgb(48, 48, 49)';
+		renderMenu.style.border = '1px black';
+		renderMenu.style.borderRadius = '5px';
+		renderMenu.style.color = 'rgb(204, 204, 204)';
+		renderMenu.style.boxShadow = 'rgb(0,0,0,0.36) 0px 2px 8px';
+		renderMenu.style.width = '350px';
+		renderMenu.style.height = '200px';
+		renderMenu.id = 'testRedSquare';
+
+		element.appendChild(renderMenu);
+		// element.style.position = 'fixed';
+		// element.style.left = this.loc.x + 'px';
+		// element.style.top = this.loc.y + 'px';
 
 
 
 		this.listRenderer = new CodeMenuRenderer();
 
-		this.codeActionList = new List('test', this.parent, {
+		this.codeActionList = new List('test', renderMenu, {
 			getHeight(element) {
 				return 23;
 			},
@@ -284,17 +283,22 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 
 
 		if (this.codeActionList) {
-			this._disposables.add(this.codeActionList.onDidChangeSelection(e => this._onListSelection(e)));
+			renderDisposables.add(this.codeActionList.onDidChangeSelection(e => this._onListSelection(e)));
 		}
 
 
 
 		inputArray.forEach((item, index) => {
 			// const tooltip = item.tooltip ? item.tooltip : '';
-			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index] });
+			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isDisabled: item.enabled });
 		});
 
-		this._editor.getDomNode()?.append(this.parent);
+		// this._editor.getDomNode()?.append(element);
+
+		this.codeActionList?.splice(0, this.codeActionList.length, this.options);
+		this.codeActionList.layout(180);
+		return renderDisposables;
+
 	}
 
 
@@ -324,55 +328,70 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 
 		const menuActions = this.getMenuActions(trigger, actionsToShow, codeActions.documentation);
 
-		this.menuAction = menuActions;
+		// this.menuAction = menuActions;
 
 
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
-		this.loc = anchor;
+		// this.loc = anchor;
 
 
 		const resolver = this._keybindingResolver.getResolver();
 
 		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
 
-		this.createCodeActionMenuList(this.parent, this.menuAction, anchor);
-		this.setCodeActionMenuList();
-		this.codeActionList.layout(180);
+		// this.createCodeActionMenuList(this.parent, this.menuAction);
 
-		this._contextMenuService.showContextMenu({
-			domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
+		// this.codeActionList.layout(180);
+
+		// this.parent = document.createElement('div');
+
+		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
-			getActions: () => menuActions,
+			render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions),
 			onHide: (didCancel) => {
-				const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
-
-				type ApplyCodeActionEvent = {
-					codeActionFrom: CodeActionTriggerSource;
-					validCodeActions: number;
-					cancelled: boolean;
-				};
-
-				type ApplyCodeEventClassification = {
-					codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-					validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-					cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-					owner: 'mjbvz';
-					comment: 'Event used to gain insights into how code actions are being triggered';
-				};
-
-				this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-					codeActionFrom: openedFromString,
-					validCodeActions: codeActions.validActions.length,
-					cancelled: didCancel,
-
-				});
-
 				this._visible = false;
 				this._editor.focus();
+				this._contextViewService.hideContextView();
 			},
-			autoSelectFirstItem: true,
-			getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
-		});
+		},
+			//this._editor.getDomNode(), if we use shadow dom ( + shadow dom param)
+		);
+
+
+		// this._contextMenuService.showContextMenu({
+		// 	domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
+		// 	getAnchor: () => anchor,
+		// 	getActions: () => menuActions,
+		// 	onHide: (didCancel) => {
+		// 		const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
+
+		// 		type ApplyCodeActionEvent = {
+		// 			codeActionFrom: CodeActionTriggerSource;
+		// 			validCodeActions: number;
+		// 			cancelled: boolean;
+		// 		};
+
+		// 		type ApplyCodeEventClassification = {
+		// 			codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
+		// 			validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
+		// 			cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
+		// 			owner: 'mjbvz';
+		// 			comment: 'Event used to gain insights into how code actions are being triggered';
+		// 		};
+
+		// 		this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+		// 			codeActionFrom: openedFromString,
+		// 			validCodeActions: codeActions.validActions.length,
+		// 			cancelled: didCancel,
+
+		// 		});
+
+		// 		this._visible = false;
+		// 		this._editor.focus();
+		// 	},
+		// 	autoSelectFirstItem: true,
+		// 	getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
+		// });
 	}
 
 	/**
