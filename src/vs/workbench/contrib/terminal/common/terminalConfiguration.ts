@@ -9,6 +9,8 @@ import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAU
 import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { Codicon } from 'vs/base/common/codicons';
+import { terminalColorSchema, terminalIconSchema } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -37,6 +39,15 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding {0}, which can be used alternatively for fine tuning.", '`#terminal.integrated.commandsToSkipShell#`'),
 			type: 'boolean',
 			default: false
+		},
+		[TerminalSettingId.TabsDefaultIconColor]: {
+			description: localize('terminal.integrated.tabs.defaultIconColor', "A theme color ID to associate with terminals by default."),
+			...terminalColorSchema
+		},
+		[TerminalSettingId.TabsDefaultIconId]: {
+			description: localize('terminal.integrated.tabs.defaultIconId', "A codicon ID to associate with terminals by default."),
+			...terminalIconSchema,
+			default: Codicon.terminal.id,
 		},
 		[TerminalSettingId.TabsEnabled]: {
 			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
