@@ -136,18 +136,22 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			return;
 		}
 		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, undefined);
-		if (configurationService.getValue('task.allowAutomaticTasks') !== 'auto' || hasShownPromptForAutomaticTasks !== undefined) {
+		if (configurationService.getValue('task.allowAutomaticTasks') === 'off' || hasShownPromptForAutomaticTasks !== undefined) {
 			return;
 		}
 
 		const { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
 		if (taskNames.length > 0) {
-			// We have automatic tasks, prompt to allow.
-			this._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations).then(allow => {
-				if (allow) {
-					RunAutomaticTasks._runTasks(taskService, tasks);
-				}
-			});
+			if (configurationService.getValue('task.allowAutomaticTasks') === 'on') {
+				RunAutomaticTasks._runTasks(taskService, tasks);
+			} else {
+				// We have automatic tasks, prompt to allow.
+				this._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations).then(allow => {
+					if (allow) {
+						RunAutomaticTasks._runTasks(taskService, tasks);
+					}
+				});
+			}
 		}
 	}
 
@@ -163,14 +167,14 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					label: nls.localize('allow', "Allow and run"),
 					run: () => {
 						resolve(true);
-						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, true, ConfigurationTarget.USER);
+						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, true, ConfigurationTarget.WORKSPACE);
 					}
 				},
 				{
 					label: nls.localize('disallow', "Disallow"),
 					run: () => {
 						resolve(false);
-						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, false, ConfigurationTarget.USER);
+						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, false, ConfigurationTarget.WORKSPACE);
 
 					}
 				},
