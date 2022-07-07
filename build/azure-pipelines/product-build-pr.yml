@@ -26,7 +26,7 @@ stages:
     jobs:
       - job: Compile
         displayName: Compile & Hygiene
-        pool: vscode-1es-vscode-linux-18.04
+        pool: vscode-1es-vscode-linux-20.04
         variables:
           VSCODE_ARCH: x64
         steps:
@@ -39,7 +39,7 @@ stages:
     jobs:
       - job: Linuxx64UnitTest
         displayName: Linux (Unit Tests)
-        pool: vscode-1es-vscode-linux-18.04
+        pool: vscode-1es-vscode-linux-20.04
         # container: vscode-bionic-x64
         timeoutInMinutes: 60
         variables:
@@ -56,7 +56,7 @@ stages:
               VSCODE_RUN_SMOKE_TESTS: false
       - job: Linuxx64IntegrationTest
         displayName: Linux (Integration Tests)
-        pool: vscode-1es-vscode-linux-18.04
+        pool: vscode-1es-vscode-linux-20.04
         # container: vscode-bionic-x64
         timeoutInMinutes: 60
         variables:
@@ -73,7 +73,7 @@ stages:
               VSCODE_RUN_SMOKE_TESTS: false
       - job: Linuxx64SmokeTest
         displayName: Linux (Smoke Tests)
-        pool: vscode-1es-vscode-linux-18.04
+        pool: vscode-1es-vscode-linux-20.04
         # container: vscode-bionic-x64
         timeoutInMinutes: 60
         variables:
