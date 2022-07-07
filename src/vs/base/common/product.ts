@@ -99,9 +99,7 @@ export interface IProductConfiguration {
 	readonly enableTelemetry?: boolean;
 	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {
-		readonly asimovKey: string;
 		readonly ariaKey: string;
-		readonly preferAria: boolean;
 	};
 
 	readonly sendASmile?: {

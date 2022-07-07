@@ -1723,6 +1723,7 @@ export function registerTerminalActions() {
 			const themeService = accessor.get(IThemeService);
 			const groupService = accessor.get(ITerminalGroupService);
 			const notificationService = accessor.get(INotificationService);
+
 			const picks: ITerminalQuickPickItem[] = [];
 			if (groupService.instances.length <= 1) {
 				notificationService.warn(localize('workbench.action.terminal.join.insufficientTerminals', 'Insufficient terminals for the join action'));
@@ -1732,7 +1733,7 @@ export function registerTerminalActions() {
 			for (const terminal of otherInstances) {
 				const group = groupService.getGroupForInstance(terminal);
 				if (group?.terminalInstances.length === 1) {
-					const iconId = getIconId(terminal);
+					const iconId = getIconId(accessor, terminal);
 					const label = `$(${iconId}): ${terminal.title}`;
 					const iconClasses: string[] = [];
 					const colorClass = getColorClass(terminal);
@@ -2126,10 +2127,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.focus),
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KeyZ,
-					weight: KeybindingWeight.WorkbenchContrib
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: TerminalContextKeys.focus
 				}
 			});
 		}
@@ -2137,12 +2139,13 @@ export function registerTerminalActions() {
 			await accessor.get(ITerminalService).doWithActiveInstance(t => t.toggleSizeToContentWidth());
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
 				id: TerminalCommandId.SizeToContentWidthInstance,
 				title: terminalStrings.toggleSizeToContentWidth,
-				f1: true,
+				f1: false,
 				category,
 				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus)
 			});

@@ -1190,6 +1190,30 @@ export namespace KeyedTaskIdentifier {
 	}
 }
 
+export const enum TaskSettingId {
+	AutoDetect = 'task.autoDetect',
+	SaveBeforeRun = 'task.saveBeforeRun',
+	ShowDecorations = 'task.showDecorations',
+	ProblemMatchersNeverPrompt = 'task.problemMatchers.neverPrompt',
+	SlowProviderWarning = 'task.slowProviderWarning',
+	QuickOpenHistory = 'task.quickOpen.history',
+	QuickOpenDetail = 'task.quickOpen.detail',
+	QuickOpenSkip = 'task.quickOpen.skip',
+	QuickOpenShowAll = 'task.quickOpen.showAll',
+	AllowAutomaticTasks = 'task.allowAutomaticTasks'
+}
+
+export const enum TasksSchemaProperties {
+	Tasks = 'tasks',
+	SuppressTaskName = 'tasks.suppressTaskName',
+	Windows = 'tasks.windows',
+	Osx = 'tasks.osx',
+	Linux = 'tasks.linux',
+	ShowOutput = 'tasks.showOutput',
+	IsShellCommand = 'tasks.isShellCommand',
+	ServiceTestSetting = 'tasks.service.testSetting',
+}
+
 export namespace TaskDefinition {
 	export function createTaskIdentifier(external: ITaskIdentifier, reporter: { error(message: string): void }): KeyedTaskIdentifier | undefined {
 		const definition = TaskDefinitionRegistry.get(external.type);

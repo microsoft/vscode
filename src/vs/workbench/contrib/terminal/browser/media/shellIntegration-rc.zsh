@@ -21,6 +21,10 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 		. $USER_ZDOTDIR/.zshrc
 		ZDOTDIR=$VSCODE_ZDOTDIR
 	fi
+
+	if [[ -f $USER_ZDOTDIR/.zsh_history ]]; then
+		HISTFILE=$USER_ZDOTDIR/.zsh_history
+	fi
 fi
 
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
