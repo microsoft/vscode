@@ -65,13 +65,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf "\033]633;C\007"
-	if [[ ! "$BASH_COMMAND" =~ ^__vsc_prompt* ]]; then
-		__vsc_current_command=$BASH_COMMAND
-		builtin printf "\033]633;E;$BASH_COMMAND\007"
-	else
-		__vsc_current_command=""
-		builtin printf "\033]633;E\007"
-	fi
+	builtin printf "\033]633;E;$__vsc_current_command\007"
 }
 
 __vsc_continuation_start() {
@@ -111,6 +105,7 @@ __vsc_update_prompt() {
 
 __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
+	__vsc_current_command=""
 	__vsc_update_prompt
 }
 
@@ -118,6 +113,11 @@ __vsc_preexec() {
 	if [ "$__vsc_in_command_execution" = "0" ]; then
 		__vsc_initialized=1
 		__vsc_in_command_execution="1"
+		if [[ ! "$BASH_COMMAND" =~ ^__vsc_prompt* ]]; then
+			__vsc_current_command=$BASH_COMMAND
+		else
+			__vsc_current_command=""
+		fi
 		__vsc_command_output_start
 	fi
 }
