@@ -496,6 +496,18 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('task.quickOpen.showAll', "Causes the Tasks: Run Task command to use the slower \"show all\" behavior instead of the faster two level picker where tasks are grouped by provider."),
 			default: false
 		},
+		[TaskSettingId.AllowAutomaticTasks]: {
+			type: 'string',
+			enum: ['on', 'auto', 'off'],
+			enumDescriptions: [
+				nls.localize('ttask.allowAutomaticTasks.on', "Always"),
+				nls.localize('task.allowAutomaticTasks.auto', "Prompt for permission for each folder"),
+				nls.localize('task.allowAutomaticTasks.off', "Never"),
+			],
+			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in the folder."),
+			default: 'auto',
+			restricted: true
+		},
 		[TaskSettingId.ShowDecorations]: {
 			type: 'boolean',
 			description: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks."),
