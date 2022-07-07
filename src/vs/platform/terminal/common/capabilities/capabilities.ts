@@ -198,7 +198,7 @@ export interface ITerminalCommand {
 	executedMarker?: IXtermMarker;
 	commandStartLineContent?: string;
 	getOutput(): string | undefined;
-	hasOutput: boolean;
+	hasOutput(): boolean;
 	genericMarkProperties?: IGenericMarkProperties;
 }
 

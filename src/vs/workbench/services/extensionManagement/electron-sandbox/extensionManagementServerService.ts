@@ -15,7 +15,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { NativeProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/profileAwareExtensionManagementService';
+import { NativeExtensionManagementService } from 'vs/workbench/services/extensionManagement/electron-sandbox/nativeExtensionManagementService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
@@ -36,14 +36,8 @@ export class ExtensionManagementServerService extends Disposable implements IExt
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		const localExtensionManagementService = this._register(instantiationService.createInstance(NativeProfileAwareExtensionManagementService, sharedProcessService.getChannel('extensions'), userDataProfileService.currentProfile.extensionsResource));
+		const localExtensionManagementService = this._register(instantiationService.createInstance(NativeExtensionManagementService, sharedProcessService.getChannel('extensions')));
 		this.localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local") };
-		this._register(userDataProfilesService.onDidChangeProfiles(e => {
-			if (userDataProfileService.currentProfile.isDefault) {
-				localExtensionManagementService.extensionsProfileResource = userDataProfilesService.defaultProfile.extensionsResource;
-			}
-		}));
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(localExtensionManagementService.switchExtensionsProfile(e.profile.extensionsResource))));
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const extensionManagementService = instantiationService.createInstance(NativeRemoteExtensionManagementService, remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer);

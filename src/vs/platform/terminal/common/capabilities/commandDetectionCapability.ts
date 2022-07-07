@@ -457,7 +457,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				cwd: this._cwd,
 				exitCode: this._exitCode,
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
-				hasOutput: !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
+				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
 				genericMarkProperties: options?.genericMarkProperties
 			};
@@ -579,7 +579,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				cwd: e.cwd,
 				commandStartLineContent: e.commandStartLineContent,
 				exitCode: e.exitCode,
-				hasOutput: !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
+				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
 				genericMarkProperties: e.genericMarkProperties
 			};

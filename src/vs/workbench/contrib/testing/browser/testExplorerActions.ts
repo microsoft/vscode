@@ -406,7 +406,7 @@ export class CancelTestRunAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CancelTestRunAction,
-			title: localize('testing.cancelRun', "Cancel Test Run"),
+			title: { value: localize('testing.cancelRun', "Cancel Test Run"), original: 'Cancel Test Run' },
 			icon: icons.testingCancelIcon,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -443,7 +443,7 @@ export class TestingViewAsListAction extends ViewAction<TestingExplorerView> {
 		super({
 			id: TestCommandId.TestingViewAsListAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.viewAsList', "View as List"),
+			title: { value: localize('testing.viewAsList', "View as List"), original: 'View as List' },
 			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.List),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -467,7 +467,7 @@ export class TestingViewAsTreeAction extends ViewAction<TestingExplorerView> {
 		super({
 			id: TestCommandId.TestingViewAsTreeAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.viewAsTree', "View as Tree"),
+			title: { value: localize('testing.viewAsTree', "View as Tree"), original: 'View as Tree' },
 			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.Tree),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -492,7 +492,7 @@ export class TestingSortByStatusAction extends ViewAction<TestingExplorerView> {
 		super({
 			id: TestCommandId.TestingSortByStatusAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.sortByStatus', "Sort by Status"),
+			title: { value: localize('testing.sortByStatus', "Sort by Status"), original: 'Sort by Status' },
 			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByStatus),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -516,7 +516,7 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 		super({
 			id: TestCommandId.TestingSortByLocationAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.sortByLocation', "Sort by Location"),
+			title: { value: localize('testing.sortByLocation', "Sort by Location"), original: 'Sort by Location' },
 			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByLocation),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -540,7 +540,7 @@ export class TestingSortByDurationAction extends ViewAction<TestingExplorerView>
 		super({
 			id: TestCommandId.TestingSortByDurationAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.sortByDuration', "Sort by Duration"),
+			title: { value: localize('testing.sortByDuration', "Sort by Duration"), original: 'Sort by Duration' },
 			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByDuration),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -563,7 +563,7 @@ export class ShowMostRecentOutputAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ShowMostRecentOutputAction,
-			title: localize('testing.showMostRecentOutput', "Show Output"),
+			title: { value: localize('testing.showMostRecentOutput', "Show Output"), original: 'Show Output' },
 			category,
 			icon: Codicon.terminal,
 			keybinding: {
@@ -594,7 +594,7 @@ export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 		super({
 			id: TestCommandId.CollapseAllAction,
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.collapseAll', "Collapse All Tests"),
+			title: { value: localize('testing.collapseAll', "Collapse All Tests"), original: 'Collapse All Tests' },
 			icon: Codicon.collapseAll,
 			menu: {
 				id: MenuId.ViewTitle,
@@ -617,7 +617,7 @@ export class ClearTestResultsAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ClearTestResultsAction,
-			title: localize('testing.clearResults', "Clear All Results"),
+			title: { value: localize('testing.clearResults', "Clear All Results"), original: 'Clear All Results' },
 			category,
 			icon: Codicon.trash,
 			menu: [{
@@ -646,7 +646,7 @@ export class GoToTest extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.GoToTest,
-			title: localize('testing.editFocusedTest', "Go to Test"),
+			title: { value: localize('testing.editFocusedTest', "Go to Test"), original: 'Go to Test' },
 			icon: Codicon.goToFile,
 			menu: testItemInlineAndInContext(ActionOrder.GoToTest, TestingContextKeys.testItemHasUri.isEqualTo(true)),
 			keybinding: {
@@ -742,7 +742,7 @@ export class RunAtCursor extends ExecuteTestAtCursor {
 	constructor() {
 		super({
 			id: TestCommandId.RunAtCursor,
-			title: localize('testing.runAtCursor', "Run Test at Cursor"),
+			title: { value: localize('testing.runAtCursor', "Run Test at Cursor"), original: 'Run Test at Cursor' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -757,7 +757,7 @@ export class DebugAtCursor extends ExecuteTestAtCursor {
 	constructor() {
 		super({
 			id: TestCommandId.DebugAtCursor,
-			title: localize('testing.debugAtCursor', "Debug Test at Cursor"),
+			title: { value: localize('testing.debugAtCursor', "Debug Test at Cursor"), original: 'Debug Test at Cursor' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -824,7 +824,7 @@ export class RunCurrentFile extends ExecuteTestsInCurrentFile {
 	constructor() {
 		super({
 			id: TestCommandId.RunCurrentFile,
-			title: localize('testing.runCurrentFile', "Run Tests in Current File"),
+			title: { value: localize('testing.runCurrentFile', "Run Tests in Current File"), original: 'Run Tests in Current File' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -840,7 +840,7 @@ export class DebugCurrentFile extends ExecuteTestsInCurrentFile {
 	constructor() {
 		super({
 			id: TestCommandId.DebugCurrentFile,
-			title: localize('testing.debugCurrentFile', "Debug Tests in Current File"),
+			title: { value: localize('testing.debugCurrentFile', "Debug Tests in Current File"), original: 'Debug Tests in Current File' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -948,7 +948,7 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 	constructor() {
 		super({
 			id: TestCommandId.ReRunFailedTests,
-			title: localize('testing.reRunFailTests', "Rerun Failed Tests"),
+			title: { value: localize('testing.reRunFailTests', "Rerun Failed Tests"), original: 'Rerun Failed Tests' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -969,7 +969,7 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 	constructor() {
 		super({
 			id: TestCommandId.DebugFailedTests,
-			title: localize('testing.debugFailTests', "Debug Failed Tests"),
+			title: { value: localize('testing.debugFailTests', "Debug Failed Tests"), original: 'Debug Failed Tests' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -990,7 +990,7 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 	constructor() {
 		super({
 			id: TestCommandId.ReRunLastRun,
-			title: localize('testing.reRunLastRun', "Rerun Last Run"),
+			title: { value: localize('testing.reRunLastRun', "Rerun Last Run"), original: 'Rerun Last Run' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1011,7 +1011,7 @@ export class DebugLastRun extends RunOrDebugLastRun {
 	constructor() {
 		super({
 			id: TestCommandId.DebugLastRun,
-			title: localize('testing.debugLastRun', "Debug Last Run"),
+			title: { value: localize('testing.debugLastRun', "Debug Last Run"), original: 'Debug Last Run' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1032,7 +1032,7 @@ export class SearchForTestExtension extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.SearchForTestExtension,
-			title: localize('testing.searchForTestExtension', "Search for Test Extension"),
+			title: { value: localize('testing.searchForTestExtension', "Search for Test Extension"), original: 'Search for Test Extension' },
 		});
 	}
 
@@ -1048,7 +1048,7 @@ export class OpenOutputPeek extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.OpenOutputPeek,
-			title: localize('testing.openOutputPeek', "Peek Output"),
+			title: { value: localize('testing.openOutputPeek', "Peek Output"), original: 'Peek Output' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1070,7 +1070,7 @@ export class ToggleInlineTestOutput extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ToggleInlineTestOutput,
-			title: localize('testing.toggleInlineTestOutput', "Toggle Inline Test Output"),
+			title: { value: localize('testing.toggleInlineTestOutput', "Toggle Inline Test Output"), original: 'Toggle Inline Test Output' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1119,7 +1119,7 @@ export class RefreshTestsAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.RefreshTestsAction,
-			title: localize('testing.refreshTests', "Refresh Tests"),
+			title: { value: localize('testing.refreshTests', "Refresh Tests"), original: 'Refresh Tests' },
 			category,
 			icon: icons.testingRefreshTests,
 			keybinding: {
@@ -1155,7 +1155,7 @@ export class CancelTestRefreshAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CancelTestRefreshAction,
-			title: localize('testing.cancelTestRefresh', "Cancel Test Refresh"),
+			title: { value: localize('testing.cancelTestRefresh', "Cancel Test Refresh"), original: 'Cancel Test Refresh' },
 			category,
 			icon: icons.testingCancelRefreshTests,
 			menu: refreshMenus(true),

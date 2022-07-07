@@ -57,15 +57,11 @@ export class UserDataProfilesService extends BaseUserDataProfilesService impleme
 
 	protected _profilesObject: UserDataProfilesObject | undefined;
 	protected get profilesObject(): UserDataProfilesObject {
-		if (!this.enabled) {
-			return { profiles: [], workspaces: new ResourceMap() };
-		}
 		if (!this._profilesObject) {
-			const profiles = this.getStoredProfiles().map<IUserDataProfile>(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.useDefaultFlags));
+			const profiles = this.enabled ? this.getStoredProfiles().map<IUserDataProfile>(storedProfile => toUserDataProfile(storedProfile.name, storedProfile.location, storedProfile.useDefaultFlags)) : [];
 			let emptyWindow: IUserDataProfile | undefined;
 			const workspaces = new ResourceMap<IUserDataProfile>();
 			if (profiles.length) {
-				profiles.unshift(this.createDefaultUserDataProfile(true));
 				const profileAssicaitions = this.getStoredProfileAssociations();
 				if (profileAssicaitions.workspaces) {
 					for (const [workspacePath, profilePath] of Object.entries(profileAssicaitions.workspaces)) {
@@ -82,6 +78,7 @@ export class UserDataProfilesService extends BaseUserDataProfilesService impleme
 					emptyWindow = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, emptyWindowProfileLocation));
 				}
 			}
+			profiles.unshift(this.createDefaultUserDataProfile(profiles.length > 0));
 			this._profilesObject = { profiles, workspaces, emptyWindow };
 		}
 		return this._profilesObject;

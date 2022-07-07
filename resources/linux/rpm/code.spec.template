@@ -21,6 +21,7 @@ Visual Studio Code is a new choice of tool that combines the simplicity of a cod
 %define _build_id_links none
 
 %install
+mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/usr/share/@@NAME@@
 mkdir -p %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/share/pixmaps
@@ -34,15 +35,13 @@ cp -r usr/share/mime/packages/@@NAME@@-workspace.xml %{buildroot}/usr/share/mime
 cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}/usr/share/pixmaps
 cp usr/share/bash-completion/completions/@@NAME@@ %{buildroot}/usr/share/bash-completion/completions/@@NAME@@
 cp usr/share/zsh/site-functions/_@@NAME@@ %{buildroot}/usr/share/zsh/site-functions/_@@NAME@@
+ln -s ../share/@@NAME@@/bin/@@NAME@@ %{buildroot}/usr/bin/@@NAME@@
 
 %post
 # Remove the legacy bin command if this is the stable build
 if [ "@@NAME@@" = "code" ]; then
 	rm -f /usr/local/bin/code
 fi
-
-# Symlink bin command to /usr/bin
-ln -sf /usr/share/@@NAME@@/bin/@@NAME@@ %{_bindir}/@@NAME@@
 
 # Register yum repository
 # TODO: #229: Enable once the yum repository is signed
@@ -58,10 +57,6 @@ ln -sf /usr/share/@@NAME@@/bin/@@NAME@@ %{_bindir}/@@NAME@@
 update-mime-database /usr/share/mime &> /dev/null || :
 
 %postun
-if [ $1 = 0 ]; then
-  rm -f /usr/bin/@@NAME@@
-fi
-
 # Update mimetype database for removed workspace mimetype
 update-mime-database /usr/share/mime &> /dev/null || :
 
@@ -69,6 +64,7 @@ update-mime-database /usr/share/mime &> /dev/null || :
 %defattr(-,root,root)
 %attr(4755, root, root) /usr/share/@@NAME@@/chrome-sandbox
 
+/usr/bin/@@NAME@@
 /usr/share/@@NAME@@/
 /usr/share/applications/@@NAME@@.desktop
 /usr/share/applications/@@NAME@@-url-handler.desktop

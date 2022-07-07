@@ -13,8 +13,7 @@ import { FileAccess } from 'vs/base/common/network';
 export type DidChangeProfileExtensionsEvent = { readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] };
 
 export interface IProfileAwareExtensionManagementService extends IExtensionManagementService {
-	onDidChangeProfileExtensions: Event<DidChangeProfileExtensionsEvent>;
-	switchExtensionsProfile(extensionsProfileResource: URI | undefined): Promise<void>;
+	readonly onDidChangeProfileExtensions: Event<DidChangeProfileExtensionsEvent>;
 }
 
 export interface IExtensionManagementServer {

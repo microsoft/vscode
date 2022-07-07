@@ -5,7 +5,7 @@
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { disposableTimeout, timeout } from 'vs/base/common/async';
-import { forEach, IStringDictionary } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 import { join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
@@ -67,11 +67,11 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 	) {
 		super(fileService, productService, requestService, logService);
 		if (productService.exeBasedExtensionTips) {
-			forEach(productService.exeBasedExtensionTips, ({ key, value: exeBasedExtensionTip }) => {
+			Object.entries(productService.exeBasedExtensionTips).forEach(([key, exeBasedExtensionTip]) => {
 				const highImportanceRecommendations: { extensionId: string; extensionName: string; isExtensionPack: boolean }[] = [];
 				const mediumImportanceRecommendations: { extensionId: string; extensionName: string; isExtensionPack: boolean }[] = [];
 				const otherRecommendations: { extensionId: string; extensionName: string; isExtensionPack: boolean }[] = [];
-				forEach(exeBasedExtensionTip.recommendations, ({ key: extensionId, value }) => {
+				Object.entries(exeBasedExtensionTip.recommendations).forEach(([extensionId, value]) => {
 					if (value.important) {
 						if (exeBasedExtensionTip.important) {
 							highImportanceRecommendations.push({ extensionId, extensionName: value.name, isExtensionPack: !!value.isExtensionPack });

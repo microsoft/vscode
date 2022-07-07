@@ -7,20 +7,24 @@ import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
 	original: 'Edit Sessions',
 	value: localize('session sync', 'Edit Sessions')
 };
 
-export const ISessionSyncWorkbenchService = createDecorator<ISessionSyncWorkbenchService>('ISessionSyncWorkbenchService');
-export interface ISessionSyncWorkbenchService {
+export const IEditSessionsWorkbenchService = createDecorator<IEditSessionsWorkbenchService>('IEditSessionsWorkbenchService');
+export interface IEditSessionsWorkbenchService {
 	_serviceBrand: undefined;
 
 	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
 	write(editSession: EditSession): Promise<string>;
 	delete(ref: string): Promise<void>;
 }
+
+export const IEditSessionsLogService = createDecorator<IEditSessionsLogService>('IEditSessionsLogService');
+export interface IEditSessionsLogService extends ILogService { }
 
 export enum ChangeType {
 	Addition = 1,
