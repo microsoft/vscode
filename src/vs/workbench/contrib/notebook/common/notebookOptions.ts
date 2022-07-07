@@ -29,6 +29,7 @@ export function getEditorTopPadding() {
 export const OutputInnerContainerTopPadding = 4;
 
 export interface NotebookLayoutConfiguration {
+	scrollableElementTop: number;
 	cellRightMargin: number;
 	cellRunGutter: number;
 	cellTopMargin: number;
@@ -124,7 +125,7 @@ export class NotebookOptions extends Disposable {
 	constructor(
 		private readonly configurationService: IConfigurationService,
 		private readonly notebookExecutionStateService: INotebookExecutionStateService,
-		private readonly overrides?: { cellToolbarInteraction: string; globalToolbar: boolean; defaultCellCollapseConfig?: NotebookCellDefaultCollapseConfig }
+		private readonly overrides?: { cellToolbarInteraction?: string; globalToolbar?: boolean; defaultCellCollapseConfig?: NotebookCellDefaultCollapseConfig; scrollableElementTop?: number }
 	) {
 		super();
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(NotebookSetting.showCellStatusBar);
@@ -183,7 +184,8 @@ export class NotebookOptions extends Disposable {
 			editorOptionsCustomizations,
 			focusIndicatorGap: 3,
 			interactiveWindowCollapseCodeCells,
-			markdownFoldHintHeight: 22
+			markdownFoldHintHeight: 22,
+			scrollableElementTop: overrides?.scrollableElementTop ?? SCROLLABLE_ELEMENT_PADDING_TOP
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -514,13 +516,13 @@ export class NotebookOptions extends Disposable {
 
 	computeTopInsertToolbarHeight(viewType?: string): number {
 		if (this._layoutConfiguration.insertToolbarPosition === 'betweenCells' || this._layoutConfiguration.insertToolbarPosition === 'both') {
-			return SCROLLABLE_ELEMENT_PADDING_TOP;
+			return this._layoutConfiguration.scrollableElementTop;
 		}
 
 		const cellToolbarLocation = this.computeCellToolbarLocation(viewType);
 
 		if (cellToolbarLocation === 'left' || cellToolbarLocation === 'right') {
-			return SCROLLABLE_ELEMENT_PADDING_TOP;
+			return this._layoutConfiguration.scrollableElementTop;
 		}
 
 		return 0;
