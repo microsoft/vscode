@@ -32,10 +32,15 @@ export class Task {
 	}
 
 	async runTask(filter: string, expected: ITaskConfigurationProperties[]) {
-		this.quickaccess.runCommand('workbench.action.tasks.runTask');
+		await this.quickaccess.runCommand('workbench.action.tasks.runTask');
+		await this.quickInput.waitForQuickInputOpened();
 		await this.quickInput.type(filter);
-		//TODO@meganrogge: check for specific elements
-		await this.quickInput.waitForQuickInputElements(elements => elements.length === expected.length);
+		await this.quickInput.waitForQuickInputClosed();
+		if (expected.length === 0) {
+			await this.quickInput.waitForQuickInputElements(elements => elements.length === 1);
+		} else {
+			await this.quickInput.waitForQuickInputElements(elements => elements.length === expected.length);
+		}
 		await this.quickInput.closeQuickInput();
 	}
 
@@ -43,24 +48,23 @@ export class Task {
 		await this.quickaccess.openFileQuickAccessAndWait('tasks.json', 'tasks.json');
 		await this.quickInput.selectQuickInputElement(0);
 		await this.quickInput.waitForQuickInputClosed();
-		await this.editor.waitForTypeInEditor('tasks.json', `{`);
 		await this.quickaccess.runCommand('editor.action.selectAll');
 		await this.code.dispatchKeybinding('Delete');
 		await this.editors.saveOpenedFile();
-		let taskString = `{
+		await this.code.dispatchKeybinding('right');
+		await this.editor.waitForTypeInEditor('tasks.json', `{`);
+		const taskString = `
 			"version": "2.0.0",
 			"tasks": [
 				{`;
+		await this.editor.waitForTypeInEditor('tasks.json', `${taskString}`);
 		for (let [key, value] of Object.entries(properties)) {
 			value = key === 'hide' ? value : `"${value}"`;
-			taskString += `"${key}": ${value},\n`;
+			await this.code.dispatchKeybinding('right');
+			await this.editor.waitForTypeInEditor('tasks.json', `"${key}": ${value},\n`);
 		}
-		taskString += `}]`;
 		await this.code.dispatchKeybinding('right');
-		// this.editor.waitForTypeInEditor('tasks.json', `${taskString}`);
-		this.editor.waitForEditorContents('tasks.json', (contents) => contents.includes(`${taskString}`));
-		await setTimeout(async () => {
-			await this.editors.saveOpenedFile();
-		}, 1000);
+		await this.editor.waitForTypeInEditor('tasks.json', `}]`);
+		await this.editors.saveOpenedFile();
 	}
 }
