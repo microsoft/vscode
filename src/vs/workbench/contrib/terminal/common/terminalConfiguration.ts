@@ -41,11 +41,11 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.TabsDefaultColor]: {
-			description: localize('terminal.integrated.tabs.defaultColor', "A theme color ID to associate with terminals by default."),
+			description: localize('terminal.integrated.tabs.defaultColor', "A theme color ID to associate with terminal icons by default."),
 			...terminalColorSchema
 		},
 		[TerminalSettingId.TabsDefaultIcon]: {
-			description: localize('terminal.integrated.tabs.defaultIcon', "A codicon ID to associate with terminals by default."),
+			description: localize('terminal.integrated.tabs.defaultIcon', "A codicon ID to associate with terminal icons by default."),
 			...terminalIconSchema,
 			default: Codicon.terminal.id,
 		},
