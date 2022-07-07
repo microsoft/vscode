@@ -17,75 +17,40 @@ export function setup() {
 			task = app.workbench.task;
 		});
 		describe('run', () => {
+			const name = "name";
+			const type = "shell";
+			const command = "echo 'test'";
 			describe('hide', () => {
-				const name = "name";
 				it('true', async () => {
-					await task.configureTask({ name, hide: true });
+					await task.configureTask({ type, command, label: name, hide: true });
 					await task.runTask(name, []);
 				});
-				it('false', async () => {
-					await task.configureTask({ name, hide: false });
-					await task.runTask(name, [{ name }]);
-				});
-				it('undefined', async () => {
-					await task.configureTask({ name });
-					await task.runTask(name, [{ name }]);
-				});
+				// it('false', async () => {
+				// 	await task.configureTask({ type, command, label: name, hide: false });
+				// 	await task.runTask(name, [{ label: name }]);
+				// });
+				// it('undefined', async () => {
+				// 	await task.configureTask({ type, command, label: name });
+				// 	await task.runTask(name, [{ label: name }]);
+				// });
 			});
 
 			describe('icon', () => {
-				const name = "name";
-				it('icon', async () => {
-					const config = { name, icon: { id: "lightbulb" } };
-					await task.configureTask(config);
-					await task.runTask(name, [config]);
-				});
-				it('color', async () => {
-					const config = { name, icon: { color: "terminal.ansiRed" } };
-					await task.configureTask(config);
-					await task.runTask(name, [config]);
-				});
-				it('icon & color', async () => {
-					const config = { name, icon: { id: "lightbulb", color: "terminal.ansiRed" } };
-					await task.configureTask(config);
-					await task.runTask(name, [config]);
-				});
-			});
-		});
-		describe('configure', () => {
-			describe('hide', () => {
-				const name = "name";
-				it('true', async () => {
-					await task.configureTask({ name, hide: true });
-					await task.runTask(name, []);
-				});
-				it('false', async () => {
-					await task.configureTask({ name, hide: false });
-					await task.runTask(name, [{ name }]);
-				});
-				it('undefined', async () => {
-					await task.configureTask({ name });
-					await task.runTask(name, [{ name }]);
-				});
-			});
-
-			describe('icon', () => {
-				const name = "name";
-				it('icon', async () => {
-					const config = { name, icon: { id: "lightbulb" } };
-					await task.configureTask(config);
-					await task.runTask(name, [config]);
-				});
-				it('color', async () => {
-					const config = { name, icon: { color: "terminal.ansiRed" } };
-					await task.configureTask(config);
-					await task.runTask(name, [config]);
-				});
-				it('icon & color', async () => {
-					const config = { name, icon: { id: "lightbulb", color: "terminal.ansiRed" } };
-					await task.configureTask(config);
-					await task.runTask(name, [config]);
-				});
+				// it('icon', async () => {
+				// 	const config = { label: name, type, command, icon: { id: "lightbulb" } };
+				// 	await task.configureTask(config);
+				// 	await task.runTask(name, [config]);
+				// });
+				// it('color', async () => {
+				// 	const config = { label: name, type, command, icon: { color: "terminal.ansiRed" } };
+				// 	await task.configureTask(config);
+				// 	await task.runTask(name, [config]);
+				// });
+				// it('icon & color', async () => {
+				// 	const config = { label: name, type, command, icon: { id: "lightbulb", color: "terminal.ansiRed" } };
+				// 	await task.configureTask(config);
+				// 	await task.runTask(name, [config]);
+				// });
 			});
 		});
 	});

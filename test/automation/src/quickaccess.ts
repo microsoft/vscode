@@ -131,7 +131,7 @@ export class QuickAccess {
 		await this.editors.selectTab(fileName);
 	}
 
-	private async openQuickAccessWithRetry(kind: QuickAccessKind, value?: string): Promise<void> {
+	async openQuickAccessWithRetry(kind: QuickAccessKind, value?: string): Promise<void> {
 		let retries = 0;
 
 		// Other parts of code might steal focus away from quickinput :(
