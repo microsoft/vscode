@@ -1151,7 +1151,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('update tasks configuration', () => {
 		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, ConfigurationTarget.WORKSPACE)
-			.then(() => assert.deepStrictEqual(testObject.getValue(TaskSettingId.Tasks), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
+			.then(() => assert.deepStrictEqual(testObject.getValue(TasksSettingId.Tasks), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
 	});
 
 	test('update user configuration should trigger change event before promise is resolve', () => {
@@ -1995,7 +1995,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		};
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['tasks'], value: expectedTasksConfiguration }], true);
 		await testObject.reloadConfiguration();
-		const actual = testObject.getValue(TaskSettingId.Tasks);
+		const actual = testObject.getValue(TasksSettingId.Tasks);
 		assert.deepStrictEqual(actual, expectedTasksConfiguration);
 	});
 
@@ -2120,7 +2120,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	test('update tasks configuration in a folder', async () => {
 		const workspace = workspaceContextService.getWorkspace();
 		await testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
-		assert.deepStrictEqual(testObject.getValue(TaskSettingId.Tasks, { resource: workspace.folders[0].uri }), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] });
+		assert.deepStrictEqual(testObject.getValue(TasksSettingId.Tasks, { resource: workspace.folders[0].uri }), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] });
 	});
 
 	test('update launch configuration in a workspace', async () => {
@@ -2133,7 +2133,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		const tasks = { 'version': '2.0.0', tasks: [{ 'label': 'myTask' }] };
 		await testObject.updateValue('tasks', tasks, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true);
-		assert.deepStrictEqual(testObject.getValue(TaskSettingId.Tasks), tasks);
+		assert.deepStrictEqual(testObject.getValue(TasksSettingId.Tasks), tasks);
 	});
 
 	test('configuration of newly added folder is available on configuration change event', async () => {
