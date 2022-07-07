@@ -79,7 +79,7 @@ function prepareDebPackage(arch) {
 			function (f) { size += f.isDirectory() ? 4096 : f.contents.length; },
 			async function () {
 				const that = this;
-				const sysroot = await sysrootInstaller.getSysroot();
+				const sysroot = await sysrootInstaller.getSysroot(debArch);
 				const dependencies = debianDependenciesGenerator.getDependencies(binaryDir, product.applicationName, debArch, sysroot);
 				gulp.src('resources/linux/debian/control.template', { base: '.' })
 					.pipe(replace('@@NAME@@', product.applicationName))
