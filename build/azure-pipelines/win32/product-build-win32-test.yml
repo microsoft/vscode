@@ -103,6 +103,13 @@ steps:
         displayName: Run integration tests (Browser, Firefox)
         timeoutInMinutes: 20
 
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { .\scripts\test-remote-integration.bat }
+        displayName: Run integration tests (Remote)
+        timeoutInMinutes: 20
+
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: |
           # Figure out the full absolute path of the product we just built
