@@ -163,13 +163,6 @@ steps:
         displayName: Run smoke tests (Electron)
         timeoutInMinutes: 20
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn smoketest-no-compile --web --tracing --headless }
-        displayName: Run smoke tests (Browser, Chromium)
-        timeoutInMinutes: 20
-
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
