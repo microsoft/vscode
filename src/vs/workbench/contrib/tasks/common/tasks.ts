@@ -1193,7 +1193,13 @@ export namespace KeyedTaskIdentifier {
 export const enum TaskSettingId {
 	AutoDetect = 'task.autoDetect',
 	SaveBeforeRun = 'task.saveBeforeRun',
-	ShowDecorations = 'task.showDecorations'
+	ShowDecorations = 'task.showDecorations',
+	ProblemMatchersNeverPrompt = 'task.problemMatchers.neverPrompt',
+	SlowProviderWarning = 'task.slowProviderWarning',
+	QuickOpenHistory = 'task.quickOpen.history',
+	QuickOpenDetail = 'task.quickOpen.detail',
+	QuickOpenSkip = 'task.quickOpen.skip',
+	QuickOpenShowAll = 'task.quickOpen.showAll'
 }
 
 export const enum TasksSettingId {
