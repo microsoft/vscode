@@ -34,12 +34,14 @@ export class Task {
 	async runTask(filter: string, expected: ITaskConfigurationProperties[]) {
 		await this.code.dispatchKeybinding('right');
 		await this.editors.saveOpenedFile();
-		await this.quickaccess.runCommand('workbench.action.tasks.runTask');
+		await this.quickaccess.runCommand('workbench.action.tasks.runTask', true);
 		if (expected.length === 0) {
 			await this.quickInput.waitForQuickInputElements(e => e.length > 1 && e.every(value => value !== filter));
 		} else {
 			await this.quickInput.waitForQuickInputElements(e => e.length > 1 && e.includes(filter));
 		}
+		await this.quickInput.closeQuickInput();
+
 	}
 
 	async configureTask(properties: ITaskConfigurationProperties) {
@@ -54,7 +56,12 @@ export class Task {
 			"tasks": [
 				{`;
 		for (let [key, value] of Object.entries(properties)) {
-			value = key === 'hide' ? value : `"${value}"`;
+			if (key === 'icon') {
+				value = `${{ id: value.id }}`;
+			} else {
+				value = key === 'hide' || key === 'icon' ? value : `"${value}"`;
+			}
+
 			taskString += `"${key}": ${value},\n`;
 		}
 		taskString += `}]`;
