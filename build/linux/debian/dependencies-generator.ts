@@ -7,6 +7,7 @@
 
 import { spawnSync } from 'child_process';
 import { constants, statSync } from 'fs';
+import { tmpdir } from 'os';
 import path = require('path');
 import { additionalDeps, bundledDeps, referenceGeneratedDepsByArch } from './dep-lists';
 import { ArchString } from './types';
@@ -84,10 +85,14 @@ function calculatePackageDeps(binaryPath: string, arch: ArchString, sysroot: str
 		console.error('Tried to stat ' + binaryPath + ' but failed.');
 	}
 
-	// With the Chromium dpkg-shlibdeps, we would be able to add an --ignore-weak-undefined flag.
-	// For now, try using the system dpkg-shlibdeps instead of the Chromium one.
-	const dpkgShlibdepsScriptLocation = '/usr/bin/dpkg-shlibdeps';
-	const cmd = [];
+	// Do a sparse checkout to get the Chromium dpkg-shlibdeps file.
+	const tmp = tmpdir();
+	const result = spawnSync('sh', ['checkout-shlibdeps.sh', tmp]);
+	if (result.status !== 0) {
+		throw new Error('Error retrieving dpkg-shlibdeps');
+	}
+	const dpkgShlibdepsScriptLocation = `${tmp}/chromium/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl`;
+	const cmd = [dpkgShlibdepsScriptLocation, '--ignore-weak-undefined'];
 	switch (arch) {
 		case 'amd64':
 			cmd.push(`-l${sysroot}/usr/lib/x86_64-linux-gnu`,
@@ -107,7 +112,7 @@ function calculatePackageDeps(binaryPath: string, arch: ArchString, sysroot: str
 	cmd.push(`-l${sysroot}/usr/lib`);
 	cmd.push('-O', '-e', path.resolve(binaryPath));
 
-	const dpkgShlibdepsResult = spawnSync(dpkgShlibdepsScriptLocation, cmd, { cwd: sysroot });
+	const dpkgShlibdepsResult = spawnSync('perl', cmd, { cwd: sysroot });
 	if (dpkgShlibdepsResult.status !== 0) {
 		throw new Error(`dpkg-shlibdeps failed with exit code ${dpkgShlibdepsResult.status}. stderr:\n${dpkgShlibdepsResult.stderr} `);
 	}
