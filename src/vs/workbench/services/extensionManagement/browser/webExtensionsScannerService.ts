@@ -40,6 +40,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
 import Severity from 'vs/base/common/severity';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrateStorageFrom?: string };
 type ExtensionInfo = { readonly id: string; preRelease: boolean };
@@ -83,7 +84,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private readonly systemExtensionsCacheResource: URI | undefined = undefined;
 	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;
-	private readonly installedExtensionsResource: URI | undefined = undefined;
 	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IWebExtension[]>>();
 
 	constructor(
@@ -97,11 +97,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@IExtensionStorageService private readonly extensionStorageService: IExtensionStorageService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
 		if (isWeb) {
-			this.installedExtensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
 			this.systemExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'systemExtensionsCache.json');
 			this.customBuiltinExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'customBuiltinExtensionsCache.json');
 			this.registerActions();
@@ -672,7 +672,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private async readInstalledExtensions(): Promise<IWebExtension[]> {
 		await this.migratePackageNLSUris();
-		return this.withWebExtensions(this.installedExtensionsResource);
+		return this.withWebExtensions(this.userDataProfileService.currentProfile.extensionsResource);
 	}
 
 	// TODO: @TylerLeonhardt/@Sandy081: Delete after 6 months
@@ -680,7 +680,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private migratePackageNLSUris(): Promise<void> {
 		if (!this._migratePackageNLSUrisPromise) {
 			this._migratePackageNLSUrisPromise = (async () => {
-				const webExtensions = await this.withWebExtensions(this.installedExtensionsResource);
+				const webExtensions = await this.withWebExtensions(this.userDataProfileService.currentProfile.extensionsResource);
 				if (webExtensions.some(e => !e.packageNLSUris && e.packageNLSUri)) {
 					const migratedExtensions = await Promise.all(webExtensions.map(async e => {
 						if (!e.packageNLSUris && e.packageNLSUri) {
@@ -691,7 +691,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						}
 						return e;
 					}));
-					await this.withWebExtensions(this.installedExtensionsResource, () => migratedExtensions);
+					await this.withWebExtensions(this.userDataProfileService.currentProfile.extensionsResource, () => migratedExtensions);
 				}
 			})();
 		}
@@ -699,7 +699,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private writeInstalledExtensions(updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
-		return this.withWebExtensions(this.installedExtensionsResource, updateFn);
+		return this.withWebExtensions(this.userDataProfileService.currentProfile.extensionsResource, updateFn);
 	}
 
 	private readCustomBuiltinExtensionsCache(): Promise<IWebExtension[]> {
@@ -809,7 +809,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				});
 			}
 			run(serviceAccessor: ServicesAccessor): void {
-				serviceAccessor.get(IEditorService).openEditor({ resource: that.installedExtensionsResource });
+				serviceAccessor.get(IEditorService).openEditor({ resource: that.userDataProfileService.currentProfile.extensionsResource });
 			}
 		}));
 	}

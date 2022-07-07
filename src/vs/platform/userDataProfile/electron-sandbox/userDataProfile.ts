@@ -16,8 +16,6 @@ export class UserDataProfilesNativeService extends UserDataProfilesService imple
 
 	private readonly channel: IChannel;
 
-	override get profiles(): IUserDataProfile[] { return this._profiles; }
-
 	constructor(
 		profiles: UriDto<IUserDataProfile>[],
 		@IMainProcessService mainProcessService: IMainProcessService,
