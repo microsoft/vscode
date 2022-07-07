@@ -1245,7 +1245,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		const command = commands[commands.length - 1];
-		if (!command?.hasOutput) {
+		if (!command?.hasOutput()) {
 			return;
 		}
 		const output = command.getOutput();
