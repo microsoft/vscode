@@ -1157,10 +1157,8 @@ suite('vscode API - workspace', () => {
 		assert.ok(edt === vscode.window.activeTextEditor);
 
 		const we = new vscode.WorkspaceEdit();
-		we.set(document.uri, [{ range: new vscode.Range(0, 0, 0, 0), newText: '', newText2: new vscode.SnippetString('${1:foo}${2:bar}') }]);
+		we.replace(document.uri, new vscode.Range(0, 0, 0, 0), new vscode.SnippetString('${1:foo}${2:bar}'));
 		const success = await vscode.workspace.applyEdit(we);
-
-
 		if (edt !== vscode.window.activeTextEditor) {
 			return this.skip();
 		}
@@ -1168,6 +1166,5 @@ suite('vscode API - workspace', () => {
 		assert.ok(success);
 		assert.strictEqual(document.getText(), 'foobarhello\nworld');
 		assert.deepStrictEqual(edt.selections, [new vscode.Selection(0, 0, 0, 3)]);
-
 	});
 });

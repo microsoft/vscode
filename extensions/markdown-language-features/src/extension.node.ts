@@ -30,7 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 async function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, parser: IMdParser): Promise<void> {
-	const clientMain = vscode.extensions.getExtension('vscode.css-language-features')?.packageJSON?.main || '';
+	const clientMain = vscode.extensions.getExtension('vscode.markdown-language-features')?.packageJSON?.main || '';
 
 	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/main`;
 	const serverModule = context.asAbsolutePath(serverMain);
