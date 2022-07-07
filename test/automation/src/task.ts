@@ -37,12 +37,12 @@ export class Task {
 		this.quickaccess.runCommand('workbench.action.tasks.openUserTasks');
 		await this.code.dispatchKeybinding('enter');
 		await this.code.dispatchKeybinding('right');
-		let task = '{';
+		let taskString = '{';
 		for (const [key, value] of Object.entries(properties)) {
-			task += `"${key}": ${value},`;
+			taskString += `"${key}": ${value},`;
 		}
-		task += '}';
-		await this.editor.waitForTypeInEditor('tasks.json', `${task}`);
+		taskString += '}';
+		await this.editor.waitForTypeInEditor('tasks.json', `${taskString}`);
 		await this.editors.saveOpenedFile();
 	}
 }
