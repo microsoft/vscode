@@ -598,17 +598,28 @@ export namespace WorkspaceEdit {
 
 				} else if (entry._type === types.FileEditType.Text) {
 					// text edits
-					const edit = <languages.IWorkspaceTextEdit>{
+					result.edits.push(<languages.IWorkspaceTextEdit>{
 						resource: entry.uri,
 						textEdit: TextEdit.from(entry.edit),
 						versionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
 						metadata: entry.metadata
-					};
-					if (allowSnippetTextEdit && entry.edit.newText2 instanceof types.SnippetString) {
-						edit.textEdit.insertAsSnippet = true;
-						edit.textEdit.text = entry.edit.newText2.value;
+					});
+				} else if (entry._type === types.FileEditType.Snippet) {
+					// snippet text edits
+					if (!allowSnippetTextEdit) {
+						console.warn(`DROPPING snippet text edit because proposal IS NOT ENABLED`, entry);
+						continue;
 					}
-					result.edits.push(edit);
+					result.edits.push(<languages.IWorkspaceTextEdit>{
+						resource: entry.uri,
+						textEdit: {
+							range: Range.from(entry.range),
+							text: entry.edit.value,
+							insertAsSnippet: true
+						},
+						versionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
+						metadata: entry.metadata
+					});
 
 				} else if (entry._type === types.FileEditType.Cell) {
 					// cell edit
