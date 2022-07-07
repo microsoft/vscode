@@ -1190,6 +1190,23 @@ export namespace KeyedTaskIdentifier {
 	}
 }
 
+export const enum TaskSettingId {
+	AutoDetect = 'task.autoDetect',
+	SaveBeforeRun = 'task.saveBeforeRun',
+	ShowDecorations = 'task.showDecorations'
+}
+
+export const enum TasksSettingId {
+	Tasks = 'tasks',
+	SuppressTaskName = 'tasks.suppressTaskName',
+	Windows = 'tasks.windows',
+	Osx = 'tasks.osx',
+	Linux = 'tasks.linux',
+	ShowOutput = 'tasks.showOutput',
+	IsShellCommand = 'tasks.isShellCommand',
+	ServiceTestSetting = 'tasks.service.testSetting',
+}
+
 export namespace TaskDefinition {
 	export function createTaskIdentifier(external: ITaskIdentifier, reporter: { error(message: string): void }): KeyedTaskIdentifier | undefined {
 		const definition = TaskDefinitionRegistry.get(external.type);
