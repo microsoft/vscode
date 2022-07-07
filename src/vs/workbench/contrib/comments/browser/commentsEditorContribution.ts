@@ -859,7 +859,7 @@ export class CommentController implements IEditorContribution {
 				}
 
 				const options = this.editor.getOptions();
-				if (options.get(EditorOption.folding)) {
+				if (options.get(EditorOption.folding) && options.get(EditorOption.showFoldingControls) !== 'never') {
 					lineDecorationsWidth -= 16;
 				}
 				lineDecorationsWidth += 9;

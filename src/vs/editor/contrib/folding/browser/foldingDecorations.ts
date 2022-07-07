@@ -52,7 +52,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	});
 
-	public autoHideFoldingControls: boolean = true;
+	public showFoldingControls: 'always' | 'never' | 'mouseover' = 'mouseover';
 
 	public showFoldingHighlights: boolean = true;
 
@@ -60,12 +60,12 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	}
 
 	getDecorationOption(isCollapsed: boolean, isHidden: boolean): ModelDecorationOptions {
-		if (isHidden) {
+		if (isHidden || this.showFoldingControls === 'never') {
 			return FoldingDecorationProvider.HIDDEN_RANGE_DECORATION;
 		}
 		if (isCollapsed) {
 			return this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION;
-		} else if (this.autoHideFoldingControls) {
+		} else if (this.showFoldingControls === 'mouseover') {
 			return FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
 		} else {
 			return FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION;
