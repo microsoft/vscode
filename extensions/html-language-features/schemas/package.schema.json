@@ -16,17 +16,17 @@
 				},
 				"htmlLanguages": {
 					"type": "array",
-					"description": "A list of custom languages which contributes to the Html language server.",
+					"description": "A list of languages that participate with the HTML language server.",
 					"items": {
 						"type": "object",
 						"properties": {
 							"languageId": {
-								"type": "object",
-								"description": "The language Id which contributes to the Html language server."
+								"type": "string",
+								"description": "The id of the language that participates with HTML language server."
 							},
 							"autoInsert": {
 								"type": "boolean",
-								"description": "true if the language activates the auto insertion and false otherwise."
+								"description": "true if the language uses the HTML auto insertion, false otherwise. If not specified, <code>try"
 							}
 						}
 					}

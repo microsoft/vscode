@@ -18,7 +18,7 @@ import {
 import { FileSystemProvider, serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
 import { activateAutoInsertion } from './autoInsertion';
-import { getHtmlLanguageContributions, getSupportedLanguagesAutoInsert, getDocumentSelector, HtmlLanguageContribution } from './htmlLanguageContribution';
+import { getLanguageParticipants } from './languageParticipants';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
@@ -86,10 +86,12 @@ export interface Runtime {
 
 export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
 
-	const toDispose = context.subscriptions;
+	const toDispose: Disposable[] = context.subscriptions;
 
-	const htmlContributions: HtmlLanguageContribution[] = getHtmlLanguageContributions(toDispose);
-	const documentSelector = getDocumentSelector(htmlContributions);
+	const languageParticipants = getLanguageParticipants();
+	toDispose.push(languageParticipants);
+
+	const documentSelector = languageParticipants.documentSelector;
 	const embeddedLanguages = { css: true, javascript: true };
 
 	let rangeFormatting: Disposable | undefined = undefined;
@@ -140,13 +142,13 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 
 	toDispose.push(serveFileSystemRequests(client, runtime));
 
-	const customDataSource = getCustomDataSource(runtime, context.subscriptions);
+	const customDataSource = getCustomDataSource(runtime, toDispose);
 
 	client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
 	customDataSource.onDidChange(() => {
 		client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
-	});
-	client.onRequest(CustomDataContent.type, customDataSource.getContent);
+	}, undefined, toDispose);
+	toDispose.push(client.onRequest(CustomDataContent.type, customDataSource.getContent));
 
 
 	const insertRequestor = (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position): Promise<string> => {
@@ -155,46 +157,46 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
 			position: client.code2ProtocolConverter.asPosition(position)
 		};
-		const supportedLanguages = getSupportedLanguagesAutoInsert(htmlContributions);
-		const disposable = activateAutoInsertion(insertRequestor, supportedLanguages, runtime);
-		toDispose.push(disposable);
+		return client.sendRequest(AutoInsertRequest.type, param);
+	};
 
-		disposable = client.onTelemetry(e => {
-			runtime.telemetry?.sendTelemetryEvent(e.key, e.data);
-		});
-		toDispose.push(disposable);
+	const disposable = activateAutoInsertion(insertRequestor, languageParticipants, runtime);
+	toDispose.push(disposable);
 
-		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
-		updateFormatterRegistration();
-		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
-		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration(SettingIds.formatEnable) && updateFormatterRegistration()));
-
-		client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
-			if (legend) {
-				const provider: DocumentSemanticTokensProvider & DocumentRangeSemanticTokensProvider = {
-					provideDocumentSemanticTokens(doc) {
-						const params: SemanticTokenParams = {
-							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
-						};
-						return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
-							return data && new SemanticTokens(new Uint32Array(data));
-						});
-					},
-					provideDocumentRangeSemanticTokens(doc, range) {
-						const params: SemanticTokenParams = {
-							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
-							ranges: [client.code2ProtocolConverter.asRange(range)]
-						};
-						return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
-							return data && new SemanticTokens(new Uint32Array(data));
-						});
-					}
-				};
-				toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
-			}
-		});
+	const disposable2 = client.onTelemetry(e => {
+		runtime.telemetry?.sendTelemetryEvent(e.key, e.data);
 	});
+	toDispose.push(disposable2);
 
+	// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
+	updateFormatterRegistration();
+	toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
+	toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration(SettingIds.formatEnable) && updateFormatterRegistration()));
+
+	client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
+		if (legend) {
+			const provider: DocumentSemanticTokensProvider & DocumentRangeSemanticTokensProvider = {
+				provideDocumentSemanticTokens(doc) {
+					const params: SemanticTokenParams = {
+						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
+					};
+					return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
+						return data && new SemanticTokens(new Uint32Array(data));
+					});
+				},
+				provideDocumentRangeSemanticTokens(doc, range) {
+					const params: SemanticTokenParams = {
+						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
+						ranges: [client.code2ProtocolConverter.asRange(range)]
+					};
+					return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
+						return data && new SemanticTokens(new Uint32Array(data));
+					});
+				}
+			};
+			toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
+		}
+	});
 
 	function updateFormatterRegistration() {
 		const formatEnabled = workspace.getConfiguration().get(SettingIds.formatEnable);
@@ -300,4 +302,5 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	}
 
 	return client;
+
 }
