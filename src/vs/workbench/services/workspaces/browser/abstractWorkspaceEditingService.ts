@@ -245,6 +245,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			}
 		} else {
 			path = untitledWorkspace.configPath;
+			if (!this.userDataProfileService.currentProfile.isDefault) {
+				await this.userDataProfilesService.setProfileForWorkspace(this.userDataProfileService.currentProfile, untitledWorkspace);
+			}
 		}
 
 		return this.enterWorkspace(path);

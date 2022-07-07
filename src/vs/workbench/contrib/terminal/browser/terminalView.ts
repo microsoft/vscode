@@ -45,6 +45,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -374,12 +375,13 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(new MenuItemAction(
 			{
 				id: action.id,
-				title: getSingleTabLabel(_terminalGroupService.activeInstance, _terminalService.configHelper.config.tabs.separator),
+				title: _instantiationService.invokeFunction(getSingleTabLabel, _terminalGroupService.activeInstance, _terminalService.configHelper.config.tabs.separator),
 				tooltip: getSingleTabTooltip(_terminalGroupService.activeInstance, _terminalService.configHelper.config.tabs.separator, configurationService)
 			},
 			{
@@ -473,7 +475,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			dom.reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance, this._terminalService.configHelper.config.tabs.separator, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+			dom.reset(label, ...renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminalService.configHelper.config.tabs.separator, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
 
 			if (this._altCommand) {
 				label.classList.remove(this._altCommand);
@@ -515,13 +517,13 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-function getSingleTabLabel(instance: ITerminalInstance | undefined, separator: string, icon?: ThemeIcon) {
+function getSingleTabLabel(accessor: ServicesAccessor, instance: ITerminalInstance | undefined, separator: string, icon?: ThemeIcon) {
 	// Don't even show the icon if there is no title as the icon would shift around when the title
 	// is added
 	if (!instance || !instance.title) {
 		return '';
 	}
-	const iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
+	const iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon.id : accessor.get(ITerminalProfileResolverService).getDefaultIcon();
 	const label = `$(${icon?.id || iconClass}) ${getSingleTabTitle(instance, separator)}`;
 
 	const primaryStatus = instance.statusList.primary;

@@ -70,7 +70,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		switch (location) {
 			case ProgressLocation.Notification:
-				return this.withNotificationProgress({ ...options, location }, task, onDidCancel);
+				return this.withNotificationProgress({ ...options, location, silent: this.notificationService.doNotDisturbMode }, task, onDidCancel);
 			case ProgressLocation.Window:
 				if ((options as IProgressWindowOptions).command) {
 					// Window progress with command get's shown in the status bar

@@ -166,23 +166,35 @@ export class Transpiler {
 		// very complicated logic to re-use TS internal functions to know the output path
 		// given a TS input path and its config
 		type InternalTsApi = typeof ts & {
+			normalizePath(path: string): string;
 			getOutputFileNames(commandLine: ts.ParsedCommandLine, inputFileName: string, ignoreCase: boolean): readonly string[];
 		};
 		this._getOutputFileName = (file) => {
-			if (!_cmdLine.options.configFilePath) {
-				// this is needed for the INTERNAL getOutputFileNames-call below...
-				_cmdLine.options.configFilePath = configFilePath;
+			try {
+
+				// windows: path-sep normalizing
+				file = (<InternalTsApi>ts).normalizePath(file);
+
+				if (!_cmdLine.options.configFilePath) {
+					// this is needed for the INTERNAL getOutputFileNames-call below...
+					_cmdLine.options.configFilePath = configFilePath;
+				}
+				const isDts = file.endsWith('.d.ts');
+				if (isDts) {
+					file = file.slice(0, -5) + '.ts';
+					_cmdLine.fileNames.push(file);
+				}
+				const outfile = (<InternalTsApi>ts).getOutputFileNames(_cmdLine, file, true)[0];
+				if (isDts) {
+					_cmdLine.fileNames.pop();
+				}
+				return outfile;
+
+			} catch (err) {
+				console.error(file, _cmdLine.fileNames);
+				console.error(err);
+				throw new err;
 			}
-			const isDts = file.endsWith('.d.ts');
-			if (isDts) {
-				file = file.slice(0, -5) + '.ts';
-				_cmdLine.fileNames.push(file);
-			}
-			const outfile = (<InternalTsApi>ts).getOutputFileNames(_cmdLine, file, true)[0];
-			if (isDts) {
-				_cmdLine.fileNames.pop();
-			}
-			return outfile;
 		};
 	}
 

@@ -59,7 +59,7 @@ export class TaskTerminalStatus extends Disposable {
 		});
 		problemMatcher.onDidFindErrors(() => {
 			if (this._marker) {
-				terminal.addGenericMark(this._marker, { hoverMessage: nls.localize('task.watchFirstError', "First error"), disableCommandStorage: true });
+				terminal.addGenericMark(this._marker, { hoverMessage: nls.localize('task.watchFirstError', "Beginning of detected errors for this run"), disableCommandStorage: true });
 			}
 		});
 		problemMatcher.onDidRequestInvalidateLastMarker(() => {
@@ -85,7 +85,13 @@ export class TaskTerminalStatus extends Disposable {
 		terminalData.taskRunEnded = true;
 		terminalData.terminal.statusList.remove(terminalData.status);
 		if ((event.exitCode === 0) && (terminalData.problemMatcher.numberOfMatches === 0)) {
-			terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
+			if (terminalData.task.configurationProperties.isBackground) {
+				for (const status of terminalData.terminal.statusList.statuses) {
+					terminalData.terminal.statusList.remove(status);
+				}
+			} else {
+				terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
+			}
 		} else if (event.exitCode || terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
 			terminalData.terminal.statusList.add(FAILED_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {

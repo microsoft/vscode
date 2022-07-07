@@ -252,7 +252,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.FilterAction,
-			title: localize('filter', "Filter"),
+			title: { value: localize('filter', "Filter"), original: 'Filter' },
 		});
 	}
 	async run(): Promise<void> { }

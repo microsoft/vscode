@@ -251,7 +251,7 @@ export interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
+	 * Optional default layout to apply on first time the workspace is opened (unless `force` is specified).
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 

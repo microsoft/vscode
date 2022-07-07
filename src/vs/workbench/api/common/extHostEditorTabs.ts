@@ -195,7 +195,7 @@ class ExtHostEditorTabGroup {
 			this._activeTabId = operation.tabDto.id;
 		} else if (this._activeTabId === operation.tabDto.id && !operation.tabDto.isActive) {
 			// Events aren't guaranteed to be in order so if we receive a dto that matches the active tab id
-			// but isn't active we mark the active tab id as empty. This prevent onDidActiveTabChange frorm
+			// but isn't active we mark the active tab id as empty. This prevent onDidActiveTabChange from
 			// firing incorrectly
 			this._activeTabId = '';
 		}
@@ -256,12 +256,12 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 						return this._closeTabs(tabsOrTabGroups as vscode.Tab[], preserveFocus);
 					}
 				},
-				// move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preservceFocus?: boolean) => {
+				// move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean) => {
 				// 	const extHostTab = this._findExtHostTabFromApi(tab);
 				// 	if (!extHostTab) {
 				// 		throw new Error('Invalid tab');
 				// 	}
-				// 	this._proxy.$moveTab(extHostTab.tabId, index, typeConverters.ViewColumn.from(viewColumn), preservceFocus);
+				// 	this._proxy.$moveTab(extHostTab.tabId, index, typeConverters.ViewColumn.from(viewColumn), preserveFocus);
 				// 	return;
 				// }
 			};

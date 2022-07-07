@@ -161,7 +161,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 			if (provider.refCount <= 0) {
 				this._decorationOptionProviders.delete(key);
 				provider.dispose();
-				this.listCodeEditors().forEach((ed) => ed.removeDecorations(key));
+				this.listCodeEditors().forEach((ed) => ed.removeDecorationsByType(key));
 			}
 		}
 	}

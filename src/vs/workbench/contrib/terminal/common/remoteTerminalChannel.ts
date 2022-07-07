@@ -299,6 +299,10 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call('$reviveTerminalProcesses', [state, dateTimeFormatLocate]);
 	}
 
+	getRevivedPtyNewId(id: number): Promise<number | undefined> {
+		return this._channel.call('$getRevivedPtyNewId', [id]);
+	}
+
 	serializeTerminalState(ids: number[]): Promise<string> {
 		return this._channel.call('$serializeTerminalState', [ids]);
 	}

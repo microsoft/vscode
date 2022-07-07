@@ -97,7 +97,37 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		});
 
-		test('should open single exact match against cwd when searching if it exists', async () => {
+		test('should open single exact match against cwd when searching if it exists when command detection cwd is available', async () => {
+			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+			opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, Promise.resolve('/initial/cwd'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+			// Set a fake detected command starting as line 0 to establish the cwd
+			commandDetection.setCommands([{
+				command: '',
+				cwd: '/initial/cwd',
+				timestamp: 0,
+				getOutput() { return undefined; },
+				marker: {
+					line: 0
+				} as Partial<IXtermMarker> as any,
+				hasOutput() { return true; }
+			}]);
+			fileService.setFiles([
+				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.txt' }),
+				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo2/bar.txt' })
+			]);
+			await opener.open({
+				text: 'foo/bar.txt',
+				bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+				type: TerminalBuiltinLinkType.Search
+			});
+			deepStrictEqual(activationResult, {
+				link: 'file:///initial/cwd/foo/bar.txt',
+				source: 'editor'
+			});
+		});
+
+		test('should open single exact match against cwd for paths containing a separator when searching if it exists, even when command detection isn\'t available', async () => {
 			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
 			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
 			opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, Promise.resolve('/initial/cwd'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
@@ -113,6 +143,25 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			deepStrictEqual(activationResult, {
 				link: 'file:///initial/cwd/foo/bar.txt',
 				source: 'editor'
+			});
+		});
+
+		test('should not open single exact match for paths not containing a when command detection isn\'t available', async () => {
+			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+			opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, Promise.resolve('/initial/cwd'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+			fileService.setFiles([
+				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.txt' }),
+				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo2/bar.txt' })
+			]);
+			await opener.open({
+				text: 'bar.txt',
+				bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+				type: TerminalBuiltinLinkType.Search
+			});
+			deepStrictEqual(activationResult, {
+				link: 'bar.txt',
+				source: 'search'
 			});
 		});
 
@@ -139,7 +188,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,
-					hasOutput: true
+					hasOutput() { return true; }
 				}]);
 				await opener.open({
 					text: 'file.txt',
@@ -188,7 +237,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,
-					hasOutput: true
+					hasOutput() { return true; }
 				}]);
 				await opener.open({
 					text: 'file.txt',

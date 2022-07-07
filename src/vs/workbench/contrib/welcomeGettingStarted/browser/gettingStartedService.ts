@@ -691,8 +691,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'resetGettingStartedProgress',
-			category: 'Developer',
-			title: 'Reset Welcome Page Walkthrough Progress',
+			category: { original: 'Developer', value: localize('developer', "Developer") },
+			title: { original: 'Reset Welcome Page Walkthrough Progress', value: localize('resetWelcomePageWalkthroughProgress', "Reset Welcome Page Walkthrough Progress") },
 			f1: true
 		});
 	}

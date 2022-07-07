@@ -81,7 +81,10 @@ registerAction2(class NotebookClearNotebookLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.gettingStarted',
-			title: localize('workbench.notebook.layout.gettingStarted.label', "Reset notebook getting started"),
+			title: {
+				value: localize('workbench.notebook.layout.gettingStarted.label', "Reset notebook getting started"),
+				original: 'Reset notebook getting started'
+			},
 			f1: true,
 			precondition: ContextKeyExpr.equals(`config.${NotebookSetting.openGettingStarted}`, true),
 			category: CATEGORIES.Developer,

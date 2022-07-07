@@ -85,6 +85,8 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 const enum Constants {
 	/**
@@ -154,6 +156,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private readonly _processManager: ITerminalProcessManager;
 	private readonly _resource: URI;
+	private _shutdownPersistentProcessId: number | undefined;
 
 	// Enables disposal of the xterm onKey
 	// event when the CwdDetection capability
@@ -380,7 +383,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 
@@ -547,7 +551,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _getIcon(): TerminalIcon | undefined {
 		if (!this._icon) {
-			this._icon = this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
+			this._icon = this._processManager.processState >= ProcessState.Launching
+				? getIconRegistry().getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon))
+				: undefined;
 		}
 		return this._icon;
 	}
@@ -664,8 +670,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
-	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId; }
-	get shouldPersist(): boolean { return this._processManager.shouldPersist && !this.shellLaunchConfig.isTransient; }
+	set shutdownPersistentProcessId(shutdownPersistentProcessId: number | undefined) {
+		this._shutdownPersistentProcessId = shutdownPersistentProcessId;
+	}
+	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId ?? this._shutdownPersistentProcessId; }
+	get shouldPersist(): boolean { return (this._processManager.shouldPersist || this._shutdownPersistentProcessId !== undefined) && !this.shellLaunchConfig.isTransient; }
 
 	/**
 	 * Create xterm.js instance and attach data listeners.
@@ -780,25 +789,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async showLinkQuickpick(): Promise<void> {
+	async showLinkQuickpick(extended?: boolean): Promise<void> {
 		if (!this._terminalLinkQuickpick) {
 			this._terminalLinkQuickpick = this._instantiationService.createInstance(TerminalLinkQuickpick);
+			this._terminalLinkQuickpick.onDidRequestMoreLinks(() => {
+				this.showLinkQuickpick(true);
+			});
 		}
-		const links = await this._getLinks();
+		const links = await this._getLinks(extended);
 		if (!links) {
 			return;
 		}
 		return await this._terminalLinkQuickpick.show(links);
 	}
 
-	private async _getLinks(): Promise<IDetectedLinks | undefined> {
+	private async _getLinks(extended?: boolean): Promise<IDetectedLinks | undefined> {
 		if (!this.areLinksReady || !this._linkManager) {
 			throw new Error('terminal links are not ready, cannot generate link quick pick');
 		}
 		if (!this.xterm) {
 			throw new Error('no xterm');
 		}
-		return this._linkManager.getLinks();
+		return this._linkManager.getLinks(extended);
 	}
 
 	async openRecentLink(type: 'localFile' | 'url'): Promise<void> {
@@ -870,7 +882,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						description,
 						id: entry.timestamp.toString(),
 						command: entry,
-						buttons: entry.hasOutput ? buttons : undefined
+						buttons: entry.hasOutput() ? buttons : undefined
 					});
 					commandMap.add(label);
 				}
@@ -1232,6 +1244,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	async copyLastCommandOutput(): Promise<void> {
+		const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		if (!commands || commands.length === 0) {
+			return;
+		}
+		const command = commands[commands.length - 1];
+		if (!command?.hasOutput()) {
+			return;
+		}
+		const output = command.getOutput();
+		if (output) {
+			await this._clipboardService.writeText(output);
+		}
+	}
+
 	get selection(): string | undefined {
 		return this.xterm && this.hasSelection() ? this.xterm.raw.getSelection() : undefined;
 	}
@@ -1308,11 +1335,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	override dispose(reason?: TerminalExitReason): void {
-		if (this._isDisposed) {
-			return;
-		}
-		this._isDisposed = true;
-
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 		dispose(this._linkManager);
 		this._linkManager = undefined;
@@ -1352,8 +1374,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// hasn't happened yet
 		this._onProcessExit(undefined);
 
-		this._onDisposed.fire(this);
-
+		if (!this._isDisposed) {
+			this._isDisposed = true;
+			this._onDisposed.fire(this);
+		}
 		super.dispose();
 	}
 
@@ -1731,12 +1755,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			id: TerminalStatus.ShellIntegrationAttentionNeeded,
 			severity: Severity.Warning,
 			icon: Codicon.warning,
-			tooltip: (`${exitMessage} ` ?? '') + nls.localize('launchFailed.exitCodeOnlyShellIntegration', 'Disabling shell integration with {0} might help.', '`terminal.integrated.shellIntegration.enabled`'),
+			tooltip: (`${exitMessage} ` ?? '') + nls.localize('launchFailed.exitCodeOnlyShellIntegration', 'Disabling shell integration in user settings might help.'),
 			hoverActions: [{
 				commandId: TerminalCommandId.ShellIntegrationLearnMore,
-				label: nls.localize('shellIntegration.learnMore', "Learn more"),
+				label: nls.localize('shellIntegration.learnMore', "Learn more about shell integration"),
 				run: () => {
 					this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration');
+				}
+			}, {
+				commandId: 'workbench.action.openSettings',
+				label: nls.localize('shellIntegration.openSettings', "Open user settings"),
+				run: () => {
+					this._commandService.executeCommand('workbench.action.openSettings', 'terminal.integrated.shellIntegration.enabled');
 				}
 			}]
 		});

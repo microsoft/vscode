@@ -7,17 +7,17 @@ import { compareBy, numberComparator } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
-import { IObservable, IReader, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { LineRangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/editing';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { IDiffComputer } from './diffComputer';
+import { IObservable, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 
 export class TextModelDiffs extends Disposable {
 	private updateCount = 0;
-	private readonly _state = new ObservableValue<TextModelDiffState, TextModelDiffChangeReason>(TextModelDiffState.initializing, 'LiveDiffState');
-	private readonly _diffs = new ObservableValue<DetailedLineRangeMapping[], TextModelDiffChangeReason>([], 'LiveDiffs');
+	private readonly _state = observableValue<TextModelDiffState, TextModelDiffChangeReason>('LiveDiffState', TextModelDiffState.initializing);
+	private readonly _diffs = observableValue<DetailedLineRangeMapping[], TextModelDiffChangeReason>('LiveDiffs', []);
 
 	private readonly barrier = new ReentrancyBarrier();
 	private isDisposed = false;
@@ -54,6 +54,7 @@ export class TextModelDiffs extends Disposable {
 		}
 
 		transaction(tx => {
+			/** @description Starting Diff Computation. */
 			this._state.set(
 				initializing ? TextModelDiffState.initializing : TextModelDiffState.updating,
 				tx,
@@ -72,6 +73,7 @@ export class TextModelDiffs extends Disposable {
 		}
 
 		transaction(tx => {
+			/** @description Completed Diff Computation */
 			if (result.diffs) {
 				this._state.set(TextModelDiffState.upToDate, tx, TextModelDiffChangeReason.textChange);
 				this._diffs.set(result.diffs, tx, TextModelDiffChangeReason.textChange);

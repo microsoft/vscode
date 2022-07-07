@@ -5,18 +5,24 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
+import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
+import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { EditorWorkerServiceDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { assertType } from 'vs/base/common/types';
+import { Event } from 'vs/base/common/event';
 
 export class MergeEditorInputData {
 	constructor(
@@ -33,6 +39,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 
 	private _model?: MergeEditorModel;
 	private _outTextModel?: ITextFileEditorModel;
+	private _ignoreUnhandledConflictsForDirtyState?: true;
 
 	constructor(
 		public readonly base: URI,
@@ -41,6 +48,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		public readonly result: URI,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
@@ -102,7 +111,11 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 				this.input2.title,
 				this.input2.detail,
 				this.input2.description,
-				result.object.textEditorModel
+				result.object.textEditorModel,
+				this._instaService.createInstance(EditorWorkerServiceDiffComputer),
+				{
+					resetUnknownOnInitialization: true
+				},
 			);
 
 			await this._model.onInitialized;
@@ -112,7 +125,11 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 			this._store.add(input1);
 			this._store.add(input2);
 			this._store.add(result);
+
+			this._store.add(Event.fromObservable(this._model.hasUnhandledConflicts)(() => this._onDidChangeDirty.fire(undefined)));
 		}
+
+		this._ignoreUnhandledConflictsForDirtyState = undefined;
 		return this._model;
 	}
 
@@ -129,7 +146,113 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 	// ---- FileEditorInput
 
 	override isDirty(): boolean {
-		return Boolean(this._outTextModel?.isDirty());
+		const textModelDirty = Boolean(this._outTextModel?.isDirty());
+		if (textModelDirty) {
+			// text model dirty -> 3wm is dirty
+			return true;
+		}
+		if (!this._ignoreUnhandledConflictsForDirtyState) {
+			// unhandled conflicts -> 3wm is dirty UNLESS we explicitly set this input
+			// to ignore unhandled conflicts for the dirty-state. This happens only
+			// after confirming to ignore unhandled changes
+			return Boolean(this._model && this._model.hasUnhandledConflicts.get());
+		}
+		return false;
+	}
+
+	override async confirm(editors?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
+
+		const inputs: MergeEditorInput[] = [this];
+		if (editors) {
+			for (const { editor } of editors) {
+				if (editor instanceof MergeEditorInput) {
+					inputs.push(editor);
+				}
+			}
+		}
+
+		const inputsWithUnhandledConflicts = inputs
+			.filter(input => input._model && input._model.hasUnhandledConflicts.get());
+
+		if (inputsWithUnhandledConflicts.length === 0) {
+			return ConfirmResult.SAVE;
+		}
+
+		const actions: string[] = [];
+		const options = {
+			cancelId: 0,
+			detail: inputs.length > 1
+				? localize('unhandledConflicts.detailN', 'Merge conflicts in {0} editors will remain unhandled.', inputs.length)
+				: localize('unhandledConflicts.detail1', 'Merge conflicts in this editor will remain unhandled.')
+		};
+
+		const isAnyAutoSave = this._filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF;
+		if (!isAnyAutoSave) {
+			// manual-save: FYI and discard
+			actions.push(
+				localize('unhandledConflicts.manualSaveIgnore', "Save and Continue with Conflicts"), // 0
+				localize('unhandledConflicts.discard', "Discard Merge Changes"), // 1
+				localize('unhandledConflicts.manualSaveNoSave', "Don't Save"), // 2
+			);
+
+		} else {
+			// auto-save: only FYI
+			actions.push(
+				localize('unhandledConflicts.ignore', "Continue with Conflicts"), // 0
+				localize('unhandledConflicts.discard', "Discard Merge Changes"), // 1
+			);
+		}
+
+		actions.push(localize('unhandledConflicts.cancel', "Cancel"));
+		options.cancelId = actions.length - 1;
+
+		const { choice } = await this._dialogService.show(
+			Severity.Info,
+			localize('unhandledConflicts.msg', 'Do you want to continue with unhandled conflicts?'), // 1
+			actions,
+			options
+		);
+
+		if (choice === options.cancelId) {
+			// cancel: stay in editor
+			return ConfirmResult.CANCEL;
+		}
+
+		// save or revert: in both cases we tell the inputs to ignore unhandled conflicts
+		// for the dirty state computation.
+		for (const input of inputs) {
+			input._ignoreUnhandledConflictsForDirtyState = true;
+		}
+
+		if (choice === 0) {
+			// conflicts: continue with remaining conflicts
+			return ConfirmResult.SAVE;
+
+		} else if (choice === 1) {
+			// discard: undo all changes and save original (pre-merge) state
+			for (const input of inputs) {
+				input._discardMergeChanges();
+			}
+			return ConfirmResult.SAVE;
+
+		} else {
+			// don't save
+			return ConfirmResult.DONT_SAVE;
+		}
+	}
+
+	private _discardMergeChanges(): void {
+		assertType(this._model !== undefined);
+
+		const chunks: string[] = [];
+		while (true) {
+			const chunk = this._model.resultSnapshot.read();
+			if (chunk === null) {
+				break;
+			}
+			chunks.push(chunk);
+		}
+		this._model.result.setValue(chunks.join());
 	}
 
 	setLanguageId(languageId: string, _setExplicitly?: boolean): void {
