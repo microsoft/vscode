@@ -9,7 +9,6 @@ const child_process_1 = require("child_process");
 const fs_1 = require("fs");
 const path = require("path");
 const dep_lists_1 = require("./dep-lists");
-const install_sysroot_1 = require("./install-sysroot");
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.
 // If false, we warn about new dependencies if they show up
@@ -18,14 +17,14 @@ const install_sysroot_1 = require("./install-sysroot");
 // The reference dependencies, which one has to update when the new dependencies
 // are valid, are in dep-lists.ts
 const FAIL_BUILD_FOR_NEW_DEPENDENCIES = true;
-function getDependencies(buildDir, applicationName, arch) {
+function getDependencies(buildDir, applicationName, arch, sysroot) {
     // Get the files for which we want to find dependencies.
     const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules.asar.unpacked');
     const findResult = (0, child_process_1.spawnSync)('find', [nativeModulesPath, '-name', '*.node']);
     if (findResult.status) {
         console.error('Error finding files:');
         console.error(findResult.stderr.toString());
-        return Promise.resolve([]);
+        return [];
     }
     const files = findResult.stdout.toString().trimEnd().split('\n');
     const appPath = path.join(buildDir, applicationName);
@@ -34,42 +33,38 @@ function getDependencies(buildDir, applicationName, arch) {
     files.push(path.join(buildDir, 'chrome-sandbox'));
     files.push(path.join(buildDir, 'chrome_crashpad_handler'));
     // Generate the dependencies.
-    const dependencies = files.map((file) => calculatePackageDeps(file, arch, buildDir));
-    return Promise.all(dependencies).then((resolvedDependencies) => {
-        // Add additional dependencies.
-        const additionalDepsSet = new Set(dep_lists_1.additionalDeps);
-        resolvedDependencies.push(additionalDepsSet);
-        // Merge all the dependencies.
-        const mergedDependencies = mergePackageDeps(resolvedDependencies);
-        let sortedDependencies = [];
-        for (const dependency of mergedDependencies) {
-            sortedDependencies.push(dependency);
-        }
-        sortedDependencies.sort();
-        // Exclude bundled dependencies
-        sortedDependencies = sortedDependencies.filter(dependency => {
-            return !dep_lists_1.bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
-        });
-        const referenceGeneratedDeps = dep_lists_1.referenceGeneratedDepsByArch[arch];
-        if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
-            const failMessage = 'The dependencies list has changed. '
-                + 'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:'
-                + sortedDependencies.join('\n');
-            if (FAIL_BUILD_FOR_NEW_DEPENDENCIES) {
-                throw new Error(failMessage);
-            }
-            else {
-                console.warn(failMessage);
-            }
-        }
-        return sortedDependencies;
+    const dependencies = files.map((file) => calculatePackageDeps(file, arch, sysroot));
+    // Add additional dependencies.
+    const additionalDepsSet = new Set(dep_lists_1.additionalDeps);
+    dependencies.push(additionalDepsSet);
+    // Merge all the dependencies.
+    const mergedDependencies = mergePackageDeps(dependencies);
+    let sortedDependencies = [];
+    for (const dependency of mergedDependencies) {
+        sortedDependencies.push(dependency);
+    }
+    sortedDependencies.sort();
+    // Exclude bundled dependencies
+    sortedDependencies = sortedDependencies.filter(dependency => {
+        return !dep_lists_1.bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
     });
+    const referenceGeneratedDeps = dep_lists_1.referenceGeneratedDepsByArch[arch];
+    if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
+        const failMessage = 'The dependencies list has changed. '
+            + 'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:'
+            + sortedDependencies.join('\n');
+        if (FAIL_BUILD_FOR_NEW_DEPENDENCIES) {
+            throw new Error(failMessage);
+        }
+        else {
+            console.warn(failMessage);
+        }
+    }
+    return sortedDependencies;
 }
 exports.getDependencies = getDependencies;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/calculate_package_deps.py.
-async function calculatePackageDeps(binaryPath, arch, buildRoot) {
-    // TODO: Do we need this following try-catch check for Debian?
-    // Test by running it through the CL.
+function calculatePackageDeps(binaryPath, arch, sysroot) {
     try {
         if (!((0, fs_1.statSync)(binaryPath).mode & fs_1.constants.S_IXUSR)) {
             throw new Error(`Binary ${binaryPath} needs to have an executable bit set.`);
@@ -79,7 +74,6 @@ async function calculatePackageDeps(binaryPath, arch, buildRoot) {
         // The package might not exist. Don't re-throw the error here.
         console.error('Tried to stat ' + binaryPath + ' but failed.');
     }
-    const sysroot = await (0, install_sysroot_1.getSysroot)(arch);
     // With the Chromium dpkg-shlibdeps, we would be able to add an --ignore-weak-undefined flag.
     // For now, try using the system dpkg-shlibdeps instead of the Chromium one.
     const dpkgShlibdepsScriptLocation = '/usr/bin/dpkg-shlibdeps';
@@ -98,7 +92,6 @@ async function calculatePackageDeps(binaryPath, arch, buildRoot) {
             throw new Error('Unsupported architecture ' + arch);
     }
     cmd.push(`-l${sysroot}/usr/lib`);
-    cmd.push(`-l${path.resolve(buildRoot)}`);
     cmd.push('-O', '-e', path.resolve(binaryPath));
     const dpkgShlibdepsResult = (0, child_process_1.spawnSync)(dpkgShlibdepsScriptLocation, cmd, { cwd: sysroot });
     if (dpkgShlibdepsResult.status !== 0) {

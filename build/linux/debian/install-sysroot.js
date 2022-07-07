@@ -7,13 +7,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getSysroot = void 0;
 const child_process_1 = require("child_process");
 const crypto_1 = require("crypto");
+const os_1 = require("os");
 const fs = require("fs");
 const https = require("https");
 const path = require("path");
 const sysroots_1 = require("./sysroots");
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
-const URL_PREFIX = 'https://s3.amazonaws.com';
-const URL_PATH = 'electronjs-sysroots/toolchain';
+const URL_PREFIX = 'https://msftelectron.blob.core.windows.net/';
+const URL_PATH = 'sysroots/toolchain';
 function getSha(filename) {
     const hash = (0, crypto_1.createHash)('sha1');
     // Read file 1 MB at a time
@@ -32,16 +33,14 @@ async function getSysroot(arch) {
     const sysrootDict = sysroots_1.sysrootInfo[arch];
     const tarballFilename = sysrootDict['Tarball'];
     const tarballSha = sysrootDict['Sha1Sum'];
-    const sysroot = path.join(__dirname, sysrootDict['SysrootDir']);
+    const sysroot = path.join((0, os_1.tmpdir)(), sysrootDict['SysrootDir']);
     const url = [URL_PREFIX, URL_PATH, tarballSha, tarballFilename].join('/');
     const stamp = path.join(sysroot, '.stamp');
     if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === url) {
         return sysroot;
     }
     console.log(`Installing Debian ${arch} root image: ${sysroot}`);
-    if (fs.existsSync(sysroot) && fs.statSync(sysroot).isDirectory()) {
-        fs.rmSync(sysroot, { recursive: true, force: true });
-    }
+    fs.rmSync(sysroot, { recursive: true, force: true });
     fs.mkdirSync(sysroot);
     const tarball = path.join(sysroot, tarballFilename);
     console.log(`Downloading ${url}`);
