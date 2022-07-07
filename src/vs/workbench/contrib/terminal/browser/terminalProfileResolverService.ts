@@ -148,7 +148,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon)
 			|| this._getCustomIcon(resolvedProfile.icon)
 			|| this.getDefaultIcon();
-		console.log('icon2', shellLaunchConfig.icon);
 
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
