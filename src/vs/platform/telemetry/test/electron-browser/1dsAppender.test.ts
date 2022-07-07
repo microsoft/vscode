@@ -2,23 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Contracts, TelemetryClient } from 'applicationinsights';
+import { AppInsightsCore } from '@microsoft/1ds-core-js';
 import * as assert from 'assert';
-import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 
-class AppInsightsMock extends TelemetryClient {
+class AppInsightsCoreMock extends AppInsightsCore {
 	public override config: any;
-	public override channel: any;
-	public events: Contracts.EventTelemetry[] = [];
+	public events: any[] = [];
 	public IsTrackingPageView: boolean = false;
 	public exceptions: any[] = [];
 
 	constructor() {
-		super('testKey');
+		super();
 	}
 
-	public override trackEvent(event: any) {
-		this.events.push(event);
+	public override track(event: any) {
+		this.events.push(event.baseData);
 	}
 
 	public override flush(options: any): void {
@@ -27,14 +26,14 @@ class AppInsightsMock extends TelemetryClient {
 }
 
 suite('AIAdapter', () => {
-	let appInsightsMock: AppInsightsMock;
-	let adapter: AppInsightsAppender;
+	let appInsightsMock: AppInsightsCoreMock;
+	let adapter: OneDataSystemAppender;
 	const prefix = 'prefix';
 
 
 	setup(() => {
-		appInsightsMock = new AppInsightsMock();
-		adapter = new AppInsightsAppender(prefix, undefined!, () => appInsightsMock);
+		appInsightsMock = new AppInsightsCoreMock();
+		adapter = new OneDataSystemAppender(undefined, prefix, undefined!, () => appInsightsMock);
 	});
 
 	teardown(() => {
@@ -49,7 +48,7 @@ suite('AIAdapter', () => {
 	});
 
 	test('addional data', () => {
-		adapter = new AppInsightsAppender(prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
+		adapter = new OneDataSystemAppender(undefined, prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
 		adapter.log('testEvent');
 
 		assert.strictEqual(appInsightsMock.events.length, 1);

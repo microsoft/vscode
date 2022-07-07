@@ -11,7 +11,6 @@ import { ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
-import { WebAppInsightsAppender } from 'vs/platform/telemetry/browser/appInsightsAppender';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
@@ -38,17 +37,11 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (supportsTelemetry(productService, environmentService) && productService.aiConfig?.asimovKey && productService.aiConfig?.ariaKey) {
+		if (supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey) {
 			// If remote server is present send telemetry through that, else use the client side appender
-			const internalTesting = configurationService.getValue<boolean>('telemetry.internalTesting');
 			const appenders = [];
-			if (internalTesting || productService.aiConfig?.preferAria) {
-				const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new OneDataSystemWebAppender(configurationService, 'monacoworkbench', null, productService.aiConfig?.ariaKey);
-				appenders.push(telemetryProvider);
-			} else {
-				const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new WebAppInsightsAppender('monacoworkbench', productService.aiConfig?.asimovKey);
-				appenders.push(telemetryProvider);
-			}
+			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new OneDataSystemWebAppender(configurationService, 'monacoworkbench', null, productService.aiConfig?.ariaKey);
+			appenders.push(telemetryProvider);
 			appenders.push(new TelemetryLogAppender(loggerService, environmentService));
 			const config: ITelemetryServiceConfig = {
 				appenders,
