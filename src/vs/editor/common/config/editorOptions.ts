@@ -563,7 +563,7 @@ export interface IEditorOptions {
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
 	 */
-	showFoldingControls?: 'always' | 'mouseover';
+	showFoldingControls?: 'always' | 'never' | 'mouseover';
 	/**
 	 * Controls whether clicking on the empty content after a folded line will unfold the line.
 	 * Defaults to false.
@@ -2331,6 +2331,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const rawLineDecorationsWidth = options.get(EditorOption.lineDecorationsWidth);
 		const folding = options.get(EditorOption.folding);
+		const showFoldingDecoration = options.get(EditorOption.showFoldingControls) !== 'never';
 
 		let lineDecorationsWidth: number;
 		if (typeof rawLineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(rawLineDecorationsWidth)) {
@@ -2339,7 +2340,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		} else {
 			lineDecorationsWidth = EditorIntOption.clampedInt(rawLineDecorationsWidth, 0, 0, 1000);
 		}
-		if (folding) {
+		if (folding && showFoldingDecoration) {
 			lineDecorationsWidth += 16;
 		}
 
@@ -5039,11 +5040,12 @@ export const EditorOptions = {
 	)),
 	showFoldingControls: register(new EditorStringEnumOption(
 		EditorOption.showFoldingControls, 'showFoldingControls',
-		'mouseover' as 'always' | 'mouseover',
-		['always', 'mouseover'] as const,
+		'mouseover' as 'always' | 'never' | 'mouseover',
+		['always', 'never', 'mouseover'] as const,
 		{
 			enumDescriptions: [
 				nls.localize('showFoldingControls.always', "Always show the folding controls."),
+				nls.localize('showFoldingControls.never', "Never show the folding controls and reduce the gutter size."),
 				nls.localize('showFoldingControls.mouseover', "Only show the folding controls when the mouse is over the gutter."),
 			],
 			description: nls.localize('showFoldingControls', "Controls when the folding controls on the gutter are shown.")
