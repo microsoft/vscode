@@ -23,6 +23,7 @@ export function setup() {
 			describe('hide', () => {
 				it('true', async () => {
 					await task.configureTask({ type, command, label: name, hide: true });
+					await sleep(2000);
 					await task.runTask(name, []);
 				});
 				it('false', async () => {
@@ -53,5 +54,10 @@ export function setup() {
 				});
 			});
 		});
+	});
+}
+function sleep(ms: number): Promise<void> {
+	return new Promise(resolve => {
+		setTimeout(resolve, ms);
 	});
 }

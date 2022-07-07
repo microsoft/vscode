@@ -32,16 +32,14 @@ export class Task {
 	}
 
 	async runTask(filter: string, expected: ITaskConfigurationProperties[]) {
+		await this.code.dispatchKeybinding('right');
+		await this.editors.saveOpenedFile();
 		await this.quickaccess.runCommand('workbench.action.tasks.runTask');
-		await this.quickInput.waitForQuickInputOpened();
-		await this.quickInput.type(filter);
-		await this.quickInput.waitForQuickInputClosed();
 		if (expected.length === 0) {
-			await this.quickInput.waitForQuickInputElements(elements => elements.length === 1);
+			await this.quickInput.waitForQuickInputElements(e => e.length > 1 && e.every(value => value !== filter));
 		} else {
-			await this.quickInput.waitForQuickInputElements(elements => elements.length === expected.length);
+			await this.quickInput.waitForQuickInputElements(e => e.length > 1 && e.includes(filter));
 		}
-		await this.quickInput.closeQuickInput();
 	}
 
 	async configureTask(properties: ITaskConfigurationProperties) {
@@ -51,8 +49,7 @@ export class Task {
 		await this.code.dispatchKeybinding('Delete');
 		await this.editors.saveOpenedFile();
 		await this.code.dispatchKeybinding('right');
-		await this.editor.waitForTypeInEditor('tasks.json', `{`);
-		let taskString = `
+		let taskString = `{
 			"version": "2.0.0",
 			"tasks": [
 				{`;
@@ -61,7 +58,6 @@ export class Task {
 			taskString += `"${key}": ${value},\n`;
 		}
 		taskString += `}]`;
-		await this.editor.waitForTypeInEditor('tasks.json', `${taskString}`);
-		await this.editors.saveOpenedFile();
+		this.editor.waitForTypeInEditor('tasks.json', `${taskString}`);
 	}
 }
