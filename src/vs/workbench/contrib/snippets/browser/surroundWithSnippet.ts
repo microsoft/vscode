@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { pickSnippet } from 'vs/workbench/contrib/snippets/browser/snippetPicker';
 import { ISnippetsService } from './snippets.contribution';
@@ -23,6 +23,12 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Position } from 'vs/editor/common/core/position';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorInputCapabilities } from 'vs/workbench/common/editor';
 
 const options = {
 	id: 'editor.action.surroundWithSnippet',
@@ -37,72 +43,88 @@ const options = {
 	f1: true,
 };
 
-class SurroundWithSnippet {
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@ISnippetsService private readonly _snippetService: ISnippetsService,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-	) { }
+const MAX_SNIPPETS_ON_CODE_ACTIONS_MENU = 6;
 
-	async getSurroundableSnippets(): Promise<Snippet[]> {
-		if (!this._editor.hasModel()) {
-			return [];
-		}
-
-		const model = this._editor.getModel();
-		const { lineNumber, column } = this._editor.getPosition();
-		model.tokenization.tokenizeIfCheap(lineNumber);
-		const languageId = model.getLanguageIdAtPosition(lineNumber, column);
-
-		const allSnippets = await this._snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true, includeDisabledSnippets: true });
-		return allSnippets.filter(snippet => snippet.usesSelection);
-	}
-
-	canExecute(): boolean {
-		return this._contextKeyService.contextMatchesRules(options.precondition);
-	}
-
-	async run() {
-		if (!this.canExecute()) {
-			return;
-		}
-
-		const snippets = await this.getSurroundableSnippets();
-		if (!snippets.length) {
-			return;
-		}
-
-		const snippet = await this._instaService.invokeFunction(pickSnippet, snippets);
-		if (!snippet) {
-			return;
-		}
-
-		let clipboardText: string | undefined;
-		if (snippet.needsClipboard) {
-			clipboardText = await this._clipboardService.readText();
-		}
-
-		SnippetController2.get(this._editor)?.insert(snippet.codeSnippet, { clipboardText });
-	}
+function makeCodeActionForSnippet(snippet: Snippet): CodeAction {
+	const title = localize('codeAction', "Surround With Snippet: {0}", snippet.name);
+	return {
+		title,
+		command: {
+			id: 'editor.action.insertSnippet',
+			title,
+			arguments: [{ name: snippet.name }]
+		},
+	};
 }
 
-class SurroundWithSnippetEditorAction extends EditorAction2 {
+async function getSurroundableSnippets(accessor: ServicesAccessor, model: ITextModel | null, position: Position | null): Promise<Snippet[]> {
+	if (!model) {
+		return [];
+	}
+
+	const snippetsService = accessor.get(ISnippetsService);
+
+	let languageId: string;
+	if (position) {
+		const { lineNumber, column } = position;
+		model.tokenization.tokenizeIfCheap(lineNumber);
+		languageId = model.getLanguageIdAtPosition(lineNumber, column);
+	} else {
+		languageId = model.getLanguageId();
+	}
+
+	const allSnippets = await snippetsService.getSnippets(languageId, { includeNoPrefixSnippets: true, includeDisabledSnippets: true });
+	return allSnippets.filter(snippet => snippet.usesSelection);
+}
+
+function canExecute(accessor: ServicesAccessor): boolean {
+	const editorService = accessor.get(IEditorService);
+
+	const editor = editorService.activeEditor;
+	if (!editor || editor.hasCapability(EditorInputCapabilities.Readonly)) {
+		return false;
+	}
+	const selections = editorService.activeTextEditorControl?.getSelections();
+	return !!selections && selections.length > 0;
+}
+
+async function surroundWithSnippet(accessor: ServicesAccessor, editor: ICodeEditor) {
+	const instaService = accessor.get(IInstantiationService);
+	const clipboardService = accessor.get(IClipboardService);
+
+	if (!canExecute(accessor)) {
+		return;
+	}
+
+	const snippets = await getSurroundableSnippets(accessor, editor.getModel(), editor.getPosition());
+	if (!snippets.length) {
+		return;
+	}
+
+	const snippet = await instaService.invokeFunction(pickSnippet, snippets);
+	if (!snippet) {
+		return;
+	}
+
+	let clipboardText: string | undefined;
+	if (snippet.needsClipboard) {
+		clipboardText = await clipboardService.readText();
+	}
+
+	SnippetController2.get(editor)?.insert(snippet.codeSnippet, { clipboardText });
+}
+
+
+registerAction2(class SurroundWithSnippetEditorAction extends EditorAction2 {
 	constructor() {
 		super(options);
 	}
 	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-		const instaService = accessor.get(IInstantiationService);
-		const core = instaService.createInstance(SurroundWithSnippet, editor);
-		await core.run();
+		await surroundWithSnippet(accessor, editor);
 	}
-}
+});
 
-registerAction2(SurroundWithSnippetEditorAction);
-
-
-export class SurroundWithSnippetCodeActionProvider extends Disposable implements CodeActionProvider {
+export class SurroundWithSnippetCodeActionProvider extends Disposable implements CodeActionProvider, IWorkbenchContribution {
 	private static readonly codeAction: CodeAction = {
 		kind: CodeActionKind.Refactor.value,
 		title: options.title.value,
@@ -112,28 +134,30 @@ export class SurroundWithSnippetCodeActionProvider extends Disposable implements
 		},
 	};
 
-	private core: SurroundWithSnippet;
-
 	constructor(
-		editor: ICodeEditor,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@IInstantiationService instaService: IInstantiationService,
+		@IInstantiationService private readonly instaService: IInstantiationService,
 	) {
 		super();
-		this.core = instaService.createInstance(SurroundWithSnippet, editor);
 		this._register(languageFeaturesService.codeActionProvider.register('*', this));
 	}
 
 	async provideCodeActions(model: ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): Promise<CodeActionList> {
-		if (!this.core.canExecute()) {
+		if (!this.instaService.invokeFunction(canExecute)) {
 			return { actions: [], dispose: () => { } };
 		}
-		const snippets = await this.core.getSurroundableSnippets();
+
+		const snippets = await this.instaService.invokeFunction(accessor => getSurroundableSnippets(accessor, model, range.getEndPosition()));
+		if (!snippets.length) {
+			return { actions: [], dispose: () => { } };
+		}
 		return {
-			actions: snippets.length ? [SurroundWithSnippetCodeActionProvider.codeAction] : [],
+			actions: snippets.length <= MAX_SNIPPETS_ON_CODE_ACTIONS_MENU
+				? snippets.map(x => makeCodeActionForSnippet(x))
+				: [SurroundWithSnippetCodeActionProvider.codeAction],
 			dispose: () => { }
 		};
 	}
 }
 
-registerEditorContribution(options.id, SurroundWithSnippetCodeActionProvider);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SurroundWithSnippetCodeActionProvider, LifecyclePhase.Restored);
