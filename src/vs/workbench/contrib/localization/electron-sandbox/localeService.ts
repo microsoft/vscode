@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { language } from 'vs/base/common/platform';
+import { Language } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -19,6 +19,9 @@ import { toAction } from 'vs/base/common/actions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { stripComments } from 'vs/base/common/stripComments';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class NativeLocaleService implements ILocaleService {
 	_serviceBrand: undefined;
@@ -32,7 +35,10 @@ export class NativeLocaleService implements ILocaleService {
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IProgressService private readonly progressService: IProgressService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IHostService private readonly hostService: IHostService,
+		@IProductService private readonly productService: IProductService
 	) { }
 
 	private async validateLocaleFile(): Promise<boolean> {
@@ -69,10 +75,10 @@ export class NativeLocaleService implements ILocaleService {
 		return true;
 	}
 
-	async setLocale(languagePackItem: ILanguagePackItem): Promise<boolean> {
+	async setLocale(languagePackItem: ILanguagePackItem): Promise<void> {
 		const locale = languagePackItem.id;
-		if (locale === language || (!locale && language === 'en')) {
-			return false;
+		if (locale === Language.value() || (!locale && Language.isDefaultVariant())) {
+			return;
 		}
 		const installedLanguages = await this.languagePackService.getInstalledLanguages();
 		try {
@@ -87,7 +93,7 @@ export class NativeLocaleService implements ILocaleService {
 					// as of now, there are no 3rd party language packs available on the Marketplace.
 					const viewlet = await this.paneCompositePartService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar);
 					(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`@id:${languagePackItem.extensionId}`);
-					return false;
+					return;
 				}
 
 				await this.progressService.withProgress(
@@ -102,22 +108,40 @@ export class NativeLocaleService implements ILocaleService {
 				);
 			}
 
-			return await this.writeLocaleValue(locale);
+			if (await this.writeLocaleValue(locale)) {
+				await this.showRestartDialog(languagePackItem.label);
+			}
 		} catch (err) {
 			this.notificationService.error(err);
-			return false;
 		}
 	}
 
-	async clearLocalePreference(): Promise<boolean> {
-		if (language === 'en') {
-			return false;
-		}
+	async clearLocalePreference(): Promise<void> {
 		try {
-			return await this.writeLocaleValue(undefined);
+			await this.writeLocaleValue(undefined);
+			if (!Language.isDefaultVariant()) {
+				await this.showRestartDialog('English');
+			}
 		} catch (err) {
 			this.notificationService.error(err);
-			return false;
+		}
+	}
+
+	private async showRestartDialog(languageName: string) {
+		const restartDialog = await this.dialogService.confirm({
+			type: 'info',
+			message: localize('restartDisplayLanguageMessage', "{0} needs to restart to change the display language", this.productService.nameLong),
+			detail: localize(
+				'restartDisplayLanguageDetail',
+				"Press the restart button to restart {0} and set the display language to {1}.",
+				this.productService.nameLong,
+				languageName
+			),
+			primaryButton: localize({ key: 'restart', comment: ['&& denotes a mnemonic character'] }, "&&Restart"),
+		});
+
+		if (restartDialog.confirmed) {
+			this.hostService.restart();
 		}
 	}
 }
