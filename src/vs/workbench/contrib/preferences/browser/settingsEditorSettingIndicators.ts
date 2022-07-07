@@ -139,6 +139,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// Render inline if we have the flag and there are scope overrides to render,
 				// or if there is only one scope override to render and no language overrides.
 				this.scopeOverridesElement.style.display = 'inline';
+				this.scopeOverridesElement.classList.remove('with-custom-hover');
 				this.hover?.dispose();
 
 				// Just show all the text in the label.
@@ -170,6 +171,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// show the text in a custom hover only if
 				// the feature flag isn't on.
 				this.scopeOverridesElement.style.display = 'inline';
+				this.scopeOverridesElement.classList.add('with-custom-hover');
 				const scopeOverridesLabelText = element.isConfigured ?
 					localize('alsoConfiguredElsewhere', "Also modified elsewhere") :
 					localize('configuredElsewhere', "Modified elsewhere");
