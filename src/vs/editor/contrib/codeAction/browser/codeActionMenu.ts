@@ -5,7 +5,7 @@
 
 // import * as dom from 'vs/base/browser/dom';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IAnchor, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IListEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
@@ -14,7 +14,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, dispose, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -22,12 +22,11 @@ import { CodeAction, Command } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionModel } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/browser/types';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 // import { Emitter } from 'vs/base/common/event';
 
@@ -202,8 +201,6 @@ export class CodeActionMenu extends Disposable {
 			this.codeActionList.dispose();
 			this._contextViewService.hideContextView();
 			this.options = [];
-
-			// this.parent.dispose();
 		}
 	}
 
@@ -270,6 +267,10 @@ export class CodeActionMenu extends Disposable {
 
 	}
 
+	override dispose() {
+		this._contextViewService.hideContextView();
+	}
+
 
 	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
 		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
@@ -277,10 +278,6 @@ export class CodeActionMenu extends Disposable {
 			this._visible = false;
 			return;
 		}
-
-		// this.showActions = actionsToShow;
-
-		//Some helper that will make a call to this.getMenuActions()
 
 		if (!this._editor.getDomNode()) {
 			// cancel when editor went off-dom
@@ -293,12 +290,7 @@ export class CodeActionMenu extends Disposable {
 
 		const menuActions = this.getMenuActions(trigger, actionsToShow, codeActions.documentation);
 
-		// this.menuAction = menuActions;
-
-
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
-		// this.loc = anchor;
-
 
 		const resolver = this._keybindingResolver.getResolver();
 
