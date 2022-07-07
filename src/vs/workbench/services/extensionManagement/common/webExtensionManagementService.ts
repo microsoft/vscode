@@ -21,7 +21,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly onDidChangeProfileExtensions = Event.None;
+	readonly onDidChangeProfileExtensions: Event<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>;
 
 	constructor(
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
@@ -32,6 +32,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		@IProductService productService: IProductService,
 	) {
 		super(extensionGalleryService, telemetryService, logService, productService);
+		this.onDidChangeProfileExtensions = Event.map(this.webExtensionsScannerService.onDidChangeProfileExtensions, e => ({ added: e.added.map(a => toLocalExtension(a)), removed: e.removed.map(a => toLocalExtension(a)) }));
 	}
 
 	async getTargetPlatform(): Promise<TargetPlatform> {

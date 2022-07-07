@@ -157,6 +157,8 @@ export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScanne
 export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 
+	readonly onDidChangeProfileExtensions: Event<{ readonly added: IScannedExtension[]; readonly removed: IScannedExtension[] }>;
+
 	scanSystemExtensions(): Promise<IExtension[]>;
 	scanUserExtensions(options?: ScanOptions): Promise<IScannedExtension[]>;
 	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;

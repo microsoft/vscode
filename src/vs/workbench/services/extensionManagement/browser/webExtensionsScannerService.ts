@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionIdentifier, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionIdentifier, IExtension, IExtensionManifest, TargetPlatform, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IScannedExtension, IWebExtensionsScannerService, ScanOptions } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { isWeb, Language } from 'vs/base/common/platform';
@@ -33,15 +33,17 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/path';
 import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { delta, isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
 import Severity from 'vs/base/common/severity';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Emitter } from 'vs/base/common/event';
+import { compare } from 'vs/base/common/strings';
 
 type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrateStorageFrom?: string };
 type ExtensionInfo = { readonly id: string; preRelease: boolean };
@@ -87,6 +89,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;
 	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IWebExtension[]>>();
 
+	private readonly _onDidChangeProfileExtensions = this._register(new Emitter<{ readonly added: IScannedExtension[]; readonly removed: IScannedExtension[] }>());
+	readonly onDidChangeProfileExtensions = this._onDidChangeProfileExtensions.event;
+
 	constructor(
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IBuiltinExtensionsScannerService private readonly builtinExtensionsScannerService: IBuiltinExtensionsScannerService,
@@ -110,6 +115,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 			// Eventually update caches
 			lifecycleService.when(LifecyclePhase.Eventually).then(() => this.updateCaches());
+			this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenProfileChanged(e))));
 		}
 	}
 
@@ -381,7 +387,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 
 		// User Installed extensions
-		const installedExtensions = await this.scanInstalledExtensions(scanOptions);
+		const installedExtensions = await this.scanInstalledExtensions(this.userDataProfileService.currentProfile, scanOptions);
 		for (const extension of installedExtensions) {
 			extensions.set(extension.identifier.id.toLowerCase(), extension);
 		}
@@ -480,30 +486,30 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			const installedExtensions = await this.readInstalledExtensions(profile);
 			// Also add to installed extensions if it is installed to update its version
 			if (installedExtensions.some(e => areSameExtensions(e.identifier, webExtension.identifier))) {
-				await this.addToInstalledExtensions(webExtension, profile);
+				await this.addToInstalledExtensions([webExtension], profile);
 			}
 			return extension;
 		}
 
 		// Add to installed extensions
-		await this.addToInstalledExtensions(webExtension, profile);
+		await this.addToInstalledExtensions([webExtension], profile);
 		return extension;
 	}
 
-	private async addToInstalledExtensions(webExtension: IWebExtension, profile: IUserDataProfile): Promise<void> {
+	private async addToInstalledExtensions(webExtensions: IWebExtension[], profile: IUserDataProfile): Promise<void> {
 		await this.writeInstalledExtensions(profile, installedExtensions => {
 			// Remove the existing extension to avoid duplicates
-			installedExtensions = installedExtensions.filter(e => !areSameExtensions(e.identifier, webExtension.identifier));
-			installedExtensions.push(webExtension);
+			installedExtensions = installedExtensions.filter(installedExtension => webExtensions.some(extension => !areSameExtensions(installedExtension.identifier, extension.identifier)));
+			installedExtensions.push(...webExtensions);
 			return installedExtensions;
 		});
 	}
 
-	private async scanInstalledExtensions(scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
-		let installedExtensions = await this.readInstalledExtensions(this.userDataProfileService.currentProfile);
+	private async scanInstalledExtensions(profile: IUserDataProfile, scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
+		let installedExtensions = await this.readInstalledExtensions(profile);
 
 		// If current profile is not a default profile, then add the application extensions to the list
-		if (!this.userDataProfileService.currentProfile.isDefault) {
+		if (!profile.isDefault) {
 			// Remove application extensions from the non default profile
 			installedExtensions = installedExtensions.filter(i => !i.metadata?.isApplicationScoped);
 			// Add application extensions from the default profile to the list
@@ -830,6 +836,19 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}));
 	}
 
+	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
+		if (e.preserveData) {
+			const extensions = (await this.readInstalledExtensions(e.previous)).filter(e => !e.metadata?.isApplicationScoped); /* remove application scoped extensions */
+			await this.addToInstalledExtensions(extensions, e.profile);
+		} else {
+			const oldExtensions = await this.scanInstalledExtensions(e.previous);
+			const newExtensions = await this.scanInstalledExtensions(e.profile);
+			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
+			if (added.length || removed.length) {
+				this._onDidChangeProfileExtensions.fire({ added, removed });
+			}
+		}
+	}
 }
 
 registerSingleton(IWebExtensionsScannerService, WebExtensionsScannerService);
