@@ -2127,10 +2127,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.focus),
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KeyZ,
-					weight: KeybindingWeight.WorkbenchContrib
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: TerminalContextKeys.focus
 				}
 			});
 		}
@@ -2138,12 +2139,13 @@ export function registerTerminalActions() {
 			await accessor.get(ITerminalService).doWithActiveInstance(t => t.toggleSizeToContentWidth());
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
 				id: TerminalCommandId.SizeToContentWidthInstance,
 				title: terminalStrings.toggleSizeToContentWidth,
-				f1: true,
+				f1: false,
 				category,
 				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus)
 			});
