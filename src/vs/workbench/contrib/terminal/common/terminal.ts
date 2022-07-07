@@ -341,7 +341,7 @@ export interface ITerminalCommand {
 	cwd?: string;
 	exitCode?: number;
 	marker?: IXtermMarker;
-	hasOutput: boolean;
+	hasOutput(): boolean;
 	getOutput(): string | undefined;
 	genericMarkProperties?: IGenericMarkProperties;
 }
