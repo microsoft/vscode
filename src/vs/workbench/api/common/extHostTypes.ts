@@ -549,7 +549,6 @@ export class TextEdit {
 
 	protected _range: Range;
 	protected _newText: string | null;
-	newText2?: string | SnippetString;
 	protected _newEol?: EndOfLine;
 
 	get range(): Range {
@@ -660,6 +659,7 @@ export const enum FileEditType {
 	Text = 2,
 	Cell = 3,
 	CellReplace = 5,
+	Snippet = 6,
 }
 
 export interface IFileOperation {
@@ -674,6 +674,14 @@ export interface IFileTextEdit {
 	_type: FileEditType.Text;
 	uri: URI;
 	edit: TextEdit;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
+}
+
+export interface IFileSnippetTextEdit {
+	_type: FileEditType.Snippet;
+	uri: URI;
+	range: vscode.Range;
+	edit: vscode.SnippetString;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
@@ -695,7 +703,7 @@ export interface ICellEdit {
 }
 
 
-type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileCellEdit | ICellEdit;
+type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileSnippetTextEdit | IFileCellEdit | ICellEdit;
 
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
@@ -762,8 +770,12 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- text
 
-	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
+	replace(uri: URI, range: Range, newText: string | vscode.SnippetString, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		if (typeof newText === 'string') {
+			this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
+		} else {
+			this._edits.push({ _type: FileEditType.Snippet, uri, range, edit: newText, metadata });
+		}
 	}
 
 	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
