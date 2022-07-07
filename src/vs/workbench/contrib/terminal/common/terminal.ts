@@ -343,7 +343,7 @@ export interface ITerminalCommand {
 	cwd?: string;
 	exitCode?: number;
 	marker?: IXtermMarker;
-	hasOutput: boolean;
+	hasOutput(): boolean;
 	getOutput(): string | undefined;
 	genericMarkProperties?: IGenericMarkProperties;
 }
@@ -478,6 +478,7 @@ export const enum TerminalCommandId {
 	OpenFileLink = 'workbench.action.terminal.openFileLink',
 	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
+	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopySelection = 'workbench.action.terminal.copySelection',
 	CopySelectionAsHtml = 'workbench.action.terminal.copySelectionAsHtml',
@@ -576,6 +577,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.Clear,
 	TerminalCommandId.CopySelection,
 	TerminalCommandId.CopySelectionAsHtml,
+	TerminalCommandId.CopyLastCommand,
 	TerminalCommandId.DeleteToLineStart,
 	TerminalCommandId.DeleteWordLeft,
 	TerminalCommandId.DeleteWordRight,

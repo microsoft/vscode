@@ -330,6 +330,20 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.CopyLastCommand,
+				title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command'), original: 'Copy Last Command' },
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			await accessor.get(ITerminalService).activeInstance?.copyLastCommandOutput();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.GoToRecentDirectory,
 				title: { value: localize('workbench.action.terminal.goToRecentDirectory', "Go to Recent Directory..."), original: 'Go to Recent Directory...' },
 				f1: true,

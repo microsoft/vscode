@@ -10,7 +10,7 @@ import { registerPasteSupport } from './languageFeatures/copyPaste';
 import { registerDefinitionSupport } from './languageFeatures/definitions';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
 import { MdLinkProvider, registerDocumentLinkSupport } from './languageFeatures/documentLinks';
-import { MdDocumentSymbolProvider, registerDocumentSymbolSupport } from './languageFeatures/documentSymbols';
+import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbols';
 import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
 import { registerFoldingSupport } from './languageFeatures/folding';
@@ -19,36 +19,32 @@ import { MdReferencesProvider, registerReferencesSupport } from './languageFeatu
 import { registerRenameSupport } from './languageFeatures/rename';
 import { registerSmartSelectSupport } from './languageFeatures/smartSelect';
 import { registerWorkspaceSymbolSupport } from './languageFeatures/workspaceSymbols';
-import { ILogger, VsCodeOutputLogger } from './logging';
+import { ILogger } from './logging';
 import { IMdParser, MarkdownItEngine, MdParsingProvider } from './markdownEngine';
-import { getMarkdownExtensionContributions } from './markdownExtensions';
+import { MarkdownContributionProvider } from './markdownExtensions';
 import { MdDocumentRenderer } from './preview/documentRenderer';
 import { MarkdownPreviewManager } from './preview/previewManager';
 import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './preview/security';
-import { githubSlugifier } from './slugify';
 import { MdTableOfContentsProvider } from './tableOfContents';
 import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
-import { IMdWorkspace, VsCodeMdWorkspace } from './workspace';
+import { IMdWorkspace } from './workspace';
 
-
-export function activate(context: vscode.ExtensionContext) {
+export function activateShared(
+	context: vscode.ExtensionContext,
+	workspace: IMdWorkspace,
+	engine: MarkdownItEngine,
+	logger: ILogger,
+	contributions: MarkdownContributionProvider,
+) {
 	const telemetryReporter = loadDefaultTelemetryReporter();
 	context.subscriptions.push(telemetryReporter);
-
-	const contributions = getMarkdownExtensionContributions(context);
-	context.subscriptions.push(contributions);
-
-	const logger = new VsCodeOutputLogger();
-	context.subscriptions.push(logger);
 
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
 	const commandManager = new CommandManager();
 
-	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
-	const workspace = new VsCodeMdWorkspace();
 	const parser = new MdParsingProvider(engine, workspace);
 	const tocProvider = new MdTableOfContentsProvider(parser, workspace, logger);
-	context.subscriptions.push(workspace, parser, tocProvider);
+	context.subscriptions.push(parser, tocProvider);
 
 	const contentProvider = new MdDocumentRenderer(engine, context, cspArbiter, contributions, logger);
 	const previewManager = new MarkdownPreviewManager(contentProvider, workspace, logger, contributions, tocProvider);
@@ -83,7 +79,6 @@ function registerMarkdownLanguageFeatures(
 		registerDefinitionSupport(selector, referencesProvider),
 		registerDiagnosticSupport(selector, workspace, linkProvider, commandManager, referencesProvider, tocProvider, logger),
 		registerDocumentLinkSupport(selector, linkProvider),
-		registerDocumentSymbolSupport(selector, tocProvider, logger),
 		registerDropIntoEditorSupport(selector),
 		registerFindFileReferenceSupport(commandManager, referencesProvider),
 		registerFoldingSupport(selector, parser, tocProvider),

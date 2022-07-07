@@ -16,20 +16,6 @@ export type IStringDictionary<V> = Record<string, V>;
 export type INumberDictionary<V> = Record<number, V>;
 
 /**
- * Iterates over each entry in the provided dictionary. The iterator will stop when the callback returns `false`.
- *
- * @deprecated Use `Object.entries(x)` with a `for...of` loop.
- */
-export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, callback: (entry: { key: any; value: T }) => any): void {
-	for (const [key, value] of Object.entries(from)) {
-		const result = callback({ key, value });
-		if (result === false) {
-			return;
-		}
-	}
-}
-
-/**
  * Groups the collection into a dictionary based on the provided
  * group function.
  */

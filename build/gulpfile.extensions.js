@@ -53,6 +53,7 @@ const compilations = [
 	'json-language-features/client/tsconfig.json',
 	'json-language-features/server/tsconfig.json',
 	'markdown-language-features/preview-src/tsconfig.json',
+	'markdown-language-features/server/tsconfig.json',
 	'markdown-language-features/tsconfig.json',
 	'markdown-math/tsconfig.json',
 	'merge-conflict/tsconfig.json',

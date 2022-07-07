@@ -880,7 +880,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						description,
 						id: entry.timestamp.toString(),
 						command: entry,
-						buttons: entry.hasOutput ? buttons : undefined
+						buttons: entry.hasOutput() ? buttons : undefined
 					});
 					commandMap.add(label);
 				}
@@ -1239,6 +1239,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		} else {
 			this._notificationService.warn(nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
+		}
+	}
+
+	async copyLastCommandOutput(): Promise<void> {
+		const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		if (!commands || commands.length === 0) {
+			return;
+		}
+		const command = commands[commands.length - 1];
+		if (!command?.hasOutput) {
+			return;
+		}
+		const output = command.getOutput();
+		if (output) {
+			await this._clipboardService.writeText(output);
 		}
 	}
 

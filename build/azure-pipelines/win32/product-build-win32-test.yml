@@ -52,6 +52,7 @@ steps:
           compile-extension:html-language-features-server `
           compile-extension:ipynb `
           compile-extension:json-language-features-server `
+          compile-extension:markdown-language-features-server `
           compile-extension:markdown-language-features `
           compile-extension-media `
           compile-extension:microsoft-authentication `
