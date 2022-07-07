@@ -550,7 +550,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _getIcon(): TerminalIcon | undefined {
 		if (!this._icon) {
 			this._icon = this._processManager.processState >= ProcessState.Launching
-				? getIconRegistry().getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIconId))
+				? getIconRegistry().getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon))
 				: undefined;
 		}
 		return this._icon;

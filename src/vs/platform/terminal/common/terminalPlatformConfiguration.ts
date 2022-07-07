@@ -46,11 +46,11 @@ const terminalProfileBaseProperties: IJSONSchemaMap = {
 		type: 'boolean'
 	},
 	icon: {
-		description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
+		description: localize('terminalProfile.icon', 'A codicon ID to associate with the terminal icon.'),
 		...terminalIconSchema
 	},
 	color: {
-		description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
+		description: localize('terminalProfile.color', 'A theme color ID to associate with the terminal icon.'),
 		...terminalColorSchema
 	},
 	env: {
