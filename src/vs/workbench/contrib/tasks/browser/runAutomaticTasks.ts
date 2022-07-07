@@ -135,16 +135,16 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		if (!isWorkspaceTrusted) {
 			return;
 		}
-		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, undefined);
-		if (configurationService.getValue('task.allowAutomaticTasks') === 'off' || hasShownPromptForAutomaticTasks !== undefined) {
+		if (configurationService.getValue('task.allowAutomaticTasks') === 'off') {
 			return;
 		}
 
+		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, undefined);
 		const { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
 		if (taskNames.length > 0) {
 			if (configurationService.getValue('task.allowAutomaticTasks') === 'on') {
 				RunAutomaticTasks._runTasks(taskService, tasks);
-			} else {
+			} else if (!hasShownPromptForAutomaticTasks) {
 				// We have automatic tasks, prompt to allow.
 				this._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations).then(allow => {
 					if (allow) {
