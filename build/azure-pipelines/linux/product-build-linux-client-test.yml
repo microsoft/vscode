@@ -115,6 +115,12 @@ steps:
         displayName: Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
+      - script: |
+          set -e
+          ./scripts/test-remote-integration.sh
+        displayName: Run integration tests (Remote)
+        timeoutInMinutes: 20
+
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: |
           # Figure out the full absolute path of the product we just built
@@ -175,6 +181,13 @@ steps:
           yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
+
+      - script: |
+          set -e
+          yarn gulp compile-extension:vscode-test-resolver
+          yarn smoketest-no-compile --remote --tracing
+        timeoutInMinutes: 20
+        displayName: Run smoke tests (Remote)
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: |
