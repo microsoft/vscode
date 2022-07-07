@@ -117,7 +117,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	getDefaultIcon(): TerminalIcon & ThemeIcon {
-		return this._iconRegistry.getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon)) || Codicon.terminal;
+		return this._iconRegistry.getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIconId)) || Codicon.terminal;
 	}
 
 	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
@@ -157,7 +157,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// Apply the color
 		shellLaunchConfig.color = shellLaunchConfig.color
 			|| resolvedProfile.color
-			|| this._configurationService.getValue(TerminalSettingId.TabsDefaultColor);
+			|| this._configurationService.getValue(TerminalSettingId.TabsDefaultIconColor);
 
 		// Resolve useShellEnvironment based on the setting if it's not set
 		if (shellLaunchConfig.useShellEnvironment === undefined) {
