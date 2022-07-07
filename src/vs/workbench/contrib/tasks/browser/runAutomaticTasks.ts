@@ -21,7 +21,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 
-const HAS_PROMPTED_FOR_AUTOMATIC_TASKS = 'tasks.hasPromptedForAutomaticTasks';
+const HAS_PROMPTED_FOR_AUTOMATIC_TASKS = 'task.hasPromptedForAutomaticTasks';
 const ALLOW_AUTOMATIC_TASKS = 'task.allowAutomaticTasks';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
@@ -134,14 +134,14 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		if (!isWorkspaceTrusted) {
 			return;
 		}
-		if (configurationService.getValue('task.allowAutomaticTasks') === 'off') {
+		if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
 			return;
 		}
 
 		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, undefined);
 		const { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
 		if (taskNames.length > 0) {
-			if (configurationService.getValue('task.allowAutomaticTasks') === 'on') {
+			if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'on') {
 				RunAutomaticTasks._runTasks(taskService, tasks);
 			} else if (!hasShownPromptForAutomaticTasks) {
 				// We have automatic tasks, prompt to allow.
