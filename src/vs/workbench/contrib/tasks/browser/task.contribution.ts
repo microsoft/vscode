@@ -497,9 +497,10 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'task.allowAutomaticTasks': {
-			type: 'boolean',
-			description: nls.localize('task.allowAutomaticTasks', "Allow Automatic Tasks in the folder"),
-			default: false,
+			type: 'string',
+			enum: ['on', 'auto', 'off'],
+			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in the folder. For auto, it will prompt for permission in each folder."),
+			default: 'auto',
 			restricted: true
 		},
 		'task.showDecorations': {
