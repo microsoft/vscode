@@ -5,7 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IDecorationProvider } from 'vs/editor/contrib/folding/browser/foldingModel';
 import { localize } from 'vs/nls';
@@ -52,7 +52,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	});
 
-	public autoHideFoldingControls: boolean = true;
+	public showFoldingControls: 'always' | 'never' | 'mouseover' = 'mouseover';
 
 	public showFoldingHighlights: boolean = true;
 
@@ -60,23 +60,23 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	}
 
 	getDecorationOption(isCollapsed: boolean, isHidden: boolean): ModelDecorationOptions {
-		if (isHidden) {
+		if (isHidden || this.showFoldingControls === 'never') {
 			return FoldingDecorationProvider.HIDDEN_RANGE_DECORATION;
 		}
 		if (isCollapsed) {
 			return this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION;
-		} else if (this.autoHideFoldingControls) {
+		} else if (this.showFoldingControls === 'mouseover') {
 			return FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
 		} else {
 			return FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION;
 		}
 	}
 
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
-		return this.editor.deltaDecorations(oldDecorations, newDecorations);
-	}
-
 	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T {
 		return this.editor.changeDecorations(callback);
+	}
+
+	removeDecorations(decorationIds: string[]): void {
+		this.editor.removeDecorations(decorationIds);
 	}
 }

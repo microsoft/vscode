@@ -185,7 +185,10 @@ registerAction2(class ResetMemento extends Action2 {
 	constructor() {
 		super({
 			id: 'files.participants.resetChoice',
-			title: localize('label', "Reset choice for 'File operation needs preview'"),
+			title: {
+				value: localize('label', "Reset choice for 'File operation needs preview'"),
+				original: `Reset choice for 'File operation needs preview'`
+			},
 			f1: true
 		});
 	}

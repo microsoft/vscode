@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { ILogger } from './logging';
 import { IMdParser } from './markdownEngine';
 import { githubSlugifier, Slug, Slugifier } from './slugify';
-import { ITextDocument } from './types/textDocument';
+import { getLine, ITextDocument } from './types/textDocument';
 import { Disposable } from './util/dispose';
 import { isMarkdownFile } from './util/file';
 import { Schemes } from './util/schemes';
@@ -108,9 +108,9 @@ export class TableOfContents {
 			}
 
 			const lineNumber = heading.map[0];
-			const line = document.lineAt(lineNumber);
+			const line = getLine(document, lineNumber);
 
-			let slug = parser.slugifier.fromHeading(line.text);
+			let slug = parser.slugifier.fromHeading(line);
 			const existingSlugEntry = existingSlugEntries.get(slug.value);
 			if (existingSlugEntry) {
 				++existingSlugEntry.count;
@@ -120,14 +120,14 @@ export class TableOfContents {
 			}
 
 			const headerLocation = new vscode.Location(document.uri,
-				new vscode.Range(lineNumber, 0, lineNumber, line.text.length));
+				new vscode.Range(lineNumber, 0, lineNumber, line.length));
 
 			const headerTextLocation = new vscode.Location(document.uri,
-				new vscode.Range(lineNumber, line.text.match(/^#+\s*/)?.[0].length ?? 0, lineNumber, line.text.length - (line.text.match(/\s*#*$/)?.[0].length ?? 0)));
+				new vscode.Range(lineNumber, line.match(/^#+\s*/)?.[0].length ?? 0, lineNumber, line.length - (line.match(/\s*#*$/)?.[0].length ?? 0)));
 
 			toc.push({
 				slug,
-				text: TableOfContents.getHeaderText(line.text),
+				text: TableOfContents.getHeaderText(line),
 				level: TableOfContents.getHeaderLevel(heading.markup),
 				line: lineNumber,
 				sectionLocation: headerLocation, // Populated in next steps
@@ -151,7 +151,7 @@ export class TableOfContents {
 				sectionLocation: new vscode.Location(document.uri,
 					new vscode.Range(
 						entry.sectionLocation.range.start,
-						new vscode.Position(endLine, document.lineAt(endLine).text.length)))
+						new vscode.Position(endLine, getLine(document, endLine).length)))
 			};
 		});
 	}

@@ -169,8 +169,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean): Promise<T> {
 
 		if (this._commands.has(id)) {
-			// we stay inside the extension host and support
-			// to pass any kind of parameters around
+			// - We stay inside the extension host and support
+			// 	 to pass any kind of parameters around.
+			// - We still emit the corresponding activation event
+			//   BUT we don't await that event
+			this.#proxy.$fireCommandActivationEvent(id);
 			return this._executeContributedCommand<T>(id, args, false);
 
 		} else {
@@ -206,7 +209,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			} catch (e) {
 				// Rerun the command when it wasn't known, had arguments, and when retry
 				// is enabled. We do this because the command might be registered inside
-				// the extension host now and can therfore accept the arguments as-is.
+				// the extension host now and can therefore accept the arguments as-is.
 				if (e instanceof Error && e.message === '$executeCommand:retry') {
 					return this._doExecuteCommand(id, args, false);
 				} else {

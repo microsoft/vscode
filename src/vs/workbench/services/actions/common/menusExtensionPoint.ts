@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
@@ -686,44 +685,45 @@ submenusExtensionPoint.setHandler(extensions => {
 	for (const extension of extensions) {
 		const { value, collector } = extension;
 
-		forEach(value, entry => {
-			if (!schema.isValidSubmenu(entry.value, collector)) {
+		for (const [, submenuInfo] of Object.entries(value)) {
+
+			if (!schema.isValidSubmenu(submenuInfo, collector)) {
 				return;
 			}
 
-			if (!entry.value.id) {
-				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", entry.value.id));
+			if (!submenuInfo.id) {
+				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", submenuInfo.id));
 				return;
 			}
-			if (_submenus.has(entry.value.id)) {
-				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
+			if (_submenus.has(submenuInfo.id)) {
+				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", submenuInfo.id));
 				return;
 			}
-			if (!entry.value.label) {
-				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", entry.value.label));
+			if (!submenuInfo.label) {
+				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", submenuInfo.label));
 				return;
 			}
 
 			let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;
-			if (entry.value.icon) {
-				if (typeof entry.value.icon === 'string') {
-					absoluteIcon = ThemeIcon.fromString(entry.value.icon) || { dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon) };
+			if (submenuInfo.icon) {
+				if (typeof submenuInfo.icon === 'string') {
+					absoluteIcon = ThemeIcon.fromString(submenuInfo.icon) || { dark: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon) };
 				} else {
 					absoluteIcon = {
-						dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon.dark),
-						light: resources.joinPath(extension.description.extensionLocation, entry.value.icon.light)
+						dark: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon.dark),
+						light: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon.light)
 					};
 				}
 			}
 
 			const item: IRegisteredSubmenu = {
-				id: new MenuId(`api:${entry.value.id}`),
-				label: entry.value.label,
+				id: new MenuId(`api:${submenuInfo.id}`),
+				label: submenuInfo.label,
 				icon: absoluteIcon
 			};
 
-			_submenus.set(entry.value.id, item);
-		});
+			_submenus.set(submenuInfo.id, item);
+		}
 	}
 });
 
@@ -748,19 +748,19 @@ menusExtensionPoint.setHandler(extensions => {
 	for (const extension of extensions) {
 		const { value, collector } = extension;
 
-		forEach(value, entry => {
-			if (!schema.isValidItems(entry.value, collector)) {
-				return;
+		for (const entry of Object.entries(value)) {
+			if (!schema.isValidItems(entry[1], collector)) {
+				continue;
 			}
 
-			let menu = _apiMenusByKey.get(entry.key);
+			let menu = _apiMenusByKey.get(entry[0]);
 
 			if (!menu) {
-				const submenu = _submenus.get(entry.key);
+				const submenu = _submenus.get(entry[0]);
 
 				if (submenu) {
 					menu = {
-						key: entry.key,
+						key: entry[0],
 						id: submenu.id,
 						description: ''
 					};
@@ -768,16 +768,16 @@ menusExtensionPoint.setHandler(extensions => {
 			}
 
 			if (!menu) {
-				collector.info(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
-				return;
+				collector.info(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry[0]));
+				continue;
 			}
 
 			if (menu.proposed && !isProposedApiEnabled(extension.description, menu.proposed)) {
-				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier. It requires 'package.json#enabledApiProposals: [\"{1}\"]' and is only available when running out of dev or with the following command line switch: --enable-proposed-api {2}", entry.key, menu.proposed, extension.description.identifier.value));
-				return;
+				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier. It requires 'package.json#enabledApiProposals: [\"{1}\"]' and is only available when running out of dev or with the following command line switch: --enable-proposed-api {2}", entry[0], menu.proposed, extension.description.identifier.value));
+				continue;
 			}
 
-			for (const menuItem of entry.value) {
+			for (const menuItem of entry[1]) {
 				let item: IMenuItem | ISubmenuItem;
 
 				if (schema.isMenuItem(menuItem)) {
@@ -817,7 +817,7 @@ menusExtensionPoint.setHandler(extensions => {
 					}
 
 					if (submenuRegistrations.has(submenu.id.id)) {
-						collector.warn(localize('submenuItem.duplicate', "The `{0}` submenu was already contributed to the `{1}` menu.", menuItem.submenu, entry.key));
+						collector.warn(localize('submenuItem.duplicate', "The `{0}` submenu was already contributed to the `{1}` menu.", menuItem.submenu, entry[0]));
 						continue;
 					}
 
@@ -839,7 +839,7 @@ menusExtensionPoint.setHandler(extensions => {
 				item.when = ContextKeyExpr.deserialize(menuItem.when);
 				items.push({ id: menu.id, item });
 			}
-		});
+		}
 	}
 
 	_menuRegistrations.add(MenuRegistry.appendMenuItems(items));

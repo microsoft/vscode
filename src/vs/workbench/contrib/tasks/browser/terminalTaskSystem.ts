@@ -31,7 +31,7 @@ import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, IShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, IShellQuotingOptions, ShellQuoting, CommandString, ICommandConfiguration, IExtensionTaskSource, TaskScope, RevealProblemKind, DependsOrder, TaskSourceKind, InMemoryTask, ITaskEvent
+	TaskEvent, TaskEventKind, IShellQuotingOptions, ShellQuoting, CommandString, ICommandConfiguration, IExtensionTaskSource, TaskScope, RevealProblemKind, DependsOrder, TaskSourceKind, InMemoryTask, ITaskEvent, TaskSettingId
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -55,9 +55,6 @@ import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalSt
 import { GroupKind } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
 import { Codicon } from 'vs/base/common/codicons';
 import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from 'vs/workbench/contrib/terminal/browser/terminalEscapeSequences';
-
-const taskShellIntegrationStartSequence = VSCodeSequence(VSCodeOscPt.PromptStart) + VSCodeSequence(VSCodeOscPt.Property, VSCodeOscProperty.Task) + VSCodeSequence(VSCodeOscPt.CommandStart);
-const taskShellIntegrationOutputSequence = VSCodeSequence(VSCodeOscPt.CommandExecuted);
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -210,6 +207,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _terminalCreationQueue: Promise<ITerminalInstance | void> = Promise.resolve();
 
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
+
+	get taskShellIntegrationStartSequence(): string {
+		return this._configurationService.getValue(TaskSettingId.ShowDecorations) ? VSCodeSequence(VSCodeOscPt.PromptStart) + VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Task}=True`) + VSCodeSequence(VSCodeOscPt.CommandStart) : '';
+	}
+	get taskShellIntegrationOutputSequence(): string {
+		return this._configurationService.getValue(TaskSettingId.ShowDecorations) ? VSCodeSequence(VSCodeOscPt.CommandExecuted) : '';
+	}
 
 	constructor(
 		private _terminalService: ITerminalService,
@@ -512,7 +516,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			for (const dependency of task.configurationProperties.dependsOn) {
 				const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 				if (dependencyTask) {
-					dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
+					this._adoptConfigurationForDependencyTask(dependencyTask, task);
 					const key = dependencyTask.getMapKey();
 					let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
 					if (!promise) {
@@ -579,6 +583,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 			});
 		});
+	}
+
+	private _adoptConfigurationForDependencyTask(dependencyTask: Task, task: Task): void {
+		if (dependencyTask.configurationProperties.icon) {
+			dependencyTask.configurationProperties.icon.id ||= task.configurationProperties.icon?.id;
+			dependencyTask.configurationProperties.icon.color ||= task.configurationProperties.icon?.color;
+		} else {
+			dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
+		}
+
+		if (dependencyTask.configurationProperties.hide) {
+			dependencyTask.configurationProperties.hide ||= task.configurationProperties.hide;
+		} else {
+			dependencyTask.configurationProperties.hide = task.configurationProperties.hide;
+		}
 	}
 
 	private async _getDependencyPromise(task: IActiveTerminalData): Promise<ITaskSummary> {
@@ -1037,7 +1056,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				remoteAuthority: this._environmentService.remoteAuthority
 			});
 			let icon: URI | ThemeIcon | { light: URI; dark: URI } | undefined;
-			if (task.configurationProperties.icon) {
+			if (task.configurationProperties.icon?.id) {
 				icon = ThemeIcon.fromId(task.configurationProperties.icon.id);
 			} else {
 				const taskGroupKind = task.configurationProperties.group ? GroupKind.to(task.configurationProperties.group) : undefined;
@@ -1127,18 +1146,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
 						key: 'task.executingInFolder',
 						comment: ['The workspace folder the task is running in', 'The task command line or label']
-					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, commandLine), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
+					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, commandLine), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
 				} else {
-					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
 						key: 'task.executing',
 						comment: ['The task command line or label']
-					}, 'Executing task: {0}', commandLine), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
+					}, 'Executing task: {0}', commandLine), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
 				}
 			} else {
-				shellLaunchConfig.initialText = taskShellIntegrationStartSequence + taskShellIntegrationOutputSequence;
+				shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence + this.taskShellIntegrationOutputSequence;
 			}
 		} else {
 			const commandExecutable = (task.command.runtime !== RuntimeType.CustomExecution) ? CommandString.value(command) : undefined;
@@ -1167,18 +1186,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					return args.join(' ');
 				};
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
 						key: 'task.executingInFolder',
 						comment: ['The workspace folder the task is running in', 'The task command line or label']
-					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
+					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
 				} else {
-					shellLaunchConfig.initialText = taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence + formatMessageForTerminal(nls.localize({
 						key: 'task.executing',
 						comment: ['The task command line or label']
-					}, 'Executing task: {0}', `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + taskShellIntegrationOutputSequence;
+					}, 'Executing task: {0}', `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
 				}
 			} else {
-				shellLaunchConfig.initialText = taskShellIntegrationStartSequence + taskShellIntegrationOutputSequence;
+				shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence + this.taskShellIntegrationOutputSequence;
 			}
 		}
 

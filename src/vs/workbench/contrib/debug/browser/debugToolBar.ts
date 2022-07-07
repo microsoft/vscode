@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/debugToolBar';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { ICommandAction } from 'vs/platform/action/common/action';
+import { ICommandAction, ICommandActionTitle } from 'vs/platform/action/common/action';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -296,7 +296,7 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 // Debug toolbar
 
 const debugViewTitleItems: IDisposable[] = [];
-const registerDebugToolBarItem = (id: string, title: string, order: number, icon?: { light?: URI; dark?: URI } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression, alt?: ICommandAction) => {
+const registerDebugToolBarItem = (id: string, title: string | ICommandActionTitle, order: number, icon?: { light?: URI; dark?: URI } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression, alt?: ICommandAction) => {
 	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
 		group: 'navigation',
 		when,

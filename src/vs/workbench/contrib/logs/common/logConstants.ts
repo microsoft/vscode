@@ -9,5 +9,6 @@ export const rendererLogChannelId = 'rendererLog';
 export const extHostLogChannelId = 'extHostLog';
 export const telemetryLogChannelId = 'telemetryLog';
 export const userDataSyncLogChannelId = 'userDataSyncLog';
+export const editSessionsLogChannelId = 'editSessionsSyncLog';
 
 export const showWindowLogActionId = 'workbench.action.showWindowLog';

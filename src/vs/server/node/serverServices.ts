@@ -50,7 +50,6 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { getPiiPathsFromEnvironment, ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { IPtyService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
@@ -73,6 +72,7 @@ import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerServic
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
+import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -128,16 +128,16 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	// Request
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
-	let appInsightsAppender: ITelemetryAppender = NullAppender;
+	let oneDsAppender: ITelemetryAppender = NullAppender;
 	const machineId = await getMachineId();
 	if (supportsTelemetry(productService, environmentService)) {
-		if (productService.aiConfig && productService.aiConfig.asimovKey) {
-			appInsightsAppender = new AppInsightsAppender(eventPrefix, null, productService.aiConfig.asimovKey);
-			disposables.add(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
+		if (productService.aiConfig && productService.aiConfig.ariaKey) {
+			oneDsAppender = new OneDataSystemAppender(configurationService, eventPrefix, null, productService.aiConfig.ariaKey);
+			disposables.add(toDisposable(() => oneDsAppender?.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 		}
 
 		const config: ITelemetryServiceConfig = {
-			appenders: [appInsightsAppender],
+			appenders: [oneDsAppender],
 			commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, productService.msftInternalDomains, environmentService.installSourcePath, 'remoteAgent'),
 			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
@@ -193,7 +193,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionManagementCLIService, logService, extensionHostStatusService, extensionsScannerService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
-		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), appInsightsAppender);
+		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), oneDsAppender);
 		socketServer.registerChannel('telemetry', telemetryChannel);
 
 		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyService, productService, extensionManagementService));

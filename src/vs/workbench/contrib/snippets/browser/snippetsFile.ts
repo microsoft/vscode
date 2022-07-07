@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parse as jsonParse, getNodeType } from 'vs/base/common/json';
-import { forEach } from 'vs/base/common/collections';
 import { localize } from 'vs/nls';
 import { extname, basename } from 'vs/base/common/path';
 import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
@@ -256,17 +255,15 @@ export class SnippetFile {
 			this._loadPromise = Promise.resolve(this._load()).then(content => {
 				const data = <JsonSerializedSnippets>jsonParse(content);
 				if (getNodeType(data) === 'object') {
-					forEach(data, entry => {
-						const { key: name, value: scopeOrTemplate } = entry;
+					for (const [name, scopeOrTemplate] of Object.entries(data)) {
 						if (isJsonSerializedSnippet(scopeOrTemplate)) {
 							this._parseSnippet(name, scopeOrTemplate, this.data);
 						} else {
-							forEach(scopeOrTemplate, entry => {
-								const { key: name, value: template } = entry;
+							for (const [name, template] of Object.entries(scopeOrTemplate)) {
 								this._parseSnippet(name, template, this.data);
-							});
+							}
 						}
-					});
+					}
 				}
 				return this;
 			});
