@@ -47,24 +47,21 @@ export class Task {
 	async configureTask(properties: ITaskConfigurationProperties) {
 		await this.quickaccess.openFileQuickAccessAndWait('tasks.json', 'tasks.json');
 		await this.quickInput.selectQuickInputElement(0);
-		await this.quickInput.waitForQuickInputClosed();
 		await this.quickaccess.runCommand('editor.action.selectAll');
 		await this.code.dispatchKeybinding('Delete');
 		await this.editors.saveOpenedFile();
 		await this.code.dispatchKeybinding('right');
 		await this.editor.waitForTypeInEditor('tasks.json', `{`);
-		const taskString = `
+		let taskString = `
 			"version": "2.0.0",
 			"tasks": [
 				{`;
-		await this.editor.waitForTypeInEditor('tasks.json', `${taskString}`);
 		for (let [key, value] of Object.entries(properties)) {
 			value = key === 'hide' ? value : `"${value}"`;
-			await this.code.dispatchKeybinding('right');
-			await this.editor.waitForTypeInEditor('tasks.json', `"${key}": ${value},\n`);
+			taskString += `"${key}": ${value},\n`;
 		}
-		await this.code.dispatchKeybinding('right');
-		await this.editor.waitForTypeInEditor('tasks.json', `}]`);
+		taskString += `}]`;
+		await this.editor.waitForTypeInEditor('tasks.json', `${taskString}`);
 		await this.editors.saveOpenedFile();
 	}
 }

@@ -187,7 +187,7 @@ export class Code {
 		return await this.poll(
 			() => this.driver.getElements(selector).then(els => els.length > 0 ? Promise.resolve(els[0].textContent) : Promise.reject(new Error('Element not found for textContent'))),
 			s => accept!(typeof s === 'string' ? s : ''),
-			`get text content '${selector}'`,
+			`get text content '${selector}' ${(await this.driver.getElements(selector))[0].textContent}`,
 			retryCount
 		);
 	}
