@@ -9,10 +9,6 @@ if [ -n "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
-if [[ -f $USER_ZDOTDIR/.zsh_history ]]; then
-	HISTFILE=$USER_ZDOTDIR/.zsh_history
-fi
-
 # This variable allows the shell to both detect that VS Code's shell integration is enabled as well
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
@@ -24,6 +20,10 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 		ZDOTDIR=$USER_ZDOTDIR
 		. $USER_ZDOTDIR/.zshrc
 		ZDOTDIR=$VSCODE_ZDOTDIR
+	fi
+
+	if [[ -f $USER_ZDOTDIR/.zsh_history ]]; then
+		HISTFILE=$USER_ZDOTDIR/.zsh_history
 	fi
 fi
 
