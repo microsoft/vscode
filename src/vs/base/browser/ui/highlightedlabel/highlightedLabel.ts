@@ -89,25 +89,50 @@ export class HighlightedLabel {
 		let pos = 0;
 
 		for (const highlight of this.highlights) {
-			if (highlight.end === highlight.start) {
+			let { start, end } = highlight;
+			if (end === start) {
 				continue;
 			}
 
-			if (pos < highlight.start) {
-				const substring = this.text.substring(pos, highlight.start);
+			// First get everything leading up to the highlight
+			if (pos < start) {
+				let substring = this.text.substring(pos, start);
+
+				// If the highlight starts with spaces, we add those spaces to the text that won't be highlighted.
+				// This is to prevent the space character from being bolded (the bolding causes a visual shift in characters).
+				const hasExtraSpaces = this.text.charAt(start) === ' ';
+				if (hasExtraSpaces) {
+					while (start < this.text.length && this.text.charAt(start) === ' ') {
+						substring += ' ';
+						start++;
+					}
+				}
+
 				children.push(dom.$('span', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]));
-				pos = highlight.end;
 			}
 
-			const substring = this.text.substring(highlight.start, highlight.end);
-			const element = dom.$('span.highlight', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]);
-
-			if (highlight.extraClasses) {
-				element.classList.add(...highlight.extraClasses);
+			// If the highlight ends with spaces, we remove those spaces from the text that will be highlighted.
+			// This is to prevent the space character from being bolded (the bolding causes a visual shift in characters).
+			let substring = this.text.substring(start, end);
+			const extraSpaces = substring.length - substring.trimEnd().length;
+			if (extraSpaces > 0) {
+				substring = substring.trimEnd();
+				end -= extraSpaces;
 			}
 
-			children.push(element);
-			pos = highlight.end;
+			// At this point, substring might be empty so if it is, just don't render a highlighted span
+			if (substring.length > 0) {
+				const element = dom.$('span.highlight', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]);
+
+				if (highlight.extraClasses) {
+					element.classList.add(...highlight.extraClasses);
+				}
+
+				children.push(element);
+			}
+
+			// Set the new position to the end of the highlight
+			pos = end;
 		}
 
 		if (pos < this.text.length) {
