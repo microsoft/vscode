@@ -13,8 +13,8 @@ import { sysrootInfo } from './sysroots';
 import { ArchString } from './types';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
-const URL_PREFIX = 'https://msftelectron.blob.core.windows.net/';
-const URL_PATH = 'sysroots/toolchain';
+const URL_PREFIX = 'https://s3.amazonaws.com';
+const URL_PATH = 'electronjs-sysroots/toolchain';
 
 function getSha(filename: fs.PathLike): string {
 	const hash = createHash('sha1');

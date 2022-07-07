@@ -13,8 +13,8 @@ const https = require("https");
 const path = require("path");
 const sysroots_1 = require("./sysroots");
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
-const URL_PREFIX = 'https://msftelectron.blob.core.windows.net/';
-const URL_PATH = 'sysroots/toolchain';
+const URL_PREFIX = 'https://s3.amazonaws.com';
+const URL_PATH = 'electronjs-sysroots/toolchain';
 function getSha(filename) {
     const hash = (0, crypto_1.createHash)('sha1');
     // Read file 1 MB at a time
