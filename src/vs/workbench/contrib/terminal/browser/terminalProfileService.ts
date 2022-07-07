@@ -11,7 +11,6 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ILogService } from 'vs/platform/log/common/log';
 import { ITerminalProfile, IExtensionTerminalProfile, TerminalSettingPrefix, TerminalSettingId, ITerminalProfileObject, IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { terminalIconsEqual, terminalProfileArgsMatch } from 'vs/platform/terminal/common/terminalProfiles';
@@ -57,8 +56,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IRemoteAgentService private _remoteAgentService: IRemoteAgentService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@ILogService private readonly _logService: ILogService
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
 	) {
 		// in web, we don't want to show the dropdown unless there's a web extension
 		// that contributes a profile
@@ -111,10 +109,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 		if (profilesChanged || contributedProfilesChanged) {
 			this._availableProfiles = profiles;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
-			if (!this._profilesReadyBarrier.isOpen()) {
-				this._logService.debug('Took 20 seconds to get available terminal profiles');
-				this._profilesReadyBarrier.open();
-			}
+			this._profilesReadyBarrier.open();
 			this._updateWebContextKey();
 			await this._refreshPlatformConfig(this._availableProfiles);
 		}
