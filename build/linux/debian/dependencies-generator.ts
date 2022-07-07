@@ -89,7 +89,7 @@ function calculatePackageDeps(binaryPath: string, arch: ArchString, sysroot: str
 	const tmp = tmpdir();
 	const result = spawnSync('sh', ['checkout-shlibdeps.sh'], { cwd: tmp });
 	if (result.status !== 0) {
-		throw new Error('Error retrieving dpkg-shlibdeps');
+		throw new Error('Cannot retrieve dpkg-shlibdeps: ' + result.stderr);
 	}
 	const dpkgShlibdepsScriptLocation = `${tmp}/chromium/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl`;
 	const cmd = [dpkgShlibdepsScriptLocation, '--ignore-weak-undefined'];
