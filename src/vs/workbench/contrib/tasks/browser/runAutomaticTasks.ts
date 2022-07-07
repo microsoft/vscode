@@ -8,7 +8,6 @@ import * as resources from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITaskService, IWorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
-import { forEach } from 'vs/base/common/collections';
 import { RunOnOptions, Task, TaskRunSource, TaskSource, TaskSourceKind, TASKS_CATEGORY, WorkspaceFileTaskSource, IWorkspaceTaskSource } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -106,22 +105,22 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					});
 				}
 				if (resultElement.configurations) {
-					forEach(resultElement.configurations.byIdentifier, (configedTask) => {
-						if (configedTask.value.runOptions.runOn === RunOnOptions.folderOpen) {
+					for (const configuredTask of Object.values(resultElement.configurations.byIdentifier)) {
+						if (configuredTask.runOptions.runOn === RunOnOptions.folderOpen) {
 							tasks.push(new Promise<Task | undefined>(resolve => {
-								taskService.getTask(resultElement.workspaceFolder, configedTask.value._id, true).then(task => resolve(task));
+								taskService.getTask(resultElement.workspaceFolder, configuredTask._id, true).then(task => resolve(task));
 							}));
-							if (configedTask.value._label) {
-								taskNames.push(configedTask.value._label);
+							if (configuredTask._label) {
+								taskNames.push(configuredTask._label);
 							} else {
-								taskNames.push(configedTask.value.configures.task);
+								taskNames.push(configuredTask.configures.task);
 							}
-							const location = RunAutomaticTasks._getTaskSource(configedTask.value._source);
+							const location = RunAutomaticTasks._getTaskSource(configuredTask._source);
 							if (location) {
 								locations.set(location.fsPath, location);
 							}
 						}
-					});
+					}
 				}
 			});
 		}

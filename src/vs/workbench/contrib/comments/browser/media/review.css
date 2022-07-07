@@ -114,7 +114,7 @@
 }
 
 .review-widget .body .review-comment .review-comment-contents .comment-body .comment-body-plainstring {
-	white-space: pre;
+	white-space: pre-wrap;
 }
 
 .review-widget .body .review-comment .review-comment-contents .comment-body {

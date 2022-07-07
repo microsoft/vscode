@@ -12,12 +12,14 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IExtensionTerminalProfile, IProcessPropertyMap, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalLocation, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { IMarker } from 'xterm';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -471,6 +473,11 @@ export interface ITerminalInstance {
 	readonly persistentProcessId: number | undefined;
 
 	/**
+	 * The id of a persistent process during the shutdown process
+	 */
+	shutdownPersistentProcessId: number | undefined;
+
+	/**
 	 * Whether the process should be persisted across reloads.
 	 */
 	readonly shouldPersist: boolean;
@@ -636,6 +643,17 @@ export interface ITerminalInstance {
 	showEnvironmentInfoHover(): void;
 
 	/**
+	 * Registers and returns a marker
+	 */
+	registerMarker(): IMarker | undefined;
+
+	/**
+	 * Adds a decoration to the buffer at the @param marker with
+	 * @param genericMarkProperties
+	 */
+	addGenericMark(marker: IMarker, genericMarkProperties: IGenericMarkProperties): void;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
 	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used
@@ -659,6 +677,12 @@ export interface ITerminalInstance {
 	 * Copies the terminal selection to the clipboard.
 	 */
 	copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void>;
+
+
+	/**
+	 * Copies the ouput of the last command
+	 */
+	copyLastCommandOutput(): Promise<void>;
 
 	/**
 	 * Current selection in the terminal.
@@ -925,6 +949,22 @@ export interface IXtermTerminal {
 	 * Clears the active search result decorations
 	 */
 	clearActiveSearchDecoration(): void;
+
+	/**
+	 * Adds a decoration at the @param marker with the given properties
+	 * @param properties
+	 */
+	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void;
+}
+
+export interface IInternalXtermTerminal {
+	/**
+	 * Writes text directly to the terminal, bypassing the process.
+	 *
+	 * **WARNING:** This should never be used outside of the terminal component and only for
+	 * developer purposed inside the terminal component.
+	 */
+	_writeText(data: string): void; // eslint-disable-line @typescript-eslint/naming-convention
 }
 
 export interface IRequestAddInstanceToGroupEvent {

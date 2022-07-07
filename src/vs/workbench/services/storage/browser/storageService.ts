@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { assertIsDefined } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { AbstractStorageService, isProfileUsingDefaultStorage, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -60,7 +60,7 @@ export class BrowserStorageService extends AbstractStorageService {
 			case StorageScope.APPLICATION:
 				return 'global'; // use the default profile application DB for application scope
 			case StorageScope.PROFILE:
-				if (this.profileStorageProfile.isDefault) {
+				if (isProfileUsingDefaultStorage(this.profileStorageProfile)) {
 					return 'global'; // default profile DB has a fixed name for backwards compatibility
 				} else {
 					return `global-${this.profileStorageProfile.id}`;
@@ -103,9 +103,9 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Remember profile associated to profile storage
 		this.profileStorageProfile = profile;
 
-		if (this.profileStorageProfile.isDefault) {
+		if (isProfileUsingDefaultStorage(this.profileStorageProfile)) {
 
-			// If we are in default profile, the profile storage is
+			// If we are using default profile storage, the profile storage is
 			// actually the same as application storage. As such we
 			// avoid creating the storage library a second time on
 			// the same DB.
@@ -166,6 +166,10 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+		if (!this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
+			return;
+		}
+
 		const oldProfileStorage = assertIsDefined(this.profileStorage);
 		const oldItems = oldProfileStorage.items;
 

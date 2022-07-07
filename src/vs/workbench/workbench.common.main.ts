@@ -83,7 +83,7 @@ import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRe
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
-import 'vs/workbench/services/userDataProfile/common/userDataProfileWorkbenchService';
+import 'vs/workbench/services/userDataProfile/common/userDataProfileImportExportService';
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileManagement';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -329,7 +329,7 @@ import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 import 'vs/workbench/contrib/userDataProfile/browser/userDataProfile.contribution';
 
 // Continue Edit Session
-import 'vs/workbench/contrib/sessionSync/browser/sessionSync.contribution';
+import 'vs/workbench/contrib/editSessions/browser/editSessions.contribution';
 
 // Code Actions
 import 'vs/workbench/contrib/codeActions/browser/codeActions.contribution';

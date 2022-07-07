@@ -550,6 +550,18 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.switchToWorkspace(to, preserveData);
 	}
 
+	protected canSwitchProfile(from: IUserDataProfile, to: IUserDataProfile): boolean {
+		if (from.id === to.id) {
+			return false; // both profiles are same
+		}
+
+		if (isProfileUsingDefaultStorage(to) && isProfileUsingDefaultStorage(from)) {
+			return false; // both profiles are using default
+		}
+
+		return true;
+	}
+
 	protected switchData(oldStorage: Map<string, string>, newStorage: IStorage, scope: StorageScope, preserveData: boolean): void {
 		this.withPausedEmitters(() => {
 
@@ -591,6 +603,10 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	protected abstract switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
 	protected abstract switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
+}
+
+export function isProfileUsingDefaultStorage(profile: IUserDataProfile): boolean {
+	return profile.isDefault || !!profile.useDefaultFlags?.uiState;
 }
 
 export class InMemoryStorageService extends AbstractStorageService {

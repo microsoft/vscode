@@ -11,7 +11,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractStorageService, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
@@ -160,8 +160,8 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	private readonly mapProfileToStorage = new Map<string /* profile ID */, IStorageMain>();
 
 	profileStorage(profile: IUserDataProfile): IStorageMain {
-		if (profile.isDefault) {
-			return this.applicationStorage; // for default profile, use application storage
+		if (isProfileUsingDefaultStorage(profile)) {
+			return this.applicationStorage; // for profiles using default storage, use application storage
 		}
 
 		let profileStorage = this.mapProfileToStorage.get(profile.id);

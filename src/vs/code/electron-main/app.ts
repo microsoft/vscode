@@ -102,6 +102,8 @@ import { CredentialsNativeMainService } from 'vs/platform/credentials/electron-m
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { IDefaultExtensionsProfileInitService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { DefaultExtensionsProfileInitHandler } from 'vs/platform/extensionManagement/electron-main/defaultExtensionsProfileInit';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -525,8 +527,8 @@ export class CodeApplication extends Disposable {
 		// Services
 		const appInstantiationService = await this.initServices(machineId, sharedProcess, sharedProcessReady);
 
-		// Setup Auth Handler
-		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
+		// Setup Handlers
+		this.setUpHandlers(appInstantiationService);
 
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
@@ -541,6 +543,14 @@ export class CodeApplication extends Disposable {
 		if (this.environmentMainService.args.trace) {
 			appInstantiationService.invokeFunction(accessor => this.stopTracingEventually(accessor, windows));
 		}
+	}
+
+	private setUpHandlers(instantiationService: IInstantiationService): void {
+		// Auth Handler
+		this._register(instantiationService.createInstance(ProxyAuthHandler));
+
+		// Default Extensions Profile Init Handler
+		this._register(instantiationService.createInstance(DefaultExtensionsProfileInitHandler));
 	}
 
 	private async resolveMachineId(): Promise<string> {
@@ -679,6 +689,9 @@ export class CodeApplication extends Disposable {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
 
+		// Default Extensions Profile Init
+		services.set(IDefaultExtensionsProfileInitService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('IDefaultExtensionsProfileInitService')))));
+
 		// Init services that require it
 		await backupMainService.initialize();
 
@@ -710,8 +723,10 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel);
 		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
 
-		// Profiles
-		mainProcessElectronServer.registerChannel('userDataProfiles', ProxyChannel.fromService(accessor.get(IUserDataProfilesMainService)));
+		// User Data Profiles
+		const userDataProfilesService = ProxyChannel.fromService(accessor.get(IUserDataProfilesMainService));
+		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
+		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
@@ -876,9 +891,9 @@ export class CodeApplication extends Disposable {
 				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
 
 				// Pass along edit session id
-				if (params.get('edit-session-id') !== null) {
-					environmentService.editSessionId = params.get('edit-session-id') ?? undefined;
-					params.delete('edit-session-id');
+				if (params.get('editSessionId') !== null) {
+					environmentService.editSessionId = params.get('editSessionId') ?? undefined;
+					params.delete('editSessionId');
 					uri = uri.with({ query: params.toString() });
 				}
 

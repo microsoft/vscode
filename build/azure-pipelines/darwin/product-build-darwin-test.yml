@@ -46,13 +46,13 @@ steps:
           compile-extension:html-language-features-server \
           compile-extension:ipynb \
           compile-extension:json-language-features-server \
+          compile-extension:markdown-language-features-server \
           compile-extension:markdown-language-features \
           compile-extension-media \
           compile-extension:microsoft-authentication \
           compile-extension:typescript-language-features \
           compile-extension:vscode-api-tests \
           compile-extension:vscode-colorize-tests \
-          compile-extension:vscode-custom-editor-tests \
           compile-extension:vscode-notebook-tests \
           compile-extension:vscode-test-resolver
       displayName: Build integration tests

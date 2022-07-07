@@ -1301,8 +1301,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			backupPath: options.emptyWindowBackupInfo ? join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder) : undefined,
 
 			profiles: {
-				default: this.userDataProfilesService.defaultProfile,
-				current: options.workspace ? this.userDataProfilesService.getProfile(options.workspace) : this.userDataProfilesService.defaultProfile,
+				all: this.userDataProfilesService.profiles,
+				current: this.userDataProfilesService.getProfile(options.workspace ?? 'empty-window'),
 			},
 
 			homeDir: this.environmentMainService.userHome.fsPath,
@@ -1331,6 +1331,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
+			editSessionId: this.environmentMainService.editSessionId,
 		};
 
 		let window: ICodeWindow | undefined;

@@ -496,6 +496,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('task.quickOpen.showAll', "Causes the Tasks: Run Task command to use the slower \"show all\" behavior instead of the faster two level picker where tasks are grouped by provider."),
 			default: false
 		},
+		'task.showDecorations': {
+			type: 'boolean',
+			description: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks."),
+			default: true
+		},
 		'task.saveBeforeRun': {
 			markdownDescription: nls.localize(
 				'task.saveBeforeRun',
