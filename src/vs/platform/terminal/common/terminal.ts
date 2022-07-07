@@ -181,11 +181,6 @@ export enum TitleEventSource {
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
 export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
 
-export interface IRawTerminalInstanceLayoutInfo<T> {
-	relativeSize: number;
-	terminal: T;
-}
-
 export enum TerminalIpcChannels {
 	/**
 	 * Communicates between the renderer process and shared process.
@@ -318,6 +313,7 @@ export interface IPtyService extends IPtyHostController {
 	getProfiles?(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string): Promise<string>;
+	getRevivedPtyNewId(id: number): Promise<number | undefined>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
@@ -464,7 +460,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections };
+	attachPersistentProcess?: { id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in

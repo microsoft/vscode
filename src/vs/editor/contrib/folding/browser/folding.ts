@@ -127,7 +127,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.mouseDownInfo = null;
 
 		this.foldingDecorationProvider = new FoldingDecorationProvider(editor);
-		this.foldingDecorationProvider.autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
+		this.foldingDecorationProvider.showFoldingControls = options.get(EditorOption.showFoldingControls);
 		this.foldingDecorationProvider.showFoldingHighlights = options.get(EditorOption.foldingHighlight);
 		this.foldingEnabled = CONTEXT_FOLDING_ENABLED.bindTo(this.contextKeyService);
 		this.foldingEnabled.set(this._isEnabled);
@@ -159,7 +159,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			}
 			if (e.hasChanged(EditorOption.showFoldingControls) || e.hasChanged(EditorOption.foldingHighlight)) {
 				const options = this.editor.getOptions();
-				this.foldingDecorationProvider.autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
+				this.foldingDecorationProvider.showFoldingControls = options.get(EditorOption.showFoldingControls);
 				this.foldingDecorationProvider.showFoldingHighlights = options.get(EditorOption.foldingHighlight);
 				this.triggerFoldingModelChanged();
 			}

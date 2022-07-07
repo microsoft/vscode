@@ -24,7 +24,7 @@ export class EditorWorkerServiceDiffComputer implements IDiffComputer {
 
 	async computeDiff(textModel1: ITextModel, textModel2: ITextModel): Promise<IDiffComputerResult> {
 		const diffs = await this.editorWorkerService.computeDiff(textModel1.uri, textModel2.uri, false, 1000);
-		if (!diffs || diffs.quitEarly) {
+		if (!diffs) {
 			return { diffs: null };
 		}
 		return { diffs: EditorWorkerServiceDiffComputer.fromDiffComputationResult(diffs, textModel1, textModel2) };
@@ -53,7 +53,7 @@ function fromLineChange(lineChange: ILineChange, originalTextModel: ITextModel, 
 	}
 
 	let innerDiffs = lineChange.charChanges?.map(c => rangeMappingFromCharChange(c, originalTextModel, modifiedTextModel)).filter(isDefined);
-	if (!innerDiffs) {
+	if (!innerDiffs || innerDiffs.length === 0) {
 		innerDiffs = [rangeMappingFromLineRanges(originalRange, modifiedRange)];
 	}
 

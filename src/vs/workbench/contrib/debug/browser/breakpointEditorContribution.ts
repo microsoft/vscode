@@ -507,26 +507,28 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			this.ignoreDecorationsChangedEvent = true;
 
 			// Set breakpoint decorations
-			const decorationIds = activeCodeEditor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), desiredBreakpointDecorations);
-			this.breakpointDecorations.forEach(bpd => {
-				if (bpd.inlineWidget) {
-					bpd.inlineWidget.dispose();
-				}
-			});
-			this.breakpointDecorations = decorationIds.map((decorationId, index) => {
-				let inlineWidget: InlineBreakpointWidget | undefined = undefined;
-				const breakpoint = breakpoints[index];
-				if (desiredBreakpointDecorations[index].options.before) {
-					const contextMenuActions = () => this.getContextMenuActions([breakpoint], activeCodeEditor.getModel().uri, breakpoint.lineNumber, breakpoint.column);
-					inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, desiredBreakpointDecorations[index].options.glyphMarginClassName, breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
-				}
+			activeCodeEditor.changeDecorations((changeAccessor) => {
+				const decorationIds = changeAccessor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), desiredBreakpointDecorations);
+				this.breakpointDecorations.forEach(bpd => {
+					if (bpd.inlineWidget) {
+						bpd.inlineWidget.dispose();
+					}
+				});
+				this.breakpointDecorations = decorationIds.map((decorationId, index) => {
+					let inlineWidget: InlineBreakpointWidget | undefined = undefined;
+					const breakpoint = breakpoints[index];
+					if (desiredBreakpointDecorations[index].options.before) {
+						const contextMenuActions = () => this.getContextMenuActions([breakpoint], activeCodeEditor.getModel().uri, breakpoint.lineNumber, breakpoint.column);
+						inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, desiredBreakpointDecorations[index].options.glyphMarginClassName, breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
+					}
 
-				return {
-					decorationId,
-					breakpoint,
-					range: desiredBreakpointDecorations[index].range,
-					inlineWidget
-				};
+					return {
+						decorationId,
+						breakpoint,
+						range: desiredBreakpointDecorations[index].range,
+						inlineWidget
+					};
+				});
 			});
 		} finally {
 			this.ignoreDecorationsChangedEvent = false;
@@ -535,23 +537,25 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		// Set breakpoint candidate decorations
 		const session = this.debugService.getViewModel().focusedSession;
 		const desiredCandidateDecorations = debugSettings.showInlineBreakpointCandidates && session ? await createCandidateDecorations(this.editor.getModel(), this.breakpointDecorations, session) : [];
-		const candidateDecorationIds = this.editor.deltaDecorations(this.candidateDecorations.map(c => c.decorationId), desiredCandidateDecorations);
-		this.candidateDecorations.forEach(candidate => {
-			candidate.inlineWidget.dispose();
-		});
-		this.candidateDecorations = candidateDecorationIds.map((decorationId, index) => {
-			const candidate = desiredCandidateDecorations[index];
-			// Candidate decoration has a breakpoint attached when a breakpoint is already at that location and we did not yet set a decoration there
-			// In practice this happens for the first breakpoint that was set on a line
-			// We could have also rendered this first decoration as part of desiredBreakpointDecorations however at that moment we have no location information
-			const icon = candidate.breakpoint ? getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService).icon : icons.breakpoint.disabled;
-			const contextMenuActions = () => this.getContextMenuActions(candidate.breakpoint ? [candidate.breakpoint] : [], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn);
-			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, ThemeIcon.asClassName(icon), candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
+		this.editor.changeDecorations((changeAccessor) => {
+			const candidateDecorationIds = changeAccessor.deltaDecorations(this.candidateDecorations.map(c => c.decorationId), desiredCandidateDecorations);
+			this.candidateDecorations.forEach(candidate => {
+				candidate.inlineWidget.dispose();
+			});
+			this.candidateDecorations = candidateDecorationIds.map((decorationId, index) => {
+				const candidate = desiredCandidateDecorations[index];
+				// Candidate decoration has a breakpoint attached when a breakpoint is already at that location and we did not yet set a decoration there
+				// In practice this happens for the first breakpoint that was set on a line
+				// We could have also rendered this first decoration as part of desiredBreakpointDecorations however at that moment we have no location information
+				const icon = candidate.breakpoint ? getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService).icon : icons.breakpoint.disabled;
+				const contextMenuActions = () => this.getContextMenuActions(candidate.breakpoint ? [candidate.breakpoint] : [], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn);
+				const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, ThemeIcon.asClassName(icon), candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
 
-			return {
-				decorationId,
-				inlineWidget
-			};
+				return {
+					decorationId,
+					inlineWidget
+				};
+			});
 		});
 
 		for (const d of this.breakpointDecorations) {
@@ -631,7 +635,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		if (this.breakpointWidget) {
 			this.breakpointWidget.dispose();
 		}
-		this.editor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), []);
+		this.editor.removeDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId));
 		dispose(this.toDispose);
 	}
 }

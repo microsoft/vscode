@@ -111,7 +111,7 @@ suite('ConfigurationEditingService', () => {
 		environmentService.policyFile = joinPath(workspaceFolder, 'policies.json');
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, logService));
-		userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile);
+		userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService))));
 		instantiationService.stub(IFileService, fileService);
@@ -192,7 +192,7 @@ suite('ConfigurationEditingService', () => {
 	test('do not notify error', async () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, doNotDisturbMode: false, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, onDidChangeDoNotDisturbMode: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null! });
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {

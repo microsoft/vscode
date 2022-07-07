@@ -33,7 +33,7 @@ export class FindFileReferencesCommand implements Command {
 			location: vscode.ProgressLocation.Window,
 			title: localize('progress.title', "Finding file references")
 		}, async (_progress, token) => {
-			const references = await this.referencesProvider.getAllReferencesToFile(resource!, token);
+			const references = await this.referencesProvider.getReferencesToFileInWorkspace(resource!, token);
 			const locations = references.map(ref => ref.location);
 
 			const config = vscode.workspace.getConfiguration('references');

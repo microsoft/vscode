@@ -28,6 +28,7 @@ class CheckoutItem implements QuickPickItem {
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
 	get label(): string { return `${this.repository.isBranchProtected(this.ref.name ?? '') ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`; }
 	get description(): string { return this.shortCommit; }
+	get refName(): string | undefined { return this.ref.name; }
 
 	constructor(protected repository: Repository, protected ref: Ref) { }
 
@@ -140,6 +141,7 @@ class HEADItem implements QuickPickItem {
 	get label(): string { return 'HEAD'; }
 	get description(): string { return (this.repository.HEAD && this.repository.HEAD.commit || '').substr(0, 8); }
 	get alwaysShow(): boolean { return true; }
+	get refName(): string { return 'HEAD'; }
 }
 
 class AddRemoteItem implements QuickPickItem {
@@ -1104,13 +1106,21 @@ export class CommandCenter {
 		}
 
 		await doc.save();
-		await repository.add([uri]);
 
 		// TODO@jrieken there isn't a `TabInputTextMerge` instance yet, till now the merge editor
 		// uses the `TabInputText` for the out-resource and we use that to identify and CLOSE the tab
+		// see https://github.com/microsoft/vscode/issues/153213
 		const { activeTab } = window.tabGroups.activeTabGroup;
+		let didCloseTab = false;
 		if (activeTab && activeTab?.input instanceof TabInputText && activeTab.input.uri.toString() === uri.toString()) {
-			await window.tabGroups.close(activeTab, true);
+			didCloseTab = await window.tabGroups.close(activeTab, true);
+		}
+
+		// Only stage if the merge editor has been successfully closed. That means all conflicts have been
+		// handled or unhandled conflicts are OK by the user.
+		if (didCloseTab) {
+			await repository.add([uri]);
+			await commands.executeCommand('workbench.view.scm');
 		}
 	}
 
@@ -1615,7 +1625,7 @@ export class CommandCenter {
 
 		const postCommitCommand = config.get<'none' | 'push' | 'sync'>('postCommitCommand');
 		if ((opts.postCommitCommand === undefined && postCommitCommand === 'push') || opts.postCommitCommand === 'push') {
-			await this._push(repository, { pushType: PushType.Push, silent: true });
+			await this._push(repository, { pushType: PushType.Push });
 		}
 		if ((opts.postCommitCommand === undefined && postCommitCommand === 'sync') || opts.postCommitCommand === 'sync') {
 			await this.sync(repository);
@@ -1699,6 +1709,51 @@ export class CommandCenter {
 	@command('git.commitAllAmend', { repository: true })
 	async commitAllAmend(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: true, amend: true });
+	}
+
+	@command('git.commitMessageAccept')
+	async commitMessageAccept(arg?: Uri): Promise<void> {
+		if (!arg) { return; }
+
+		// Close the tab
+		this._closeEditorTab(arg);
+	}
+
+	@command('git.commitMessageDiscard')
+	async commitMessageDiscard(arg?: Uri): Promise<void> {
+		if (!arg) { return; }
+
+		// Clear the contents of the editor
+		const editors = window.visibleTextEditors
+			.filter(e => e.document.languageId === 'git-commit' && e.document.uri.toString() === arg.toString());
+
+		if (editors.length !== 1) { return; }
+
+		const commitMsgEditor = editors[0];
+		const commitMsgDocument = commitMsgEditor.document;
+
+		const editResult = await commitMsgEditor.edit(builder => {
+			const firstLine = commitMsgDocument.lineAt(0);
+			const lastLine = commitMsgDocument.lineAt(commitMsgDocument.lineCount - 1);
+
+			builder.delete(new Range(firstLine.range.start, lastLine.range.end));
+		});
+
+		if (!editResult) { return; }
+
+		// Save the document
+		const saveResult = await commitMsgDocument.save();
+		if (!saveResult) { return; }
+
+		// Close the tab
+		this._closeEditorTab(arg);
+	}
+
+	private _closeEditorTab(uri: Uri): void {
+		const tabToClose = window.tabGroups.all.map(g => g.tabs).flat()
+			.filter(t => t.input instanceof TabInputText && t.input.uri.toString() === uri.toString());
+
+		window.tabGroups.close(tabToClose);
 	}
 
 	private async _commitEmpty(repository: Repository, noVerify?: boolean): Promise<void> {
@@ -1998,7 +2053,9 @@ export class CommandCenter {
 				return;
 			}
 
-			target = choice.label;
+			if (choice.refName) {
+				target = choice.refName;
+			}
 		}
 
 		await repository.branch(branchName, true, target);

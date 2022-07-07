@@ -58,7 +58,7 @@ export class VsCodeOutputLogger extends Disposable implements ILogger {
 		const now = new Date();
 		return String(now.getUTCHours()).padStart(2, '0')
 			+ ':' + String(now.getMinutes()).padStart(2, '0')
-			+ ':' + String(now.getUTCSeconds()).padStart(2, '0') + '.' + now.getMilliseconds();
+			+ ':' + String(now.getUTCSeconds()).padStart(2, '0') + '.' + String(now.getMilliseconds()).padStart(3, '0');
 	}
 
 	private updateConfiguration(): void {

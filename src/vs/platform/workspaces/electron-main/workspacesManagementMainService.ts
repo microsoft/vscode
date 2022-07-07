@@ -23,6 +23,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
 import { isWorkspaceIdentifier, IWorkspaceIdentifier, IResolvedWorkspace, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, isUntitledWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -75,6 +76,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	constructor(
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
+		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@IProductService private readonly productService: IProductService
@@ -202,6 +204,9 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 
 		// Delete from disk
 		this.doDeleteUntitledWorkspaceSync(workspace);
+
+		// unset workspace from profiles
+		this.userDataProfilesMainService.unsetWorkspace(workspace);
 
 		// Event
 		this._onDidDeleteUntitledWorkspace.fire(workspace);
