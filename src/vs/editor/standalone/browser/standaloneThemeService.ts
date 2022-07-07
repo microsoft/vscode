@@ -20,10 +20,10 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ColorScheme, isDark, isHighContrast } from 'vs/platform/theme/common/theme';
 import { getIconsStyleSheet, UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
 
-const VS_LIGHT_THEME_NAME = 'vs';
-const VS_DARK_THEME_NAME = 'vs-dark';
-const HC_BLACK_THEME_NAME = 'hc-black';
-const HC_LIGHT_THEME_NAME = 'hc-light';
+export const VS_LIGHT_THEME_NAME = 'vs';
+export const VS_DARK_THEME_NAME = 'vs-dark';
+export const HC_BLACK_THEME_NAME = 'hc-black';
+export const HC_LIGHT_THEME_NAME = 'hc-light';
 
 const colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
@@ -253,6 +253,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._styleElements = [];
 		this._colorMapOverride = null;
 		this.setTheme(VS_LIGHT_THEME_NAME);
+		this._onOSSchemeChanged();
 
 		iconsStyleSheet.onDidChange(() => {
 			this._codiconCSS = iconsStyleSheet.getCSS();
