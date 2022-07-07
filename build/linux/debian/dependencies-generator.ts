@@ -87,7 +87,7 @@ function calculatePackageDeps(binaryPath: string, arch: ArchString, sysroot: str
 
 	// Do a sparse checkout to get the Chromium dpkg-shlibdeps file.
 	const tmp = tmpdir();
-	const result = spawnSync('sh', ['checkout-shlibdeps.sh', tmp]);
+	const result = spawnSync('sh', ['checkout-shlibdeps.sh'], { cwd: tmp });
 	if (result.status !== 0) {
 		throw new Error('Error retrieving dpkg-shlibdeps');
 	}
