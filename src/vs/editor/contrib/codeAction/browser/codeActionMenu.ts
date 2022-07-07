@@ -145,7 +145,7 @@ interface ISelectedCodeAction {
 }
 
 
-export class CodeActionMenu extends Disposable implements IContentWidget {
+export class CodeActionMenu extends Disposable {
 
 	private codeActionList!: List<ICodeActionMenuItem>;
 	private options: ICodeActionMenuItem[] = [];
@@ -155,22 +155,11 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 	private readonly _onDidSelect = new Emitter<ISelectedCodeAction>();
 	private readonly _onDidHideContextMenu = new Emitter<void>();
 	readonly onDidHideContextMenu = this._onDidHideContextMenu.event;
-	private parent!: HTMLElement;
-	private listTrigger!: CodeActionTrigger;
-	private selected!: CodeActionItem;
-	private menuAction: IAction[] = [];
-	private loc: any;
-	// private showActions: CodeActionItem[];
 
 	readonly onDidSelect: Event<ISelectedCodeAction> = this._onDidSelect.event;
 
-
-
-
 	private readonly _keybindingResolver: CodeActionKeybindingResolver;
 	listRenderer: any;
-	// selected: any;
-	// _isVisible: any;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -192,16 +181,6 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 	allowEditorOverflow?: boolean | undefined;
 	suppressMouseDown?: boolean | undefined;
 
-	getId(): string {
-		throw new Error('Method not implemented.');
-	}
-	getDomNode(): HTMLElement {
-		throw new Error('Method not implemented.');
-	}
-	getPosition(): IContentWidgetPosition | null {
-		throw new Error('Method not implemented.');
-	}
-
 	get isVisible(): boolean {
 		return this._visible;
 	}
@@ -221,7 +200,7 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 			// this._editor.removeContentWidget(this);
 			// this._editor.getDomNode()?.removeChild(this.parent);
 			this.codeActionList.dispose();
-			this.menuAction = [];
+			this._contextViewService.hideContextView();
 			this.options = [];
 
 			// this.parent.dispose();
@@ -260,11 +239,6 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 		renderMenu.id = 'testRedSquare';
 
 		element.appendChild(renderMenu);
-		// element.style.position = 'fixed';
-		// element.style.left = this.loc.x + 'px';
-		// element.style.top = this.loc.y + 'px';
-
-
 
 		this.listRenderer = new CodeMenuRenderer();
 
@@ -277,8 +251,6 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 			}
 		}, [this.listRenderer],
 
-			//new class, + new instance, id of rendere match id of getTemplateID
-			//renderTemplate, renderElement
 		);
 
 
@@ -287,13 +259,10 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 		}
 
 
-
 		inputArray.forEach((item, index) => {
 			// const tooltip = item.tooltip ? item.tooltip : '';
 			this.options.push(<ICodeActionMenuItem>{ title: item.label, detail: item.tooltip, action: inputArray[index], isDisabled: item.enabled });
 		});
-
-		// this._editor.getDomNode()?.append(element);
 
 		this.codeActionList?.splice(0, this.codeActionList.length, this.options);
 		this.codeActionList.layout(180);
@@ -322,10 +291,6 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 		this._visible = true;
 		this._showingActions.value = codeActions;
 
-
-		this.listTrigger = trigger;
-
-
 		const menuActions = this.getMenuActions(trigger, actionsToShow, codeActions.documentation);
 
 		// this.menuAction = menuActions;
@@ -339,19 +304,13 @@ export class CodeActionMenu extends Disposable implements IContentWidget {
 
 		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
 
-		// this.createCodeActionMenuList(this.parent, this.menuAction);
-
-		// this.codeActionList.layout(180);
-
-		// this.parent = document.createElement('div');
-
 		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => this.renderCodeActionMenuList(container, menuActions),
 			onHide: (didCancel) => {
+				console.log(didCancel);
 				this._visible = false;
 				this._editor.focus();
-				this._contextViewService.hideContextView();
 			},
 		},
 			//this._editor.getDomNode(), if we use shadow dom ( + shadow dom param)
