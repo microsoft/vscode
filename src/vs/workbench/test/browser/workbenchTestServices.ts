@@ -2014,7 +2014,7 @@ export class TestWebExtensionsScannerService implements IWebExtensionsScannerSer
 	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Partial<IGalleryMetadata & { isApplicationScoped: boolean; isMachineScoped: boolean; isBuiltin: boolean; isSystem: boolean; updated: boolean; preRelease: boolean; installedTimestamp: number }> | undefined): Promise<IExtension> {
 		throw new Error('Method not implemented.');
 	}
-	removeExtension(identifier: IExtensionIdentifier, version?: string | undefined): Promise<void> {
+	removeExtension(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	scanMetadata(extensionLocation: URI): Promise<Partial<IGalleryMetadata & { isApplicationScoped: boolean; isMachineScoped: boolean; isBuiltin: boolean; isSystem: boolean; updated: boolean; preRelease: boolean; installedTimestamp: number }> | undefined> {

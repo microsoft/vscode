@@ -196,6 +196,6 @@ class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUni
 	}
 
 	protected doRun(token: CancellationToken): Promise<void> {
-		return this.webExtensionsScannerService.removeExtension(this.extension.identifier);
+		return this.webExtensionsScannerService.removeExtension(this.extension);
 	}
 }

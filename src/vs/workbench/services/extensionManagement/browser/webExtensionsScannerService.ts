@@ -41,6 +41,7 @@ import { validateExtensionManifest } from 'vs/platform/extensions/common/extensi
 import Severity from 'vs/base/common/severity';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrateStorageFrom?: string };
 type ExtensionInfo = { readonly id: string; preRelease: boolean };
@@ -98,6 +99,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
@@ -435,24 +437,26 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return null;
 	}
 
-	async addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Metadata): Promise<IExtension> {
+	async addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Metadata): Promise<IScannedExtension> {
 		const webExtension = await this.toWebExtensionFromGallery(galleryExtension, metadata);
 		return this.addWebExtension(webExtension);
 	}
 
-	async addExtension(location: URI, metadata?: Metadata): Promise<IExtension> {
+	async addExtension(location: URI, metadata?: Metadata): Promise<IScannedExtension> {
 		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, metadata);
 		return this.addWebExtension(webExtension);
 	}
 
-	async removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void> {
-		await this.writeInstalledExtensions(installedExtensions => installedExtensions.filter(extension => !(areSameExtensions(extension.identifier, identifier) && (version ? extension.version === version : true))));
+	async removeExtension(extension: IScannedExtension): Promise<void> {
+		const profile = extension.metadata?.isApplicationScoped ? this.userDataProfilesService.defaultProfile : this.userDataProfileService.currentProfile;
+		await this.writeInstalledExtensions(profile, installedExtensions => installedExtensions.filter(installedExtension => !areSameExtensions(installedExtension.identifier, extension.identifier)));
 	}
 
 	private async addWebExtension(webExtension: IWebExtension): Promise<IScannedExtension> {
 		const isSystem = !!(await this.scanSystemExtensions()).find(e => areSameExtensions(e.identifier, webExtension.identifier));
 		const isBuiltin = !!webExtension.metadata?.isBuiltin;
 		const extension = await this.toScannedExtension(webExtension, isBuiltin);
+		const profile = webExtension.metadata?.isApplicationScoped ? this.userDataProfilesService.defaultProfile : this.userDataProfileService.currentProfile;
 
 		if (isSystem) {
 			await this.writeSystemExtensionsCache(systemExtensions => {
@@ -473,21 +477,21 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				return customBuiltinExtensions;
 			});
 
-			const installedExtensions = await this.readInstalledExtensions();
+			const installedExtensions = await this.readInstalledExtensions(profile);
 			// Also add to installed extensions if it is installed to update its version
 			if (installedExtensions.some(e => areSameExtensions(e.identifier, webExtension.identifier))) {
-				await this.addToInstalledExtensions(webExtension);
+				await this.addToInstalledExtensions(webExtension, profile);
 			}
 			return extension;
 		}
 
 		// Add to installed extensions
-		await this.addToInstalledExtensions(webExtension);
+		await this.addToInstalledExtensions(webExtension, profile);
 		return extension;
 	}
 
-	private async addToInstalledExtensions(webExtension: IWebExtension): Promise<void> {
-		await this.writeInstalledExtensions(installedExtensions => {
+	private async addToInstalledExtensions(webExtension: IWebExtension, profile: IUserDataProfile): Promise<void> {
+		await this.writeInstalledExtensions(profile, installedExtensions => {
 			// Remove the existing extension to avoid duplicates
 			installedExtensions = installedExtensions.filter(e => !areSameExtensions(e.identifier, webExtension.identifier));
 			installedExtensions.push(webExtension);
@@ -496,7 +500,17 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async scanInstalledExtensions(scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
-		const installedExtensions = await this.readInstalledExtensions();
+		let installedExtensions = await this.readInstalledExtensions(this.userDataProfileService.currentProfile);
+
+		// If current profile is not a default profile, then add the application extensions to the list
+		if (!this.userDataProfileService.currentProfile.isDefault) {
+			// Remove application extensions from the non default profile
+			installedExtensions = installedExtensions.filter(i => !i.metadata?.isApplicationScoped);
+			// Add application extensions from the default profile to the list
+			const defaultProfileExtensions = await this.readInstalledExtensions(this.userDataProfilesService.defaultProfile);
+			installedExtensions.push(...defaultProfileExtensions.filter(i => i.metadata?.isApplicationScoped));
+		}
+
 		installedExtensions.sort((a, b) => a.identifier.id < b.identifier.id ? -1 : a.identifier.id > b.identifier.id ? 1 : semver.rcompare(a.version, b.version));
 		const result = new Map<string, IScannedExtension>();
 		for (const webExtension of installedExtensions) {
@@ -670,17 +684,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return manifest;
 	}
 
-	private async readInstalledExtensions(): Promise<IWebExtension[]> {
-		await this.migratePackageNLSUris();
-		return this.withWebExtensions(this.userDataProfileService.currentProfile.extensionsResource);
-	}
-
 	// TODO: @TylerLeonhardt/@Sandy081: Delete after 6 months
 	private _migratePackageNLSUrisPromise: Promise<void> | undefined;
 	private migratePackageNLSUris(): Promise<void> {
 		if (!this._migratePackageNLSUrisPromise) {
 			this._migratePackageNLSUrisPromise = (async () => {
-				const webExtensions = await this.withWebExtensions(this.userDataProfileService.currentProfile.extensionsResource);
+				const webExtensions = await this.withWebExtensions(this.userDataProfilesService.defaultProfile.extensionsResource);
 				if (webExtensions.some(e => !e.packageNLSUris && e.packageNLSUri)) {
 					const migratedExtensions = await Promise.all(webExtensions.map(async e => {
 						if (!e.packageNLSUris && e.packageNLSUri) {
@@ -691,15 +700,22 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						}
 						return e;
 					}));
-					await this.withWebExtensions(this.userDataProfileService.currentProfile.extensionsResource, () => migratedExtensions);
+					await this.withWebExtensions(this.userDataProfilesService.defaultProfile.extensionsResource, () => migratedExtensions);
 				}
 			})();
 		}
 		return this._migratePackageNLSUrisPromise;
 	}
 
-	private writeInstalledExtensions(updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
-		return this.withWebExtensions(this.userDataProfileService.currentProfile.extensionsResource, updateFn);
+	private async readInstalledExtensions(profile: IUserDataProfile): Promise<IWebExtension[]> {
+		if (profile.isDefault) {
+			await this.migratePackageNLSUris();
+		}
+		return this.withWebExtensions(profile.extensionsResource);
+	}
+
+	private writeInstalledExtensions(profile: IUserDataProfile, updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
+		return this.withWebExtensions(profile.extensionsResource, updateFn);
 	}
 
 	private readCustomBuiltinExtensionsCache(): Promise<IWebExtension[]> {
