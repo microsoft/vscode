@@ -14,6 +14,7 @@ import { ExtensionType, IExtensionManifest, MANIFEST_CACHE_FOLDER, TargetPlatfor
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -31,13 +32,14 @@ class ExtensionsScannerService extends AbstractExtensionsScannerService implemen
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService nativeEnvironmentService: INativeEnvironmentService,
 		@IProductService productService: IProductService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
 			URI.file(nativeEnvironmentService.builtinExtensionsPath),
 			URI.file(nativeEnvironmentService.extensionsPath),
 			joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
 			joinPath(ROOT, MANIFEST_CACHE_FOLDER),
-			userDataProfilesService, extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService);
+			userDataProfilesService, extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService, instantiationService);
 	}
 
 	protected async getTranslations(language: string): Promise<Translations> {
