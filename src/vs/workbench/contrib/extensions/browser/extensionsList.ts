@@ -188,7 +188,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const updateEnablement = async () => {
 			let disabled = false;
-			let deprecated = !!extension.deprecationInfo;
+			const deprecated = !!extension.deprecationInfo;
 			if (extension.state === ExtensionState.Uninstalled) {
 				disabled = deprecated || !(await this.extensionsWorkbenchService.canInstall(extension));
 			} else if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {

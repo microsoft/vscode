@@ -7,7 +7,7 @@
  * Determines if haystack ends with needle.
  */
 export function endsWith(haystack: string, needle: string): boolean {
-	let diff = haystack.length - needle.length;
+	const diff = haystack.length - needle.length;
 	if (diff > 0) {
 		return haystack.lastIndexOf(needle) === diff;
 	} else if (diff === 0) {

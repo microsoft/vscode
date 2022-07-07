@@ -463,15 +463,11 @@ export class SearchWidget extends Widget {
 
 	layout(dimension: DOM.Dimension) {
 		if (dimension.width < 400) {
-			if (this.countElement) {
-				this.countElement.classList.add('hide');
-			}
+			this.countElement?.classList.add('hide');
 
 			this.inputBox.inputElement.style.paddingRight = '0px';
 		} else {
-			if (this.countElement) {
-				this.countElement.classList.remove('hide');
-			}
+			this.countElement?.classList.remove('hide');
 
 			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
 		}
@@ -506,9 +502,7 @@ export class SearchWidget extends Widget {
 	}
 
 	override dispose(): void {
-		if (this.options.focusKey) {
-			this.options.focusKey.set(false);
-		}
+		this.options.focusKey?.set(false);
 		super.dispose();
 	}
 }

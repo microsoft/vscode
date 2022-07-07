@@ -101,7 +101,11 @@ export class MessageController implements IEditorContribution {
 
 	private _onDidAttemptReadOnlyEdit(): void {
 		if (this._editor.hasModel()) {
-			this.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this._editor.getPosition());
+			if (this._editor.isSimpleWidget) {
+				this.showMessage(nls.localize('editor.simple.readonly', "Cannot edit in read-only input"), this._editor.getPosition());
+			} else {
+				this.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this._editor.getPosition());
+			}
 		}
 	}
 }
@@ -130,13 +134,12 @@ class MessageWidget implements IContentWidget {
 	private readonly _domNode: HTMLDivElement;
 
 	static fadeOut(messageWidget: MessageWidget): IDisposable {
-		let handle: any;
 		const dispose = () => {
 			messageWidget.dispose();
 			clearTimeout(handle);
 			messageWidget.getDomNode().removeEventListener('animationend', dispose);
 		};
-		handle = setTimeout(dispose, 110);
+		const handle = setTimeout(dispose, 110);
 		messageWidget.getDomNode().addEventListener('animationend', dispose);
 		messageWidget.getDomNode().classList.add('fadeOut');
 		return { dispose };

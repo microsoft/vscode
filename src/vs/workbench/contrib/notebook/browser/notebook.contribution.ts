@@ -846,9 +846,10 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.showFoldingControls]: {
 			description: nls.localize('notebook.showFoldingControls.description', "Controls when the Markdown header folding arrow is shown."),
 			type: 'string',
-			enum: ['always', 'mouseover'],
+			enum: ['always', 'never', 'mouseover'],
 			enumDescriptions: [
 				nls.localize('showFoldingControls.always', "The folding controls are always visible."),
+				nls.localize('showFoldingControls.never', "Never show the folding controls and reduce the gutter size."),
 				nls.localize('showFoldingControls.mouseover', "The folding controls are visible only on mouseover."),
 			],
 			default: 'mouseover',

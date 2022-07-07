@@ -56,6 +56,8 @@ class MinimapOptions {
 
 	public readonly showSlider: 'always' | 'mouseover';
 
+	public readonly autohide: boolean;
+
 	public readonly pixelRatio: number;
 
 	public readonly typicalHalfwidthCharacterWidth: number;
@@ -120,6 +122,7 @@ class MinimapOptions {
 		this.minimapHeightIsEditorHeight = minimapLayout.minimapHeightIsEditorHeight;
 		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
 		this.showSlider = minimapOpts.showSlider;
+		this.autohide = minimapOpts.autohide;
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = options.get(EditorOption.lineHeight);
@@ -166,6 +169,7 @@ class MinimapOptions {
 			&& this.minimapHeightIsEditorHeight === other.minimapHeightIsEditorHeight
 			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
 			&& this.showSlider === other.showSlider
+			&& this.autohide === other.autohide
 			&& this.pixelRatio === other.pixelRatio
 			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
 			&& this.lineHeight === other.lineHeight
@@ -1255,10 +1259,17 @@ class InnerMinimap extends Disposable {
 	}
 
 	private _getMinimapDomNodeClassName(): string {
+		const class_ = ['minimap'];
 		if (this._model.options.showSlider === 'always') {
-			return 'minimap slider-always';
+			class_.push('slider-always');
+		} else {
+			class_.push('slider-mouseover');
 		}
-		return 'minimap slider-mouseover';
+		if (this._model.options.autohide) {
+			class_.push('autohide');
+		}
+
+		return class_.join(' ');
 	}
 
 	public getDomNode(): FastDomNode<HTMLElement> {
@@ -1325,15 +1336,11 @@ class InnerMinimap extends Disposable {
 		return false;
 	}
 	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): boolean {
-		if (this._lastRenderData) {
-			this._lastRenderData.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
-		}
+		this._lastRenderData?.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
 		return true;
 	}
 	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): boolean {
-		if (this._lastRenderData) {
-			this._lastRenderData.onLinesInserted(insertFromLineNumber, insertToLineNumber);
-		}
+		this._lastRenderData?.onLinesInserted(insertFromLineNumber, insertToLineNumber);
 		return true;
 	}
 	public onScrollChanged(): boolean {

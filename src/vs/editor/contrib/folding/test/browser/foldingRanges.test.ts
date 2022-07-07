@@ -9,7 +9,7 @@ import { MAX_FOLDING_REGIONS } from 'vs/editor/contrib/folding/browser/foldingRa
 import { computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
-let markers: FoldingMarkers = {
+const markers: FoldingMarkers = {
 	start: /^\s*#region\b/,
 	end: /^\s*#endregion\b/
 };
@@ -18,16 +18,16 @@ let markers: FoldingMarkers = {
 suite('FoldingRanges', () => {
 
 	test('test max folding regions', () => {
-		let lines: string[] = [];
-		let nRegions = MAX_FOLDING_REGIONS;
+		const lines: string[] = [];
+		const nRegions = MAX_FOLDING_REGIONS;
 		for (let i = 0; i < nRegions; i++) {
 			lines.push('#region');
 		}
 		for (let i = 0; i < nRegions; i++) {
 			lines.push('#endregion');
 		}
-		let model = createTextModel(lines.join('\n'));
-		let actual = computeRanges(model, false, markers, MAX_FOLDING_REGIONS);
+		const model = createTextModel(lines.join('\n'));
+		const actual = computeRanges(model, false, markers, MAX_FOLDING_REGIONS);
 		assert.strictEqual(actual.length, nRegions, 'len');
 		for (let i = 0; i < nRegions; i++) {
 			assert.strictEqual(actual.getStartLineNumber(i), i + 1, 'start' + i);
@@ -39,7 +39,7 @@ suite('FoldingRanges', () => {
 	});
 
 	test('findRange', () => {
-		let lines = [
+		const lines = [
 		/* 1*/	'#region',
 		/* 2*/	'#endregion',
 		/* 3*/	'class A {',
@@ -54,9 +54,9 @@ suite('FoldingRanges', () => {
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
+		const textModel = createTextModel(lines.join('\n'));
 		try {
-			let actual = computeRanges(textModel, false, markers);
+			const actual = computeRanges(textModel, false, markers);
 			// let r0 = r(1, 2);
 			// let r1 = r(3, 12);
 			// let r2 = r(4, 11);
@@ -84,16 +84,16 @@ suite('FoldingRanges', () => {
 	});
 
 	test('setCollapsed', () => {
-		let lines: string[] = [];
-		let nRegions = 500;
+		const lines: string[] = [];
+		const nRegions = 500;
 		for (let i = 0; i < nRegions; i++) {
 			lines.push('#region');
 		}
 		for (let i = 0; i < nRegions; i++) {
 			lines.push('#endregion');
 		}
-		let model = createTextModel(lines.join('\n'));
-		let actual = computeRanges(model, false, markers, MAX_FOLDING_REGIONS);
+		const model = createTextModel(lines.join('\n'));
+		const actual = computeRanges(model, false, markers, MAX_FOLDING_REGIONS);
 		assert.strictEqual(actual.length, nRegions, 'len');
 		for (let i = 0; i < nRegions; i++) {
 			actual.setCollapsed(i, i % 3 === 0);

@@ -30,7 +30,7 @@ var collections;
     }
     collections.lookupOrInsert = lookupOrInsert;
     function forEach(collection, callback) {
-        for (let key in collection) {
+        for (const key in collection) {
             if (hasOwnProperty.call(collection, key)) {
                 callback({
                     key: key,

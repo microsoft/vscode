@@ -26,7 +26,7 @@ class WelcomeBannerContribution {
 			return; // welcome banner is not enabled
 		}
 
-		if (storageService.getBoolean(WelcomeBannerContribution.WELCOME_BANNER_DISMISSED_KEY, StorageScope.GLOBAL, false)) {
+		if (storageService.getBoolean(WelcomeBannerContribution.WELCOME_BANNER_DISMISSED_KEY, StorageScope.PROFILE, false)) {
 			return; // welcome banner dismissed
 		}
 
@@ -43,7 +43,7 @@ class WelcomeBannerContribution {
 			icon,
 			actions: welcomeBanner.actions,
 			onClose: () => {
-				storageService.store(WelcomeBannerContribution.WELCOME_BANNER_DISMISSED_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				storageService.store(WelcomeBannerContribution.WELCOME_BANNER_DISMISSED_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 			}
 		});
 	}

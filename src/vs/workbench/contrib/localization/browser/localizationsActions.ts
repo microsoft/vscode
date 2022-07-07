@@ -45,7 +45,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		qp.placeholder = localize('chooseLocale', "Select Display Language");
 
 		if (installedLanguages?.length) {
-			const items: Array<ILanguagePackItem | IQuickPickSeparator> = [{ type: 'separator', label: localize('installed', "Installed languages") }];
+			const items: Array<ILanguagePackItem | IQuickPickSeparator> = [{ type: 'separator', label: localize('installed', "Installed") }];
 			qp.items = items.concat(installedLanguages);
 		}
 
@@ -62,7 +62,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 			if (newLanguages.length) {
 				qp.items = [
 					...qp.items,
-					{ type: 'separator', label: localize('available', "Available languages") },
+					{ type: 'separator', label: localize('available', "Available") },
 					...newLanguages
 				];
 			}

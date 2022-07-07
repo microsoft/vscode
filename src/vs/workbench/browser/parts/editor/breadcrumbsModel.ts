@@ -122,7 +122,7 @@ export class BreadcrumbsModel {
 			};
 		}
 
-		let info: FileInfo = {
+		const info: FileInfo = {
 			folder: withNullAsUndefined(this._workspaceService.getWorkspaceFolder(uri)),
 			path: []
 		};
@@ -133,7 +133,7 @@ export class BreadcrumbsModel {
 				break;
 			}
 			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
-			let prevPathLength = uriPrefix.path.length;
+			const prevPathLength = uriPrefix.path.length;
 			uriPrefix = dirname(uriPrefix);
 			if (uriPrefix.path.length === prevPathLength) {
 				break;

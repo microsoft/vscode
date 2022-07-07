@@ -87,7 +87,6 @@ viewsRegistry.registerViews([{
 	name: localize('testExplorer', "Test Explorer"),
 	ctorDescriptor: new SyncDescriptor(TestingExplorerView),
 	canToggleVisibility: true,
-	workspace: true,
 	canMoveView: true,
 	weight: 80,
 	order: -999,

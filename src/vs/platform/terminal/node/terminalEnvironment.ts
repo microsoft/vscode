@@ -50,7 +50,7 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
 	}
 	// We have a simple file name. We get the path variable from the env
 	// and try to find the executable on the path.
-	for (let pathEntry of paths) {
+	for (const pathEntry of paths) {
 		// The path entry is absolute.
 		let fullPath: string;
 		if (path.isAbsolute(pathEntry)) {
@@ -110,7 +110,7 @@ export function getShellIntegrationInjection(
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
 	// - The terminal is used by a feature like tasks or debugging
-	if (!options.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser) {
+	if (!options.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration) {
 		return undefined;
 	}
 
@@ -118,6 +118,9 @@ export function getShellIntegrationInjection(
 	const shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
 	const appRoot = path.dirname(FileAccess.asFileUri('', require).fsPath);
 	let newArgs: string[] | undefined;
+	const envMixin: IProcessEnvironment = {
+		'VSCODE_INJECTION': '1'
+	};
 
 	// Windows
 	if (isWindows) {
@@ -134,14 +137,13 @@ export function getShellIntegrationInjection(
 				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			}
-			return { newArgs };
+			return { newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 		return undefined;
 	}
 
 	// Linux & macOS
-	const envMixin: IProcessEnvironment = {};
 	switch (shell) {
 		case 'bash': {
 			if (!originalArgs || originalArgs.length === 0) {
@@ -168,7 +170,7 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
-			return { newArgs };
+			return { newArgs, envMixin };
 		}
 		case 'zsh': {
 			if (!originalArgs || originalArgs.length === 0) {

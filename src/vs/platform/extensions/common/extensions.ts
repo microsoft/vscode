@@ -360,8 +360,8 @@ export class ExtensionIdentifier {
 		if (typeof a === 'string' || typeof b === 'string') {
 			// At least one of the arguments is an extension id in string form,
 			// so we have to use the string comparison which ignores case.
-			let aValue = (typeof a === 'string' ? a : a.value);
-			let bValue = (typeof b === 'string' ? b : b.value);
+			const aValue = (typeof a === 'string' ? a : a.value);
+			const bValue = (typeof b === 'string' ? b : b.value);
 			return strings.equalsIgnoreCase(aValue, bValue);
 		}
 
@@ -392,6 +392,10 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 }
 
 export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
+
+export function isApplicationScopedExtension(manifest: IExtensionManifest): boolean {
+	return isLanguagePackExtension(manifest);
+}
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;

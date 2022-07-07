@@ -163,14 +163,16 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 			}
 		}
 
-		const decorations = this.editor.deltaDecorations(oldDecorations, newDecorations);
+		this.editor.changeDecorations((changeAccessor) => {
+			const decorations = changeAccessor.deltaDecorations(oldDecorations, newDecorations);
 
-		this.currentOccurrences = {};
-		this.activeLinkDecorationId = null;
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const occurence = new LinkOccurrence(links[i], decorations[i]);
-			this.currentOccurrences[occurence.decorationId] = occurence;
-		}
+			this.currentOccurrences = {};
+			this.activeLinkDecorationId = null;
+			for (let i = 0, len = decorations.length; i < len; i++) {
+				const occurence = new LinkOccurrence(links[i], decorations[i]);
+				this.currentOccurrences[occurence.decorationId] = occurence;
+			}
+		});
 	}
 
 	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey: ClickLinkKeyboardEvent | null): void {

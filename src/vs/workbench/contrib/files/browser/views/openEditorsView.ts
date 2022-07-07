@@ -320,9 +320,7 @@ export class OpenEditorsView extends ViewPane {
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		if (this.list) {
-			this.list.layout(height, width);
-		}
+		this.list?.layout(height, width);
 	}
 
 	private get showGroups(): boolean {
@@ -453,7 +451,7 @@ export class OpenEditorsView extends ViewPane {
 			}
 		}
 
-		let dirty = this.workingCopyService.dirtyCount;
+		const dirty = this.workingCopyService.dirtyCount;
 		if (dirty === 0) {
 			this.dirtyCountElement.classList.add('hidden');
 		} else {
@@ -500,8 +498,8 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	override getOptimalWidth(): number {
-		let parentNode = this.list.getHTMLElement();
-		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+		const parentNode = this.list.getHTMLElement();
+		const childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
 		return dom.getLargestChildWidth(parentNode, childNodes);
 	}

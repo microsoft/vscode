@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../logger';
-import { MarkdownEngine } from '../markdownEngine';
+import { ILogger } from '../logging';
 import { MarkdownContributionProvider } from '../markdownExtensions';
+import { MdTableOfContentsProvider } from '../tableOfContents';
 import { Disposable, disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
-import { DynamicMarkdownPreview, ManagedMarkdownPreview, StaticMarkdownPreview } from './preview';
+import { IMdWorkspace } from '../workspace';
+import { MdDocumentRenderer } from './documentRenderer';
+import { DynamicMarkdownPreview, IManagedMarkdownPreview, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { MarkdownContentProvider } from './previewContentProvider';
 import { scrollEditorToLine, StartingScrollFragment } from './scrolling';
 import { TopmostLineMonitor } from './topmostLineMonitor';
 
@@ -21,7 +22,7 @@ export interface DynamicPreviewSettings {
 	readonly locked: boolean;
 }
 
-class PreviewStore<T extends ManagedMarkdownPreview> extends Disposable {
+class PreviewStore<T extends IManagedMarkdownPreview> extends Disposable {
 
 	private readonly _previews = new Set<T>();
 
@@ -65,13 +66,14 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	private readonly _dynamicPreviews = this._register(new PreviewStore<DynamicMarkdownPreview>());
 	private readonly _staticPreviews = this._register(new PreviewStore<StaticMarkdownPreview>());
 
-	private _activePreview: ManagedMarkdownPreview | undefined = undefined;
+	private _activePreview: IManagedMarkdownPreview | undefined = undefined;
 
 	public constructor(
-		private readonly _contentProvider: MarkdownContentProvider,
-		private readonly _logger: Logger,
+		private readonly _contentProvider: MdDocumentRenderer,
+		private readonly _workspace: IMdWorkspace,
+		private readonly _logger: ILogger,
 		private readonly _contributions: MarkdownContributionProvider,
-		private readonly _engine: MarkdownEngine,
+		private readonly _tocProvider: MdTableOfContentsProvider,
 	) {
 		super();
 
@@ -163,10 +165,11 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			webview,
 			this._contentProvider,
 			this._previewConfigurations,
+			this._workspace,
 			this._logger,
 			this._topmostLineMonitor,
 			this._contributions,
-			this._engine);
+			this._tocProvider);
 
 		this.registerDynamicPreview(preview);
 	}
@@ -182,9 +185,10 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._contentProvider,
 			this._previewConfigurations,
 			this._topmostLineMonitor,
+			this._workspace,
 			this._logger,
 			this._contributions,
-			this._engine,
+			this._tocProvider,
 			lineNumber
 		);
 		this.registerStaticPreview(preview);
@@ -206,10 +210,11 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			previewSettings.previewColumn,
 			this._contentProvider,
 			this._previewConfigurations,
+			this._workspace,
 			this._logger,
 			this._topmostLineMonitor,
 			this._contributions,
-			this._engine);
+			this._tocProvider);
 
 		this.setPreviewActiveContext(true);
 		this._activePreview = preview;
@@ -243,7 +248,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		return preview;
 	}
 
-	private trackActive(preview: ManagedMarkdownPreview): void {
+	private trackActive(preview: IManagedMarkdownPreview): void {
 		preview.onDidChangeViewState(({ webviewPanel }) => {
 			this.setPreviewActiveContext(webviewPanel.active);
 			this._activePreview = webviewPanel.active ? preview : undefined;

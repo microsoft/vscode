@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -137,18 +137,43 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 
 
 class RevivalPool {
-	private _awaitingRevival: Array<{ input: WebviewInput; resolve: () => void }> = [];
+	private _awaitingRevival: Array<{
+		readonly input: WebviewInput;
+		readonly promise: DeferredPromise<void>;
+		readonly disposable: IDisposable;
+	}> = [];
 
-	public add(input: WebviewInput, resolve: () => void) {
-		this._awaitingRevival.push({ input, resolve });
+	public enqueueForRestoration(input: WebviewInput, token: CancellationToken): Promise<void> {
+		const promise = new DeferredPromise<void>();
+
+		const remove = () => {
+			const index = this._awaitingRevival.findIndex(entry => input === entry.input);
+			if (index >= 0) {
+				this._awaitingRevival.splice(index, 1);
+			}
+		};
+
+		const disposable = combinedDisposable(
+			input.webview.onDidDispose(remove),
+			token.onCancellationRequested(() => {
+				remove();
+				promise.cancel();
+			}),
+		);
+
+		this._awaitingRevival.push({ input, promise, disposable });
+
+		return promise.p;
 	}
 
-	public reviveFor(reviver: WebviewResolver, cancellation: CancellationToken) {
+	public reviveFor(reviver: WebviewResolver, token: CancellationToken) {
 		const toRevive = this._awaitingRevival.filter(({ input }) => canRevive(reviver, input));
 		this._awaitingRevival = this._awaitingRevival.filter(({ input }) => !canRevive(reviver, input));
 
-		for (const { input, resolve } of toRevive) {
-			reviver.resolveWebview(input, cancellation).then(resolve);
+		for (const { input, promise: resolve, disposable } of toRevive) {
+			reviver.resolveWebview(input, token).then(x => resolve.complete(x), err => resolve.error(err)).finally(() => {
+				disposable.dispose();
+			});
 		}
 	}
 }
@@ -318,17 +343,12 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		return false;
 	}
 
-	public resolveWebview(
-		webview: WebviewInput,
-	): CancelablePromise<void> {
+	public resolveWebview(webview: WebviewInput): CancelablePromise<void> {
 		return createCancelablePromise(async (cancellation) => {
 			const didRevive = await this.tryRevive(webview, cancellation);
 			if (!didRevive) {
 				// A reviver may not be registered yet. Put into pool and resolve promise when we can revive
-				let resolve: () => void;
-				const promise = new Promise<void>(r => { resolve = r; });
-				this._revivalPool.add(webview, resolve!);
-				return promise;
+				return this._revivalPool.enqueueForRestoration(webview, cancellation);
 			}
 		});
 	}

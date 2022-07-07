@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { language } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILanguagePackItem } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
@@ -32,5 +31,3 @@ export class WebLocaleService implements ILocaleService {
 		return true;
 	}
 }
-
-registerSingleton(ILocaleService, WebLocaleService, true);

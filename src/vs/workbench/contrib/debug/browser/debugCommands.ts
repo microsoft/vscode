@@ -8,8 +8,8 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
+import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -25,12 +25,13 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -41,6 +42,7 @@ export const RESTART_SESSION_ID = 'workbench.action.debug.restart';
 export const TERMINATE_THREAD_ID = 'workbench.action.debug.terminateThread';
 export const STEP_OVER_ID = 'workbench.action.debug.stepOver';
 export const STEP_INTO_ID = 'workbench.action.debug.stepInto';
+export const STEP_INTO_TARGET_ID = 'workbench.action.debug.stepIntoTarget';
 export const STEP_OUT_ID = 'workbench.action.debug.stepOut';
 export const PAUSE_ID = 'workbench.action.debug.pause';
 export const DISCONNECT_ID = 'workbench.action.debug.disconnect';
@@ -52,27 +54,49 @@ export const FOCUS_REPL_ID = 'workbench.debug.action.focusRepl';
 export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
 export const FOCUS_SESSION_ID = 'workbench.action.debug.focusProcess';
 export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
+export const SELECT_DEBUG_CONSOLE_ID = 'workbench.action.debug.selectDebugConsole';
 export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
 export const EDIT_EXPRESSION_COMMAND_ID = 'debug.renameWatchExpression';
 export const SET_EXPRESSION_COMMAND_ID = 'debug.setWatchExpression';
 export const REMOVE_EXPRESSION_COMMAND_ID = 'debug.removeWatchExpression';
+export const NEXT_DEBUG_CONSOLE_ID = 'workbench.action.debug.nextConsole';
+export const PREV_DEBUG_CONSOLE_ID = 'workbench.action.debug.prevConsole';
+export const SHOW_LOADED_SCRIPTS_ID = 'workbench.action.debug.showLoadedScripts';
+export const CALLSTACK_TOP_ID = 'workbench.action.debug.callStackTop';
+export const CALLSTACK_BOTTOM_ID = 'workbench.action.debug.callStackBottom';
+export const CALLSTACK_UP_ID = 'workbench.action.debug.callStackUp';
+export const CALLSTACK_DOWN_ID = 'workbench.action.debug.callStackDown';
 
-export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
-export const STEP_OVER_LABEL = nls.localize('stepOverDebug', "Step Over");
-export const STEP_INTO_LABEL = nls.localize('stepIntoDebug', "Step Into");
-export const STEP_OUT_LABEL = nls.localize('stepOutDebug', "Step Out");
-export const PAUSE_LABEL = nls.localize('pauseDebug', "Pause");
-export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
-export const DISCONNECT_AND_SUSPEND_LABEL = nls.localize('disconnectSuspend', "Disconnect and Suspend");
-export const STOP_LABEL = nls.localize('stop', "Stop");
-export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
-export const FOCUS_SESSION_LABEL = nls.localize('focusSession', "Focus Session");
-export const SELECT_AND_START_LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
+export const DEBUG_COMMAND_CATEGORY = 'Debug';
+export const RESTART_LABEL = { value: nls.localize('restartDebug', "Restart"), original: 'Restart' };
+export const STEP_OVER_LABEL = { value: nls.localize('stepOverDebug', "Step Over"), original: 'Step Over' };
+export const STEP_INTO_LABEL = { value: nls.localize('stepIntoDebug', "Step Into"), original: 'Step Into' };
+export const STEP_INTO_TARGET_LABEL = { value: nls.localize('stepIntoTargetDebug', "Step Into Target"), original: 'Step Into Target' };
+export const STEP_OUT_LABEL = { value: nls.localize('stepOutDebug', "Step Out"), original: 'Step Out' };
+export const PAUSE_LABEL = { value: nls.localize('pauseDebug', "Pause"), original: 'Pause' };
+export const DISCONNECT_LABEL = { value: nls.localize('disconnect', "Disconnect"), original: 'Disconnect' };
+export const DISCONNECT_AND_SUSPEND_LABEL = { value: nls.localize('disconnectSuspend', "Disconnect and Suspend"), original: 'Disconnect and Suspend' };
+export const STOP_LABEL = { value: nls.localize('stop', "Stop"), original: 'Stop' };
+export const CONTINUE_LABEL = { value: nls.localize('continueDebug', "Continue"), original: 'Continue' };
+export const FOCUS_SESSION_LABEL = { value: nls.localize('focusSession', "Focus Session"), original: 'Focus Session' };
+export const SELECT_AND_START_LABEL = { value: nls.localize('selectAndStartDebugging', "Select and Start Debugging"), original: 'Select and Start Debugging' };
 export const DEBUG_CONFIGURE_LABEL = nls.localize('openLaunchJson', "Open '{0}'", 'launch.json');
-export const DEBUG_START_LABEL = nls.localize('startDebug', "Start Debugging");
-export const DEBUG_RUN_LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
+export const DEBUG_START_LABEL = { value: nls.localize('startDebug', "Start Debugging"), original: 'Start Debugging' };
+export const DEBUG_RUN_LABEL = { value: nls.localize('startWithoutDebugging', "Start Without Debugging"), original: 'Start Without Debugging' };
+export const NEXT_DEBUG_CONSOLE_LABEL = { value: nls.localize('nextDebugConsole', "Focus Next Debug Console"), original: 'Focus Next Debug Console' };
+export const PREV_DEBUG_CONSOLE_LABEL = { value: nls.localize('prevDebugConsole', "Focus Previous Debug Console"), original: 'Focus Previous Debug Console' };
+export const OPEN_LOADED_SCRIPTS_LABEL = { value: nls.localize('openLoadedScript', "Open Loaded Script..."), original: 'Open Loaded Script...' };
+export const CALLSTACK_TOP_LABEL = { value: nls.localize('callStackTop', "Navigate to Top of Call Stack"), original: 'Navigate to Top of Call Stack' };
+export const CALLSTACK_BOTTOM_LABEL = { value: nls.localize('callStackBottom', "Navigate to Bottom of Call Stack"), original: 'Navigate to Bottom of Call Stack' };
+export const CALLSTACK_UP_LABEL = { value: nls.localize('callStackUp', "Navigate Up Call Stack"), original: 'Navigate Up Call Stack' };
+export const CALLSTACK_DOWN_LABEL = { value: nls.localize('callStackDown', "Navigate Down Call Stack"), original: 'Navigate Down Call Stack' };
+
+export const SELECT_DEBUG_CONSOLE_LABEL = { value: nls.localize('selectDebugConsole', "Select Debug Console"), original: 'Select Debug Console' };
+
+export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
+export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
 
 interface CallStackContext {
 	sessionId: string;
@@ -136,6 +160,130 @@ function isSessionContext(obj: any): obj is CallStackContext {
 	return obj && typeof obj.sessionId === 'string';
 }
 
+async function changeDebugConsoleFocus(accessor: ServicesAccessor, next: boolean) {
+	const debugService = accessor.get(IDebugService);
+	const viewsService = accessor.get(IViewsService);
+	const sessions = debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl());
+	let currSession = debugService.getViewModel().focusedSession;
+
+	let nextIndex = 0;
+	if (sessions.length > 0 && currSession) {
+		while (currSession && !currSession.hasSeparateRepl()) {
+			currSession = currSession.parentSession;
+		}
+
+		if (currSession) {
+			const currIndex = sessions.indexOf(currSession);
+			if (next) {
+				nextIndex = (currIndex === (sessions.length - 1) ? 0 : (currIndex + 1));
+			} else {
+				nextIndex = (currIndex === 0 ? (sessions.length - 1) : (currIndex - 1));
+			}
+		}
+	}
+	await debugService.focusStackFrame(undefined, undefined, sessions[nextIndex], { explicit: true });
+
+	if (!viewsService.isViewVisible(REPL_VIEW_ID)) {
+		await viewsService.openView(REPL_VIEW_ID, true);
+	}
+}
+
+async function navigateCallStack(debugService: IDebugService, down: boolean) {
+	const frame = debugService.getViewModel().focusedStackFrame;
+	if (frame) {
+
+		let callStack = frame.thread.getCallStack();
+		let index = callStack.findIndex(elem => elem.frameId === frame.frameId);
+		let nextVisibleFrame;
+		if (down) {
+			if (index >= callStack.length - 1) {
+				if ((<Thread>frame.thread).reachedEndOfCallStack) {
+					goToTopOfCallStack(debugService);
+					return;
+				} else {
+					await debugService.getModel().fetchCallstack(frame.thread, 20);
+					callStack = frame.thread.getCallStack();
+					index = callStack.findIndex(elem => elem.frameId === frame.frameId);
+				}
+			}
+			nextVisibleFrame = findNextVisibleFrame(true, callStack, index);
+		} else {
+			if (index <= 0) {
+				goToBottomOfCallStack(debugService);
+				return;
+			}
+			nextVisibleFrame = findNextVisibleFrame(false, callStack, index);
+		}
+
+		if (nextVisibleFrame) {
+			debugService.focusStackFrame(nextVisibleFrame);
+		}
+	}
+}
+
+async function goToBottomOfCallStack(debugService: IDebugService) {
+	const thread = debugService.getViewModel().focusedThread;
+	if (thread) {
+		await debugService.getModel().fetchCallstack(thread);
+		const callStack = thread.getCallStack();
+		if (callStack.length > 0) {
+			const nextVisibleFrame = findNextVisibleFrame(false, callStack, 0); // must consider the next frame up first, which will be the last frame
+			if (nextVisibleFrame) {
+				debugService.focusStackFrame(nextVisibleFrame);
+			}
+		}
+	}
+}
+
+function goToTopOfCallStack(debugService: IDebugService) {
+	const thread = debugService.getViewModel().focusedThread;
+
+	if (thread) {
+		debugService.focusStackFrame(thread.getTopStackFrame());
+	}
+}
+
+/**
+ * Finds next frame that is not skipped by SkipFiles. Skips frame at index and starts searching at next.
+ * Must satisfy `0 <= startIndex <= callStack - 1`
+ * @param down specifies whether to search downwards if the current file is skipped.
+ * @param callStack the call stack to search
+ * @param startIndex the index to start the search at
+ */
+function findNextVisibleFrame(down: boolean, callStack: readonly IStackFrame[], startIndex: number) {
+
+	if (startIndex >= callStack.length) {
+		startIndex = callStack.length - 1;
+	} else if (startIndex < 0) {
+		startIndex = 0;
+	}
+
+	let index = startIndex;
+
+	let currFrame;
+	do {
+		if (down) {
+			if (index === callStack.length - 1) {
+				index = 0;
+			} else {
+				index++;
+			}
+		} else {
+			if (index === 0) {
+				index = callStack.length - 1;
+			} else {
+				index--;
+			}
+		}
+
+		currFrame = callStack[index];
+		if (!(currFrame.source.presentationHint === 'deemphasize' || currFrame.presentationHint === 'deemphasize')) {
+			return currFrame;
+		}
+	} while (index !== startIndex); // end loop when we've just checked the start index, since that should be the last one checked
+
+	return undefined;
+}
 
 // These commands are used in call stack context menu, call stack inline actions, command palette, debug toolbar, mac native touch bar
 // When the command is exectued in the context of a thread(context menu on a thread, inline call stack action) we pass the thread id
@@ -218,6 +366,39 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+
+CommandsRegistry.registerCommand({
+	id: CALLSTACK_TOP_ID,
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		const debugService = accessor.get(IDebugService);
+		goToTopOfCallStack(debugService);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: CALLSTACK_BOTTOM_ID,
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		const debugService = accessor.get(IDebugService);
+		await goToBottomOfCallStack(debugService);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: CALLSTACK_UP_ID,
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		const debugService = accessor.get(IDebugService);
+		navigateCallStack(debugService, false);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: CALLSTACK_DOWN_ID,
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		const debugService = accessor.get(IDebugService);
+		navigateCallStack(debugService, true);
+	}
+});
+
 MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	command: {
 		id: JUMP_TO_CURSOR_ID,
@@ -227,6 +408,28 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED, EditorContextKeys.editorTextFocus),
 	group: 'debug',
 	order: 3
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: NEXT_DEBUG_CONSOLE_ID,
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: CONTEXT_IN_DEBUG_REPL,
+	primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.BracketRight },
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		changeDebugConsoleFocus(accessor, true);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: PREV_DEBUG_CONSOLE_ID,
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: CONTEXT_IN_DEBUG_REPL,
+	primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.BracketLeft },
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		changeDebugConsoleFocus(accessor, false);
+	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -274,10 +477,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+// Windows browsers use F11 for full screen, thus use alt+F11 as the default shortcut
+const STEP_INTO_KEYBINDING = (isWeb && isWindows) ? (KeyMod.Alt | KeyCode.F11) : KeyCode.F11;
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: STEP_INTO_ID,
 	weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
-	primary: (isWeb && isWindows) ? (KeyMod.Alt | KeyCode.F11) : KeyCode.F11, // Windows browsers use F11 for full screen, thus use alt+F11 as the default shortcut
+	primary: STEP_INTO_KEYBINDING,
 	// Use a more flexible when clause to not allow full screen command to take over when F11 pressed a lot of times
 	when: CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
@@ -312,6 +518,73 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		getThreadAndRun(accessor, context, thread => thread.pause());
+	}
+});
+
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: STEP_INTO_TARGET_ID,
+	primary: STEP_INTO_KEYBINDING | KeyMod.CtrlCmd,
+	when: ContextKeyExpr.and(CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		const quickInputService = accessor.get(IQuickInputService);
+		const debugService = accessor.get(IDebugService);
+		const session = debugService.getViewModel().focusedSession;
+		const frame = debugService.getViewModel().focusedStackFrame;
+		if (!frame || !session) {
+			return;
+		}
+
+		const editor = await accessor.get(IEditorService).openEditor({
+			resource: frame.source.uri,
+			options: { revealIfOpened: true }
+		});
+
+		let codeEditor: ICodeEditor | undefined;
+		if (editor) {
+			const ctrl = editor?.getControl();
+			if (isCodeEditor(ctrl)) {
+				codeEditor = ctrl;
+			}
+		}
+
+		interface ITargetItem extends IQuickPickItem {
+			target: DebugProtocol.StepInTarget;
+		}
+
+		const qp = quickInputService.createQuickPick<ITargetItem>();
+		qp.busy = true;
+		qp.show();
+
+		qp.onDidChangeActive(([item]) => {
+			if (codeEditor && item && item.target.line !== undefined) {
+				codeEditor.revealLineInCenterIfOutsideViewport(item.target.line);
+				codeEditor.setSelection({
+					startLineNumber: item.target.line,
+					startColumn: item.target.column || 1,
+					endLineNumber: item.target.endLine || item.target.line,
+					endColumn: item.target.endColumn || item.target.column || 1,
+				});
+			}
+		});
+
+		qp.onDidAccept(() => {
+			if (qp.activeItems.length) {
+				session.stepIn(frame.thread.threadId, qp.activeItems[0].target.id);
+			}
+		});
+
+		qp.onDidHide(() => qp.dispose());
+
+		session.stepInTargets(frame.frameId).then(targets => {
+			qp.busy = false;
+			if (targets?.length) {
+				qp.items = targets?.map(target => ({ target, label: target.label }));
+			} else {
+				qp.placeholder = nls.localize('editor.debug.action.stepIntoTargets.none', "No step targets available");
+			}
+		});
 	}
 });
 
@@ -382,6 +655,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 CommandsRegistry.registerCommand({
+	id: SHOW_LOADED_SCRIPTS_ID,
+	handler: async (accessor) => {
+
+		await showLoadedScriptMenu(accessor);
+
+	}
+});
+
+CommandsRegistry.registerCommand({
 	id: FOCUS_REPL_ID,
 	handler: async (accessor) => {
 		const viewsService = accessor.get(IViewsService);
@@ -418,7 +700,15 @@ CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
 	handler: async (accessor: ServicesAccessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show('debug ');
+		quickInputService.quickAccess.show(DEBUG_QUICK_ACCESS_PREFIX);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: SELECT_DEBUG_CONSOLE_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.quickAccess.show(DEBUG_CONSOLE_QUICK_ACCESS_PREFIX);
 	}
 });
 

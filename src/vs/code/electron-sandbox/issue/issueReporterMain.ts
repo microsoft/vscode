@@ -140,6 +140,7 @@ export class IssueReporter extends Disposable {
 		this.handleExtensionData(configuration.data.enabledExtensions);
 		this.updateExperimentsInfo(configuration.data.experiments);
 		this.updateRestrictedMode(configuration.data.restrictedMode);
+		this.updateUnsupportedMode(configuration.data.isUnsupported);
 	}
 
 	render(): void {
@@ -1154,6 +1155,10 @@ export class IssueReporter extends Disposable {
 		this.issueReporterModel.update({ restrictedMode });
 	}
 
+	private updateUnsupportedMode(isUnsupported: boolean) {
+		this.issueReporterModel.update({ isUnsupported });
+	}
+
 	private updateExperimentsInfo(experimentInfo: string | undefined) {
 		this.issueReporterModel.update({ experimentInfo });
 		const target = document.querySelector<HTMLElement>('.block-experiments .block-info');
@@ -1197,21 +1202,15 @@ export class IssueReporter extends Disposable {
 
 	private addEventListener(elementId: string, eventType: string, handler: (event: Event) => void): void {
 		const element = this.getElementById(elementId);
-		if (element) {
-			element.addEventListener(eventType, handler);
-		}
+		element?.addEventListener(eventType, handler);
 	}
 }
 
 // helper functions
 
 function hide(el: Element | undefined | null) {
-	if (el) {
-		el.classList.add('hidden');
-	}
+	el?.classList.add('hidden');
 }
 function show(el: Element | undefined | null) {
-	if (el) {
-		el.classList.remove('hidden');
-	}
+	el?.classList.remove('hidden');
 }

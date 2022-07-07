@@ -9,7 +9,7 @@ import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { DefaultKeyboardNavigationDelegate, IListOptions, IListStyles, isInputElement, isMonacoEditor, List, MouseController } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultKeyboardNavigationDelegate, IListOptions, IListStyles, isButton, isInputElement, isMonacoEditor, List, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
@@ -70,9 +70,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		if (this.dnd.onDragStart) {
-			this.dnd.onDragStart(asTreeDragAndDropData(data), originalEvent);
-		}
+		this.dnd.onDragStart?.(asTreeDragAndDropData(data), originalEvent);
 	}
 
 	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
@@ -137,9 +135,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 	}
 
 	onDragEnd(originalEvent: DragEvent): void {
-		if (this.dnd.onDragEnd) {
-			this.dnd.onDragEnd(originalEvent);
-		}
+		this.dnd.onDragEnd?.(originalEvent);
 	}
 }
 
@@ -220,9 +216,7 @@ export class ComposedTreeDelegate<T, N extends { element: T }> implements IListV
 	}
 
 	setDynamicHeight(element: N, height: number): void {
-		if (this.delegate.setDynamicHeight) {
-			this.delegate.setDynamicHeight(element.element, height);
-		}
+		this.delegate.setDynamicHeight?.(element.element, height);
 	}
 }
 
@@ -308,8 +302,9 @@ interface Collection<T> {
 	readonly onDidChange: Event<T[]>;
 }
 
-class EventCollection<T> implements Collection<T> {
+class EventCollection<T> implements Collection<T>, IDisposable {
 
+	private readonly disposables = new DisposableStore();
 	readonly onDidChange: Event<T[]>;
 
 	get elements(): T[] {
@@ -317,7 +312,11 @@ class EventCollection<T> implements Collection<T> {
 	}
 
 	constructor(onDidChange: Event<T[]>, private _elements: T[] = []) {
-		this.onDidChange = Event.forEach(onDidChange, elements => this._elements = elements);
+		this.onDidChange = Event.forEach(onDidChange, elements => this._elements = elements, this.disposables);
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
 	}
 }
 
@@ -350,9 +349,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 		Event.map(onDidChangeCollapseState, e => e.node)(this.onDidChangeNodeTwistieState, this, this.disposables);
 
-		if (renderer.onDidChangeTwistieState) {
-			renderer.onDidChangeTwistieState(this.onDidChangeTwistieState, this, this.disposables);
-		}
+		renderer.onDidChangeTwistieState?.(this.onDidChangeTwistieState, this, this.disposables);
 	}
 
 	updateOptions(options: ITreeRendererOptions = {}): void {
@@ -414,9 +411,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
 		templateData.indentGuidesDisposable.dispose();
 
-		if (this.renderer.disposeElement) {
-			this.renderer.disposeElement(node, index, templateData.templateData, height);
-		}
+		this.renderer.disposeElement?.(node, index, templateData.templateData, height);
 
 		if (typeof height === 'number') {
 			this.renderedNodes.delete(node);
@@ -1158,7 +1153,9 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 	}
 
 	protected override onViewPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
-		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+		if (isButton(e.browserEvent.target as HTMLElement) ||
+			isInputElement(e.browserEvent.target as HTMLElement) ||
+			isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
@@ -1373,9 +1370,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
 		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
-		const activeNodes = new EventCollection(onDidChangeActiveNodes.event);
+		const activeNodes = this.disposables.add(new EventCollection(onDidChangeActiveNodes.event));
 		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, _options));
-		for (let r of this.renderers) {
+		for (const r of this.renderers) {
 			this.disposables.add(r);
 		}
 
@@ -1400,7 +1397,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				this.focus.onDidModelSplice(e);
 				this.selection.onDidModelSplice(e);
 			});
-		});
+		}, this.disposables);
 
 		// Make sure the `forEach` always runs
 		onDidModelSplice(() => null, null, this.disposables);
@@ -1458,9 +1455,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
 		});
 
-		if (this.typeFilterController) {
-			this.typeFilterController.updateOptions(this._options);
-		}
+		this.typeFilterController?.updateOptions(this._options);
 
 		this._onDidUpdateOptions.fire(this._options);
 

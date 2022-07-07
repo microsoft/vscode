@@ -145,16 +145,25 @@ class Menu implements IMenu {
 
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
 		const result: [string, Array<MenuItemAction | SubmenuItemAction>][] = [];
-		for (let group of this._menuGroups) {
+		for (const group of this._menuGroups) {
 			const [id, items] = group;
 			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
-					const action = isIMenuItem(item)
-						? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService)
-						: new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
+					let action: MenuItemAction | SubmenuItemAction | undefined;
+					if (isIMenuItem(item)) {
+						action = new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService);
+					} else {
+						action = new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
+						if (action.actions.length === 0) {
+							action.dispose();
+							action = undefined;
+						}
+					}
 
-					activeActions.push(action);
+					if (action) {
+						activeActions.push(action);
+					}
 				}
 			}
 			if (activeActions.length > 0) {
@@ -166,7 +175,7 @@ class Menu implements IMenu {
 
 	private static _fillInKbExprKeys(exp: ContextKeyExpression | undefined, set: Set<string>): void {
 		if (exp) {
-			for (let key of exp.keys()) {
+			for (const key of exp.keys()) {
 				set.add(key);
 			}
 		}
@@ -174,8 +183,8 @@ class Menu implements IMenu {
 
 	private static _compareMenuItems(a: IMenuItem | ISubmenuItem, b: IMenuItem | ISubmenuItem): number {
 
-		let aGroup = a.group;
-		let bGroup = b.group;
+		const aGroup = a.group;
+		const bGroup = b.group;
 
 		if (aGroup !== bGroup) {
 
@@ -194,15 +203,15 @@ class Menu implements IMenu {
 			}
 
 			// lexical sort for groups
-			let value = aGroup.localeCompare(bGroup);
+			const value = aGroup.localeCompare(bGroup);
 			if (value !== 0) {
 				return value;
 			}
 		}
 
 		// sort on priority - default is 0
-		let aPrio = a.order || 0;
-		let bPrio = b.order || 0;
+		const aPrio = a.order || 0;
+		const bPrio = b.order || 0;
 		if (aPrio < bPrio) {
 			return -1;
 		} else if (aPrio > bPrio) {

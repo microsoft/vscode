@@ -55,7 +55,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ISearchConfiguration, SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configurationMigration';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -365,7 +365,10 @@ registerAction2(class CancelSearchAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.cancel',
-			title: nls.localize('CancelSearchAction.label', "Cancel Search"),
+			title: {
+				value: nls.localize('CancelSearchAction.label', "Cancel Search"),
+				original: 'Cancel Search'
+			},
 			icon: searchStopIcon,
 			category,
 			f1: true,
@@ -392,7 +395,10 @@ registerAction2(class RefreshAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.refreshSearchResults',
-			title: nls.localize('RefreshAction.label', "Refresh"),
+			title: {
+				value: nls.localize('RefreshAction.label', "Refresh"),
+				original: 'Refresh'
+			},
 			icon: searchRefreshIcon,
 			precondition: Constants.ViewHasSearchPatternKey,
 			category,
@@ -414,7 +420,10 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.collapseSearchResults',
-			title: nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All"),
+			title: {
+				value: nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All"),
+				original: 'Collapse All'
+			},
 			category,
 			icon: searchCollapseAllIcon,
 			f1: true,
@@ -436,7 +445,10 @@ registerAction2(class ExpandAllAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.expandSearchResults',
-			title: nls.localize('ExpandAllAction.label', "Expand All"),
+			title: {
+				value: nls.localize('ExpandAllAction.label', "Expand All"),
+				original: 'Expand All'
+			},
 			category,
 			icon: searchExpandAllIcon,
 			f1: true,
@@ -458,7 +470,10 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.clearSearchResults',
-			title: nls.localize('ClearSearchResultsAction.label', "Clear Search Results"),
+			title: {
+				value: nls.localize('ClearSearchResultsAction.label', "Clear Search Results"),
+				original: 'Clear Search Results'
+			},
 			category,
 			icon: searchClearIcon,
 			f1: true,

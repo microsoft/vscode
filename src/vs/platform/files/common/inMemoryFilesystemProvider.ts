@@ -67,7 +67,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		const entry = this._lookupAsDirectory(resource, false);
-		let result: [string, FileType][] = [];
+		const result: [string, FileType][] = [];
 		entry.entries.forEach((child, name) => result.push([name, child.type]));
 		return result;
 	}
@@ -83,8 +83,8 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		let basename = resources.basename(resource);
-		let parent = this._lookupParentDirectory(resource);
+		const basename = resources.basename(resource);
+		const parent = this._lookupParentDirectory(resource);
 		let entry = parent.entries.get(basename);
 		if (entry instanceof Directory) {
 			throw new FileSystemProviderError('file is directory', FileSystemProviderErrorCode.FileIsADirectory);
@@ -114,11 +114,11 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 			throw new FileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
 		}
 
-		let entry = this._lookup(from, false);
-		let oldParent = this._lookupParentDirectory(from);
+		const entry = this._lookup(from, false);
+		const oldParent = this._lookupParentDirectory(from);
 
-		let newParent = this._lookupParentDirectory(to);
-		let newName = resources.basename(to);
+		const newParent = this._lookupParentDirectory(to);
+		const newName = resources.basename(to);
 
 		oldParent.entries.delete(entry.name);
 		entry.name = newName;
@@ -131,9 +131,9 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
-		let dirname = resources.dirname(resource);
-		let basename = resources.basename(resource);
-		let parent = this._lookupAsDirectory(dirname, false);
+		const dirname = resources.dirname(resource);
+		const basename = resources.basename(resource);
+		const parent = this._lookupAsDirectory(dirname, false);
 		if (parent.entries.has(basename)) {
 			parent.entries.delete(basename);
 			parent.mtime = Date.now();
@@ -143,11 +143,11 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	async mkdir(resource: URI): Promise<void> {
-		let basename = resources.basename(resource);
-		let dirname = resources.dirname(resource);
-		let parent = this._lookupAsDirectory(dirname, false);
+		const basename = resources.basename(resource);
+		const dirname = resources.dirname(resource);
+		const parent = this._lookupAsDirectory(dirname, false);
 
-		let entry = new Directory(basename);
+		const entry = new Directory(basename);
 		parent.entries.set(entry.name, entry);
 		parent.mtime = Date.now();
 		parent.size += 1;
@@ -159,7 +159,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	private _lookup(uri: URI, silent: false): Entry;
 	private _lookup(uri: URI, silent: boolean): Entry | undefined;
 	private _lookup(uri: URI, silent: boolean): Entry | undefined {
-		let parts = uri.path.split('/');
+		const parts = uri.path.split('/');
 		let entry: Entry = this.root;
 		for (const part of parts) {
 			if (!part) {
@@ -182,7 +182,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	private _lookupAsDirectory(uri: URI, silent: boolean): Directory {
-		let entry = this._lookup(uri, silent);
+		const entry = this._lookup(uri, silent);
 		if (entry instanceof Directory) {
 			return entry;
 		}
@@ -190,7 +190,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	private _lookupAsFile(uri: URI, silent: boolean): File {
-		let entry = this._lookup(uri, silent);
+		const entry = this._lookup(uri, silent);
 		if (entry instanceof File) {
 			return entry;
 		}

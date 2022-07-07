@@ -24,7 +24,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
@@ -157,6 +157,13 @@ export interface IDebugger {
 	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter>;
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined;
+}
+
+export interface IDebuggerMetadata {
+	label: string;
+	type: string;
+	uiMessages?: { [key in DebuggerUiMessage]: string };
+	interestedInLanguage(languageId: string): boolean;
 }
 
 export const enum State {
@@ -366,7 +373,7 @@ export interface IDebugSession extends ITreeElement {
 	restartFrame(frameId: number, threadId: number): Promise<void>;
 	next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
-	stepInTargets(frameId: number): Promise<{ id: number; label: string }[] | undefined>;
+	stepInTargets(frameId: number): Promise<DebugProtocol.StepInTarget[] | undefined>;
 	stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	continue(threadId: number): Promise<void>;
@@ -595,6 +602,8 @@ export interface IDebugModel extends ITreeElement {
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
+
+	fetchCallstack(thread: IThread, levels?: number): Promise<void>;
 }
 
 /**
@@ -650,10 +659,10 @@ export interface IGlobalConfig {
 
 export interface IEnvConfig {
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
-	preRestartTask?: string | TaskIdentifier;
-	postRestartTask?: string | TaskIdentifier;
-	preLaunchTask?: string | TaskIdentifier;
-	postDebugTask?: string | TaskIdentifier;
+	preRestartTask?: string | ITaskIdentifier;
+	postRestartTask?: string | ITaskIdentifier;
+	preLaunchTask?: string | ITaskIdentifier;
+	postDebugTask?: string | ITaskIdentifier;
 	debugServer?: number;
 	noDebug?: boolean;
 }
@@ -687,7 +696,7 @@ export interface IConfig extends IEnvConfig {
 export interface ICompound {
 	name: string;
 	stopAll?: boolean;
-	preLaunchTask?: string | TaskIdentifier;
+	preLaunchTask?: string | ITaskIdentifier;
 	configurations: (string | { name: string; folder: string })[];
 	presentation?: IConfigPresentation;
 }
@@ -772,6 +781,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	configurationSnippets?: IJSONSchemaSnippet[];
 	variables?: { [key: string]: string };
 	when?: string;
+	deprecated?: string;
 	uiMessages?: { [key in DebuggerUiMessage]: string };
 }
 
@@ -859,8 +869,8 @@ export interface IAdapterManager {
 	hasEnabledDebuggers(): boolean;
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 	getDebuggerLabel(type: string): string | undefined;
-	isDebuggerInterestedInLanguage(language: string): boolean;
-	getDebuggerUiMessages(type: string): { [key in DebuggerUiMessage]?: string };
+	someDebuggerInterestedInLanguage(language: string): boolean;
+	getDebugger(type: string): IDebuggerMetadata | undefined;
 
 	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;

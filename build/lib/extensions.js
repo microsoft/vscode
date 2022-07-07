@@ -246,7 +246,6 @@ const excludedExtensions = [
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',
     'vscode-notebook-tests',
-    'vscode-custom-editor-tests',
 ];
 const marketplaceWebExtensionsExclude = new Set([
     'ms-vscode.node-debug',
@@ -345,7 +344,7 @@ function scanBuiltinExtensions(extensionsRoot, exclude = []) {
             if (!fs.existsSync(packageJSONPath)) {
                 continue;
             }
-            let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+            const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
             if (!isWebExtension(packageJSON)) {
                 continue;
             }
@@ -373,7 +372,7 @@ function translatePackageJSON(packageJSON, packageNLSPath) {
     const CharCode_PC = '%'.charCodeAt(0);
     const packageNls = JSON.parse(fs.readFileSync(packageNLSPath).toString());
     const translate = (obj) => {
-        for (let key in obj) {
+        for (const key in obj) {
             const val = obj[key];
             if (Array.isArray(val)) {
                 val.forEach(translate);

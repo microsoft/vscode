@@ -31,6 +31,7 @@ import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export const Context = {
 	Visible: historyNavigationVisible,
+	HasFocusedSuggestion: new RawContextKey<boolean>('suggestWidgetHasFocusedSuggestion', false, localize('suggestWidgetHasSelection', "Whether any suggestion is focused")),
 	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false, localize('suggestWidgetDetailsVisible', "Whether suggestion details are visible")),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),
 	MakesTextEdit: new RawContextKey<boolean>('suggestionMakesTextEdit', true, localize('suggestionMakesTextEdit', "Whether inserting the current suggestion yields in a change or has everything already been typed")),
@@ -228,7 +229,7 @@ export async function provideSuggestionItems(
 		if (!container) {
 			return didAddResult;
 		}
-		for (let suggestion of container.suggestions) {
+		for (const suggestion of container.suggestions) {
 			if (!options.kindFilter.has(suggestion.kind)) {
 				// skip if not showing deprecated suggestions
 				if (!options.showDeprecated && suggestion?.tags?.includes(languages.CompletionItemTag.Deprecated)) {
@@ -275,7 +276,7 @@ export async function provideSuggestionItems(
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
 	// get provider groups, always add snippet suggestion provider
-	for (let providerGroup of registry.orderedGroups(model)) {
+	for (const providerGroup of registry.orderedGroups(model)) {
 
 		// for each support in the group ask for suggestions
 		let didAddResult = false;
@@ -323,9 +324,9 @@ function defaultComparator(a: CompletionItem, b: CompletionItem): number {
 		}
 	}
 	// check with 'label'
-	if (a.completion.label < b.completion.label) {
+	if (a.textLabel < b.textLabel) {
 		return -1;
-	} else if (a.completion.label > b.completion.label) {
+	} else if (a.textLabel > b.textLabel) {
 		return 1;
 	}
 	// check with 'type'

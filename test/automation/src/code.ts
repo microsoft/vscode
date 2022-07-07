@@ -24,6 +24,7 @@ export interface LaunchOptions {
 	readonly extensionsPath: string;
 	readonly logger: Logger;
 	logsPath: string;
+	crashesPath: string;
 	readonly verbose?: boolean;
 	readonly extraArgs?: string[];
 	readonly remote?: boolean;

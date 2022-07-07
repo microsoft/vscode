@@ -712,10 +712,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
-	public async $extensionTestsExit(code: number): Promise<void> {
-		this.terminate(`test runner requested exit with code ${code}`, code);
-	}
-
 	private _startExtensionHost(): Promise<void> {
 		if (this._started) {
 			throw new Error(`Extension host is already started!`);
@@ -910,8 +906,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $test_down(size: number): Promise<VSBuffer> {
-		let buff = VSBuffer.alloc(size);
-		let value = Math.random() % 256;
+		const buff = VSBuffer.alloc(size);
+		const value = Math.random() % 256;
 		for (let i = 0; i < size; i++) {
 			buff.writeUInt8(value, i);
 		}
