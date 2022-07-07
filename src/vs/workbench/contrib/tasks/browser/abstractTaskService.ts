@@ -55,7 +55,7 @@ import {
 	KeyedTaskIdentifier as KeyedTaskIdentifier, TaskDefinition, RuntimeType,
 	USER_TASKS_GROUP_KEY,
 	TaskSettingId,
-	TasksSettingId
+	TasksSchemaProperties
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -3525,11 +3525,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			const configTasks: (TaskConfig.ICustomTask | TaskConfig.IConfiguringTask)[] = [];
-			const suppressTaskName = !!this._configurationService.getValue(TasksSettingId.SuppressTaskName, { resource: folder.uri });
+			const suppressTaskName = !!this._configurationService.getValue(TasksSchemaProperties.SuppressTaskName, { resource: folder.uri });
 			const globalConfig = {
-				windows: <ICommandUpgrade>this._configurationService.getValue(TasksSettingId.Windows, { resource: folder.uri }),
-				osx: <ICommandUpgrade>this._configurationService.getValue(TasksSettingId.Osx, { resource: folder.uri }),
-				linux: <ICommandUpgrade>this._configurationService.getValue(TasksSettingId.Linux, { resource: folder.uri })
+				windows: <ICommandUpgrade>this._configurationService.getValue(TasksSchemaProperties.Windows, { resource: folder.uri }),
+				osx: <ICommandUpgrade>this._configurationService.getValue(TasksSchemaProperties.Osx, { resource: folder.uri }),
+				linux: <ICommandUpgrade>this._configurationService.getValue(TasksSchemaProperties.Linux, { resource: folder.uri })
 			};
 			tasks.get(folder).forEach(task => {
 				const configTask = this._upgradeTask(task, suppressTaskName, globalConfig);
@@ -3541,14 +3541,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._workspaceTasksPromise = undefined;
 			await this._writeConfiguration(folder, 'tasks.tasks', configTasks);
 			await this._writeConfiguration(folder, 'tasks.version', '2.0.0');
-			if (this._configurationService.getValue(TasksSettingId.ShowOutput, { resource: folder.uri })) {
-				await this._configurationService.updateValue(TasksSettingId.ShowOutput, undefined, { resource: folder.uri });
+			if (this._configurationService.getValue(TasksSchemaProperties.ShowOutput, { resource: folder.uri })) {
+				await this._configurationService.updateValue(TasksSchemaProperties.ShowOutput, undefined, { resource: folder.uri });
 			}
-			if (this._configurationService.getValue(TasksSettingId.IsShellCommand, { resource: folder.uri })) {
-				await this._configurationService.updateValue(TasksSettingId.IsShellCommand, undefined, { resource: folder.uri });
+			if (this._configurationService.getValue(TasksSchemaProperties.IsShellCommand, { resource: folder.uri })) {
+				await this._configurationService.updateValue(TasksSchemaProperties.IsShellCommand, undefined, { resource: folder.uri });
 			}
-			if (this._configurationService.getValue(TasksSettingId.SuppressTaskName, { resource: folder.uri })) {
-				await this._configurationService.updateValue(TasksSettingId.SuppressTaskName, undefined, { resource: folder.uri });
+			if (this._configurationService.getValue(TasksSchemaProperties.SuppressTaskName, { resource: folder.uri })) {
+				await this._configurationService.updateValue(TasksSchemaProperties.SuppressTaskName, undefined, { resource: folder.uri });
 			}
 		}
 		this._updateSetup();

@@ -1202,7 +1202,7 @@ export const enum TaskSettingId {
 	QuickOpenShowAll = 'task.quickOpen.showAll'
 }
 
-export const enum TasksSettingId {
+export const enum TasksSchemaProperties {
 	Tasks = 'tasks',
 	SuppressTaskName = 'tasks.suppressTaskName',
 	Windows = 'tasks.windows',
