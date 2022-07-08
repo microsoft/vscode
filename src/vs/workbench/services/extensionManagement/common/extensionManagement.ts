@@ -157,17 +157,16 @@ export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScanne
 export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidChangeProfileExtensions: Event<{ readonly added: IScannedExtension[]; readonly removed: IScannedExtension[] }>;
-
 	scanSystemExtensions(): Promise<IExtension[]>;
-	scanUserExtensions(options?: ScanOptions): Promise<IScannedExtension[]>;
+	scanUserExtensions(profileLocation: URI | undefined, options?: ScanOptions): Promise<IScannedExtension[]>;
 	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
-	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IScannedExtension | null>;
+	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType, profileLocation: URI | undefined): Promise<IScannedExtension | null>;
 
-	addExtension(location: URI, metadata?: Metadata): Promise<IScannedExtension>;
-	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Metadata): Promise<IScannedExtension>;
-	removeExtension(extension: IScannedExtension, version?: string): Promise<void>;
+	addExtension(location: URI, metadata: Metadata, profileLocation: URI | undefined): Promise<IScannedExtension>;
+	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata: Metadata, profileLocation: URI | undefined): Promise<IScannedExtension>;
+	removeExtension(extension: IScannedExtension, profileLocation: URI | undefined): Promise<void>;
+	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI, filter: (extension: IScannedExtension) => boolean): Promise<void>;
 
-	scanMetadata(extensionLocation: URI): Promise<Metadata | undefined>;
+	scanMetadata(extensionLocation: URI, profileLocation: URI | undefined): Promise<Metadata | undefined>;
 	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;
 }
