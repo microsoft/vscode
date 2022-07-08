@@ -46,7 +46,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		super();
 
 		// Custom context menu: Linux/Windows if custom title is enabled
-		if (!isMacintosh && getTitleBarStyle(configurationService) === 'custom' && configurationService.getValue('window.contextMenuStyle') !== "native") {
+		if (!isMacintosh && getTitleBarStyle(configurationService) === 'custom' && configurationService.getValue('window.contextMenuStyle') !== 'native') {
 			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
 		}
 
