@@ -18,15 +18,23 @@ suite('terminalEnvironment', () => {
 		});
 		test('should not collapse when user home isn\'t present', () => {
 			strictEqual(collapseTildePath('/foo', '/bar', '/'), '/foo');
-			strictEqual(collapseTildePath('c:\\foo', 'C:\\bar', '\\'), 'C:\\foo');
+			strictEqual(collapseTildePath('C:\\foo', 'C:\\bar', '\\'), 'C:\\foo');
 		});
 		test('should collapse with Windows separators', () => {
 			strictEqual(collapseTildePath('C:\\foo\\bar', 'C:\\foo', '\\'), '~\\bar');
+			strictEqual(collapseTildePath('C:\\foo\\bar', 'C:\\foo\\', '\\'), '~\\bar');
+			strictEqual(collapseTildePath('C:\\foo\\bar\\baz', 'C:\\foo\\', '\\'), '~\\bar\\baz');
 			strictEqual(collapseTildePath('C:\\foo\\bar\\baz', 'C:\\foo', '\\'), '~\\bar\\baz');
+		});
+		test('should collapse mixed case with Windows separators', () => {
+			strictEqual(collapseTildePath('c:\\foo\\bar', 'C:\\foo', '\\'), '~\\bar');
+			strictEqual(collapseTildePath('C:\\foo\\bar\\baz', 'c:\\foo', '\\'), '~\\bar\\baz');
 		});
 		test('should collapse with Posix separators', () => {
 			strictEqual(collapseTildePath('/foo/bar', '/foo', '/'), '~/bar');
+			strictEqual(collapseTildePath('/foo/bar', '/foo/', '/'), '~/bar');
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo', '/'), '~/bar/baz');
+			strictEqual(collapseTildePath('/foo/bar/baz', '/foo/', '/'), '~/bar/baz');
 		});
 	});
 });
