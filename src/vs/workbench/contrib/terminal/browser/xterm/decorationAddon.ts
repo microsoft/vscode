@@ -227,7 +227,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		this._commandDetectionListeners.push(capability.onCommandStarted(command => this.registerCommandDecoration(command, true)));
 		// Command finished
-		console.log('commands', capability.commands.map(c => c.command));
 		for (const command of capability.commands) {
 			this.registerCommandDecoration(command);
 		}
