@@ -53,7 +53,9 @@ import {
 	ITaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
 	TaskSorter, ITaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
 	KeyedTaskIdentifier as KeyedTaskIdentifier, TaskDefinition, RuntimeType,
-	USER_TASKS_GROUP_KEY
+	USER_TASKS_GROUP_KEY,
+	TaskSettingId,
+	TasksSchemaProperties
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ITaskProvider, IProblemMatcherRunOptions, ICustomizationProperties, ITaskFilter, IWorkspaceFolderTaskResult, CustomExecutionSupportedContext, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -1082,7 +1084,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}).then((value) => {
 			if (runSource === TaskRunSource.User) {
 				this.getWorkspaceTasks().then(workspaceTasks => {
-					RunAutomaticTasks.promptForPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, workspaceTasks);
+					RunAutomaticTasks.promptForPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
 				});
 			}
 			return value;
@@ -1093,7 +1095,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _isProvideTasksEnabled(): boolean {
-		const settingValue = this._configurationService.getValue('task.autoDetect');
+		const settingValue = this._configurationService.getValue(TaskSettingId.AutoDetect);
 		return settingValue === 'on';
 	}
 
@@ -1688,7 +1690,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			Prompt = 'prompt'
 		}
 
-		const saveBeforeRunTaskConfig: SaveBeforeRunConfigOptions = this._configurationService.getValue('task.saveBeforeRun');
+		const saveBeforeRunTaskConfig: SaveBeforeRunConfigOptions = this._configurationService.getValue(TaskSettingId.SaveBeforeRun);
 
 		if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Never) {
 			return false;
@@ -3523,11 +3525,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			const configTasks: (TaskConfig.ICustomTask | TaskConfig.IConfiguringTask)[] = [];
-			const suppressTaskName = !!this._configurationService.getValue('tasks.suppressTaskName', { resource: folder.uri });
+			const suppressTaskName = !!this._configurationService.getValue(TasksSchemaProperties.SuppressTaskName, { resource: folder.uri });
 			const globalConfig = {
-				windows: <ICommandUpgrade>this._configurationService.getValue('tasks.windows', { resource: folder.uri }),
-				osx: <ICommandUpgrade>this._configurationService.getValue('tasks.osx', { resource: folder.uri }),
-				linux: <ICommandUpgrade>this._configurationService.getValue('tasks.linux', { resource: folder.uri })
+				windows: <ICommandUpgrade>this._configurationService.getValue(TasksSchemaProperties.Windows, { resource: folder.uri }),
+				osx: <ICommandUpgrade>this._configurationService.getValue(TasksSchemaProperties.Osx, { resource: folder.uri }),
+				linux: <ICommandUpgrade>this._configurationService.getValue(TasksSchemaProperties.Linux, { resource: folder.uri })
 			};
 			tasks.get(folder).forEach(task => {
 				const configTask = this._upgradeTask(task, suppressTaskName, globalConfig);
@@ -3539,14 +3541,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._workspaceTasksPromise = undefined;
 			await this._writeConfiguration(folder, 'tasks.tasks', configTasks);
 			await this._writeConfiguration(folder, 'tasks.version', '2.0.0');
-			if (this._configurationService.getValue('tasks.showOutput', { resource: folder.uri })) {
-				await this._configurationService.updateValue('tasks.showOutput', undefined, { resource: folder.uri });
+			if (this._configurationService.getValue(TasksSchemaProperties.ShowOutput, { resource: folder.uri })) {
+				await this._configurationService.updateValue(TasksSchemaProperties.ShowOutput, undefined, { resource: folder.uri });
 			}
-			if (this._configurationService.getValue('tasks.isShellCommand', { resource: folder.uri })) {
-				await this._configurationService.updateValue('tasks.isShellCommand', undefined, { resource: folder.uri });
+			if (this._configurationService.getValue(TasksSchemaProperties.IsShellCommand, { resource: folder.uri })) {
+				await this._configurationService.updateValue(TasksSchemaProperties.IsShellCommand, undefined, { resource: folder.uri });
 			}
-			if (this._configurationService.getValue('tasks.suppressTaskName', { resource: folder.uri })) {
-				await this._configurationService.updateValue('tasks.suppressTaskName', undefined, { resource: folder.uri });
+			if (this._configurationService.getValue(TasksSchemaProperties.SuppressTaskName, { resource: folder.uri })) {
+				await this._configurationService.updateValue(TasksSchemaProperties.SuppressTaskName, undefined, { resource: folder.uri });
 			}
 		}
 		this._updateSetup();

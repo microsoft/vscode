@@ -781,14 +781,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.titleAreaControl.getHeight();
 	}
 
-	get isMinimized(): boolean {
-		if (!this.dimension) {
-			return false;
-		}
-
-		return this.dimension.width === this.minimumWidth || this.dimension.height === this.minimumHeight;
-	}
-
 	notifyIndexChanged(newIndex: number): void {
 		if (this._index !== newIndex) {
 			this._index = newIndex;
@@ -1322,16 +1314,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region closeEditor()
 
 	async closeEditor(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions): Promise<boolean> {
-		return this.doCloseEditorWithDirtyHandling(editor, options);
+		return this.doCloseEditorWithConfirmationHandling(editor, options);
 	}
 
-	private async doCloseEditorWithDirtyHandling(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions, internalOptions?: IInternalEditorCloseOptions): Promise<boolean> {
+	private async doCloseEditorWithConfirmationHandling(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions, internalOptions?: IInternalEditorCloseOptions): Promise<boolean> {
 		if (!editor) {
 			return false;
 		}
 
-		// Check for dirty and veto
-		const veto = await this.handleDirtyClosing([editor]);
+		// Check for confirmation and veto
+		const veto = await this.handleCloseConfirmation([editor]);
 		if (veto) {
 			return false;
 		}
@@ -1461,7 +1453,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.closeEditor(editor, internalOptions?.context)?.editorIndex;
 	}
 
-	private async handleDirtyClosing(editors: EditorInput[]): Promise<boolean /* veto */> {
+	private async handleCloseConfirmation(editors: EditorInput[]): Promise<boolean /* veto */> {
 		if (!editors.length) {
 			return false; // no veto
 		}
@@ -1470,15 +1462,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// To prevent multiple confirmation dialogs from showing up one after the other
 		// we check if a pending confirmation is currently showing and if so, join that
-		let handleDirtyClosingPromise = this.mapEditorToPendingConfirmation.get(editor);
-		if (!handleDirtyClosingPromise) {
-			handleDirtyClosingPromise = this.doHandleDirtyClosing(editor);
-			this.mapEditorToPendingConfirmation.set(editor, handleDirtyClosingPromise);
+		let handleCloseConfirmationPromise = this.mapEditorToPendingConfirmation.get(editor);
+		if (!handleCloseConfirmationPromise) {
+			handleCloseConfirmationPromise = this.doHandleCloseConfirmation(editor);
+			this.mapEditorToPendingConfirmation.set(editor, handleCloseConfirmationPromise);
 		}
 
 		let veto: boolean;
 		try {
-			veto = await handleDirtyClosingPromise;
+			veto = await handleCloseConfirmationPromise;
 		} finally {
 			this.mapEditorToPendingConfirmation.delete(editor);
 		}
@@ -1489,12 +1481,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Otherwise continue with the remainders
-		return this.handleDirtyClosing(editors);
+		return this.handleCloseConfirmation(editors);
 	}
 
-	private async doHandleDirtyClosing(editor: EditorInput, options?: { skipAutoSave: boolean }): Promise<boolean /* veto */> {
-		if (!editor.isDirty() || editor.isSaving()) {
-			return false; // editor must be dirty and not saving
+	private async doHandleCloseConfirmation(editor: EditorInput, options?: { skipAutoSave: boolean }): Promise<boolean /* veto */> {
+		if (!this.shouldConfirmClose(editor)) {
+			return false; // no veto
 		}
 
 		if (editor instanceof SideBySideEditorInput && this.model.contains(editor.primary)) {
@@ -1531,10 +1523,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// on auto-save configuration.
 		// However, make sure to respect `skipAutoSave` option in case the automated
 		// save fails which would result in the editor never closing.
+		// Also, we only do this if no custom confirmation handling is implemented.
 		let confirmation = ConfirmResult.CANCEL;
 		let saveReason = SaveReason.EXPLICIT;
 		let autoSave = false;
-		if (!editor.hasCapability(EditorInputCapabilities.Untitled) && !options?.skipAutoSave) {
+		if (!editor.hasCapability(EditorInputCapabilities.Untitled) && !options?.skipAutoSave && !editor.closeHandler) {
 
 			// Auto-save on focus change: save, because a dialog would steal focus
 			// (see https://github.com/microsoft/vscode/issues/108752)
@@ -1554,15 +1547,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
-		// No auto-save on focus change: ask user
+		// No auto-save on focus change or custom confirmation handler: ask user
 		if (!autoSave) {
 
-			// Switch to editor that we want to handle and confirm to save/revert
+			// Switch to editor that we want to handle for confirmation
 			await this.doOpenEditor(editor);
 
 			// Let editor handle confirmation if implemented
-			if (typeof editor.confirm === 'function') {
-				confirmation = await editor.confirm();
+			if (typeof editor.closeHandler?.confirm === 'function') {
+				confirmation = await editor.closeHandler.confirm();
 			}
 
 			// Show a file specific confirmation
@@ -1578,11 +1571,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
-		// It could be that the editor saved meanwhile or is saving, so we check
+		// It could be that the editor's choice of confirmation has changed
+		// given the check for confirmation is long running, so we check
 		// again to see if anything needs to happen before closing for good.
-		// This can happen for example if autoSave: onFocusChange is configured
+		// This can happen for example if `autoSave: onFocusChange` is configured
 		// so that the save happens when the dialog opens.
-		if (!editor.isDirty() || editor.isSaving()) {
+		if (!this.shouldConfirmClose(editor)) {
 			return confirmation === ConfirmResult.CANCEL ? true : false;
 		}
 
@@ -1595,7 +1589,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					// we handle the dirty editor again but this time ensuring to
 					// show the confirm dialog
 					// (see https://github.com/microsoft/vscode/issues/108752)
-					return this.doHandleDirtyClosing(editor, { skipAutoSave: true });
+					return this.doHandleCloseConfirmation(editor, { skipAutoSave: true });
 				}
 
 				return editor.isDirty(); // veto if still dirty
@@ -1621,6 +1615,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
+	private shouldConfirmClose(editor: EditorInput): boolean {
+		if (editor.closeHandler) {
+			return editor.closeHandler.showConfirm(); // custom handling of confirmation on close
+		}
+
+		return editor.isDirty() && !editor.isSaving(); // editor must be dirty and not saving
+	}
+
 	//#endregion
 
 	//#region closeEditors()
@@ -1632,8 +1634,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		const editors = this.doGetEditorsToClose(args);
 
-		// Check for dirty and veto
-		const veto = await this.handleDirtyClosing(editors.slice(0));
+		// Check for confirmation and veto
+		const veto = await this.handleCloseConfirmation(editors.slice(0));
 		if (veto) {
 			return false;
 		}
@@ -1714,8 +1716,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return true;
 		}
 
-		// Check for dirty and veto
-		const veto = await this.handleDirtyClosing(this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options));
+		// Check for confirmation and veto
+		const veto = await this.handleCloseConfirmation(this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options));
 		if (veto) {
 			return false;
 		}
@@ -1795,7 +1797,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					this.doCloseEditor(editor, false, { context: EditorCloseContext.REPLACE });
 					closed = true;
 				} else {
-					closed = await this.doCloseEditorWithDirtyHandling(editor, { preserveFocus: true }, { context: EditorCloseContext.REPLACE });
+					closed = await this.doCloseEditorWithConfirmationHandling(editor, { preserveFocus: true }, { context: EditorCloseContext.REPLACE });
 				}
 
 				if (!closed) {
@@ -1815,7 +1817,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				if (activeReplacement.forceReplaceDirty) {
 					this.doCloseEditor(activeReplacement.editor, false, { context: EditorCloseContext.REPLACE });
 				} else {
-					await this.doCloseEditorWithDirtyHandling(activeReplacement.editor, { preserveFocus: true }, { context: EditorCloseContext.REPLACE });
+					await this.doCloseEditorWithConfirmationHandling(activeReplacement.editor, { preserveFocus: true }, { context: EditorCloseContext.REPLACE });
 				}
 			}
 

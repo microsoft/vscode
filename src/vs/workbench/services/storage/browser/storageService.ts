@@ -23,7 +23,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	private applicationStorage: IStorage | undefined;
 	private applicationStorageDatabase: IIndexedDBStorageDatabase | undefined;
-	private readonly applicationStoragePromise = new DeferredPromise<{ indededDb: IIndexedDBStorageDatabase; storage: IStorage }>();
+	private readonly applicationStoragePromise = new DeferredPromise<{ indexedDb: IIndexedDBStorageDatabase; storage: IStorage }>();
 
 	private profileStorage: IStorage | undefined;
 	private profileStorageDatabase: IIndexedDBStorageDatabase | undefined;
@@ -92,7 +92,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 		this.updateIsNew(this.applicationStorage);
 
-		this.applicationStoragePromise.complete({ indededDb: applicationStorageIndexedDB, storage: this.applicationStorage });
+		this.applicationStoragePromise.complete({ indexedDb: applicationStorageIndexedDB, storage: this.applicationStorage });
 	}
 
 	private async createProfileStorage(profile: IUserDataProfile): Promise<void> {
@@ -110,22 +110,24 @@ export class BrowserStorageService extends AbstractStorageService {
 			// avoid creating the storage library a second time on
 			// the same DB.
 
-			const { indededDb: applicationStorageIndexedDB, storage: applicationStorage } = await this.applicationStoragePromise.p;
+			const { indexedDb: applicationStorageIndexedDB, storage: applicationStorage } = await this.applicationStoragePromise.p;
 
 			this.profileStorageDatabase = applicationStorageIndexedDB;
 			this.profileStorage = applicationStorage;
+
+			this.profileStorageDisposables.add(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
 		} else {
 			const profileStorageIndexedDB = await IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.PROFILE), broadcastChanges: true }, this.logService);
 
 			this.profileStorageDatabase = this.profileStorageDisposables.add(profileStorageIndexedDB);
 			this.profileStorage = this.profileStorageDisposables.add(new Storage(this.profileStorageDatabase));
+
+			this.profileStorageDisposables.add(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
+
+			await this.profileStorage.init();
+
+			this.updateIsNew(this.profileStorage);
 		}
-
-		this.profileStorageDisposables.add(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
-
-		await this.profileStorage.init();
-
-		this.updateIsNew(this.profileStorage);
 	}
 
 	private async createWorkspaceStorage(): Promise<void> {

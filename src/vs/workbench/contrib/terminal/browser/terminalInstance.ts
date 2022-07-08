@@ -86,6 +86,7 @@ import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 const enum Constants {
 	/**
@@ -548,7 +549,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _getIcon(): TerminalIcon | undefined {
 		if (!this._icon) {
-			this._icon = this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
+			this._icon = this._processManager.processState >= ProcessState.Launching
+				? getIconRegistry().getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon))
+				: undefined;
 		}
 		return this._icon;
 	}
@@ -695,7 +698,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
 		if (this._shellLaunchConfig.initialText) {
-			this.xterm.raw.writeln(this._shellLaunchConfig.initialText, () => {
+			this._writeInitialText(this.xterm, () => {
 				lineDataEventAddon.onLineData(e => this._onLineData.fire(e));
 			});
 		} else {
@@ -818,7 +821,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._linkManager.openRecentLink(type);
 	}
 
-	async runRecent(type: 'command' | 'cwd'): Promise<void> {
+	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous', value?: string): Promise<void> {
 		if (!this.xterm) {
 			return;
 		}
@@ -965,42 +968,61 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
 		const quickPick = this._quickInputService.createQuickPick();
-		quickPick.items = items;
+		const originalItems = items;
+		quickPick.items = [...originalItems];
 		quickPick.sortByLabel = false;
 		quickPick.placeholder = placeholder;
-		return new Promise<void>(r => {
-			quickPick.onDidTriggerItemButton(async e => {
-				if (e.button === removeFromCommandHistoryButton) {
-					if (type === 'command') {
-						this._instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
-					} else {
-						this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
-					}
+		quickPick.customButton = true;
+		quickPick.matchOnLabelMode = filterMode || 'contiguous';
+		if (filterMode === 'fuzzy') {
+			quickPick.customLabel = nls.localize('terminal.contiguousSearch', 'Use Contiguous Search');
+			quickPick.onDidCustom(() => {
+				quickPick.hide();
+				this.runRecent(type, 'contiguous', quickPick.value);
+			});
+		} else {
+			quickPick.customLabel = nls.localize('terminal.fuzzySearch', 'Use Fuzzy Search');
+			quickPick.onDidCustom(() => {
+				quickPick.hide();
+				this.runRecent(type, 'fuzzy', quickPick.value);
+			});
+		}
+		quickPick.onDidTriggerItemButton(async e => {
+			if (e.button === removeFromCommandHistoryButton) {
+				if (type === 'command') {
+					this._instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
 				} else {
-					const selectedCommand = (e.item as Item).command;
-					const output = selectedCommand?.getOutput();
-					if (output && selectedCommand?.command) {
-						const textContent = await outputProvider.provideTextContent(URI.from(
-							{
-								scheme: TerminalOutputProvider.scheme,
-								path: `${selectedCommand.command}... ${fromNow(selectedCommand.timestamp, true)}`,
-								fragment: output,
-								query: `terminal-output-${selectedCommand.timestamp}-${this.instanceId}`
-							}));
-						if (textContent) {
-							await this._editorService.openEditor({
-								resource: textContent.uri
-							});
-						}
+					this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
+				}
+			} else {
+				const selectedCommand = (e.item as Item).command;
+				const output = selectedCommand?.getOutput();
+				if (output && selectedCommand?.command) {
+					const textContent = await outputProvider.provideTextContent(URI.from(
+						{
+							scheme: TerminalOutputProvider.scheme,
+							path: `${selectedCommand.command}... ${fromNow(selectedCommand.timestamp, true)}`,
+							fragment: output,
+							query: `terminal-output-${selectedCommand.timestamp}-${this.instanceId}`
+						}));
+					if (textContent) {
+						await this._editorService.openEditor({
+							resource: textContent.uri
+						});
 					}
 				}
-				quickPick.hide();
-			});
-			quickPick.onDidAccept(() => {
-				const result = quickPick.activeItems[0];
-				this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, !quickPick.keyMods.alt);
-				quickPick.hide();
-			});
+			}
+			quickPick.hide();
+		});
+		quickPick.onDidAccept(() => {
+			const result = quickPick.activeItems[0];
+			this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, !quickPick.keyMods.alt);
+			quickPick.hide();
+		});
+		if (value) {
+			quickPick.value = value;
+		}
+		return new Promise<void>(r => {
 			quickPick.show();
 			quickPick.onDidHide(() => r());
 		});
@@ -1799,29 +1821,49 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	private _writeInitialText(xterm: XtermTerminal, callback?: () => void): void {
+		if (!this._shellLaunchConfig.initialText) {
+			callback?.();
+			return;
+		}
+		const text = typeof this._shellLaunchConfig.initialText === 'string'
+			? this._shellLaunchConfig.initialText
+			: this._shellLaunchConfig.initialText?.text;
+		if (typeof this._shellLaunchConfig.initialText === 'string') {
+			xterm.raw.writeln(text, callback);
+		} else {
+			if (this._shellLaunchConfig.initialText.trailingNewLine) {
+				xterm.raw.writeln(text, callback);
+			} else {
+				xterm.raw.write(text, callback);
+			}
+		}
+	}
+
 	async reuseTerminal(shell: IShellLaunchConfig, reset: boolean = false): Promise<void> {
 		// Unsubscribe any key listener we may have.
 		this._pressAnyKeyToCloseListener?.dispose();
 		this._pressAnyKeyToCloseListener = undefined;
 
-		if (this.xterm) {
+		const xterm = this.xterm;
+		if (xterm) {
 			if (!reset) {
 				// Ensure new processes' output starts at start of new line
-				await new Promise<void>(r => this.xterm!.raw.write('\n\x1b[G', r));
+				await new Promise<void>(r => xterm.raw.write('\n\x1b[G', r));
 			}
 
 			// Print initialText if specified
 			if (shell.initialText) {
-				await new Promise<void>(r => this.xterm!.raw.writeln(shell.initialText!, r));
+				await new Promise<void>(r => this._writeInitialText(xterm, r));
 			}
 
 			// Clean up waitOnExit state
 			if (this._isExiting && this._shellLaunchConfig.waitOnExit) {
-				this.xterm.raw.options.disableStdin = false;
+				xterm.raw.options.disableStdin = false;
 				this._isExiting = false;
 			}
 			if (reset) {
-				this.xterm.clearDecorations();
+				xterm.clearDecorations();
 			}
 		}
 
