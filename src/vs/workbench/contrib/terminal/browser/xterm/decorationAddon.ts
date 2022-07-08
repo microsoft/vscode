@@ -28,13 +28,15 @@ import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProc
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
+	Hide = 'hide',
 	ErrorColor = 'error',
 	DefaultColor = 'default-color',
 	Default = 'default',
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
 	OverviewRuler = 'xterm-decoration-overview-ruler',
-	GenericMarkerIcon = 'codicon-circle-small-filled'
+	GenericMarkerIcon = 'codicon-circle-small-filled',
+	Container = '.xterm-decoration-container'
 }
 
 const enum DecorationStyles {
@@ -79,6 +81,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this.refreshLayouts();
 			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
 				this._refreshStyles(true);
+			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) || e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled)) {
+				const enabledDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled) && this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
+				if (!enabledDecorations) {
+					document.querySelector(DecorationSelector.Container)?.classList.add('hide');
+				} else {
+					document.querySelector(DecorationSelector.Container)?.classList.remove('hide');
+				}
 			}
 		});
 		this._themeService.onDidColorThemeChange(() => this._refreshStyles(true));
@@ -365,7 +374,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				run: () => this._clipboardService.writeText(command.command)
 			});
 		}
-		if (command.hasOutput()) {
+		if (command.hasOutput) {
 			if (actions.length > 0) {
 				actions.push(new Separator());
 			}
