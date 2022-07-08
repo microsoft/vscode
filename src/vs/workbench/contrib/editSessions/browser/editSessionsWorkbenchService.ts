@@ -14,11 +14,12 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
+import { createSyncHeaders, IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsWorkbenchService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { generateUuid } from 'vs/base/common/uuid';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -73,7 +74,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			throw new Error('Please sign in to store your edit session.');
 		}
 
-		return this.storeClient!.write('editSessions', JSON.stringify(editSession), null);
+		return this.storeClient!.write('editSessions', JSON.stringify(editSession), null, createSyncHeaders(generateUuid()));
 	}
 
 	/**
@@ -89,11 +90,12 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		let content: string | undefined | null;
+		const headers = createSyncHeaders(generateUuid());
 		try {
 			if (ref !== undefined) {
-				content = await this.storeClient?.resolveContent('editSessions', ref);
+				content = await this.storeClient?.resolveContent('editSessions', ref, headers);
 			} else {
-				const result = await this.storeClient?.read('editSessions', null);
+				const result = await this.storeClient?.read('editSessions', null, headers);
 				content = result?.content;
 				ref = result?.ref;
 			}
