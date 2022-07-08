@@ -203,7 +203,7 @@ export class ExtHostTerminal {
 		this._name = name;
 	}
 
-	public setExitCode(code: number | undefined, reason: TerminalExitReason | undefined) {
+	public setExitCode(code: number | undefined, reason: TerminalExitReason) {
 		this._exitStatus = Object.freeze({ code, reason });
 	}
 
@@ -500,7 +500,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 	}
 
-	public async $acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason | undefined): Promise<void> {
+	public async $acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason): Promise<void> {
 		const index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
 			const terminal = this._terminals.splice(index, 1)[0];

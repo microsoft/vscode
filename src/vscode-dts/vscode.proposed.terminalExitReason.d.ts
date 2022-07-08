@@ -41,7 +41,7 @@ declare module 'vscode' {
 		/**
 		 * The reason that triggered the exit of a terminal.
 		 */
-		readonly reason: TerminalExitReason | undefined;
+		readonly reason: TerminalExitReason;
 	}
 
 }

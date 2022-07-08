@@ -253,7 +253,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
-		this._proxy.$acceptTerminalClosed(terminalInstance.instanceId, terminalInstance.exitCode, terminalInstance.exitReason);
+		this._proxy.$acceptTerminalClosed(terminalInstance.instanceId, terminalInstance.exitCode, terminalInstance.exitReason ?? TerminalExitReason.Unknown);
 	}
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {

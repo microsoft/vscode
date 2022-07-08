@@ -1368,7 +1368,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._pressAnyKeyToCloseListener = undefined;
 		}
 
-		this._exitReason = reason || TerminalExitReason.Unknown;
+		if (typeof this._exitReason === 'undefined') {
+			this._exitReason = reason ?? TerminalExitReason.Unknown;
+		}
+
 		this._processManager.dispose();
 		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
 		// hasn't happened yet
