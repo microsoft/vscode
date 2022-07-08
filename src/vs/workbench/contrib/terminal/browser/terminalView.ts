@@ -46,6 +46,7 @@ import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -65,7 +66,7 @@ export class TerminalViewPane extends ViewPane {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -81,7 +82,7 @@ export class TerminalViewPane extends ViewPane {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
-		super(options, keybindingService, _contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, _contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
 			if (this._actions) {
 				for (const action of this._actions) {
@@ -111,18 +112,32 @@ export class TerminalViewPane extends ViewPane {
 				this._terminalTabbedView?.rerenderTabs();
 			}
 		}));
-		configurationService.onDidChangeConfiguration(e => {
-			if ((e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) && !configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) ||
-				(e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled) && !configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled))) {
-				this._parentDomElement?.classList.remove('shell-integration');
-			} else if (configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled) && configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)) {
-				this._parentDomElement?.classList.add('shell-integration');
+		_configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) || e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled)) {
+				this._updateForShellIntegration();
 			}
 		});
+		this._register(this._terminalService.onDidCreateInstance((i) => {
+			i.capabilities.onDidAddCapability(c => {
+				if (c === TerminalCapability.CommandDetection && !this._gutterDecorationsEnabled()) {
+					this._parentDomElement?.classList.add('shell-integration');
+				}
+			});
+		}));
+		this._updateForShellIntegration();
+	}
 
-		if (configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled) && configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)) {
+	private _updateForShellIntegration() {
+		if (this._gutterDecorationsEnabled()) {
 			this._parentDomElement?.classList.add('shell-integration');
+		} else {
+			this._parentDomElement?.classList.remove('shell-integration');
 		}
+	}
+
+	private _gutterDecorationsEnabled(): boolean {
+		const decorationsEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+		return (decorationsEnabled === 'both' || decorationsEnabled === 'gutter') && this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
 	}
 
 	override renderBody(container: HTMLElement): void {

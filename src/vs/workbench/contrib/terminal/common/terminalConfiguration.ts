@@ -553,8 +553,15 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.ShellIntegrationDecorationsEnabled]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellIntegration.decorationsEnabled', "When shell integration is enabled, adds a decoration for each command."),
-			type: 'boolean',
-			default: true
+			type: 'string',
+			enum: ['both', 'gutter', 'overviewRuler', 'never'],
+			enumDescriptions: [
+				localize('terminal.integrated.shellIntegration.decorationsEnabled.both', "Show decorations in the gutter (left) and overviewRuler (right)"),
+				localize('terminal.integrated.shellIntegration.decorationsEnabled.gutter', "Show gutter decorations to the left of the terminal"),
+				localize('terminal.integrated.shellIntegration.decorationsEnabled.overviewRuler', "Show overview ruler decorations to the right of the terminal"),
+				localize('terminal.integrated.shellIntegration.decorationsEnabled.never', "Do not show decorations"),
+			],
+			default: 'both'
 		},
 		[TerminalSettingId.ShellIntegrationCommandHistory]: {
 			restricted: true,
