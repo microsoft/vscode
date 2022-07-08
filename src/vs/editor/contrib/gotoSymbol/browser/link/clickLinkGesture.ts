@@ -28,7 +28,7 @@ export class ClickLinkMouseEvent {
 
 	constructor(source: IEditorMouseEvent, opts: ClickLinkOptions) {
 		this.target = source.target;
-		this.hasTriggerModifier = hasModifier(source.event, opts.triggerModifier);
+		this.hasTriggerModifier = hasModifier(source.event, opts.triggerModifier) || (opts.middleMouseTrigger && source.event.middleButton);
 		this.hasSideBySideModifier = hasModifier(source.event, opts.triggerSideBySideModifier);
 		this.isNoneOrSingleMouseDown = (source.event.detail <= 1);
 	}
@@ -57,17 +57,20 @@ export class ClickLinkOptions {
 	public readonly triggerModifier: TriggerModifier;
 	public readonly triggerSideBySideKey: KeyCode;
 	public readonly triggerSideBySideModifier: TriggerModifier;
+	public readonly middleMouseTrigger: boolean;
 
 	constructor(
 		triggerKey: KeyCode,
 		triggerModifier: TriggerModifier,
 		triggerSideBySideKey: KeyCode,
-		triggerSideBySideModifier: TriggerModifier
+		triggerSideBySideModifier: TriggerModifier,
+		middleMouseTrigger: boolean,
 	) {
 		this.triggerKey = triggerKey;
 		this.triggerModifier = triggerModifier;
 		this.triggerSideBySideKey = triggerSideBySideKey;
 		this.triggerSideBySideModifier = triggerSideBySideModifier;
+		this.middleMouseTrigger = middleMouseTrigger;
 	}
 
 	public equals(other: ClickLinkOptions): boolean {
@@ -76,22 +79,23 @@ export class ClickLinkOptions {
 			&& this.triggerModifier === other.triggerModifier
 			&& this.triggerSideBySideKey === other.triggerSideBySideKey
 			&& this.triggerSideBySideModifier === other.triggerSideBySideModifier
+			&& this.middleMouseTrigger === other.middleMouseTrigger
 		);
 	}
 }
 
-function createOptions(multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey'): ClickLinkOptions {
+function createOptions(multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey', middleMouseButtonOpenLinks: boolean): ClickLinkOptions {
 	if (multiCursorModifier === 'altKey') {
 		if (platform.isMacintosh) {
-			return new ClickLinkOptions(KeyCode.Meta, 'metaKey', KeyCode.Alt, 'altKey');
+			return new ClickLinkOptions(KeyCode.Meta, 'metaKey', KeyCode.Alt, 'altKey', middleMouseButtonOpenLinks);
 		}
-		return new ClickLinkOptions(KeyCode.Ctrl, 'ctrlKey', KeyCode.Alt, 'altKey');
+		return new ClickLinkOptions(KeyCode.Ctrl, 'ctrlKey', KeyCode.Alt, 'altKey', middleMouseButtonOpenLinks);
 	}
 
 	if (platform.isMacintosh) {
-		return new ClickLinkOptions(KeyCode.Alt, 'altKey', KeyCode.Meta, 'metaKey');
+		return new ClickLinkOptions(KeyCode.Alt, 'altKey', KeyCode.Meta, 'metaKey', middleMouseButtonOpenLinks);
 	}
-	return new ClickLinkOptions(KeyCode.Alt, 'altKey', KeyCode.Ctrl, 'ctrlKey');
+	return new ClickLinkOptions(KeyCode.Alt, 'altKey', KeyCode.Ctrl, 'ctrlKey', middleMouseButtonOpenLinks);
 }
 
 export class ClickLinkGesture extends Disposable {
@@ -116,15 +120,15 @@ export class ClickLinkGesture extends Disposable {
 		super();
 
 		this._editor = editor;
-		this._opts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
+		this._opts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier), this._editor.getOption(EditorOption.middleMouseButtonOpenLinks));
 
 		this._lastMouseMoveEvent = null;
 		this._hasTriggerKeyOnMouseDown = false;
 		this._lineNumberOnMouseDown = 0;
 
 		this._register(this._editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.multiCursorModifier)) {
-				const newOpts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
+			if (e.hasChanged(EditorOption.multiCursorModifier) || e.hasChanged(EditorOption.middleMouseButtonOpenLinks)) {
+				const newOpts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier), this._editor.getOption(EditorOption.middleMouseButtonOpenLinks));
 				if (this._opts.equals(newOpts)) {
 					return;
 				}

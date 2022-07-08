@@ -371,6 +371,10 @@ export interface IEditorOptions {
 	 */
 	multiCursorPaste?: 'spread' | 'full';
 	/**
+	 * Enables middle mouse button to open links and Go To Definition
+	 */
+	middleMouseButtonOpenLinks?: boolean;
+	/**
 	 * Configure the editor's accessibility support.
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
 	 */
@@ -4489,6 +4493,7 @@ export const enum EditorOption {
 	mouseWheelZoom,
 	multiCursorMergeOverlapping,
 	multiCursorModifier,
+	middleMouseButtonOpenLinks,
 	multiCursorPaste,
 	occurrencesHighlight,
 	overviewRulerBorder,
@@ -4899,6 +4904,10 @@ export const EditorOptions = {
 				]
 			}, "The modifier to be used to add multiple cursors with the mouse. The Go to Definition and Open Link mouse gestures will adapt such that they do not conflict with the [multicursor modifier](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
 		}
+	)),
+	middleMouseButtonOpenLinks: register(new EditorBooleanOption(
+		EditorOption.middleMouseButtonOpenLinks, 'middleMouseButtonOpenLinks', false,
+		{ description: nls.localize('middleMouseButtonOpenLinks', "Middle mouse button will open links and invoke 'Go To Definition'") }
 	)),
 	multiCursorPaste: register(new EditorStringEnumOption(
 		EditorOption.multiCursorPaste, 'multiCursorPaste',
