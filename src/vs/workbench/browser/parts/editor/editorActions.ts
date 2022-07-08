@@ -1023,7 +1023,7 @@ export class MinimizeOtherGroupsAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+		this.editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
 	}
 }
 
@@ -1074,7 +1074,7 @@ export class MaximizeGroupAction extends Action {
 		if (this.editorService.activeEditor) {
 			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+			this.editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
 		}
 	}
 }

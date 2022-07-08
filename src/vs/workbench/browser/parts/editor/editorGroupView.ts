@@ -781,14 +781,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.titleAreaControl.getHeight();
 	}
 
-	get isMinimized(): boolean {
-		if (!this.dimension) {
-			return false;
-		}
-
-		return this.dimension.width === this.minimumWidth || this.dimension.height === this.minimumHeight;
-	}
-
 	notifyIndexChanged(newIndex: number): void {
 		if (this._index !== newIndex) {
 			this._index = newIndex;
