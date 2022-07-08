@@ -355,6 +355,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _terminalHasFixedWidth: IContextKey<boolean>,
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalAltBufferActiveContextKey: IContextKey<boolean>,
+		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		resource: URI | undefined,
@@ -1024,7 +1025,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		return new Promise<void>(r => {
 			quickPick.show();
-			quickPick.onDidHide(() => r());
+			this._terminalInRunCommandPicker.set(true);
+			quickPick.onDidHide(() => {
+				this._terminalInRunCommandPicker.set(false);
+				r();
+			});
 		});
 	}
 
