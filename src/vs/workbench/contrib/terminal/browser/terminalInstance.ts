@@ -1368,7 +1368,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._pressAnyKeyToCloseListener = undefined;
 		}
 
-		if (typeof this._exitReason === 'undefined') {
+		if (this._exitReason === undefined) {
 			this._exitReason = reason ?? TerminalExitReason.Unknown;
 		}
 
