@@ -36,7 +36,6 @@ export function setup() {
 			});
 			describe('Decorations', function () {
 				describe('Should show default icons', function () {
-
 					it('Placeholder', async () => {
 						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
@@ -65,8 +64,8 @@ export function setup() {
 						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 					});
 				});
-				describe('Disabled', function () {
-					it('Should update and hide icons', async () => {
+				describe('Visibility', function () {
+					it('Should show or hide the icons and overview ruler', async () => {
 						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 						await terminal.runCommandInTerminal(`echo "foo"`);
@@ -74,6 +73,8 @@ export function setup() {
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
 						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', 'false');
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 }, undefined, true);
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', 'true');
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
 						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
 					});
 				});
